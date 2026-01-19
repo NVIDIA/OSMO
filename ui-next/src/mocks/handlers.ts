@@ -36,6 +36,7 @@ import {
   portForwardGenerator,
   ptySimulator,
   type PTYScenario,
+  getLogScenario,
 } from "./generators";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
@@ -193,18 +194,129 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
 
-  // Workflow logs
-  http.get("/api/workflow/:name/logs", async ({ params }) => {
+  // Workflow logs (with scenario and streaming support)
+  // Matches real backend: /api/workflow/{name}/logs from workflow_service.py:711-749
+  //
+  // Real backend params:
+  //   - last_n_lines: int - limit to last N lines
+  //   - task_name: str - filter to specific task
+  //   - retry_id: int - filter to specific retry
+  //   - query: str - regex filter pattern
+  //
+  // Dev-only params (for testing):
+  //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
+  //   - log_delay: Override streaming delay (ms)
+  http.get("/api/workflow/:name/logs", async ({ params, request }) => {
+    const name = params.name as string;
+    const url = new URL(request.url);
+
+    // Real backend params
+    const lastNLines = url.searchParams.get("last_n_lines");
+    const taskFilter = url.searchParams.get("task_name");
+    const retryId = url.searchParams.get("retry_id");
+    const queryPattern = url.searchParams.get("query");
+
+    // Dev-only params
+    const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
+    const delayOverride = url.searchParams.get("log_delay");
+
+    const scenario = getLogScenario(scenarioName);
+    const workflow = workflowGenerator.getByName(name);
+    const taskNames = taskFilter
+      ? [taskFilter]
+      : (workflow?.groups.flatMap((g) => g.tasks.map((t) => t.name)) ?? ["main"]);
+
+    // Helper function to filter logs (matches backend filter_log behavior)
+    const filterLogs = (logs: string): string => {
+      let lines = logs.split("\n");
+
+      // Apply task_name + retry_id filtering (regex-based like backend fallback)
+      if (taskFilter) {
+        const retryNum = retryId ? parseInt(retryId, 10) : 0;
+        const taskRegex =
+          retryNum > 0
+            ? new RegExp(`^[^ ]+ [^ ]+ \\[${taskFilter} retry-${retryNum}\\]`)
+            : new RegExp(`^[^ ]+ [^ ]+ \\[${taskFilter}\\]`);
+        lines = lines.filter((line) => taskRegex.test(line));
+      }
+
+      // Apply query regex filter
+      if (queryPattern) {
+        try {
+          const regex = new RegExp(queryPattern);
+          lines = lines.filter((line) => regex.test(line));
+        } catch {
+          // Invalid regex, skip filtering
+        }
+      }
+
+      // Apply last_n_lines limit
+      if (lastNLines) {
+        const limit = parseInt(lastNLines, 10);
+        if (!isNaN(limit) && limit > 0) {
+          lines = lines.slice(-limit);
+        }
+      }
+
+      return lines.join("\n");
+    };
+
+    // For streaming scenario, return ReadableStream with trickled output
+    if (scenario.features.streaming) {
+      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          const generator = logGenerator.createStream(name, scenario, taskNames);
+
+          try {
+            for await (const chunk of generator) {
+              controller.enqueue(encoder.encode(chunk));
+              // Apply delay between chunks to simulate real streaming
+              await new Promise((resolve) => setTimeout(resolve, streamDelay));
+            }
+          } catch {
+            // Stream was likely cancelled by client
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      // Response headers match real backend from workflow_service.py:706-707
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=us-ascii",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "no-cache",
+          "X-Log-Scenario": scenarioName, // Dev-only header for testing
+        },
+      });
+    }
+
+    // For non-streaming scenarios, apply minimal delay and return all at once
     await delay(MOCK_DELAY);
 
-    const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-    const taskNames = workflow?.groups.flatMap((g) => g.tasks.map((t) => t.name)) || ["main"];
+    // Use scenario-based generation
+    let logs = logGenerator.generateForScenario(name, scenarioName, taskNames);
 
-    const logs = logGenerator.generateWorkflowLogs(name, taskNames, workflow?.status || "RUNNING");
+    // Apply filters (matches real backend behavior)
+    logs = filterLogs(logs);
 
-    return HttpResponse.text(logs);
+    // Response headers match real backend from workflow_service.py:706-707
+    return new Response(logs, {
+      headers: {
+        "Content-Type": "text/plain; charset=us-ascii",
+        "X-Content-Type-Options": "nosniff",
+        "X-Log-Scenario": scenarioName, // Dev-only header for testing
+        "X-Log-Count": logs.split("\n").filter(Boolean).length.toString(),
+      },
+    });
   }),
+
+  // NOTE: /api/workflow/:name/logs/stream was removed - not a real backend endpoint
+  // Streaming is handled via the regular /logs endpoint with Transfer-Encoding: chunked
 
   // Workflow events
   http.get("/api/workflow/:name/events", async ({ params }) => {
@@ -254,15 +366,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     return HttpResponse.text(spec);
   }),
 
-  // Workflow artifacts
-  http.get("/api/workflow/:name/artifacts", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const name = params.name as string;
-    const artifacts = bucketGenerator.generateWorkflowArtifacts("osmo-artifacts", name, 20);
-
-    return HttpResponse.json(artifacts);
-  }),
+  // NOTE: /api/workflow/:name/artifacts was removed - not a real backend endpoint
+  // Artifacts are accessed via bucket APIs: /api/bucket/${bucket}/query
 
   // ==========================================================================
   // Tasks
@@ -323,17 +428,71 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     return new HttpResponse(null, { status: 404 });
   }),
 
-  // Task logs
-  // SINGLE SOURCE OF TRUTH: Get task status from workflow
-  http.get("/api/workflow/:name/task/:taskName/logs", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
+  // Task logs (with scenario support)
+  // Query params:
+  //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
+  //   - log_delay: Override streaming delay (ms)
+  http.get("/api/workflow/:name/task/:taskName/logs", async ({ params, request }) => {
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
+    const url = new URL(request.url);
 
+    // Parse scenario from URL params (for dev testing)
+    const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
+    const delayOverride = url.searchParams.get("log_delay");
+
+    const scenario = getLogScenario(scenarioName);
     const workflow = workflowGenerator.getByName(workflowName);
     const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
-    const status = task?.status || "RUNNING";
+
+    // For streaming scenario, return ReadableStream with trickled output
+    if (scenario.features.streaming) {
+      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          const generator = logGenerator.createStream(workflowName, scenario, [taskName]);
+
+          try {
+            for await (const chunk of generator) {
+              controller.enqueue(encoder.encode(chunk));
+              await new Promise((resolve) => setTimeout(resolve, streamDelay));
+            }
+          } catch {
+            // Stream was likely cancelled by client
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Transfer-Encoding": "chunked",
+          "Cache-Control": "no-cache",
+          "X-Log-Scenario": scenarioName,
+        },
+      });
+    }
+
+    // For non-streaming scenarios, use legacy task log generation or scenario-based
+    await delay(MOCK_DELAY);
+
+    // If using a specific scenario, use scenario-based generation
+    if (scenarioName !== "normal") {
+      const logs = logGenerator.generateForScenario(workflowName, scenarioName, [taskName]);
+      return new Response(logs, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-Log-Scenario": scenarioName,
+        },
+      });
+    }
+
+    // Use legacy method for backward compatibility in normal case
+    const status = task?.status ?? "RUNNING";
     const duration =
       task?.end_time && task?.start_time
         ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
@@ -429,57 +588,12 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  // Get PTY session info (for reconnection check)
-  http.get("/api/workflow/:name/exec/task/:taskName/session/:sessionId", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const sessionId = params.sessionId as string;
-    const session = ptySimulator.getSession(sessionId);
-
-    if (!session) {
-      return HttpResponse.json({ detail: "Session not found or expired" }, { status: 404 });
-    }
-
-    return HttpResponse.json({
-      session_id: session.id,
-      workflow_name: session.workflowName,
-      task_name: session.taskName,
-      shell: session.shell,
-      created_at: session.createdAt.toISOString(),
-      is_connected: session.isConnected,
-      rows: session.rows,
-      cols: session.cols,
-    });
-  }),
-
-  // List active PTY sessions
-  http.get("/api/workflow/:name/exec/sessions", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const workflowName = params.name as string;
-    const allSessions = ptySimulator.getAllSessions();
-    const workflowSessions = allSessions.filter((s) => s.workflowName === workflowName);
-
-    return HttpResponse.json({
-      sessions: workflowSessions.map((s) => ({
-        session_id: s.id,
-        task_name: s.taskName,
-        shell: s.shell,
-        created_at: s.createdAt.toISOString(),
-        is_connected: s.isConnected,
-      })),
-    });
-  }),
-
-  // Close PTY session
-  http.delete("/api/workflow/:name/exec/task/:taskName/session/:sessionId", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const sessionId = params.sessionId as string;
-    ptySimulator.closeSession(sessionId);
-
-    return HttpResponse.json({ success: true });
-  }),
+  // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:
+  // - GET /api/workflow/:name/exec/task/:taskName/session/:sessionId
+  // - GET /api/workflow/:name/exec/sessions
+  // - DELETE /api/workflow/:name/exec/task/:taskName/session/:sessionId
+  // The backend only provides POST /api/workflow/:name/exec/task/:taskName which returns
+  // WebSocket connection info. Session management is handled client-side.
 
   // ==========================================================================
   // Port Forward
@@ -506,15 +620,9 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  // Get active port forwards for workflow
-  http.get("/api/workflow/:name/portforward", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const workflowName = params.name as string;
-    const sessions = portForwardGenerator.getWorkflowSessions(workflowName);
-
-    return HttpResponse.json({ sessions });
-  }),
+  // NOTE: GET /api/workflow/:name/portforward was removed - not a real backend endpoint
+  // Port forwards are created via POST /api/workflow/:name/webserver/:taskName
+  // or POST /api/workflow/:name/portforward/:taskName
 
   // ==========================================================================
   // Pools (matches PoolResponse format for /api/pool_quota)
@@ -542,45 +650,35 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     return HttpResponse.json(poolGenerator.generatePoolResponse());
   }),
 
-  // List pools (legacy endpoint)
+  // List pools - returns pool names as plain text (matches backend behavior)
+  // The UI uses /api/pool_quota instead for detailed pool info
   http.get("/api/pool", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const allPools = url.searchParams.get("all_pools") === "true";
+    const poolsParam = url.searchParams.get("pools");
 
-    const { entries, total } = poolGenerator.generatePage(offset, limit);
+    let poolNames: string[];
+    if (poolsParam) {
+      poolNames = poolsParam.split(",").map((p) => p.trim());
+    } else if (allPools) {
+      poolNames = poolGenerator.getPoolNames();
+    } else {
+      poolNames = poolGenerator.getPoolNames().slice(0, 10); // Default subset
+    }
 
-    return HttpResponse.json({
-      entries,
-      total,
+    // Backend returns plain text list of pool names
+    return new Response(poolNames.join("\n"), {
+      headers: { "Content-Type": "text/plain" },
     });
   }),
 
-  // Get single pool
-  http.get("/api/pool/:name", async ({ params }) => {
-    await delay(MOCK_DELAY);
+  // NOTE: /api/pool/:name was removed - not a real backend endpoint
+  // Use /api/pool_quota?pools=X instead
 
-    const name = params.name as string;
-    const pool = poolGenerator.getByName(name);
-
-    if (!pool) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.json(pool);
-  }),
-
-  // Pool resources (matches ResourcesResponse: { resources: ResourcesEntry[] })
-  http.get("/api/pool/:name/resources", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const poolName = params.name as string;
-    const { resources } = resourceGenerator.generatePage(poolName, 0, 100);
-
-    return HttpResponse.json({ resources });
-  }),
+  // NOTE: /api/pool/:name/resources was removed - not a real backend endpoint
+  // Use /api/resources?pools=X instead
 
   // ==========================================================================
   // Resources (matches ResourcesResponse: { resources: ResourcesEntry[] })
@@ -619,10 +717,10 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   }),
 
   // ==========================================================================
-  // Buckets (infinite pagination)
+  // Buckets
   // ==========================================================================
 
-  // List buckets
+  // List buckets - returns BucketInfoResponse format
   http.get("/api/bucket", async ({ request }) => {
     await delay(MOCK_DELAY);
 
@@ -630,33 +728,28 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const offset = parseInt(url.searchParams.get("offset") || "0", 10);
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
 
-    const { entries, total } = bucketGenerator.generateBucketPage(offset, limit);
+    const { entries } = bucketGenerator.generateBucketPage(offset, limit);
 
-    return HttpResponse.json({
-      entries,
-      total,
-    });
-  }),
-
-  // Get bucket
-  http.get("/api/bucket/:name", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const name = params.name as string;
-    const bucket = bucketGenerator.getBucketByName(name);
-
-    if (!bucket) {
-      return new HttpResponse(null, { status: 404 });
+    // Convert to BucketInfoResponse format: { buckets: { [name]: BucketInfoEntry } }
+    const buckets: Record<string, { path: string; description: string; mode: string; default_cred: boolean }> = {};
+    for (const entry of entries) {
+      buckets[entry.name] = {
+        // Map mock fields to BucketInfoEntry fields
+        path: entry.endpoint || `s3://${entry.name}`,
+        description: `${entry.provider} bucket in ${entry.region}`,
+        mode: "rw",
+        default_cred: true,
+      };
     }
 
-    return HttpResponse.json(bucket);
+    return HttpResponse.json({ buckets });
   }),
 
-  // List bucket contents
-  http.get("/api/bucket/:name/list", async ({ params, request }) => {
+  // Query bucket contents - matches /api/bucket/${bucket}/query
+  http.get("/api/bucket/:bucket/query", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
-    const bucketName = params.name as string;
+    const bucketName = params.bucket as string;
     const url = new URL(request.url);
     const prefix = url.searchParams.get("prefix") || "";
     const limit = parseInt(url.searchParams.get("limit") || "100", 10);
@@ -670,6 +763,9 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
     return HttpResponse.json(artifacts);
   }),
+
+  // NOTE: /api/bucket/:name and /api/bucket/:name/list were removed - not real backend endpoints
+  // Use /api/bucket for list and /api/bucket/${bucket}/query for contents
 
   // ==========================================================================
   // Datasets (infinite pagination)
@@ -710,33 +806,15 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  // List dataset collections
-  http.get("/api/bucket/collections", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
-
-    const { entries, total } = datasetGenerator.generateCollectionPage(offset, limit);
-
-    return HttpResponse.json({
-      entries,
-      total,
-    });
-  }),
+  // NOTE: /api/bucket/collections was removed - not a real backend endpoint
+  // Collections are accessed via /api/bucket/list_dataset with type filter
 
   // ==========================================================================
   // Profile
   // ==========================================================================
 
-  // Get current user profile
-  http.get("/api/profile", async () => {
-    await delay(MOCK_DELAY);
-
-    const profile = profileGenerator.generateProfile("current.user");
-    return HttpResponse.json(profile);
-  }),
+  // NOTE: /api/profile was removed - not a real backend endpoint
+  // Only /api/profile/settings exists in the backend
 
   // Get profile settings
   http.get("/api/profile/settings", async () => {
@@ -746,8 +824,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     return HttpResponse.json(settings);
   }),
 
-  // Update profile settings
-  http.put("/api/profile/settings", async ({ request }) => {
+  // Update profile settings (POST, not PUT - matching backend)
+  http.post("/api/profile/settings", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const body = (await request.json()) as Record<string, unknown>;
@@ -759,15 +837,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Auth
   // ==========================================================================
 
-  http.get("/api/auth/login", async () => {
-    await delay(MOCK_DELAY);
-
-    return HttpResponse.json({
-      auth_enabled: true,
-      browser_client_id: "mock-client",
-      token_endpoint: "https://mock.auth/token",
-    });
-  }),
+  // NOTE: /api/auth/login was removed - not a real backend endpoint
+  // Auth endpoints are: /api/auth/refresh_token, /api/auth/access_token, etc.
 
   // Next.js API routes for auth (these intercept client requests before they reach the server)
   http.get("/auth/login_info", async () => {

@@ -28,6 +28,12 @@
  *
  * // Constants
  * import { LOG_LEVELS, LOG_LEVEL_STYLES, getLogLevelStyle } from "@/lib/api/log-adapter";
+ *
+ * // Hooks (client-side only)
+ * import { useLogQuery, useLogTail, useLogFacets } from "@/lib/api/log-adapter/hooks";
+ *
+ * // Adapters
+ * import { PlainTextAdapter, parseLogBatch } from "@/lib/api/log-adapter/adapters";
  * ```
  */
 
@@ -87,3 +93,21 @@ export {
 } from "./constants";
 
 export type { LogLevelStyle, LogFieldDefinition } from "./constants";
+
+// =============================================================================
+// Adapters (re-export for convenience, but prefer direct import for tree-shaking)
+// =============================================================================
+
+export {
+  // Parser functions
+  parseLogLine,
+  parseLogBatch,
+  stripAnsi,
+  // Index class
+  LogIndex,
+  // Plain Text Adapter
+  PlainTextAdapter,
+  createPlainTextAdapter,
+} from "./adapters";
+
+export type { LogIndexFilterOptions, PlainTextAdapterConfig } from "./adapters";

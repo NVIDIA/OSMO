@@ -31,13 +31,7 @@ import type { LogLevel, LogIOType } from "./types";
  * Ordered list of log levels from least to most severe.
  * Order matters for filtering (e.g., "warn and above").
  */
-export const LOG_LEVELS: readonly LogLevel[] = [
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-] as const;
+export const LOG_LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error", "fatal"] as const;
 
 /**
  * Log level severity index for comparison.
@@ -153,13 +147,7 @@ export function getLogLevelStyle(level: LogLevel | undefined): LogLevelStyle {
 /**
  * All supported IO types for log output streams.
  */
-export const LOG_IO_TYPES: readonly LogIOType[] = [
-  "stdout",
-  "stderr",
-  "osmo_ctrl",
-  "download",
-  "upload",
-] as const;
+export const LOG_IO_TYPES: readonly LogIOType[] = ["stdout", "stderr", "osmo_ctrl", "download", "upload"] as const;
 
 /**
  * Human-readable labels for IO types.
