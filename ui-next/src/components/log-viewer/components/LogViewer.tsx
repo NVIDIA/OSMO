@@ -11,6 +11,7 @@
 import { memo, useCallback, useMemo, useState, useEffect, startTransition } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
+import { formatLogLine } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
 import { QueryBar } from "./QueryBar";
@@ -161,7 +162,7 @@ function matchesFilter(entry: LogEntry, field: string, value: string): boolean {
     case "io_type":
       return entry.labels.io_type === value;
     case "text":
-      return entry.line.toLowerCase().includes(value.toLowerCase());
+      return entry.message.toLowerCase().includes(value.toLowerCase());
     default:
       return false;
   }
@@ -256,7 +257,7 @@ function LogViewerInner({
   // Handle copy
   const handleCopy = useCallback(
     async (entry: LogEntry) => {
-      await clipboard.copy(entry.line);
+      await clipboard.copy(formatLogLine(entry));
       announcer.announce("Copied to clipboard", "polite");
     },
     [clipboard, announcer],
@@ -264,7 +265,7 @@ function LogViewerInner({
 
   // Handle download
   const handleDownload = useCallback(() => {
-    const content = filteredEntries.map((e) => e.line).join("\n");
+    const content = filteredEntries.map((e) => formatLogLine(e)).join("\n");
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

@@ -148,7 +148,7 @@ function LogEntryRowInner({
         <span
           className={cn("min-w-0 flex-1 font-mono text-sm", wrapLines ? "break-words whitespace-pre-wrap" : "truncate")}
         >
-          {entry.line}
+          {entry.message}
         </span>
 
         {/* Actions (visible on hover/focus) */}
@@ -197,7 +197,7 @@ function LogEntryRowInner({
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-muted mt-2 ml-6 border-l-2 pl-4">
-          <pre className="text-muted-foreground font-mono text-sm break-words whitespace-pre-wrap">{entry.line}</pre>
+          <pre className="text-muted-foreground font-mono text-sm break-words whitespace-pre-wrap">{entry.message}</pre>
           <div className="text-muted-foreground mt-2 flex flex-wrap gap-2 text-xs">
             <span>
               <strong>Time:</strong> {entry.timestamp.toISOString()}
