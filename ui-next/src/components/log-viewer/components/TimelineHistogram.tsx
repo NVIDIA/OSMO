@@ -339,9 +339,10 @@ function TimelineHistogramInner({
       style={{ height }}
     >
       <svg
-        viewBox={`0 0 100 ${height}`}
+        viewBox={`0 0 100 ${chartHeight}`}
         preserveAspectRatio="none"
-        className="size-full"
+        className="w-full"
+        style={{ height: chartHeight }}
         role="img"
         aria-label="Log histogram over time"
       >
