@@ -9,15 +9,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { useMounted } from "@/hooks";
 
 /**
  * Theme toggle with GPU-accelerated transitions.
  *
  * Performance: Uses transform (rotate, scale) and opacity only -
  * no layout-triggering properties. GPU composited.
+ *
+ * Note: Wrapped with useMounted to prevent hydration mismatch from
+ * Radix UI's DropdownMenu generating different IDs on server vs client.
  */
 export function ThemeToggle() {
   const { setTheme } = useTheme();
+  const mounted = useMounted();
+
+  // Render placeholder during SSR to prevent hydration mismatch
+  // from Radix UI's ID generation
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative" disabled>
+        <Sun className="h-4 w-4" />
+        <span className="sr-only">Toggle theme</span>
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>

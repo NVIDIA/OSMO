@@ -18,29 +18,15 @@
 
 "use client";
 
-import { useSyncExternalStore } from "react";
-
-/**
- * Subscribe function for useSyncExternalStore.
- * Since the mounted state never changes after initialization, we return a no-op.
- */
-const subscribe = () => () => {};
-
-/**
- * Client snapshot - always returns true (we're on the client).
- */
-const getSnapshot = () => true;
-
-/**
- * Server snapshot - always returns false (we're on the server).
- */
-const getServerSnapshot = () => false;
+import { useState, useEffect } from "react";
 
 /**
  * Hook that returns true after the component has mounted on the client.
  *
- * Uses useSyncExternalStore for hydration-safe client detection without
- * triggering cascading renders from useEffect.
+ * Uses useState + useEffect to guarantee hydration-safe behavior:
+ * 1. Server render: returns false
+ * 2. First client render (hydration): returns false (matches server)
+ * 3. After hydration: useEffect triggers, returns true
  *
  * Use this to delay rendering of client-only content that would cause
  * hydration mismatches (e.g., @dnd-kit accessibility attributes, Date.now(),
@@ -59,5 +45,11 @@ const getServerSnapshot = () => false;
  * ```
  */
 export function useMounted(): boolean {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  return mounted;
 }
