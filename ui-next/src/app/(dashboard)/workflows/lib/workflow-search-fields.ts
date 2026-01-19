@@ -25,12 +25,13 @@
  */
 
 import type { SearchField, SearchChip } from "@/components/filter-bar";
-import { WorkflowStatus, WorkflowPriority, type SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
+import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
+import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter";
 import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
 import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
 import { naturalCompare } from "@/lib/utils";
 
-export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
+export type WorkflowListEntry = WorkflowListEntryType;
 
 // =============================================================================
 // Status Presets - DERIVED FROM GENERATED METADATA

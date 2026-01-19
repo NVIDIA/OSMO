@@ -29,6 +29,11 @@ export type {
   PoolMembership,
   TaskConfig,
   Version,
+  // Workflow types (re-exported unchanged for stable API)
+  WorkflowQueryResponse,
+  GroupQueryResponse,
+  TaskQueryResponse,
+  WorkflowListEntry,
 } from "./types";
 
 // Clean hooks
@@ -60,3 +65,13 @@ export { deriveResourceTypes } from "./utils";
 
 // Transform utilities
 export { getSharingInfo } from "./transforms";
+
+// Workflow shim (backend workarounds for workflow list API)
+export {
+  fetchPaginatedWorkflows,
+  parseWorkflowsResponse,
+  hasActiveFilters as hasActiveWorkflowFilters,
+  buildWorkflowsQueryKey,
+  type WorkflowFilterParams,
+  type RawWorkflowsResponse,
+} from "./workflows-shim";

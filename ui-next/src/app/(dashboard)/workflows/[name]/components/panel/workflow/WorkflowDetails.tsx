@@ -36,7 +36,7 @@ import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History } f
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { PanelTabs, LinksSection, EmptyTabPrompt, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
-import type { WorkflowQueryResponse } from "@/lib/api/generated";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter";
 import { formatDuration } from "../../../lib/workflow-types";
 import { getStatusIcon } from "../../../lib/status";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../../lib/status";

@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflow Adapter Tests
+ * Workflow Layout Tests
  *
  * Tests the core DAG transformation logic:
  * - Topological level computation using Kahn's algorithm
@@ -35,8 +35,8 @@ import {
   getGroupsByLevel,
   getRootGroups,
   getLeafGroups,
-} from "./workflow-adapter";
-import type { GroupQueryResponse } from "@/lib/api/generated";
+} from "./workflow-layout";
+import type { GroupQueryResponse } from "@/lib/api/adapter";
 
 // =============================================================================
 // Test Helpers
