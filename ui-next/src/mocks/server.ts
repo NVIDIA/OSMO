@@ -15,23 +15,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * MSW Node Server for Testing
+ * MSW Node Server for Server-Side Mocking
  *
- * Sets up MSW for Node.js environments (Vitest, Jest, etc.).
- * Uses the same handlers as the browser mock to ensure consistency.
+ * Sets up MSW for Node.js environments to intercept both:
+ * - Direct API calls (relative paths like /api/...)
+ * - Proxied backend requests (absolute URLs to the backend)
  *
- * Usage:
- *   import { server } from '@/mocks/server';
- *   beforeAll(() => server.listen());
- *   afterEach(() => server.resetHandlers());
- *   afterAll(() => server.close());
+ * @see https://mswjs.io/docs/integrations/node
  */
 
-import { setupServer } from "msw/node";
+import { setupServer, type SetupServer } from "msw/node";
 import { handlers } from "./handlers";
 
+// =============================================================================
+// Server Instance
+// =============================================================================
+
 /**
- * MSW server instance for Node.js testing.
- * Uses the exact same handlers as browser mocks for consistency.
+ * MSW server instance for Node.js.
+ *
+ * The handlers use relative paths which MSW matches against both:
+ * - Relative URL requests (from browser via dev server)
+ * - Absolute URL requests (MSW extracts the path and matches)
+ *
+ * @see https://mswjs.io/docs/best-practices/using-with-typescript
  */
-export const server = setupServer(...handlers);
+export const server: SetupServer = setupServer(...handlers);
