@@ -69,7 +69,7 @@ function ContextEntry({ entry, isTarget }: ContextEntryProps) {
       {entry.labels.task && (
         <span className="text-muted-foreground max-w-[80px] shrink-0 truncate">[{entry.labels.task}]</span>
       )}
-      <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">{entry.line}</span>
+      <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">{entry.message}</span>
       {isTarget && <span className="text-primary shrink-0">← selected</span>}
     </div>
   );

@@ -379,6 +379,9 @@ export class LogGenerator {
     if (ioType === "upload") {
       return this.generateUploadMessage(index);
     }
+    if (ioType === "dump") {
+      return this.generateDumpMessage(index, total);
+    }
 
     // Level-specific messages
     switch (level) {
@@ -392,6 +395,27 @@ export class LogGenerator {
       default:
         return this.generateInfoMessage(index, total);
     }
+  }
+
+  /**
+   * Generate DUMP messages - raw output without timestamp/prefix.
+   * Used for progress bars, tqdm output, etc.
+   */
+  private generateDumpMessage(index: number, total: number): string {
+    const progress = Math.floor((index / total) * 100);
+    const filled = Math.floor(progress / 2);
+    const empty = 50 - filled;
+
+    return faker.helpers.arrayElement([
+      // tqdm-style progress bar
+      `${progress}%|${"█".repeat(filled)}${" ".repeat(empty)}| ${index}/${total} [00:${String(Math.floor(index / 10)).padStart(2, "0")}<00:${String(Math.floor((total - index) / 10)).padStart(2, "0")}, ${faker.number.float({ min: 0.5, max: 5.0 }).toFixed(2)}it/s]`,
+      // Simple progress bar
+      `[${"=".repeat(filled)}>${"-".repeat(empty)}] ${progress}%`,
+      // Download-style progress
+      `Downloading: ${progress}% (${faker.number.int({ min: 100, max: 5000 })}MB/${faker.number.int({ min: 5000, max: 10000 })}MB)`,
+      // Epoch progress
+      `Epoch ${Math.floor((index / total) * 100)}: 100%|${"█".repeat(50)}| 1000/1000 [00:42<00:00, 23.50it/s, loss=${faker.number.float({ min: 0.01, max: 0.5 }).toFixed(4)}]`,
+    ]);
   }
 
   private generateOsmoMessage(index: number, total: number): string {
@@ -537,11 +561,17 @@ export class LogGenerator {
    * - Regular: {YYYY/MM/DD HH:mm:ss} [{task_name}] {message}
    * - With retry: {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}] {message}
    * - Control logs: {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}
+   * - DUMP: {message} (no timestamp or prefix - raw output)
    *
    * Control logs (ctrl_logs() in backend) include: OSMO_CTRL, DOWNLOAD, UPLOAD
    * These all get the [osmo] suffix as per redis.py line 146.
    */
   private formatLogLineV2(time: Date, task: TaskContext, ioType: LogIOType, message: string): string {
+    // DUMP type outputs raw message without any formatting (per redis.py line 222-223)
+    if (ioType === "dump") {
+      return message;
+    }
+
     const timestamp = this.formatTimestamp(time);
     let taskPart = task.name;
 
@@ -693,9 +723,28 @@ export class LogGenerator {
     ];
   }
 
-  private formatLogLine(time: Date, level: string, source: string, message: string): string {
+  /**
+   * Format log line using real backend format from redis.py:redis_log_formatter.
+   *
+   * IMPORTANT: The backend does NOT include the level in the log line format.
+   * The level is detected by parsing the message content (e.g., "ERROR:", "WARNING:").
+   *
+   * Format matches backend exactly:
+   * - Regular: {YYYY/MM/DD HH:mm:ss} [{task_name}] {message}
+   * - Control logs: {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}
+   *
+   * @param time - Timestamp
+   * @param _level - Log level (unused in format, only for message content)
+   * @param source - Task name
+   * @param message - Log message (may include level prefix like "ERROR:")
+   */
+  private formatLogLine(time: Date, _level: string, source: string, message: string): string {
     const timestamp = this.formatTimestamp(time);
-    return `${timestamp} [${source}] ${level}: ${message}`;
+    // Check if this is a control message (has [osmo] in the message itself - legacy pattern)
+    if (message.startsWith("[osmo]")) {
+      return `${timestamp} [${source}]${message}`;
+    }
+    return `${timestamp} [${source}] ${message}`;
   }
 
   private formatTimestamp(date: Date): string {

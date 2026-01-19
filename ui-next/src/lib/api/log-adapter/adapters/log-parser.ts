@@ -27,7 +27,7 @@
  * - OSMO ctrl: `{YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}`
  */
 
-import type { LogEntry, LogLevel, LogIOType } from "../types";
+import type { LogEntry, LogLevel, LogIOType, LogSourceType } from "../types";
 
 // =============================================================================
 // Pre-compiled Regexes (compiled once at module load)
@@ -48,13 +48,14 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
 /**
  * Level detection patterns ordered by frequency in typical logs.
  * Each pattern matches level prefix at start of message.
+ * Capture group 1 is the full prefix to strip (including separator).
  */
 const LEVEL_PATTERNS: ReadonlyArray<readonly [RegExp, LogLevel]> = [
-  [/^INFO[:\s]/i, "info"],
-  [/^ERROR[:\s]/i, "error"],
-  [/^WARN(?:ING)?[:\s]/i, "warn"],
-  [/^DEBUG[:\s]/i, "debug"],
-  [/^FATAL[:\s]/i, "fatal"],
+  [/^(INFO[:\s]\s*)/i, "info"],
+  [/^(ERROR[:\s]\s*)/i, "error"],
+  [/^(WARN(?:ING)?[:\s]\s*)/i, "warn"],
+  [/^(DEBUG[:\s]\s*)/i, "debug"],
+  [/^(FATAL[:\s]\s*)/i, "fatal"],
 ] as const;
 
 // =============================================================================
@@ -83,14 +84,24 @@ export function resetIdCounter(): void {
 // =============================================================================
 
 /**
- * Detects log level from message content.
+ * Result of level detection: the detected level, stripped message, and original prefix.
+ */
+interface LevelDetectResult {
+  level: LogLevel;
+  strippedMessage: string;
+  /** The original prefix that was stripped (e.g., "INFO: "), or undefined if none */
+  prefix?: string;
+}
+
+/**
+ * Detects log level from message content and strips the level prefix.
  * Uses first-char check for early exit optimization.
  *
  * @param msg - The message portion of the log line
- * @returns Detected log level, defaults to 'info'
+ * @returns Object with detected level, message with level prefix stripped, and original prefix
  */
-function detectLevel(msg: string): LogLevel {
-  if (!msg) return "info";
+function detectAndStripLevel(msg: string): LevelDetectResult {
+  if (!msg) return { level: "info", strippedMessage: msg };
 
   // Fast path: check first character (lowercase via OR 32)
   // Only check patterns if first char could match a level prefix
@@ -98,14 +109,18 @@ function detectLevel(msg: string): LogLevel {
 
   // i=105, e=101, w=119, d=100, f=102
   if (first !== 105 && first !== 101 && first !== 119 && first !== 100 && first !== 102) {
-    return "info";
+    return { level: "info", strippedMessage: msg };
   }
 
   for (const [re, lvl] of LEVEL_PATTERNS) {
-    if (re.test(msg)) return lvl;
+    const match = re.exec(msg);
+    if (match) {
+      // Strip the matched prefix (capture group 1), preserve original prefix for reconstruction
+      return { level: lvl, strippedMessage: msg.slice(match[1].length), prefix: match[1] };
+    }
   }
 
-  return "info";
+  return { level: "info", strippedMessage: msg };
 }
 
 // =============================================================================
@@ -122,14 +137,18 @@ function detectLevel(msg: string): LogLevel {
  */
 function parseDumpLine(line: string, workflowId: string): LogEntry {
   const timestamp = new Date();
+  const rawMessage = line.replace(ANSI_RE, "");
+  const { level, strippedMessage, prefix } = detectAndStripLevel(rawMessage);
   return {
     id: `dump-${timestamp.getTime()}-${++idCounter}`,
     timestamp,
-    line: line.replace(ANSI_RE, ""),
+    message: strippedMessage,
     labels: {
       workflow: workflowId,
-      level: detectLevel(line),
+      level,
       io_type: "stdout" as LogIOType,
+      source: "user" as LogSourceType,
+      ...(prefix && { level_prefix: prefix }),
     },
   };
 }
@@ -200,23 +219,26 @@ export function parseLogLine(line: string, workflowId: string): LogEntry | null 
     pos++;
   }
 
-  // Extract message and strip ANSI escape codes
-  const message = line.slice(pos).replace(ANSI_RE, "");
-  const level = detectLevel(message);
+  // Extract message, strip ANSI codes, and detect/strip level prefix
+  const rawMessage = line.slice(pos).replace(ANSI_RE, "");
+  const { level, strippedMessage, prefix } = detectAndStripLevel(rawMessage);
 
-  // Determine IO type based on osmo flag
+  // Determine IO type and source based on osmo flag
   const ioType: LogIOType = isOsmo ? "osmo_ctrl" : "stdout";
+  const source: LogSourceType = isOsmo ? "osmo" : "user";
 
   return {
     id: generateId(timestamp),
     timestamp,
-    line,
+    message: strippedMessage,
     labels: {
       workflow: workflowId,
       task,
       retry,
       level,
       io_type: ioType,
+      source,
+      ...(prefix && { level_prefix: prefix }),
     },
   };
 }
@@ -258,4 +280,64 @@ export function parseLogBatch(text: string, workflowId: string): LogEntry[] {
  */
 export function stripAnsi(text: string): string {
   return text.replace(ANSI_RE, "");
+}
+
+// =============================================================================
+// Line Formatting (reverse of parsing)
+// =============================================================================
+
+/**
+ * Formats a timestamp to OSMO log format: YYYY/MM/DD HH:MM:SS
+ *
+ * @param date - Date to format
+ * @returns Formatted timestamp string
+ */
+function formatTimestamp(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  const h = String(date.getUTCHours()).padStart(2, "0");
+  const min = String(date.getUTCMinutes()).padStart(2, "0");
+  const s = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${y}/${m}/${d} ${h}:${min}:${s}`;
+}
+
+/**
+ * Reconstructs a full log line from a parsed LogEntry.
+ * Reverse of parseLogLine - used for copy-to-clipboard and download.
+ *
+ * Format patterns:
+ * - `{date} [{task}][osmo] {level_prefix}{message}` for osmo_ctrl, download, upload (retry=0)
+ * - `{date} [{task} retry-{N}][osmo] {level_prefix}{message}` for osmo_ctrl, download, upload (retry>0)
+ * - `{date} [{task}] {level_prefix}{message}` for stdout, stderr (retry=0)
+ * - `{date} [{task} retry-{N}] {level_prefix}{message}` for stdout, stderr (retry>0)
+ * - `{level_prefix}{message}` for DUMP type (no task label)
+ *
+ * @param entry - Parsed log entry
+ * @returns Reconstructed full log line
+ */
+export function formatLogLine(entry: LogEntry): string {
+  const { timestamp, message, labels } = entry;
+
+  // Restore the level prefix if one was stripped during parsing
+  const levelPrefix = labels.level_prefix ?? "";
+  const fullMessage = `${levelPrefix}${message}`;
+
+  // DUMP lines have no prefix (no task label)
+  if (!labels.task) {
+    return fullMessage;
+  }
+
+  // Format timestamp: YYYY/MM/DD HH:MM:SS
+  const date = formatTimestamp(timestamp);
+
+  // Format task: [task] or [task retry-N]
+  const retry = labels.retry && labels.retry !== "0" ? ` retry-${labels.retry}` : "";
+  const task = `[${labels.task}${retry}]`;
+
+  // OSMO suffix for control messages
+  const isOsmo = labels.io_type === "osmo_ctrl" || labels.io_type === "download" || labels.io_type === "upload";
+  const osmoSuffix = isOsmo ? "[osmo]" : "";
+
+  return `${date} ${task}${osmoSuffix} ${fullMessage}`;
 }

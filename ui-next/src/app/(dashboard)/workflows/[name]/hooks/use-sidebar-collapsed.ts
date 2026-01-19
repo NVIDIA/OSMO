@@ -18,11 +18,11 @@
  * Hook for managing workflow details sidebar collapsed state.
  *
  * GLOBAL collapse/expand state (NOT per-node):
- * - User preference (localStorage): Default collapsed state for workflow overview
+ * - User preference (Zustand shared-preferences store): Default collapsed state for workflow overview
  * - Session state: Single global collapsed state, NOT tied to specific nodes
  *
  * Behavior:
- * - Workflow view (no selection): Uses user preference
+ * - Workflow view (no selection): Uses user preference from Zustand store
  * - Any navigation (node click OR URL change): Auto-expands panel
  * - User can manually collapse: Stays collapsed until next navigation
  * - Panel state is GLOBAL - no per-node memory
@@ -36,7 +36,9 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useLocalStorage, useEventCallback, useIsomorphicLayoutEffect } from "usehooks-ts";
+import { useEventCallback, useIsomorphicLayoutEffect } from "usehooks-ts";
+import { useSharedPreferences, sharedPreferencesInitialState } from "@/stores";
+import { useMounted } from "@/hooks";
 
 export interface UseSidebarCollapsedOptions {
   /** Whether there's an active group/task selection from URL */
@@ -47,7 +49,18 @@ export interface UseSidebarCollapsedOptions {
 
 export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCollapsedOptions) {
   // User preference for default state (used when no selection)
-  const [preferredCollapsed, setPreferredCollapsed] = useLocalStorage("osmo-workflow-details-sidebar-collapsed", false);
+  // Using Zustand shared preferences store for unified localStorage management
+  const storePreferredCollapsed = useSharedPreferences((s) => s.detailsPanelCollapsed);
+  const setPreferredCollapsed = useSharedPreferences((s) => s.setDetailsPanelCollapsed);
+  const togglePreferredCollapsed = useSharedPreferences((s) => s.toggleDetailsPanelCollapsed);
+
+  // SSR-safe hydration: Use default value until after mount to prevent hydration mismatch.
+  // Zustand persist returns initial state on server but localStorage value on client,
+  // which causes React hydration errors. We defer reading the persisted value until after mount.
+  const mounted = useMounted();
+
+  // Use initial state during SSR/first render, then switch to store value after hydration
+  const preferredCollapsed = mounted ? storePreferredCollapsed : sharedPreferencesInitialState.detailsPanelCollapsed;
 
   // Global collapsed state - NOT tied to any specific node
   // This is the user's manual collapse action that persists until next navigation
@@ -101,7 +114,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
     if (usesSessionState) {
       setUserCollapsed((prev) => !prev);
     } else {
-      setPreferredCollapsed((prev) => !prev);
+      togglePreferredCollapsed();
     }
   });
 

@@ -86,13 +86,15 @@ const DEFAULT_LEVEL_DISTRIBUTION: Record<LogLevel, number> = {
 
 /**
  * Default IO type distribution.
+ * Matches backend IOType usage patterns.
  */
 const DEFAULT_IO_DISTRIBUTION: Record<LogIOType, number> = {
-  stdout: 0.6,
-  osmo_ctrl: 0.3,
+  stdout: 0.58,
+  osmo_ctrl: 0.28,
   stderr: 0.05,
   download: 0.025,
   upload: 0.025,
+  dump: 0.04, // Progress bars, tqdm output (no timestamp/prefix)
 };
 
 /**
@@ -154,11 +156,12 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
       fatal: 0.05,
     },
     ioTypeDistribution: {
-      stdout: 0.3,
-      osmo_ctrl: 0.15,
+      stdout: 0.28,
+      osmo_ctrl: 0.14,
       stderr: 0.5,
       download: 0.025,
       upload: 0.025,
+      dump: 0.03,
     },
     features: { ...DEFAULT_FEATURES, taskCount: 4 },
   },
@@ -245,11 +248,12 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
       fatal: 0.05,
     },
     ioTypeDistribution: {
-      stdout: 0.5,
-      osmo_ctrl: 0.2,
+      stdout: 0.48,
+      osmo_ctrl: 0.18,
       stderr: 0.25,
       download: 0.025,
       upload: 0.025,
+      dump: 0.04,
     },
     features: { ...DEFAULT_FEATURES, multiLine: true },
   },
@@ -283,11 +287,12 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
     volume: { min: 1500, max: 2500 },
     levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
     ioTypeDistribution: {
-      stdout: 0.35,
-      osmo_ctrl: 0.25,
+      stdout: 0.3,
+      osmo_ctrl: 0.2,
       stderr: 0.15,
-      download: 0.125,
-      upload: 0.125,
+      download: 0.12,
+      upload: 0.12,
+      dump: 0.11, // Higher dump rate to test filtering
     },
     features: { ...DEFAULT_FEATURES, taskCount: 5 },
   },
