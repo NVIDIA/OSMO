@@ -254,10 +254,7 @@ export interface LogAdapter {
    * @param buckets Number of histogram buckets (default: 50)
    * @returns Promise resolving to histogram data
    */
-  histogram(
-    params: Omit<LogQuery, "cursor" | "limit">,
-    buckets?: number
-  ): Promise<HistogramResult>;
+  histogram(params: Omit<LogQuery, "cursor" | "limit">, buckets?: number): Promise<HistogramResult>;
 
   /**
    * Get facet data for the Fields pane.
