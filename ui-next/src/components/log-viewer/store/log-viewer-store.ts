@@ -22,6 +22,10 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { enableMapSet } from "immer";
+
+// Enable Immer's MapSet plugin for Set/Map support in state
+enableMapSet();
 
 // =============================================================================
 // Types

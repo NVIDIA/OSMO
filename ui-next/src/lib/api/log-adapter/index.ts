@@ -111,3 +111,31 @@ export {
 } from "./adapters";
 
 export type { LogIndexFilterOptions, PlainTextAdapterConfig } from "./adapters";
+
+// =============================================================================
+// Hooks (client-side only)
+// =============================================================================
+
+export {
+  // Adapter context
+  useLogAdapter,
+  useLogAdapterCapabilities,
+  LogAdapterProvider,
+  // Data hooks
+  useLogQuery,
+  useLogHistogram,
+  useLogFacets,
+  useLogTail,
+} from "./hooks";
+
+export type {
+  LogAdapterProviderProps,
+  UseLogQueryParams,
+  UseLogQueryReturn,
+  UseLogHistogramParams,
+  UseLogHistogramReturn,
+  UseLogFacetsParams,
+  UseLogFacetsReturn,
+  UseLogTailParams,
+  UseLogTailReturn,
+} from "./hooks";

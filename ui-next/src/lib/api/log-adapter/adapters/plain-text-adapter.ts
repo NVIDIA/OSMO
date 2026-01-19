@@ -47,6 +47,8 @@ export interface PlainTextAdapterConfig {
   baseUrl?: string;
   /** Custom fetch function for testing */
   fetchFn?: typeof fetch;
+  /** Dev-only URL params to append to all requests (e.g., { log_scenario: "error-heavy" }) */
+  devParams?: Record<string, string>;
 }
 
 /**
@@ -91,6 +93,7 @@ export class PlainTextAdapter implements LogAdapter {
     this.config = {
       baseUrl: config.baseUrl ?? "",
       fetchFn: config.fetchFn ?? fetch.bind(globalThis),
+      devParams: config.devParams ?? {},
     };
     this.capabilities = { ...PLAIN_TEXT_ADAPTER_CAPABILITIES };
   }
@@ -248,7 +251,13 @@ export class PlainTextAdapter implements LogAdapter {
    * Fetches raw log text from the backend.
    */
   private async fetchLogs(workflowId: string): Promise<string> {
-    const url = `${this.config.baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
+    let url = `${this.config.baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
+
+    // Append dev params for testing (e.g., log_scenario)
+    if (this.config.devParams && Object.keys(this.config.devParams).length > 0) {
+      const params = new URLSearchParams(this.config.devParams);
+      url += `?${params.toString()}`;
+    }
 
     const response = await this.config.fetchFn(url, {
       method: "GET",
