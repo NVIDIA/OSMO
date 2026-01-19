@@ -203,10 +203,8 @@ function LogViewerInner({
     };
   }, [reset]);
 
-  // Sync chips with URL
-  useEffect(() => {
-    setChips(initialChips);
-  }, [initialChips]);
+  // Note: initialChips is used as initial state via useState above.
+  // No sync effect needed - if parent needs to control chips, use onFiltersChange callback.
 
   // Handle chip changes
   const handleChipsChange = useCallback(

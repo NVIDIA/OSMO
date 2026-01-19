@@ -28,18 +28,94 @@
 | React 19 patterns | [React 19 / Next.js 16](#react-19--nextjs-16-compatibility) |
 | Decisions | [Key Decisions](#key-decisions-summary) |
 
+## Implementation Status
+
+> **Last Updated**: January 2026
+
+| Workstream | Status | Summary |
+|------------|--------|---------|
+| **W0: Types & Constants** | ✅ COMPLETE | `types.ts`, `constants.ts` |
+| **W1: Mock System** | ✅ COMPLETE | `log-generator.ts` enhanced with scenarios, `handlers.ts` with HTTP streaming |
+| **W2: Adapter Layer** | ✅ COMPLETE | Parser, index, adapter, 5 React hooks |
+| **W3: Experimental Page** | ✅ COMPLETE | `/experimental/log-viewer` with playground controls |
+| **W4: UI Components** | ✅ COMPLETE | 8 components, Zustand store, level utils |
+| **W5: Production Integration** | 🔲 PENDING | TaskDetails, WorkflowDetails, keyboard nav, a11y |
+
+### Files Created
+
+```
+src/lib/api/log-adapter/
+├── index.ts                    ✅
+├── types.ts                    ✅
+├── constants.ts                ✅
+├── adapters/
+│   ├── index.ts                ✅
+│   ├── log-parser.ts           ✅
+│   ├── log-index.ts            ✅
+│   └── plain-text-adapter.ts   ✅
+└── hooks/
+    ├── index.ts                ✅
+    ├── use-log-adapter.tsx     ✅
+    ├── use-log-query.ts        ✅
+    ├── use-log-tail.ts         ✅
+    ├── use-log-histogram.ts    ✅
+    └── use-log-facets.ts       ✅
+
+src/components/log-viewer/
+├── index.ts                    ✅
+├── lib/
+│   └── level-utils.ts          ✅
+├── store/
+│   └── log-viewer-store.ts     ✅
+└── components/
+    ├── LogViewer.tsx           ✅
+    ├── LogList.tsx             ✅
+    ├── LogEntryRow.tsx         ✅
+    ├── QueryBar.tsx            ✅
+    ├── TimelineHistogram.tsx   ✅
+    ├── FieldsPane.tsx          ✅
+    ├── LogContext.tsx          ✅
+    └── LogToolbar.tsx          ✅
+
+src/app/(dashboard)/experimental/log-viewer/
+├── page.tsx                    ✅
+├── log-viewer-playground.tsx   ✅
+└── components/
+    ├── scenario-selector.tsx   ✅
+    ├── container-sizer.tsx     ✅
+    └── debug-panel.tsx         ✅
+
+src/mocks/generators/
+└── log-generator.ts            ✅ (enhanced with scenarios + streaming)
+
+src/mocks/handlers.ts           ✅ (HTTP streaming support added)
+```
+
+### W5 Outstanding Tasks
+
+| Task | Description | Priority |
+|------|-------------|----------|
+| TaskDetails.tsx | Add `<LogViewer>` to Logs tab in task panel | P0 |
+| WorkflowDetails.tsx | Add `<LogViewer>` to Logs tab in workflow panel | P0 |
+| Keyboard navigation | j/k (nav), / (search), G/gg (jump), t (tail toggle) | P1 |
+| Accessibility | ARIA `role="log"`, `aria-live`, roving tabindex, announcements | P1 |
+| Performance test | Benchmark 100K entries: <100ms render, <50MB memory | P1 |
+
+---
+
 ## Table of Contents
 
-1. [Parallel Workstreams](#parallel-workstreams) - **START HERE** for multi-agent work
-2. [UX Specification](#ux-specification) - Scope model, layout, interactions
-3. [Requirements](#requirements) - P0/P1/P2 features
-4. [Architecture](#architecture) - Adapter layer, types, hooks
-5. [React 19 / Next.js 16](#react-19--nextjs-16-compatibility) - Concurrent patterns, SSR, nuqs
-6. [Performance Strategy](#performance-strategy) - Virtualization, indexing
-7. [Backend API](#current-backend-api) - Endpoint, parsing rules
-8. [Mock System](#mock-system-for-development) - Scenarios for AI iteration
-9. [Implementation Phases](#implementation-phases) - Sequential phase breakdown
-10. [Key Decisions](#key-decisions-summary) - Major architectural choices
+1. [Implementation Status](#implementation-status) - **W0-W4 COMPLETE, W5 PENDING**
+2. [Parallel Workstreams](#parallel-workstreams) - Multi-agent coordination
+3. [UX Specification](#ux-specification) - Scope model, layout, interactions
+4. [Requirements](#requirements) - P0/P1/P2 features
+5. [Architecture](#architecture) - Adapter layer, types, hooks
+6. [React 19 / Next.js 16](#react-19--nextjs-16-compatibility) - Concurrent patterns, SSR, nuqs
+7. [Performance Strategy](#performance-strategy) - Virtualization, indexing
+8. [Backend API](#current-backend-api) - Endpoint, parsing rules
+9. [Mock System](#mock-system-for-development) - Scenarios for AI iteration
+10. [Implementation Phases](#implementation-phases) - Sequential phase breakdown
+11. [Key Decisions](#key-decisions-summary) - Major architectural choices
 
 ---
 
@@ -74,7 +150,7 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### W0: Types & Constants (BLOCKING - Do First)
+### W0: Types & Constants ✅ COMPLETE
 
 **Agent**: Any (single agent, 30 min)
 
@@ -87,7 +163,7 @@
 
 ---
 
-### W1: Mock System (Parallel)
+### W1: Mock System ✅ COMPLETE
 
 **Agent**: Mock Specialist
 **Depends on**: W0 (types)
@@ -103,7 +179,7 @@
 
 ---
 
-### W2: Adapter Layer (Parallel)
+### W2: Adapter Layer ✅ COMPLETE
 
 **Agent**: Backend Integration
 **Depends on**: W0 (types)
@@ -121,7 +197,7 @@
 
 ---
 
-### W3: Experimental Page (Parallel)
+### W3: Experimental Page ✅ COMPLETE
 
 **Agent**: Dev Tools
 **Depends on**: W0 (types)
@@ -138,7 +214,7 @@
 
 ---
 
-### W4: UI Components (After W1, W2, W3)
+### W4: UI Components ✅ COMPLETE
 
 **Agent**: UI Specialist
 **Depends on**: W1, W2, W3 complete
@@ -160,7 +236,7 @@
 
 ---
 
-### W5: Production Integration (After W4)
+### W5: Production Integration 🔲 PENDING
 
 **Agent**: Integration
 **Depends on**: W4 complete

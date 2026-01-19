@@ -16,10 +16,12 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { FlaskConical, Play, Pause, RotateCcw, BarChart3 } from "lucide-react";
 import { usePage } from "@/components/chrome";
 import { Button } from "@/components/shadcn/button";
+import { LogViewer } from "@/components/log-viewer";
+import { useLogQuery, useLogHistogram, useLogFacets, LogAdapterProvider } from "@/lib/api/log-adapter";
 import { ScenarioSelector, type LogScenario } from "./components/scenario-selector";
 import { ContainerSizer, type ContainerSize } from "./components/container-sizer";
 import { DebugPanel, type DebugStats } from "./components/debug-panel";
@@ -42,8 +44,8 @@ export function LogViewerPlayground() {
   const [isTailing, setIsTailing] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
 
-  // Mock debug stats - will be replaced with real stats when LogViewer is integrated
-  const [debugStats] = useState<DebugStats>({
+  // Debug stats - updated by LogViewerContainer
+  const [debugStats, setDebugStats] = useState<DebugStats>({
     entriesInMemory: 0,
     renderTimeMs: 0,
     indexSizeKb: 0,
@@ -156,7 +158,6 @@ export function LogViewerPlayground() {
         <LogViewerContainer
           size={containerSize}
           scenario={scenario}
-          isTailing={isTailing}
         />
 
         {/* Debug Panel Overlay */}
@@ -170,17 +171,43 @@ export function LogViewerPlayground() {
   );
 }
 
+// Mock workflow ID for the playground
+const MOCK_WORKFLOW_ID = "log-viewer-playground";
+
 /**
- * Container for the LogViewer component with configurable size
+ * Container for the LogViewer component with configurable size.
+ * Uses LogAdapterProvider to pass the scenario to the mock handler.
  */
 function LogViewerContainer({
   size,
   scenario,
-  isTailing,
 }: {
   size: ContainerSize;
   scenario: LogScenario;
-  isTailing: boolean;
+}) {
+  // Create adapter config with scenario as a dev param
+  const adapterConfig = useMemo(
+    () => ({
+      devParams: { log_scenario: scenario },
+    }),
+    [scenario],
+  );
+
+  return (
+    <LogAdapterProvider config={adapterConfig} key={scenario}>
+      <LogViewerContainerInner size={size} />
+    </LogAdapterProvider>
+  );
+}
+
+/**
+ * Inner container that uses the log adapter hooks.
+ * Separated to ensure hooks are called within the provider context.
+ */
+function LogViewerContainerInner({
+  size,
+}: {
+  size: ContainerSize;
 }) {
   const containerStyles: Record<ContainerSize, string> = {
     panel: "w-[400px] h-[600px]",
@@ -188,28 +215,47 @@ function LogViewerContainer({
     "full-screen": "w-full h-full",
   };
 
+  // Fetch log data using the adapter hooks
+  const {
+    entries,
+    isLoading,
+    error,
+    refetch,
+  } = useLogQuery({
+    workflowId: MOCK_WORKFLOW_ID,
+    enabled: true,
+  });
+
+  // Get histogram data
+  const { histogram } = useLogHistogram({
+    workflowId: MOCK_WORKFLOW_ID,
+    entries,
+  });
+
+  // Get facet data - use stable array reference to avoid re-renders
+  const facetFields = useMemo(() => ["level", "task", "io_type"], []);
+  const { facets } = useLogFacets({
+    entries,
+    fields: facetFields,
+  });
+
+  // Debug stats are computed inline in the debug panel instead of via callback
+  // to avoid setState-during-render issues with parent component updates
+
   return (
     <div
-      className={`border-border bg-card mx-auto flex items-center justify-center rounded-lg border ${containerStyles[size]}`}
+      className={`border-border bg-card mx-auto overflow-hidden rounded-lg border ${containerStyles[size]}`}
     >
-      {/* Placeholder for LogViewer component */}
-      <div className="text-muted-foreground flex flex-col items-center gap-3 p-8 text-center">
-        <div className="bg-muted rounded-lg p-4">
-          <FlaskConical className="h-8 w-8 opacity-50" />
-        </div>
-        <div>
-          <p className="text-foreground font-medium">LogViewer Component</p>
-          <p className="mt-1 text-sm">
-            Scenario: <code className="bg-muted rounded px-1 py-0.5">{scenario}</code>
-          </p>
-          <p className="text-sm">
-            Tailing: <code className="bg-muted rounded px-1 py-0.5">{isTailing ? "On" : "Off"}</code>
-          </p>
-        </div>
-        <p className="text-muted-foreground mt-2 max-w-xs text-xs">
-          The LogViewer component will be rendered here once W4 (UI Components) is complete.
-        </p>
-      </div>
+      <LogViewer
+        entries={entries}
+        isLoading={isLoading}
+        error={error}
+        histogram={histogram}
+        facets={facets}
+        onRefetch={refetch}
+        scope="workflow"
+        className="h-full"
+      />
     </div>
   );
 }
