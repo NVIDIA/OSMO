@@ -159,8 +159,8 @@ function matchesFilter(entry: LogEntry, field: string, value: string): boolean {
       return entry.labels.level === value;
     case "task":
       return entry.labels.task === value;
-    case "io_type":
-      return entry.labels.io_type === value;
+    case "source":
+      return entry.labels.source === value;
     case "text":
       return entry.message.toLowerCase().includes(value.toLowerCase());
     default:

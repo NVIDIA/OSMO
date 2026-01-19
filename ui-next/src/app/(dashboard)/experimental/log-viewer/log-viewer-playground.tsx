@@ -159,7 +159,7 @@ function LogViewerContainerInner() {
   );
 
   // Get facet data - use stable array reference to avoid re-renders
-  const facetFields = useMemo(() => ["level", "task", "io_type"], []);
+  const facetFields = useMemo(() => ["level", "source", "task"], []);
   const { facets } = useLogFacets({
     workflowId: MOCK_WORKFLOW_ID,
     fields: facetFields,

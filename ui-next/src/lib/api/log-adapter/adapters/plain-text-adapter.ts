@@ -287,8 +287,8 @@ export class PlainTextAdapter implements LogAdapter {
       opts.tasks = [params.taskName];
     }
 
-    if (params.ioTypes?.length) {
-      opts.ioTypes = params.ioTypes;
+    if (params.sources?.length) {
+      opts.sources = params.sources;
     }
 
     if (params.search) {
