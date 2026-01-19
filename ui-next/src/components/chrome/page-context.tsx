@@ -36,6 +36,8 @@ export interface PageConfig {
   title: string;
   /** Breadcrumb trail (excluding the current page title) */
   breadcrumbs?: BreadcrumbSegment[];
+  /** Custom actions to render in the header after the title */
+  headerActions?: React.ReactNode;
 }
 
 interface PageContextType {
@@ -80,11 +82,12 @@ export function usePage(config: PageConfig) {
   const breadcrumbsKey = config.breadcrumbs?.map((b) => `${b.label}:${b.href ?? ""}`).join("|") ?? "";
 
   // Memoize config to create stable reference based on actual content
+  // Note: headerActions is intentionally included as-is since React handles ReactNode comparison
   const stableConfig = useMemo(
     () => config,
     // Only recreate when actual content changes (primitives, not object reference)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config.title, breadcrumbsKey],
+    [config.title, breadcrumbsKey, config.headerActions],
   );
 
   useLayoutEffect(() => {

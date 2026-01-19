@@ -16,156 +16,47 @@
 
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { FlaskConical, Play, Pause, RotateCcw, BarChart3 } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
 import { usePage } from "@/components/chrome";
-import { Button } from "@/components/shadcn/button";
-import { LogViewer } from "@/components/log-viewer";
-import { useLogQuery, useLogHistogram, useLogFacets, LogAdapterProvider } from "@/lib/api/log-adapter";
+import { LogViewer, useLogViewerStore } from "@/components/log-viewer";
+import {
+  useLogQuery,
+  useLogHistogram,
+  useLogFacets,
+  useLogTail,
+  LogAdapterProvider,
+  type LogEntry,
+} from "@/lib/api/log-adapter";
+import type { SearchChip } from "@/components/filter-bar";
 import { ScenarioSelector, type LogScenario } from "./components/scenario-selector";
-import { ContainerSizer, type ContainerSize } from "./components/container-sizer";
-import { DebugPanel, type DebugStats } from "./components/debug-panel";
 
 /**
  * Log Viewer Playground
  *
  * Main client component for the experimental log viewer page.
- * Provides controls for testing different scenarios and container sizes.
+ * Provides a full-page log viewer with scenario selection in the header.
  */
 export function LogViewerPlayground() {
+  // Playground state
+  const [scenario, setScenario] = useState<LogScenario>("normal");
+
+  // Register page with scenario selector in the header
   usePage({
     title: "Log Viewer",
     breadcrumbs: [{ label: "Experimental", href: "/experimental" }],
+    headerActions: (
+      <ScenarioSelector
+        value={scenario}
+        onChange={setScenario}
+      />
+    ),
   });
-
-  // Playground state
-  const [scenario, setScenario] = useState<LogScenario>("normal");
-  const [containerSize, setContainerSize] = useState<ContainerSize>("panel");
-  const [isTailing, setIsTailing] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
-
-  // Debug stats - updated by LogViewerContainer
-  const [debugStats, setDebugStats] = useState<DebugStats>({
-    entriesInMemory: 0,
-    renderTimeMs: 0,
-    indexSizeKb: 0,
-    lastUpdate: null,
-  });
-
-  const handleStartTailing = useCallback(() => {
-    setIsTailing(true);
-  }, []);
-
-  const handlePauseTailing = useCallback(() => {
-    setIsTailing(false);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setIsTailing(false);
-    // Reset will trigger a re-fetch when LogViewer is integrated
-  }, []);
-
-  const handleToggleDebug = useCallback(() => {
-    setShowDebug((prev) => !prev);
-  }, []);
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-purple-500/10 p-2">
-          <FlaskConical className="h-5 w-5 text-purple-400" />
-        </div>
-        <div>
-          <h1 className="text-foreground text-lg font-semibold">Log Viewer Playground</h1>
-          <p className="text-muted-foreground text-sm">
-            Test the log viewer with different scenarios and configurations
-          </p>
-        </div>
-      </div>
-
-      {/* Controls Row */}
-      <div className="border-border bg-card/50 flex flex-wrap items-center gap-4 rounded-lg border p-4">
-        <ScenarioSelector
-          value={scenario}
-          onChange={setScenario}
-        />
-
-        <div className="bg-border h-8 w-px" />
-
-        <ContainerSizer
-          value={containerSize}
-          onChange={setContainerSize}
-        />
-
-        <div className="bg-border h-8 w-px" />
-
-        {/* Tailing Controls */}
-        <div className="flex items-center gap-2">
-          {isTailing ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePauseTailing}
-            >
-              <Pause className="mr-1.5 h-4 w-4" />
-              Pause
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleStartTailing}
-            >
-              <Play className="mr-1.5 h-4 w-4" />
-              Start Tailing
-            </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleReset}
-          >
-            <RotateCcw className="mr-1.5 h-4 w-4" />
-            Reset
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleDebug}
-            data-active={showDebug}
-          >
-            <BarChart3 className="mr-1.5 h-4 w-4" />
-            Stats
-          </Button>
-        </div>
-
-        {/* Current state indicator */}
-        <div className="ml-auto flex items-center gap-2">
-          {isTailing && (
-            <span className="flex items-center gap-1.5 text-sm text-green-400">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-              Tailing
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content Area */}
+    <div className="flex h-full flex-col p-4">
+      {/* Full height log viewer */}
       <div className="relative flex-1">
-        <LogViewerContainer
-          size={containerSize}
-          scenario={scenario}
-        />
-
-        {/* Debug Panel Overlay */}
-        {showDebug && (
-          <div className="absolute right-4 bottom-4">
-            <DebugPanel stats={debugStats} />
-          </div>
-        )}
+        <LogViewerContainer scenario={scenario} />
       </div>
     </div>
   );
@@ -175,16 +66,10 @@ export function LogViewerPlayground() {
 const MOCK_WORKFLOW_ID = "log-viewer-playground";
 
 /**
- * Container for the LogViewer component with configurable size.
+ * Container for the LogViewer component.
  * Uses LogAdapterProvider to pass the scenario to the mock handler.
  */
-function LogViewerContainer({
-  size,
-  scenario,
-}: {
-  size: ContainerSize;
-  scenario: LogScenario;
-}) {
+function LogViewerContainer({ scenario }: { scenario: LogScenario }) {
   // Create adapter config with scenario as a dev param
   const adapterConfig = useMemo(
     () => ({
@@ -194,8 +79,11 @@ function LogViewerContainer({
   );
 
   return (
-    <LogAdapterProvider config={adapterConfig} key={scenario}>
-      <LogViewerContainerInner size={size} />
+    <LogAdapterProvider
+      config={adapterConfig}
+      key={scenario}
+    >
+      <LogViewerContainerInner />
     </LogAdapterProvider>
   );
 }
@@ -204,20 +92,16 @@ function LogViewerContainer({
  * Inner container that uses the log adapter hooks.
  * Separated to ensure hooks are called within the provider context.
  */
-function LogViewerContainerInner({
-  size,
-}: {
-  size: ContainerSize;
-}) {
-  const containerStyles: Record<ContainerSize, string> = {
-    panel: "w-[400px] h-[600px]",
-    "half-screen": "w-1/2 h-full",
-    "full-screen": "w-full h-full",
-  };
+function LogViewerContainerInner() {
+  // Filter chips state (for URL sync demonstration)
+  const [filterChips, setFilterChips] = useState<SearchChip[]>([]);
 
-  // Fetch log data using the adapter hooks
+  // Get tailing state from store
+  const isTailing = useLogViewerStore((s) => s.isTailing);
+
+  // Fetch initial log data using the adapter hooks
   const {
-    entries,
+    entries: queryEntries,
     isLoading,
     error,
     refetch,
@@ -226,33 +110,70 @@ function LogViewerContainerInner({
     enabled: true,
   });
 
-  // Get histogram data
-  const { histogram } = useLogHistogram({
+  // Live tailing hook - appends new entries as they stream in
+  const { entries: tailEntries } = useLogTail({
     workflowId: MOCK_WORKFLOW_ID,
-    entries,
+    enabled: isTailing, // Only tail when tailing is enabled in the store
   });
+
+  // Combine query entries with tail entries
+  // Query entries are the initial load, tail entries are live updates
+  const combinedEntries = useMemo(() => {
+    if (tailEntries.length === 0) return queryEntries;
+
+    // Get the latest timestamp from query entries to avoid duplicates
+    const queryLatestTime = queryEntries.length > 0 ? Math.max(...queryEntries.map((e) => e.timestamp.getTime())) : 0;
+
+    // Filter tail entries to only include new ones
+    const newTailEntries: LogEntry[] = [];
+    for (const entry of tailEntries) {
+      if (entry.timestamp.getTime() > queryLatestTime) {
+        newTailEntries.push(entry);
+      }
+    }
+
+    return [...queryEntries, ...newTailEntries];
+  }, [queryEntries, tailEntries]);
+
+  // Get histogram data from the adapter
+  const { buckets: histogramBuckets, intervalMs: histogramIntervalMs } = useLogHistogram({
+    workflowId: MOCK_WORKFLOW_ID,
+    enabled: !isLoading,
+  });
+
+  // Build histogram object for LogViewer
+  const histogram = useMemo(
+    () => ({
+      buckets: histogramBuckets,
+      intervalMs: histogramIntervalMs,
+    }),
+    [histogramBuckets, histogramIntervalMs],
+  );
 
   // Get facet data - use stable array reference to avoid re-renders
   const facetFields = useMemo(() => ["level", "task", "io_type"], []);
   const { facets } = useLogFacets({
-    entries,
+    workflowId: MOCK_WORKFLOW_ID,
     fields: facetFields,
+    enabled: !isLoading,
   });
 
-  // Debug stats are computed inline in the debug panel instead of via callback
-  // to avoid setState-during-render issues with parent component updates
+  // Handle filter changes (for URL sync demonstration)
+  const handleFiltersChange = useCallback((chips: SearchChip[]) => {
+    setFilterChips(chips);
+  }, []);
 
   return (
-    <div
-      className={`border-border bg-card mx-auto overflow-hidden rounded-lg border ${containerStyles[size]}`}
-    >
+    <div className="border-border bg-card h-full overflow-hidden rounded-lg border">
       <LogViewer
-        entries={entries}
+        entries={combinedEntries}
         isLoading={isLoading}
         error={error}
         histogram={histogram}
         facets={facets}
         onRefetch={refetch}
+        onFiltersChange={handleFiltersChange}
+        initialChips={filterChips}
         scope="workflow"
         className="h-full"
       />
