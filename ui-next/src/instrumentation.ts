@@ -20,16 +20,31 @@
  * This file is automatically loaded by Next.js before the server starts.
  * We use it to set up server-side MSW for mock mode.
  *
+ * IMPORTANT: Uses a singleton pattern to prevent MaxListenersExceededWarning
+ * during hot module reloading. MSW server is started exactly once.
+ *
  * @see https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
+ * @see https://mswjs.io/docs/integrations/node
  */
+
+// Singleton flag to prevent multiple server.listen() calls during HMR
+declare global {
+  // eslint-disable-next-line no-var
+  var __mswServerStarted: boolean | undefined;
+}
+
 export async function register() {
   // Only run in Node.js runtime (not Edge) - MSW uses Node.js-specific APIs
   if (process.env.NEXT_RUNTIME === "nodejs") {
     // Only enable in development with mock mode
     if (process.env.NEXT_PUBLIC_MOCK_API === "true" && process.env.NODE_ENV === "development") {
-      const { server } = await import("@/mocks/server");
-      server.listen({ onUnhandledRequest: "bypass" });
-      console.log("[MSW] Server-side mocking enabled");
+      // Singleton guard: only start once across HMR reloads
+      if (!globalThis.__mswServerStarted) {
+        const { server } = await import("@/mocks/server");
+        server.listen({ onUnhandledRequest: "bypass" });
+        globalThis.__mswServerStarted = true;
+        console.log("[MSW] Server-side mocking enabled");
+      }
     }
   }
 }
