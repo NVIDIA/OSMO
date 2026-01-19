@@ -21,7 +21,7 @@
  * Used by log viewer components and adapters.
  */
 
-import type { LogLevel, LogIOType } from "./types";
+import type { LogLevel, LogIOType, LogSourceType } from "./types";
 
 // =============================================================================
 // Log Levels
@@ -146,8 +146,16 @@ export function getLogLevelStyle(level: LogLevel | undefined): LogLevelStyle {
 
 /**
  * All supported IO types for log output streams.
+ * Note: "dump" is excluded as it's a special type for raw output (no timestamp/prefix).
  */
-export const LOG_IO_TYPES: readonly LogIOType[] = ["stdout", "stderr", "osmo_ctrl", "download", "upload"] as const;
+export const LOG_IO_TYPES: readonly LogIOType[] = [
+  "stdout",
+  "stderr",
+  "osmo_ctrl",
+  "download",
+  "upload",
+  "dump",
+] as const;
 
 /**
  * Human-readable labels for IO types.
@@ -158,7 +166,45 @@ export const LOG_IO_TYPE_LABELS: Record<LogIOType, string> = {
   osmo_ctrl: "OSMO Control",
   download: "Download",
   upload: "Upload",
+  dump: "Raw Output",
 } as const;
+
+// =============================================================================
+// Source Types (User vs OSMO)
+// =============================================================================
+
+/**
+ * IO types that belong to "user" source (user container output).
+ */
+export const USER_IO_TYPES: ReadonlySet<LogIOType> = new Set(["stdout", "stderr", "dump"]);
+
+/**
+ * IO types that belong to "osmo" source (OSMO infrastructure).
+ */
+export const OSMO_IO_TYPES: ReadonlySet<LogIOType> = new Set(["osmo_ctrl", "download", "upload"]);
+
+/**
+ * All supported source types.
+ */
+export const LOG_SOURCE_TYPES: readonly LogSourceType[] = ["user", "osmo"] as const;
+
+/**
+ * Human-readable labels for source types.
+ */
+export const LOG_SOURCE_TYPE_LABELS: Record<LogSourceType, string> = {
+  user: "User",
+  osmo: "System",
+} as const;
+
+/**
+ * Derive source type from IO type.
+ * User = stdout, stderr, dump (user's code output)
+ * OSMO = osmo_ctrl, download, upload (OSMO infrastructure)
+ */
+export function getSourceType(ioType: LogIOType | undefined): LogSourceType {
+  if (!ioType) return "user";
+  return OSMO_IO_TYPES.has(ioType) ? "osmo" : "user";
+}
 
 // =============================================================================
 // Field Definitions

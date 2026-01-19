@@ -45,6 +45,7 @@ export type {
   // Core log types
   LogLevel,
   LogIOType,
+  LogSourceType,
   LogLabels,
   LogEntry,
   // Query types
@@ -83,6 +84,12 @@ export {
   // IO types
   LOG_IO_TYPES,
   LOG_IO_TYPE_LABELS,
+  // Source types (user vs osmo)
+  LOG_SOURCE_TYPES,
+  LOG_SOURCE_TYPE_LABELS,
+  USER_IO_TYPES,
+  OSMO_IO_TYPES,
+  getSourceType,
   // Field definitions
   LOG_FIELDS,
   LABEL_FILTER_FIELDS,
@@ -103,6 +110,7 @@ export {
   parseLogLine,
   parseLogBatch,
   stripAnsi,
+  formatLogLine,
   // Index class
   LogIndex,
   // Plain Text Adapter

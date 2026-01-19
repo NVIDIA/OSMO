@@ -14,6 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+"use client";
+
 import { memo, Suspense } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { Header } from "./header";
@@ -21,6 +23,8 @@ import { SIDEBAR_CSS_VARS } from "./constants";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/shadcn/card";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
+import { useSharedPreferences, sharedPreferencesInitialState } from "@/stores";
+import { useMounted } from "@/hooks";
 
 interface ChromeProps {
   children: React.ReactNode;
@@ -28,10 +32,21 @@ interface ChromeProps {
 
 // PPR: Suspense allows static shell to prerender, dynamic content streams after hydration
 export const Chrome = memo(function Chrome({ children }: ChromeProps) {
+  const storeSidebarOpen = useSharedPreferences((s) => s.sidebarOpen);
+  const setSidebarOpen = useSharedPreferences((s) => s.setSidebarOpen);
+
+  // SSR-safe hydration: Use default value until after mount to prevent hydration mismatch.
+  // Zustand persist returns initial state on server but localStorage value on client.
+  const mounted = useMounted();
+
+  // Use initial state during SSR/first render, then switch to store value after hydration
+  const sidebarOpen = mounted ? storeSidebarOpen : sharedPreferencesInitialState.sidebarOpen;
+
   return (
     <Suspense fallback={<ChromeSkeleton>{children}</ChromeSkeleton>}>
       <SidebarProvider
-        defaultOpen={true}
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
         className="h-screen overflow-hidden"
         style={SIDEBAR_CSS_VARS as React.CSSProperties}
       >
