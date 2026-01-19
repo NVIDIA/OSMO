@@ -26,7 +26,15 @@
  * - Histogram buckets are created on-demand during streaming
  */
 
-import type { LogEntry, LogLevel, LogIOType, HistogramBucket, HistogramResult, FieldFacet, FacetValue } from "../types";
+import type {
+  LogEntry,
+  LogLevel,
+  LogSourceType,
+  HistogramBucket,
+  HistogramResult,
+  FieldFacet,
+  FacetValue,
+} from "../types";
 import { LOG_LEVELS } from "../constants";
 
 // =============================================================================
@@ -41,8 +49,8 @@ export interface LogIndexFilterOptions {
   levels?: LogLevel[];
   /** Filter by task names */
   tasks?: string[];
-  /** Filter by IO types */
-  ioTypes?: LogIOType[];
+  /** Filter by source types (user vs system) */
+  sources?: LogSourceType[];
   /** Text search (regex-escaped substring match) */
   search?: string;
   /** Use regex for search */
@@ -72,13 +80,13 @@ export class LogIndex {
   // Inverted indexes: label value -> Set of entry indices
   private byLevel = new Map<LogLevel, Set<number>>();
   private byTask = new Map<string, Set<number>>();
-  private byIoType = new Map<LogIOType, Set<number>>();
+  private bySource = new Map<LogSourceType, Set<number>>();
   private byRetry = new Map<string, Set<number>>();
 
   // Pre-computed facet counts
   private levelCounts = new Map<LogLevel, number>();
   private taskCounts = new Map<string, number>();
-  private ioTypeCounts = new Map<LogIOType, number>();
+  private sourceCounts = new Map<LogSourceType, number>();
   private retryCounts = new Map<string, number>();
 
   // Histogram: bucket timestamp -> level counts
@@ -130,10 +138,10 @@ export class LogIndex {
         this.incrementCount(this.taskCounts, entry.labels.task);
       }
 
-      // Index by IO type
-      if (entry.labels.io_type) {
-        this.addToIndex(this.byIoType, entry.labels.io_type, idx);
-        this.incrementCount(this.ioTypeCounts, entry.labels.io_type);
+      // Index by source (user vs system)
+      if (entry.labels.source) {
+        this.addToIndex(this.bySource, entry.labels.source, idx);
+        this.incrementCount(this.sourceCounts, entry.labels.source);
       }
 
       // Index by retry
@@ -168,11 +176,11 @@ export class LogIndex {
     this.entries = [];
     this.byLevel.clear();
     this.byTask.clear();
-    this.byIoType.clear();
+    this.bySource.clear();
     this.byRetry.clear();
     this.levelCounts.clear();
     this.taskCounts.clear();
-    this.ioTypeCounts.clear();
+    this.sourceCounts.clear();
     this.retryCounts.clear();
     this.buckets.clear();
     this.minTimestamp = null;
@@ -206,11 +214,11 @@ export class LogIndex {
       indices = indices ? this.intersect(indices, taskIndices) : taskIndices;
     }
 
-    // Filter by IO types (OR within types, AND with previous)
-    if (opts.ioTypes?.length) {
-      const ioSets = opts.ioTypes.map((t) => this.byIoType.get(t));
-      const ioIndices = this.union(ioSets);
-      indices = indices ? this.intersect(indices, ioIndices) : ioIndices;
+    // Filter by source types (OR within sources, AND with previous)
+    if (opts.sources?.length) {
+      const sourceSets = opts.sources.map((s) => this.bySource.get(s));
+      const sourceIndices = this.union(sourceSets);
+      indices = indices ? this.intersect(indices, sourceIndices) : sourceIndices;
     }
 
     // Get candidate entries from indices or all entries
@@ -278,8 +286,8 @@ export class LogIndex {
       case "task":
         counts = this.taskCounts;
         break;
-      case "io_type":
-        counts = this.ioTypeCounts as Map<string, number>;
+      case "source":
+        counts = this.sourceCounts as Map<string, number>;
         break;
       case "retry":
         counts = this.retryCounts;
@@ -308,13 +316,13 @@ export class LogIndex {
   getRawFacets(): {
     levels: Map<LogLevel, number>;
     tasks: Map<string, number>;
-    ioTypes: Map<LogIOType, number>;
+    sources: Map<LogSourceType, number>;
     retries: Map<string, number>;
   } {
     return {
       levels: this.levelCounts,
       tasks: this.taskCounts,
-      ioTypes: this.ioTypeCounts,
+      sources: this.sourceCounts,
       retries: this.retryCounts,
     };
   }

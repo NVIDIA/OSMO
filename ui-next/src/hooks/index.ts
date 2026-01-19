@@ -89,5 +89,32 @@ export { useTick, useTickController, useLiveDuration, calculateLiveDuration } fr
 // Server Actions (optimistic UI)
 export { useOptimisticAction, useServerAction } from "./use-optimistic-action";
 
-// Client-only rendering (hydration safety)
+// =============================================================================
+// Hydration Safety
+// =============================================================================
+//
+// SSR with Zustand localStorage persistence causes hydration mismatches because:
+// 1. Server renders with initial state (no localStorage access)
+// 2. Client has different values in localStorage
+// 3. React sees different HTML → hydration error
+//
+// ## Solution 1: useMounted (for client-only UI)
+// Use when a component should only render on client (e.g., theme toggle dropdown)
+//
+// ## Solution 2: useIsHydrated / useHydratedStore (for values affecting render)
+// Use when a store value affects what gets rendered
+//
+// ## Solution 3: Pre-built hydration-safe selectors (easiest)
+// For shared preferences, use the pre-built hooks from @/stores:
+// - useDisplayMode() instead of useSharedPreferences((s) => s.displayMode)
+// - useCompactMode() instead of useSharedPreferences((s) => s.compactMode)
+// - useSidebarOpen() instead of useSharedPreferences((s) => s.sidebarOpen)
+//
+// See: src/stores/shared-preferences-store.ts for the full list
+// =============================================================================
+
+// Client-only rendering (for components that should skip SSR entirely)
 export { useMounted } from "./use-mounted";
+
+// Hydration-safe store access (for values that affect rendered output)
+export { useIsHydrated, useHydratedStore, createHydratedSelector } from "./use-hydrated-store";

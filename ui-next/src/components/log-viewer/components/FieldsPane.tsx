@@ -11,7 +11,7 @@
 import { memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldFacet, LogLevel } from "@/lib/api/log-adapter";
-import { LOG_LEVEL_LABELS, LOG_IO_TYPE_LABELS } from "@/lib/api/log-adapter";
+import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
 import { getLevelDotClasses } from "../lib/level-utils";
 import { Button } from "@/components/shadcn/button";
 
@@ -82,14 +82,14 @@ function FacetValueItem({ field, value, count, isActive, onClick }: FacetValueIt
 
 /**
  * Get display label for a facet value.
- * Uses LOG_LEVEL_LABELS and LOG_IO_TYPE_LABELS for known fields.
+ * Uses LOG_LEVEL_LABELS and LOG_SOURCE_TYPE_LABELS for known fields.
  */
 function getDisplayLabel(field: string, value: string): string {
   if (field === "level" && value in LOG_LEVEL_LABELS) {
     return LOG_LEVEL_LABELS[value as LogLevel];
   }
-  if (field === "io_type" && value in LOG_IO_TYPE_LABELS) {
-    return LOG_IO_TYPE_LABELS[value as keyof typeof LOG_IO_TYPE_LABELS];
+  if (field === "source" && value in LOG_SOURCE_TYPE_LABELS) {
+    return LOG_SOURCE_TYPE_LABELS[value as keyof typeof LOG_SOURCE_TYPE_LABELS];
   }
   return value;
 }
@@ -136,7 +136,7 @@ function getFieldLabel(field: string): string {
       return "Level";
     case "task":
       return "Task";
-    case "io_type":
+    case "source":
       return "Source";
     case "retry":
       return "Retry";

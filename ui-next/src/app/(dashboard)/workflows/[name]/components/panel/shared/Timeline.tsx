@@ -25,7 +25,8 @@ import { memo, useRef, useState, useLayoutEffect } from "react";
 import { useResizeObserver } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { calculateLiveDuration } from "@/hooks";
+import { calculateLiveDuration, useTick, useIsHydrated } from "@/hooks";
+import { formatDateTimeFull, formatDateTimeRelative } from "@/lib/format-date";
 import { formatDuration } from "../../../lib/workflow-types";
 
 export function parseTime(timeStr?: string | null): Date | null {
@@ -122,34 +123,9 @@ const STYLES = {
   timelinePending: "border-dashed border-[color:var(--timeline-pending-marker)]",
 } as const;
 
-function formatTimeFull(date: Date | null): string {
-  if (!date) return "";
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-}
-
-function formatTimeShort(date: Date | null): string {
-  if (!date) return "";
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  if (isToday) {
-    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-  }
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
+// Using SSR-safe formatters from @/lib/format-date
+// formatTimeFull → formatDateTimeFull (SSR-safe, no locale dependency)
+// formatTimeShort → formatDateTimeRelative (client-only with relative "today" check)
 
 // Sqrt scaling prevents extreme visual disparities (3600s vs 5s = 60:1 not 720:1)
 function getScaledFr(duration: number | null): number {
@@ -159,6 +135,30 @@ function getScaledFr(duration: number | null): number {
 
 const MIN_HORIZONTAL_WIDTH = 280;
 const LAYOUT_HYSTERESIS = 20;
+
+/**
+ * Helper to format time for display - uses relative formatting only after hydration.
+ * During SSR/hydration, falls back to the full date format to avoid mismatch.
+ */
+function useTimeFormatter(isHydrated: boolean) {
+  const tickNow = useTick();
+
+  return {
+    // SSR-safe full date format (for tooltips, aria labels)
+    formatFull: (date: Date | null): string => formatDateTimeFull(date),
+
+    // Relative format (only after hydration to avoid "today" mismatch)
+    formatShort: (date: Date | null): string => {
+      if (!date) return "";
+      // During SSR/hydration, use full format to avoid mismatch
+      if (!isHydrated) {
+        return formatDateTimeFull(date);
+      }
+      // After hydration, use relative format with synchronized tick
+      return formatDateTimeRelative(date, new Date(tickNow));
+    },
+  };
+}
 
 export const Timeline = memo(function Timeline({
   phases,
@@ -171,6 +171,10 @@ export const Timeline = memo(function Timeline({
   const gridRef = useRef<HTMLDivElement>(null);
   const [isVertical, setIsVertical] = useState(false);
   const lastWidthRef = useRef<number>(0);
+
+  // Hydration safety for relative date formatting
+  const isHydrated = useIsHydrated();
+  const { formatFull, formatShort } = useTimeFormatter(isHydrated);
 
   const { width: containerWidth = 0 } = useResizeObserver({
     ref: containerRef as React.RefObject<HTMLElement>,
@@ -236,7 +240,7 @@ export const Timeline = memo(function Timeline({
 
   const accessibleDescription = phases
     .map((phase) => {
-      const time = phase.time ? formatTimeFull(phase.time) : "";
+      const time = phase.time ? formatFull(phase.time) : "";
       const dur = phase.duration !== null ? formatDuration(phase.duration) : "";
       return `${phase.label}: ${phase.status}${dur ? `, ${dur}` : ""}${time ? ` (${time})` : ""}`;
     })
@@ -273,7 +277,7 @@ export const Timeline = memo(function Timeline({
                       <TooltipTrigger asChild>
                         <button
                           type="button"
-                          aria-label={`${phase.label}${phase.time ? `: ${formatTimeFull(phase.time)}` : ""}`}
+                          aria-label={`${phase.label}${phase.time ? `: ${formatFull(phase.time)}` : ""}`}
                           className={cn(
                             "size-2 shrink-0 cursor-help rounded-full border-2 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
                             phase.status === "completed" && "timeline-marker-completed",
@@ -288,9 +292,7 @@ export const Timeline = memo(function Timeline({
                         className="text-xs"
                       >
                         <div className="font-medium">{phase.label}</div>
-                        {phase.time && (
-                          <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(phase.time)}</div>
-                        )}
+                        {phase.time && <div className="text-gray-500 dark:text-zinc-400">{formatFull(phase.time)}</div>}
                       </TooltipContent>
                     </Tooltip>
                     {!isLast && nextPhase && (
@@ -317,7 +319,7 @@ export const Timeline = memo(function Timeline({
                     >
                       {phase.label}
                     </span>
-                    {phase.time && <span className={STYLES.subtleText}>{formatTimeShort(phase.time)}</span>}
+                    {phase.time && <span className={STYLES.subtleText}>{formatShort(phase.time)}</span>}
                     {phase.duration !== null && (
                       <span
                         className={cn(
@@ -357,7 +359,7 @@ export const Timeline = memo(function Timeline({
             {phases.map((phase, index) => {
               const isLast = index === phases.length - 1;
               const nextPhase = phases[index + 1];
-              const markerLabel = `${phase.label}${phase.time ? `: ${formatTimeFull(phase.time)}` : ""}`;
+              const markerLabel = `${phase.label}${phase.time ? `: ${formatFull(phase.time)}` : ""}`;
               return (
                 <div
                   key={phase.id}
@@ -393,9 +395,7 @@ export const Timeline = memo(function Timeline({
                       className="text-xs"
                     >
                       <div className="font-medium">{phase.label}</div>
-                      {phase.time && (
-                        <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(phase.time)}</div>
-                      )}
+                      {phase.time && <div className="text-gray-500 dark:text-zinc-400">{formatFull(phase.time)}</div>}
                     </TooltipContent>
                   </Tooltip>
                   {!isLast && nextPhase && (
@@ -432,7 +432,7 @@ export const Timeline = memo(function Timeline({
                   >
                     {phase.label}
                   </span>
-                  {phase.time && <span className={STYLES.subtleText}>{formatTimeShort(phase.time)}</span>}
+                  {phase.time && <span className={STYLES.subtleText}>{formatShort(phase.time)}</span>}
                   {phase.duration !== null && (
                     <span
                       className={cn(

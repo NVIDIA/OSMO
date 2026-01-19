@@ -20,15 +20,19 @@ import { memo } from "react";
 import { MonitorCheck, MonitorX } from "lucide-react";
 import { Toggle } from "@/components/shadcn/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { useSharedPreferences } from "@/stores";
+import { useSharedPreferences, useDisplayMode } from "@/stores";
 
 /**
  * DisplayModeToggle - Toggle between "free" (available) and "used" display modes.
  *
  * Used by pools and resources tables to filter the view.
+ *
+ * Note: Uses useDisplayMode (hydration-safe) to prevent mismatch from
+ * Zustand's localStorage persistence returning different values on server vs client.
  */
 export const DisplayModeToggle = memo(function DisplayModeToggle() {
-  const displayMode = useSharedPreferences((s) => s.displayMode);
+  // Hydration-safe: returns initial state during SSR/hydration, then actual value
+  const displayMode = useDisplayMode();
   const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
 
   return (

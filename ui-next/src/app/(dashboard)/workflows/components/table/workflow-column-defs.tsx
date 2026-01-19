@@ -20,6 +20,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { remToPx } from "@/components/data-table";
 import { cn } from "@/lib/utils";
+import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
 import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
 import { WORKFLOW_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type WorkflowColumnId } from "../../lib/workflow-columns";
 import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay, type StatusCategory } from "../../lib/workflow-constants";
@@ -45,33 +46,8 @@ function getMinSize(id: WorkflowColumnId): number {
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-function formatSuccinctDate(isoString: string): string {
-  const date = new Date(isoString);
-  const now = new Date();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "p" : "a";
-  const hour12 = hours % 12 || 12;
-
-  if (date.getFullYear() === now.getFullYear()) {
-    return `${month}/${day} ${hour12}:${minutes}${ampm}`;
-  }
-  return `${month}/${day}/${date.getFullYear() % 100} ${hour12}:${minutes}${ampm}`;
-}
-
-function formatFullDate(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
+// SSR-safe date formatters from @/lib/format-date
+// These produce consistent output between server and client
 
 export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[] {
   return [
@@ -126,9 +102,9 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
         return (
           <span
             className="truncate text-sm text-zinc-500 dark:text-zinc-400"
-            title={formatFullDate(submitTime)}
+            title={formatDateTimeFull(submitTime)}
           >
-            {formatSuccinctDate(submitTime)}
+            {formatDateTimeSuccinct(submitTime)}
           </span>
         );
       },
@@ -145,9 +121,9 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
         return (
           <span
             className="truncate text-sm text-zinc-500 dark:text-zinc-400"
-            title={formatFullDate(startTime)}
+            title={formatDateTimeFull(startTime)}
           >
-            {formatSuccinctDate(startTime)}
+            {formatDateTimeSuccinct(startTime)}
           </span>
         );
       },
@@ -164,9 +140,9 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
         return (
           <span
             className="truncate text-sm text-zinc-500 dark:text-zinc-400"
-            title={formatFullDate(endTime)}
+            title={formatDateTimeFull(endTime)}
           >
-            {formatSuccinctDate(endTime)}
+            {formatDateTimeSuccinct(endTime)}
           </span>
         );
       },
