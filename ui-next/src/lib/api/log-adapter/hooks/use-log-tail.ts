@@ -46,6 +46,8 @@ export interface UseLogTailParams {
   onEntries?: (entries: LogEntry[]) => void;
   /** Maximum entries to buffer */
   maxBufferSize?: number;
+  /** Optional URL params to append to requests */
+  devParams?: Record<string, string>;
 }
 
 /**
@@ -93,7 +95,14 @@ const DEFAULT_MAX_BUFFER_SIZE = 10_000;
  * @returns Tail state and control functions
  */
 export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
-  const { workflowId, enabled = true, baseUrl = "", onEntries, maxBufferSize = DEFAULT_MAX_BUFFER_SIZE } = params;
+  const {
+    workflowId,
+    enabled = true,
+    baseUrl = "",
+    onEntries,
+    maxBufferSize = DEFAULT_MAX_BUFFER_SIZE,
+    devParams,
+  } = params;
 
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [status, setStatus] = useState<TailStatus>("disconnected");
@@ -162,13 +171,15 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
 
     try {
       // Use the regular logs endpoint - backend streams via Transfer-Encoding: chunked
-      // In mocks, add log_scenario=streaming to trigger streaming behavior
       const urlObj = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
-      // Note: In production, streaming happens automatically for running workflows
-      // In dev/mocks, we explicitly request the streaming scenario
-      if (process.env.NODE_ENV === "development") {
-        urlObj.searchParams.set("log_scenario", "streaming");
+
+      // Apply optional URL params (used by experimental playground for mock scenarios)
+      if (devParams) {
+        for (const [key, value] of Object.entries(devParams)) {
+          urlObj.searchParams.set(key, value);
+        }
       }
+
       const response = await fetch(urlObj.toString(), {
         method: "GET",
         headers: {
@@ -224,7 +235,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         setStatus("error");
       }
     }
-  }, [baseUrl, workflowId, processChunk]);
+  }, [baseUrl, workflowId, processChunk, devParams]);
 
   /**
    * Starts tailing.

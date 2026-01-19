@@ -88,6 +88,7 @@ export function useLogHistogram(params: UseLogHistogramParams): UseLogHistogramR
   const numBuckets = params.buckets ?? LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS;
 
   // Build stable query key
+  // Note: Scenario differentiation is handled by the adapter's internal cache
   const queryKey = useMemo(
     () => [
       "logs",

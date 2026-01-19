@@ -110,26 +110,17 @@ const DEFAULT_FEATURES: LogFeatureConfig = {
 
 /**
  * Valid scenario name type.
- * Derived from the keys of LOG_SCENARIOS for type safety.
  */
-export type LogScenarioName =
-  | "normal"
-  | "error-heavy"
-  | "high-volume"
-  | "empty"
-  | "streaming"
-  | "retries"
-  | "multiline"
-  | "ansi"
-  | "mixed";
+export type LogScenarioName = "normal" | "error-heavy" | "high-volume" | "empty" | "streaming";
 
 /**
- * 9 pre-defined log scenarios for comprehensive testing.
+ * 5 core log scenarios for testing the log viewer.
  */
 export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
   /**
    * Normal scenario - typical training workflow logs.
    * 500-2k lines, mostly INFO with occasional warnings/errors.
+   * Good for general UI testing and development.
    */
   normal: {
     name: "normal",
@@ -137,16 +128,17 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
     volume: { min: 500, max: 2000 },
     levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
     ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
-    features: DEFAULT_FEATURES,
+    features: { ...DEFAULT_FEATURES, multiLine: true, taskCount: 4 },
   },
 
   /**
    * Error-heavy scenario - high error rate for UI testing.
-   * 500-1k lines, 28% errors, 20% warnings.
+   * 500-1k lines, ~30% errors, ~20% warnings.
+   * Tests error highlighting, filtering, and display.
    */
   "error-heavy": {
     name: "error-heavy",
-    description: "High error rate for testing error display and filtering",
+    description: "High error rate (~30%) for testing error display",
     volume: { min: 500, max: 1000 },
     levelDistribution: {
       debug: 0.02,
@@ -163,23 +155,25 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
       upload: 0.025,
       dump: 0.03,
     },
-    features: { ...DEFAULT_FEATURES, taskCount: 4 },
+    features: { ...DEFAULT_FEATURES, multiLine: true, taskCount: 4 },
   },
 
   /**
-   * High-volume scenario - performance testing with 100k+ lines.
+   * High-volume scenario - performance testing with 50k+ lines.
+   * Tests virtualization, memory usage, and scroll performance.
    */
   "high-volume": {
     name: "high-volume",
-    description: "Large workflow for virtualization and memory testing",
-    volume: { min: 100000, max: 150000 },
+    description: "50k+ lines for virtualization and performance testing",
+    volume: { min: 50000, max: 75000 },
     levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
     ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
-    features: { ...DEFAULT_FEATURES, taskCount: 10 },
+    features: { ...DEFAULT_FEATURES, taskCount: 8 },
   },
 
   /**
    * Empty scenario - no logs (empty state testing).
+   * Tests empty state UI, loading states, and error handling.
    */
   empty: {
     name: "empty",
@@ -192,109 +186,21 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
 
   /**
    * Streaming scenario - simulates live log tailing.
-   * Generates logs over time with configurable delay.
+   * Returns logs via HTTP streaming with delays between chunks.
+   * Tests real-time log viewing, auto-scroll, and tailing UI.
    */
   streaming: {
     name: "streaming",
-    description: "Live tailing simulation with slow log generation",
-    volume: { min: 10000, max: 50000 },
+    description: "Live tailing with ~5 lines/second",
+    volume: { min: 500, max: 1000 },
     levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
     ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
     features: {
       ...DEFAULT_FEATURES,
       streaming: true,
-      streamDelayMs: 200,
+      streamDelayMs: 100, // ~10 lines/second (faster for testing)
       taskCount: 2,
     },
-  },
-
-  /**
-   * Retries scenario - logs with retry attempts.
-   * Useful for testing retry filtering in the log viewer.
-   */
-  retries: {
-    name: "retries",
-    description: "Tasks with multiple retry attempts for retry filtering",
-    volume: { min: 800, max: 1200 },
-    levelDistribution: {
-      debug: 0.01,
-      info: 0.7,
-      warn: 0.15,
-      error: 0.12,
-      fatal: 0.02,
-    },
-    ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
-    features: {
-      ...DEFAULT_FEATURES,
-      retries: true,
-      maxRetryAttempt: 3,
-      taskCount: 4,
-    },
-  },
-
-  /**
-   * Multiline scenario - stack traces and JSON blobs.
-   * Tests multi-line log entry expansion.
-   */
-  multiline: {
-    name: "multiline",
-    description: "Stack traces and JSON blobs for multi-line expansion",
-    volume: { min: 400, max: 600 },
-    levelDistribution: {
-      debug: 0.1,
-      info: 0.5,
-      warn: 0.15,
-      error: 0.2,
-      fatal: 0.05,
-    },
-    ioTypeDistribution: {
-      stdout: 0.48,
-      osmo_ctrl: 0.18,
-      stderr: 0.25,
-      download: 0.025,
-      upload: 0.025,
-      dump: 0.04,
-    },
-    features: { ...DEFAULT_FEATURES, multiLine: true },
-  },
-
-  /**
-   * ANSI scenario - logs with ANSI escape codes.
-   * Tests ANSI stripping functionality.
-   */
-  ansi: {
-    name: "ansi",
-    description: "Logs with ANSI escape codes for strip testing",
-    volume: { min: 150, max: 250 },
-    levelDistribution: {
-      debug: 0.05,
-      info: 0.7,
-      warn: 0.15,
-      error: 0.08,
-      fatal: 0.02,
-    },
-    ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
-    features: { ...DEFAULT_FEATURES, ansiCodes: true },
-  },
-
-  /**
-   * Mixed scenario - all IO types interleaved.
-   * Tests IO type filtering and display.
-   */
-  mixed: {
-    name: "mixed",
-    description: "All IO types interleaved for filter testing",
-    volume: { min: 1500, max: 2500 },
-    levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
-    ioTypeDistribution: {
-      stdout: 0.3,
-      osmo_ctrl: 0.2,
-      stderr: 0.15,
-      download: 0.12,
-      upload: 0.12,
-      dump: 0.11, // Higher dump rate to test filtering
-    },
-    features: { ...DEFAULT_FEATURES, taskCount: 5 },
   },
 } as const;
 
