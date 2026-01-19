@@ -21,7 +21,7 @@
  */
 
 // Parser
-export { parseLogLine, parseLogBatch, stripAnsi, resetIdCounter } from "./log-parser";
+export { parseLogLine, parseLogBatch, stripAnsi, resetIdCounter, formatLogLine } from "./log-parser";
 
 // Index
 export { LogIndex } from "./log-index";
