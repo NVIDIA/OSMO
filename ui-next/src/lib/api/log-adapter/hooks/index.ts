@@ -21,8 +21,8 @@
  */
 
 // Adapter hook
-export { useLogAdapter, useLogAdapterCapabilities, LogAdapterProvider } from "./use-log-adapter.js";
-export type { LogAdapterProviderProps } from "./use-log-adapter.js";
+export { useLogAdapter, useLogAdapterCapabilities, LogAdapterProvider } from "./use-log-adapter";
+export type { LogAdapterProviderProps } from "./use-log-adapter";
 
 // Query hook
 export { useLogQuery } from "./use-log-query";
