@@ -52,6 +52,21 @@ export {
 
 export { LogGenerator, logGenerator, type GeneratedLogLine } from "./log-generator";
 
+export {
+  LOG_SCENARIOS,
+  getLogScenario,
+  getLogScenarioNames,
+  isValidScenario,
+  setLogScenario,
+  getActiveScenario,
+  resetLogScenario,
+  getActiveScenarioConfig,
+  type LogScenarioName,
+  type LogScenarioConfig,
+  type LogVolumeConfig,
+  type LogFeatureConfig,
+} from "./log-scenarios";
+
 export { EventGenerator, eventGenerator, type GeneratedEvent } from "./event-generator";
 
 export {
