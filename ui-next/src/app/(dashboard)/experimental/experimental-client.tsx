@@ -17,7 +17,7 @@
 "use client";
 
 import Link from "next/link";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, ScrollText } from "lucide-react";
 import { usePage } from "@/components/chrome";
 
 interface ExperimentalPage {
@@ -27,7 +27,14 @@ interface ExperimentalPage {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const experimentalPages: ExperimentalPage[] = [];
+const experimentalPages: ExperimentalPage[] = [
+  {
+    title: "Log Viewer",
+    href: "/experimental/log-viewer",
+    description: "Log viewer component playground with mock scenarios",
+    icon: ScrollText,
+  },
+];
 
 export function ExperimentalPageClient() {
   usePage({ title: "Experimental" });

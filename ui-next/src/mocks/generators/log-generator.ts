@@ -1,27 +1,28 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
  * Log Generator
  *
  * Generates realistic training/ML logs for workflows and tasks.
+ * Supports scenario-based generation for different testing needs.
+ *
+ * Log format matches real backend from `external/src/utils/connectors/redis.py`:
+ * - {YYYY/MM/DD HH:mm:ss} [{task_name}] {message}                    # Normal stdout
+ * - {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}] {message}          # Retry stdout
+ * - {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}              # OSMO control
+ * - {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}][osmo] {message}    # Retry OSMO
  */
 
 import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed";
+import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
+import { getLogScenario, getActiveScenario, type LogScenarioConfig } from "./log-scenarios";
 
 // ============================================================================
 // Types
@@ -29,10 +30,86 @@ import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed";
 
 export interface GeneratedLogLine {
   timestamp: string;
-  level: string;
+  level: LogLevel;
   source: string;
+  ioType: LogIOType;
   message: string;
+  retryAttempt?: number;
+  raw: string;
 }
+
+interface TaskContext {
+  name: string;
+  retryAttempt?: number;
+}
+
+// ============================================================================
+// ANSI Code Patterns
+// ============================================================================
+
+const ANSI_COLORS = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+  bgRed: "\x1b[41m",
+  bgGreen: "\x1b[42m",
+  bgYellow: "\x1b[43m",
+} as const;
+
+// ============================================================================
+// Multi-line Content Templates
+// ============================================================================
+
+const STACK_TRACES = [
+  `Traceback (most recent call last):
+  File "/app/train.py", line 245, in forward
+    output = self.model(input_ids)
+  File "/usr/local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/app/models/transformer.py", line 89, in forward
+    attn_output = self.attention(hidden_states)
+RuntimeError: CUDA out of memory. Tried to allocate 2.00 GiB`,
+  `Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+    at java.util.Arrays.copyOf(Arrays.java:3236)
+    at java.util.ArrayList.grow(ArrayList.java:265)
+    at com.nvidia.training.DataLoader.load(DataLoader.java:127)
+    at com.nvidia.training.Main.main(Main.java:45)`,
+  `Error: ENOENT: no such file or directory, open '/data/checkpoints/model.pt'
+    at Object.openSync (node:fs:585:3)
+    at Object.readFileSync (node:fs:453:35)
+    at loadCheckpoint (/app/src/checkpoint.js:23:14)
+    at main (/app/src/index.js:45:5)`,
+];
+
+const JSON_BLOBS = [
+  `{
+  "epoch": 15,
+  "metrics": {
+    "train_loss": 0.0234,
+    "val_loss": 0.0289,
+    "accuracy": 0.9823,
+    "learning_rate": 1.5e-5
+  },
+  "checkpoint": "/data/checkpoints/epoch_15.pt"
+}`,
+  `{
+  "event": "batch_complete",
+  "batch_id": 1024,
+  "samples_processed": 65536,
+  "gpu_memory": {
+    "allocated": "45.2GB",
+    "reserved": "48.0GB",
+    "max_allocated": "47.8GB"
+  }
+}`,
+];
 
 // ============================================================================
 // Generator Class
@@ -53,15 +130,131 @@ export class LogGenerator {
     this.baseSeed = baseSeed;
   }
 
+  // ==========================================================================
+  // Scenario-based Generation (NEW)
+  // ==========================================================================
+
   /**
-   * Generate logs for a task
+   * Generate logs for a workflow using a specific scenario.
+   * This is the primary entry point for scenario-based log generation.
+   */
+  generateForScenario(workflowName: string, scenarioName?: string, taskNames?: string[]): string {
+    const scenario = getLogScenario(scenarioName ?? getActiveScenario());
+
+    // Handle empty scenario
+    if (scenario.volume.max === 0) {
+      return "";
+    }
+
+    faker.seed(this.baseSeed + this.hashString(workflowName + scenario.name));
+
+    const numLines = faker.number.int({
+      min: scenario.volume.min,
+      max: scenario.volume.max,
+    });
+
+    // Generate task names if not provided
+    const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
+
+    // Build task contexts with optional retry info
+    const taskContexts = this.buildTaskContexts(tasks, scenario);
+
+    // Generate log lines
+    const lines: GeneratedLogLine[] = [];
+    const startTime = faker.date.recent({ days: 7 });
+    const durationMs = faker.number.int({ min: 60000, max: 3600000 });
+    const msPerLog = durationMs / Math.max(1, numLines);
+
+    for (let i = 0; i < numLines; i++) {
+      const timestamp = new Date(startTime.getTime() + i * msPerLog);
+      const taskCtx = faker.helpers.arrayElement(taskContexts);
+      const level = this.pickLevel(scenario.levelDistribution);
+      const ioType = this.pickIOType(scenario.ioTypeDistribution);
+
+      let message = this.generateMessage(level, ioType, i, numLines, scenario);
+
+      // Optionally add ANSI codes
+      if (scenario.features.ansiCodes) {
+        message = this.addAnsiCodes(message, level);
+      }
+
+      // Optionally make it multiline
+      if (scenario.features.multiLine && faker.number.float() < 0.1) {
+        message = this.generateMultilineContent(level);
+      }
+
+      const line = this.formatLogLineV2(timestamp, taskCtx, ioType, message);
+      lines.push({
+        timestamp: this.formatTimestamp(timestamp),
+        level,
+        source: taskCtx.name,
+        ioType,
+        message,
+        retryAttempt: taskCtx.retryAttempt,
+        raw: line,
+      });
+    }
+
+    // Sort by timestamp (already in order, but ensures consistency)
+    lines.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+    return lines.map((l) => l.raw).join("\n");
+  }
+
+  /**
+   * Create an async generator for streaming log generation.
+   * Yields log lines with configurable delay for tailing simulation.
+   */
+  async *createStream(
+    workflowName: string,
+    scenario: LogScenarioConfig,
+    taskNames?: string[],
+  ): AsyncGenerator<string, void, unknown> {
+    faker.seed(this.baseSeed + this.hashString(workflowName + scenario.name));
+
+    const numLines = faker.number.int({
+      min: scenario.volume.min,
+      max: scenario.volume.max,
+    });
+
+    const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
+    const taskContexts = this.buildTaskContexts(tasks, scenario);
+    const startTime = new Date();
+
+    for (let i = 0; i < numLines; i++) {
+      const timestamp = new Date(startTime.getTime() + i * 1000);
+      const taskCtx = faker.helpers.arrayElement(taskContexts);
+      const level = this.pickLevel(scenario.levelDistribution);
+      const ioType = this.pickIOType(scenario.ioTypeDistribution);
+
+      let message = this.generateMessage(level, ioType, i, numLines, scenario);
+
+      if (scenario.features.ansiCodes) {
+        message = this.addAnsiCodes(message, level);
+      }
+
+      if (scenario.features.multiLine && faker.number.float() < 0.1) {
+        message = this.generateMultilineContent(level);
+      }
+
+      const line = this.formatLogLineV2(timestamp, taskCtx, ioType, message);
+      yield line + "\n";
+    }
+  }
+
+  // ==========================================================================
+  // Legacy Methods (Preserved for Backward Compatibility)
+  // ==========================================================================
+
+  /**
+   * Generate logs for a task (legacy method).
    */
   generateTaskLogs(workflowName: string, taskName: string, status: string, durationSeconds?: number): string {
     faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
 
     const lines: string[] = [];
     const numLines = faker.number.int(this.volume.logsPerTask);
-    const duration = durationSeconds || faker.number.int({ min: 60, max: 3600 });
+    const duration = durationSeconds ?? faker.number.int({ min: 60, max: 3600 });
 
     // Start time
     const startTime = faker.date.recent({ days: 7 });
@@ -84,7 +277,8 @@ export class LogGenerator {
   }
 
   /**
-   * Generate logs for an entire workflow (all tasks interleaved)
+   * Generate logs for an entire workflow (all tasks interleaved).
+   * Legacy method - now enhanced to support scenarios.
    */
   generateWorkflowLogs(workflowName: string, taskNames: string[], status: string): string {
     const allLines: { timestamp: Date; line: string }[] = [];
@@ -111,8 +305,259 @@ export class LogGenerator {
     return allLines.map((l) => l.line).join("\n");
   }
 
+  // ==========================================================================
+  // Private Helpers - Scenario Support
+  // ==========================================================================
+
+  private generateTaskNames(count: number): string[] {
+    const taskTypes = ["train", "preprocess", "eval", "export", "validate", "infer", "download", "upload"];
+    const names: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const type = faker.helpers.arrayElement(taskTypes);
+      names.push(`${type}-${faker.string.alphanumeric(6).toLowerCase()}`);
+    }
+    return names;
+  }
+
+  private buildTaskContexts(taskNames: string[], scenario: LogScenarioConfig): TaskContext[] {
+    const contexts: TaskContext[] = [];
+
+    for (const name of taskNames) {
+      if (scenario.features.retries) {
+        // Add base task and retry attempts
+        contexts.push({ name });
+        const maxRetry = scenario.features.maxRetryAttempt ?? 2;
+        for (let r = 1; r <= faker.number.int({ min: 1, max: maxRetry }); r++) {
+          contexts.push({ name, retryAttempt: r });
+        }
+      } else {
+        contexts.push({ name });
+      }
+    }
+
+    return contexts;
+  }
+
+  private pickLevel(distribution: Record<LogLevel, number>): LogLevel {
+    const rand = faker.number.float();
+    let cumulative = 0;
+    for (const [level, prob] of Object.entries(distribution) as [LogLevel, number][]) {
+      cumulative += prob;
+      if (rand <= cumulative) {
+        return level;
+      }
+    }
+    return "info";
+  }
+
+  private pickIOType(distribution: Record<LogIOType, number>): LogIOType {
+    const rand = faker.number.float();
+    let cumulative = 0;
+    for (const [ioType, prob] of Object.entries(distribution) as [LogIOType, number][]) {
+      cumulative += prob;
+      if (rand <= cumulative) {
+        return ioType;
+      }
+    }
+    return "stdout";
+  }
+
+  private generateMessage(
+    level: LogLevel,
+    ioType: LogIOType,
+    index: number,
+    total: number,
+    _scenario: LogScenarioConfig,
+  ): string {
+    // IO type specific messages
+    if (ioType === "osmo_ctrl") {
+      return this.generateOsmoMessage(index, total);
+    }
+    if (ioType === "download") {
+      return this.generateDownloadMessage(index);
+    }
+    if (ioType === "upload") {
+      return this.generateUploadMessage(index);
+    }
+
+    // Level-specific messages
+    switch (level) {
+      case "error":
+      case "fatal":
+        return this.generateErrorMessage();
+      case "warn":
+        return this.generateWarningMessage();
+      case "debug":
+        return this.generateDebugMessage();
+      default:
+        return this.generateInfoMessage(index, total);
+    }
+  }
+
+  private generateOsmoMessage(index: number, total: number): string {
+    const messages = [
+      "Initializing container",
+      "Downloading inputs",
+      "All inputs gathered",
+      `Running on node dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}`,
+      `Container started with ${faker.helpers.arrayElement([1, 2, 4, 8])} GPUs`,
+      "Health check passed",
+      "Container ready",
+      "Uploading outputs",
+      "Task completed",
+      `Progress: ${((index / total) * 100).toFixed(1)}%`,
+    ];
+    return faker.helpers.arrayElement(messages);
+  }
+
+  private generateDownloadMessage(index: number): string {
+    const files = ["model.pt", "checkpoint.pth", "config.yaml", "dataset.tar.gz", "weights.bin"];
+    const file = faker.helpers.arrayElement(files);
+    const progress = faker.number.int({ min: 0, max: 100 });
+    return faker.helpers.arrayElement([
+      `Downloading ${file}: ${progress}%`,
+      `Downloaded ${file} (${faker.number.int({ min: 100, max: 5000 })}MB)`,
+      `Verifying checksum for ${file}`,
+      `Fetching s3://osmo-data/inputs/${file}`,
+      `Transfer rate: ${faker.number.int({ min: 50, max: 500 })}MB/s [${index}]`,
+    ]);
+  }
+
+  private generateUploadMessage(index: number): string {
+    const files = ["output.tar.gz", "model_final.pt", "metrics.json", "logs.zip", "artifacts.tar"];
+    const file = faker.helpers.arrayElement(files);
+    const progress = faker.number.int({ min: 0, max: 100 });
+    return faker.helpers.arrayElement([
+      `Uploading ${file}: ${progress}%`,
+      `Uploaded ${file} (${faker.number.int({ min: 10, max: 2000 })}MB)`,
+      `Compressing ${file}`,
+      `Writing to s3://osmo-outputs/${file}`,
+      `Upload speed: ${faker.number.int({ min: 50, max: 300 })}MB/s [${index}]`,
+    ]);
+  }
+
+  private generateErrorMessage(): string {
+    // Prefix with ERROR: so the parser can detect the level
+    const errors = [
+      "ERROR: CUDA out of memory. Tried to allocate 2.00 GiB",
+      "ERROR: Connection timeout: Failed to reach storage endpoint",
+      "ERROR: RuntimeError: Expected tensor on GPU but got CPU",
+      "ERROR: AssertionError: Batch size mismatch in forward pass",
+      "ERROR: FileNotFoundError: Checkpoint file not found",
+      "ERROR: ValueError: Invalid learning rate: must be positive",
+      "ERROR: OOM: Process killed by kernel",
+      "ERROR: NCCL error: unhandled system error",
+      "ERROR: Gradient overflow detected, skipping update",
+      "ERROR: Model diverged: loss became NaN",
+    ];
+    return faker.helpers.arrayElement(errors);
+  }
+
+  private generateWarningMessage(): string {
+    // Prefix with WARNING: so the parser can detect the level
+    const warnings = [
+      "WARNING: Learning rate scheduler: reducing LR to 1e-6",
+      "WARNING: GPU memory usage at 95%",
+      "WARNING: Gradient clipping applied: norm=10.5",
+      "WARNING: Slow data loading: consider increasing num_workers",
+      "WARNING: Checkpoint saving delayed by 30s",
+      "WARNING: Validation accuracy plateaued for 5 epochs",
+      "WARNING: Deprecated API: torch.cuda.amp will be removed",
+      "WARNING: Mixed precision: falling back to FP32 for this op",
+      "WARNING: Network latency spike: 250ms",
+      "WARNING: Cache miss rate above threshold",
+    ];
+    return faker.helpers.arrayElement(warnings);
+  }
+
+  private generateDebugMessage(): string {
+    // Prefix with DEBUG: so the parser can detect the level
+    const debug = [
+      `DEBUG: Memory allocated: ${faker.number.int({ min: 10, max: 80 })}GB`,
+      `DEBUG: Tensor shape: [${faker.number.int({ min: 1, max: 32 })}, ${faker.number.int({ min: 128, max: 4096 })}, ${faker.number.int({ min: 128, max: 4096 })}]`,
+      `DEBUG: Forward pass time: ${faker.number.float({ min: 0.1, max: 5.0 }).toFixed(3)}s`,
+      `DEBUG: Backward pass time: ${faker.number.float({ min: 0.1, max: 5.0 }).toFixed(3)}s`,
+      `DEBUG: DataLoader worker ${faker.number.int({ min: 0, max: 7 })} initialized`,
+      `DEBUG: Layer gradients: mean=${faker.number.float({ min: -0.1, max: 0.1 }).toFixed(6)}`,
+      `DEBUG: Optimizer state size: ${faker.number.int({ min: 100, max: 500 })}MB`,
+    ];
+    return faker.helpers.arrayElement(debug);
+  }
+
+  private generateInfoMessage(index: number, total: number): string {
+    const epoch = Math.floor((index / total) * 100);
+    const step = faker.number.int({ min: 1, max: 1000 });
+    const loss = Math.max(0.01, 5 - epoch * 0.03 + faker.number.float({ min: -0.2, max: 0.2 }));
+    const lr = 1e-4 * Math.pow(0.95, epoch);
+
+    const messages = [
+      `Epoch ${epoch}/100 Step ${step}: loss=${loss.toFixed(4)}, lr=${lr.toExponential(2)}`,
+      `[train] loss: ${loss.toFixed(4)} | step: ${step}`,
+      `Training step ${step} complete. Loss: ${loss.toFixed(6)}`,
+      `Progress: ${((index / total) * 100).toFixed(1)}%`,
+      `Processed ${index}/${total} batches`,
+      `GPU Util: ${faker.number.int({ min: 80, max: 100 })}% | Mem: ${faker.number.float({ min: 60, max: 79 }).toFixed(1)}/80GB`,
+      `Tokens/sec: ${faker.number.int({ min: 10000, max: 50000 })}`,
+      `Gradient norm: ${faker.number.float({ min: 0.1, max: 2.0 }).toFixed(4)}`,
+      `Batch ${step}: ${faker.number.int({ min: 50, max: 200 })}ms forward, ${faker.number.int({ min: 100, max: 400 })}ms backward`,
+      `Saving checkpoint at step ${step}`,
+    ];
+    return faker.helpers.arrayElement(messages);
+  }
+
+  private addAnsiCodes(message: string, level: LogLevel): string {
+    const { reset, bold, red, yellow, green, cyan, dim } = ANSI_COLORS;
+
+    switch (level) {
+      case "error":
+      case "fatal":
+        return `${bold}${red}ERROR${reset} ${message}`;
+      case "warn":
+        return `${yellow}WARN${reset} ${message}`;
+      case "debug":
+        return `${dim}DEBUG${reset} ${message}`;
+      case "info":
+        return faker.helpers.arrayElement([`${green}✓${reset} ${message}`, `${cyan}→${reset} ${message}`, message]);
+      default:
+        return message;
+    }
+  }
+
+  private generateMultilineContent(level: LogLevel): string {
+    if (level === "error" || level === "fatal") {
+      return faker.helpers.arrayElement(STACK_TRACES);
+    }
+    return faker.helpers.arrayElement(JSON_BLOBS);
+  }
+
+  /**
+   * Format log line using real backend format from redis.py:redis_log_formatter.
+   *
+   * Format matches backend exactly:
+   * - Regular: {YYYY/MM/DD HH:mm:ss} [{task_name}] {message}
+   * - With retry: {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}] {message}
+   * - Control logs: {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}
+   *
+   * Control logs (ctrl_logs() in backend) include: OSMO_CTRL, DOWNLOAD, UPLOAD
+   * These all get the [osmo] suffix as per redis.py line 146.
+   */
+  private formatLogLineV2(time: Date, task: TaskContext, ioType: LogIOType, message: string): string {
+    const timestamp = this.formatTimestamp(time);
+    let taskPart = task.name;
+
+    if (task.retryAttempt !== undefined) {
+      taskPart = `${task.name} retry-${task.retryAttempt}`;
+    }
+
+    // Match backend ctrl_logs() - OSMO_CTRL, DOWNLOAD, UPLOAD all get [osmo] suffix
+    const isCtrlLog = ioType === "osmo_ctrl" || ioType === "download" || ioType === "upload";
+    const ioSuffix = isCtrlLog ? "[osmo]" : "";
+
+    return `${timestamp} [${taskPart}]${ioSuffix} ${message}`;
+  }
+
   // --------------------------------------------------------------------------
-  // Private log generators
+  // Private log generators (legacy)
   // --------------------------------------------------------------------------
 
   private generateOsmoStartup(startTime: Date, taskName: string): string[] {
@@ -233,7 +678,7 @@ export class LogGenerator {
       errorType = "General";
     }
 
-    const errors = errorMessages[errorType] || errorMessages.General;
+    const errors = errorMessages[errorType] ?? errorMessages.General;
     const errorMsg = faker.helpers.arrayElement(errors).replace("{message}", "Unexpected error occurred");
 
     return [
