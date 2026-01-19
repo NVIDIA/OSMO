@@ -38,9 +38,10 @@ import {
   type PTYScenario,
   getLogScenario,
 } from "./generators";
+import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay } from "./utils";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
-const MOCK_DELAY = process.env.NODE_ENV === "development" ? 5 : 50;
+const MOCK_DELAY = getMockDelay();
 
 // ============================================================================
 // Handlers
@@ -57,26 +58,21 @@ export const handlers = [
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
-    const limit = parseInt(url.searchParams.get("limit") || "20", 10);
-
-    // Optional filters
-    const statusFilter = url.searchParams.getAll("statuses");
-    const poolFilter = url.searchParams.getAll("pools");
-    const userFilter = url.searchParams.getAll("users");
+    const { offset, limit } = parsePagination(url, { limit: 20 });
+    const filters = parseWorkflowFilters(url);
 
     const { entries, total } = workflowGenerator.generatePage(offset, limit);
 
     // Apply filters if provided
     let filtered = entries;
-    if (statusFilter.length > 0) {
-      filtered = filtered.filter((w) => statusFilter.includes(w.status));
+    if (filters.statuses.length > 0) {
+      filtered = filtered.filter((w) => filters.statuses.includes(w.status));
     }
-    if (poolFilter.length > 0) {
-      filtered = filtered.filter((w) => w.pool && poolFilter.includes(w.pool));
+    if (filters.pools.length > 0) {
+      filtered = filtered.filter((w) => w.pool && filters.pools.includes(w.pool));
     }
-    if (userFilter.length > 0) {
-      filtered = filtered.filter((w) => userFilter.includes(w.submitted_by));
+    if (filters.users.length > 0) {
+      filtered = filtered.filter((w) => filters.users.includes(w.submitted_by));
     }
 
     // Transform to API response format (SrcServiceCoreWorkflowObjectsListEntry)
@@ -102,8 +98,8 @@ export const handlers = [
       priority: w.priority,
     }));
 
-    const hasFilters = statusFilter.length > 0 || poolFilter.length > 0 || userFilter.length > 0;
-    const moreEntries = hasFilters ? false : offset + limit < total;
+    // When filters are active, don't report more entries (we've filtered the full set)
+    const moreEntries = hasActiveFilters(filters) ? false : offset + limit < total;
 
     return HttpResponse.json({
       workflows,
@@ -725,8 +721,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const { offset, limit } = parsePagination(url, { limit: 50 });
 
     const { entries } = bucketGenerator.generateBucketPage(offset, limit);
 
@@ -776,8 +771,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const { offset, limit } = parsePagination(url, { limit: 50 });
 
     const { entries, total } = datasetGenerator.generatePage(offset, limit);
 

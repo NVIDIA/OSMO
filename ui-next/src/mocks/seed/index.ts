@@ -15,34 +15,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Mock Data Configuration
+ * Mock Data Configuration - Internal API
  *
- * Exports patterns and volume settings for synthetic data generation.
+ * Exports configuration patterns used by generators.
+ * Only MOCK_CONFIG is publicly exported via generators/index.ts.
  */
 
 export {
-  // Volume presets
-  DEFAULT_VOLUME,
-  HIGH_VOLUME,
-  LOW_VOLUME,
-  // Pattern configurations
-  DEFAULT_WORKFLOW_PATTERNS,
-  DEFAULT_POOL_PATTERNS,
-  DEFAULT_RESOURCE_PATTERNS,
-  DEFAULT_TASK_PATTERNS,
-  DEFAULT_LOG_PATTERNS,
-  DEFAULT_EVENT_PATTERNS,
-  DEFAULT_IMAGE_PATTERNS,
-  // Combined config
+  // Combined config (main export)
   MOCK_CONFIG,
-  // Types
+  // Types used by generators
   type MockVolume,
   type WorkflowPatterns,
   type PoolPatterns,
   type ResourcePatterns,
-  type TaskPatterns,
   type LogPatterns,
   type EventPatterns,
-  type ImagePatterns,
-  type MockConfig,
 } from "./types";

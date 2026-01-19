@@ -1,10 +1,18 @@
-// Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 //
-// NVIDIA CORPORATION and its licensors retain all intellectual property
-// and proprietary rights in and to this software, related documentation
-// and any modifications thereto. Any use, reproduction, disclosure or
-// distribution of this software and related documentation without an express
-// license agreement from NVIDIA CORPORATION is strictly prohibited.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
 
 /**
  * Log Generator
@@ -23,6 +31,7 @@ import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 import { getLogScenario, getActiveScenario, type LogScenarioConfig } from "./log-scenarios";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Types
@@ -146,7 +155,7 @@ export class LogGenerator {
       return "";
     }
 
-    faker.seed(this.baseSeed + this.hashString(workflowName + scenario.name));
+    faker.seed(this.baseSeed + hashString(workflowName + scenario.name));
 
     const numLines = faker.number.int({
       min: scenario.volume.min,
@@ -210,7 +219,7 @@ export class LogGenerator {
     scenario: LogScenarioConfig,
     taskNames?: string[],
   ): AsyncGenerator<string, void, unknown> {
-    faker.seed(this.baseSeed + this.hashString(workflowName + scenario.name));
+    faker.seed(this.baseSeed + hashString(workflowName + scenario.name));
 
     const numLines = faker.number.int({
       min: scenario.volume.min,
@@ -250,7 +259,7 @@ export class LogGenerator {
    * Generate logs for a task (legacy method).
    */
   generateTaskLogs(workflowName: string, taskName: string, status: string, durationSeconds?: number): string {
-    faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
+    faker.seed(this.baseSeed + hashString(workflowName + taskName));
 
     const lines: string[] = [];
     const numLines = faker.number.int(this.volume.logsPerTask);
@@ -274,35 +283,6 @@ export class LogGenerator {
     }
 
     return lines.join("\n");
-  }
-
-  /**
-   * Generate logs for an entire workflow (all tasks interleaved).
-   * Legacy method - now enhanced to support scenarios.
-   */
-  generateWorkflowLogs(workflowName: string, taskNames: string[], status: string): string {
-    const allLines: { timestamp: Date; line: string }[] = [];
-
-    for (const taskName of taskNames) {
-      const taskLogs = this.generateTaskLogs(workflowName, taskName, status);
-      const lines = taskLogs.split("\n");
-
-      for (const line of lines) {
-        // Parse timestamp from line
-        const match = line.match(/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})/);
-        if (match) {
-          const timestamp = new Date(match[1].replace(/\//g, "-").replace(" ", "T"));
-          allLines.push({ timestamp, line });
-        } else {
-          allLines.push({ timestamp: new Date(), line });
-        }
-      }
-    }
-
-    // Sort by timestamp
-    allLines.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-    return allLines.map((l) => l.line).join("\n");
   }
 
   // ==========================================================================
@@ -755,16 +735,6 @@ export class LogGenerator {
     const min = date.getMinutes().toString().padStart(2, "0");
     const s = date.getSeconds().toString().padStart(2, "0");
     return `${y}/${m}/${d} ${h}:${min}:${s}`;
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 
