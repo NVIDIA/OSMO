@@ -3,9 +3,25 @@
  *
  * These interfaces define what transforms.ts produces.
  * For enums that backend returns correctly, import from generated.ts directly.
+ *
+ * Some types (like workflow types) are re-exported unchanged from generated.ts
+ * because the UI should import all types from adapter, not generated.ts.
  */
 
 import type { PoolStatus, BackendResourceType } from "../generated";
+
+// =============================================================================
+// Re-exported Types (unchanged from generated, but exposed via adapter for stability)
+// =============================================================================
+
+// Workflow types - re-exported for stable API
+// These don't need transformation but UI should import from adapter
+export type {
+  WorkflowQueryResponse,
+  GroupQueryResponse,
+  TaskQueryResponse,
+  SrcServiceCoreWorkflowObjectsListEntry as WorkflowListEntry,
+} from "../generated";
 
 // =============================================================================
 // Pool Types

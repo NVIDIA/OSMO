@@ -15,23 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflow Adapter
+ * Workflow Layout
  *
- * Transforms backend API data into frontend-optimized structures.
- * This adapter serves as the boundary between backend contracts and UI needs.
+ * Computes DAG layout information from workflow groups.
+ * This is pure UI logic for visualization, not backend adaptation.
  *
  * Architecture:
- * - Backend types: GroupQueryResponse, TaskQueryResponse (from @/lib/api/generated)
+ * - Backend types: GroupQueryResponse (from @/lib/api/adapter)
  * - Frontend types: GroupWithLayout (adds computed level, lane, id)
  *
  * Benefits:
- * - Isolates all data transformation in one place
- * - Backend contract changes only affect this file
- * - Enables future data fetching integration (SWR/React Query)
+ * - Isolates all layout computation in one place
  * - Pure functions that are easy to test
+ * - Enables DAG visualization with topological ordering
  */
 
-import type { GroupQueryResponse } from "@/lib/api/generated";
+import type { GroupQueryResponse } from "@/lib/api/adapter";
 import type { GroupWithLayout } from "./workflow-types";
 import { naturalCompare } from "@/lib/utils";
 
@@ -150,7 +149,7 @@ export function transformGroups(
     // Detect cycles
     if (visited.has(groupName)) {
       if (warnOnIssues) {
-        console.warn(`[WorkflowAdapter] Cycle detected at group: ${groupName}`);
+        console.warn(`[WorkflowLayout] Cycle detected at group: ${groupName}`);
       }
       return 0;
     }
@@ -171,7 +170,7 @@ export function transformGroups(
         const upstreamLevel = computeLevel(upstreamName, new Set(visited));
         maxUpstreamLevel = Math.max(maxUpstreamLevel, upstreamLevel);
       } else if (warnOnIssues) {
-        console.warn(`[WorkflowAdapter] Upstream group not found: ${upstreamName}`);
+        console.warn(`[WorkflowLayout] Upstream group not found: ${upstreamName}`);
       }
     }
 
