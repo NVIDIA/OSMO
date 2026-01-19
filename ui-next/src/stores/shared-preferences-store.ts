@@ -22,16 +22,37 @@
  * Global user preferences that apply across multiple features (pools, resources, etc.).
  * Uses Zustand with persistence to localStorage for consistent UX across pages.
  *
- * Usage:
+ * ## Hydration-Safe Usage (Recommended)
+ *
+ * For values used in initial render, use the hydration-safe hooks to prevent
+ * hydration mismatches from localStorage vs server state differences:
+ *
  * ```ts
- * const displayMode = useSharedPreferences((s) => s.displayMode);
+ * // ✅ Hydration-safe - no server/client mismatch
+ * const displayMode = useDisplayMode();
+ * const compactMode = useCompactMode();
+ * const sidebarOpen = useSidebarOpen();
+ *
+ * // For setters (always safe - actions don't affect initial render)
  * const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
+ * ```
+ *
+ * ## Direct Usage (for client-only components)
+ *
+ * Only use direct store access in components that are:
+ * - Already wrapped with useMounted()/useIsHydrated()
+ * - Never rendered during SSR
+ *
+ * ```ts
+ * // ⚠️ Only in client-only contexts
+ * const displayMode = useSharedPreferences((s) => s.displayMode);
  * ```
  */
 
 import { create } from "zustand";
 import { persist, devtools, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { createHydratedSelector } from "@/hooks/use-hydrated-store";
 
 // =============================================================================
 // Types
@@ -226,4 +247,76 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
       enabled: process.env.NODE_ENV === "development",
     },
   ),
+);
+
+// =============================================================================
+// Hydration-Safe Selectors
+// =============================================================================
+//
+// These hooks return the initial state during SSR and hydration, then switch
+// to the actual persisted value after hydration completes. This prevents
+// hydration mismatches from server rendering with defaults but client having
+// localStorage values.
+//
+// Use these for any preference value that affects the initial render output.
+// =============================================================================
+
+/**
+ * Hydration-safe display mode selector.
+ * Returns "free" during SSR, then actual value after hydration.
+ */
+export const useDisplayMode = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.displayMode,
+  initialState.displayMode,
+);
+
+/**
+ * Hydration-safe compact mode selector.
+ * Returns false during SSR, then actual value after hydration.
+ */
+export const useCompactMode = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.compactMode,
+  initialState.compactMode,
+);
+
+/**
+ * Hydration-safe sidebar open state selector.
+ * Returns true during SSR, then actual value after hydration.
+ */
+export const useSidebarOpen = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.sidebarOpen,
+  initialState.sidebarOpen,
+);
+
+/**
+ * Hydration-safe details expanded state selector.
+ * Returns false during SSR, then actual value after hydration.
+ */
+export const useDetailsExpanded = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.detailsExpanded,
+  initialState.detailsExpanded,
+);
+
+/**
+ * Hydration-safe details panel collapsed state selector.
+ * Returns false during SSR, then actual value after hydration.
+ */
+export const useDetailsPanelCollapsed = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.detailsPanelCollapsed,
+  initialState.detailsPanelCollapsed,
+);
+
+/**
+ * Hydration-safe panel width percentage selector.
+ * Returns default (50%) during SSR, then actual value after hydration.
+ */
+export const usePanelWidthPct = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.panelWidthPct,
+  initialState.panelWidthPct,
 );

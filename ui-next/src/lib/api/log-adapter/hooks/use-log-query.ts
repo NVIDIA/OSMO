@@ -26,7 +26,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect, startTransition, useState } from "react";
 
-import type { LogQuery, LogQueryResult, LogEntry, LogLevel, LogIOType } from "../types";
+import type { LogQuery, LogQueryResult, LogEntry, LogLevel, LogSourceType } from "../types";
 import { LOG_QUERY_DEFAULTS } from "../constants";
 import { useLogAdapter } from "./use-log-adapter";
 
@@ -44,8 +44,8 @@ export interface UseLogQueryParams {
   taskName?: string;
   /** Filter by log levels */
   levels?: LogLevel[];
-  /** Filter by IO types */
-  ioTypes?: LogIOType[];
+  /** Filter by source types (user vs system) */
+  sources?: LogSourceType[];
   /** Text search query */
   search?: string;
   /** Search mode */
@@ -98,7 +98,7 @@ function createLogQueryKey(params: UseLogQueryParams): readonly unknown[] {
     {
       taskName: params.taskName,
       levels: params.levels?.sort().join(","),
-      ioTypes: params.ioTypes?.sort().join(","),
+      sources: params.sources?.sort().join(","),
       search: params.search,
       searchMode: params.searchMode,
       start: params.start?.toISOString(),
@@ -141,7 +141,7 @@ export function useLogQuery(params: UseLogQueryParams): UseLogQueryReturn {
       workflowId: params.workflowId,
       taskName: params.taskName,
       levels: params.levels,
-      ioTypes: params.ioTypes,
+      sources: params.sources,
       search: params.search,
       searchMode: params.searchMode,
       start: params.start,
