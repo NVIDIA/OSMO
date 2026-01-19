@@ -124,8 +124,8 @@ export interface LogQuery {
   retryId?: number;
   /** Filter by log levels (multiple allowed) */
   levels?: LogLevel[];
-  /** Filter by IO types (multiple allowed) */
-  ioTypes?: LogIOType[];
+  /** Filter by source types (user vs system) */
+  sources?: LogSourceType[];
 
   // Time range
   /** Start of time range */

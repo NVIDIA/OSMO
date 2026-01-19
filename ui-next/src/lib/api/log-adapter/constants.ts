@@ -238,6 +238,13 @@ export const LOG_FIELDS: readonly LogFieldDefinition[] = [
     isLabelFilter: true,
   },
   {
+    key: "source",
+    label: "Source",
+    shortLabel: "Source",
+    facetable: true,
+    isLabelFilter: true,
+  },
+  {
     key: "task",
     label: "Task Name",
     shortLabel: "Task",
@@ -248,13 +255,6 @@ export const LOG_FIELDS: readonly LogFieldDefinition[] = [
     key: "retry",
     label: "Retry Attempt",
     shortLabel: "Retry",
-    facetable: true,
-    isLabelFilter: true,
-  },
-  {
-    key: "io_type",
-    label: "IO Type",
-    shortLabel: "IO",
     facetable: true,
     isLabelFilter: true,
   },
