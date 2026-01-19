@@ -22,6 +22,7 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Types
@@ -49,13 +50,6 @@ export interface GeneratedDatasetVersion {
   num_files: number;
   commit_message?: string;
   created_by: string;
-}
-
-export interface GeneratedDatasetCollection {
-  name: string;
-  datasets: string[];
-  created_at: string;
-  description?: string;
 }
 
 // ============================================================================
@@ -89,14 +83,11 @@ const DATASET_PATTERNS = {
 interface GeneratorConfig {
   /** Total datasets */
   totalDatasets: number;
-  /** Total collections */
-  totalCollections: number;
   baseSeed: number;
 }
 
 const DEFAULT_CONFIG: GeneratorConfig = {
   totalDatasets: 100,
-  totalCollections: 20,
   baseSeed: 55555,
 };
 
@@ -176,18 +167,10 @@ export class DatasetGenerator {
   }
 
   /**
-   * Generate all datasets (for backward compatibility).
-   */
-  generateAll(count?: number): GeneratedDataset[] {
-    const total = count ?? this.config.totalDatasets;
-    return this.generatePage(0, total).entries;
-  }
-
-  /**
    * Generate dataset versions.
    */
   generateVersions(datasetName: string, count: number = 5): GeneratedDatasetVersion[] {
-    faker.seed(this.config.baseSeed + this.hashString(datasetName));
+    faker.seed(this.config.baseSeed + hashString(datasetName));
 
     const versions: GeneratedDatasetVersion[] = [];
     let date = faker.date.past({ years: 1 });
@@ -216,65 +199,6 @@ export class DatasetGenerator {
   }
 
   /**
-   * Generate a collection at a specific index.
-   */
-  generateCollection(index: number): GeneratedDatasetCollection {
-    faker.seed(this.config.baseSeed + 100000 + index);
-
-    const collectionNames = [
-      "imagenet-bundle",
-      "nlp-benchmark",
-      "multimodal-suite",
-      "speech-collection",
-      "video-dataset",
-      "code-corpus",
-    ];
-
-    const baseName = collectionNames[index % collectionNames.length];
-    const name =
-      index < collectionNames.length ? baseName : `${baseName}-${Math.floor(index / collectionNames.length)}`;
-
-    // Generate 3-5 dataset names for this collection
-    const numDatasets = faker.number.int({ min: 3, max: 5 });
-    const datasets: string[] = [];
-    for (let i = 0; i < numDatasets; i++) {
-      const dsIndex = (index * 10 + i) % this.config.totalDatasets;
-      datasets.push(this.generate(dsIndex).name);
-    }
-
-    return {
-      name,
-      datasets,
-      created_at: faker.date.past({ years: 1 }).toISOString(),
-      description: `${name} - curated collection of related datasets`,
-    };
-  }
-
-  /**
-   * Generate a page of collections.
-   */
-  generateCollectionPage(offset: number, limit: number): { entries: GeneratedDatasetCollection[]; total: number } {
-    const entries: GeneratedDatasetCollection[] = [];
-    const total = this.config.totalCollections;
-
-    const start = Math.max(0, offset);
-    const end = Math.min(offset + limit, total);
-
-    for (let i = start; i < end; i++) {
-      entries.push(this.generateCollection(i));
-    }
-
-    return { entries, total };
-  }
-
-  /**
-   * Generate all collections (for backward compatibility).
-   */
-  generateCollections(): GeneratedDatasetCollection[] {
-    return this.generateCollectionPage(0, this.config.totalCollections).entries;
-  }
-
-  /**
    * Get dataset by name.
    */
   getByName(name: string): GeneratedDataset | null {
@@ -286,23 +210,9 @@ export class DatasetGenerator {
       }
     }
     // Fallback: generate from hash
-    const hash = this.hashString(name);
+    const hash = hashString(name);
     const dataset = this.generate(Math.abs(hash) % this.config.totalDatasets);
     return { ...dataset, name };
-  }
-
-  // --------------------------------------------------------------------------
-  // Private helpers
-  // --------------------------------------------------------------------------
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 

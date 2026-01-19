@@ -67,6 +67,7 @@ import { faker } from "@faker-js/faker";
 import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/generated";
 
 import { MOCK_CONFIG, type WorkflowPatterns } from "../seed";
+import { hashString } from "../utils";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
@@ -451,7 +452,7 @@ export class WorkflowGenerator {
     }
 
     // 2. Try hash-based guess (O(1) but may miss)
-    const hash = this.hashString(name);
+    const hash = hashString(name);
     const guessIndex = Math.abs(hash) % this.config.total;
     const candidate = this.generate(guessIndex);
     if (candidate.name === name) {
@@ -487,7 +488,7 @@ export class WorkflowGenerator {
    * Deterministic: same name always produces same workflow.
    */
   private generateForArbitraryName(name: string): MockWorkflow {
-    const nameHash = Math.abs(this.hashString(name));
+    const nameHash = Math.abs(hashString(name));
     faker.seed(this.config.baseSeed + nameHash);
 
     const status = this.pickWeighted(this.config.patterns.statusDistribution) as WorkflowStatus;
@@ -1232,7 +1233,7 @@ export class WorkflowGenerator {
       const failureStatus = this.mapWorkflowFailureToTaskFailure(workflowStatus);
 
       // Pick the failure point - use deterministic selection based on workflow name
-      const failureIndex = Math.abs(this.hashString(workflowName + "failure")) % sortedGroups.length;
+      const failureIndex = Math.abs(hashString(workflowName + "failure")) % sortedGroups.length;
       const failedGroupNames = new Set<string>();
 
       for (let i = 0; i < sortedGroups.length; i++) {
@@ -1286,7 +1287,7 @@ export class WorkflowGenerator {
       // Step 1: Pick how many groups have completed (0 to n-1, never all)
       // This ensures at least 1 group is NOT completed (the running one)
       const maxCompleted = sortedGroups.length - 1; // Leave room for at least 1 running
-      const numCompleted = Math.abs(this.hashString(workflowName + "progress")) % (maxCompleted + 1);
+      const numCompleted = Math.abs(hashString(workflowName + "progress")) % (maxCompleted + 1);
 
       // Step 2: Mark the first numCompleted groups as COMPLETED
       const completedGroups = new Set<string>();
@@ -1317,7 +1318,7 @@ export class WorkflowGenerator {
         eligibleToRun.push(firstNonCompleted);
       } else {
         // Pick which eligible group is the "primary" running one
-        const runningIdx = Math.abs(this.hashString(workflowName + "running")) % eligibleToRun.length;
+        const runningIdx = Math.abs(hashString(workflowName + "running")) % eligibleToRun.length;
 
         for (let i = 0; i < eligibleToRun.length; i++) {
           const group = eligibleToRun[i];
@@ -1327,7 +1328,7 @@ export class WorkflowGenerator {
           } else {
             // Other eligible groups: could be RUNNING, INITIALIZING, or SCHEDULING
             // (all are valid "active" states for a RUNNING workflow)
-            const stateHash = Math.abs(this.hashString(workflowName + group.name)) % 4;
+            const stateHash = Math.abs(hashString(workflowName + group.name)) % 4;
             if (stateHash === 0) {
               this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
             } else if (stateHash === 1) {
@@ -1438,16 +1439,6 @@ export class WorkflowGenerator {
     }
 
     return faker.helpers.arrayElement(messages["FAILED"] || ["Unknown error"]);
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 
