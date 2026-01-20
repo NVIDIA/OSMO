@@ -15,8 +15,27 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+
+################################################################
+#                      Go Library                              #
+################################################################
+
+go_library(
+    name = "progress_writer",
+    srcs = ["progress.go"],
+    importpath = "go.corp.nvidia.com/osmo/utils/progress_check",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+################################################################
+#                      Python Library                          #
+################################################################
 
 osmo_py_library(
     name = "progress_check_lib",

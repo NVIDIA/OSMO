@@ -118,8 +118,7 @@ func main() {
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// Register operator services with Redis client and PostgreSQL pool
-	listenerService := listener_service.NewListenerService(
-		logger, redisClient, pgPool, args.ServiceHostname)
+	listenerService := listener_service.NewListenerService(logger, redisClient, pgPool, &args)
 	listener_service.RegisterServices(grpcServer, listenerService)
 
 	// Start gRPC server
