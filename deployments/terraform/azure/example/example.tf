@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,19 +75,19 @@ module "vnet" {
 
 # Additional subnets for private and database tiers
 resource "azurerm_subnet" "private" {
-  count               = length(var.private_subnets)
-  name                = "private-${count.index + 1}"
-  resource_group_name = data.azurerm_resource_group.main.name
+  count                = length(var.private_subnets)
+  name                 = "private-${count.index + 1}"
+  resource_group_name  = data.azurerm_resource_group.main.name
   virtual_network_name = module.vnet.name
-  address_prefixes    = [var.private_subnets[count.index]]
+  address_prefixes     = [var.private_subnets[count.index]]
 }
 
 resource "azurerm_subnet" "database" {
-  count               = length(var.database_subnets)
-  name                = "database-${count.index + 1}"
-  resource_group_name = data.azurerm_resource_group.main.name
+  count                = length(var.database_subnets)
+  name                 = "database-${count.index + 1}"
+  resource_group_name  = data.azurerm_resource_group.main.name
   virtual_network_name = module.vnet.name
-  address_prefixes    = [var.database_subnets[count.index]]
+  address_prefixes     = [var.database_subnets[count.index]]
 
   # Delegation for PostgreSQL Flexible Server
   dynamic "delegation" {
@@ -174,7 +174,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   dns_prefix          = local.name
   kubernetes_version  = var.kubernetes_version
 
-  private_cluster_enabled           = var.aks_private_cluster_enabled
+  private_cluster_enabled = var.aks_private_cluster_enabled
 
   # Only configure authorized IP ranges for public clusters
   dynamic "api_server_access_profile" {
@@ -185,16 +185,16 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   default_node_pool {
-    name            = "system"
-    min_count       = var.node_group_min_size
-    max_count       = var.node_group_max_size
-    vm_size         = var.node_instance_type
-    type            = "VirtualMachineScaleSets"
-    zones           = var.availability_zones
+    name                 = "system"
+    min_count            = var.node_group_min_size
+    max_count            = var.node_group_max_size
+    vm_size              = var.node_instance_type
+    type                 = "VirtualMachineScaleSets"
+    zones                = var.availability_zones
     auto_scaling_enabled = true
-    vnet_subnet_id  = azurerm_subnet.private[0].id
-    max_pods        = 30
-    os_disk_size_gb = 50
+    vnet_subnet_id       = azurerm_subnet.private[0].id
+    max_pods             = 30
+    os_disk_size_gb      = 50
   }
 
   # Ignore changes to node count since auto-scaling manages this
@@ -205,12 +205,12 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   network_profile {
-    network_plugin      = "azure"
-    network_policy      = "azure"
-    load_balancer_sku   = "standard"
-    outbound_type       = "loadBalancer"
-    service_cidr        = var.aks_service_cidr
-    dns_service_ip      = var.aks_dns_service_ip
+    network_plugin    = "azure"
+    network_policy    = "azure"
+    load_balancer_sku = "standard"
+    outbound_type     = "loadBalancer"
+    service_cidr      = var.aks_service_cidr
+    dns_service_ip    = var.aks_dns_service_ip
   }
 
   azure_active_directory_role_based_access_control {
@@ -253,20 +253,20 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                   = "${local.name}-postgres"
-  resource_group_name    = data.azurerm_resource_group.main.name
-  location               = data.azurerm_resource_group.main.location
-  version                = var.postgres_version
-  delegated_subnet_id    = azurerm_subnet.database[0].id  # First database subnet
-  private_dns_zone_id    = azurerm_private_dns_zone.postgres.id
-  administrator_login    = var.postgres_username
-  administrator_password = var.postgres_password
-  zone                   = "1"
+  name                          = "${local.name}-postgres"
+  resource_group_name           = data.azurerm_resource_group.main.name
+  location                      = data.azurerm_resource_group.main.location
+  version                       = var.postgres_version
+  delegated_subnet_id           = azurerm_subnet.database[0].id
+  private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
+  administrator_login           = var.postgres_username
+  administrator_password        = var.postgres_password
+  zone                          = "1"
   public_network_access_enabled = false
 
   storage_mb = var.postgres_storage_mb
 
-  sku_name   = var.postgres_sku_name
+  sku_name = var.postgres_sku_name
 
   backup_retention_days        = var.postgres_backup_retention_days
   geo_redundant_backup_enabled = var.postgres_geo_redundant_backup_enabled
@@ -283,34 +283,41 @@ resource "azurerm_postgresql_flexible_server_database" "main" {
   charset   = "utf8"
 }
 
+# Disable SSL requirement for OSMO compatibility
+resource "azurerm_postgresql_flexible_server_configuration" "ssl_off" {
+  name      = "require_secure_transport"
+  server_id = azurerm_postgresql_flexible_server.main.id
+  value     = "off"
+}
+
 # Enable PostgreSQL extensions
 resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
+  count     = length(var.postgres_extensions) > 0 ? 1 : 0
   name      = "azure.extensions"
   server_id = azurerm_postgresql_flexible_server.main.id
   value     = join(",", var.postgres_extensions)
+
+  depends_on = [azurerm_postgresql_flexible_server_configuration.ssl_off]
 }
 
 ################################################################################
-# Redis Enterprise Cluster
+# Azure Cache for Redis (Standard/Premium tier)
 ################################################################################
 
-resource "azurerm_redis_enterprise_cluster" "main" {
+resource "azurerm_redis_cache" "main" {
   name                = "${local.name}-redis"
   location            = data.azurerm_resource_group.main.location
   resource_group_name = data.azurerm_resource_group.main.name
-  sku_name            = var.redis_sku_name  # Enterprise tier for Redis 7
+  capacity            = var.redis_capacity
+  family              = var.redis_family
+  sku_name            = var.redis_sku_name
+  minimum_tls_version = "1.2"
+
+  redis_configuration {
+    maxmemory_policy = "volatile-lru"
+  }
 
   tags = local.tags
-}
-
-resource "azurerm_redis_enterprise_database" "main" {
-  name                = "default"
-  cluster_id          = azurerm_redis_enterprise_cluster.main.id
-
-  client_protocol   = "Encrypted"
-  clustering_policy = "EnterpriseCluster"
-  eviction_policy   = "VolatileLRU"
-  port              = 10000
 }
 
 ################################################################################
@@ -340,7 +347,7 @@ resource "azurerm_network_security_group" "aks" {
 
 # Associate NSG with AKS subnet
 resource "azurerm_subnet_network_security_group_association" "aks" {
-  subnet_id                 = azurerm_subnet.private[0].id  # First private subnet
+  subnet_id                 = azurerm_subnet.private[0].id # First private subnet
   network_security_group_id = azurerm_network_security_group.aks.id
 }
 

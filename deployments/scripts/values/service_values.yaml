@@ -1,0 +1,55 @@
+# OSMO Service Values - Auto-generated
+global:
+  osmoImageLocation: nvcr.io/nvidia/osmo
+  osmoImageTag: latest
+
+services:
+  configFile:
+    enabled: true
+
+  postgres:
+    enabled: false
+    serviceName: osmo-cluster-postgres.postgres.database.azure.com
+    port: 5432
+    db: osmo
+    user: postgres
+    passwordSecretName: db-secret
+    passwordSecretKey: db-password
+
+  redis:
+    enabled: false
+    serviceName: osmo-cluster-redis.redis.cache.windows.net
+    port: 6380
+    tlsEnabled: true
+
+  service:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    ingress:
+      enabled: false
+
+  agent:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  worker:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  logger:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+sidecars:
+  otel:
+    enabled: false
+  rateLimit:
+    enabled: false
+  envoy:
+    enabled: false
+  logAgent:
+    enabled: false
