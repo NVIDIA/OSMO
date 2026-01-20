@@ -43,8 +43,13 @@ export interface QueryBarProps {
 /**
  * Create log-specific search fields.
  * Uses LogEntry data for autocomplete suggestions.
+ *
+ * Exported for reuse in LogViewer filtering via `filterByChips`.
+ *
+ * @param showTaskFilter - Whether to include the task filter (hidden at task scope)
+ * @returns Array of SearchField definitions for log entries
  */
-function createLogFields(showTaskFilter: boolean): SearchField<LogEntry>[] {
+export function createLogFields(showTaskFilter: boolean): SearchField<LogEntry>[] {
   const fields: SearchField<LogEntry>[] = [
     {
       id: "level",

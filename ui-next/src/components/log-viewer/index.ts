@@ -42,7 +42,7 @@ export type { LogEntryRowProps } from "./components/LogEntryRow";
 export { LogList } from "./components/LogList";
 export type { LogListProps } from "./components/LogList";
 
-export { QueryBar } from "./components/QueryBar";
+export { QueryBar, createLogFields } from "./components/QueryBar";
 export type { QueryBarProps } from "./components/QueryBar";
 
 export { TimelineHistogram } from "./components/TimelineHistogram";
@@ -78,8 +78,8 @@ export {
   getLevelsAtLeast,
 } from "./lib/level-utils";
 
-export { applyFilters, matchesFilter, buildActiveFiltersMap, DEFAULT_MATCHERS } from "./lib/filters";
-export type { FilterMatcher, FilterMatcherRegistry } from "./lib/filters";
+// Note: Filter logic is now provided by @/components/filter-bar via filterByChips()
+// Use createLogFields() to get field definitions for log filtering.
 
 export {
   ROW_HEIGHT_ESTIMATE,
