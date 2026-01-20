@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@
 Functional tests for APIs defined in workflow_service.py
 """
 
+import concurrent.futures
 import logging
+import threading
 
 from fastapi import testclient
 
@@ -66,6 +68,7 @@ class WorkflowServiceTestCase(
                 postgres_password=cls.postgres_container.password,
                 postgres_database_name=cls.postgres_container.dbname,
                 postgres_user=cls.postgres_container.username,
+                postgres_pool_maxconn=10,
                 redis_host=cls.redis_container.get_container_host_ip(),
                 redis_port=cls.redis_container.get_exposed_port(cls.redis_params.port),
                 redis_password=cls.redis_params.password,
@@ -189,6 +192,126 @@ class WorkflowServiceTestCase(
         self.assertTrue(
             self.is_workflow_job_in_queue(f'dedupe:{workflow_obj.workflow_uuid}-submit'),
         )
+
+    def test_concurrent_requests_exceed_pool_size(self):
+        """
+        Test that the service handles concurrent requests exceeding the
+        connection pool size (postgres_pool_maxconn is set to 10 in fixture).
+
+        This test sends 20 concurrent requests simultaneously to verify
+        the ThreadedConnectionPool correctly queues requests when all
+        connections are in use.
+        """
+        # Arrange
+        pool_name = 'test_pool_concurrent'
+        backend_name = 'test_backend_concurrent'
+        platform_name = 'test_platform_concurrent'
+        self.create_backend(backend_name)
+        self.create_pool(pool_name, backend_name, platform_name)
+
+        num_concurrent_requests = 20
+        results = []
+        errors = []
+        barrier = threading.Barrier(num_concurrent_requests)
+
+        def submit_workflow(request_id: int):
+            """Submit a workflow and return the response."""
+            try:
+                # Wait for all threads to be ready before making requests
+                barrier.wait(timeout=10)
+
+                # Create a unique workflow template for each request
+                registry_url = self.ssl_proxy.get_endpoint(
+                    registry.REGISTRY_NAME, registry.REGISTRY_PORT)
+
+                workflow_template = workflow.TemplateSpec(
+                    file=f'''workflow:
+  name: concurrent_test_workflow_{request_id}
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+      platform: {platform_name}
+  tasks:
+  - name: task1
+    image: {registry_url}/{self.TEST_IMAGE_NAME}
+    command: [sh]
+    args: ["-c", "echo 'request {request_id}'"]
+''',
+                )
+
+                response = self.client.post(
+                    f'/api/pool/{pool_name}/workflow',
+                    json=workflow_template.dict(),
+                )
+                return (request_id, response.status_code, response.json())
+            except Exception as e: # pylint: disable=broad-exception-caught
+                return (request_id, None, str(e))
+
+        # Act - Submit all requests concurrently using ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=num_concurrent_requests
+        ) as executor:
+            futures = [
+                executor.submit(submit_workflow, i)
+                for i in range(num_concurrent_requests)
+            ]
+
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                results.append(result)
+                if result[1] != 200:
+                    errors.append(result)
+
+        # Assert - All requests should succeed
+        logger.info(
+            'Concurrent request results: %d successful, %d failed',
+            len([r for r in results if r[1] == 200]),
+            len(errors),
+        )
+
+        for error in errors:
+            logger.error(
+                'Request %d failed with status %s: %s',
+                error[0], error[1], error[2],
+            )
+
+        self.assertEqual(
+            len(results),
+            num_concurrent_requests,
+            f'Expected {num_concurrent_requests} results, got {len(results)}',
+        )
+        self.assertEqual(
+            len(errors),
+            0,
+            f'Expected 0 errors, got {len(errors)}: {errors}',
+        )
+
+        # Verify all workflows were created successfully
+        successful_workflows = [r for r in results if r[1] == 200]
+        self.assertEqual(
+            len(successful_workflows),
+            num_concurrent_requests,
+            f'Expected {num_concurrent_requests} successful workflows',
+        )
+
+        # Verify each workflow is in PENDING status
+        for request_id, status_code, response_json in successful_workflows:
+            self.assertEqual(
+                status_code,
+                200,
+                f'Workflow {request_id} should have status code 200, got {status_code}',
+            )
+            workflow_obj = workflow.Workflow.fetch_from_db(
+                postgres.PostgresConnector.get_instance(),
+                response_json['name'],
+            )
+            self.assertEqual(
+                workflow_obj.status,
+                workflow.WorkflowStatus.PENDING,
+                f'Workflow {request_id} should be in PENDING status',
+            )
 
 
 if __name__ == '__main__':
