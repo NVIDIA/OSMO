@@ -83,9 +83,10 @@ function LogListInner({
   });
 
   // Auto-scroll to bottom when tailing
+  // Note: smooth scrolling is not supported with dynamic row sizes (expanded rows)
   useEffect(() => {
     if (isTailing && entries.length > 0) {
-      virtualizer.scrollToIndex(entries.length - 1, { align: "end", behavior: "smooth" });
+      virtualizer.scrollToIndex(entries.length - 1, { align: "end" });
     }
   }, [isTailing, entries.length, virtualizer]);
 
