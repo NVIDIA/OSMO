@@ -41,6 +41,7 @@ export async function register() {
       // Singleton guard: only start once across HMR reloads
       if (!globalThis.__mswServerStarted) {
         const { server } = await import("@/mocks/server");
+
         server.listen({ onUnhandledRequest: "bypass" });
         globalThis.__mswServerStarted = true;
         console.log("[MSW] Server-side mocking enabled");

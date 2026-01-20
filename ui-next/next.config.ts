@@ -153,12 +153,17 @@ const nextConfig: NextConfig = {
   // Proxy API requests to the backend (avoids CORS issues)
   // In mock mode: Keep rewrites enabled! MSW node server intercepts the proxied requests.
   // This means ALL API calls (SSR + client) go through the same MSW node handlers.
+  //
+  // EXCEPTION: /api/workflow/*/logs uses a Route Handler for proper streaming.
+  // Route handlers take precedence over rewrites, so no exclusion needed.
   async rewrites() {
     return {
       beforeFiles: [
         {
           source: "/api/:path*",
           destination: `${API_URL}/api/:path*`,
+          // Route handlers (like /api/workflow/[name]/logs/route.ts) take precedence
+          // over rewrites, so streaming logs work properly without exclusion
         },
       ],
     };

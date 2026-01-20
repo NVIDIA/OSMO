@@ -40,7 +40,7 @@
  *   __mockConfig.help()                     // Show all options
  */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setMockVolumes, getMockVolumes } from "@/actions/mock-config";
 import type { MockVolumes } from "@/actions/mock-config.types";
 
@@ -70,16 +70,38 @@ declare global {
 
 export function MockProvider({ children }: MockProviderProps) {
   const initStartedRef = useRef(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     if (initStartedRef.current) return;
     initStartedRef.current = true;
 
-    // Only set up console API in mock mode
+    // Only set up in mock mode
     const isMockMode =
       process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
-    if (!isMockMode || typeof window === "undefined") return;
+    if (!isMockMode || typeof window === "undefined") {
+      setIsReady(true);
+      return;
+    }
+
+    // Start browser-side MSW for proper streaming support
+    // Browser service workers handle streaming correctly (unlike msw/node)
+    import("./browser")
+      .then(({ worker }) =>
+        worker.start({
+          onUnhandledRequest: "bypass",
+          serviceWorker: { url: "/mockServiceWorker.js" },
+          quiet: true, // Disable request logging in console
+        }),
+      )
+      .then(() => {
+        setIsReady(true);
+      })
+      .catch((err) => {
+        console.warn("[MSW] Browser worker failed:", err);
+        setIsReady(true); // Continue anyway, server-side MSW is fallback
+      });
 
     // Helper to create a setter that calls the server action
     const createSetter = (key: keyof MockVolumes) => async (n: number) => {
@@ -161,6 +183,11 @@ Changes take effect on the next API request.
         console.log("Type __mockConfig.help() for options.");
       });
   }, []);
+
+  // Wait for browser MSW to be ready before rendering
+  if (!isReady) {
+    return null;
+  }
 
   return <>{children}</>;
 }
