@@ -31,6 +31,7 @@ import time
 from typing import List, Dict, Tuple, Type
 import urllib.parse
 
+import aiofiles
 import redis  # type: ignore
 import redis.asyncio  # type: ignore
 import pydantic
@@ -48,6 +49,8 @@ from src.utils.progress_check import progress
 DELAYED_JOB_QUEUE = 'delayed_job_queue'
 
 PROGRESS_ITER_WRITE = 100
+
+CONCURRENT_UPLOADS = 10
 
 
 class JobExecutionContext(pydantic.BaseModel):
@@ -1305,6 +1308,8 @@ class CleanupWorkflow(WorkflowJob):
 
         redis_client = redis.from_url(workflow_obj.logs)
 
+        redis_batch_pipeline = redis_client.pipeline()
+
         if workflow_obj.status.failed():
             start_delimiter = '\n' + '-' * 100 + '\n'
             end_delimiter =  '-' * 100 + '\n'
@@ -1320,121 +1325,126 @@ class CleanupWorkflow(WorkflowJob):
             logs = connectors.redis.LogStreamBody(
                 time=common.current_time(), io_type=connectors.redis.IOType.DUMP,
                 source='OSMO', retry_id=0, text=log_message)
-            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+            redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
 
         logs = connectors.redis.LogStreamBody(
             time=common.current_time(), io_type=connectors.redis.IOType.END_FLAG,
             source='', retry_id=0, text='')
-        redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
-        redis_client.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
-        redis_client.xadd(common.get_workflow_events_redis_name(self.workflow_uuid),
-                          json.loads(logs.json()))
-        redis_client.expire(common.get_workflow_events_redis_name(self.workflow_uuid),
-                           connectors.MAX_LOG_TTL, nx=True)
+        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+        redis_batch_pipeline.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
+        redis_batch_pipeline.xadd(common.get_workflow_events_redis_name(self.workflow_uuid),
+                                  json.loads(logs.json()))
+        redis_batch_pipeline.expire(common.get_workflow_events_redis_name(self.workflow_uuid),
+                                    connectors.MAX_LOG_TTL, nx=True)
         for group in workflow_obj.groups:
             for task_obj in group.tasks:
                 for retry_idx in range(task_obj.retry_id + 1):
-                    redis_client.xadd(
+                    redis_batch_pipeline.xadd(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
                         json.loads(logs.json()))
-                    redis_client.expire(
+                    redis_batch_pipeline.expire(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
                         connectors.MAX_LOG_TTL, nx=True)
-                redis_client.xadd(
+                redis_batch_pipeline.xadd(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
                     json.loads(logs.json()))
-                redis_client.expire(
+                redis_batch_pipeline.expire(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
                     connectors.MAX_LOG_TTL, nx=True)
+
+        redis_batch_pipeline.execute()
 
         last_timestamp = update_progress_writer(
             progress_writer,
             last_timestamp,
             progress_iter_freq)
 
-        # Upload logs
+        # Create a storage client to upload logs to S3
         workflow_config = context.postgres.get_workflow_configs()
-
         if workflow_config.workflow_log.credential is None:
             return JobResult(
                 success=False,
                 error='Workflow log credential is not set',
             )
-
         storage_client = storage.Client.create(
             data_credential=workflow_config.workflow_log.credential,
+            executor_params=storage.ExecutorParameters(
+                num_processes=1,
+                # Additional threads just for context switching between upload
+                # coroutines to be safe
+                num_threads=CONCURRENT_UPLOADS + 2,
+            ),
         )
 
-        def migrate_logs(redis_url: str, redis_key: str, file_name: str):
+        async def migrate_logs(redis_url: str, redis_key: str, file_name: str):
             ''' Uploads logs to S3 and deletes them from Redis. Returns the S3 file path. '''
-            nonlocal last_timestamp
 
-            with tempfile.NamedTemporaryFile(mode='w+') as temp_file:
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(
-                    connectors.write_redis_log_to_disk(
-                        redis_url,
-                        redis_key,
-                        temp_file.name,
-                    ),
+            async with aiofiles.tempfile.NamedTemporaryFile(mode='w+') as temp_file:
+                await connectors.write_redis_log_to_disk(
+                    redis_url,
+                    redis_key,
+                    str(temp_file.name),
                 )
 
-                last_timestamp = update_progress_writer(
-                    progress_writer,
-                    last_timestamp,
-                    progress_iter_freq)
+                await progress_writer.report_progress_async()
 
-                temp_file.flush()
-                storage_client.upload_objects(
-                    source=temp_file.name,
-                    destination_prefix=self.workflow_id,
-                    destination_name=file_name,
-                )
+                await temp_file.flush()
+
+                # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
+                def _upload_logs() -> storage.UploadSummary:
+                    return storage_client.upload_objects(
+                        source=str(temp_file.name),
+                        destination_prefix=self.workflow_id,
+                        destination_name=file_name,
+                    )
+
+                await asyncio.to_thread(_upload_logs)
+
+                await progress_writer.report_progress_async()
+
+        semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
+
+        async def migrate_logs_concurrently(redis_url: str, redis_key: str, file_name: str):
+            async with semaphore:
+                await migrate_logs(redis_url, redis_key, file_name)
 
         workflow_logs_redis_key = f'{self.workflow_id}-logs'
         workflow_events_redis_key = common.get_workflow_events_redis_name(self.workflow_uuid)
 
-        # Upload workflow logs
-        migrate_logs(
-            workflow_obj.logs,
-            workflow_logs_redis_key,
-            common.WORKFLOW_LOGS_FILE_NAME
-        )
-
-        # Upload workflow events
-        migrate_logs(
-            workflow_obj.logs,
-            workflow_events_redis_key,
-            common.WORKFLOW_EVENTS_FILE_NAME
-        )
+        # Create a list of task parameters
+        task_parameters : List[Tuple[str, str, str]] = [
+            (workflow_obj.logs, workflow_logs_redis_key, common.WORKFLOW_LOGS_FILE_NAME),
+            (workflow_obj.logs, workflow_events_redis_key, common.WORKFLOW_EVENTS_FILE_NAME)
+        ]
 
         for group in workflow_obj.groups:
             for task_obj in group.tasks:
-                # Upload task logs
-                task_file_name = common.get_task_log_file_name(
-                    task_obj.name,
-                    task_obj.retry_id
-                )
-
-                task_redis_path = common.get_redis_task_log_name(
-                    self.workflow_id,
-                    task_obj.name,
-                    task_obj.retry_id,
-                )
-
-                migrate_logs(workflow_obj.logs, task_redis_path, task_file_name)
-
-                # Upload error logs
+                task_parameters.append(
+                    (workflow_obj.logs,
+                     common.get_redis_task_log_name(
+                       self.workflow_id, task_obj.name, task_obj.retry_id),
+                     common.get_task_log_file_name(
+                       task_obj.name, task_obj.retry_id)))
                 if task_obj.status.has_error_logs():
                     prefix = f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}'
                     task_error_log_name = task_obj.name
                     if task_obj.retry_id > 0:
                         task_error_log_name += f'_{task_obj.retry_id}'
                     task_error_log_name += common.ERROR_LOGS_SUFFIX_FILE_NAME
+                    task_parameters.append(
+                        (workflow_obj.logs, f'{prefix}-error-logs', task_error_log_name))
 
-                    migrate_logs(workflow_obj.logs, f'{prefix}-error-logs', task_error_log_name)
+        async def run_log_migrations():
+            await asyncio.gather(
+                *(
+                    migrate_logs_concurrently(redis_url, redis_key, file_name)
+                    for redis_url, redis_key, file_name in task_parameters
+                )
+            )
+
+        asyncio.run(run_log_migrations())
 
         wf_logs_ss_file_path = task_common.get_workflow_logs_path(
             workflow_id=self.workflow_id,
@@ -1451,20 +1461,19 @@ class CleanupWorkflow(WorkflowJob):
         workflow_obj.update_events_to_db(wf_events_ss_file_path)
 
         # Remove logs from Redis
-        redis_client.delete(workflow_logs_redis_key)
-        redis_client.delete(workflow_events_redis_key)
-
+        redis_keys_to_delete : List[str] = [workflow_logs_redis_key, workflow_events_redis_key]
         for group in workflow_obj.groups:
             for task_obj in group.tasks:
                 task_redis_path = common.get_redis_task_log_name(
                     self.workflow_id, task_obj.name, task_obj.retry_id)
-                redis_client.delete(task_redis_path)
-
-                # Upload error logs
+                redis_keys_to_delete.append(task_redis_path)
                 if task_obj.status.has_error_logs():
                     prefix = f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}'
-                    # Remove logs from Redis
-                    redis_client.delete(f'{prefix}-error-logs')
+                    redis_keys_to_delete.append(f'{prefix}-error-logs')
+
+        # Delete in batches to avoid an excessively large single DEL command.
+        for idx in range(0, len(redis_keys_to_delete), 1000):
+            redis_client.delete(*redis_keys_to_delete[idx:idx + 1000])
 
         return JobResult()
 
