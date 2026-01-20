@@ -24,6 +24,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, startTransition } from "react";
+import { useRafCallback } from "@react-hookz/web";
 
 import type { LogEntry, TailStatus } from "../types";
 import { parseLogLine } from "../adapters/log-parser";
@@ -113,8 +114,34 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
   const isPausedRef = useRef(false);
   const bufferRef = useRef<LogEntry[]>([]);
 
+  // RAF batching: Accumulate entries between frames for consistent 60fps updates
+  const pendingEntriesRef = useRef<LogEntry[]>([]);
+  const onEntriesCallbackRef = useRef(onEntries);
+  onEntriesCallbackRef.current = onEntries;
+
+  // RAF-batched state update - runs at most once per animation frame
+  const [flushPendingEntries] = useRafCallback(() => {
+    const pending = pendingEntriesRef.current;
+    if (pending.length === 0) return;
+
+    // Clear pending before processing to avoid races
+    pendingEntriesRef.current = [];
+
+    startTransition(() => {
+      setEntries((prev) => {
+        const combined = [...prev, ...pending];
+        // Keep buffer within limits
+        return combined.length > maxBufferSize ? combined.slice(-maxBufferSize) : combined;
+      });
+    });
+
+    // Notify callback with all batched entries
+    onEntriesCallbackRef.current?.(pending);
+  });
+
   /**
    * Processes incoming text chunk into log entries.
+   * Uses RAF batching for consistent 60fps updates during high-throughput streaming.
    */
   const processChunk = useCallback(
     (text: string) => {
@@ -139,19 +166,20 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
             bufferRef.current = bufferRef.current.slice(-maxBufferSize);
           }
         } else {
-          // Emit entries immediately
-          startTransition(() => {
-            setEntries((prev) => {
-              const combined = [...prev, ...newEntries];
-              // Keep buffer within limits
-              return combined.length > maxBufferSize ? combined.slice(-maxBufferSize) : combined;
-            });
-          });
-          onEntries?.(newEntries);
+          // Add to pending buffer and schedule RAF flush
+          // This batches rapid updates to run at 60fps max
+          for (const entry of newEntries) {
+            pendingEntriesRef.current.push(entry);
+          }
+          // Trim pending if too large (should rarely happen at 60fps)
+          if (pendingEntriesRef.current.length > maxBufferSize) {
+            pendingEntriesRef.current = pendingEntriesRef.current.slice(-maxBufferSize);
+          }
+          flushPendingEntries();
         }
       }
     },
-    [workflowId, maxBufferSize, onEntries],
+    [workflowId, maxBufferSize, flushPendingEntries],
   );
 
   /**
@@ -262,22 +290,20 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
   const resume = useCallback(() => {
     isPausedRef.current = false;
 
-    // Flush buffered entries
+    // Flush buffered entries via RAF batching
     if (bufferRef.current.length > 0) {
       const buffered = bufferRef.current;
       bufferRef.current = [];
 
-      startTransition(() => {
-        setEntries((prev) => {
-          const combined = [...prev, ...buffered];
-          return combined.length > maxBufferSize ? combined.slice(-maxBufferSize) : combined;
-        });
-      });
-      onEntries?.(buffered);
+      // Add to pending and flush via RAF for consistency
+      for (const entry of buffered) {
+        pendingEntriesRef.current.push(entry);
+      }
+      flushPendingEntries();
     }
 
     setStatus("streaming");
-  }, [maxBufferSize, onEntries]);
+  }, [flushPendingEntries]);
 
   /**
    * Stops tailing and closes connection.
