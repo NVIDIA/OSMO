@@ -90,7 +90,82 @@ User-facing changes:
 
 - New CLI commands: `osmo pool subpool create|update|delete ...`
 - Updated `osmo pool list` output to show parent/subpool hierarchy and negative
-  “Available” during drain.
+  "Available" during drain.
+
+## Research and Constraints
+
+This section documents the KAI Scheduler behaviors that informed our design, based on
+official documentation and empirical validation.
+
+### KAI Scheduler Behavior (Confirmed)
+
+The following behaviors are confirmed by official KAI Scheduler / Run:ai documentation:
+
+| Behavior | Source | Implication |
+|----------|--------|-------------|
+| **Leaf queues required for job submissions** | [Demystifying KAI Queues](https://medium.com/@singh1203.ss/demystifying-queues-in-nvidia-kai-scheduler-82ece7ef543c), [Ray KAI Integration](https://docs.ray.io/en/latest/cluster/kubernetes/k8s-ecosystem/kai-scheduler.html) | Parent queues are containers only; jobs must target leaf queues |
+| **Quota = guaranteed resources** | [Run:ai Scheduler Concepts](https://run-ai-docs.nvidia.com/self-hosted/2.20/platform-management/runai-scheduler/scheduling/concepts) | Non-preemptible workloads are constrained to their queue's quota |
+| **Over-quota = cluster-wide unused resources** | [Run:ai How the Scheduler Works](https://run-ai-docs.nvidia.com/self-hosted/2.20/platform-management/runai-scheduler/scheduling/how-the-scheduler-works) | Over-quota does NOT come from unused sibling quota |
+| **Non-preemptible workloads cannot use over-quota** | [Run:ai Workload Priority](https://run-ai-docs.nvidia.com/saas/platform-management/runai-scheduler/scheduling/workload-priority-control) | HIGH/NORMAL priority jobs must stay within guaranteed quota |
+| **Preemption/reclaim restores fairness** | [NVIDIA Blog: KAI Scheduler](https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/) | Over-quota workloads can be preempted when other queues need resources |
+
+### Key Constraints (What KAI Does NOT Do)
+
+These limitations informed critical design decisions:
+
+1. **KAI does NOT reserve idle children's quota**
+   - If a parent queue has children with quotas, and those children are idle, KAI will
+     allow parent-level jobs to consume resources up to the parent's total quota.
+   - This means child guarantees can be violated if we submit directly to the parent queue.
+   - **Mitigation**: Use the "shadow queue" pattern (see below).
+
+2. **KAI does NOT enforce `sum(children.quota) <= parent.quota` at admission**
+   - The scheduler allows over-subscription; enforcement is dynamic at scheduling time.
+   - **Mitigation**: OSMO admission must enforce this constraint.
+
+3. **KAI does NOT provide automatic "shadow" or "shared" queues**
+   - There is no built-in mechanism for a parent's unallocated portion to become a
+     separate leaf queue.
+   - **Mitigation**: OSMO creates and manages a `--_shared` queue for each pool.
+
+4. **KAI does NOT validate queue membership via admission webhooks**
+   - Jobs submitted directly to Kubernetes (bypassing OSMO) are not validated.
+   - **Mitigation**: Document as accepted risk; OSMO is the authoritative gate.
+
+### Shadow Queue Pattern (Design Inspiration)
+
+To preserve child queue guarantees while allowing parent-level submissions, we adopt the
+"shadow queue" pattern recommended in KAI Scheduler best practices:
+
+```
+Problem: Parent jobs can consume child quota when children are idle
+
+Solution: Create an explicit leaf queue ("shadow queue") for parent submissions
+
+Before (problematic):
+  osmo-default → osmo-pool-team (parent AND leaf, quota=100)
+                 └── Jobs submitted here can consume child quota
+
+After (shadow queue pattern):
+  osmo-default → osmo-pool-team (parent container, quota=100)
+                 ├── osmo-pool-team--_shared (leaf, quota=10)  ← parent submissions go here
+                 ├── osmo-pool-team--a (leaf, quota=30)
+                 ├── osmo-pool-team--b (leaf, quota=40)
+                 └── osmo-pool-team--c (leaf, quota=20)
+```
+
+**Key insight**: ALL pools now have a `--_shared` leaf queue, even those without subpools.
+This provides a consistent pattern and ensures pools are always properly structured for
+KAI's hierarchical queue model.
+
+### Sources
+
+- [NVIDIA KAI-Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
+- [Run:ai Scheduler Concepts and Principles](https://run-ai-docs.nvidia.com/self-hosted/2.20/platform-management/runai-scheduler/scheduling/concepts)
+- [Run:ai How the Scheduler Works](https://run-ai-docs.nvidia.com/self-hosted/2.20/platform-management/runai-scheduler/scheduling/how-the-scheduler-works)
+- [NVIDIA Blog: KAI Scheduler Open Source](https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/)
+- [Ray + KAI Scheduler Integration](https://docs.ray.io/en/latest/cluster/kubernetes/k8s-ecosystem/kai-scheduler.html)
+- [Demystifying Queues in KAI Scheduler](https://medium.com/@singh1203.ss/demystifying-queues-in-nvidia-kai-scheduler-82ece7ef543c)
 
 ## Detailed Design
 
@@ -120,6 +195,9 @@ User-facing changes:
 - **Canonical pool name**: `{parent}--{subpool}` (e.g. `team--a`)
 - **Subpool short name**: `a` (unique within parent)
 - **Delimiter rule**: `--` must not appear in any pool name or subpool short name
+- **Reserved names**: `_shared` is reserved for the internal shadow queue; subpool names
+  starting with `_` are rejected
+- **Shadow queue name**: `{parent}--_shared` (internal, not user-visible)
 
 ### CLI UX (what users see)
 
@@ -156,19 +234,36 @@ Column semantics:
 
 ### Core Rules
 
-- **Parent submissions (HIGH/NORMAL)**: must satisfy `requested_gpus <= unallocated`
-- **Parent submissions (LOW)**: allowed to exceed (preemptible)
+#### Shadow Queue Routing
+
+- **Parent submissions (`--pool team`)**: routed to `team--_shared` queue internally
+- **Subpool submissions (`--pool team--a`)**: routed to `team--a` queue directly
+- **Shadow queue is invisible**: users see pool names, not internal queue names
+
+#### Admission Rules
+
+- **Parent submissions (HIGH/NORMAL)**: must satisfy `requested_gpus <= _shared.quota`
+  - Where `_shared.quota = parent_quota - sum(subpool_quotas)` (i.e., unallocated)
+- **Parent submissions (LOW)**: allowed to exceed quota (preemptible, uses over-quota)
 - **Subpool submissions**:
   - Allowed if `ACTIVE`
   - Blocked if `DELETING` or `ARCHIVED`
+
+#### Quota Management
+
 - **Quota updates**:
   - Allowed only if `ACTIVE`
   - Decreases are soft: existing workflows continue; Available may go negative
     until drained
+  - Shadow queue quota is automatically adjusted to maintain invariant
 - **Delete**:
-  - If no running workflows: immediate `ARCHIVED` and quota returns to parent
+  - If no running workflows: immediate `ARCHIVED` and quota returns to `_shared`
   - Else: `DELETING` (frozen: no updates/submissions) until drained → `ARCHIVED`
 - **Reuse name**: allowed by reactivating an `ARCHIVED` subpool name back to `ACTIVE`
+
+#### Shadow Queue Invariant
+
+At all times: `_shared.quota + sum(active_subpool_quotas) = parent.quota`
 
 ### Subpool State
 
@@ -185,13 +280,33 @@ Subpools inherit all parent pool configuration. Only these differ:
 
 ### KAI Queue Hierarchy
 
+All pools use the shadow queue pattern for consistent KAI integration:
+
+**Pool WITHOUT subpools** (shadow queue gets 100% of quota):
+
 ```
 osmo-default-{namespace}
-└── osmo-pool-{namespace}-team (guarantee=100)
-    ├── osmo-pool-{namespace}-team--a (guarantee=30)  # derived from canonical pool "team--a"
-    ├── osmo-pool-{namespace}-team--b (guarantee=40)  # derived from canonical pool "team--b"
-    └── osmo-pool-{namespace}-team--c (guarantee=20)  # derived from canonical pool "team--c"
+└── osmo-pool-{namespace}-team (parent container, quota=100)
+    └── osmo-pool-{namespace}-team--_shared (leaf, quota=100)
 ```
+
+**Pool WITH subpools** (shadow queue gets unallocated portion):
+
+```
+osmo-default-{namespace}
+└── osmo-pool-{namespace}-team (parent container, quota=100)
+    ├── osmo-pool-{namespace}-team--_shared (leaf, quota=10)   # unallocated portion
+    ├── osmo-pool-{namespace}-team--a (leaf, quota=30)         # subpool
+    ├── osmo-pool-{namespace}-team--b (leaf, quota=40)         # subpool
+    └── osmo-pool-{namespace}-team--c (leaf, quota=20)         # subpool
+```
+
+Key points:
+- **ALL pools have a `--_shared` leaf queue**, even those without subpools
+- `_shared` is a reserved name; users cannot create a subpool with this name
+- Parent pool submissions (`--pool team`) route to `team--_shared` internally
+- Subpool submissions (`--pool team--a`) route directly to `team--a`
+- The `--_shared` queue is invisible to users; they see the parent pool name
 
 Subpools become child KAI queues. Same naming convention as pools. Priority, borrowing, and preemption work at each level.
 
@@ -200,11 +315,22 @@ Subpools become child KAI queues. Same naming convention as pools. Priority, bor
 KAI Scheduler supports hierarchical queues and resource distribution per queue
 (quota/limits/priority), which matches the core needs of subpools (see [NVIDIA/KAI-Scheduler](https://github.com/NVIDIA/KAI-Scheduler)).
 
-Two required behaviors and how we achieve them:
+#### Critical: OSMO Is the Single Enforcement Point
+
+Based on our [research](#research-and-constraints), KAI Scheduler does NOT:
+- Reserve idle children's quota (parent jobs can consume child quota if children are idle)
+- Enforce `sum(children.quota) <= parent.quota` at admission time
+- Provide automatic routing of parent submissions to a "shared" queue
+
+**Therefore, OSMO admission is the ONLY mechanism that guarantees child quotas are protected.**
+KAI queue configuration provides runtime fairness and preemption, but OSMO is the
+authoritative gate that prevents over-allocation.
+
+#### Required Behaviors and How We Achieve Them
 
 1. **Creating subpools does not interfere with existing workflows**
-   - Existing workflows submitted to the parent pool remain in the parent queue and
-     are not migrated.
+   - Existing workflows submitted to the parent pool remain in the `--_shared` queue
+     and are not migrated.
    - Subpool creation only affects **future scheduling** and
      **future admission** decisions.
    - We avoid introducing any mechanism that would preempt/evict already-running
@@ -214,14 +340,35 @@ Two required behaviors and how we achieve them:
    - This is enforced in **OSMO admission** (authoritative):
      - For parent submissions at HIGH/NORMAL: enforce `requested_gpus <= unallocated`
      - Where `unallocated = parent_quota - sum(child_quotas)`
-   - KAI queue configuration is a backstop for fairness, but OSMO is the gate
-     that guarantees “no new parent over-allocation” deterministically.
+   - OSMO routes parent submissions to the `--_shared` queue, which has quota = unallocated.
+   - KAI enforces that non-preemptible jobs stay within their queue's quota.
 
-Negative Available visibility:
+3. **Shadow queue synchronization**
+   - When a subpool is created: `_shared.quota -= new_subpool.quota`
+   - When a subpool quota is updated: `_shared.quota += old_quota - new_quota`
+   - When a subpool is deleted/archived: `_shared.quota += deleted_subpool.quota`
+   - Invariant: `_shared.quota + sum(subpool_quotas) = parent.quota`
+
+#### Priority Mapping
+
+| OSMO Priority | KAI Behavior | Over-Quota? | Preemptible? |
+|---------------|--------------|-------------|--------------|
+| HIGH | Non-preemptible, must stay within queue quota | No | No |
+| NORMAL | Non-preemptible, must stay within queue quota | No | No |
+| LOW | Preemptible, can use cluster-wide over-quota | Yes | Yes |
+
+#### Negative Available Visibility
+
 - Even with the admission gate, parent direct HIGH/NORMAL usage that predates
   subpool creation may temporarily exceed unallocated (parent Available is negative).
   During that drain period, subpools may not achieve their full quota immediately,
   even though they remain `ACTIVE`.
+
+#### Bypass Risk (Accepted Limitation)
+
+If workloads are submitted directly to Kubernetes (bypassing OSMO), they will be
+scheduled according to KAI rules without OSMO's quota enforcement. This is an
+accepted limitation; OSMO is designed as the primary submission interface.
 
 ### Database Schema
 
@@ -239,12 +386,21 @@ ALTER TABLE pools ADD COLUMN subpool_state TEXT;                        -- NULL 
 
 ### API Endpoints
 
+Subpools are pool entries in the `pools` table, so **read operations** use existing pool endpoints
+with the canonical name (`{parent}--{subpool}`). **Write operations** use dedicated `/subpool`
+endpoints to enforce parent context, quota constraints, and state-machine semantics.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/api/configs/pool/{parent}--{subpool}` | GET | Read subpool (existing pool endpoint) |
 | `/api/configs/pool/{parent}/subpool` | GET | List subpools of parent |
 | `/api/configs/pool/{parent}/subpool` | POST | Create subpool under parent |
-| `/api/configs/pool/{parent}/subpool/{subpool}` | PUT | Update quota |
-| `/api/configs/pool/{parent}/subpool/{subpool}` | DELETE | Delete (smart) |
+| `/api/configs/pool/{parent}/subpool/{subpool}` | PATCH | Update quota (quota-only) |
+| `/api/configs/pool/{parent}/subpool/{subpool}` | DELETE | Delete (smart, state-managed) |
+
+**Design rationale**: Write operations have different semantics than top-level pools (quota-only
+updates, parent-constrained creates, state-machine deletes), so they use dedicated endpoints.
+Read operations work with the canonical name since subpools are stored as pool entries.
 
 ### Security
 
@@ -265,6 +421,9 @@ Implementation note:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
+| Shadow queue for all pools? | **Yes (`--_shared`)** | KAI requires leaf queues for job submissions; consistent pattern for all pools regardless of whether they have subpools |
+| Shadow queue visibility? | **Hidden** | Users submit to `team`, OSMO routes to `team--_shared` internally; simplifies UX |
+| Reserved subpool names? | **`_shared`** | Prevent user collision with internal shadow queue; names starting with `_` are reserved |
 | Inherit all config from parent? | **Yes** | No drift, one source of truth |
 | Subpool-specific user access? | **No** | Simpler, inherits from parent |
 | Retention policy for ARCHIVED? | **Never hard delete** | Audit trail; no garbage collection |
@@ -273,25 +432,65 @@ Implementation note:
 | Rounding | **floor** | Whole GPU quotas only; remainder stays in parent unallocated |
 | Delimiter in pool names? | **Reject `--`** | Enforce delimiter rule on all pools (existing and new) to avoid naming conflicts |
 | Drain monitoring interval | **15 min (configurable)** | Expose via workflow config field for tuning |
+| OSMO as single enforcement point? | **Yes** | KAI does not reserve idle children's quota; OSMO admission is the only defense |
+| Bypass protection (direct K8s)? | **Accepted risk** | Workloads bypassing OSMO may violate quotas; document as limitation |
+| Subpool API endpoints? | **Hybrid** | Writes use `/pool/{parent}/subpool` (enforce parent context, quota constraints, state semantics); reads use existing pool endpoint with canonical name (`/pool/{parent}--{subpool}`) since subpools are pool table entries |
 
 ### Alternatives Considered
 
 - **Per-user caps (no subpools)**:
   - Pros: simpler config surface
-  - Cons: does not map to “team partitions”, hard to manage sharing, weaker guarantees
+  - Cons: does not map to "team partitions", hard to manage sharing, weaker guarantees
 - **Separate top-level pools (no parent)**:
   - Pros: existing pool semantics
-  - Cons: loses shared unallocated capacity and makes “shared-but-fair” harder; more config duplication
+  - Cons: loses shared unallocated capacity and makes "shared-but-fair" harder; more config duplication
 - **Scheduler-only enforcement**:
   - Pros: less OSMO admission logic
   - Cons: does not deterministically prevent new parent over-allocation; OSMO should be the authoritative gate
+- **Direct parent queue submissions (no shadow queue)**:
+  - Pros: simpler queue structure
+  - Cons: KAI does not reserve idle children's quota; parent jobs can consume child guarantees
+  - This was rejected based on [research findings](#research-and-constraints)
+- **Shadow queue only for pools with subpools**:
+  - Pros: fewer queues for simple pools
+  - Cons: inconsistent pattern; requires migration when first subpool is added
+  - Rejected in favor of uniform "all pools have shadow queue" pattern
 
 ### Backwards Compatibility
 
-- Existing pools with no subpools behave exactly as today.
+#### Pools Without Subpools (Functionally Identical)
+
+For pools that do not have subpools, behavior is identical to current behavior:
+
+| Aspect | Current Behavior | New Behavior | User Impact |
+|--------|------------------|--------------|-------------|
+| User command | `osmo workflow submit --pool team` | Same | None |
+| Internal queue | `osmo-pool-ns-team` | `osmo-pool-ns-team--_shared` | Invisible |
+| Quota enforcement | Pool's `resources.gpu.guarantee` | Same value on `_shared` queue | None |
+| Priority behavior | HIGH/NORMAL in-quota, LOW over-quota | Same | None |
+| CLI display | `osmo pool list --quota` shows quota | Same (aggregate) | None |
+
+**Key guarantee**: Users with existing pools (no subpools) will see no change in
+behavior, CLI output, or quota enforcement. The only difference is the internal
+KAI queue name, which is not visible to users.
+
+#### Existing Workflows
+
 - Existing running workloads are not migrated/evicted when subpools are created.
-- Parent “Available” may become negative during drain for pre-existing usage, but this is a visibility change
-  rather than a behavioral break.
+- Existing workflows in the parent pool remain in the `--_shared` queue.
+- No preemption or disruption occurs as a result of subpool creation.
+
+#### Display Changes (Visibility Only)
+
+- Parent "Available" may become negative during drain for pre-existing usage.
+- This is a visibility change (new column semantics) rather than a behavioral break.
+
+#### Migration Path
+
+No migration is required for existing pools:
+1. On deployment, OSMO will create `--_shared` queues for all existing pools
+2. Existing workflows continue running in their original queues until completion
+3. New submissions route to `--_shared` queues automatically
 
 ### Performance
 
@@ -326,25 +525,190 @@ Implementation note:
 - Postgres schema migration tooling and deployment process.
 - Delayed job infrastructure (if used for drain monitoring).
 
+## Acceptance Criteria
+
+The following scenarios define expected behavior and serve as test cases.
+
+### AC1: Pools Without Subpools Behave Identically to Current Behavior
+
+```
+GIVEN:
+  - Pool "team" with quota 100 GPUs (no subpools)
+
+WHEN:
+  - User runs: osmo workflow submit --pool team --priority HIGH job.yaml
+  - Job requests 50 GPUs
+
+THEN:
+  - Job is submitted to KAI queue "osmo-pool-ns-team--_shared"
+  - team--_shared has quota = 100 (entire pool quota)
+  - Job is scheduled within quota
+  - osmo pool list shows: team | 100 | 50 | 50 (quota/used/available)
+  - User experience is identical to current behavior (no visible change)
+```
+
+### AC2: Shadow Queue Gets Full Quota When No Subpools Exist
+
+```
+GIVEN:
+  - Pool "team" with quota 100 GPUs
+  - No subpools defined
+
+THEN:
+  - KAI queues created:
+    - osmo-pool-ns-team (parent container, quota=100)
+    - osmo-pool-ns-team--_shared (leaf, quota=100)
+
+  - Invariant: _shared.quota = pool.quota (when no children)
+```
+
+### AC3: Shadow Queue Adjusted When Subpools Added
+
+```
+GIVEN:
+  - Pool "team" with quota 100 GPUs
+  - No subpools (team--_shared quota = 100)
+
+WHEN:
+  - Admin runs: osmo pool subpool create team a --quota 30
+
+THEN:
+  - KAI queues updated:
+    - osmo-pool-ns-team--_shared (quota: 100 → 70)
+    - osmo-pool-ns-team--a (NEW, quota=30)
+
+  - Invariant maintained: _shared.quota + sum(subpool_quotas) = pool.quota
+    70 + 30 = 100 ✓
+```
+
+### AC4: Child Guarantees Protected from Parent Submissions
+
+```
+GIVEN:
+  - Pool "team" (quota=100)
+  - Subpools: team--a (30), team--b (40), team--c (20)
+  - Shared: team--_shared (10)
+  - All queues idle (0 usage)
+
+WHEN:
+  - User submits HIGH priority job requesting 15 GPUs to "team"
+
+THEN:
+  - Job routed to team--_shared queue
+  - Job REJECTED by OSMO admission (requested 15 > _shared.quota 10)
+  - Children's guarantees remain protected
+
+WHEN (alternative - LOW priority):
+  - User submits LOW priority job requesting 15 GPUs to "team"
+
+THEN:
+  - Job routed to team--_shared queue
+  - Job scheduled: 10 in-quota + 5 over-quota (preemptible)
+  - If child "a" later submits HIGH job for 30, KAI may preempt
+    the over-quota portion to give child its guarantee
+```
+
+### AC5: Subpool Submission Routing
+
+```
+GIVEN:
+  - Pool "team" with subpool "team--a" (quota=30)
+
+WHEN:
+  - User runs: osmo workflow submit --pool team--a job.yaml
+
+THEN:
+  - Job routed to KAI queue "osmo-pool-ns-team--a" (NOT team--_shared)
+  - Job uses team--a's quota (30)
+```
+
+### AC6: Subpool Deletion Returns Quota to Shared
+
+```
+GIVEN:
+  - Pool "team" (quota=100)
+  - Subpools: team--a (30), team--b (40)
+  - Shared: team--_shared (30)
+
+WHEN:
+  - Admin runs: osmo pool subpool delete team a
+  - team--a has 0 running workflows
+
+THEN:
+  - team--a transitions to ARCHIVED immediately
+  - team--_shared quota: 30 → 60
+  - Invariant maintained: 60 + 40 = 100 ✓
+  - KAI queue for team--a is removed
+```
+
+### AC7: Non-Preemptible Jobs Cannot Exceed Quota
+
+```
+GIVEN:
+  - team--_shared (quota=10)
+  - Current usage: 8 GPUs (HIGH priority)
+
+WHEN:
+  - User submits HIGH priority job requesting 5 GPUs to "team"
+
+THEN:
+  - Job stays PENDING (8 + 5 = 13 > quota 10)
+  - Non-preemptible jobs cannot use over-quota
+
+WHEN (alternative - LOW priority):
+  - User submits LOW priority job requesting 5 GPUs to "team"
+
+THEN:
+  - Job scheduled: 2 in-quota + 3 over-quota (preemptible)
+```
+
+### AC8: Quota Update Synchronizes Shared Queue
+
+```
+GIVEN:
+  - Pool "team" (quota=100)
+  - Subpools: team--a (30), team--b (40)
+  - Shared: team--_shared (30)
+
+WHEN:
+  - Admin runs: osmo pool subpool update team b --quota 50
+
+THEN:
+  - team--b quota: 40 → 50
+  - team--_shared quota: 30 → 20
+  - Invariant maintained: 30 + 50 + 20 = 100 ✓
+```
+
 ## Implementation Plan
 
 1. **Schema & Models**
    - Add subpool fields to `pools` (reuse table with a parent edge)
    - Update the Pool model to include subpool fields
-2. **Core Logic**
+   - Add `_shared` as reserved subpool name validation
+2. **Shadow Queue Infrastructure**
+   - Update `get_queue_spec()` to create parent + `--_shared` queues for ALL pools
+   - Update `create_group_k8s_resources()` to route parent submissions to `--_shared`
+   - Implement shadow queue quota synchronization on subpool changes
+3. **Core Logic**
    - Enforce `sum(child_quotas) <= parent_quota` on create/update
-   - Enforce parent admission cap: `requested_gpus <= unallocated` for parent HIGH/NORMAL submissions
+   - Enforce parent admission cap: `requested_gpus <= _shared.quota` for parent HIGH/NORMAL submissions
    - Compute negative Available for parent (and subpool on shrink/delete) for display
    - Implement delete/drain behavior (`DELETING` → `ARCHIVED`)
-3. **KAI Integration**
-   - Create hierarchical queues for subpools under the parent queue
+   - Maintain invariant: `_shared.quota + sum(subpool_quotas) = parent.quota`
+4. **KAI Integration**
+   - Create hierarchical queues: parent container → `_shared` + subpools
    - Ensure creating subpools does not disrupt existing workloads (no migration/eviction)
-4. **APIs**
-   - Implement subpool CRUD endpoints
-5. **CLI**
+   - Remove KAI queue when subpool transitions to `ARCHIVED`
+5. **APIs**
+   - Implement subpool write endpoints (`POST`, `PATCH`, `DELETE`) under `/pool/{parent}/subpool`
+   - Subpool reads use existing pool endpoint with canonical name (`/pool/{parent}--{subpool}`)
+   - Validate reserved names (reject `_shared` and names starting with `_`)
+6. **CLI**
    - Add `osmo pool subpool` commands and update list output to show hierarchy + negative Available
-6. **Tests & Docs**
+7. **Tests & Docs**
    - E2E tests for create/update/delete and admission behavior
+   - Verify acceptance criteria AC1-AC8
+   - Verify backwards compatibility for pools without subpools
 
 ## Open Questions
 
@@ -433,11 +797,25 @@ Subpool changes:
 
 Where to start:
 - `KaiK8sObjectFactory` is the entry point for building K8s objects.
+- `get_queue_spec()` creates one queue per pool (currently as leaf queues).
+- `create_group_k8s_resources()` assigns the queue label to pods.
 
-Subpool changes:
-- Ensure a queue exists for each `ACTIVE` / `DELETING` subpool (exclude `ARCHIVED`).
-- Parent queue remains the parent of subpool queues.
-- No migration/eviction of already-running workloads on subpool creation.
+Shadow queue changes:
+- **Queue creation** (`get_queue_spec()`):
+  - For each pool, create a parent queue AND a `--_shared` leaf queue
+  - Parent queue: `osmo-pool-{namespace}-{pool_name}` with `parentQueue: osmo-default-{namespace}`
+  - Shared queue: `osmo-pool-{namespace}-{pool_name}--_shared` with `parentQueue: osmo-pool-{namespace}-{pool_name}`
+  - For pools without subpools: `_shared.quota = pool.quota`
+  - For pools with subpools: `_shared.quota = pool.quota - sum(subpool_quotas)`
+- **Subpool queues**: Create leaf queue for each `ACTIVE` / `DELETING` subpool (exclude `ARCHIVED`)
+- **Job routing** (`create_group_k8s_resources()`):
+  - If `pool_name` contains `--` (is a subpool): use `osmo-pool-{namespace}-{pool_name}`
+  - Else (parent pool): use `osmo-pool-{namespace}-{pool_name}--_shared`
+
+Example queue names:
+- `osmo-pool-ns-team` (parent container)
+- `osmo-pool-ns-team--_shared` (shadow leaf for parent submissions)
+- `osmo-pool-ns-team--a` (subpool leaf)
 
 </details>
 
