@@ -12,8 +12,9 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldFacet, LogLevel } from "@/lib/api/log-adapter";
 import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
-import { getLevelDotClasses } from "../lib/level-utils";
-import { Button } from "@/components/shadcn/button";
+import { getLevelBadgeClasses, getLevelAbbrev } from "../lib/level-utils";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 
 // =============================================================================
 // Types
@@ -49,6 +50,7 @@ interface FacetValueItemProps {
 function FacetValueItem({ field, value, count, isActive, onClick }: FacetValueItemProps) {
   // Get display label for known fields
   const displayLabel = getDisplayLabel(field, value);
+  const isLevelField = field === "level";
 
   return (
     <button
@@ -61,19 +63,21 @@ function FacetValueItem({ field, value, count, isActive, onClick }: FacetValueIt
       )}
     >
       <span className="flex min-w-0 items-center gap-2">
-        {/* Level indicator dot */}
-        {field === "level" && (
-          <span className={cn("size-2 shrink-0 rounded-full", getLevelDotClasses(value as LogLevel))} />
-        )}
-
-        {/* Active indicator */}
+        {/* Selection indicator (radial circles) */}
         {isActive ? (
           <span className="bg-primary size-2 shrink-0 rounded-full" />
         ) : (
-          field !== "level" && <span className="border-muted-foreground/30 size-2 shrink-0 rounded-full border" />
+          <span className="border-muted-foreground/30 size-2 shrink-0 rounded-full border" />
         )}
 
-        <span className="truncate">{displayLabel}</span>
+        {/* Level badge or text label */}
+        {isLevelField ? (
+          <span className={cn("w-[52px] shrink-0 text-center", getLevelBadgeClasses(value as LogLevel))}>
+            {getLevelAbbrev(value as LogLevel)}
+          </span>
+        ) : (
+          <span className="truncate">{displayLabel}</span>
+        )}
       </span>
       <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{count.toLocaleString()}</span>
     </button>
@@ -150,31 +154,33 @@ function getFieldLabel(field: string): string {
 // =============================================================================
 
 interface CollapsedPaneProps {
-  facets: FieldFacet[];
   onExpand: () => void;
 }
 
-function CollapsedPane({ facets, onExpand }: CollapsedPaneProps) {
-  // Count total entries and check for errors
-  const totalEntries =
-    facets.reduce((sum, f) => sum + f.values.reduce((s, v) => s + v.count, 0), 0) / facets.length || 0;
-
-  const hasErrors = facets.some(
-    (f) => f.field === "level" && f.values.some((v) => (v.value === "error" || v.value === "fatal") && v.count > 0),
-  );
-
+function CollapsedPane({ onExpand }: CollapsedPaneProps) {
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="flex h-full w-8 flex-col items-center justify-center gap-2 rounded-none border-r"
-      onClick={onExpand}
-    >
-      <span className="rotate-180 font-mono text-xs tabular-nums [writing-mode:vertical-lr]">
-        {Math.round(totalEntries).toLocaleString()}
-      </span>
-      {hasErrors && <span className="size-2 rounded-full bg-red-500" />}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onExpand}
+          className={cn(
+            "flex h-full w-full flex-col items-center py-2",
+            "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            "focus-visible:ring-ring transition-colors focus:outline-none focus-visible:ring-2",
+          )}
+        >
+          <PanelLeftOpen className="size-4" />
+          <span className="sr-only">Expand fields panel</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+      >
+        Expand fields panel
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -190,16 +196,6 @@ function FieldsPaneInner({
   collapsed = false,
   onToggleCollapse,
 }: FieldsPaneProps) {
-  // Collapsed state
-  if (collapsed) {
-    return (
-      <CollapsedPane
-        facets={facets}
-        onExpand={() => onToggleCollapse?.()}
-      />
-    );
-  }
-
   // Empty state
   if (facets.length === 0) {
     return (
@@ -210,16 +206,59 @@ function FieldsPaneInner({
   }
 
   return (
-    <div className={cn("h-full overflow-y-auto overscroll-contain", className)}>
-      <div className="space-y-4 p-3">
-        {facets.map((facet) => (
-          <FacetGroup
-            key={facet.field}
-            facet={facet}
-            activeValues={activeFilters.get(facet.field) ?? new Set()}
-            onFacetClick={(value) => onFacetClick(facet.field, value)}
-          />
-        ))}
+    <div className={cn("relative h-full overflow-hidden", className)}>
+      {/* Collapsed content - always rendered, opacity controlled */}
+      <div
+        className={cn(
+          "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
+          collapsed ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
+        <CollapsedPane onExpand={() => onToggleCollapse?.()} />
+      </div>
+
+      {/* Expanded content - always rendered, opacity controlled */}
+      <div
+        className={cn(
+          "flex h-full w-full flex-col overflow-hidden transition-opacity duration-200 ease-out",
+          collapsed ? "pointer-events-none opacity-0" : "opacity-100",
+        )}
+      >
+        {/* Header with collapse button */}
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Fields</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className={cn(
+                  "flex size-6 items-center justify-center rounded-md",
+                  "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  "focus-visible:ring-ring transition-colors focus:outline-none focus-visible:ring-2",
+                )}
+              >
+                <PanelLeftClose className="size-4" />
+                <span className="sr-only">Collapse fields panel</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Collapse fields panel</TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Scrollable facets */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="space-y-4 p-3">
+            {facets.map((facet) => (
+              <FacetGroup
+                key={facet.field}
+                facet={facet}
+                activeValues={activeFilters.get(facet.field) ?? new Set()}
+                onFacetClick={(value) => onFacetClick(facet.field, value)}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

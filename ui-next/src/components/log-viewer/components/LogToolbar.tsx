@@ -9,7 +9,7 @@
 "use client";
 
 import { memo } from "react";
-import { Download, WrapText, ArrowDownToLine, Play, Pause, RotateCcw } from "lucide-react";
+import { Download, WrapText, ArrowDownToLine, Play, Pause, RotateCcw, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -32,6 +32,10 @@ export interface LogToolbarProps {
   wrapLines: boolean;
   /** Callback to toggle line wrapping */
   onToggleWrapLines: () => void;
+  /** Whether task suffix is shown */
+  showTask: boolean;
+  /** Callback to toggle task suffix */
+  onToggleShowTask: () => void;
   /** Callback to download logs */
   onDownload?: () => void;
   /** Callback to scroll to bottom */
@@ -55,6 +59,8 @@ function LogToolbarInner({
   onToggleTailing,
   wrapLines,
   onToggleWrapLines,
+  showTask,
+  onToggleShowTask,
   onDownload,
   onScrollToBottom,
   onRefresh,
@@ -62,12 +68,7 @@ function LogToolbarInner({
   className,
 }: LogToolbarProps) {
   return (
-    <div
-      className={cn(
-        "bg-background/95 supports-[backdrop-filter]:bg-background/60 flex items-center justify-between gap-4 border-t px-3 py-2 backdrop-blur",
-        className,
-      )}
-    >
+    <div className={cn("flex items-center justify-between gap-4 border-t px-3 py-2", className)}>
       {/* Left: Results count */}
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <span className="tabular-nums">
@@ -128,6 +129,21 @@ function LogToolbarInner({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
+        </Tooltip>
+
+        {/* Show task toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={showTask ? "secondary" : "ghost"}
+              size="icon-sm"
+              onClick={onToggleShowTask}
+            >
+              <Tag className="size-4" />
+              <span className="sr-only">{showTask ? "Hide" : "Show"} task</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
         </Tooltip>
 
         {/* Download button */}
@@ -209,11 +225,16 @@ export function LogToolbarConnected({
   onRefresh,
   isLoading,
   className,
-}: Omit<LogToolbarProps, "isTailing" | "onToggleTailing" | "wrapLines" | "onToggleWrapLines">) {
+}: Omit<
+  LogToolbarProps,
+  "isTailing" | "onToggleTailing" | "wrapLines" | "onToggleWrapLines" | "showTask" | "onToggleShowTask"
+>) {
   const isTailing = useLogViewerStore((s) => s.isTailing);
   const toggleTailing = useLogViewerStore((s) => s.toggleTailing);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const toggleWrapLines = useLogViewerStore((s) => s.toggleWrapLines);
+  const showTask = useLogViewerStore((s) => s.showTask);
+  const toggleShowTask = useLogViewerStore((s) => s.toggleShowTask);
 
   return (
     <LogToolbarInner
@@ -223,6 +244,8 @@ export function LogToolbarConnected({
       onToggleTailing={toggleTailing}
       wrapLines={wrapLines}
       onToggleWrapLines={toggleWrapLines}
+      showTask={showTask}
+      onToggleShowTask={toggleShowTask}
       onDownload={onDownload}
       onScrollToBottom={onScrollToBottom}
       onRefresh={onRefresh}

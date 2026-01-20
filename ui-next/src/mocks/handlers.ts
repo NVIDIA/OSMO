@@ -43,6 +43,19 @@ import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay }
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
 
+// =============================================================================
+// URL Matching Patterns
+// =============================================================================
+// MSW v2's `*` wildcard should match any origin, but in Next.js + Turbopack,
+// server-side fetch interception can be unreliable with wildcard patterns.
+// Using RegExp ensures we match both:
+//   - Relative paths: /api/workflow/test/logs
+//   - Absolute URLs: https://any-host.com/api/workflow/test/logs
+//
+// Pattern format: matches anything ending with /api/workflow/{name}/logs
+const WORKFLOW_LOGS_PATTERN = /\/api\/workflow\/([^/]+)\/logs$/;
+const TASK_LOGS_PATTERN = /\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -203,11 +216,13 @@ export const handlers = [
   //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
   //   - log_delay: Override streaming delay (ms)
   //
-  // Uses `*` wildcard for browser-side MSW interception (service worker)
-  // Browser MSW intercepts fetch calls directly, enabling true streaming
-  http.get("*/api/workflow/:name/logs", async ({ params, request }) => {
-    const name = params.name as string;
+  // Uses RegExp for reliable matching of both relative paths and absolute URLs
+  // This ensures server-side fetch (Next.js API routes) is properly intercepted
+  http.get(WORKFLOW_LOGS_PATTERN, async ({ request }) => {
+    // Extract workflow name from URL using pathname
     const url = new URL(request.url);
+    const pathMatch = url.pathname.match(/\/api\/workflow\/([^/]+)\/logs$/);
+    const name = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
 
     // Real backend params
     const lastNLines = url.searchParams.get("last_n_lines");
@@ -471,11 +486,12 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Query params:
   //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
   //   - log_delay: Override streaming delay (ms)
-  // Uses `*` wildcard for browser-side MSW interception
-  http.get("*/api/workflow/:name/task/:taskName/logs", async ({ params, request }) => {
-    const workflowName = params.name as string;
-    const taskName = params.taskName as string;
+  // Uses RegExp for reliable matching of both relative paths and absolute URLs
+  http.get(TASK_LOGS_PATTERN, async ({ request }) => {
     const url = new URL(request.url);
+    const pathMatch = url.pathname.match(/\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/);
+    const workflowName = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
+    const taskName = pathMatch ? decodeURIComponent(pathMatch[2]) : "unknown";
 
     // Parse scenario from URL params (for dev testing)
     const scenarioName = url.searchParams.get("log_scenario") ?? "normal";

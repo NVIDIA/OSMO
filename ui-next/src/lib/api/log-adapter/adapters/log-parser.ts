@@ -51,11 +51,11 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
  * Capture group 1 is the full prefix to strip (including separator).
  */
 const LEVEL_PATTERNS: ReadonlyArray<readonly [RegExp, LogLevel]> = [
-  [/^(INFO[:\s]\s*)/i, "info"],
-  [/^(ERROR[:\s]\s*)/i, "error"],
-  [/^(WARN(?:ING)?[:\s]\s*)/i, "warn"],
-  [/^(DEBUG[:\s]\s*)/i, "debug"],
-  [/^(FATAL[:\s]\s*)/i, "fatal"],
+  [/^(INFO[:\s])/i, "info"],
+  [/^(ERROR[:\s])/i, "error"],
+  [/^(WARN(?:ING)?[:\s])/i, "warn"],
+  [/^(DEBUG[:\s])/i, "debug"],
+  [/^(FATAL[:\s])/i, "fatal"],
 ] as const;
 
 // =============================================================================
