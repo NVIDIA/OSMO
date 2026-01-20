@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useRef, useCallback, useEffect, useMemo, memo } from "react";
+import { useRef, useCallback, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -30,6 +30,7 @@ import {
   OVERSCAN_COUNT,
   SCROLL_BOTTOM_THRESHOLD,
 } from "../lib/constants";
+import { useIncrementalFlatten } from "../lib/use-incremental-flatten";
 
 // =============================================================================
 // Types
@@ -48,69 +49,6 @@ export interface LogListProps {
   isTailing?: boolean;
   /** Callback when user scrolls away from bottom (disables tailing) */
   onScrollAwayFromBottom?: () => void;
-}
-
-/**
- * A flattened virtual list item - either a date separator or a log entry.
- * Using a discriminated union for type-safe rendering.
- */
-type VirtualItem =
-  | { type: "separator"; dateKey: string; date: Date; index: number }
-  | { type: "entry"; entry: LogEntry };
-
-/** Information about a date separator for sticky header tracking */
-interface SeparatorInfo {
-  index: number;
-  dateKey: string;
-  date: Date;
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/**
- * Get a date key string for grouping (YYYY-MM-DD format).
- */
-function getDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-/**
- * Result of flattening entries: the flat list + separator metadata for sticky headers.
- */
-interface FlattenResult {
-  items: VirtualItem[];
-  separators: SeparatorInfo[];
-}
-
-/**
- * Flatten log entries into a single array with date separators.
- * Also returns separator metadata for O(1) sticky header lookup.
- */
-function flattenEntriesWithSeparators(entries: LogEntry[]): FlattenResult {
-  if (entries.length === 0) return { items: [], separators: [] };
-
-  const items: VirtualItem[] = [];
-  const separators: SeparatorInfo[] = [];
-  let currentDateKey: string | null = null;
-
-  for (const entry of entries) {
-    const dateKey = getDateKey(entry.timestamp);
-
-    // Insert date separator when date changes
-    if (dateKey !== currentDateKey) {
-      const separatorIndex = items.length;
-      const separator: SeparatorInfo = { index: separatorIndex, dateKey, date: entry.timestamp };
-      separators.push(separator);
-      items.push({ type: "separator", dateKey, date: entry.timestamp, index: separatorIndex });
-      currentDateKey = dateKey;
-    }
-
-    items.push({ type: "entry", entry });
-  }
-
-  return { items, separators };
 }
 
 // =============================================================================
@@ -164,8 +102,9 @@ function LogListInner({
   const showTask = useLogViewerStore((s) => s.showTask);
   const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
 
-  // Flatten entries with date separators - single pass O(n)
-  const { items: flatItems, separators } = useMemo(() => flattenEntriesWithSeparators(entries), [entries]);
+  // Flatten entries with date separators using incremental algorithm
+  // O(k) for streaming appends where k = new entries, O(n) for full replacement
+  const { items: flatItems, separators } = useIncrementalFlatten(entries);
 
   // Estimate size callback - uses lookup for expanded entries
   const estimateSize = useCallback(

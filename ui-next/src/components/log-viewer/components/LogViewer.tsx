@@ -68,6 +68,18 @@ export interface LogViewerProps {
   scope?: "workflow" | "group" | "task";
   /** Additional CSS classes */
   className?: string;
+  /**
+   * Total unfiltered entry count.
+   * When provided with `preFiltered=true`, used to display accurate "M of N results".
+   * If not provided, defaults to entries.length.
+   */
+  totalEntryCount?: number;
+  /**
+   * Whether entries are already filtered at the adapter level.
+   * When true, skips client-side filterByChips for O(1) performance.
+   * Use with chipsToLogQuery() to pass filters to useLogQuery.
+   */
+  preFiltered?: boolean;
 }
 
 // =============================================================================
@@ -137,6 +149,8 @@ function LogViewerInner({
   initialChips = [],
   scope = "workflow",
   className,
+  totalEntryCount,
+  preFiltered = false,
 }: LogViewerProps) {
   const { clipboard, announcer } = useServices();
 
@@ -183,7 +197,15 @@ function LogViewerInner({
   );
 
   // Filter entries using shared filterByChips from filter-bar
-  const filteredEntries = useMemo(() => filterByChips(entries, chips, logFields), [entries, chips, logFields]);
+  // Skip client-side filtering when entries are pre-filtered at the adapter level (O(1))
+  const filteredEntries = useMemo(() => {
+    if (preFiltered) {
+      // Entries already filtered by LogIndex at adapter level - use as-is
+      return entries;
+    }
+    // Client-side filtering fallback (O(n))
+    return filterByChips(entries, chips, logFields);
+  }, [entries, chips, logFields, preFiltered]);
 
   // Build active filters map for FieldsPane
   const activeFilters = useMemo(() => buildActiveFiltersMap(chips), [chips]);
@@ -241,12 +263,13 @@ function LogViewerInner({
   }, [isTailing, setTailing, announcer]);
 
   // Results count for QueryBar
+  // When preFiltered, use totalEntryCount for accurate "M of N results" display
   const resultsCount = useMemo(
     () => ({
-      total: entries.length,
+      total: preFiltered && totalEntryCount !== undefined ? totalEntryCount : entries.length,
       filtered: chips.length > 0 ? filteredEntries.length : undefined,
     }),
-    [entries.length, filteredEntries.length, chips.length],
+    [entries.length, filteredEntries.length, chips.length, preFiltered, totalEntryCount],
   );
 
   // Show fields pane only at workflow/group scope
