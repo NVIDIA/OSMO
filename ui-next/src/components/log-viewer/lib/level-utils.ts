@@ -29,20 +29,52 @@ export type { LogLevel };
 // =============================================================================
 
 /**
+ * Pre-computed CSS classes for level badges.
+ * Computed at module load to avoid calling cn() on every row render.
+ */
+const LEVEL_BADGE_BASE_CLASSES = "rounded px-1.5 py-0.5 text-xs font-medium border";
+
+const LEVEL_BADGE_CLASSES: ReadonlyMap<LogLevel | undefined, string> = new Map([
+  ...LOG_LEVELS.map((level) => {
+    const style = LOG_LEVEL_STYLES[level];
+    return [level, cn(LEVEL_BADGE_BASE_CLASSES, style.bg, style.text, style.border)] as const;
+  }),
+  // Fallback for undefined uses debug styles
+  [
+    undefined,
+    cn(LEVEL_BADGE_BASE_CLASSES, LOG_LEVEL_STYLES.debug.bg, LOG_LEVEL_STYLES.debug.text, LOG_LEVEL_STYLES.debug.border),
+  ],
+]);
+
+/**
  * Get CSS classes for a level badge.
  * Returns combined background, text, and border classes.
+ * Uses pre-computed classes for O(1) lookup.
  */
 export function getLevelBadgeClasses(level: LogLevel | undefined): string {
-  const style = getLogLevelStyle(level);
-  return cn("rounded px-1.5 py-0.5 text-xs font-medium", style.bg, style.text, style.border, "border");
+  return LEVEL_BADGE_CLASSES.get(level) ?? LEVEL_BADGE_CLASSES.get(undefined)!;
 }
 
 /**
+ * Pre-computed CSS classes for level dot indicators.
+ */
+const LEVEL_DOT_BASE_CLASSES = "size-2 rounded-full";
+
+const LEVEL_DOT_CLASSES: ReadonlyMap<LogLevel | undefined, string> = new Map([
+  ...LOG_LEVELS.map((level) => {
+    const style = LOG_LEVEL_STYLES[level];
+    return [level, cn(LEVEL_DOT_BASE_CLASSES, style.dot)] as const;
+  }),
+  // Fallback for undefined uses debug styles
+  [undefined, cn(LEVEL_DOT_BASE_CLASSES, LOG_LEVEL_STYLES.debug.dot)],
+]);
+
+/**
  * Get CSS classes for a level dot indicator.
+ * Uses pre-computed classes for O(1) lookup.
  */
 export function getLevelDotClasses(level: LogLevel | undefined): string {
-  const style = getLogLevelStyle(level);
-  return cn("size-2 rounded-full", style.dot);
+  return LEVEL_DOT_CLASSES.get(level) ?? LEVEL_DOT_CLASSES.get(undefined)!;
 }
 
 /**
