@@ -47,7 +47,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
-                           osmo_errors, role)
+                           osmo_errors, role, validation)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
 
@@ -155,6 +155,7 @@ class PostgresConfig(pydantic.BaseModel):
     postgres_reconnect_retry: int = pydantic.Field(
         command_line='postgres_reconnect_retry',
         env='OSMO_POSTGRES_RECONNECT_RETRY',
+        type=validation.positive_integer,
         default=5,
         description='Reconnect try count after connection error')
     mek_file: str = pydantic.Field(
@@ -188,11 +189,13 @@ class PostgresConfig(pydantic.BaseModel):
         description='The public hostname for the OSMO service (used for URL generation)')
     postgres_pool_minconn: int = pydantic.Field(
         command_line='postgres_pool_minconn',
+        type=validation.positive_integer,
         env='OSMO_POSTGRES_POOL_MINCONN',
         default=1,
         description='Minimum number of connections to keep in the connection pool')
     postgres_pool_maxconn: int = pydantic.Field(
         command_line='postgres_pool_maxconn',
+        type=validation.positive_integer,
         env='OSMO_POSTGRES_POOL_MAXCONN',
         default=10,
         description='Maximum number of connections allowed in the connection pool')
@@ -251,25 +254,23 @@ class PostgresConnector:
     def _create_pool(self):
         """Create the ThreadedConnectionPool and semaphore."""
         try:
+            if self.config.postgres_pool_minconn > self.config.postgres_pool_maxconn:
+                raise osmo_errors.OSMOUsageError(
+                    'postgres_pool_minconn cannot be greater than postgres_pool_maxconn')
+
             self._pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=self.config.postgres_pool_minconn,
-                maxconn=self.config.postgres_pool_maxconn,
+                # +1 to ensure we never exhaust the pool
+                # This leaves 1 connection for retry/recovery scenarios
+                maxconn=self.config.postgres_pool_maxconn + 1,
                 host=self.config.postgres_host,
                 port=self.config.postgres_port,
                 database=self.config.postgres_database_name,
                 user=self.config.postgres_user,
                 password=self.config.postgres_password
             )
-            # Semaphore count is maxconn - 1 to ensure we never exhaust the pool
-            # This leaves 1 connection for retry/recovery scenarios
-            semaphore_count = max(1, self.config.postgres_pool_maxconn - 1)
-            self._pool_semaphore = threading.Semaphore(semaphore_count)
-            logging.info(
-                'Created connection pool with minconn=%d, maxconn=%d, semaphore=%d',
-                self.config.postgres_pool_minconn,
-                self.config.postgres_pool_maxconn,
-                semaphore_count
-            )
+            self._pool_semaphore = threading.Semaphore(self.config.postgres_pool_maxconn)
+
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as error:
             logging.error('Database Error while creating connection pool: %s', str(error))
             raise osmo_errors.OSMOConnectionError(str(error))
