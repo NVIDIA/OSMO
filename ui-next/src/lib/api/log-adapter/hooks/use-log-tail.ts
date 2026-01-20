@@ -173,6 +173,9 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       // Use the regular logs endpoint - backend streams via Transfer-Encoding: chunked
       const urlObj = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
 
+      // Mark this as a tailing request (for MSW to know to stream infinitely)
+      urlObj.searchParams.set("tail", "true");
+
       // Apply optional URL params (used by experimental playground for mock scenarios)
       if (devParams) {
         for (const [key, value] of Object.entries(devParams)) {
