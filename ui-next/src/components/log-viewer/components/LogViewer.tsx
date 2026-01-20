@@ -149,6 +149,10 @@ function LogViewerInner({
   const setTailing = useLogViewerStore((s) => s.setTailing);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const toggleWrapLines = useLogViewerStore((s) => s.toggleWrapLines);
+  const showTask = useLogViewerStore((s) => s.showTask);
+  const toggleShowTask = useLogViewerStore((s) => s.toggleShowTask);
+  const fieldsPaneCollapsed = useLogViewerStore((s) => s.fieldsPaneCollapsed);
+  const toggleFieldsPaneCollapsed = useLogViewerStore((s) => s.toggleFieldsPaneCollapsed);
   const reset = useLogViewerStore((s) => s.reset);
 
   // Reset store on unmount
@@ -291,17 +295,24 @@ function LogViewerInner({
       <div className="flex min-h-0 flex-1">
         {/* Fields pane */}
         {showFieldsPane && (
-          <div className="w-48 shrink-0 border-r">
+          <div
+            className={cn(
+              "shrink-0 border-r transition-[width] duration-200 ease-out",
+              fieldsPaneCollapsed ? "w-8" : "w-48",
+            )}
+          >
             <FieldsPane
               facets={facets}
               activeFilters={activeFilters}
               onFacetClick={handleFacetClick}
+              collapsed={fieldsPaneCollapsed}
+              onToggleCollapse={toggleFieldsPaneCollapsed}
             />
           </div>
         )}
 
-        {/* Log list */}
-        <div className="min-w-0 flex-1">
+        {/* Log list with native sticky date headers */}
+        <div className="min-w-0 flex-1 overflow-hidden">
           <LogList
             entries={filteredEntries}
             onCopy={handleCopy}
@@ -320,6 +331,8 @@ function LogViewerInner({
           onToggleTailing={toggleTailing}
           wrapLines={wrapLines}
           onToggleWrapLines={toggleWrapLines}
+          showTask={showTask}
+          onToggleShowTask={toggleShowTask}
           onDownload={handleDownload}
           onRefresh={onRefetch}
           isLoading={isLoading}
