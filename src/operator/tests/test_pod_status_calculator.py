@@ -165,8 +165,8 @@ def create_pod_from_json(test_input: Dict) -> V1Pod:
     return pod
 
 
-class TestCalculateTaskStatus(unittest.TestCase):
-    """Comprehensive test suite for calculate_task_status function - driven by JSON test cases"""
+class TestCalculatePodStatus(unittest.TestCase):
+    """Comprehensive test suite for calculate_pod_status function - driven by JSON test cases"""
 
     test_data: Dict[str, Any] = {}  # type: ignore
 
@@ -283,8 +283,8 @@ def load_tests(loader, tests, pattern):
         test_method.__doc__ = test_case['description']
 
         # Add test to suite
-        setattr(TestCalculateTaskStatus, test_name, test_method)
-        suite.addTest(TestCalculateTaskStatus(test_name))
+        setattr(TestCalculatePodStatus, test_name, test_method)
+        suite.addTest(TestCalculatePodStatus(test_name))
 
     return suite
 
