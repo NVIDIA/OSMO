@@ -8,7 +8,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldFacet, LogLevel } from "@/lib/api/log-adapter";
 import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
@@ -42,14 +42,13 @@ export interface FieldsPaneProps {
 interface FacetValueItemProps {
   field: string;
   value: string;
+  displayLabel: string;
   count: number;
   isActive: boolean;
   onClick: () => void;
 }
 
-function FacetValueItem({ field, value, count, isActive, onClick }: FacetValueItemProps) {
-  // Get display label for known fields
-  const displayLabel = getDisplayLabel(field, value);
+function FacetValueItem({ field, value, displayLabel, count, isActive, onClick }: FacetValueItemProps) {
   const isLevelField = field === "level";
 
   return (
@@ -112,6 +111,16 @@ function FacetGroup({ facet, activeValues, onFacetClick }: FacetGroupProps) {
   // Get display label for field
   const fieldLabel = getFieldLabel(facet.field);
 
+  // Memoize display labels for all values in this group
+  // This avoids recalculating labels on every render
+  const displayLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const item of facet.values) {
+      labels.set(item.value, getDisplayLabel(facet.field, item.value));
+    }
+    return labels;
+  }, [facet.field, facet.values]);
+
   return (
     <div className="space-y-1">
       <div className="text-muted-foreground px-2 text-xs font-medium tracking-wide uppercase">{fieldLabel}</div>
@@ -121,6 +130,7 @@ function FacetGroup({ facet, activeValues, onFacetClick }: FacetGroupProps) {
             key={item.value}
             field={facet.field}
             value={item.value}
+            displayLabel={displayLabels.get(item.value) ?? item.value}
             count={item.count}
             isActive={activeValues.has(item.value)}
             onClick={() => onFacetClick(item.value)}

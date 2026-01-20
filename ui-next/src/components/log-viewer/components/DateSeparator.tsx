@@ -25,8 +25,6 @@ import { formatDateShort } from "@/lib/format-date";
 export interface DateSeparatorProps {
   /** The date to display */
   date: Date;
-  /** Whether this separator is sticky (fixed at top) */
-  isSticky?: boolean;
   /** Additional CSS classes */
   className?: string;
 }
@@ -39,15 +37,12 @@ export interface DateSeparatorProps {
  * A subtle date separator row that can optionally stick to the top of the scroll container.
  * Used to provide date context in log lists without cluttering individual rows.
  */
-function DateSeparatorInner({ date, isSticky = false, className }: DateSeparatorProps) {
+function DateSeparatorInner({ date, className }: DateSeparatorProps) {
   const formattedDate = formatDateShort(date);
 
   return (
     <div
-      className={cn(
-        "flex items-center gap-2 px-3 py-1",
-        className,
-      )}
+      className={cn("flex items-center gap-2 px-3 py-1", className)}
       role="separator"
       aria-label={`Logs from ${formattedDate}`}
     >
@@ -55,23 +50,21 @@ function DateSeparatorInner({ date, isSticky = false, className }: DateSeparator
       <div
         className="h-px flex-1"
         style={{
-          backgroundImage: 'linear-gradient(to right, transparent 50%, var(--border) 50%)',
-          backgroundSize: '6px 1px',
+          backgroundImage: "linear-gradient(to right, transparent 50%, var(--border) 50%)",
+          backgroundSize: "6px 1px",
           opacity: 0.4,
         }}
       />
-      
+
       {/* Date label - subtle and muted */}
-      <span className="text-muted-foreground/50 shrink-0 text-[10px] uppercase tracking-wider">
-        {formattedDate}
-      </span>
-      
+      <span className="text-muted-foreground/50 shrink-0 text-[10px] tracking-wider uppercase">{formattedDate}</span>
+
       {/* Right dashed line - subtle */}
       <div
         className="h-px flex-1"
         style={{
-          backgroundImage: 'linear-gradient(to right, transparent 50%, var(--border) 50%)',
-          backgroundSize: '6px 1px',
+          backgroundImage: "linear-gradient(to right, transparent 50%, var(--border) 50%)",
+          backgroundSize: "6px 1px",
           opacity: 0.4,
         }}
       />

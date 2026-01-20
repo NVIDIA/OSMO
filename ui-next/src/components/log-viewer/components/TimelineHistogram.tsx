@@ -8,7 +8,7 @@
 
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { formatTime24Short } from "@/lib/format-date";
 import type { HistogramBucket, LogLevel } from "@/lib/api/log-adapter";
@@ -97,8 +97,6 @@ interface StackedBarProps {
 }
 
 function StackedBar({ bucket, x, width, maxTotal, height, onClick }: StackedBarProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
   // Calculate stacked bar segments
   const segments = useMemo(() => {
     if (bucket.total === 0 || maxTotal === 0) return [];
@@ -129,14 +127,14 @@ function StackedBar({ bucket, x, width, maxTotal, height, onClick }: StackedBarP
     return null;
   }
 
+  // Use CSS hover instead of useState for better performance
+  // SVG :hover works on <g> elements and applies to all children
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <g
-          className="cursor-pointer"
+          className="cursor-pointer opacity-85 transition-opacity duration-75 hover:opacity-100"
           onClick={onClick}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
         >
           {segments.map((segment) => (
             <rect
@@ -146,9 +144,7 @@ function StackedBar({ bucket, x, width, maxTotal, height, onClick }: StackedBarP
               width={width}
               height={Math.max(1, segment.height)}
               fill={LOG_LEVEL_STYLES[segment.level].color}
-              opacity={isHovered ? 1 : 0.85}
               rx={1}
-              className="transition-opacity duration-75"
             />
           ))}
         </g>

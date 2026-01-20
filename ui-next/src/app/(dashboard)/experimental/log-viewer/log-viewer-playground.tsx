@@ -150,15 +150,25 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
     devParams: tailDevParams,
   });
 
+  // Cache the latest timestamp from query entries (computed once per query change)
+  // This avoids O(n) recomputation on every tail update
+  const queryLatestTime = useMemo(() => {
+    if (queryEntries.length === 0) return 0;
+    let maxTime = 0;
+    for (const e of queryEntries) {
+      const t = e.timestamp.getTime();
+      if (t > maxTime) maxTime = t;
+    }
+    return maxTime;
+  }, [queryEntries]);
+
   // Combine query entries with tail entries
   // Query entries are the initial load, tail entries are live updates
   const combinedEntries = useMemo(() => {
     if (tailEntries.length === 0) return queryEntries;
 
-    // Get the latest timestamp from query entries to avoid duplicates
-    const queryLatestTime = queryEntries.length > 0 ? Math.max(...queryEntries.map((e) => e.timestamp.getTime())) : 0;
-
-    // Filter tail entries to only include new ones
+    // Filter tail entries to only include new ones (after query entries)
+    // Use the cached queryLatestTime to avoid O(n) recomputation
     const newTailEntries: LogEntry[] = [];
     for (const entry of tailEntries) {
       if (entry.timestamp.getTime() > queryLatestTime) {
@@ -166,8 +176,15 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
       }
     }
 
-    return [...queryEntries, ...newTailEntries];
-  }, [queryEntries, tailEntries]);
+    if (newTailEntries.length === 0) return queryEntries;
+
+    // Combine arrays
+    const combined: LogEntry[] = [];
+    for (const e of queryEntries) combined.push(e);
+    for (const e of newTailEntries) combined.push(e);
+
+    return combined;
+  }, [queryEntries, tailEntries, queryLatestTime]);
 
   // Get histogram data from the adapter
   const { buckets: histogramBuckets, intervalMs: histogramIntervalMs } = useLogHistogram({

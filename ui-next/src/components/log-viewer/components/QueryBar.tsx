@@ -10,7 +10,7 @@
 
 import { memo, useMemo } from "react";
 import { FilterBar, type SearchField, type SearchChip, type SearchPreset } from "@/components/filter-bar";
-import type { LogEntry, LogLevel, LogSourceType } from "@/lib/api/log-adapter";
+import type { LogEntry } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_LABELS, LOG_SOURCE_TYPES, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
 import { getLevelDotClasses } from "../lib/level-utils";
 import { cn } from "@/lib/utils";
@@ -103,53 +103,48 @@ export function createLogFields(showTaskFilter: boolean): SearchField<LogEntry>[
 }
 
 // =============================================================================
-// Level Preset Renderer
+// Preset Render Functions (Hoisted to Module Level for Performance)
 // =============================================================================
 
-interface LevelPresetContentProps {
-  level: LogLevel;
-  active: boolean;
-}
+// Pre-computed render functions for each log level
+// Hoisting these avoids creating new function references on each render
+const LEVEL_PRESET_RENDERERS = new Map(
+  LOG_LEVELS.map((level) => [
+    level,
+    ({ active }: { active: boolean }) => (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium transition-colors",
+          active
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+        )}
+      >
+        <span className={cn("size-2 rounded-full", getLevelDotClasses(level))} />
+        {LOG_LEVEL_LABELS[level]}
+      </span>
+    ),
+  ]),
+);
 
-function LevelPresetContent({ level, active }: LevelPresetContentProps) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium transition-colors",
-        active
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
-      )}
-    >
-      <span className={cn("size-2 rounded-full", getLevelDotClasses(level))} />
-      {LOG_LEVEL_LABELS[level]}
-    </span>
-  );
-}
-
-// =============================================================================
-// Source Type Preset Renderer
-// =============================================================================
-
-interface SourcePresetContentProps {
-  source: LogSourceType;
-  active: boolean;
-}
-
-function SourcePresetContent({ source, active }: SourcePresetContentProps) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium transition-colors",
-        active
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
-      )}
-    >
-      {LOG_SOURCE_TYPE_LABELS[source]}
-    </span>
-  );
-}
+// Pre-computed render functions for each source type
+const SOURCE_PRESET_RENDERERS = new Map(
+  LOG_SOURCE_TYPES.map((source) => [
+    source,
+    ({ active }: { active: boolean }) => (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium transition-colors",
+          active
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+        )}
+      >
+        {LOG_SOURCE_TYPE_LABELS[source]}
+      </span>
+    ),
+  ]),
+);
 
 // =============================================================================
 // Component
@@ -167,7 +162,7 @@ function QueryBarInner({
   // Memoize fields to prevent recreation on every render
   const fields = useMemo(() => createLogFields(showTaskFilter), [showTaskFilter]);
 
-  // Memoize presets
+  // Memoize presets - uses hoisted render functions from module level
   const presets = useMemo(() => {
     const levelPresets: SearchPreset[] = LOG_LEVELS.map((level) => ({
       id: `level-${level}`,
@@ -176,12 +171,8 @@ function QueryBarInner({
         value: level,
         label: `Level: ${LOG_LEVEL_LABELS[level]}`,
       },
-      render: ({ active }) => (
-        <LevelPresetContent
-          level={level}
-          active={active}
-        />
-      ),
+      // Use pre-computed render function from module level
+      render: LEVEL_PRESET_RENDERERS.get(level)!,
     }));
 
     const sourcePresets: SearchPreset[] = LOG_SOURCE_TYPES.map((source) => ({
@@ -191,12 +182,8 @@ function QueryBarInner({
         value: source,
         label: `Source: ${LOG_SOURCE_TYPE_LABELS[source]}`,
       },
-      render: ({ active }) => (
-        <SourcePresetContent
-          source={source}
-          active={active}
-        />
-      ),
+      // Use pre-computed render function from module level
+      render: SOURCE_PRESET_RENDERERS.get(source)!,
     }));
 
     return [

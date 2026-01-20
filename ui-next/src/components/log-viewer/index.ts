@@ -36,7 +36,7 @@ export type { LogViewerProps } from "./components/LogViewer";
 // Sub-components (for advanced usage)
 // =============================================================================
 
-export { LogEntryRow, LogEntryRowConnected } from "./components/LogEntryRow";
+export { LogEntryRow } from "./components/LogEntryRow";
 export type { LogEntryRowProps } from "./components/LogEntryRow";
 
 export { LogList } from "./components/LogList";
