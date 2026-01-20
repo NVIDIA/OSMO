@@ -29,3 +29,5 @@ docs/**/domain_config.js
 .ruff_cache
 
 .lycheecache
+
+ui-next
