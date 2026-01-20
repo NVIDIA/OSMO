@@ -55,6 +55,7 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `global.network.restrictEgress` | Restrict egress traffic for workflow pods | `false` |
 | `global.network.allowlistEgress.enabled` | Enable egress allowlist | `false` |
 | `global.network.allowlistEgress.proxyNamespace` | Proxy namespace | `osmo-squid-proxy` |
+| `global.network.allowlistEgress.proxyReplicas` | Number of proxy replicas | `1` |
 | `global.network.allowlistEgress.additionalAllowedDomains` | Additional allowed domains | `[]` |
 | `global.network.allowlistEgress.sidecarContainers` | Additional sidecar containers | `[]` |
 | `global.network.allowlistEgress.additionalVolumes` | Additional volumes for sidecar containers | `[]` |

@@ -261,6 +261,10 @@ class S3ErrorHandler(client.ErrorHandler):
             if response_code == 'InvalidClientTokenId':
                 raise client.OSMODataStorageClientError(response_code, context=context) from error
 
+            if response_code == '403':
+                # Forbidden error, not a retryable error.
+                raise client.OSMODataStorageClientError(response_code, context=context) from error
+
             if response_code not in ('429', 'ServiceUnavailable', 'NoSuchKey', '404'):
                 if context.retries < max_retry_count:
                     logger.error(

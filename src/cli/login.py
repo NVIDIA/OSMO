@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,7 +39,9 @@ def setup_parser(parser: argparse._SubParsersAction):
     login_parser = parser.add_parser('login',
                                      help='Log in with device flow or client credentials flow.')
     login_parser.set_defaults(func=_login)
-    login_parser.add_argument('url', help='The url of the osmo server to connect to')
+    login_parser.add_argument('url', nargs='?', default=None,
+                              help='The url of the osmo server to connect to. '
+                                   'If not provided, uses the last used url.')
     login_parser.add_argument('--device-endpoint',
                               help='The url to use to completed device flow authentication. ' +
                                    'If not provided, it will be fetched from the service.')
@@ -71,13 +74,23 @@ def setup_parser(parser: argparse._SubParsersAction):
 
 
 def _login(service_client: client.ServiceClient, args: argparse.Namespace):
+    # Get the url from args or fall back to last used url
+    try:
+        url = args.url or service_client.login_manager.login_storage.url
+    except osmo_errors.OSMOUserError as error:
+        raise osmo_errors.OSMOUserError(
+            'No url provided and no previous login found. '
+            'Please provide a url: osmo login <url>') from error
+
     # Validate the url
     class UrlValidator(pydantic.BaseModel):
         url: pydantic.AnyHttpUrl
     try:
-        _ = UrlValidator(url=args.url)
+        _ = UrlValidator(url=url)
     except pydantic.error_wrappers.ValidationError as error:
-        raise osmo_errors.OSMOUserError(f'Bad url {args.url}: {error}')
+        raise osmo_errors.OSMOUserError(f'Bad url {url}: {error}')
+
+    print(f'Logging in to {url}')
 
     # Parse out the password and username
     username = args.username
@@ -90,13 +103,13 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
     device_endpoint = args.device_endpoint
     client_id: str | None = None
     if not device_endpoint:
-        login_info = login.fetch_login_info(args.url)
+        login_info = login.fetch_login_info(url)
         device_endpoint = login_info['device_endpoint']
         client_id = login_info['device_client_id']
 
     # Login through device code flow
     if args.method == 'code':
-        service_client.login_manager.device_code_login(args.url, device_endpoint, client_id)
+        service_client.login_manager.device_code_login(url, device_endpoint, client_id)
 
     # Login through resource owner password flow
     elif args.method == 'password':
@@ -104,23 +117,23 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
             raise osmo_errors.OSMOUserError('Must provide username')
         if password is None:
             raise osmo_errors.OSMOUserError('Must provide password')
-        service_client.login_manager.owner_password_login(args.url, username, password)
+        service_client.login_manager.owner_password_login(url, username, password)
 
     # Login by directly reading the idtoken from a file
     elif args.method == 'token':
         if args.token_file:
             refresh_url = args.token_file.read().strip()
         elif args.token:
-            refresh_url = login.construct_token_refresh_url(args.url, args.token)
+            refresh_url = login.construct_token_refresh_url(url, args.token)
         else:
             raise osmo_errors.OSMOUserError('Must provide token file with --token_file or --token')
-        service_client.login_manager.token_login(args.url, refresh_url)
+        service_client.login_manager.token_login(url, refresh_url)
 
     # For developers, simply send username as a header
     else:
         if username is None:
             raise osmo_errors.OSMOUserError('Must provide username')
-        service_client.login_manager.dev_login(args.url, username)
+        service_client.login_manager.dev_login(url, username)
 
 
 def _logout(service_client: client.ServiceClient, args: argparse.Namespace):
