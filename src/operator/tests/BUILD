@@ -29,3 +29,19 @@ py_test(
         "//src/operator:backend_listener_lib"
     ]
 )
+
+py_test(
+    name = "test_pod_status_calculator",
+    srcs = [
+        "test_pod_status_calculator.py"
+    ],
+    data = [
+        "test_calculate_pod_status_cases.json",
+    ],
+    deps = [
+        requirement("pydantic"),
+        requirement("kubernetes"),
+        "//src/operator:backend_listener_lib",
+        "//src/utils/job",
+    ],
+)
