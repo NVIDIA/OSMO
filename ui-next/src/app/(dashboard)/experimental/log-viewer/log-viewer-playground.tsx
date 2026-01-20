@@ -16,10 +16,10 @@
 
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { usePage } from "@/components/chrome";
-import { LogViewer, useLogViewerStore } from "@/components/log-viewer";
+import { LogViewer, useLogViewerStore, chipsToLogQuery } from "@/components/log-viewer";
 import {
   useLogQuery,
   useLogHistogram,
@@ -130,6 +130,10 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
   // Include scenario in workflowId to ensure different scenarios get different React Query cache entries
   const workflowIdWithScenario = `${MOCK_WORKFLOW_ID}__${scenario}`;
 
+  // Convert filter chips to query params for O(1) adapter-level filtering
+  // This leverages LogIndex inverted indexes instead of O(n) client-side filtering
+  const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
+
   const {
     entries: queryEntries,
     isLoading,
@@ -138,6 +142,8 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
   } = useLogQuery({
     workflowId: workflowIdWithScenario,
     enabled: true,
+    // Pass filter params for O(1) filtering via LogIndex
+    ...queryFilters,
   });
 
   // Live tailing hook - appends new entries as they stream in
@@ -149,6 +155,11 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
     enabled: isTailing,
     devParams: tailDevParams,
   });
+
+  // ==========================================================================
+  // Ref-based streaming buffer for stable array identity
+  // Avoids creating new arrays on every tail update for better performance
+  // ==========================================================================
 
   // Cache the latest timestamp from query entries (computed once per query change)
   // This avoids O(n) recomputation on every tail update
@@ -162,29 +173,57 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
     return maxTime;
   }, [queryEntries]);
 
-  // Combine query entries with tail entries
-  // Query entries are the initial load, tail entries are live updates
-  const combinedEntries = useMemo(() => {
-    if (tailEntries.length === 0) return queryEntries;
+  // Ref-based buffer maintains stable array identity during streaming
+  // This prevents unnecessary re-renders when only appending entries
+  const combinedEntriesRef = useRef<LogEntry[]>([]);
+  const lastQueryEntriesRef = useRef<LogEntry[]>([]);
+  const processedTailCountRef = useRef(0);
 
-    // Filter tail entries to only include new ones (after query entries)
-    // Use the cached queryLatestTime to avoid O(n) recomputation
-    const newTailEntries: LogEntry[] = [];
-    for (const entry of tailEntries) {
-      if (entry.timestamp.getTime() > queryLatestTime) {
-        newTailEntries.push(entry);
-      }
+  // Version counter to trigger re-renders when buffer changes
+  const [bufferVersion, setBufferVersion] = useState(0);
+
+  // Update combined entries buffer when query or tail entries change
+  useEffect(() => {
+    // If query entries changed (different reference = new data load), reset buffer
+    if (queryEntries !== lastQueryEntriesRef.current) {
+      // Copy query entries to buffer (new array on query change is expected)
+      const newBuffer: LogEntry[] = [];
+      for (const e of queryEntries) newBuffer.push(e);
+      combinedEntriesRef.current = newBuffer;
+      lastQueryEntriesRef.current = queryEntries;
+      processedTailCountRef.current = 0;
+      setBufferVersion((v) => v + 1);
+      return;
     }
 
-    if (newTailEntries.length === 0) return queryEntries;
+    // Append only new tail entries (incremental update)
+    const newTailCount = tailEntries.length - processedTailCountRef.current;
+    if (newTailCount > 0) {
+      let appended = false;
+      for (let i = processedTailCountRef.current; i < tailEntries.length; i++) {
+        const entry = tailEntries[i];
+        if (entry.timestamp.getTime() > queryLatestTime) {
+          // Mutate in place for O(1) append
+          combinedEntriesRef.current.push(entry);
+          appended = true;
+        }
+      }
+      processedTailCountRef.current = tailEntries.length;
 
-    // Combine arrays
-    const combined: LogEntry[] = [];
-    for (const e of queryEntries) combined.push(e);
-    for (const e of newTailEntries) combined.push(e);
-
-    return combined;
+      // Only trigger re-render if we actually appended entries
+      if (appended) {
+        setBufferVersion((v) => v + 1);
+      }
+    }
   }, [queryEntries, tailEntries, queryLatestTime]);
+
+  // Use buffer version in dependency to ensure consumers re-render
+  // The actual array reference is stable between appends
+  const combinedEntries = useMemo(
+    () => combinedEntriesRef.current,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bufferVersion triggers update
+    [bufferVersion],
+  );
 
   // Get histogram data from the adapter
   const { buckets: histogramBuckets, intervalMs: histogramIntervalMs } = useLogHistogram({
@@ -214,6 +253,9 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
     setFilterChips(chips);
   }, []);
 
+  // Check if any filters are active for preFiltered mode
+  const hasFilters = filterChips.length > 0;
+
   return (
     <div className="border-border bg-card h-full overflow-hidden rounded-lg border">
       <LogViewer
@@ -227,6 +269,9 @@ function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
         initialChips={filterChips}
         scope="workflow"
         className="h-full"
+        // Entries are pre-filtered at adapter level via chipsToLogQuery
+        // This skips O(n) client-side filtering for O(1) performance
+        preFiltered={hasFilters}
       />
     </div>
   );
