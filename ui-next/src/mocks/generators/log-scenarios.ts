@@ -57,6 +57,8 @@ export interface LogFeatureConfig {
   taskCount?: number;
   /** Max retry attempt number (only if retries: true) */
   maxRetryAttempt?: number;
+  /** Run stream infinitely (true tailing, never closes) */
+  infinite?: boolean;
 }
 
 /**
@@ -196,17 +198,19 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
    * Streaming scenario - simulates live log tailing.
    * Returns logs via HTTP streaming with delays between chunks.
    * Tests real-time log viewing, auto-scroll, and tailing UI.
+   * Stream runs infinitely until client disconnects.
    */
   streaming: {
     name: "streaming",
-    description: "Live tailing with ~5 lines/second",
-    volume: { min: 500, max: 1000 },
+    description: "Live tailing with ~10 lines/second (infinite)",
+    volume: { min: 500, max: 1000 }, // Used as initial batch, then continues infinitely
     levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
     ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
     features: {
       ...DEFAULT_FEATURES,
       streaming: true,
-      streamDelayMs: 100, // ~10 lines/second (faster for testing)
+      infinite: true, // Never closes - true log tailing
+      streamDelayMs: 100, // ~10 lines/second
       taskCount: 2,
     },
   },

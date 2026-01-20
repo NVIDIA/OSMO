@@ -221,17 +221,22 @@ export class LogGenerator {
   ): AsyncGenerator<string, void, unknown> {
     faker.seed(this.baseSeed + hashString(workflowName + scenario.name));
 
-    const numLines = faker.number.int({
-      min: scenario.volume.min,
-      max: scenario.volume.max,
-    });
-
     const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
     const taskContexts = this.buildTaskContexts(tasks, scenario);
     const startTime = new Date();
 
+    // For infinite streaming, loop forever. Otherwise use configured volume.
+    const isInfinite = scenario.features.infinite === true;
+    const numLines = isInfinite
+      ? Infinity
+      : faker.number.int({
+          min: scenario.volume.min,
+          max: scenario.volume.max,
+        });
+
     for (let i = 0; i < numLines; i++) {
-      const timestamp = new Date(startTime.getTime() + i * 1000);
+      // Use real current time for infinite streaming to simulate live logs
+      const timestamp = isInfinite ? new Date() : new Date(startTime.getTime() + i * 1000);
       const taskCtx = faker.helpers.arrayElement(taskContexts);
       const level = this.pickLevel(scenario.levelDistribution);
       const ioType = this.pickIOType(scenario.ioTypeDistribution);
