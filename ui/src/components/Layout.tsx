@@ -164,7 +164,6 @@ export const Layout = ({ children }: PropsWithChildren) => {
           </header>
           <main
             id="main-content"
-            tabIndex={-1}
             className="relative h-full w-full overflow-y-auto overflow-x-auto flex flex-row"
             aria-label="Main content"
           >

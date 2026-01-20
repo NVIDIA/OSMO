@@ -17,6 +17,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -24,8 +26,9 @@ from typing import IO, Iterable
 
 import shtab
 
-from src.lib.utils import client, client_configs, validation
 from src.lib.data import storage
+from src.lib.data.storage import constants
+from src.lib.utils import client, client_configs, credentials, osmo_errors, validation
 
 
 HELP_TEXT = """
@@ -179,6 +182,56 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
     )
 
 
+def _run_check_command(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Check the access to a backend URI
+    Args:
+        args : Parsed command line arguments.
+    """
+    # pylint: disable=unused-argument
+    is_storage_profile = bool(re.fullmatch(constants.STORAGE_PROFILE_REGEX, args.remote_uri))
+
+    storage_backend = storage.construct_storage_backend(
+        uri=args.remote_uri,
+        profile=is_storage_profile,
+        cache_config=client_configs.get_cache_config(),
+    )
+
+    data_cred = credentials.get_static_data_credential_from_config(
+        storage_backend.profile,
+        args.config_file,
+    )
+
+    try:
+        match args.access_type:
+            case storage.AccessType.READ.name:
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                    access_type=storage.AccessType.READ,
+                )
+            case storage.AccessType.WRITE.name:
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                    access_type=storage.AccessType.WRITE,
+                )
+            case storage.AccessType.DELETE.name:
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                    access_type=storage.AccessType.DELETE,
+                )
+            case _:
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                )
+
+        # Auth check passed
+        print(json.dumps({'status': 'pass'}))
+
+    except osmo_errors.OSMOCredentialError as err:
+        # Auth check failed (credentials issue)
+        print(json.dumps({'status': 'fail', 'error': str(err)}))
+
+
 def setup_parser(parser: argparse._SubParsersAction):
     """
     Dataset parser setup and run command based on parsing
@@ -285,3 +338,19 @@ def setup_parser(parser: argparse._SubParsersAction):
                                type=validation.is_regex,
                                help='Regex to filter which types of files to delete')
     delete_parser.set_defaults(func=_run_delete_command)
+
+    check_parser = subparsers.add_parser(
+        'check',
+        help='Check the access to a backend URI',
+        description='Check the access to a backend URI',
+    )
+    check_parser.add_argument('remote_uri',
+                              type=validation.is_storage_credential_path,
+                              help='URI where access will be checked to.')
+    check_parser.add_argument('--access-type', '-a',
+                              choices=list(storage.AccessType.__members__.keys()),
+                              help='Access type to check access to the backend URI.')
+    check_parser.add_argument('--config-file', '-c',
+                              type=validation.valid_path,
+                              help='Path to the config file to use for the access check.')
+    check_parser.set_defaults(func=_run_check_command)

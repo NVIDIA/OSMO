@@ -56,6 +56,7 @@ mypy_cli(
         type_requirement("types-six"),
         type_requirement("types-tqdm"),
         type_requirement("types-urllib3"),
+        type_requirement("types-aiofiles"),
     ],
     python_version = "3.10.18",
     tags = ["no-mypy"],
