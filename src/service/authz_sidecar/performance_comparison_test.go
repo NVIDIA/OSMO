@@ -47,7 +47,8 @@ var (
 )
 
 func init() {
-	flag.StringVar(&pythonServiceURL, "python-service-url", "http://localhost:8000", "Python service URL")
+	flag.StringVar(&pythonServiceURL, "python-service-url",
+		"http://localhost:8000", "Python service URL")
 	flag.StringVar(&goAuthzAddr, "go-authz-addr", "localhost:50052", "Go authz_sidecar address")
 }
 
@@ -60,7 +61,7 @@ func init() {
 //	    -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
 //
 //	Terminal 2 - Go authz_sidecar:
-//	  bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
+//	  bazel run //src/service/authz_sidecar:authz_sidecar_bin_x86_64 -- \
 //	    --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
 //
 //	Terminal 3 - Run benchmark:

@@ -37,7 +37,8 @@ var (
 )
 
 func init() {
-	flag.StringVar(&authzAddr, "authz-addr", "localhost:50052", "Address of the authz_sidecar gRPC service")
+	flag.StringVar(&authzAddr, "authz-addr", "localhost:50052",
+		"Address of the authz_sidecar gRPC service")
 }
 
 // TestMain allows us to run the test as a standalone program with `bazel run`
@@ -64,7 +65,8 @@ func TestAuthzSidecarHealth(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("Failed to connect to authz_sidecar at %s: %v\n"+
-			"Make sure the service is running with: bazel run //src/service/authz_sidecar:authz_sidecar_bin",
+			"Make sure the service is running with: "+
+			"bazel run //src/service/authz_sidecar:authz_sidecar_bin_x86_64",
 			authzAddr, err)
 	}
 	defer conn.Close()
@@ -124,7 +126,8 @@ func TestAuthzSidecarBasicRole(t *testing.T) {
 			user:          "test-user",
 			roles:         "",
 			expectAllowed: true,
-			description:   "All users get osmo-default role which should allow access to /api/version",
+			description: "All users get osmo-default role which should allow access to " +
+				"/api/version",
 		},
 		{
 			name:          "default role cannot access workflow endpoint",
@@ -213,7 +216,8 @@ func TestAuthzSidecarBasicRole(t *testing.T) {
 	fmt.Printf("╔══════════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║              Authorization Test Summary                      ║\n")
 	fmt.Printf("╠══════════════════════════════════════════════════════════════╣\n")
-	fmt.Printf("║  Total Tests: %2d                                             ║\n", passCount+failCount)
+	fmt.Printf("║  Total Tests: %2d                                             ║\n",
+		passCount+failCount)
 	fmt.Printf("║  Passed:      %2d                                             ║\n", passCount)
 	fmt.Printf("║  Failed:      %2d                                             ║\n", failCount)
 	fmt.Printf("╚══════════════════════════════════════════════════════════════╝\n")

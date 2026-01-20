@@ -174,7 +174,7 @@ pkg_tar(
 #        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
 #
 #   2. Start authz_sidecar:
-#      bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
+#      bazel run //src/service/authz_sidecar:authz_sidecar_bin_x86_64 -- \
 #        --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
 #
 #   3. Run the test:
@@ -207,7 +207,7 @@ go_test(
 #        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
 #
 #   2. Start Go authz_sidecar:
-#      bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
+#      bazel run //src/service/authz_sidecar:authz_sidecar_bin_x86_64 -- \
 #        --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
 #
 #   3. Run the benchmark:
