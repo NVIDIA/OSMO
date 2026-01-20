@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -61,14 +62,32 @@ var (
 	cacheEnabled = flag.Bool("cache-enabled", true, "Enable role caching")
 	cacheTTL     = flag.Duration("cache-ttl", defaultCacheTTL, "Cache TTL for roles")
 	cacheMaxSize = flag.Int("cache-max-size", defaultCacheSize, "Maximum cache size")
+
+	// Logging flags
+	logLevel = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 )
+
+func parseLogLevel(level string) slog.Level {
+	switch strings.ToLower(level) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
 
 func main() {
 	flag.Parse()
 
 	// Setup structured logging
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: parseLogLevel(*logLevel),
 	}))
 	slog.SetDefault(logger)
 
