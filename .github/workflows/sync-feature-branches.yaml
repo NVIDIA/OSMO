@@ -131,6 +131,7 @@ jobs:
               --base "$branch" \
               --head "$temp_branch" \
               --title "Sync main into $branch" \
+              --label "external" \
               --body "$(cat <<EOF
           ## Description
 
