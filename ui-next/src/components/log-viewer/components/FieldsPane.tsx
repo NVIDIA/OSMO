@@ -8,7 +8,7 @@
 
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldFacet, LogLevel } from "@/lib/api/log-adapter";
 import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
@@ -190,13 +190,6 @@ function FieldsPaneInner({
   collapsed = false,
   onToggleCollapse,
 }: FieldsPaneProps) {
-  const handleFacetClick = useCallback(
-    (field: string, value: string) => {
-      onFacetClick(field, value);
-    },
-    [onFacetClick],
-  );
-
   // Collapsed state
   if (collapsed) {
     return (
@@ -224,7 +217,7 @@ function FieldsPaneInner({
             key={facet.field}
             facet={facet}
             activeValues={activeFilters.get(facet.field) ?? new Set()}
-            onFacetClick={(value) => handleFacetClick(facet.field, value)}
+            onFacetClick={(value) => onFacetClick(facet.field, value)}
           />
         ))}
       </div>

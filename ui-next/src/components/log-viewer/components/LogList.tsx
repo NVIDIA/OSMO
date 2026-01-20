@@ -14,6 +14,12 @@ import type { LogEntry } from "@/lib/api/log-adapter";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { LogEntryRow } from "./LogEntryRow";
 import { useLogViewerStore } from "../store/log-viewer-store";
+import {
+  ROW_HEIGHT_ESTIMATE,
+  EXPANDED_ROW_HEIGHT_ESTIMATE,
+  OVERSCAN_COUNT,
+  SCROLL_BOTTOM_THRESHOLD,
+} from "../lib/constants";
 
 // =============================================================================
 // Types
@@ -33,19 +39,6 @@ export interface LogListProps {
   /** Callback when user scrolls away from bottom (disables tailing) */
   onScrollAwayFromBottom?: () => void;
 }
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Estimated row height for virtualization */
-const ROW_HEIGHT_ESTIMATE = 32;
-
-/** Threshold for detecting scroll to bottom (pixels from bottom) */
-const SCROLL_BOTTOM_THRESHOLD = 50;
-
-/** Overscan count for smooth scrolling */
-const OVERSCAN_COUNT = 10;
 
 // =============================================================================
 // Component
@@ -73,7 +66,7 @@ function LogListInner({
         // Expanded rows are taller
         const entry = entries[index];
         if (entry && expandedEntryIds.has(entry.id)) {
-          return ROW_HEIGHT_ESTIMATE * 4; // Expanded height estimate
+          return EXPANDED_ROW_HEIGHT_ESTIMATE;
         }
         return ROW_HEIGHT_ESTIMATE;
       },
