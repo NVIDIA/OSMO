@@ -12,16 +12,33 @@ import { memo, useCallback, useMemo, useState, useEffect, startTransition } from
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
-import type { SearchChip } from "@/components/filter-bar";
+import { type SearchChip, filterByChips } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
-import { QueryBar } from "./QueryBar";
+import { QueryBar, createLogFields } from "./QueryBar";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { FieldsPane } from "./FieldsPane";
 import { LogList } from "./LogList";
 import { LogToolbar } from "./LogToolbar";
 import { useLogViewerStore } from "../store/log-viewer-store";
-import { applyFilters, buildActiveFiltersMap } from "../lib/filters";
 import { SKELETON_WIDTHS } from "../lib/constants";
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Build an active filters map from chips.
+ * Used for highlighting active filters in the FieldsPane.
+ */
+function buildActiveFiltersMap(chips: SearchChip[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const chip of chips) {
+    const existing = map.get(chip.field) ?? new Set();
+    existing.add(chip.value);
+    map.set(chip.field, existing);
+  }
+  return map;
+}
 
 // =============================================================================
 // Types
@@ -144,6 +161,12 @@ function LogViewerInner({
   // Note: initialChips is used as initial state via useState above.
   // No sync effect needed - if parent needs to control chips, use onFiltersChange callback.
 
+  // Show task filter only at workflow/group scope
+  const showTaskFilter = scope !== "task";
+
+  // Memoize log fields for filtering (same fields used by QueryBar)
+  const logFields = useMemo(() => createLogFields(showTaskFilter), [showTaskFilter]);
+
   // Handle chip changes
   const handleChipsChange = useCallback(
     (newChips: SearchChip[]) => {
@@ -155,8 +178,8 @@ function LogViewerInner({
     [onFiltersChange],
   );
 
-  // Filter entries based on chips
-  const filteredEntries = useMemo(() => applyFilters(entries, chips), [entries, chips]);
+  // Filter entries using shared filterByChips from filter-bar
+  const filteredEntries = useMemo(() => filterByChips(entries, chips, logFields), [entries, chips, logFields]);
 
   // Build active filters map for FieldsPane
   const activeFilters = useMemo(() => buildActiveFiltersMap(chips), [chips]);
@@ -221,9 +244,6 @@ function LogViewerInner({
     }),
     [entries.length, filteredEntries.length, chips.length],
   );
-
-  // Show task filter only at workflow/group scope
-  const showTaskFilter = scope !== "task";
 
   // Show fields pane only at workflow/group scope
   const showFieldsPane = scope !== "task" && facets.length > 0;
