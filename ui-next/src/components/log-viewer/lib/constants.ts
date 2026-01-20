@@ -31,6 +31,9 @@ export const ROW_HEIGHT_ESTIMATE = 32;
 /** Estimated expanded row height (approximately 4x collapsed) */
 export const EXPANDED_ROW_HEIGHT_ESTIMATE = ROW_HEIGHT_ESTIMATE * 4;
 
+/** Height of date separator row (pixels) */
+export const DATE_SEPARATOR_HEIGHT = 28;
+
 /** Overscan count for smooth scrolling */
 export const OVERSCAN_COUNT = 10;
 

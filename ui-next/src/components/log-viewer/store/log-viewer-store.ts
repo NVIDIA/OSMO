@@ -38,8 +38,12 @@ interface LogViewerState {
   isTailing: boolean;
   /** Whether to wrap long lines */
   wrapLines: boolean;
+  /** Whether to show task suffix on log entries */
+  showTask: boolean;
   /** Currently focused entry ID (for keyboard navigation) */
   focusedEntryId: string | null;
+  /** Whether the fields pane is collapsed */
+  fieldsPaneCollapsed: boolean;
 }
 
 interface LogViewerActions {
@@ -59,8 +63,14 @@ interface LogViewerActions {
   setWrapLines: (wrap: boolean) => void;
   /** Toggle line wrapping */
   toggleWrapLines: () => void;
+  /** Set show task suffix */
+  setShowTask: (show: boolean) => void;
+  /** Toggle show task suffix */
+  toggleShowTask: () => void;
   /** Set focused entry for keyboard navigation */
   setFocusedEntry: (id: string | null) => void;
+  /** Toggle fields pane collapsed/expanded */
+  toggleFieldsPaneCollapsed: () => void;
   /** Reset store to initial state */
   reset: () => void;
 }
@@ -79,7 +89,9 @@ export const initialState: LogViewerState = {
   expandedEntryIds: new Set(),
   isTailing: false,
   wrapLines: false,
+  showTask: true,
   focusedEntryId: null,
+  fieldsPaneCollapsed: false,
 };
 
 // =============================================================================
@@ -167,6 +179,24 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "toggleWrapLines",
         ),
 
+      setShowTask: (show) =>
+        set(
+          (state) => {
+            state.showTask = show;
+          },
+          false,
+          "setShowTask",
+        ),
+
+      toggleShowTask: () =>
+        set(
+          (state) => {
+            state.showTask = !state.showTask;
+          },
+          false,
+          "toggleShowTask",
+        ),
+
       setFocusedEntry: (id) =>
         set(
           (state) => {
@@ -176,13 +206,24 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "setFocusedEntry",
         ),
 
+      toggleFieldsPaneCollapsed: () =>
+        set(
+          (state) => {
+            state.fieldsPaneCollapsed = !state.fieldsPaneCollapsed;
+          },
+          false,
+          "toggleFieldsPaneCollapsed",
+        ),
+
       reset: () =>
         set(
           () => ({
             expandedEntryIds: new Set(),
             isTailing: false,
             wrapLines: false,
+            showTask: true,
             focusedEntryId: null,
+            fieldsPaneCollapsed: false,
           }),
           false,
           "reset",

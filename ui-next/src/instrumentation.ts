@@ -41,7 +41,15 @@ export async function register() {
       if (!globalThis.__mswServerStarted) {
         const { server } = await import("@/mocks/server");
 
-        server.listen({ onUnhandledRequest: "bypass" });
+        server.listen({
+          onUnhandledRequest(req, print) {
+            // Only warn about API requests - ignore Next.js internals, static assets, etc.
+            const url = new URL(req.url);
+            if (url.pathname.startsWith("/api/") || url.pathname.includes("/api/")) {
+              print.warning();
+            }
+          },
+        });
         globalThis.__mswServerStarted = true;
         console.log("[MSW] Server-side mocking enabled");
       }
