@@ -16,7 +16,6 @@ import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatTime24 } from "@/lib/format-date";
 import { getLevelBadgeClasses, getLevelAbbrev, getLogRowClasses } from "../lib/level-utils";
-import { useLogViewerStore } from "../store/log-viewer-store";
 
 // =============================================================================
 // Types
@@ -215,46 +214,6 @@ function LogEntryRowInner({
         </div>
       )}
     </div>
-  );
-}
-
-// =============================================================================
-// Connected Component
-// =============================================================================
-
-/**
- * Log entry row connected to the store.
- * Use this when you want automatic store integration.
- */
-export function LogEntryRowConnected({
-  entry,
-  onCopy,
-  onCopyLink,
-  style,
-}: {
-  entry: LogEntry;
-  onCopy?: (entry: LogEntry) => void;
-  onCopyLink?: (entry: LogEntry) => void;
-  style?: React.CSSProperties;
-}) {
-  const isExpanded = useLogViewerStore((s) => s.expandedEntryIds.has(entry.id));
-  const wrapLines = useLogViewerStore((s) => s.wrapLines);
-  const showTask = useLogViewerStore((s) => s.showTask);
-  const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
-  const focusedEntryId = useLogViewerStore((s) => s.focusedEntryId);
-
-  return (
-    <LogEntryRowInner
-      entry={entry}
-      isExpanded={isExpanded}
-      wrapLines={wrapLines}
-      showTask={showTask}
-      onToggleExpand={toggleExpand}
-      onCopy={onCopy}
-      onCopyLink={onCopyLink}
-      isFocused={focusedEntryId === entry.id}
-      style={style}
-    />
   );
 }
 
