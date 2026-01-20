@@ -102,17 +102,23 @@ DataCredential = Union[
 ]
 
 
-def get_static_data_credential_from_config(url: str) -> StaticDataCredential | None:
+def get_static_data_credential_from_config(
+    url: str,
+    config_file: str | None = None,
+) -> StaticDataCredential | None:
     """
     Get a matching static data credential from the config file.
 
     Args:
         url: The URL of the data service.
+        config_file: The path to the config file to use for the access check. If not provided,
+                     the default config file will be used.
     Returns:
         The static data credential or None if not found.
     """
-    config_dir = client_configs.get_client_config_dir(create=False)
-    config_file = os.path.join(config_dir, 'config.yaml')
+    if config_file is None:
+        config_dir = client_configs.get_client_config_dir(create=False)
+        config_file = os.path.join(config_dir, 'config.yaml')
 
     if not os.path.exists(config_file):
         return None
