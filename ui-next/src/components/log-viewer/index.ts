@@ -77,3 +77,17 @@ export {
   isLevelAtLeast,
   getLevelsAtLeast,
 } from "./lib/level-utils";
+
+export { applyFilters, matchesFilter, buildActiveFiltersMap, DEFAULT_MATCHERS } from "./lib/filters";
+export type { FilterMatcher, FilterMatcherRegistry } from "./lib/filters";
+
+export {
+  ROW_HEIGHT_ESTIMATE,
+  EXPANDED_ROW_HEIGHT_ESTIMATE,
+  OVERSCAN_COUNT,
+  SCROLL_BOTTOM_THRESHOLD,
+  HISTOGRAM_HEIGHT,
+  HISTOGRAM_BAR_GAP,
+  HISTOGRAM_MIN_BAR_WIDTH,
+  SKELETON_WIDTHS,
+} from "./lib/constants";

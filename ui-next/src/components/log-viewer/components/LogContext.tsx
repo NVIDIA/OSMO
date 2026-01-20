@@ -10,6 +10,7 @@
 
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { formatTime24WithMs } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter";
 import { getLevelBadgeClasses, getLevelAbbrev } from "../lib/level-utils";
@@ -27,22 +28,6 @@ export interface LogContextProps {
   contextLines?: number;
   /** Additional CSS classes */
   className?: string;
-}
-
-// =============================================================================
-// Time Formatter
-// =============================================================================
-
-const TIME_FORMAT: Intl.DateTimeFormatOptions = {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  fractionalSecondDigits: 3,
-  hour12: false,
-};
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-US", TIME_FORMAT);
 }
 
 // =============================================================================
@@ -64,7 +49,7 @@ function ContextEntry({ entry, isTarget }: ContextEntryProps) {
         isTarget && "bg-primary/10 ring-primary/20 ring-1",
       )}
     >
-      <span className="text-muted-foreground shrink-0 tabular-nums">{formatTime(entry.timestamp)}</span>
+      <span className="text-muted-foreground shrink-0 tabular-nums">{formatTime24WithMs(entry.timestamp)}</span>
       <span className={cn("shrink-0", getLevelBadgeClasses(level))}>{getLevelAbbrev(level)}</span>
       {entry.labels.task && (
         <span className="text-muted-foreground max-w-[80px] shrink-0 truncate">[{entry.labels.task}]</span>
