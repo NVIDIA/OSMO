@@ -38,12 +38,6 @@ go_library(
     ],
 )
 
-go_binary(
-    name = "authz_sidecar_bin",
-    embed = [":authz_sidecar"],
-    visibility = ["//visibility:public"],
-)
-
 ################
 #    x86_64    #
 ################
