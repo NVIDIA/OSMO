@@ -74,6 +74,11 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
         // Negative margin so it doesn't take up layout space
         marginBottom: -DATE_SEPARATOR_HEIGHT,
         height: DATE_SEPARATOR_HEIGHT,
+        // Force GPU layer to prevent z-index conflicts with transformed virtual items
+        transform: "translateZ(0)",
+        willChange: "transform",
+        // Ensure isolation from virtual list stacking contexts
+        isolation: "isolate",
       }}
       aria-hidden="true"
     >
@@ -210,8 +215,12 @@ function LogListInner({
 
       {/* Virtual list container */}
       <div
-        className="relative w-full"
-        style={{ height: `${virtualizer.getTotalSize()}px` }}
+        className="relative z-10 w-full"
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          // Contain layout to prevent position recalculations from propagating
+          contain: "layout",
+        }}
       >
         {virtualItems.map((virtualRow) => {
           const item = flatItems[virtualRow.index];
@@ -229,8 +238,16 @@ function LogListInner({
                 key={item.dateKey}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
-                className={cn("bg-card absolute top-0 left-0 w-full", shouldHide && "invisible")}
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                className="bg-card absolute top-0 left-0 w-full"
+                style={{
+                  // Round to whole pixels to prevent sub-pixel jitter during streaming
+                  transform: `translateY(${Math.round(virtualRow.start)}px)`,
+                  // Force GPU compositing for smoother transform updates
+                  willChange: "transform, opacity",
+                  // Use opacity instead of visibility for GPU-accelerated hiding
+                  // This prevents artifacts during fast scrolling
+                  opacity: shouldHide ? 0 : 1,
+                }}
               >
                 <DateSeparator date={item.date} />
               </div>
@@ -246,7 +263,12 @@ function LogListInner({
               data-index={virtualRow.index}
               ref={virtualizer.measureElement}
               className="absolute top-0 left-0 w-full"
-              style={{ transform: `translateY(${virtualRow.start}px)` }}
+              style={{
+                // Round to whole pixels to prevent sub-pixel jitter during streaming
+                transform: `translateY(${Math.round(virtualRow.start)}px)`,
+                // Force GPU compositing for smoother transform updates
+                willChange: "transform",
+              }}
             >
               <LogEntryRow
                 entry={item.entry}
