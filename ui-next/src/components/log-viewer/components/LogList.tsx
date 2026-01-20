@@ -114,33 +114,28 @@ function flattenEntriesWithSeparators(entries: LogEntry[]): FlattenResult {
 }
 
 // =============================================================================
-// Sticky Header Component
+// Sticky Header Component (CSS-driven)
 // =============================================================================
 
 interface StickyHeaderProps {
-  date: Date;
-  isVisible: boolean;
-  isPushing: boolean;
-  pushOffset: number;
+  date: Date | null;
 }
 
 /**
- * Floating sticky header that shows the current date group.
- * Uses GPU-accelerated transforms for smooth push animation.
+ * CSS-driven sticky header that shows the current date group.
+ * Uses position: sticky for native browser stickiness.
+ * Date changes instantly when scrolling past boundaries (no JS push animation).
  */
-const StickyHeader = memo(function StickyHeader({ date, isVisible, isPushing, pushOffset }: StickyHeaderProps) {
-  if (!isVisible) return null;
+const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
+  if (!date) return null;
 
   return (
     <div
-      className={cn(
-        "bg-card pointer-events-none absolute top-0 right-0 left-0 z-20",
-        "shadow-[0_1px_3px_0_rgb(0_0_0/0.1)]",
-        "transition-opacity duration-100",
-      )}
+      className="bg-card pointer-events-none sticky top-0 z-20 shadow-[0_1px_3px_0_rgb(0_0_0/0.1)]"
       style={{
-        transform: isPushing ? `translateY(${pushOffset}px)` : "translateY(0)",
-        opacity: isPushing && pushOffset < -DATE_SEPARATOR_HEIGHT / 2 ? 0 : 1,
+        // Negative margin so it doesn't take up layout space
+        marginBottom: -DATE_SEPARATOR_HEIGHT,
+        height: DATE_SEPARATOR_HEIGHT,
       }}
       aria-hidden="true"
     >
@@ -234,40 +229,26 @@ function LogListInner({
   const virtualItems = virtualizer.getVirtualItems();
   const scrollOffset = virtualizer.scrollOffset ?? 0;
 
-  // Determine current sticky header based on scroll position
-  // Find the last separator whose position is <= scrollOffset
-  let currentSeparator: SeparatorInfo | null = null;
-  let nextSeparator: SeparatorInfo | null = null;
+  // Find the current date based on scroll position
+  // Simple approach: find the last separator that's been scrolled past
+  let currentDate: Date | null = null;
+  let currentSeparatorIndex: number | null = null;
 
-  for (let i = 0; i < separators.length; i++) {
-    const sep = separators[i];
-    const sepStart = virtualizer.getOffsetForIndex(sep.index)?.[0] ?? 0;
+  for (const sep of separators) {
+    // Use measured position if available, otherwise estimate
+    const measured = virtualizer.measurementsCache[sep.index];
+    const sepStart = measured?.start ?? sep.index * ROW_HEIGHT_ESTIMATE;
 
     if (sepStart <= scrollOffset) {
-      currentSeparator = sep;
-      nextSeparator = separators[i + 1] ?? null;
+      currentDate = sep.date;
+      currentSeparatorIndex = sep.index;
     } else {
       break;
     }
   }
 
-  // Calculate push effect when next separator approaches
-  let isPushing = false;
-  let pushOffset = 0;
-
-  if (currentSeparator && nextSeparator) {
-    const nextSepStart = virtualizer.getOffsetForIndex(nextSeparator.index)?.[0] ?? 0;
-    const distanceToNext = nextSepStart - scrollOffset;
-
-    if (distanceToNext < DATE_SEPARATOR_HEIGHT) {
-      isPushing = true;
-      pushOffset = distanceToNext - DATE_SEPARATOR_HEIGHT;
-    }
-  }
-
-  // Show sticky header when scrolled past the first separator
-  const firstSeparatorStart = separators[0] ? (virtualizer.getOffsetForIndex(separators[0].index)?.[0] ?? 0) : 0;
-  const showStickyHeader = currentSeparator !== null && scrollOffset > firstSeparatorStart;
+  // Only show sticky header when scrolled past the first separator
+  const showStickyHeader = scrollOffset > 0 && currentDate !== null;
 
   return (
     <div
@@ -285,15 +266,8 @@ function LogListInner({
       }}
       onScroll={handleScroll}
     >
-      {/* Floating sticky header - rendered outside virtual list */}
-      {currentSeparator && (
-        <StickyHeader
-          date={currentSeparator.date}
-          isVisible={showStickyHeader}
-          isPushing={isPushing}
-          pushOffset={pushOffset}
-        />
-      )}
+      {/* CSS sticky header - simple date display, swaps instantly */}
+      {showStickyHeader && <StickyHeader date={currentDate} />}
 
       {/* Virtual list container */}
       <div
@@ -305,17 +279,18 @@ function LogListInner({
           if (!item) return null;
 
           if (item.type === "separator") {
-            // Hide inline separator when it's the current sticky header and would overlap
-            const isCurrent = currentSeparator?.index === item.index;
-            const isHiddenByStickyHeader =
-              isCurrent && showStickyHeader && virtualRow.start < scrollOffset + DATE_SEPARATOR_HEIGHT;
+            // Hide inline separator when sticky header is showing the same date
+            // and the separator is at or above the sticky header position
+            const isCurrentSticky = currentSeparatorIndex === item.index;
+            const isUnderStickyHeader = virtualRow.start < scrollOffset + DATE_SEPARATOR_HEIGHT;
+            const shouldHide = showStickyHeader && isCurrentSticky && isUnderStickyHeader;
 
             return (
               <div
                 key={item.dateKey}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
-                className={cn("bg-card absolute top-0 left-0 w-full", isHiddenByStickyHeader && "opacity-0")}
+                className={cn("bg-card absolute top-0 left-0 w-full", shouldHide && "invisible")}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
               >
                 <DateSeparator date={item.date} />
