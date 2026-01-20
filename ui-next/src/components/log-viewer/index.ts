@@ -78,8 +78,12 @@ export {
   getLevelsAtLeast,
 } from "./lib/level-utils";
 
+export { chipsToLogQuery, hasActiveFilters } from "./lib/chips-to-log-query";
+export type { LogQueryFilters } from "./lib/chips-to-log-query";
+
 // Note: Filter logic is now provided by @/components/filter-bar via filterByChips()
 // Use createLogFields() to get field definitions for log filtering.
+// For O(1) adapter-level filtering, use chipsToLogQuery() to convert chips to query params.
 
 export {
   ROW_HEIGHT_ESTIMATE,
