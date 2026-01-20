@@ -22,6 +22,7 @@ import enum
 import logging
 from typing import AsyncGenerator, Dict, Optional
 
+import aiofiles  # type: ignore
 import kombu  # type: ignore
 import pydantic
 import redis.asyncio  # type: ignore
@@ -238,9 +239,9 @@ async def write_redis_log_to_disk(url: str, name: str, file_path: str):
         file_path (str): The path to write the Redis logs to.
 
     """
-    with open(file_path, 'a', encoding='utf-8') as f:
+    async with aiofiles.open(file_path, 'a', encoding='utf-8') as f:
         async for line in redis_log_formatter(url, name):
-            f.write(line)
+            await f.write(line)
 
 
 def get_backend_option_name(backend: str) -> str:

@@ -55,6 +55,10 @@ global:
       ##
       enabled: false
 
+      ## Number of replicas for the squid proxy
+      ##
+      proxyReplicas: 1
+
       ## Node selector for the squid proxy pod
       #
       nodeSelector: {}
