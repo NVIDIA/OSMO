@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [ main, 'feature/**' ]
+    branches: [ main, 'feature/**', 'release/**' ]
     paths:
       - 'deployments/charts/**'
       - '.github/workflows/helm-chart-lint.yaml'
