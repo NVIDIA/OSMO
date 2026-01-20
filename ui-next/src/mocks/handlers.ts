@@ -202,7 +202,10 @@ export const handlers = [
   // Dev-only params (for testing):
   //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
   //   - log_delay: Override streaming delay (ms)
-  http.get("/api/workflow/:name/logs", async ({ params, request }) => {
+  //
+  // Uses `*` wildcard for browser-side MSW interception (service worker)
+  // Browser MSW intercepts fetch calls directly, enabling true streaming
+  http.get("*/api/workflow/:name/logs", async ({ params, request }) => {
     const name = params.name as string;
     const url = new URL(request.url);
 
@@ -215,6 +218,9 @@ export const handlers = [
     // Dev-only params
     const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
     const delayOverride = url.searchParams.get("log_delay");
+    // tail=true means the client wants to stream continuously (useLogTail)
+    // Without tail=true, return finite data even for streaming scenario
+    const isTailing = url.searchParams.get("tail") === "true";
 
     const scenario = getLogScenario(scenarioName);
     const workflow = workflowGenerator.getByName(name);
@@ -257,41 +263,72 @@ export const handlers = [
       return lines.join("\n");
     };
 
-    // For streaming scenario, return ReadableStream with trickled output
+    // For streaming scenario with tail=true, return infinite ReadableStream
     // Uses HttpResponse from MSW for proper lifecycle management
-    // @see https://mswjs.io/docs/network-behavior/streaming/
-    if (scenario.features.streaming) {
+    // @see https://mswjs.io/docs/http/mocking-responses/streaming/
+    //
+    // Only stream infinitely when:
+    // 1. scenario.features.streaming is true (streaming scenario)
+    // 2. isTailing is true (client explicitly requested streaming via tail=true)
+    //
+    // Uses setInterval instead of async loop - each tick is independent,
+    // no promise chain is created, avoiding MSW's listener accumulation issue.
+    if (scenario.features.streaming && isTailing) {
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
       const encoder = new TextEncoder();
 
-      // Create the async generator outside the stream to avoid closure issues
-      const generator = logGenerator.createStream(name, scenario, taskNames);
+      // Pre-generate some log data to queue (simpler than async generator for MSW)
+      const tasks = taskNames.length > 0 ? taskNames : ["main"];
+      const levels = ["INFO", "DEBUG", "WARN", "ERROR"];
+      const messages = [
+        "Processing batch",
+        "Loading data from storage",
+        "Checkpoint saved",
+        "GPU memory: 85%",
+        "Epoch completed",
+        "Validating output",
+        "Syncing gradients",
+        "LR adjusted: 0.001",
+        "Cache hit: 94%",
+        "Connection established",
+      ];
 
-      const stream = new ReadableStream({
-        async pull(controller) {
-          const { value, done } = await generator.next();
-          if (done) {
-            controller.close();
-            return;
-          }
-          controller.enqueue(encoder.encode(value));
-          // Apply delay between chunks to simulate real streaming
-          await new Promise((resolve) => setTimeout(resolve, streamDelay));
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let lineNum = 0;
+
+      const generateLine = (): string => {
+        const now = new Date();
+        const ts = now.toISOString().replace("T", " ").slice(0, 19);
+        const task = tasks[lineNum % tasks.length];
+        const level = lineNum % 20 === 0 ? "ERROR" : lineNum % 5 === 0 ? "WARN" : levels[lineNum % 2];
+        const msg = messages[lineNum % messages.length];
+        lineNum++;
+        return `${ts} [${task}] ${level}: ${msg} (line ${lineNum})\n`;
+      };
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // setInterval is truly fire-and-forget - no promise chain
+          intervalId = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(generateLine()));
+            } catch {
+              // Stream was closed, clean up
+              if (intervalId) clearInterval(intervalId);
+            }
+          }, streamDelay);
         },
         cancel() {
-          // Properly close the generator when stream is cancelled
-          generator.return(undefined);
+          if (intervalId) clearInterval(intervalId);
         },
       });
 
-      // Use HttpResponse from MSW for proper lifecycle management
-      // Response headers match real backend from workflow_service.py:706-707
       return new HttpResponse(stream, {
         headers: {
           "Content-Type": "text/plain; charset=us-ascii",
           "X-Content-Type-Options": "nosniff",
           "Cache-Control": "no-cache",
-          "X-Log-Scenario": scenarioName, // Dev-only header for testing
+          "X-Log-Scenario": scenarioName,
         },
       });
     }
@@ -434,7 +471,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Query params:
   //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
   //   - log_delay: Override streaming delay (ms)
-  http.get("/api/workflow/:name/task/:taskName/logs", async ({ params, request }) => {
+  // Uses `*` wildcard for browser-side MSW interception
+  http.get("*/api/workflow/:name/task/:taskName/logs", async ({ params, request }) => {
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
     const url = new URL(request.url);
@@ -442,37 +480,57 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     // Parse scenario from URL params (for dev testing)
     const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
     const delayOverride = url.searchParams.get("log_delay");
+    const isTailing = url.searchParams.get("tail") === "true";
 
     const scenario = getLogScenario(scenarioName);
     const workflow = workflowGenerator.getByName(workflowName);
     const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
 
-    // For streaming scenario, return ReadableStream with trickled output
-    if (scenario.features.streaming) {
+    // For streaming scenario with tail=true, use setInterval pattern (same as workflow logs)
+    if (scenario.features.streaming && isTailing) {
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
+      const encoder = new TextEncoder();
 
-      const stream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          const generator = logGenerator.createStream(workflowName, scenario, [taskName]);
+      const levels = ["INFO", "DEBUG", "WARN", "ERROR"];
+      const messages = [
+        "Processing batch",
+        "Loading data",
+        "Checkpoint saved",
+        "GPU memory: 85%",
+        "Epoch completed",
+        "Validating output",
+      ];
 
-          try {
-            for await (const chunk of generator) {
-              controller.enqueue(encoder.encode(chunk));
-              await new Promise((resolve) => setTimeout(resolve, streamDelay));
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let lineNum = 0;
+
+      const generateLine = (): string => {
+        const now = new Date();
+        const ts = now.toISOString().replace("T", " ").slice(0, 19);
+        const level = lineNum % 20 === 0 ? "ERROR" : lineNum % 5 === 0 ? "WARN" : levels[lineNum % 2];
+        const msg = messages[lineNum % messages.length];
+        lineNum++;
+        return `${ts} [${taskName}] ${level}: ${msg} (line ${lineNum})\n`;
+      };
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          intervalId = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(generateLine()));
+            } catch {
+              if (intervalId) clearInterval(intervalId);
             }
-          } catch {
-            // Stream was likely cancelled by client
-          } finally {
-            controller.close();
-          }
+          }, streamDelay);
+        },
+        cancel() {
+          if (intervalId) clearInterval(intervalId);
         },
       });
 
-      return new Response(stream, {
+      return new HttpResponse(stream, {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
-          "Transfer-Encoding": "chunked",
           "Cache-Control": "no-cache",
           "X-Log-Scenario": scenarioName,
         },
@@ -569,15 +627,6 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     // In development, the mock WS server runs on port 3001 (via pnpm dev:mock-ws)
     // The shell connects to this URL for PTY simulation
     const mockWsServerUrl = "http://localhost:3001";
-
-    console.debug("[Mock] Created PTY session:", {
-      sessionId: session.id,
-      workflowName,
-      taskName,
-      shell,
-      scenario,
-      wsUrl: `${mockWsServerUrl}/api/router/exec/${workflowName}/client/${session.id}`,
-    });
 
     // Return RouterResponse format (matches backend)
     return HttpResponse.json({
@@ -839,8 +888,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
   // Backend auth endpoint - returns login configuration
   // Called directly by getLoginInfo() in lib/auth/login-info.ts
-  // Uses regex to match both relative and absolute URLs (for server-side requests)
-  http.get(/.*\/api\/auth\/login$/, async () => {
+  // Uses wildcard to match both relative and absolute URLs (for server-side requests)
+  http.get("*/api/auth/login", async () => {
     await delay(MOCK_DELAY);
 
     // Return auth disabled for mock mode
@@ -892,7 +941,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Version
   // ==========================================================================
 
-  http.get("/api/version", async () => {
+  // Uses wildcard to match both relative and absolute URLs (for server-side proxy requests)
+  http.get("*/api/version", async () => {
     await delay(MOCK_DELAY);
 
     return HttpResponse.json({
