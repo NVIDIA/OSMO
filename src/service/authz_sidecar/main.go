@@ -40,6 +40,7 @@ const (
 	defaultGRPCPort  = 50052
 	defaultCacheTTL  = 5 * time.Minute
 	defaultCacheSize = 1000
+	maxGRPCMsgSize   = 4 * 1024 * 1024 // 4MB
 )
 
 var (
@@ -126,8 +127,8 @@ func main() {
 			MinTime:             30 * time.Second,
 			PermitWithoutStream: true,
 		}),
-		grpc.MaxRecvMsgSize(4 * 1024 * 1024), // 4MB
-		grpc.MaxSendMsgSize(4 * 1024 * 1024), // 4MB
+		grpc.MaxRecvMsgSize(maxGRPCMsgSize),
+		grpc.MaxSendMsgSize(maxGRPCMsgSize),
 	}
 
 	grpcServer := grpc.NewServer(opts...)
