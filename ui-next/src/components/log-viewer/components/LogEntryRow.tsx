@@ -9,16 +9,10 @@
 "use client";
 
 import { memo, useCallback } from "react";
-import { ChevronRight, Copy, Link, MoreHorizontal } from "lucide-react";
+import { ChevronRight, Copy, Link } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { Button } from "@/components/shadcn/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatTime24 } from "@/lib/format-date";
 import { getLevelBadgeClasses, getLevelAbbrev, getLogRowClasses } from "../lib/level-utils";
@@ -35,6 +29,8 @@ export interface LogEntryRowProps {
   isExpanded: boolean;
   /** Whether line wrapping is enabled */
   wrapLines: boolean;
+  /** Whether to show task suffix */
+  showTask: boolean;
   /** Callback when row is clicked to toggle expansion */
   onToggleExpand: (id: string) => void;
   /** Callback when copy is clicked */
@@ -55,6 +51,7 @@ function LogEntryRowInner({
   entry,
   isExpanded,
   wrapLines,
+  showTask,
   onToggleExpand,
   onCopy,
   onCopyLink,
@@ -110,7 +107,7 @@ function LogEntryRowInner({
       onClick={handleRowClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-3">
         {/* Expand/collapse indicator */}
         <ChevronRight
           className={cn(
@@ -122,62 +119,40 @@ function LogEntryRowInner({
         {/* Timestamp */}
         <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{timestamp}</span>
 
-        {/* Level badge */}
-        <span className={cn("shrink-0", getLevelBadgeClasses(level))}>{getLevelAbbrev(level)}</span>
-
-        {/* Task name (if present) */}
-        {entry.labels.task && (
-          <span className="text-muted-foreground max-w-[120px] shrink-0 truncate text-xs">[{entry.labels.task}]</span>
-        )}
-
-        {/* Log message */}
-        <span
-          className={cn("min-w-0 flex-1 font-mono text-sm", wrapLines ? "break-words whitespace-pre-wrap" : "truncate")}
-        >
-          {entry.message}
+        {/* Level badge - fixed width for alignment */}
+        <span className={cn("w-[52px] shrink-0 text-center", getLevelBadgeClasses(level))}>
+          {getLevelAbbrev(level)}
         </span>
 
-        {/* Actions (visible on hover/focus) */}
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-6"
-                onClick={handleCopy}
-              >
-                <Copy className="size-3" />
-                <span className="sr-only">Copy log line</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Copy</TooltipContent>
-          </Tooltip>
+        {/* Log message - flexible, truncates to make room for task */}
+        <code
+          className={cn(
+            "min-w-0 flex-1 font-mono text-sm",
+            wrapLines ? "break-words" : "overflow-hidden text-ellipsis",
+          )}
+          style={{ whiteSpace: wrapLines ? "pre-wrap" : "pre" }}
+        >
+          {entry.message}
+        </code>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-6"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="size-3" />
-                <span className="sr-only">More actions</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleCopy}>
-                <Copy className="mr-2 size-4" />
-                Copy log line
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleCopyLink}>
-                <Link className="mr-2 size-4" />
-                Copy link to entry
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* Task suffix - right-aligned, hides on narrow containers */}
+        {showTask && entry.labels.task && (
+          <span
+            className={cn(
+              // Base styles
+              "text-muted-foreground/70 shrink-0 truncate text-xs",
+              // Fluid width: 0 → 15% of container → 140px max
+              "w-[clamp(0px,15cqw,140px)]",
+              // Hide when container is too narrow - prioritize message space
+              "hidden @[550px]:inline",
+              // Right-align text within the allocated space
+              "text-right",
+            )}
+            title={entry.labels.task}
+          >
+            [{entry.labels.task}]
+          </span>
+        )}
       </div>
 
       {/* Expanded content */}
@@ -203,6 +178,39 @@ function LogEntryRowInner({
                 <strong>Source:</strong> {entry.labels.io_type}
               </span>
             )}
+          </div>
+
+          {/* Actions */}
+          <div className="mt-3 flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={handleCopy}
+                >
+                  <Copy className="size-3" />
+                  Copy
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Copy log line</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={handleCopyLink}
+                >
+                  <Link className="size-3" />
+                  Copy link
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Copy link to this entry</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -231,6 +239,7 @@ export function LogEntryRowConnected({
 }) {
   const isExpanded = useLogViewerStore((s) => s.expandedEntryIds.has(entry.id));
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
+  const showTask = useLogViewerStore((s) => s.showTask);
   const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
   const focusedEntryId = useLogViewerStore((s) => s.focusedEntryId);
 
@@ -239,6 +248,7 @@ export function LogEntryRowConnected({
       entry={entry}
       isExpanded={isExpanded}
       wrapLines={wrapLines}
+      showTask={showTask}
       onToggleExpand={toggleExpand}
       onCopy={onCopy}
       onCopyLink={onCopyLink}
