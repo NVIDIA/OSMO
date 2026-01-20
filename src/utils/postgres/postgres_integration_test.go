@@ -158,7 +158,7 @@ func TestPostgresIntegration_GetRoles(t *testing.T) {
 			testCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 
-			roles, err := client.GetRoles(testCtx, tc.roleNames)
+			roles, err := GetRoles(testCtx, client, tc.roleNames)
 			if err != nil {
 				t.Fatalf("GetRoles() failed: %v", err)
 			}
@@ -213,7 +213,7 @@ func TestPostgresIntegration_PolicyParsing(t *testing.T) {
 	defer cancel()
 
 	// Fetch osmo-default role which should have well-defined policies
-	roles, err := client.GetRoles(queryCtx, []string{"osmo-default"})
+	roles, err := GetRoles(queryCtx, client, []string{"osmo-default"})
 	if err != nil {
 		t.Fatalf("GetRoles() failed: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestPostgresIntegration_EmptyRoleNames(t *testing.T) {
 	defer cancel()
 
 	// Test with empty role names
-	roles, err := client.GetRoles(queryCtx, []string{})
+	roles, err := GetRoles(queryCtx, client, []string{})
 	if err != nil {
 		t.Errorf("GetRoles() with empty slice should not error, got: %v", err)
 	}

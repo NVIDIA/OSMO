@@ -123,7 +123,6 @@ func TestAuthzServerIntegration(t *testing.T) {
 	roleCache := NewRoleCache(cacheConfig, logger)
 
 	// Create authz server
-	// We need to type assert to interface that has both methods
 	server := &AuthzServer{
 		pgClient:  mockPG,
 		roleCache: roleCache,
