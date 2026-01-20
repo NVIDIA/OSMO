@@ -68,6 +68,7 @@ class WorkflowServiceTestCase(
                 postgres_password=cls.postgres_container.password,
                 postgres_database_name=cls.postgres_container.dbname,
                 postgres_user=cls.postgres_container.username,
+                postgres_pool_maxconn=10,
                 redis_host=cls.redis_container.get_container_host_ip(),
                 redis_port=cls.redis_container.get_exposed_port(cls.redis_params.port),
                 redis_password=cls.redis_params.password,
@@ -195,7 +196,7 @@ class WorkflowServiceTestCase(
     def test_concurrent_requests_exceed_pool_size(self):
         """
         Test that the service handles concurrent requests exceeding the
-        connection pool size (postgres_pool_maxconn=10 by default).
+        connection pool size (postgres_pool_maxconn is set to 10 in fixture).
 
         This test sends 20 concurrent requests simultaneously to verify
         the ThreadedConnectionPool correctly queues requests when all
