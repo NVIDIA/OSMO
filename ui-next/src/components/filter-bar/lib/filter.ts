@@ -48,6 +48,12 @@ import type { SearchChip, SearchField } from "./types";
 export function filterByChips<T>(items: T[], chips: SearchChip[], fields: readonly SearchField<T>[]): T[] {
   if (chips.length === 0) return items;
 
+  // Pre-build field lookup Map for O(1) access instead of O(n) find per chip
+  const fieldMap = new Map<string, SearchField<T>>();
+  for (const field of fields) {
+    fieldMap.set(field.id, field);
+  }
+
   // Group chips by field for OR logic within same field
   const chipGroups = new Map<string, string[]>();
   for (const chip of chips) {
@@ -59,7 +65,7 @@ export function filterByChips<T>(items: T[], chips: SearchChip[], fields: readon
   return items.filter((item) => {
     // AND across different fields
     for (const [fieldId, values] of chipGroups) {
-      const field = fields.find((f) => f.id === fieldId);
+      const field = fieldMap.get(fieldId);
       // Skip fields without match function (server-side filtering)
       if (!field?.match) continue;
       // OR within same field - capture match function for type safety

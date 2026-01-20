@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useRef, useCallback, useEffect, useMemo, useState, memo } from "react";
+import { useRef, useCallback, useEffect, useMemo, memo } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -26,9 +26,9 @@ import { useLogViewerStore } from "../store/log-viewer-store";
 import {
   ROW_HEIGHT_ESTIMATE,
   EXPANDED_ROW_HEIGHT_ESTIMATE,
+  DATE_SEPARATOR_HEIGHT,
   OVERSCAN_COUNT,
   SCROLL_BOTTOM_THRESHOLD,
-  DATE_SEPARATOR_HEIGHT,
 } from "../lib/constants";
 
 // =============================================================================
@@ -50,11 +50,19 @@ export interface LogListProps {
   onScrollAwayFromBottom?: () => void;
 }
 
-/** A group of log entries for a single date */
-interface DateGroup {
+/**
+ * A flattened virtual list item - either a date separator or a log entry.
+ * Using a discriminated union for type-safe rendering.
+ */
+type VirtualItem =
+  | { type: "separator"; dateKey: string; date: Date; index: number }
+  | { type: "entry"; entry: LogEntry };
+
+/** Information about a date separator for sticky header tracking */
+interface SeparatorInfo {
+  index: number;
   dateKey: string;
   date: Date;
-  entries: LogEntry[];
 }
 
 // =============================================================================
@@ -69,149 +77,74 @@ function getDateKey(date: Date): string {
 }
 
 /**
- * Group log entries by date.
+ * Result of flattening entries: the flat list + separator metadata for sticky headers.
  */
-function groupEntriesByDate(entries: LogEntry[]): DateGroup[] {
-  if (entries.length === 0) return [];
+interface FlattenResult {
+  items: VirtualItem[];
+  separators: SeparatorInfo[];
+}
 
-  const groups: DateGroup[] = [];
-  let currentGroup: DateGroup | null = null;
+/**
+ * Flatten log entries into a single array with date separators.
+ * Also returns separator metadata for O(1) sticky header lookup.
+ */
+function flattenEntriesWithSeparators(entries: LogEntry[]): FlattenResult {
+  if (entries.length === 0) return { items: [], separators: [] };
+
+  const items: VirtualItem[] = [];
+  const separators: SeparatorInfo[] = [];
+  let currentDateKey: string | null = null;
 
   for (const entry of entries) {
     const dateKey = getDateKey(entry.timestamp);
 
-    if (!currentGroup || currentGroup.dateKey !== dateKey) {
-      currentGroup = {
-        dateKey,
-        date: entry.timestamp,
-        entries: [],
-      };
-      groups.push(currentGroup);
+    // Insert date separator when date changes
+    if (dateKey !== currentDateKey) {
+      const separatorIndex = items.length;
+      const separator: SeparatorInfo = { index: separatorIndex, dateKey, date: entry.timestamp };
+      separators.push(separator);
+      items.push({ type: "separator", dateKey, date: entry.timestamp, index: separatorIndex });
+      currentDateKey = dateKey;
     }
 
-    currentGroup.entries.push(entry);
+    items.push({ type: "entry", entry });
   }
 
-  return groups;
+  return { items, separators };
 }
 
 // =============================================================================
-// Date Group Component
+// Sticky Header Component
 // =============================================================================
 
-interface DateGroupSectionProps {
-  group: DateGroup;
-  onCopy?: (entry: LogEntry) => void;
-  onCopyLink?: (entry: LogEntry) => void;
+interface StickyHeaderProps {
+  date: Date;
+  isVisible: boolean;
+  isPushing: boolean;
+  pushOffset: number;
 }
 
 /**
- * A date group section with a sticky header and virtualized entries.
+ * Floating sticky header that shows the current date group.
+ * Uses GPU-accelerated transforms for smooth push animation.
  */
-const DateGroupSection = memo(function DateGroupSection({
-  group,
-  onCopy,
-  onCopyLink,
-}: DateGroupSectionProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const stickyRef = useRef<HTMLDivElement>(null);
-  const [isStuck, setIsStuck] = useState(false);
-  const expandedEntryIds = useLogViewerStore((s) => s.expandedEntryIds);
-  const wrapLines = useLogViewerStore((s) => s.wrapLines);
-  const showTask = useLogViewerStore((s) => s.showTask);
-  const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
-
-  // Detect when sticky header is stuck using IntersectionObserver
-  useEffect(() => {
-    const stickyEl = stickyRef.current;
-    const scrollContainer = stickyEl?.closest('[data-log-scroll-container]');
-    if (!stickyEl || !scrollContainer) return;
-
-    // Create a sentinel element just above the sticky header
-    const sentinel = document.createElement('div');
-    sentinel.style.height = '1px';
-    sentinel.style.marginBottom = '-1px';
-    stickyEl.parentElement?.insertBefore(sentinel, stickyEl);
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // When sentinel is not visible (scrolled past), header is stuck
-        setIsStuck(!entry.isIntersecting);
-      },
-      { root: scrollContainer, threshold: 0 }
-    );
-
-    observer.observe(sentinel);
-
-    return () => {
-      observer.disconnect();
-      sentinel.remove();
-    };
-  }, []);
-
-  const virtualizer = useVirtualizerCompat({
-    count: group.entries.length,
-    getScrollElement: () => parentRef.current?.closest('[data-log-scroll-container]') as HTMLElement | null,
-    estimateSize: useCallback(
-      (index: number) => {
-        const entry = group.entries[index];
-        if (entry && expandedEntryIds.has(entry.id)) {
-          return EXPANDED_ROW_HEIGHT_ESTIMATE;
-        }
-        return ROW_HEIGHT_ESTIMATE;
-      },
-      [group.entries, expandedEntryIds],
-    ),
-    overscan: OVERSCAN_COUNT,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
+const StickyHeader = memo(function StickyHeader({ date, isVisible, isPushing, pushOffset }: StickyHeaderProps) {
+  if (!isVisible) return null;
 
   return (
-    <div ref={parentRef}>
-      {/* Sticky date header - shadow only when stuck */}
-      <div
-        ref={stickyRef}
-        className={cn(
-          "sticky top-0 z-10 bg-card transition-shadow duration-150",
-          isStuck && "shadow-[0_1px_3px_0_rgb(0_0_0/0.1)]"
-        )}
-      >
-        <DateSeparator date={group.date} isSticky />
-      </div>
-
-      {/* Entries container with virtualization */}
-      <div
-        className="relative w-full"
-        style={{ height: `${virtualizer.getTotalSize()}px` }}
-      >
-        {virtualItems.map((virtualItem) => {
-          const entry = group.entries[virtualItem.index];
-          if (!entry) return null;
-
-          const isExpanded = expandedEntryIds.has(entry.id);
-
-          return (
-            <div
-              key={entry.id}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              className="absolute top-0 left-0 w-full"
-              style={{ transform: `translateY(${virtualItem.start}px)` }}
-            >
-              <LogEntryRow
-                entry={entry}
-                isExpanded={isExpanded}
-                wrapLines={wrapLines}
-                showTask={showTask}
-                onToggleExpand={toggleExpand}
-                onCopy={onCopy}
-                onCopyLink={onCopyLink}
-              />
-            </div>
-          );
-        })}
-      </div>
+    <div
+      className={cn(
+        "bg-card pointer-events-none absolute top-0 right-0 left-0 z-20",
+        "shadow-[0_1px_3px_0_rgb(0_0_0/0.1)]",
+        "transition-opacity duration-100",
+      )}
+      style={{
+        transform: isPushing ? `translateY(${pushOffset}px)` : "translateY(0)",
+        opacity: isPushing && pushOffset < -DATE_SEPARATOR_HEIGHT / 2 ? 0 : 1,
+      }}
+      aria-hidden="true"
+    >
+      <DateSeparator date={date} />
     </div>
   );
 });
@@ -230,8 +163,42 @@ function LogListInner({
 }: LogListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Group entries by date
-  const dateGroups = useMemo(() => groupEntriesByDate(entries), [entries]);
+  // Get store values at parent level - avoid per-row subscriptions
+  const expandedEntryIds = useLogViewerStore((s) => s.expandedEntryIds);
+  const wrapLines = useLogViewerStore((s) => s.wrapLines);
+  const showTask = useLogViewerStore((s) => s.showTask);
+  const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
+
+  // Flatten entries with date separators - single pass O(n)
+  const { items: flatItems, separators } = useMemo(() => flattenEntriesWithSeparators(entries), [entries]);
+
+  // Estimate size callback - uses lookup for expanded entries
+  const estimateSize = useCallback(
+    (index: number): number => {
+      const item = flatItems[index];
+      if (!item) return ROW_HEIGHT_ESTIMATE;
+
+      if (item.type === "separator") {
+        return DATE_SEPARATOR_HEIGHT;
+      }
+
+      // Check if this entry is expanded
+      if (expandedEntryIds.has(item.entry.id)) {
+        return EXPANDED_ROW_HEIGHT_ESTIMATE;
+      }
+
+      return ROW_HEIGHT_ESTIMATE;
+    },
+    [flatItems, expandedEntryIds],
+  );
+
+  // Single virtualizer for entire list
+  const virtualizer = useVirtualizerCompat({
+    count: flatItems.length,
+    getScrollElement: useCallback(() => parentRef.current, []),
+    estimateSize,
+    overscan: OVERSCAN_COUNT,
+  });
 
   // Auto-scroll to bottom when tailing
   useEffect(() => {
@@ -264,6 +231,44 @@ function LogListInner({
     );
   }
 
+  const virtualItems = virtualizer.getVirtualItems();
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+
+  // Determine current sticky header based on scroll position
+  // Find the last separator whose position is <= scrollOffset
+  let currentSeparator: SeparatorInfo | null = null;
+  let nextSeparator: SeparatorInfo | null = null;
+
+  for (let i = 0; i < separators.length; i++) {
+    const sep = separators[i];
+    const sepStart = virtualizer.getOffsetForIndex(sep.index)?.[0] ?? 0;
+
+    if (sepStart <= scrollOffset) {
+      currentSeparator = sep;
+      nextSeparator = separators[i + 1] ?? null;
+    } else {
+      break;
+    }
+  }
+
+  // Calculate push effect when next separator approaches
+  let isPushing = false;
+  let pushOffset = 0;
+
+  if (currentSeparator && nextSeparator) {
+    const nextSepStart = virtualizer.getOffsetForIndex(nextSeparator.index)?.[0] ?? 0;
+    const distanceToNext = nextSepStart - scrollOffset;
+
+    if (distanceToNext < DATE_SEPARATOR_HEIGHT) {
+      isPushing = true;
+      pushOffset = distanceToNext - DATE_SEPARATOR_HEIGHT;
+    }
+  }
+
+  // Show sticky header when scrolled past the first separator
+  const firstSeparatorStart = separators[0] ? (virtualizer.getOffsetForIndex(separators[0].index)?.[0] ?? 0) : 0;
+  const showStickyHeader = currentSeparator !== null && scrollOffset > firstSeparatorStart;
+
   return (
     <div
       ref={parentRef}
@@ -271,23 +276,77 @@ function LogListInner({
       aria-live="polite"
       aria-label="Log entries"
       data-log-scroll-container
-      className={cn(
-        "@container",
-        "relative h-full overflow-auto",
-        "overscroll-contain",
-        className,
-      )}
-      style={{ contain: "size layout style" }}
+      className={cn("@container", "relative h-full overflow-auto", "overscroll-contain", className)}
+      style={{
+        contain: "size layout style",
+        // GPU layer promotion for smoother scrolling
+        transform: "translateZ(0)",
+        backfaceVisibility: "hidden",
+      }}
       onScroll={handleScroll}
     >
-      {dateGroups.map((group, index) => (
-        <DateGroupSection
-          key={`${group.dateKey}-${index}`}
-          group={group}
-          onCopy={onCopy}
-          onCopyLink={onCopyLink}
+      {/* Floating sticky header - rendered outside virtual list */}
+      {currentSeparator && (
+        <StickyHeader
+          date={currentSeparator.date}
+          isVisible={showStickyHeader}
+          isPushing={isPushing}
+          pushOffset={pushOffset}
         />
-      ))}
+      )}
+
+      {/* Virtual list container */}
+      <div
+        className="relative w-full"
+        style={{ height: `${virtualizer.getTotalSize()}px` }}
+      >
+        {virtualItems.map((virtualRow) => {
+          const item = flatItems[virtualRow.index];
+          if (!item) return null;
+
+          if (item.type === "separator") {
+            // Hide inline separator when it's the current sticky header and would overlap
+            const isCurrent = currentSeparator?.index === item.index;
+            const isHiddenByStickyHeader =
+              isCurrent && showStickyHeader && virtualRow.start < scrollOffset + DATE_SEPARATOR_HEIGHT;
+
+            return (
+              <div
+                key={item.dateKey}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                className={cn("bg-card absolute top-0 left-0 w-full", isHiddenByStickyHeader && "opacity-0")}
+                style={{ transform: `translateY(${virtualRow.start}px)` }}
+              >
+                <DateSeparator date={item.date} />
+              </div>
+            );
+          }
+
+          // Log entry row
+          const isExpanded = expandedEntryIds.has(item.entry.id);
+
+          return (
+            <div
+              key={item.entry.id}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              className="absolute top-0 left-0 w-full"
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+            >
+              <LogEntryRow
+                entry={item.entry}
+                isExpanded={isExpanded}
+                wrapLines={wrapLines}
+                showTask={showTask}
+                onToggleExpand={toggleExpand}
+                onCopy={onCopy}
+                onCopyLink={onCopyLink}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
