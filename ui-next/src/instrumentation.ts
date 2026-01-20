@@ -29,7 +29,6 @@
 
 // Singleton flag to prevent multiple server.listen() calls during HMR
 declare global {
-  // eslint-disable-next-line no-var
   var __mswServerStarted: boolean | undefined;
 }
 

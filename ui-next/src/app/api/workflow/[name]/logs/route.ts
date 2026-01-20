@@ -18,18 +18,11 @@
  * Streaming Log Proxy Route Handler
  *
  * Proxies log requests to the backend and streams the response.
- * Uses Edge runtime for optimal streaming support.
  *
  * @see https://nextjs.org/docs/app/building-your-application/routing/route-handlers
  */
 
 import { NextRequest } from "next/server";
-
-// Use Edge runtime for better streaming support
-export const runtime = "edge";
-
-// Don't cache streaming responses
-export const dynamic = "force-dynamic";
 
 /**
  * GET /api/workflow/[name]/logs
@@ -69,8 +62,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const response = await fetch(url.toString(), {
       method: "GET",
       headers,
-      // @ts-expect-error - duplex is required for streaming
-      duplex: "half",
     });
 
     if (!response.ok) {
