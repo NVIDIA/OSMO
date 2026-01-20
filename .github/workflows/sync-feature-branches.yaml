@@ -42,12 +42,12 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "OSMO CI Bot"
+          git config user.email "255188861+svc-osmo-ci@users.noreply.github.com"
 
       - name: Find and sync feature branches
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
           INPUT_BRANCH: ${{ inputs.branch }}
         run: |
           set -e
