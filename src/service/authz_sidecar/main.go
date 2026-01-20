@@ -92,31 +92,25 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Create PostgreSQL client
-	pgConfig := postgres.PostgresConfig{
-		Host:            *postgresHost,
-		Port:            *postgresPort,
-		Database:        *postgresDB,
-		User:            *postgresUser,
-		Password:        *postgresPassword,
-		MaxConns:        int32(*postgresMaxConns),
-		MinConns:        int32(*postgresMinConns),
-		MaxConnLifetime: *postgresMaxConnLifetime,
-		SSLMode:         *postgresSSLMode,
-	}
-
 	ctx := context.Background()
-	pgClient, err := postgres.NewPostgresClient(ctx, pgConfig, logger)
+	pgClient, err := postgres.CreatePostgresClient(
+		ctx,
+		logger,
+		*postgresHost,
+		*postgresPort,
+		*postgresDB,
+		*postgresUser,
+		*postgresPassword,
+		int32(*postgresMaxConns),
+		int32(*postgresMinConns),
+		*postgresMaxConnLifetime,
+		*postgresSSLMode,
+	)
 	if err != nil {
 		logger.Error("failed to create postgres client", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	defer pgClient.Close()
-
-	logger.Info("postgres client initialized",
-		slog.String("host", *postgresHost),
-		slog.Int("port", *postgresPort),
-		slog.String("database", *postgresDB),
-	)
 
 	// Create authorization server
 	cacheConfig := server.RoleCacheConfig{

@@ -46,6 +46,47 @@ type PostgresClient struct {
 	logger *slog.Logger
 }
 
+// NewPostgresClientFromParams creates a new PostgreSQL client with the given connection parameters.
+// This is a convenience function that constructs a PostgresConfig and calls NewPostgresClient.
+func CreatePostgresClient(
+	ctx context.Context,
+	logger *slog.Logger,
+	host string,
+	port int,
+	database string,
+	user string,
+	password string,
+	maxConns int32,
+	minConns int32,
+	maxConnLifetime time.Duration,
+	sslMode string,
+) (*PostgresClient, error) {
+	config := PostgresConfig{
+		Host:            host,
+		Port:            port,
+		Database:        database,
+		User:            user,
+		Password:        password,
+		MaxConns:        maxConns,
+		MinConns:        minConns,
+		MaxConnLifetime: maxConnLifetime,
+		SSLMode:         sslMode,
+	}
+
+	client, err := NewPostgresClient(ctx, config, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("postgres client initialized",
+		slog.String("host", host),
+		slog.Int("port", port),
+		slog.String("database", database),
+	)
+
+	return client, nil
+}
+
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
 func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
 	// Build connection URL
