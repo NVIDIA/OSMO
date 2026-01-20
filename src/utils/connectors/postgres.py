@@ -238,6 +238,7 @@ class PostgresConnector:
     _instance: 'PostgresConnector | None' = None
     _pool: psycopg2.pool.ThreadedConnectionPool | None
     _pool_lock: threading.Lock
+    _pool_semaphore: threading.Semaphore
 
     @staticmethod
     def get_instance():
@@ -248,7 +249,7 @@ class PostgresConnector:
         return PostgresConnector._instance
 
     def _create_pool(self):
-        """Create the ThreadedConnectionPool."""
+        """Create the ThreadedConnectionPool and semaphore."""
         try:
             self._pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=self.config.postgres_pool_minconn,
@@ -259,10 +260,15 @@ class PostgresConnector:
                 user=self.config.postgres_user,
                 password=self.config.postgres_password
             )
+            # Semaphore count is maxconn - 1 to ensure we never exhaust the pool
+            # This leaves 1 connection for retry/recovery scenarios
+            semaphore_count = max(1, self.config.postgres_pool_maxconn - 1)
+            self._pool_semaphore = threading.Semaphore(semaphore_count)
             logging.info(
-                'Created connection pool with minconn=%d, maxconn=%d',
+                'Created connection pool with minconn=%d, maxconn=%d, semaphore=%d',
                 self.config.postgres_pool_minconn,
-                self.config.postgres_pool_maxconn
+                self.config.postgres_pool_maxconn,
+                semaphore_count
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as error:
             logging.error('Database Error while creating connection pool: %s', str(error))
@@ -296,6 +302,9 @@ class PostgresConnector:
         """
         Context manager for acquiring a connection from the pool.
 
+        Uses a semaphore to limit concurrent connections and prevent pool exhaustion.
+        Threads will block on the semaphore if all connections are in use.
+
         Args:
             autocommit: If True, set the connection to autocommit mode.
 
@@ -303,8 +312,12 @@ class PostgresConnector:
             A database connection from the pool.
         """
         pool = self._pool
+        semaphore = self._pool_semaphore
         if pool is None:
             raise osmo_errors.OSMOConnectionError('Connection pool is not initialized.')
+
+        # Acquire semaphore - blocks if all connections are in use
+        semaphore.acquire()
         conn = None
         try:
             conn = pool.getconn()
@@ -339,6 +352,8 @@ class PostgresConnector:
                         pool.putconn(conn, close=True)
                     except Exception:  # pylint: disable=broad-except
                         pass
+            # Always release the semaphore
+            semaphore.release()
 
     def __init__(self, config: PostgresConfig):
         if PostgresConnector._instance:
