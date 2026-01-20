@@ -31,6 +31,7 @@ go_library(
         "@com_github_envoyproxy_go_control_plane//envoy/config/core/v3:go_default_library",
         "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:go_default_library",
         "@com_github_envoyproxy_go_control_plane//envoy/type/v3:go_default_library",
+        "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
         "@org_golang_google_genproto_googleapis_rpc//status:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",

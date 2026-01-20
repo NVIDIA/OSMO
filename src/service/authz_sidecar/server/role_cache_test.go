@@ -173,10 +173,9 @@ func TestRoleCache_MaxSize(t *testing.T) {
 		t.Errorf("cache size %d exceeds max size %d", size, config.MaxSize)
 	}
 
-	// Should have evicted at least one entry
-	evicted := stats["evicted"].(int64)
-	if evicted < 1 {
-		t.Errorf("expected at least 1 eviction, got %d", evicted)
+	// Size should be exactly max size (LRU evicted the oldest entry)
+	if size != config.MaxSize {
+		t.Errorf("expected cache size %d, got %d", config.MaxSize, size)
 	}
 }
 
