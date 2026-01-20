@@ -245,7 +245,7 @@ class WorkflowServiceTestCase(
                     json=workflow_template.dict(),
                 )
                 return (request_id, response.status_code, response.json())
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-exception-caught
                 return (request_id, None, str(e))
 
         # Act - Submit all requests concurrently using ThreadPoolExecutor
@@ -297,6 +297,11 @@ class WorkflowServiceTestCase(
 
         # Verify each workflow is in PENDING status
         for request_id, status_code, response_json in successful_workflows:
+            self.assertEqual(
+                status_code,
+                200,
+                f'Workflow {request_id} should have status code 200, got {status_code}',
+            )
             workflow_obj = workflow.Workflow.fetch_from_db(
                 postgres.PostgresConnector.get_instance(),
                 response_json['name'],
