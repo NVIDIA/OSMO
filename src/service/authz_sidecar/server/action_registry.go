@@ -24,70 +24,107 @@ import (
 	"sync"
 )
 
+// ResourceType represents the type of resource in the authorization model
+type ResourceType string
+
+// Resource type string values (untyped for use in const concatenation)
+const (
+	resourceTypeSystem      = "system"
+	resourceTypeAuth        = "auth"
+	resourceTypeUser        = "user"
+	resourceTypePool        = "pool"
+	resourceTypeCredentials = "credentials"
+	resourceTypeApp         = "app"
+	resourceTypeResources   = "resources"
+	resourceTypeRouter      = "router"
+	resourceTypeBucket      = "bucket"
+	resourceTypeConfig      = "config"
+	resourceTypeProfile     = "profile"
+	resourceTypeWorkflow    = "workflow"
+	resourceTypeInternal    = "internal"
+)
+
+// Resource type constants for compile-time safety
+const (
+	ResourceTypeSystem      ResourceType = resourceTypeSystem
+	ResourceTypeAuth        ResourceType = resourceTypeAuth
+	ResourceTypeUser        ResourceType = resourceTypeUser
+	ResourceTypePool        ResourceType = resourceTypePool
+	ResourceTypeCredentials ResourceType = resourceTypeCredentials
+	ResourceTypeApp         ResourceType = resourceTypeApp
+	ResourceTypeResources   ResourceType = resourceTypeResources
+	ResourceTypeRouter      ResourceType = resourceTypeRouter
+	ResourceTypeBucket      ResourceType = resourceTypeBucket
+	ResourceTypeConfig      ResourceType = resourceTypeConfig
+	ResourceTypeProfile     ResourceType = resourceTypeProfile
+	ResourceTypeWorkflow    ResourceType = resourceTypeWorkflow
+	ResourceTypeInternal    ResourceType = resourceTypeInternal
+)
+
 // Action constants for compile-time safety
 const (
 	// Workflow actions
-	ActionWorkflowCreate      = "workflow:Create"
-	ActionWorkflowRead        = "workflow:Read"
-	ActionWorkflowUpdate      = "workflow:Update"
-	ActionWorkflowDelete      = "workflow:Delete"
-	ActionWorkflowCancel      = "workflow:Cancel"
-	ActionWorkflowExec        = "workflow:Exec"
-	ActionWorkflowPortForward = "workflow:PortForward"
-	ActionWorkflowRsync       = "workflow:Rsync"
+	ActionWorkflowCreate      = resourceTypeWorkflow + ":Create"
+	ActionWorkflowRead        = resourceTypeWorkflow + ":Read"
+	ActionWorkflowUpdate      = resourceTypeWorkflow + ":Update"
+	ActionWorkflowDelete      = resourceTypeWorkflow + ":Delete"
+	ActionWorkflowCancel      = resourceTypeWorkflow + ":Cancel"
+	ActionWorkflowExec        = resourceTypeWorkflow + ":Exec"
+	ActionWorkflowPortForward = resourceTypeWorkflow + ":PortForward"
+	ActionWorkflowRsync       = resourceTypeWorkflow + ":Rsync"
 
 	// Bucket actions
-	ActionBucketRead   = "bucket:Read"
-	ActionBucketWrite  = "bucket:Write"
-	ActionBucketDelete = "bucket:Delete"
+	ActionBucketRead   = resourceTypeBucket + ":Read"
+	ActionBucketWrite  = resourceTypeBucket + ":Write"
+	ActionBucketDelete = resourceTypeBucket + ":Delete"
 
 	// Pool actions
-	ActionPoolRead   = "pool:Read"
-	ActionPoolDelete = "pool:Delete"
+	ActionPoolRead   = resourceTypePool + ":Read"
+	ActionPoolDelete = resourceTypePool + ":Delete"
 
 	// Credentials actions
-	ActionCredentialsCreate = "credentials:Create"
-	ActionCredentialsRead   = "credentials:Read"
-	ActionCredentialsUpdate = "credentials:Update"
-	ActionCredentialsDelete = "credentials:Delete"
+	ActionCredentialsCreate = resourceTypeCredentials + ":Create"
+	ActionCredentialsRead   = resourceTypeCredentials + ":Read"
+	ActionCredentialsUpdate = resourceTypeCredentials + ":Update"
+	ActionCredentialsDelete = resourceTypeCredentials + ":Delete"
 
 	// Profile actions
-	ActionProfileRead   = "profile:Read"
-	ActionProfileUpdate = "profile:Update"
+	ActionProfileRead   = resourceTypeProfile + ":Read"
+	ActionProfileUpdate = resourceTypeProfile + ":Update"
 
 	// User actions
-	ActionUserList = "user:List"
+	ActionUserList = resourceTypeUser + ":List"
 
 	// App actions
-	ActionAppCreate = "app:Create"
-	ActionAppRead   = "app:Read"
-	ActionAppUpdate = "app:Update"
-	ActionAppDelete = "app:Delete"
+	ActionAppCreate = resourceTypeApp + ":Create"
+	ActionAppRead   = resourceTypeApp + ":Read"
+	ActionAppUpdate = resourceTypeApp + ":Update"
+	ActionAppDelete = resourceTypeApp + ":Delete"
 
 	// Resources actions
-	ActionResourcesRead = "resources:Read"
+	ActionResourcesRead = resourceTypeResources + ":Read"
 
 	// Config actions
-	ActionConfigRead   = "config:Read"
-	ActionConfigUpdate = "config:Update"
+	ActionConfigRead   = resourceTypeConfig + ":Read"
+	ActionConfigUpdate = resourceTypeConfig + ":Update"
 
 	// Auth actions
-	ActionAuthLogin        = "auth:Login"
-	ActionAuthRefresh      = "auth:Refresh"
-	ActionAuthToken        = "auth:Token"
-	ActionAuthServiceToken = "auth:ServiceToken"
+	ActionAuthLogin        = resourceTypeAuth + ":Login"
+	ActionAuthRefresh      = resourceTypeAuth + ":Refresh"
+	ActionAuthToken        = resourceTypeAuth + ":Token"
+	ActionAuthServiceToken = resourceTypeAuth + ":ServiceToken"
 
 	// Router actions
-	ActionRouterClient = "router:Client"
+	ActionRouterClient = resourceTypeRouter + ":Client"
 
 	// System actions (public)
-	ActionSystemHealth  = "system:Health"
-	ActionSystemVersion = "system:Version"
+	ActionSystemHealth  = resourceTypeSystem + ":Health"
+	ActionSystemVersion = resourceTypeSystem + ":Version"
 
 	// Internal actions (restricted)
-	ActionInternalOperator = "internal:Operator"
-	ActionInternalLogger   = "internal:Logger"
-	ActionInternalRouter   = "internal:Router"
+	ActionInternalOperator = resourceTypeInternal + ":Operator"
+	ActionInternalLogger   = resourceTypeInternal + ":Logger"
+	ActionInternalRouter   = resourceTypeInternal + ":Router"
 )
 
 // EndpointPattern defines an API endpoint pattern
@@ -591,28 +628,29 @@ func extractResourceFromPath(path, action string) string {
 	resourceType := actionParts[0]
 
 	// Determine scope based on resource type (from Resource-Action Model)
-	switch resourceType {
+	switch ResourceType(resourceType) {
 	// Global/public resources - no specific scope
-	case "system", "auth", "user", "pool", "credentials", "app", "resources", "router":
+	case ResourceTypeSystem, ResourceTypeAuth, ResourceTypeUser, ResourceTypePool,
+		ResourceTypeCredentials, ResourceTypeApp, ResourceTypeResources, ResourceTypeRouter:
 		return "*"
 
 	// Self-scoped resources - the resource ID IS the scope
-	case "bucket":
-		return extractScopedResourceID("bucket", parts, []string{"bucket"})
-	case "config":
-		return extractScopedResourceID("config", parts, []string{"configs"})
+	case ResourceTypeBucket:
+		return extractScopedResourceID(string(ResourceTypeBucket), parts, []string{"bucket"})
+	case ResourceTypeConfig:
+		return extractScopedResourceID(string(ResourceTypeConfig), parts, []string{"configs"})
 
 	// User-scoped resources - profile is scoped to user
-	case "profile":
-		return extractScopedResourceID("user", parts, []string{"profile"})
+	case ResourceTypeProfile:
+		return extractScopedResourceID(string(ResourceTypeUser), parts, []string{"profile"})
 
 	// Pool-scoped resources - workflow/task are scoped to pool
 	// Pool cannot be determined from path alone
-	case "workflow":
+	case ResourceTypeWorkflow:
 		return "pool/*"
 
 	// Internal resources - scoped to backend/workflow
-	case "internal":
+	case ResourceTypeInternal:
 		if len(parts) >= 3 {
 			return "backend/" + parts[2]
 		}
