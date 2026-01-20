@@ -20,6 +20,8 @@ import { FieldsPane } from "./FieldsPane";
 import { LogList } from "./LogList";
 import { LogToolbar } from "./LogToolbar";
 import { useLogViewerStore } from "../store/log-viewer-store";
+import { applyFilters, buildActiveFiltersMap } from "../lib/filters";
+import { SKELETON_WIDTHS } from "../lib/constants";
 
 // =============================================================================
 // Types
@@ -54,9 +56,6 @@ export interface LogViewerProps {
 // =============================================================================
 // Loading Skeleton
 // =============================================================================
-
-// Pre-computed widths for skeleton rows (avoids Math.random() during render)
-const SKELETON_WIDTHS = ["85%", "72%", "90%", "65%", "78%", "82%", "70%", "88%"];
 
 function LogViewerSkeleton() {
   return (
@@ -104,68 +103,6 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
       )}
     </div>
   );
-}
-
-// =============================================================================
-// Filter Logic
-// =============================================================================
-
-/**
- * Apply filter chips to entries.
- * Uses client-side filtering for plain text adapter.
- */
-function applyFilters(entries: LogEntry[], chips: SearchChip[]): LogEntry[] {
-  if (chips.length === 0) return entries;
-
-  // Group chips by field for OR within field, AND across fields
-  const filtersByField = new Map<string, string[]>();
-  for (const chip of chips) {
-    const existing = filtersByField.get(chip.field) ?? [];
-    existing.push(chip.value);
-    filtersByField.set(chip.field, existing);
-  }
-
-  const result: LogEntry[] = [];
-  for (const entry of entries) {
-    let matches = true;
-
-    for (const [field, values] of filtersByField) {
-      let fieldMatches = false;
-
-      for (const value of values) {
-        if (matchesFilter(entry, field, value)) {
-          fieldMatches = true;
-          break; // OR within field
-        }
-      }
-
-      if (!fieldMatches) {
-        matches = false;
-        break; // AND across fields
-      }
-    }
-
-    if (matches) {
-      result.push(entry);
-    }
-  }
-
-  return result;
-}
-
-function matchesFilter(entry: LogEntry, field: string, value: string): boolean {
-  switch (field) {
-    case "level":
-      return entry.labels.level === value;
-    case "task":
-      return entry.labels.task === value;
-    case "source":
-      return entry.labels.source === value;
-    case "text":
-      return entry.message.toLowerCase().includes(value.toLowerCase());
-    default:
-      return false;
-  }
 }
 
 // =============================================================================
@@ -222,15 +159,7 @@ function LogViewerInner({
   const filteredEntries = useMemo(() => applyFilters(entries, chips), [entries, chips]);
 
   // Build active filters map for FieldsPane
-  const activeFilters = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const chip of chips) {
-      const existing = map.get(chip.field) ?? new Set();
-      existing.add(chip.value);
-      map.set(chip.field, existing);
-    }
-    return map;
-  }, [chips]);
+  const activeFilters = useMemo(() => buildActiveFiltersMap(chips), [chips]);
 
   // Handle facet click - add/remove filter chip
   const handleFacetClick = useCallback(

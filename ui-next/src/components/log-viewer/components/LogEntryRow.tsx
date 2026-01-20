@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { formatTime24 } from "@/lib/format-date";
 import { getLevelBadgeClasses, getLevelAbbrev, getLogRowClasses } from "../lib/level-utils";
 import { useLogViewerStore } from "../store/log-viewer-store";
 
@@ -44,21 +45,6 @@ export interface LogEntryRowProps {
   isFocused?: boolean;
   /** Style for virtual list positioning */
   style?: React.CSSProperties;
-}
-
-// =============================================================================
-// Time Formatter
-// =============================================================================
-
-const TIME_FORMAT: Intl.DateTimeFormatOptions = {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-};
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-US", TIME_FORMAT);
 }
 
 // =============================================================================
@@ -106,7 +92,7 @@ function LogEntryRowInner({
   );
 
   const level = entry.labels.level;
-  const timestamp = formatTime(entry.timestamp);
+  const timestamp = formatTime24(entry.timestamp);
 
   return (
     <div
