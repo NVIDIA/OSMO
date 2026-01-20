@@ -151,6 +151,70 @@ export function formatDateISO(date: Date | string | null): string {
 }
 
 // =============================================================================
+// 24-Hour Time Formatters (for logs, timestamps, technical displays)
+// =============================================================================
+
+/**
+ * Format time in 24-hour format with seconds.
+ * Output: "14:30:45"
+ *
+ * SSR-safe: Uses explicit formatting, no locale dependency.
+ * Ideal for log timestamps where precision matters.
+ */
+export function formatTime24(date: Date | string | null): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const hours = d.getHours().toString().padStart(2, "0");
+  const minutes = d.getMinutes().toString().padStart(2, "0");
+  const seconds = d.getSeconds().toString().padStart(2, "0");
+
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Format time in 24-hour format with milliseconds.
+ * Output: "14:30:45.123"
+ *
+ * SSR-safe: Uses explicit formatting, no locale dependency.
+ * Ideal for detailed log context where sub-second precision matters.
+ */
+export function formatTime24WithMs(date: Date | string | null): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const hours = d.getHours().toString().padStart(2, "0");
+  const minutes = d.getMinutes().toString().padStart(2, "0");
+  const seconds = d.getSeconds().toString().padStart(2, "0");
+  const ms = d.getMilliseconds().toString().padStart(3, "0");
+
+  return `${hours}:${minutes}:${seconds}.${ms}`;
+}
+
+/**
+ * Format time in 24-hour format without seconds.
+ * Output: "14:30"
+ *
+ * SSR-safe: Uses explicit formatting, no locale dependency.
+ * Ideal for histogram time axis labels.
+ */
+export function formatTime24Short(date: Date | string | null): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const hours = d.getHours().toString().padStart(2, "0");
+  const minutes = d.getMinutes().toString().padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+// =============================================================================
 // Relative Time (Client-Only)
 // =============================================================================
 

@@ -8,11 +8,13 @@
 
 "use client";
 
-import { memo, useMemo, useCallback, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatTime24Short } from "@/lib/format-date";
 import type { HistogramBucket, LogLevel } from "@/lib/api/log-adapter";
-import { LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
+import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { HISTOGRAM_HEIGHT, HISTOGRAM_BAR_GAP, HISTOGRAM_MIN_BAR_WIDTH } from "../lib/constants";
 
 // =============================================================================
 // Types
@@ -29,7 +31,7 @@ export interface TimelineHistogramProps {
   onRangeSelect?: (start: Date, end: Date) => void;
   /** Additional CSS classes */
   className?: string;
-  /** Height of the histogram in pixels */
+  /** Height of the histogram in pixels (defaults to HISTOGRAM_HEIGHT) */
   height?: number;
   /** Whether to show in compact mode (horizontal strip) */
   compact?: boolean;
@@ -39,26 +41,9 @@ export interface TimelineHistogramProps {
 // Constants
 // =============================================================================
 
-const DEFAULT_HEIGHT = 80;
-const BAR_GAP = 1;
-const MIN_BAR_WIDTH = 4;
-
 // Levels to show in stacked bars (in order from bottom to top)
-const STACKED_LEVELS: LogLevel[] = ["debug", "info", "warn", "error", "fatal"];
-
-// =============================================================================
-// Time Formatter
-// =============================================================================
-
-const TIME_FORMAT: Intl.DateTimeFormatOptions = {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-};
-
-function formatBucketTime(date: Date): string {
-  return date.toLocaleTimeString("en-US", TIME_FORMAT);
-}
+// Uses LOG_LEVELS from log-adapter as the single source of truth
+const STACKED_LEVELS = LOG_LEVELS;
 
 // =============================================================================
 // Tooltip Content
@@ -71,7 +56,7 @@ interface BucketTooltipProps {
 function BucketTooltipContent({ bucket }: BucketTooltipProps) {
   return (
     <div className="space-y-1">
-      <div className="font-medium">{formatBucketTime(bucket.timestamp)}</div>
+      <div className="font-medium">{formatTime24Short(bucket.timestamp)}</div>
       <div className="space-y-0.5 text-xs">
         {STACKED_LEVELS.map((level) => {
           const count = bucket.counts[level] ?? 0;
@@ -264,16 +249,9 @@ function TimelineHistogramInner({
   onBucketClick,
   onRangeSelect: _onRangeSelect,
   className,
-  height = DEFAULT_HEIGHT,
+  height = HISTOGRAM_HEIGHT,
   compact = false,
 }: TimelineHistogramProps) {
-  const handleBucketClick = useCallback(
-    (bucket: HistogramBucket) => {
-      onBucketClick?.(bucket);
-    },
-    [onBucketClick],
-  );
-
   // Find max total for scaling
   const maxTotal = useMemo(() => {
     let max = 0;
@@ -297,7 +275,7 @@ function TimelineHistogramInner({
       const bucket = buckets[idx];
       if (bucket) {
         labels.push({
-          time: formatBucketTime(bucket.timestamp),
+          time: formatTime24Short(bucket.timestamp),
           x: (idx / buckets.length) * 100,
         });
       }
@@ -311,7 +289,7 @@ function TimelineHistogramInner({
     return (
       <CompactStrip
         buckets={buckets}
-        onBucketClick={handleBucketClick}
+        onBucketClick={onBucketClick}
         className={className}
       />
     );
@@ -330,7 +308,7 @@ function TimelineHistogramInner({
   }
 
   // Calculate bar dimensions
-  const barWidth = Math.max(MIN_BAR_WIDTH, (100 - buckets.length * BAR_GAP) / buckets.length);
+  const barWidth = Math.max(HISTOGRAM_MIN_BAR_WIDTH, (100 - buckets.length * HISTOGRAM_BAR_GAP) / buckets.length);
   const chartHeight = height - 20; // Reserve space for time axis
 
   return (
@@ -357,7 +335,7 @@ function TimelineHistogramInner({
               width={barWidth}
               maxTotal={maxTotal}
               height={chartHeight}
-              onClick={() => handleBucketClick(bucket)}
+              onClick={onBucketClick ? () => onBucketClick(bucket) : undefined}
             />
           );
         })}
