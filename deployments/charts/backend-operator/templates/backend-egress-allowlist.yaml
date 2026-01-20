@@ -20,7 +20,7 @@ metadata:
   namespace: {{ .Values.global.network.allowlistEgress.proxyNamespace }}
   name: squid-proxy
 spec:
-  replicas: 1
+  replicas: {{ .Values.global.network.allowlistEgress.proxyReplicas }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
