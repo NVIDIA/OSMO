@@ -96,7 +96,7 @@ jobs:
 
             # Extract issue number from branch name (format: feature/PROJ-NNN-short-slug)
             # If no PROJ-NNN pattern is found, use "Issue - None"
-            issue_number=$(echo "$branch" | grep -oE 'PROJ-[0-9]+' || echo "")
+            issue_number=$(echo "$branch" | grep -oE 'PROJ-[0-9]+' | grep -oE '[0-9]+' || echo "")
             if [ -z "$issue_number" ]; then
               issue_ref="Issue - None"
             else
