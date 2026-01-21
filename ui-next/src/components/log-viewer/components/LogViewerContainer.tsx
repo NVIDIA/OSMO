@@ -94,10 +94,7 @@ export function LogViewerContainer({
   showBorder = true,
 }: LogViewerContainerProps) {
   // Remount when workflowId or devParams change to reset all state
-  const key = useMemo(
-    () => `${workflowId}-${JSON.stringify(devParams ?? {})}`,
-    [workflowId, devParams],
-  );
+  const key = useMemo(() => `${workflowId}-${JSON.stringify(devParams ?? {})}`, [workflowId, devParams]);
 
   return (
     <LogViewerContainerInner
@@ -145,11 +142,14 @@ function LogViewerContainerInner({
   const stableDevParams = useMemo(() => devParams, [devParams]);
 
   // Unified data hook - returns entries, histogram, facets together
+  // Uses keepPreviousData to prevent flash when filters change
   const {
     entries: queryEntries,
     histogram,
     facets,
     isLoading,
+    isFetching,
+    isPlaceholderData,
     error,
     refetch,
   } = useLogData({
@@ -162,10 +162,7 @@ function LogViewerContainerInner({
   });
 
   // Tail dev params (defaults to main devParams if not specified)
-  const tailDevParams = useMemo(
-    () => tailDevParamsProp ?? stableDevParams,
-    [tailDevParamsProp, stableDevParams],
-  );
+  const tailDevParams = useMemo(() => tailDevParamsProp ?? stableDevParams, [tailDevParamsProp, stableDevParams]);
 
   // Live tailing hook - appends new entries as they stream in
   const { entries: tailEntries } = useLogTail({
@@ -249,30 +246,24 @@ function LogViewerContainerInner({
   // Check if any filters are active for preFiltered mode
   const hasFilters = filterChips.length > 0;
 
-  // Show skeleton during initial load
-  if (isLoading && combinedEntries.length === 0) {
+  // Show skeleton ONLY during initial load (no previous data available)
+  // Once we have data, we keep showing it with a subtle loading indicator
+  const showSkeleton = isLoading && combinedEntries.length === 0 && !isPlaceholderData;
+
+  if (showSkeleton) {
     return (
-      <div
-        className={cn(
-          showBorder && "border-border bg-card overflow-hidden rounded-lg border",
-          className,
-        )}
-      >
+      <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
         <LogViewerSkeleton className={viewerClassName} />
       </div>
     );
   }
 
   return (
-    <div
-      className={cn(
-        showBorder && "border-border bg-card overflow-hidden rounded-lg border",
-        className,
-      )}
-    >
+    <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
       <LogViewer
         entries={combinedEntries}
         isLoading={isLoading}
+        isFetching={isFetching}
         error={error}
         histogram={histogram}
         facets={facets}
