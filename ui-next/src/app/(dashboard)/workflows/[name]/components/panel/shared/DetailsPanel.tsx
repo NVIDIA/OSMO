@@ -86,6 +86,8 @@ interface WorkflowEdgeStripProps {
   toggleHotkey?: string;
   /** Generic quick actions to display */
   quickActions?: QuickAction[];
+  /** Current workflow name - used to filter sessions */
+  workflowName?: string;
   currentTaskId?: string;
   onSelectSession?: (taskId: string) => void;
   onDisconnectSession?: (taskId: string) => void;
@@ -103,13 +105,17 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   onToggleCollapsed,
   toggleHotkey,
   quickActions,
+  workflowName,
   currentTaskId,
   onSelectSession,
   onDisconnectSession,
   onReconnectSession,
   onRemoveSession,
 }: WorkflowEdgeStripProps) {
-  const { sessions } = useShellSessions();
+  const { sessions: allSessions } = useShellSessions();
+
+  // Filter sessions to only show those belonging to this workflow
+  const sessions = workflowName ? allSessions.filter((s) => s.workflowName === workflowName) : allSessions;
 
   // Shell session handlers - stable callbacks using data attributes
   const handleSessionClick = useEventCallback((e: MouseEvent<HTMLButtonElement>) => {
@@ -416,6 +422,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       onToggleCollapsed={onToggleCollapsed}
       toggleHotkey={toggleHotkey}
       quickActions={quickActions}
+      workflowName={workflow?.name}
       currentTaskId={task?.task_uuid}
       onSelectSession={handleSelectShellSession}
       onDisconnectSession={handleDisconnectSession}
