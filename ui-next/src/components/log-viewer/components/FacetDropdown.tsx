@@ -17,7 +17,7 @@
 "use client";
 
 import { memo, useCallback } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/hooks";
 import { Button } from "@/components/shadcn/button";
@@ -42,6 +42,8 @@ export interface FacetDropdownProps {
   onSelectionChange: (field: string, values: Set<string>) => void;
   /** Optional formatter for display labels */
   formatLabel?: (value: string) => string;
+  /** Optional icon to display in the dropdown trigger */
+  icon?: LucideIcon;
   /** Additional CSS classes */
   className?: string;
 }
@@ -90,6 +92,7 @@ function FacetDropdownInner({
   selected,
   onSelectionChange,
   formatLabel,
+  icon: Icon,
   className,
 }: FacetDropdownProps) {
   const mounted = useMounted();
@@ -111,18 +114,18 @@ function FacetDropdownInner({
   // Count of selected values
   const selectedCount = selected.size;
 
-  // Button label with count badge
-  const buttonLabel =
-    selectedCount > 0 ? (
-      <>
-        {label}
+  // Button label with optional icon and count badge
+  const buttonLabel = (
+    <>
+      {Icon && <Icon className="text-muted-foreground size-3.5" />}
+      {label}
+      {selectedCount > 0 && (
         <span className="bg-primary text-primary-foreground ml-1 rounded-full px-1.5 py-0.5 text-xs font-medium">
           {selectedCount}
         </span>
-      </>
-    ) : (
-      label
-    );
+      )}
+    </>
+  );
 
   // Show placeholder button during SSR/hydration
   if (!mounted) {
