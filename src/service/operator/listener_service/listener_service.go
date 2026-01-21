@@ -22,6 +22,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -32,6 +34,7 @@ import (
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 	"go.corp.nvidia.com/osmo/service/operator/utils"
+	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
 const (
@@ -41,10 +44,12 @@ const (
 // ListenerService handles workflow listener gRPC streaming operations
 type ListenerService struct {
 	pb.UnimplementedListenerServiceServer
-	logger          *slog.Logger
-	redisClient     *redis.Client
-	pgPool          *pgxpool.Pool
-	serviceHostname string
+	logger           *slog.Logger
+	redisClient      *redis.Client
+	pgPool           *pgxpool.Pool
+	serviceHostname  string
+	progressWriter   *progress_check.ProgressWriter
+	progressInterval time.Duration
 }
 
 // NewListenerService creates a new listener service instance
@@ -52,16 +57,35 @@ func NewListenerService(
 	logger *slog.Logger,
 	redisClient *redis.Client,
 	pgPool *pgxpool.Pool,
-	serviceHostname string,
+	args *utils.OperatorArgs,
 ) *ListenerService {
 	if logger == nil {
 		logger = slog.Default()
 	}
+
+	// Construct progress file path
+	progressFile := filepath.Join(args.OperatorProgressDir, "last_progress_listener")
+
+	// Initialize progress writer
+	progressWriter, err := progress_check.NewProgressWriter(progressFile)
+	if err != nil {
+		logger.Error("failed to create progress writer",
+			slog.String("error", err.Error()),
+			slog.String("progress_file", progressFile))
+		// Continue without progress writer rather than failing
+		progressWriter = nil
+	} else {
+		logger.Info("progress writer initialized",
+			slog.String("progress_file", progressFile))
+	}
+
 	return &ListenerService{
-		logger:          logger,
-		redisClient:     redisClient,
-		pgPool:          pgPool,
-		serviceHostname: serviceHostname,
+		logger:           logger,
+		redisClient:      redisClient,
+		pgPool:           pgPool,
+		serviceHostname:  args.ServiceHostname,
+		progressWriter:   progressWriter,
+		progressInterval: time.Duration(args.OperatorProgressFrequencySec) * time.Second,
 	}
 }
 
@@ -125,6 +149,8 @@ func (ls *ListenerService) WorkflowListenerStream(
 	defer ls.logger.InfoContext(ctx, "workflow listener stream closed",
 		slog.String("backend_name", backendName))
 
+	lastProgressReport := time.Now()
+
 	// Handle bidirectional streaming
 	for {
 		// Receive message from backend
@@ -154,6 +180,16 @@ func (ls *ListenerService) WorkflowListenerStream(
 		if err := stream.Send(ack); err != nil {
 			ls.logger.ErrorContext(ctx, "failed to send ACK", slog.String("error", err.Error()))
 			return err
+		}
+
+		// Report progress after successfully processing message
+		now := time.Now()
+		if ls.progressWriter != nil && now.Sub(lastProgressReport) >= ls.progressInterval {
+			if err := ls.progressWriter.ReportProgress(); err != nil {
+				ls.logger.WarnContext(ctx, "failed to report progress",
+					slog.String("error", err.Error()))
+			}
+			lastProgressReport = now
 		}
 	}
 }
@@ -196,6 +232,14 @@ func (ls *ListenerService) InitBackend(
 	ls.logger.InfoContext(ctx, "backend initialized successfully",
 		slog.String("backend_name", backendName),
 		slog.String("k8s_uid", initBody.K8SUid))
+
+	// Report progress after successful backend initialization
+	if ls.progressWriter != nil {
+		if err := ls.progressWriter.ReportProgress(); err != nil {
+			ls.logger.WarnContext(ctx, "failed to report progress",
+				slog.String("error", err.Error()))
+		}
+	}
 
 	return &pb.InitBackendResponse{
 		Success: true,
