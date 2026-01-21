@@ -32,7 +32,7 @@
 
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import type { LogEntry, LogDataResult, HistogramResult, FieldFacet } from "../types";
@@ -53,6 +53,11 @@ export interface UseLogDataParams extends LogDataQueryKeyParams {
   enabled?: boolean;
   /** Stale time in milliseconds (default: 30000) */
   staleTime?: number;
+  /**
+   * Keep previous data visible while refetching (default: true).
+   * Prevents flash/flicker when filters change.
+   */
+  keepPrevious?: boolean;
 }
 
 /**
@@ -75,6 +80,8 @@ export interface UseLogDataReturn {
   isPending: boolean;
   /** Whether we're refetching in the background */
   isFetching: boolean;
+  /** Whether current data is from placeholder (previous query) */
+  isPlaceholderData: boolean;
   /** Error if the query failed */
   error: Error | null;
   /** Refetch the data */
@@ -137,6 +144,7 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
   );
 
   // Execute query
+  // Use keepPreviousData to prevent flash when filters change
   const query = useQuery({
     queryKey,
     queryFn: () =>
@@ -154,6 +162,8 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
       }),
     staleTime: params.staleTime ?? 30_000,
     enabled: params.enabled ?? true,
+    // Keep previous data visible while refetching to avoid flash/flicker
+    placeholderData: params.keepPrevious !== false ? keepPreviousData : undefined,
   });
 
   return {
@@ -165,6 +175,7 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
     isLoading: query.isLoading,
     isPending: query.isPending,
     isFetching: query.isFetching,
+    isPlaceholderData: query.isPlaceholderData,
     error: query.error,
     refetch: query.refetch,
   };

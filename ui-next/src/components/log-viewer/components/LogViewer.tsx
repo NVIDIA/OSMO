@@ -8,12 +8,13 @@
 
 "use client";
 
-import { memo, useCallback, useMemo, useState, useEffect, startTransition } from "react";
+import { memo, useCallback, useMemo, useState, useEffect, startTransition, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
 import { type SearchChip, filterByChips } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
+import { withViewTransition } from "@/hooks";
 import { QueryBar, createLogFields } from "./QueryBar";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { FieldsPane } from "./FieldsPane";
@@ -47,8 +48,10 @@ function buildActiveFiltersMap(chips: SearchChip[]): Map<string, Set<string>> {
 export interface LogViewerProps {
   /** Log entries to display */
   entries: LogEntry[];
-  /** Whether entries are currently loading */
+  /** Whether entries are currently loading (initial load) */
   isLoading?: boolean;
+  /** Whether data is being refetched in background */
+  isFetching?: boolean;
   /** Error state */
   error?: Error | null;
   /** Histogram data */
@@ -141,6 +144,7 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 function LogViewerInner({
   entries,
   isLoading = false,
+  isFetching = false,
   error = null,
   histogram,
   facets = [],
@@ -162,11 +166,24 @@ function LogViewerInner({
   const toggleTailing = useLogViewerStore((s) => s.toggleTailing);
   const setTailing = useLogViewerStore((s) => s.setTailing);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
-  const toggleWrapLines = useLogViewerStore((s) => s.toggleWrapLines);
+  const toggleWrapLinesRaw = useLogViewerStore((s) => s.toggleWrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
-  const toggleShowTask = useLogViewerStore((s) => s.toggleShowTask);
+  const toggleShowTaskRaw = useLogViewerStore((s) => s.toggleShowTask);
   const fieldsPaneCollapsed = useLogViewerStore((s) => s.fieldsPaneCollapsed);
-  const toggleFieldsPaneCollapsed = useLogViewerStore((s) => s.toggleFieldsPaneCollapsed);
+  const toggleFieldsPaneCollapsedRaw = useLogViewerStore((s) => s.toggleFieldsPaneCollapsed);
+
+  // Wrap toggle handlers with View Transitions for smooth visual updates
+  const toggleWrapLines = useCallback(() => {
+    withViewTransition(toggleWrapLinesRaw);
+  }, [toggleWrapLinesRaw]);
+
+  const toggleShowTask = useCallback(() => {
+    withViewTransition(toggleShowTaskRaw);
+  }, [toggleShowTaskRaw]);
+
+  const toggleFieldsPaneCollapsed = useCallback(() => {
+    withViewTransition(toggleFieldsPaneCollapsedRaw);
+  }, [toggleFieldsPaneCollapsedRaw]);
   const reset = useLogViewerStore((s) => s.reset);
 
   // Reset store on unmount
@@ -185,12 +202,16 @@ function LogViewerInner({
   // Memoize log fields for filtering (same fields used by QueryBar)
   const logFields = useMemo(() => createLogFields(showTaskFilter), [showTaskFilter]);
 
-  // Handle chip changes
+  // Handle chip changes with View Transition for smooth visual updates
   const handleChipsChange = useCallback(
     (newChips: SearchChip[]) => {
-      startTransition(() => {
-        setChips(newChips);
-        onFiltersChange?.(newChips);
+      // Use View Transition API for smooth crossfade when available
+      // Falls back to immediate update if not supported
+      withViewTransition(() => {
+        startTransition(() => {
+          setChips(newChips);
+          onFiltersChange?.(newChips);
+        });
       });
     },
     [onFiltersChange],
@@ -198,7 +219,7 @@ function LogViewerInner({
 
   // Filter entries using shared filterByChips from filter-bar
   // Skip client-side filtering when entries are pre-filtered at the adapter level (O(1))
-  const filteredEntries = useMemo(() => {
+  const filteredEntriesImmediate = useMemo(() => {
     if (preFiltered) {
       // Entries already filtered by LogIndex at adapter level - use as-is
       return entries;
@@ -207,10 +228,17 @@ function LogViewerInner({
     return filterByChips(entries, chips, logFields);
   }, [entries, chips, logFields, preFiltered]);
 
+  // Use deferred value to prevent blocking UI during heavy filtering
+  // React 19 will keep showing previous results while computing new ones
+  const filteredEntries = useDeferredValue(filteredEntriesImmediate);
+
+  // Track if we're showing stale data (deferred value hasn't caught up)
+  const isStale = filteredEntries !== filteredEntriesImmediate || isFetching;
+
   // Build active filters map for FieldsPane
   const activeFilters = useMemo(() => buildActiveFiltersMap(chips), [chips]);
 
-  // Handle facet click - add/remove filter chip
+  // Handle facet click - add/remove filter chip (uses handleChipsChange which has View Transitions)
   const handleFacetClick = useCallback(
     (field: string, value: string) => {
       const existing = chips.find((c) => c.field === field && c.value === value);
@@ -341,6 +369,7 @@ function LogViewerInner({
             onCopy={handleCopy}
             isTailing={isTailing}
             onScrollAwayFromBottom={handleScrollAwayFromBottom}
+            isStale={isStale}
           />
         </div>
       </div>
@@ -358,7 +387,7 @@ function LogViewerInner({
           onToggleShowTask={toggleShowTask}
           onDownload={handleDownload}
           onRefresh={onRefetch}
-          isLoading={isLoading}
+          isLoading={isLoading || isStale}
         />
       </div>
     </div>
