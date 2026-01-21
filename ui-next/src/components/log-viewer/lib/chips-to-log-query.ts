@@ -26,14 +26,16 @@ import { LOG_LEVELS, LOG_SOURCE_TYPES } from "@/lib/api/log-adapter";
  * Maps to UseLogQueryParams filter fields.
  */
 export interface LogQueryFilters {
-  /** Filter by log levels */
+  /** Filter by log levels (multiple allowed, OR'd together) */
   levels?: LogLevel[];
-  /** Filter by task names (first task chip only - single task filter) */
-  taskName?: string;
-  /** Filter by source types (user vs system) */
+  /** Filter by task names (multiple allowed, OR'd together) */
+  tasks?: string[];
+  /** Filter by source types (multiple allowed, OR'd together) */
   sources?: LogSourceType[];
   /** Text search query (first text chip only) */
   search?: string;
+  /** Filter by retry attempts (multiple allowed, OR'd together) */
+  retries?: string[];
 }
 
 // =============================================================================
@@ -52,7 +54,8 @@ const VALID_SOURCES = new Set<string>(LOG_SOURCE_TYPES);
  *
  * Chip field mapping:
  * - `level` → `levels[]` (multiple allowed, validated against LOG_LEVELS)
- * - `task` → `taskName` (first value only - useLogQuery supports single task)
+ * - `task` → `tasks[]` (multiple allowed, OR'd together)
+ * - `retry` → `retries[]` (multiple allowed, OR'd together)
  * - `source` → `sources[]` (multiple allowed, validated against LOG_SOURCE_TYPES)
  * - `text` → `search` (first value only)
  *
@@ -68,9 +71,10 @@ const VALID_SOURCES = new Set<string>(LOG_SOURCE_TYPES);
  *   { field: "level", value: "error", label: "Level: error" },
  *   { field: "level", value: "warn", label: "Level: warn" },
  *   { field: "task", value: "train", label: "Task: train" },
+ *   { field: "task", value: "eval", label: "Task: eval" },
  * ];
  * const filters = chipsToLogQuery(chips);
- * // { levels: ["error", "warn"], taskName: "train" }
+ * // { levels: ["error", "warn"], tasks: ["train", "eval"] }
  * ```
  */
 export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
@@ -79,8 +83,9 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
   }
 
   const levels: LogLevel[] = [];
+  const tasks: string[] = [];
   const sources: LogSourceType[] = [];
-  let taskName: string | undefined;
+  const retries: string[] = [];
   let search: string | undefined;
 
   for (const chip of chips) {
@@ -93,10 +98,8 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
         break;
 
       case "task":
-        // Take first task chip only (useLogQuery supports single taskName)
-        if (taskName === undefined) {
-          taskName = chip.value;
-        }
+        // Collect task values (multiple allowed, OR'd together)
+        tasks.push(chip.value);
         break;
 
       case "source":
@@ -104,6 +107,11 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
         if (VALID_SOURCES.has(chip.value)) {
           sources.push(chip.value as LogSourceType);
         }
+        break;
+
+      case "retry":
+        // Collect retry values (multiple allowed, OR'd together)
+        retries.push(chip.value);
         break;
 
       case "text":
@@ -120,14 +128,17 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
   if (levels.length > 0) {
     filters.levels = levels;
   }
-  if (taskName !== undefined) {
-    filters.taskName = taskName;
+  if (tasks.length > 0) {
+    filters.tasks = tasks;
   }
   if (sources.length > 0) {
     filters.sources = sources;
   }
   if (search !== undefined) {
     filters.search = search;
+  }
+  if (retries.length > 0) {
+    filters.retries = retries;
   }
 
   return filters;

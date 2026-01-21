@@ -60,13 +60,13 @@ describe("chipsToLogQuery", () => {
     it("extracts single task chip", () => {
       const chips = [chip("task", "train")];
       const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ taskName: "train" });
+      expect(result).toEqual({ tasks: ["train"] });
     });
 
-    it("takes only first task chip (single task filter)", () => {
+    it("extracts multiple task chips (OR logic)", () => {
       const chips = [chip("task", "train"), chip("task", "eval")];
       const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ taskName: "train" });
+      expect(result).toEqual({ tasks: ["train", "eval"] });
     });
   });
 
@@ -90,6 +90,20 @@ describe("chipsToLogQuery", () => {
     });
   });
 
+  describe("retry filtering", () => {
+    it("extracts single retry chip", () => {
+      const chips = [chip("retry", "0")];
+      const result = chipsToLogQuery(chips);
+      expect(result).toEqual({ retries: ["0"] });
+    });
+
+    it("extracts multiple retry chips (OR logic)", () => {
+      const chips = [chip("retry", "0"), chip("retry", "1")];
+      const result = chipsToLogQuery(chips);
+      expect(result).toEqual({ retries: ["0", "1"] });
+    });
+  });
+
   describe("text search", () => {
     it("extracts text chip as search", () => {
       const chips = [chip("text", "timeout")];
@@ -110,7 +124,7 @@ describe("chipsToLogQuery", () => {
       const result = chipsToLogQuery(chips);
       expect(result).toEqual({
         levels: ["error"],
-        taskName: "train",
+        tasks: ["train"],
       });
     });
 
@@ -125,7 +139,7 @@ describe("chipsToLogQuery", () => {
       const result = chipsToLogQuery(chips);
       expect(result).toEqual({
         levels: ["error", "warn"],
-        taskName: "train",
+        tasks: ["train"],
         sources: ["user"],
         search: "timeout",
       });
