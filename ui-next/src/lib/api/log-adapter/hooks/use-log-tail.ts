@@ -59,7 +59,7 @@ export interface UseLogTailParams {
  * Return value from useLogTail.
  */
 export interface UseLogTailReturn {
-  /** Buffered entries from tailing */
+  /** Entries from tailing */
   entries: LogEntry[];
   /** Current tail status */
   status: TailStatus;
@@ -67,14 +67,10 @@ export interface UseLogTailReturn {
   error: Error | null;
   /** Start tailing */
   start: () => void;
-  /** Pause tailing (keeps connection, buffers entries) */
-  pause: () => void;
-  /** Resume tailing */
-  resume: () => void;
   /** Stop tailing and close connection */
   stop: () => void;
-  /** Clear buffered entries */
-  clearBuffer: () => void;
+  /** Clear entries */
+  clearEntries: () => void;
 }
 
 // =============================================================================
@@ -93,8 +89,8 @@ const DEFAULT_MAX_BUFFER_SIZE = 10_000;
  * Features:
  * - Uses fetch with ReadableStream for efficient streaming
  * - Automatic reconnection on disconnect
- * - Pause/resume support with entry buffering
  * - Non-blocking updates via startTransition
+ * - RAF batching for consistent 60fps updates
  *
  * @param params - Tail parameters
  * @returns Tail state and control functions
@@ -117,8 +113,6 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
 
   // Use refs to track state without re-renders
   const abortControllerRef = useRef<AbortController | null>(null);
-  const isPausedRef = useRef(false);
-  const bufferRef = useRef<LogEntry[]>([]);
 
   // RAF batching: Accumulate entries between frames for consistent 60fps updates
   const pendingEntriesRef = useRef<LogEntry[]>([]);
@@ -164,25 +158,16 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       }
 
       if (newEntries.length > 0) {
-        if (isPausedRef.current) {
-          // Buffer entries while paused
-          bufferRef.current.push(...newEntries);
-          // Trim buffer if too large
-          if (bufferRef.current.length > maxBufferSize) {
-            bufferRef.current = bufferRef.current.slice(-maxBufferSize);
-          }
-        } else {
-          // Add to pending buffer and schedule RAF flush
-          // This batches rapid updates to run at 60fps max
-          for (const entry of newEntries) {
-            pendingEntriesRef.current.push(entry);
-          }
-          // Trim pending if too large (should rarely happen at 60fps)
-          if (pendingEntriesRef.current.length > maxBufferSize) {
-            pendingEntriesRef.current = pendingEntriesRef.current.slice(-maxBufferSize);
-          }
-          flushPendingEntries();
+        // Add to pending buffer and schedule RAF flush
+        // This batches rapid updates to run at 60fps max
+        for (const entry of newEntries) {
+          pendingEntriesRef.current.push(entry);
         }
+        // Trim pending if too large (should rarely happen at 60fps)
+        if (pendingEntriesRef.current.length > maxBufferSize) {
+          pendingEntriesRef.current = pendingEntriesRef.current.slice(-maxBufferSize);
+        }
+        flushPendingEntries();
       }
     },
     [workflowId, maxBufferSize, flushPendingEntries],
@@ -286,38 +271,8 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
    * Starts tailing.
    */
   const start = useCallback(() => {
-    isPausedRef.current = false;
     startStreaming();
   }, [startStreaming]);
-
-  /**
-   * Pauses tailing (keeps connection, buffers entries).
-   */
-  const pause = useCallback(() => {
-    isPausedRef.current = true;
-    setStatus("paused");
-  }, []);
-
-  /**
-   * Resumes tailing.
-   */
-  const resume = useCallback(() => {
-    isPausedRef.current = false;
-
-    // Flush buffered entries via RAF batching
-    if (bufferRef.current.length > 0) {
-      const buffered = bufferRef.current;
-      bufferRef.current = [];
-
-      // Add to pending and flush via RAF for consistency
-      for (const entry of buffered) {
-        pendingEntriesRef.current.push(entry);
-      }
-      flushPendingEntries();
-    }
-
-    setStatus("streaming");
-  }, [flushPendingEntries]);
 
   /**
    * Stops tailing and closes connection.
@@ -325,16 +280,13 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
   const stop = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    isPausedRef.current = false;
-    bufferRef.current = [];
     setStatus("disconnected");
   }, []);
 
   /**
-   * Clears buffered entries.
+   * Clears entries.
    */
-  const clearBuffer = useCallback(() => {
-    bufferRef.current = [];
+  const clearEntries = useCallback(() => {
     setEntries([]);
   }, []);
 
@@ -356,9 +308,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
     status,
     error,
     start,
-    pause,
-    resume,
     stop,
-    clearBuffer,
+    clearEntries,
   };
 }

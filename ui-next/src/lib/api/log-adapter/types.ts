@@ -314,7 +314,7 @@ export interface LogAdapter {
 /**
  * Tail session state.
  */
-export type TailStatus = "connecting" | "streaming" | "paused" | "disconnected" | "error";
+export type TailStatus = "connecting" | "streaming" | "disconnected" | "error";
 
 /**
  * Tail session callbacks.
@@ -326,18 +326,4 @@ export interface TailCallbacks {
   onStatus: (status: TailStatus) => void;
   /** Called on error */
   onError: (error: Error) => void;
-}
-
-/**
- * Tail session control.
- */
-export interface TailSession {
-  /** Current status */
-  readonly status: TailStatus;
-  /** Pause the tail */
-  pause: () => void;
-  /** Resume the tail */
-  resume: () => void;
-  /** Stop and cleanup */
-  stop: () => void;
 }
