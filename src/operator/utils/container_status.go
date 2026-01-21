@@ -29,11 +29,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+type ContainerName string
+
+const (
+	ContainerOsmoInit      ContainerName = "osmo-init"
+	ContainerPreflightTest ContainerName = "preflight-test"
+	ContainerOsmoCtrl      ContainerName = "osmo-ctrl"
+)
+
 // Container exit code offsets
-var containerExitCodeOffsets = map[string]int32{
-	"osmo-init":      255,  // ExitCodeOffsetInit
-	"preflight-test": 1000, // ExitCodeOffsetPreflight
-	"osmo-ctrl":      2000, // ExitCodeOffsetCtrl
+var containerExitCodeOffsets = map[ContainerName]int32{
+	ContainerOsmoInit:      255,  // ExitCodeOffsetInit
+	ContainerPreflightTest: 1000, // ExitCodeOffsetPreflight
+	ContainerOsmoCtrl:      2000, // ExitCodeOffsetCtrl
 }
 
 // Waiting error detection
@@ -188,12 +196,12 @@ func isPodStuckTimeout(pod *corev1.Pod, timeout time.Duration) bool {
 
 // getContainerDisplayName formats container name for error messages
 func getContainerDisplayName(containerName string) string {
-	switch containerName {
-	case "osmo-ctrl":
+	switch ContainerName(containerName) {
+	case ContainerOsmoCtrl:
 		return "OSMO Control"
-	case "preflight-test":
+	case ContainerPreflightTest:
 		return "OSMO Preflight Test"
-	case "osmo-init":
+	case ContainerOsmoInit:
 		return "OSMO Init"
 	default:
 		return fmt.Sprintf("Task %s", containerName)
@@ -202,7 +210,7 @@ func getContainerDisplayName(containerName string) string {
 
 // applyExitCodeOffset applies container-specific offset to exit code
 func applyExitCodeOffset(containerName string, exitCode int32) int32 {
-	if offset, ok := containerExitCodeOffsets[containerName]; ok {
+	if offset, ok := containerExitCodeOffsets[ContainerName(containerName)]; ok {
 		return offset + exitCode
 	}
 	return exitCode
@@ -218,7 +226,7 @@ func getTerminatedErrorExitCode(containerName string, terminated *corev1.Contain
 	exitCode := terminated.ExitCode
 
 	// For osmo-ctrl, parse JSON message for custom exit code
-	if containerName == "osmo-ctrl" && terminated.Message != "" {
+	if ContainerName(containerName) == ContainerOsmoCtrl && terminated.Message != "" {
 		var messageJSON map[string]interface{}
 		if err := json.Unmarshal([]byte(terminated.Message), &messageJSON); err == nil {
 			if code, ok := messageJSON["code"].(float64); ok {

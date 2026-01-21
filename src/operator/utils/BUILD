@@ -63,16 +63,17 @@ go_library(
 )
 
 # Run this  manually
-# go_test(
-#     name = "calculate_status_test",
-#     srcs = ["calculate_status_test.go"],
-#     data = ["//src/operator/tests:test_calculate_pod_status_cases.json"],
-#     embed = [":utils"],
-#     deps = [
-#         "@io_k8s_api//core/v1:core",
-#         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
-#     ],
-# )
+go_test(
+    name = "calculate_status_test",
+    srcs = ["calculate_status_test.go"],
+    data = ["//src/operator/tests:test_calculate_pod_status_cases.json"],
+    embed = [":utils"],
+    tags = ["manual"],
+    deps = [
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
 
 go_test(
     name = "unack_messages_test",
