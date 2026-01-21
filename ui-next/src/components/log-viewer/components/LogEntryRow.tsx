@@ -15,7 +15,7 @@ import type { LogEntry } from "@/lib/api/log-adapter";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatTime24 } from "@/lib/format-date";
-import { getLevelBadgeClasses, getLevelAbbrev, getLogRowClasses } from "../lib/level-utils";
+import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses } from "../lib/level-utils";
 
 // =============================================================================
 // Types
@@ -119,9 +119,7 @@ function LogEntryRowInner({
         <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{timestamp}</span>
 
         {/* Level badge - fixed width for alignment */}
-        <span className={cn("w-[52px] shrink-0 text-center", getLevelBadgeClasses(level))}>
-          {getLevelAbbrev(level)}
-        </span>
+        <span className={cn("w-[52px] shrink-0 text-center", getLevelBadgeClasses(level))}>{getLevelLabel(level)}</span>
 
         {/* Log message - flexible, truncates to make room for task */}
         <code
