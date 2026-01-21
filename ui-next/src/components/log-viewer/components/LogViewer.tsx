@@ -10,7 +10,7 @@
 
 import { memo, useCallback, useMemo, useEffect, startTransition, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
-import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
+import type { LogEntry, HistogramBucket, FieldFacet, LogFieldDefinition } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
@@ -122,6 +122,8 @@ export interface LogViewerProps {
   };
   /** Field facets for sidebar */
   facets?: FieldFacet[];
+  /** Optional custom facet field configuration (icons, labels) - overrides defaults */
+  facetConfig?: ReadonlyMap<string, LogFieldDefinition>;
   /** Callback to refetch data */
   onRefetch?: () => void;
   /** Current filter chips (controlled by parent) */
@@ -173,6 +175,7 @@ function LogViewerInner({
   error = null,
   histogram,
   facets = [],
+  facetConfig,
   onRefetch,
   filterChips,
   onFilterChipsChange,
@@ -324,6 +327,7 @@ function LogViewerInner({
             facets={facets}
             selectedFilters={selectedFilters}
             onFilterChange={handleFacetFilterChange}
+            facetConfig={facetConfig}
           />
         </div>
       )}

@@ -51,11 +51,28 @@ export function DashboardContent() {
   }, [pools]);
 
   // Capture mount time once for stable "last 24h" calculation
-  // Using useState initializer ensures idempotent behavior during render
-  const [mountTime] = useState(() => Date.now());
+  // Set client-side only to prevent hydration mismatch (server and client would have different timestamps)
+  // Use lazy initializer to avoid calling setState in useEffect
+  const [mountTime] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    return Date.now();
+  });
 
   // Compute stats from workflows (last 24h)
   const workflowStats = useMemo(() => {
+    // During SSR/initial render, show all workflows without time filtering
+    if (mountTime === null) {
+      const running = workflows.filter((w) => w.status === WorkflowStatus.RUNNING).length;
+      const completed = workflows.filter((w) => w.status === WorkflowStatus.COMPLETED).length;
+      const failed = workflows.filter(
+        (w) =>
+          w.status === WorkflowStatus.FAILED ||
+          w.status === WorkflowStatus.FAILED_EXEC_TIMEOUT ||
+          w.status === WorkflowStatus.FAILED_CANCELED,
+      ).length;
+      return { running, completed, failed };
+    }
+
     const oneDayAgo = mountTime - 24 * 60 * 60 * 1000;
 
     const running = workflows.filter((w) => w.status === WorkflowStatus.RUNNING).length;
