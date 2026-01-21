@@ -20,13 +20,17 @@
 # BUILD COMMANDS
 # =============================================================================
 #
-# Standard build:
+# Build for Kubernetes (from Apple Silicon Mac):
 #   cd external/ui-next
 #   docker login nvcr.io
-#   DOCKER_BUILDKIT=1 docker build -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
+#   docker build --platform linux/amd64 -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
 #   docker push nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG
 #
-# Multi-arch build (for ARM64 clusters):
+# Build for Kubernetes (from Linux/Intel Mac):
+#   docker build -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
+#   docker push nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG
+#
+# Multi-arch build (supports both amd64 and arm64 clusters):
 #   docker buildx build --platform linux/amd64,linux/arm64 \
 #     -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG --push .
 #
