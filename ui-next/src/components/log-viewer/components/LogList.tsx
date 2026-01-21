@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useRef, useCallback, useEffect, memo } from "react";
+import { useRef, useCallback, useEffect, memo, useLayoutEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -109,7 +109,7 @@ function LogListInner({
 
   // Flatten entries with date separators using incremental algorithm
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
-  const { items: flatItems, separators } = useIncrementalFlatten(entries);
+  const { items: flatItems, separators, resetCount } = useIncrementalFlatten(entries);
 
   // Estimate size callback - uses lookup for expanded entries
   const estimateSize = useCallback(
@@ -138,6 +138,16 @@ function LogListInner({
     estimateSize,
     overscan: OVERSCAN_COUNT,
   });
+
+  // Clear virtualizer measurements cache when data is reset (filter/replace).
+  // resetCount increments only on full resets, not streaming appends.
+  // This prevents phantom separators caused by stale cached positions.
+  useLayoutEffect(() => {
+    if (resetCount > 0) {
+      // Force virtualizer to recalculate all measurements
+      virtualizer.measure();
+    }
+  }, [resetCount, virtualizer]);
 
   // Auto-scroll to bottom when tailing
   useEffect(() => {
@@ -235,7 +245,10 @@ function LogListInner({
 
             return (
               <div
-                key={item.dateKey}
+                // Use dateKey + index to ensure unique keys across filter changes.
+                // Without the index, React may reuse DOM elements when the same date
+                // appears in different positions, causing phantom separator artifacts.
+                key={`${item.dateKey}-${item.index}`}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
                 className="bg-card absolute top-0 left-0 w-full"
