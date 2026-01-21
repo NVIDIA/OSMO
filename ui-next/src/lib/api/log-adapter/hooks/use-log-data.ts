@@ -154,6 +154,7 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
         taskId: params.taskId,
         levels: params.levels,
         tasks: params.tasks,
+        retries: params.retries,
         sources: params.sources,
         search: params.search,
         searchRegex: params.searchRegex,

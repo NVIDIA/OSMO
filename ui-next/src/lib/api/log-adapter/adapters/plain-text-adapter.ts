@@ -73,6 +73,8 @@ export interface QueryAllParams {
   levels?: FilterParams["levels"];
   /** Filter by task names */
   tasks?: FilterParams["tasks"];
+  /** Filter by retry attempts */
+  retries?: FilterParams["retries"];
   /** Filter by source types */
   sources?: FilterParams["sources"];
   /** Text search query */
@@ -143,6 +145,7 @@ export class PlainTextAdapter implements LogAdapter {
     const filterParams: FilterParams = {
       levels: params.levels,
       tasks: params.tasks,
+      retries: params.retries,
       sources: params.sources,
       search: params.search,
       searchRegex: params.searchRegex,
