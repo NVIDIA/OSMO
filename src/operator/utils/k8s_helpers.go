@@ -22,74 +22,11 @@ import (
 	"context"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
-
-// Task status strings
-const (
-	StatusScheduling      = "SCHEDULING"
-	StatusInitializing    = "INITIALIZING"
-	StatusRunning         = "RUNNING"
-	StatusCompleted       = "COMPLETED"
-	StatusFailed          = "FAILED"
-	StatusFailedPreempted = "FAILED_PREEMPTED"
-)
-
-// Exit codes
-const (
-	ExitCodeNotSet          = -1   // No exit code available
-	ExitCodeFailedPreempted = 3006 // StatusFailedPreempted
-)
-
-// checkPreemptionByScheduler checks if the pod was preempted by the scheduler
-func checkPreemptionByScheduler(pod *corev1.Pod) (bool, string) {
-	for _, cond := range pod.Status.Conditions {
-		if cond.Status == corev1.ConditionTrue && cond.Reason == "PreemptionByScheduler" {
-			return true, fmt.Sprintf("Pod was preempted at %s. ", cond.LastTransitionTime.String())
-		}
-	}
-	return false, ""
-}
-
-// PodStatusResult contains the comprehensive status information
-type PodStatusResult struct {
-	Status   string
-	Message  string
-	ExitCode int32
-}
-
-// CalculatePodStatus calculates the comprehensive pod status
-func CalculatePodStatus(pod *corev1.Pod) PodStatusResult {
-	// Check for preemption
-	isPreempted, message := checkPreemptionByScheduler(pod)
-	if isPreempted {
-		return PodStatusResult{
-			Status:   StatusFailedPreempted,
-			Message:  message,
-			ExitCode: ExitCodeFailedPreempted,
-		}
-	}
-
-	// Base status mapping from Kubernetes pod phases to task status
-	statusMap := map[corev1.PodPhase]string{
-		corev1.PodPending:   StatusScheduling,
-		corev1.PodRunning:   StatusRunning,
-		corev1.PodSucceeded: StatusCompleted,
-		corev1.PodFailed:    StatusFailed,
-	}
-
-	status := statusMap[pod.Status.Phase] // status can be ""
-
-	return PodStatusResult{
-		Status:   status,
-		Message:  pod.Status.Message,
-		ExitCode: int32(ExitCodeNotSet),
-	}
-}
 
 // CreateKubernetesClient creates a Kubernetes clientset using
 // in-cluster or kubeconfig

@@ -684,6 +684,9 @@
                 "message": "User container failed"
               }
             }
+          },
+          {
+            "name": "osmo-ctrl"
           }
         ]
       },
