@@ -40,17 +40,17 @@ const agentQueueSizeSchema = yup
   .required("Agent Queue Size is required")
   .test("is-int", "Agent Queue Size must be a whole number", (value) => Boolean(value && /^\d+$/.test(value)));
 
-const versionStringSchema = yup
+export const versionStringSchema = yup
   .string()
   .trim()
   .matches(/^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/, "Version must be a valid version string");
 
-const durationStringSchema = yup
+export const durationStringSchema = yup
   .string()
   .trim()
   .matches(/^\d+(?:ms|us|[dhms])$/, "Duration must be like 1d, 2h, 30m, 15s, 500ms, or 250us");
 
-const serviceConfigSchema = yup.object({
+export const serviceConfigSchema = yup.object({
   changeDescription: yup.string().trim().required("Change Description is required").defined(),
   tags: yup.array().of(yup.string().trim().defined()).default([]).defined(),
   service_base_url: yup
