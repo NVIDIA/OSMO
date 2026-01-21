@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
+import { useState } from "react";
+
 import Link from "next/link";
 
 import { OutlinedIcon } from "~/components/Icon";
@@ -29,6 +31,8 @@ export default function AdminPage() {
   const serviceConfig = api.configs.getServiceConfig.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+  const patchServiceConfig = api.configs.patchServiceConfig.useMutation();
+  const [error, setError] = useState<string | undefined>(undefined);
 
   if (serviceConfig.error) {
     return (
@@ -61,12 +65,21 @@ export default function AdminPage() {
       <div className="flex flex-col w-full">
         <ServiceConfigEditor
           serviceConfig={serviceConfig.data}
-          onSave={(config) => {
-            console.log(config);
+          onSave={async (description, tags, config) => {
+            setError(undefined);
+            try {
+              await patchServiceConfig.mutateAsync({
+                description,
+                tags,
+                configs_dict: config,
+              });
+              await serviceConfig.refetch();
+            } catch (err) {
+              const message = err instanceof Error ? err.message : "Failed to update service config";
+              setError(message);
+            }
           }}
-          onCancel={() => {
-            console.log("cancel");
-          }}
+          error={error}
         />
       </div>
     </>

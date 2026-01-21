@@ -30,8 +30,7 @@ import { ServiceConfigOverview } from "./ServiceConfigOverview";
 
 interface ServiceConfigEditorProps {
   serviceConfig: ServiceConfig;
-  onSave: (config: ServiceConfig) => void;
-  onCancel: () => void;
+  onSave: (description: string, tags: string[], config: ServiceConfig) => void;
   error?: string;
 }
 
@@ -160,7 +159,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
 
   const onSubmit = (values: ServiceConfigFormValues) => {
     if (isComparing) {
-      onSave(currentConfig);
+      onSave(values.changeDescription, values.tags, currentConfig);
       return;
     }
 
