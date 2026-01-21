@@ -45,6 +45,8 @@ export interface LogDataQueryKeyParams {
   levels?: LogLevel[];
   /** Filter by task names */
   tasks?: string[];
+  /** Filter by retry attempts */
+  retries?: string[];
   /** Filter by source types (user vs system) */
   sources?: LogSourceType[];
   /** Text search query */
@@ -87,6 +89,7 @@ export function createLogDataQueryKey(params: LogDataQueryKeyParams): readonly u
       taskId: params.taskId,
       levels: params.levels,
       tasks: params.tasks,
+      retries: params.retries,
       sources: params.sources,
       search: params.search,
       searchRegex: params.searchRegex,
