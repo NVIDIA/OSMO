@@ -168,7 +168,7 @@ function LogViewerContainerInner({
   const tailDevParams = useMemo(() => tailDevParamsProp ?? stableDevParams, [tailDevParamsProp, stableDevParams]);
 
   // Live tailing hook - appends new entries as they stream in
-  const { entries: tailEntries } = useLogTail({
+  const { entries: tailEntries, status: tailStatus } = useLogTail({
     workflowId,
     enabled: enableTailing && isTailing,
     devParams: tailDevParams,
@@ -212,6 +212,7 @@ function LogViewerContainerInner({
         filterChips={filterChips}
         onFilterChipsChange={handleFilterChipsChange}
         scope={scope}
+        tailStatus={tailStatus}
         className={viewerClassName}
       />
     </div>

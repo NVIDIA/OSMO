@@ -10,7 +10,7 @@
 
 import { memo, useCallback, useMemo, useEffect, startTransition, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
-import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
+import type { LogEntry, HistogramBucket, FieldFacet, TailStatus } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
@@ -69,6 +69,8 @@ export interface LogViewerProps {
   onFilterChipsChange: (chips: SearchChip[]) => void;
   /** Scope of the log viewer */
   scope?: "workflow" | "group" | "task";
+  /** Current tail connection status */
+  tailStatus?: TailStatus;
   /** Additional CSS classes */
   className?: string;
 }
@@ -115,6 +117,7 @@ function LogViewerInner({
   filterChips,
   onFilterChipsChange,
   scope = "workflow",
+  tailStatus,
   className,
 }: LogViewerProps) {
   const { clipboard, announcer } = useServices();
@@ -327,6 +330,7 @@ function LogViewerInner({
           onDownload={handleDownload}
           onRefresh={onRefetch}
           isLoading={isLoading || isStale}
+          tailStatus={tailStatus}
         />
       </div>
     </div>
