@@ -87,11 +87,23 @@ export function MockProvider({ children }: MockProviderProps) {
 
     // Start browser-side MSW for proper streaming support
     // Browser service workers handle streaming correctly (unlike msw/node)
+    // Determine basePath: Next.js serves static files under basePath (e.g., /v2)
+    // Use the centralized basePath utility for consistency
+    const getServiceWorkerUrl = () => {
+      const basePath = getBasePath();
+      if (!basePath) {
+        return "/mockServiceWorker.js";
+      }
+      // Ensure basePath doesn't end with / and path starts with /
+      const normalizedBasePath = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
+      return `${normalizedBasePath}/mockServiceWorker.js`;
+    };
+    
     import("./browser")
       .then(({ worker }) =>
         worker.start({
           onUnhandledRequest: "bypass",
-          serviceWorker: { url: "/mockServiceWorker.js" },
+          serviceWorker: { url: getServiceWorkerUrl() },
           quiet: true, // Disable request logging in console
         }),
       )

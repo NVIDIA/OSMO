@@ -6,6 +6,7 @@
  */
 
 import { logError } from "@/lib/logger";
+import { getBasePathUrl } from "@/lib/config";
 
 /**
  * Auth configuration.
@@ -54,7 +55,13 @@ function createDefaultAuthBackend(): AuthBackend {
   return {
     async getConfig(): Promise<AuthConfig> {
       try {
-        const res = await fetch("/auth/login_info", { cache: "no-store" });
+        // Use basePath-aware URL for Next.js route handler
+        const url = getBasePathUrl("/auth/login_info");
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) {
+          logError(`Failed to fetch auth config: ${res.status} ${res.statusText}`);
+          return { auth_enabled: false };
+        }
         const data = await res.json();
         return { auth_enabled: data.auth_enabled ?? false };
       } catch (error) {
@@ -64,12 +71,18 @@ function createDefaultAuthBackend(): AuthBackend {
     },
 
     async getLoginUrl(returnUrl: string): Promise<string | null> {
-      return `/auth/initiate?return_url=${encodeURIComponent(returnUrl)}`;
+      // Use basePath-aware URL for Next.js route handler
+      return getBasePathUrl(`/auth/initiate?return_url=${encodeURIComponent(returnUrl)}`);
     },
 
     async getLogoutUrl(): Promise<string | null> {
       try {
-        const res = await fetch("/auth/logout", { cache: "no-store" });
+        // Use basePath-aware URL for Next.js route handler
+        const url = getBasePathUrl("/auth/logout");
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) {
+          return null;
+        }
         const data = await res.json();
         return data.redirectTo || null;
       } catch {
@@ -79,9 +92,31 @@ function createDefaultAuthBackend(): AuthBackend {
 
     async refreshToken(refreshTokenValue: string): Promise<TokenRefreshResult> {
       try {
-        const res = await fetch("/auth/refresh_token", {
+        // Use basePath-aware URL for Next.js route handler
+        const url = getBasePathUrl("/auth/refresh_token");
+        const res = await fetch(url, {
           headers: { "x-refresh-token": refreshTokenValue },
         });
+        
+        if (!res.ok) {
+          // 4xx errors indicate the refresh token is invalid (auth error)
+          // 5xx errors or network issues are temporary
+          const isAuthError = res.status >= 400 && res.status < 500;
+          let errorMessage = "Token refresh failed";
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            // If response isn't JSON, use status text
+            errorMessage = res.statusText || errorMessage;
+          }
+          return {
+            success: false,
+            error: errorMessage,
+            isAuthError,
+          };
+        }
+
         const data = await res.json();
 
         if (data.isFailure) {
