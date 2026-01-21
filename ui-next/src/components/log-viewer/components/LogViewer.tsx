@@ -322,7 +322,7 @@ function LogViewerInner({
 
       {/* Section 2: FacetBar */}
       {facets.length > 0 && (
-        <div className="shrink-0 border-b px-3 py-2">
+        <div className="shrink-0 border-b px-3 py-3">
           <FacetBar
             facets={facets}
             selectedFilters={selectedFilters}
