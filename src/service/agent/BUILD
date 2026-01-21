@@ -70,9 +70,9 @@ filegroup(
 )
 
 osmo_py_library(
-    name = "agent_worker_lib",
+    name = "message_worker_lib",
     srcs = [
-        "agent_worker.py",
+        "message_worker.py",
     ],
     deps = [
         ":helpers",
@@ -89,30 +89,30 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "agent_worker_binary",
-    main = "agent_worker.py",
-    srcs = ["agent_worker.py"],
-    deps = [":agent_worker_lib"],
+    name = "message_worker_binary",
+    main = "message_worker.py",
+    srcs = ["message_worker.py"],
+    deps = [":message_worker_lib"],
 )
 
 py_image_layer(
-    name = "agent_worker_layer",
-    binary = ":agent_worker_binary",
+    name = "message_worker_layer",
+    binary = ":message_worker_binary",
 )
 
 osmo_python_wrapper(
-    name = "agent_worker_wrapper",
-    bin_name = "agent_worker",
-    main = "/src/service/agent/agent_worker.py",
-    runfiles_dir = "/src/service/agent/agent_worker_binary.runfiles",
+    name = "message_worker_wrapper",
+    bin_name = "message_worker",
+    main = "/src/service/agent/message_worker.py",
+    runfiles_dir = "/src/service/agent/message_worker_binary.runfiles",
 )
 
 filegroup(
-    name = "agent_worker_image_layers",
+    name = "message_worker_image_layers",
     srcs = [
-        ":agent_worker_layer_default",
-        ":agent_worker_layer_packages",
-        ":agent_worker_wrapper",
+        ":message_worker_layer_default",
+        ":message_worker_layer_packages",
+        ":message_worker_wrapper",
     ],
 )
 
@@ -219,15 +219,16 @@ oci_push(
     ],
 )
 
-###########################
-#    Agent Worker x86_64   #
-###########################
+############################
+#    Message Worker x86_64  #
+############################
 
 oci_image(
-    name = "agent_worker_image_x86_64",
+    name = "message_worker_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":agent_worker_image_layers",
+        ":message_worker_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -236,9 +237,9 @@ oci_image(
 )
 
 oci_load(
-    name = "agent_worker_image_load_x86_64",
-    image = ":agent_worker_image_x86_64",
-    repo_tags = ["osmo.local/agent-worker:latest-x86_64"],
+    name = "message_worker_image_load_x86_64",
+    image = ":message_worker_image_x86_64",
+    repo_tags = ["osmo.local/message-worker:latest-x86_64"],
     tags = ["manual"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -246,9 +247,9 @@ oci_load(
 )
 
 oci_push(
-    name = "agent_worker_push_x86_64",
-    image = ":agent_worker_image_x86_64",
-    repository = BASE_IMAGE_URL + "agent-worker",
+    name = "message_worker_push_x86_64",
+    image = ":message_worker_image_x86_64",
+    repository = BASE_IMAGE_URL + "message-worker",
     remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],
@@ -257,15 +258,16 @@ oci_push(
     ],
 )
 
-##########################
-#    Agent Worker arm64   #
-##########################
+###########################
+#    Message Worker arm64  #
+###########################
 
 oci_image(
-    name = "agent_worker_image_arm64",
+    name = "message_worker_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":agent_worker_image_layers",
+        ":message_worker_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -274,9 +276,9 @@ oci_image(
 )
 
 oci_load(
-    name = "agent_worker_image_load_arm64",
-    image = ":agent_worker_image_arm64",
-    repo_tags = ["osmo.local/agent-worker:latest-arm64"],
+    name = "message_worker_image_load_arm64",
+    image = ":message_worker_image_arm64",
+    repo_tags = ["osmo.local/message-worker:latest-arm64"],
     tags = ["manual"],
     target_compatible_with = [
         "@platforms//cpu:arm64",
@@ -284,9 +286,9 @@ oci_load(
 )
 
 oci_push(
-    name = "agent_worker_push_arm64",
-    image = ":agent_worker_image_arm64",
-    repository = BASE_IMAGE_URL + "agent-worker",
+    name = "message_worker_push_arm64",
+    image = ":message_worker_image_arm64",
+    repository = BASE_IMAGE_URL + "message-worker",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],

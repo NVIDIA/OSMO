@@ -235,7 +235,7 @@ This captures:
 **Test Configuration:**
 - Single workflow submitted to the backend
 - Python implementation is a simplified version of the current system, with other backend event types removed
-- Go implementation is a draft version of the proposed design, with workflow_listener, operator service, Redis message queue, and a python agent_worker to process update pod messages from the queue.
+- Go implementation is a draft version of the proposed design, with workflow_listener, operator service, Redis message queue, and a python message_worker to process update pod messages from the queue.
 
 #### Python Implementation:
 ```
