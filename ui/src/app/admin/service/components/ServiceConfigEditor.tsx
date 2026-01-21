@@ -222,11 +222,11 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
       "max_token_duration",
       "latest_version",
       "min_supported_version",
-      "device_client_id",
-      "browser_client_id",
       "issuer",
       "audience",
       "ctrl_roles",
+      "device_client_id",
+      "browser_client_id",
       "service_base_url",
       "device_endpoint",
       "browser_endpoint",
@@ -258,7 +258,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
               ref={field.ref}
               required
               className="w-full"
-              errorText={errors.changeDescription?.message}
+              message={errors.changeDescription?.message}
+              isError={Boolean(errors.changeDescription)}
+              leaveSpaceForMessage={true}
             />
           )}
         />
@@ -310,8 +312,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  helperText="e.g., 15m, 1h, 30s"
-                  errorText={errors.max_pod_restart_limit?.message}
+                  message={errors.max_pod_restart_limit?.message ?? "e.g., 15m, 1h, 30s"}
+                  isError={Boolean(errors.max_pod_restart_limit)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -327,7 +330,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.agent_queue_size?.message}
+                  message={errors.agent_queue_size?.message}
+                  isError={Boolean(errors.agent_queue_size)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -342,8 +347,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  helperText="e.g., 365d, 24h, 60m"
-                  errorText={errors.max_token_duration?.message}
+                  message={errors.max_token_duration?.message ?? "e.g., 365d, 24h, 60m"}
+                  isError={Boolean(errors.max_token_duration)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -358,7 +364,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.latest_version?.message}
+                  message={errors.latest_version?.message}
+                  isError={Boolean(errors.latest_version)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -373,37 +381,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.min_supported_version?.message}
-                />
-              )}
-            />
-            <Controller
-              name="device_client_id"
-              control={control}
-              render={({ field }) => (
-                <TextInput
-                  id="device_client_id"
-                  label="Device Client ID"
-                  value={field.value}
-                  onChange={field.onChange}
-                  ref={field.ref}
-                  required
-                  errorText={errors.device_client_id?.message}
-                />
-              )}
-            />
-            <Controller
-              name="browser_client_id"
-              control={control}
-              render={({ field }) => (
-                <TextInput
-                  id="browser_client_id"
-                  label="Browser Client ID"
-                  value={field.value}
-                  onChange={field.onChange}
-                  ref={field.ref}
-                  required
-                  errorText={errors.browser_client_id?.message}
+                  message={errors.min_supported_version?.message}
+                  isError={Boolean(errors.min_supported_version)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -420,7 +400,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.issuer?.message}
+                  message={errors.issuer?.message}
+                  isError={Boolean(errors.issuer)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -435,7 +417,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.audience?.message}
+                  message={errors.audience?.message}
+                  isError={Boolean(errors.audience)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -473,6 +457,40 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                 />
               )}
             />
+            <Controller
+              name="device_client_id"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="device_client_id"
+                  label="Device Client ID"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  message={errors.device_client_id?.message}
+                  isError={Boolean(errors.device_client_id)}
+                  leaveSpaceForMessage={true}
+                />
+              )}
+            />
+            <Controller
+              name="browser_client_id"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="browser_client_id"
+                  label="Browser Client ID"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  message={errors.browser_client_id?.message}
+                  isError={Boolean(errors.browser_client_id)}
+                  leaveSpaceForMessage={true}
+                />
+              )}
+            />
           </div>
           <div className="flex flex-col gap-global md:col-span-2 lg:col-span-1">
             <Controller
@@ -486,7 +504,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.service_base_url?.message}
+                  message={errors.service_base_url?.message}
+                  isError={Boolean(errors.service_base_url)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -501,7 +521,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.device_endpoint?.message}
+                  message={errors.device_endpoint?.message}
+                  isError={Boolean(errors.device_endpoint)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -516,7 +538,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.browser_endpoint?.message}
+                  message={errors.browser_endpoint?.message}
+                  isError={Boolean(errors.browser_endpoint)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -531,7 +555,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.token_endpoint?.message}
+                  message={errors.token_endpoint?.message}
+                  isError={Boolean(errors.token_endpoint)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />
@@ -546,7 +572,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                   onChange={field.onChange}
                   ref={field.ref}
                   required
-                  errorText={errors.logout_endpoint?.message}
+                  message={errors.logout_endpoint?.message}
+                  isError={Boolean(errors.logout_endpoint)}
+                  leaveSpaceForMessage={true}
                 />
               )}
             />

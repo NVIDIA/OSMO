@@ -16,6 +16,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import useSafeTimeout from "~/hooks/useSafeTimeout";
+import { ZERO_WIDTH_SPACE } from "~/utils/string";
 
 import { OutlinedIcon } from "./Icon";
 import { Tag, Colors, TagSizes } from "./Tag";
@@ -151,7 +152,7 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
             </button>
           )}
         </div>
-        {message && <p className={`${isError ? "text-red-600" : "text-success"} text-xs`}>{message}</p>}
+        <p className={`${isError ? "text-red-600" : "text-success"} text-xs`}>{message ?? ZERO_WIDTH_SPACE}</p>
       </div>
       <p
         aria-live="polite"

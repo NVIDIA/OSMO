@@ -46,7 +46,7 @@ export default function AdminPage() {
   const compareRevisions = useMemo(() => {
     if (isComparing) {
       return configHistory.data?.configs
-        .filter((config) => selectedRevisions.includes(config.revision as number))
+        .filter((config) => selectedRevisions.includes(config.revision))
         .sort((a, b) => b.revision - a.revision);
     }
 

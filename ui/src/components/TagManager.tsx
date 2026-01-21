@@ -15,8 +15,6 @@
 //SPDX-License-Identifier: Apache-2.0
 import React, { useEffect, useMemo, useState } from "react";
 
-import { ZERO_WIDTH_SPACE } from "~/utils/string";
-
 import { OutlinedIcon } from "./Icon";
 import { InlineBanner } from "./InlineBanner";
 import { Tag, Colors, TagSizes } from "./Tag";
@@ -155,8 +153,9 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
                 setNewTag(e.target.value);
               }}
               label="Add New Tag"
-              errorText={error}
-              helperText={error ? undefined : ZERO_WIDTH_SPACE}
+              message={error}
+              isError={Boolean(error)}
+              leaveSpaceForMessage={true}
               className="w-full"
             />
             <button

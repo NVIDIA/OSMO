@@ -18,7 +18,7 @@ import { type PropsWithChildren } from "react";
 import { env } from "~/env.mjs";
 
 export const metadata = {
-  title: `${env.NEXT_PUBLIC_APP_NAME} Service Configuration`,
+  title: `${env.NEXT_PUBLIC_APP_NAME} Service Config`,
 };
 
 export default function ServiceConfigurationLayout({ children }: PropsWithChildren) {
