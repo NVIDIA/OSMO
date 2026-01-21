@@ -16,7 +16,7 @@
 
 "use client";
 
-import { memo, useDeferredValue, useEffect, useState } from "react";
+import { memo, useDeferredValue, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/shadcn/input";
@@ -30,8 +30,10 @@ export interface SearchBarProps {
   value: string;
   /** Callback when search value changes (debounced) */
   onChange: (value: string) => void;
-  /** Result count to display as suffix */
+  /** Filtered result count (shown when searching) */
   resultCount: number;
+  /** Total entry count */
+  totalCount: number;
   /** Placeholder text */
   placeholder?: string;
   /** Additional CSS classes */
@@ -42,24 +44,55 @@ export interface SearchBarProps {
 // Component
 // =============================================================================
 
-function SearchBarInner({ value, onChange, resultCount, placeholder = "Search logs...", className }: SearchBarProps) {
-  // Local state for immediate input feedback
+function SearchBarInner({
+  value,
+  onChange,
+  resultCount,
+  totalCount,
+  placeholder = "Search logs...",
+  className,
+}: SearchBarProps) {
+  // Local state for immediate input feedback.
+  // Initialize with parent's value.
   const [localValue, setLocalValue] = useState(value);
 
-  // Sync local state when controlled value changes from parent
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
+  // Track the last parent value we synced from.
+  // This allows us to detect when parent provides a new value (external reset).
+  const [lastSyncedParentValue, setLastSyncedParentValue] = useState(value);
 
-  // Defer the value to prevent blocking typing during filtering
+  // Track last emitted value to parent (avoids notifying with same value).
+  const [lastEmittedValue, setLastEmittedValue] = useState(value);
+
+  // Sync local state when controlled value changes from parent (external reset).
+  // This uses the "updating state during render" pattern recommended by React:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  if (value !== lastSyncedParentValue) {
+    setLastSyncedParentValue(value);
+    // Only update local value if parent's value differs from what we last sent
+    if (value !== lastEmittedValue) {
+      setLocalValue(value);
+      setLastEmittedValue(value);
+    }
+  }
+
+  // Defer the value to prevent blocking typing during filtering.
+  // React 19's useDeferredValue handles the transition automatically.
   const deferredValue = useDeferredValue(localValue);
 
-  // Notify parent when deferred value changes
-  useEffect(() => {
-    if (deferredValue !== value) {
-      onChange(deferredValue);
-    }
-  }, [deferredValue, value, onChange]);
+  // Notify parent when deferred value changes.
+  // Uses "updating state during render" pattern to trigger onChange.
+  // This is the React-recommended pattern for derived computations:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  if (deferredValue !== lastEmittedValue) {
+    setLastEmittedValue(deferredValue);
+    // Schedule the onChange call. React batches these updates.
+    // Note: This is intentionally during render - React handles it correctly
+    // as part of the state update during render pattern.
+    onChange(deferredValue);
+  }
+
+  // Use localValue for immediate UI feedback (not the lagging controlled value)
+  const isSearching = localValue.length > 0;
 
   return (
     <div className={cn("relative flex items-center", className)}>
@@ -72,12 +105,14 @@ function SearchBarInner({ value, onChange, resultCount, placeholder = "Search lo
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
         placeholder={placeholder}
-        className="pr-20 pl-9"
+        className="pr-44 pl-9"
       />
 
       {/* Result count suffix */}
       <span className="text-muted-foreground pointer-events-none absolute right-3 text-sm tabular-nums">
-        {resultCount.toLocaleString()}
+        {isSearching
+          ? `${resultCount.toLocaleString()} of ${totalCount.toLocaleString()} entries`
+          : `${totalCount.toLocaleString()} entries`}
       </span>
     </div>
   );
