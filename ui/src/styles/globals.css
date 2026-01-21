@@ -399,7 +399,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .config-editor {
-    @apply flex flex-col gap-6 p-global;
+    @apply flex flex-col md:grid md:grid-cols-2 lg:grid-cols-[1fr_1fr_2fr] gap-6 p-global;
 
     input[type="text"],
     input[type="number"],

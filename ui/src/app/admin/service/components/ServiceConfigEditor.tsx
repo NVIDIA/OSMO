@@ -17,11 +17,12 @@
 
 import { useState } from "react";
 
-import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { RoleEditor } from "~/components/RoleEditor";
 import { TextInput } from "~/components/TextInput";
 import { type ServiceConfig } from "~/models/config/service-config";
+
+import { ServiceConfigOverview } from "./ServiceConfigOverview";
 
 interface ServiceConfigEditorProps {
   serviceConfig: ServiceConfig;
@@ -34,6 +35,8 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
   // Change Data
   const [changeDescription, setChangeDescription] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [isComparing, setIsComparing] = useState(false);
+  const [currentConfig, setCurrentConfig] = useState<ServiceConfig>(serviceConfig);
 
   // General settings
   const [serviceBaseUrl, setServiceBaseUrl] = useState(serviceConfig.service_base_url);
@@ -62,7 +65,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const updatedConfig: ServiceConfig = {
+    setCurrentConfig({
       service_base_url: serviceBaseUrl,
       max_pod_restart_limit: maxPodRestartLimit,
       agent_queue_size: parseInt(agentQueueSize, 10),
@@ -92,14 +95,16 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           logout_endpoint: logoutEndpoint,
         },
       },
-    };
-
-    onSave(updatedConfig);
+    });
+    setIsComparing(true);
   };
 
   return (
-    <div className="relative flex flex-col w-full h-full overflow-y-auto">
-      <div className="grid grid-cols-[3fr_1fr] gap-6 p-global border-y border-border bg-headerbg">
+    <form
+      className="relative flex flex-col w-full h-full overflow-y-auto"
+      onSubmit={handleSubmit}
+    >
+      <div className="grid grid-cols-[1fr_auto] gap-global p-global border-y border-border bg-headerbg">
         <TextInput
           id="change_description"
           label="Change Description"
@@ -117,164 +122,194 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           isError={false}
         />
       </div>
-      <div className="config-editor">
-        <div className="flex flex-col gap-global">
-          <TextInput
-            id="max_pod_restart_limit"
-            label="Max Pod Restart Limit"
-            value={maxPodRestartLimit}
-            onChange={(e) => setMaxPodRestartLimit(e.target.value)}
-            required
-            helperText="e.g., 15m, 1h, 30s"
-          />
-          <TextInput
-            id="agent_queue_size"
-            label="Agent Queue Size"
-            type="number"
-            value={agentQueueSize}
-            onChange={(e) => setAgentQueueSize(e.target.value)}
-            required
-          />
-          <TextInput
-            id="max_token_duration"
-            label="Max Token Duration"
-            value={maxTokenDuration}
-            onChange={(e) => setMaxTokenDuration(e.target.value)}
-            required
-            helperText="e.g., 365d, 24h, 60m"
-          />
-          <TextInput
-            id="latest_version"
-            label="CLI Latest Version"
-            value={latestVersion ?? ""}
-            onChange={(e) => setLatestVersion(e.target.value)}
-            required
-          />
-          <TextInput
-            id="min_supported_version"
-            label="CLI Min Supported Version"
-            value={minSupportedVersion ?? ""}
-            onChange={(e) => setMinSupportedVersion(e.target.value)}
-            required
-          />
-          <TextInput
-            id="device_client_id"
-            label="Device Client ID"
-            value={deviceClientId ?? ""}
-            onChange={(e) => setDeviceClientId(e.target.value)}
-            required
-          />
-          <TextInput
-            id="browser_client_id"
-            label="Browser Client ID"
-            value={browserClientId ?? ""}
-            onChange={(e) => setBrowserClientId(e.target.value)}
-            required
-          />
+      {isComparing ? (
+        <div className="flex flex-row gap-global p-global h-full">
+          <div className="flex flex-col gap-global card h-full">
+            <h3 className="body-header p-global">Current Version</h3>
+            <ServiceConfigOverview
+              serviceConfig={currentConfig}
+              previousConfig={serviceConfig}
+              isShowingJSON={false}
+            />
+          </div>
+          <div className="flex flex-col gap-global card h-full">
+            <h3 className="body-header p-global">New Version</h3>
+            <ServiceConfigOverview
+              serviceConfig={serviceConfig}
+              previousConfig={currentConfig}
+              isShowingJSON={false}
+            />
+          </div>
         </div>
-        <div className="flex flex-col gap-global">
-          <TextInput
-            id="issuer"
-            label="Issuer"
-            value={issuer}
-            onChange={(e) => setIssuer(e.target.value)}
-            required
-          />
-          <TextInput
-            id="audience"
-            label="Audience"
-            value={audience}
-            onChange={(e) => setAudience(e.target.value)}
-            required
-          />
-          <RoleEditor
-            label="User Roles"
-            entityLabel="Role"
-            roles={userRoles.split(",").map((r) => r.trim())}
-            setRoles={(roles) => setUserRoles(roles.join(", "))}
-            message={null}
-            isError={false}
-          />
-          <TextInput
-            id="ctrl_roles"
-            label="Ctrl Roles"
-            value={ctrlRoles}
-            onChange={(e) => setCtrlRoles(e.target.value)}
-            helperText="Comma-separated list of roles"
-          />
+      ) : (
+        <div className="config-editor">
+          <div className="flex flex-col gap-global">
+            <TextInput
+              id="max_pod_restart_limit"
+              label="Max Pod Restart Limit"
+              value={maxPodRestartLimit}
+              onChange={(e) => setMaxPodRestartLimit(e.target.value)}
+              required
+              helperText="e.g., 15m, 1h, 30s"
+            />
+            <TextInput
+              id="agent_queue_size"
+              label="Agent Queue Size"
+              type="number"
+              value={agentQueueSize}
+              onChange={(e) => setAgentQueueSize(e.target.value)}
+              required
+            />
+            <TextInput
+              id="max_token_duration"
+              label="Max Token Duration"
+              value={maxTokenDuration}
+              onChange={(e) => setMaxTokenDuration(e.target.value)}
+              required
+              helperText="e.g., 365d, 24h, 60m"
+            />
+            <TextInput
+              id="latest_version"
+              label="CLI Latest Version"
+              value={latestVersion ?? ""}
+              onChange={(e) => setLatestVersion(e.target.value)}
+              required
+            />
+            <TextInput
+              id="min_supported_version"
+              label="CLI Min Supported Version"
+              value={minSupportedVersion ?? ""}
+              onChange={(e) => setMinSupportedVersion(e.target.value)}
+              required
+            />
+            <TextInput
+              id="device_client_id"
+              label="Device Client ID"
+              value={deviceClientId ?? ""}
+              onChange={(e) => setDeviceClientId(e.target.value)}
+              required
+            />
+            <TextInput
+              id="browser_client_id"
+              label="Browser Client ID"
+              value={browserClientId ?? ""}
+              onChange={(e) => setBrowserClientId(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-global">
+            <TextInput
+              id="issuer"
+              label="Issuer"
+              value={issuer}
+              onChange={(e) => setIssuer(e.target.value)}
+              required
+            />
+            <TextInput
+              id="audience"
+              label="Audience"
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              required
+            />
+            <RoleEditor
+              label="User Roles"
+              entityLabel="Role"
+              roles={userRoles.split(",").map((r) => r.trim())}
+              setRoles={(roles) => setUserRoles(roles.join(", "))}
+              message={null}
+              isError={false}
+            />
+            <TextInput
+              id="ctrl_roles"
+              label="Ctrl Roles"
+              value={ctrlRoles}
+              onChange={(e) => setCtrlRoles(e.target.value)}
+              helperText="Comma-separated list of roles"
+            />
+          </div>
+          <div className="flex flex-col gap-global md:col-span-2 lg:col-span-1">
+            <TextInput
+              id="service_base_url"
+              label="Service Base URL"
+              value={serviceBaseUrl}
+              onChange={(e) => setServiceBaseUrl(e.target.value)}
+              required
+            />
+            <TextInput
+              id="device_endpoint"
+              label="Device Endpoint"
+              value={deviceEndpoint ?? ""}
+              onChange={(e) => setDeviceEndpoint(e.target.value)}
+              required
+            />
+            <TextInput
+              id="browser_endpoint"
+              label="Browser Endpoint"
+              value={browserEndpoint ?? ""}
+              onChange={(e) => setBrowserEndpoint(e.target.value)}
+              required
+            />
+            <TextInput
+              id="token_endpoint"
+              label="Token Endpoint"
+              value={tokenEndpoint ?? ""}
+              onChange={(e) => setTokenEndpoint(e.target.value)}
+              required
+            />
+            <TextInput
+              id="logout_endpoint"
+              label="Logout Endpoint"
+              value={logoutEndpoint ?? ""}
+              onChange={(e) => setLogoutEndpoint(e.target.value)}
+              required
+            />
+          </div>
+          <InlineBanner status={error ? "error" : "none"}>{error}</InlineBanner>
         </div>
-        <div className="flex flex-col gap-global">
-          <TextInput
-            id="service_base_url"
-            label="Service Base URL"
-            value={serviceBaseUrl}
-            onChange={(e) => setServiceBaseUrl(e.target.value)}
-            required
-          />
-          <TextInput
-            id="device_endpoint"
-            label="Device Endpoint"
-            value={deviceEndpoint ?? ""}
-            onChange={(e) => setDeviceEndpoint(e.target.value)}
-            required
-          />
-          <TextInput
-            id="browser_endpoint"
-            label="Browser Endpoint"
-            value={browserEndpoint ?? ""}
-            onChange={(e) => setBrowserEndpoint(e.target.value)}
-            required
-          />
-          <TextInput
-            id="token_endpoint"
-            label="Token Endpoint"
-            value={tokenEndpoint ?? ""}
-            onChange={(e) => setTokenEndpoint(e.target.value)}
-            required
-          />
-          <TextInput
-            id="logout_endpoint"
-            label="Logout Endpoint"
-            value={logoutEndpoint ?? ""}
-            onChange={(e) => setLogoutEndpoint(e.target.value)}
-            required
-          />
-        </div>
-        <InlineBanner status={error ? "error" : "none"}>{error}</InlineBanner>
-      </div>
+      )}
       <div className="flex justify-end gap-global p-global border-t border-border bg-footerbg sticky bottom-0">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            setServiceBaseUrl(serviceConfig.service_base_url);
-            setMaxPodRestartLimit(serviceConfig.max_pod_restart_limit);
-            setAgentQueueSize(serviceConfig.agent_queue_size.toString());
-            setLatestVersion(serviceConfig.cli_config.latest_version);
-            setMinSupportedVersion(serviceConfig.cli_config.min_supported_version);
-            setIssuer(serviceConfig.service_auth.issuer);
-            setAudience(serviceConfig.service_auth.audience);
-            setUserRoles(serviceConfig.service_auth.user_roles.join(", "));
-            setCtrlRoles(serviceConfig.service_auth.ctrl_roles.join(", "));
-            setMaxTokenDuration(serviceConfig.service_auth.max_token_duration);
-            setDeviceClientId(serviceConfig.service_auth.login_info.device_client_id);
-            setBrowserClientId(serviceConfig.service_auth.login_info.browser_client_id);
-            setDeviceEndpoint(serviceConfig.service_auth.login_info.device_endpoint);
-            setBrowserEndpoint(serviceConfig.service_auth.login_info.browser_endpoint);
-            setTokenEndpoint(serviceConfig.service_auth.login_info.token_endpoint);
-            setLogoutEndpoint(serviceConfig.service_auth.login_info.logout_endpoint);
-          }}
-        >
-          Reset
-        </button>
+        {isComparing ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setIsComparing(false)}
+          >
+            Back
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setServiceBaseUrl(serviceConfig.service_base_url);
+              setMaxPodRestartLimit(serviceConfig.max_pod_restart_limit);
+              setAgentQueueSize(serviceConfig.agent_queue_size.toString());
+              setLatestVersion(serviceConfig.cli_config.latest_version);
+              setMinSupportedVersion(serviceConfig.cli_config.min_supported_version);
+              setIssuer(serviceConfig.service_auth.issuer);
+              setAudience(serviceConfig.service_auth.audience);
+              setUserRoles(serviceConfig.service_auth.user_roles.join(", "));
+              setCtrlRoles(serviceConfig.service_auth.ctrl_roles.join(", "));
+              setMaxTokenDuration(serviceConfig.service_auth.max_token_duration);
+              setDeviceClientId(serviceConfig.service_auth.login_info.device_client_id);
+              setBrowserClientId(serviceConfig.service_auth.login_info.browser_client_id);
+              setDeviceEndpoint(serviceConfig.service_auth.login_info.device_endpoint);
+              setBrowserEndpoint(serviceConfig.service_auth.login_info.browser_endpoint);
+              setTokenEndpoint(serviceConfig.service_auth.login_info.token_endpoint);
+              setLogoutEndpoint(serviceConfig.service_auth.login_info.logout_endpoint);
+            }}
+          >
+            Reset
+          </button>
+        )}
         <button
           type="submit"
           className="btn btn-primary"
         >
-          Next
-          <OutlinedIcon name="keyboard_double_arrow_right" />
+          {isComparing ? "Save" : "Next"}
         </button>
       </div>
-    </div>
+    </form>
   );
 };

@@ -13,9 +13,9 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-import { ZERO_WIDTH_SPACE } from "~/utils/string";
+import useSafeTimeout from "~/hooks/useSafeTimeout";
 
 import { OutlinedIcon } from "./Icon";
 import { Tag, Colors, TagSizes } from "./Tag";
@@ -34,23 +34,26 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
   const [newRole, setNewRole] = useState(""); // New role being added
   const [lastActionText, setLastActionText] = useState<string>("");
   const [isAdding, setIsAdding] = useState(false);
-
-  const addRole = (role: string) => {
-    if (!roles.includes(role)) {
-      setRoles([...roles, role]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const { setSafeTimeout } = useSafeTimeout();
+  useEffect(() => {
+    if (isAdding) {
+      inputRef.current?.focus();
     }
-  };
+  }, [isAdding]);
 
-  const handleAddRole = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
+  const handleAddRole = () => {
     const trimmedRole = newRole.trim();
 
     if (!trimmedRole) {
       return;
     }
 
-    addRole(trimmedRole);
+    if (!roles.includes(trimmedRole)) {
+      setRoles([...roles, trimmedRole]);
+    }
+
     setNewRole("");
     setLastActionText(`Added ${trimmedRole}`);
   };
@@ -58,51 +61,84 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
   const handleDeleteRole = (roleToDelete: string) => {
     setRoles(roles.filter((role) => role !== roleToDelete));
     setLastActionText(`Deleted ${roleToDelete}`);
+
+    setSafeTimeout(() => {
+      if (isAdding) {
+        inputRef.current?.focus();
+      } else {
+        buttonRef.current?.focus();
+      }
+    }, 100);
   };
 
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <label>{label}</label>
+      <div
+        role="group"
+        className="flex flex-col gap-1"
+        aria-labelledby={label}
+      >
         <div
-          className="flex flex-wrap gap-1"
-          role="group"
-          aria-labelledby="current-tags"
+          className="font-normal text-xs block"
+          id={label}
         >
-          {roles.length > 0 &&
-            roles.map((role, index) => (
-              <button
-                role="listitem"
-                className="btn btn-badge"
-                key={index}
-                onClick={() => handleDeleteRole(role)}
-                type="button"
-              >
-                <Tag
-                  color={Colors.tag}
-                  size={TagSizes.xs}
-                  className="h-8 break-all"
+          {label}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <div
+            className="flex flex-wrap gap-1"
+            role="list"
+            aria-label={`Current ${label}`}
+          >
+            {roles.length > 0 &&
+              roles.map((role, index) => (
+                <button
+                  role="listitem"
+                  className="btn btn-badge"
+                  key={index}
+                  onClick={() => handleDeleteRole(role)}
+                  type="button"
+                  title={`Remove ${role}`}
                 >
-                  {role}
-                  <OutlinedIcon name="close" />
-                </Tag>
-              </button>
-            ))}
+                  <Tag
+                    color={Colors.tag}
+                    size={TagSizes.xs}
+                    className="h-8 break-all"
+                  >
+                    {role}
+                    <OutlinedIcon name="close" />
+                  </Tag>
+                </button>
+              ))}
+          </div>
           {isAdding ? (
             <TextInput
+              ref={inputRef}
               id="new-role"
               value={newRole}
               onChange={(e) => {
                 setNewRole(e.target.value);
               }}
               aria-label={entityLabel}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleAddRole();
+                } else if (e.key === "Escape") {
+                  setIsAdding(false);
+                  setNewRole("");
+                  setSafeTimeout(() => {
+                    buttonRef.current?.focus();
+                  }, 100);
+                }
+              }}
             />
           ) : (
             <button
               type="button"
+              ref={buttonRef}
               onClick={() => setIsAdding(!isAdding)}
               className="btn btn-badge"
-              aria-label="Add"
+              aria-label={`Add ${entityLabel}`}
             >
               <Tag
                 color={Colors.tag}

@@ -163,7 +163,7 @@ export const ServiceConfigOverview = ({
               {Object.entries(serviceConfig.service_auth.keys).map(([key, _value]) => {
                 return (
                   <li
-                    className="flex flex-row gap-1"
+                    className="flex flex-row gap-1 border-none p-0 m-0"
                     key={key}
                   >
                     {key}
