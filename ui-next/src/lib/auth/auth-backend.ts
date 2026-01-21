@@ -97,7 +97,7 @@ function createDefaultAuthBackend(): AuthBackend {
         const res = await fetch(url, {
           headers: { "x-refresh-token": refreshTokenValue },
         });
-        
+
         if (!res.ok) {
           // 4xx errors indicate the refresh token is invalid (auth error)
           // 5xx errors or network issues are temporary

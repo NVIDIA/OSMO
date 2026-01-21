@@ -182,7 +182,7 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
       if (!text) {
         return { message: `HTTP ${response.status}: ${response.statusText}` };
       }
-      
+
       // Try to parse as JSON, fallback to text if it's not valid JSON
       try {
         return JSON.parse(text);

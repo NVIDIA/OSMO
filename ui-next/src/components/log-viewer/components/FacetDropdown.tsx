@@ -120,7 +120,7 @@ function FacetDropdownInner({
       {Icon && <Icon className="text-muted-foreground size-3.5" />}
       {label}
       {selectedCount > 0 && (
-        <span className="bg-primary text-primary-foreground ml-1 rounded-full px-1.5 py-0.5 text-xs font-medium">
+        <span className="bg-primary text-primary-foreground ml-1.5 rounded-full px-2 py-0.5 text-xs font-medium">
           {selectedCount}
         </span>
       )}
@@ -134,7 +134,7 @@ function FacetDropdownInner({
         variant="outline"
         size="sm"
         disabled
-        className={cn("gap-1", className)}
+        className={cn("gap-2", className)}
       >
         {buttonLabel}
         <ChevronDown className="text-muted-foreground size-3.5" />
@@ -148,7 +148,7 @@ function FacetDropdownInner({
         <Button
           variant={selectedCount > 0 ? "secondary" : "outline"}
           size="sm"
-          className={cn("gap-1", className)}
+          className={cn("gap-2", className)}
         >
           {buttonLabel}
           <ChevronDown className="text-muted-foreground size-3.5" />
@@ -156,7 +156,7 @@ function FacetDropdownInner({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-56 p-1"
+        className="w-56 p-2"
       >
         <div className="max-h-64 overflow-y-auto overscroll-contain">
           {values.length === 0 ? (

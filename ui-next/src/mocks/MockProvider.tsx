@@ -43,6 +43,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setMockVolumes, getMockVolumes } from "@/actions/mock-config";
 import type { MockVolumes } from "@/actions/mock-config.types";
+import { getBasePath } from "@/lib/config";
 
 interface MockProviderProps {
   children: ReactNode;
@@ -98,7 +99,7 @@ export function MockProvider({ children }: MockProviderProps) {
       const normalizedBasePath = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
       return `${normalizedBasePath}/mockServiceWorker.js`;
     };
-    
+
     import("./browser")
       .then(({ worker }) =>
         worker.start({
