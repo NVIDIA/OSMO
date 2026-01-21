@@ -49,6 +49,11 @@ export interface LogListProps {
   isTailing?: boolean;
   /** Callback when user scrolls away from bottom (disables tailing) */
   onScrollAwayFromBottom?: () => void;
+  /**
+   * Whether the displayed data is stale (background refetch in progress).
+   * When true, applies subtle visual feedback without blocking interaction.
+   */
+  isStale?: boolean;
 }
 
 // =============================================================================
@@ -98,6 +103,7 @@ function LogListInner({
   onCopyLink,
   isTailing = false,
   onScrollAwayFromBottom,
+  isStale = false,
 }: LogListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -210,8 +216,18 @@ function LogListInner({
       role="log"
       aria-live="polite"
       aria-label="Log entries"
+      aria-busy={isStale}
       data-log-scroll-container
-      className={cn("@container", "relative h-full overflow-auto", "overscroll-contain", className)}
+      data-stale={isStale || undefined}
+      className={cn(
+        "@container",
+        "relative h-full overflow-auto",
+        "overscroll-contain",
+        // Smooth opacity transition for stale state (GPU-accelerated)
+        "transition-opacity duration-150 ease-out",
+        isStale && "opacity-70",
+        className,
+      )}
       style={{
         contain: "size layout style",
         // GPU layer promotion for smoother scrolling
