@@ -180,16 +180,20 @@ const nextConfig: NextConfig = {
   // In mock mode: Keep rewrites enabled! MSW node server intercepts the proxied requests.
   // This means ALL API calls (SSR + client) go through the same MSW node handlers.
   //
-  // EXCEPTION: /api/workflow/*/logs uses a Route Handler for proper streaming.
-  // Route handlers take precedence over rewrites, so no exclusion needed.
+  // EXCEPTIONS:
+  // - /api/health: Next.js route handler for Kubernetes health checks (must not be proxied)
+  //   Route handlers should take precedence over beforeFiles rewrites, but to be safe,
+  //   we use afterFiles instead of beforeFiles so route handlers are checked first
+  // - /api/workflow/*/logs: Route Handler for proper streaming
+  //   Route handlers take precedence over rewrites
   async rewrites() {
     return {
-      beforeFiles: [
+      // Use afterFiles instead of beforeFiles so route handlers (like /api/health) are checked first
+      // This ensures /api/health route handler works correctly
+      afterFiles: [
         {
           source: "/api/:path*",
           destination: `${API_URL}/api/:path*`,
-          // Route handlers (like /api/workflow/[name]/logs/route.ts) take precedence
-          // over rewrites, so streaming logs work properly without exclusion
         },
       ],
     };
