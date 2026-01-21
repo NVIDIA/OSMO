@@ -6,7 +6,7 @@
  */
 
 import { getAuthToken, refreshToken, isTokenExpiringSoon } from "@/lib/auth";
-import { TOKEN_REFRESH_THRESHOLD_SECONDS } from "@/lib/config";
+import { TOKEN_REFRESH_THRESHOLD_SECONDS, getBasePathUrl } from "@/lib/config";
 import { Headers as AuthHeaders } from "./headers";
 
 interface RequestConfig {
@@ -94,7 +94,10 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
   const { url, method, headers, data, params, signal } = config;
 
   // Build URL with query params (always relative - routing layer handles backend)
-  let fullUrl = url;
+  // Prepend basePath to ensure basePath-aware URLs
+  // Note: Next.js rewrites handle /api/* routes before basePath is applied,
+  // but being explicit here makes the code more maintainable and basePath-agnostic
+  let fullUrl = getBasePathUrl(url);
   if (params) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -172,15 +175,35 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     throw createApiError(`Authentication required (${response.status})`, response.status, false);
   }
 
+  // Helper to safely parse error response (may be HTML for 404s, etc.)
+  const parseErrorResponse = async (response: Response): Promise<{ message?: string; detail?: string }> => {
+    try {
+      const text = await response.text();
+      if (!text) {
+        return { message: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      
+      // Try to parse as JSON, fallback to text if it's not valid JSON
+      try {
+        return JSON.parse(text);
+      } catch {
+        // Not JSON (likely HTML error page), return generic error
+        return { message: `HTTP ${response.status}: ${response.statusText}` };
+      }
+    } catch {
+      return { message: `HTTP ${response.status}: ${response.statusText}` };
+    }
+  };
+
   // Handle other client errors (4xx) - NOT retryable
   if (response.status >= 400 && response.status < 500) {
-    const error = await response.json().catch(() => ({ message: "Request failed" }));
+    const error = await parseErrorResponse(response);
     throw createApiError(error.message || error.detail || `HTTP ${response.status}`, response.status, false);
   }
 
   // Handle server errors (5xx) - retryable
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Server error" }));
+    const error = await parseErrorResponse(response);
     throw createApiError(error.message || error.detail || `HTTP ${response.status}`, response.status, true);
   }
 

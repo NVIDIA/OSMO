@@ -37,6 +37,10 @@ export async function getLoginInfo(): Promise<LoginInfo> {
     const res = await fetch(`${backendUrl}/api/auth/login`, {
       cache: "no-store",
     });
+    if (!res.ok) {
+      logWarn(`Backend auth endpoint unavailable: ${res.status} ${res.statusText}`);
+      return AUTH_DISABLED;
+    }
     const loginInfo = (await res.json()) as LoginInfo;
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
     return loginInfo;

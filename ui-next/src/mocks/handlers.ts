@@ -51,10 +51,12 @@ const MOCK_DELAY = getMockDelay();
 // Using RegExp ensures we match both:
 //   - Relative paths: /api/workflow/test/logs
 //   - Absolute URLs: https://any-host.com/api/workflow/test/logs
+//   - BasePath-prefixed paths: /v2/api/workflow/test/logs
 //
 // Pattern format: matches anything ending with /api/workflow/{name}/logs
-const WORKFLOW_LOGS_PATTERN = /\/api\/workflow\/([^/]+)\/logs$/;
-const TASK_LOGS_PATTERN = /\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
+// The `.*` prefix ensures basePath-agnostic matching (works with /v2, /v3, etc.)
+const WORKFLOW_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/logs$/;
+const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
 
 // ============================================================================
 // Handlers
@@ -122,7 +124,8 @@ export const handlers = [
 
   // Get single workflow
   // Returns WorkflowQueryResponse format
-  http.get("/api/workflow/:name", async ({ params }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/workflow/:name", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
@@ -373,7 +376,8 @@ export const handlers = [
   // Streaming is handled via the regular /logs endpoint with Transfer-Encoding: chunked
 
   // Workflow events
-  http.get("/api/workflow/:name/events", async ({ params }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/workflow/:name/events", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
@@ -391,7 +395,8 @@ export const handlers = [
   }),
 
   // Workflow spec
-  http.get("/api/workflow/:name/spec", async ({ params }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/workflow/:name/spec", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
@@ -429,7 +434,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
   // Get task details
   // SINGLE SOURCE OF TRUTH: Task data comes from the workflow, not a separate generator
-  http.get("/api/workflow/:name/task/:taskName", async ({ params }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/workflow/:name/task/:taskName", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
@@ -607,7 +613,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
   // Create exec session - returns RouterResponse format
   // Query params: ?scenario=training|fast-output|nvidia-smi|colors|top|disconnect|normal
-  http.post("/api/workflow/:name/exec/task/:taskName", async ({ params, request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.post("*/api/workflow/:name/exec/task/:taskName", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
@@ -697,7 +704,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
   // Get pool quotas (main endpoint for pools)
   // Returns PoolResponse: { node_sets: [{ pools: PoolResourceUsage[] }], resource_sum }
-  http.get("/api/pool_quota", async ({ request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/pool_quota", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -752,7 +760,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // ==========================================================================
 
   // List all resources
-  http.get("/api/resources", async ({ request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/resources", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -812,7 +821,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   }),
 
   // Query bucket contents - matches /api/bucket/${bucket}/query
-  http.get("/api/bucket/:bucket/query", async ({ params, request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/bucket/:bucket/query", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const bucketName = params.bucket as string;
@@ -838,7 +848,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // ==========================================================================
 
   // List datasets
-  http.get("/api/bucket/list_dataset", async ({ request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/bucket/list_dataset", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -853,7 +864,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   }),
 
   // Get dataset info
-  http.get("/api/bucket/:bucket/dataset/:name/info", async ({ params }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/bucket/:bucket/dataset/:name/info", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
@@ -890,7 +902,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   }),
 
   // Update profile settings (POST, not PUT - matching backend)
-  http.post("/api/profile/settings", async ({ request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.post("*/api/profile/settings", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const body = (await request.json()) as Record<string, unknown>;
@@ -905,6 +918,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Backend auth endpoint - returns login configuration
   // Called directly by getLoginInfo() in lib/auth/login-info.ts
   // Uses wildcard to match both relative and absolute URLs (for server-side requests)
+  // Wildcard pattern (*) ensures basePath-agnostic matching (works with /v2, /v3, etc.)
   http.get("*/api/auth/login", async () => {
     await delay(MOCK_DELAY);
 
@@ -921,7 +935,10 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   }),
 
   // Next.js API routes for auth (these intercept client requests before they reach the server)
-  http.get("/auth/login_info", async () => {
+  // Uses wildcard to match both relative and absolute URLs (for server-side proxy requests)
+  // Wildcard pattern (*) ensures basePath-agnostic matching (works with /v2, /v3, etc.)
+  // Matches: /auth/login_info, /v2/auth/login_info, https://example.com/v2/auth/login_info
+  http.get("*/auth/login_info", async () => {
     await delay(MOCK_DELAY);
 
     return HttpResponse.json({
@@ -935,7 +952,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  http.get("/auth/refresh_token", async () => {
+  // Uses wildcard to match both relative and absolute URLs
+  http.get("*/auth/refresh_token", async () => {
     await delay(MOCK_DELAY);
 
     return HttpResponse.json({
@@ -945,7 +963,9 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  http.get("/auth/logout", async () => {
+  // Uses wildcard to match both relative and absolute URLs
+  // Wildcard pattern (*) ensures basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/auth/logout", async () => {
     await delay(MOCK_DELAY);
 
     return HttpResponse.json({

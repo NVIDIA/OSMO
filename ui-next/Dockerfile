@@ -79,6 +79,17 @@ RUN --mount=type=cache,target=/app/.next/cache \
     pnpm build
 
 # =============================================================================
+# Stage 2.5: Prepare cache directory (has shell for mkdir/chown)
+# =============================================================================
+FROM node:22-slim AS cache-prep
+
+# Create cache directory with correct ownership
+# Using UID 1000 to match Kubernetes deployment's runAsUser setting
+RUN mkdir -p /cache && \
+    touch /cache/.gitkeep && \
+    chown -R 1000:1000 /cache
+
+# =============================================================================
 # Stage 3: Production image (same base as legacy UI)
 # =============================================================================
 # Uses same NVIDIA distroless image as legacy UI (see external/MODULE.bazel:295-303)
@@ -91,10 +102,9 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Create cache directory for cacheComponents (Partial Prerendering)
+# Copy cache directory from cache-prep stage (with correct permissions)
 # Must be done before switching to nonroot user to ensure proper permissions
-# Using UID 1000 to match Kubernetes deployment's runAsUser setting
-RUN mkdir -p /app/.next/cache && chown -R 1000:1000 /app/.next/cache
+COPY --from=cache-prep --chown=1000:1000 /cache ./.next/cache
 
 ENV HOSTNAME=0.0.0.0
 ENV NODE_ENV=production
