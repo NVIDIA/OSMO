@@ -32,7 +32,8 @@ export type { LogLevel };
  * Pre-computed CSS classes for level badges.
  * Computed at module load to avoid calling cn() on every row render.
  */
-const LEVEL_BADGE_BASE_CLASSES = "rounded px-1.5 py-0.5 text-xs font-medium border";
+const LEVEL_BADGE_BASE_CLASSES =
+  "inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-medium border";
 
 const LEVEL_BADGE_CLASSES: ReadonlyMap<LogLevel | undefined, string> = new Map([
   ...LOG_LEVELS.map((level) => {
