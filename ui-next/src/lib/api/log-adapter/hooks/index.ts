@@ -21,25 +21,12 @@
  */
 
 // Adapter hook
-export { useLogAdapter, useLogAdapterCapabilities, LogAdapterProvider } from "./use-log-adapter";
-export type { LogAdapterProviderProps } from "./use-log-adapter";
+export { useLogAdapter } from "./use-log-adapter";
 
-// Unified data hook (preferred)
+// Unified data hook (fetches entries + histogram + facets in one call)
 export { useLogData } from "./use-log-data";
 export type { UseLogDataParams, UseLogDataReturn } from "./use-log-data";
 
-// Query hook (deprecated - use useLogData instead)
-export { useLogQuery } from "./use-log-query";
-export type { UseLogQueryParams, UseLogQueryReturn } from "./use-log-query";
-
-// Histogram hook
-export { useLogHistogram } from "./use-log-histogram";
-export type { UseLogHistogramParams, UseLogHistogramReturn } from "./use-log-histogram";
-
-// Facets hook
-export { useLogFacets } from "./use-log-facets";
-export type { UseLogFacetsParams, UseLogFacetsReturn } from "./use-log-facets";
-
-// Tail hook
+// Tail hook (streaming)
 export { useLogTail } from "./use-log-tail";
 export type { UseLogTailParams, UseLogTailReturn } from "./use-log-tail";
