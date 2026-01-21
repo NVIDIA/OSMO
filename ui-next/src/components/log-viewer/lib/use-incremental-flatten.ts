@@ -14,7 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import { useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import type { LogEntry } from "@/lib/api/log-adapter";
 
 // =============================================================================
@@ -67,123 +67,75 @@ export function getDateKey(date: Date): string {
 }
 
 // =============================================================================
-// Cache Structure
+// Incremental Flatten Hook
 // =============================================================================
 
-interface FlattenCache {
-  /** Flattened items array - mutated in place for appends */
-  items: VirtualItem[];
-  /** Separator metadata array - mutated in place for appends */
-  separators: SeparatorInfo[];
-  /** Last date key processed (for detecting day boundaries) */
-  lastDateKey: string | null;
-  /** Number of entries processed so far */
-  processedCount: number;
-  /** First entry ID (for detecting array replacement) */
-  firstEntryId: string | null;
-  /** Version counter to force React updates */
-  version: number;
-  /** Counter that increments only on full reset (not appends) */
+/** State for tracking previous entries to detect resets vs appends */
+interface PrevEntriesState {
+  firstEntryId: string | undefined;
+  length: number;
   resetCount: number;
 }
 
 /**
- * Create an empty cache.
- */
-function createEmptyCache(): FlattenCache {
-  return {
-    items: [],
-    separators: [],
-    lastDateKey: null,
-    processedCount: 0,
-    firstEntryId: null,
-    version: 0,
-    resetCount: 0,
-  };
-}
-
-// =============================================================================
-// Incremental Flatten Hook
-// =============================================================================
-
-/**
- * Hook that incrementally flattens log entries with date separators.
+ * Hook that flattens log entries with date separators.
  *
- * For streaming scenarios, this provides O(k) performance where k = new entries,
- * instead of O(n) full recomputation on every update.
+ * The hook detects reset scenarios (when the first entry changes) and
+ * increments resetCount accordingly. This helps consumers know when
+ * to invalidate caches like virtualizer measurements.
  *
- * The hook detects three scenarios:
- * 1. **Append** (streaming): entries.length > cache.processedCount and first entry matches
- *    → Only processes new entries (constant time per new entry)
- * 2. **Reset**: entries.length < cache.processedCount or first entry changed
- *    → Full recomputation
- * 3. **No change**: entries.length === cache.processedCount
- *    → Returns cached result
- *
- * @param entries - Log entries array (may be mutated in place for streaming)
+ * @param entries - Log entries array
  * @returns Flattened items and separator metadata
  */
 export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
-  const cacheRef = useRef<FlattenCache>(createEmptyCache());
+  // Track previous entries state to detect resets
+  const [prevState, setPrevState] = useState<PrevEntriesState>({
+    firstEntryId: undefined,
+    length: 0,
+    resetCount: 0,
+  });
 
-  // Extract dependencies outside useMemo to satisfy exhaustive-deps rule
-  // These values determine when we need to recompute:
-  // - entriesLength: detects appends and resets
-  // - firstEntryId: detects array replacement (new query results)
+  // Extract current state
   const entriesLength = entries.length;
   const firstEntryId = entries[0]?.id;
 
+  // Detect if this is a reset (first entry changed) vs append or no-change
+  // Use the "updating state during render" pattern recommended by React
+  let resetCount = prevState.resetCount;
+  if (firstEntryId !== prevState.firstEntryId && prevState.length > 0 && entriesLength > 0) {
+    // First entry changed and we had previous entries - this is a reset
+    resetCount = prevState.resetCount + 1;
+  } else if (entriesLength === 0 && prevState.length > 0) {
+    // Entries cleared - this is also a reset
+    resetCount = prevState.resetCount + 1;
+  }
+
+  // Update tracked state if anything changed
+  if (
+    firstEntryId !== prevState.firstEntryId ||
+    entriesLength !== prevState.length ||
+    resetCount !== prevState.resetCount
+  ) {
+    setPrevState({
+      firstEntryId,
+      length: entriesLength,
+      resetCount,
+    });
+  }
+
+  // Compute the flattened result - pure computation based on entries
+  const flattenedResult = useMemo(() => {
+    return fullFlatten(entries);
+  }, [entries]);
+
+  // Combine with resetCount
   return useMemo(() => {
-    const cache = cacheRef.current;
-
-    // Empty entries - reset cache and return empty result
-    if (entriesLength === 0) {
-      if (cache.processedCount !== 0) {
-        cacheRef.current = createEmptyCache();
-        cacheRef.current.resetCount = cache.resetCount + 1;
-      }
-      return { items: [], separators: [], resetCount: cacheRef.current.resetCount };
-    }
-
-    const firstEntry = entries[0];
-    const isFirstEntryMatch = cache.firstEntryId === firstEntryId;
-
-    // Detect scenario
-    const isAppend = entriesLength > cache.processedCount && cache.processedCount > 0 && isFirstEntryMatch;
-
-    const isNoChange = entriesLength === cache.processedCount && isFirstEntryMatch;
-
-    // No change - return cached result with same reference
-    if (isNoChange) {
-      return { items: cache.items, separators: cache.separators, resetCount: cache.resetCount };
-    }
-
-    // Full recomputation needed (reset or first load)
-    if (!isAppend) {
-      const result = fullFlatten(entries);
-      // Increment resetCount only if this is a reset (not first load)
-      const newResetCount = cache.processedCount > 0 ? cache.resetCount + 1 : cache.resetCount;
-      cacheRef.current = {
-        items: result.items,
-        separators: result.separators,
-        lastDateKey: entriesLength > 0 ? getDateKey(entries[entriesLength - 1].timestamp) : null,
-        processedCount: entriesLength,
-        firstEntryId: firstEntry.id,
-        version: cache.version + 1,
-        resetCount: newResetCount,
-      };
-      return { ...result, resetCount: newResetCount };
-    }
-
-    // Incremental append - O(k) where k = new entries
-    appendNewEntries(cache, entries);
-    cache.processedCount = entriesLength;
-    cache.version++;
-
-    // Return same arrays (mutated in place) - React sees new result object
-    // resetCount unchanged since this is an append, not a reset
-    return { items: cache.items, separators: cache.separators, resetCount: cache.resetCount };
-  }, [entries, entriesLength, firstEntryId]);
+    return {
+      items: flattenedResult.items,
+      separators: flattenedResult.separators,
+      resetCount,
+    };
+  }, [flattenedResult, resetCount]);
 }
 
 /**
@@ -216,31 +168,4 @@ export function fullFlatten(entries: LogEntry[]): FlattenResultInternal {
   }
 
   return { items, separators };
-}
-
-/**
- * Append only new entries to the cache - O(k) for k new entries.
- * Mutates cache.items and cache.separators in place for maximum performance.
- */
-function appendNewEntries(cache: FlattenCache, entries: LogEntry[]): void {
-  const startIndex = cache.processedCount;
-  let currentDateKey = cache.lastDateKey;
-
-  for (let i = startIndex; i < entries.length; i++) {
-    const entry = entries[i];
-    const dateKey = getDateKey(entry.timestamp);
-
-    // Insert date separator when date changes
-    if (dateKey !== currentDateKey) {
-      const separatorIndex = cache.items.length;
-      const separator: SeparatorInfo = { index: separatorIndex, dateKey, date: entry.timestamp };
-      cache.separators.push(separator);
-      cache.items.push({ type: "separator", dateKey, date: entry.timestamp, index: separatorIndex });
-      currentDateKey = dateKey;
-    }
-
-    cache.items.push({ type: "entry", entry });
-  }
-
-  cache.lastDateKey = currentDateKey;
 }
