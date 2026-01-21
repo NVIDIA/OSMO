@@ -30,14 +30,16 @@ import type { FacetValue } from "@/lib/api/log-adapter";
 // =============================================================================
 
 export interface FacetDropdownProps {
+  /** Unique field identifier for this facet (used in callbacks and IDs) */
+  field: string;
   /** Label for the dropdown button */
   label: string;
   /** Available values with counts */
   values: FacetValue[];
   /** Currently selected values */
   selected: Set<string>;
-  /** Callback when selection changes */
-  onSelectionChange: (values: Set<string>) => void;
+  /** Callback when selection changes - includes field for stable callback pattern */
+  onSelectionChange: (field: string, values: Set<string>) => void;
   /** Optional formatter for display labels */
   formatLabel?: (value: string) => string;
   /** Additional CSS classes */
@@ -49,24 +51,25 @@ export interface FacetDropdownProps {
 // =============================================================================
 
 interface FacetItemProps {
-  value: string;
+  /** Unique ID for this checkbox (field-value combination) */
+  id: string;
   displayLabel: string;
   count: number;
   checked: boolean;
   onToggle: () => void;
 }
 
-function FacetItem({ value, displayLabel, count, checked, onToggle }: FacetItemProps) {
+function FacetItem({ id, displayLabel, count, checked, onToggle }: FacetItemProps) {
   return (
     <label
-      htmlFor={`facet-${value}`}
+      htmlFor={id}
       className={cn(
         "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors",
         "hover:bg-muted/50",
       )}
     >
       <Checkbox
-        id={`facet-${value}`}
+        id={id}
         checked={checked}
         onCheckedChange={onToggle}
       />
@@ -81,6 +84,7 @@ function FacetItem({ value, displayLabel, count, checked, onToggle }: FacetItemP
 // =============================================================================
 
 function FacetDropdownInner({
+  field,
   label,
   values,
   selected,
@@ -90,7 +94,7 @@ function FacetDropdownInner({
 }: FacetDropdownProps) {
   const mounted = useMounted();
 
-  // Handle toggling a value
+  // Handle toggling a value - stable callback that includes field
   const handleToggle = useCallback(
     (value: string) => {
       const newSelected = new Set(selected);
@@ -99,9 +103,9 @@ function FacetDropdownInner({
       } else {
         newSelected.add(value);
       }
-      onSelectionChange(newSelected);
+      onSelectionChange(field, newSelected);
     },
-    [selected, onSelectionChange],
+    [field, selected, onSelectionChange],
   );
 
   // Count of selected values
@@ -158,7 +162,7 @@ function FacetDropdownInner({
             values.map((item) => (
               <FacetItem
                 key={item.value}
-                value={item.value}
+                id={`facet-${field}-${item.value}`}
                 displayLabel={formatLabel ? formatLabel(item.value) : item.value}
                 count={item.count}
                 checked={selected.has(item.value)}

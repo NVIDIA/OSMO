@@ -34,14 +34,18 @@ enableMapSet();
 interface LogViewerState {
   /** Set of expanded log entry IDs */
   expandedEntryIds: Set<string>;
-  /** Whether live tailing is enabled */
-  isTailing: boolean;
+  /**
+   * Whether live mode is enabled (auto-scroll to bottom, fetch latest logs).
+   *
+   * In the upcoming time range selector, this will be true when end time = "NOW".
+   * When user scrolls away from bottom, live mode is paused.
+   * When user selects a historical time range, live mode is disabled.
+   */
+  isLiveMode: boolean;
   /** Whether to wrap long lines */
   wrapLines: boolean;
   /** Whether to show task suffix on log entries */
   showTask: boolean;
-  /** Whether the fields pane is collapsed */
-  fieldsPaneCollapsed: boolean;
 }
 
 interface LogViewerActions {
@@ -53,16 +57,14 @@ interface LogViewerActions {
   collapse: (id: string) => void;
   /** Collapse all entries */
   collapseAll: () => void;
-  /** Set tailing enabled/disabled */
-  setTailing: (enabled: boolean) => void;
-  /** Toggle tailing on/off */
-  toggleTailing: () => void;
+  /** Set live mode enabled/disabled */
+  setLiveMode: (enabled: boolean) => void;
+  /** Toggle live mode on/off */
+  toggleLiveMode: () => void;
   /** Toggle line wrapping */
   toggleWrapLines: () => void;
   /** Toggle show task suffix */
   toggleShowTask: () => void;
-  /** Toggle fields pane collapsed/expanded */
-  toggleFieldsPaneCollapsed: () => void;
   /** Reset store to initial state */
   reset: () => void;
 }
@@ -79,10 +81,9 @@ export type LogViewerStore = LogViewerState & LogViewerActions;
  */
 export const initialState: LogViewerState = {
   expandedEntryIds: new Set(),
-  isTailing: false,
+  isLiveMode: false,
   wrapLines: false,
   showTask: true,
-  fieldsPaneCollapsed: false,
 };
 
 // =============================================================================
@@ -134,22 +135,22 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "collapseAll",
         ),
 
-      setTailing: (enabled) =>
+      setLiveMode: (enabled) =>
         set(
           (state) => {
-            state.isTailing = enabled;
+            state.isLiveMode = enabled;
           },
           false,
-          "setTailing",
+          "setLiveMode",
         ),
 
-      toggleTailing: () =>
+      toggleLiveMode: () =>
         set(
           (state) => {
-            state.isTailing = !state.isTailing;
+            state.isLiveMode = !state.isLiveMode;
           },
           false,
-          "toggleTailing",
+          "toggleLiveMode",
         ),
 
       toggleWrapLines: () =>
@@ -170,23 +171,13 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "toggleShowTask",
         ),
 
-      toggleFieldsPaneCollapsed: () =>
-        set(
-          (state) => {
-            state.fieldsPaneCollapsed = !state.fieldsPaneCollapsed;
-          },
-          false,
-          "toggleFieldsPaneCollapsed",
-        ),
-
       reset: () =>
         set(
           () => ({
             expandedEntryIds: new Set(),
-            isTailing: false,
+            isLiveMode: false,
             wrapLines: false,
             showTask: true,
-            fieldsPaneCollapsed: false,
           }),
           false,
           "reset",

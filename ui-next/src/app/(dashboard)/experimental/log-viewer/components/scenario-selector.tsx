@@ -50,13 +50,13 @@ const SCENARIO_VALUES = ["normal", "error-heavy", "high-volume", "empty", "strea
  *
  * @example
  * ```tsx
- * const { scenario, devParams, tailDevParams } = useScenario();
+ * const { scenario, devParams, liveDevParams } = useScenario();
  *
  * return (
  *   <LogViewerContainer
  *     workflowId="my-workflow"
  *     devParams={devParams}
- *     tailDevParams={tailDevParams}
+ *     liveDevParams={liveDevParams}
  *   />
  * );
  * ```
@@ -76,8 +76,8 @@ export function useScenario() {
     scenario: scenario as LogScenario,
     /** Dev params for LogViewerContainer */
     devParams: { log_scenario: scenario },
-    /** Tail dev params (always streaming for mock) */
-    tailDevParams: { log_scenario: "streaming" as const },
+    /** Live mode dev params (always streaming for mock) */
+    liveDevParams: { log_scenario: "streaming" as const },
   };
 }
 
