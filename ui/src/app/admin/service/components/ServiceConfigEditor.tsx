@@ -81,7 +81,22 @@ export const serviceConfigSchema = yup.object({
       );
     })
     .defined(),
-  ctrl_roles: yup.string().trim().default("").defined(),
+  ctrl_roles: yup
+    .string()
+    .trim()
+    .required("Control Roles is required")
+    .test("roles-not-empty", "Control Roles must include at least one role", (value) => {
+      if (!value) {
+        return false;
+      }
+      return (
+        value
+          .split(",")
+          .map((role) => role.trim())
+          .filter(Boolean).length > 0
+      );
+    })
+    .defined(),
   device_client_id: yup.string().trim().required("Device Client ID is required").defined(),
   browser_client_id: yup.string().trim().required("Browser Client ID is required").defined(),
   device_endpoint: yup
@@ -114,7 +129,7 @@ type ServiceConfigFormValues = yup.InferType<typeof serviceConfigSchema>;
 
 export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceConfigEditorProps) => {
   const [isComparing, setIsComparing] = useState(false);
-  const [currentConfig, setCurrentConfig] = useState<ServiceConfig>(serviceConfig);
+  const [updatedConfig, setUpdatedConfig] = useState<ServiceConfig>(serviceConfig);
 
   const defaultValues = useMemo<ServiceConfigFormValues>(
     () => ({
@@ -153,17 +168,12 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
 
   useEffect(() => {
     reset(defaultValues);
-    setCurrentConfig(serviceConfig);
+    setUpdatedConfig(serviceConfig);
     setIsComparing(false);
   }, [defaultValues, reset, serviceConfig]);
 
   const onSubmit = (values: ServiceConfigFormValues) => {
-    if (isComparing) {
-      onSave(values.changeDescription, values.tags, currentConfig);
-      return;
-    }
-
-    setCurrentConfig({
+    const updatedConfig = {
       service_base_url: values.service_base_url,
       max_pod_restart_limit: values.max_pod_restart_limit,
       agent_queue_size: parseInt(values.agent_queue_size, 10),
@@ -193,8 +203,15 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           logout_endpoint: values.logout_endpoint,
         },
       },
-    });
-    setIsComparing(true);
+    };
+
+    setUpdatedConfig(updatedConfig);
+
+    if (isComparing) {
+      onSave(values.changeDescription, values.tags, updatedConfig);
+    } else {
+      setIsComparing(true);
+    }
   };
 
   const focusFirstError = () => {
@@ -265,16 +282,16 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           <div className="flex flex-col gap-global card h-full">
             <h3 className="body-header p-global">Current Version</h3>
             <ServiceConfigOverview
-              serviceConfig={currentConfig}
-              previousConfig={serviceConfig}
+              serviceConfig={serviceConfig}
+              previousConfig={updatedConfig}
               isShowingJSON={false}
             />
           </div>
           <div className="flex flex-col gap-global card h-full">
-            <h3 className="body-header p-global">New Version</h3>
+            <h3 className="body-header p-global">Updated Version</h3>
             <ServiceConfigOverview
-              serviceConfig={serviceConfig}
-              previousConfig={currentConfig}
+              serviceConfig={updatedConfig}
+              previousConfig={serviceConfig}
               isShowingJSON={false}
             />
           </div>
@@ -443,14 +460,16 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
               name="ctrl_roles"
               control={control}
               render={({ field }) => (
-                <TextInput
-                  id="ctrl_roles"
-                  label="Ctrl Roles"
-                  value={field.value}
-                  onChange={field.onChange}
-                  ref={field.ref}
-                  helperText="Comma-separated list of roles"
-                  errorText={errors.ctrl_roles?.message}
+                <RoleEditor
+                  label="Control Roles"
+                  entityLabel="Role"
+                  roles={field.value
+                    .split(",")
+                    .map((role) => role.trim())
+                    .filter(Boolean)}
+                  setRoles={(roles) => field.onChange(roles.join(", "))}
+                  message={errors.ctrl_roles?.message ?? null}
+                  isError={Boolean(errors.ctrl_roles)}
                 />
               )}
             />
@@ -550,7 +569,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
             className="btn btn-secondary"
             onClick={() => {
               reset(defaultValues);
-              setCurrentConfig(serviceConfig);
+              setUpdatedConfig(serviceConfig);
             }}
           >
             Reset
