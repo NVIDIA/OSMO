@@ -158,6 +158,8 @@ function LogViewerContainerInner({
     devParams: stableDevParams,
     // Pass filter params
     levels: queryFilters.levels,
+    tasks: queryFilters.tasks,
+    retries: queryFilters.retries,
     sources: queryFilters.sources,
     search: queryFilters.search,
   });

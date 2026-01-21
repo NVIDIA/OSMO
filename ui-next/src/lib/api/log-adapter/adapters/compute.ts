@@ -53,6 +53,8 @@ export interface FilterParams {
   levels?: LogLevel[];
   /** Filter by task names (OR - entry matches if task is in list) */
   tasks?: string[];
+  /** Filter by retry attempts (OR - entry matches if retry is in list) */
+  retries?: string[];
   /** Filter by source types (OR - entry matches if source is in list) */
   sources?: LogSourceType[];
   /** Text search (case-insensitive substring match) */
@@ -84,6 +86,7 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
   if (
     !params.levels?.length &&
     !params.tasks?.length &&
+    !params.retries?.length &&
     !params.sources?.length &&
     !params.search &&
     !params.start &&
@@ -102,6 +105,7 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
   // Convert arrays to Sets for O(1) lookup
   const levelSet = params.levels?.length ? new Set(params.levels) : null;
   const taskSet = params.tasks?.length ? new Set(params.tasks) : null;
+  const retrySet = params.retries?.length ? new Set(params.retries) : null;
   const sourceSet = params.sources?.length ? new Set(params.sources) : null;
 
   return entries.filter((entry) => {
@@ -114,6 +118,11 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
     // Task filter
     if (taskSet) {
       if (!entry.labels.task || !taskSet.has(entry.labels.task)) return false;
+    }
+
+    // Retry filter
+    if (retrySet) {
+      if (!entry.labels.retry || !retrySet.has(entry.labels.retry)) return false;
     }
 
     // Source filter
