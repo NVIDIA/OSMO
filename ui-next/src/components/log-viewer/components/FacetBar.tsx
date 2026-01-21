@@ -16,7 +16,7 @@
 
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
+import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldFacet, LogLevel, LogSourceType } from "@/lib/api/log-adapter";
 import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
@@ -87,14 +87,6 @@ function FacetBarInner({ facets, selectedFilters, onFilterChange, className }: F
     return formatters;
   }, [facets]);
 
-  // Handle filter change for a specific field
-  const handleFilterChange = useCallback(
-    (field: string) => (values: Set<string>) => {
-      onFilterChange(field, values);
-    },
-    [onFilterChange],
-  );
-
   // Don't render anything if there are no facets
   if (facets.length === 0) {
     return null;
@@ -105,10 +97,11 @@ function FacetBarInner({ facets, selectedFilters, onFilterChange, className }: F
       {facets.map((facet) => (
         <FacetDropdown
           key={facet.field}
+          field={facet.field}
           label={getFieldLabel(facet.field)}
           values={facet.values}
           selected={selectedFilters.get(facet.field) ?? new Set()}
-          onSelectionChange={handleFilterChange(facet.field)}
+          onSelectionChange={onFilterChange}
           formatLabel={fieldFormatters.get(facet.field)}
         />
       ))}
