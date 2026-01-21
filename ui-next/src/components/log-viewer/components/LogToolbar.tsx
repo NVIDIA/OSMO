@@ -56,7 +56,7 @@ export interface LogToolbarProps {
 
 /**
  * Visual indicator for tail connection status.
- * Shows: Live (green), Connecting (amber), Paused (blue), Error (red).
+ * Shows: Live (green), Connecting (amber), Error (red).
  */
 function TailStatusIndicator({ status }: { status?: TailStatus }) {
   if (!status || status === "disconnected") return null;
@@ -70,11 +70,6 @@ function TailStatusIndicator({ status }: { status?: TailStatus }) {
     connecting: {
       label: "Connecting",
       className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-      pulse: false,
-    },
-    paused: {
-      label: "Paused",
-      className: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
       pulse: false,
     },
     error: {

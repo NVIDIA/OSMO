@@ -68,7 +68,6 @@ export type {
   // Tail types
   TailStatus,
   TailCallbacks,
-  TailSession,
 } from "./types";
 
 // =============================================================================

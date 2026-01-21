@@ -40,8 +40,6 @@ interface LogViewerState {
   wrapLines: boolean;
   /** Whether to show task suffix on log entries */
   showTask: boolean;
-  /** Currently focused entry ID (for keyboard navigation) */
-  focusedEntryId: string | null;
   /** Whether the fields pane is collapsed */
   fieldsPaneCollapsed: boolean;
 }
@@ -84,7 +82,6 @@ export const initialState: LogViewerState = {
   isTailing: false,
   wrapLines: false,
   showTask: true,
-  focusedEntryId: null,
   fieldsPaneCollapsed: false,
 };
 
@@ -189,7 +186,6 @@ export const useLogViewerStore = create<LogViewerStore>()(
             isTailing: false,
             wrapLines: false,
             showTask: true,
-            focusedEntryId: null,
             fieldsPaneCollapsed: false,
           }),
           false,
