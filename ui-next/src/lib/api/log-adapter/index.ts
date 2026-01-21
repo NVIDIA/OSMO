@@ -54,6 +54,8 @@ export type {
   LogQuery,
   LogQueryResult,
   LogQueryStats,
+  // Unified result type
+  LogDataResult,
   // Histogram types
   HistogramBucket,
   HistogramResult,
@@ -111,14 +113,16 @@ export {
   parseLogBatch,
   stripAnsi,
   formatLogLine,
-  // Index class
-  LogIndex,
+  // Compute functions (stateless, SSR-compatible)
+  filterEntries,
+  computeHistogram,
+  computeFacets,
   // Plain Text Adapter
   PlainTextAdapter,
   createPlainTextAdapter,
 } from "./adapters";
 
-export type { LogIndexFilterOptions, PlainTextAdapterConfig } from "./adapters";
+export type { FilterParams, PlainTextAdapterConfig, QueryAllParams } from "./adapters";
 
 // =============================================================================
 // Hooks (client-side only)
@@ -129,15 +133,26 @@ export {
   useLogAdapter,
   useLogAdapterCapabilities,
   LogAdapterProvider,
-  // Data hooks
+  // Unified data hook (preferred)
+  useLogData,
+  // Legacy hooks (deprecated - use useLogData instead)
   useLogQuery,
   useLogHistogram,
   useLogFacets,
+  // Tail hook (still needed for streaming)
   useLogTail,
 } from "./hooks";
 
+// Query key factory (can be used in both server and client)
+export { createLogDataQueryKey } from "./query-keys";
+export type { LogDataQueryKeyParams } from "./query-keys";
+
 export type {
   LogAdapterProviderProps,
+  // Unified hook types
+  UseLogDataParams,
+  UseLogDataReturn,
+  // Legacy hook types
   UseLogQueryParams,
   UseLogQueryReturn,
   UseLogHistogramParams,

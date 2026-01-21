@@ -201,11 +201,11 @@ export function useLogQuery(params: UseLogQueryParams): UseLogQueryReturn {
   }, [query]);
 
   // Invalidate cache and refetch
+  // Note: Adapter is now stateless, so we only need to invalidate React Query cache
   const invalidate = useCallback(() => {
-    adapter.invalidateCache(params.workflowId);
     queryClient.invalidateQueries({ queryKey: ["logs", params.workflowId] });
     refetch();
-  }, [adapter, params.workflowId, queryClient, refetch]);
+  }, [params.workflowId, queryClient, refetch]);
 
   return {
     entries: allEntries,

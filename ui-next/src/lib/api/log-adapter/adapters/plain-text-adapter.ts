@@ -15,25 +15,33 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * Plain Text Log Adapter
+ * Plain Text Log Adapter (Stateless)
  *
  * Implements the LogAdapter interface for the current OSMO backend that
- * returns plain text logs. Provides client-side filtering, histogram
- * computation, and facet extraction.
+ * returns plain text logs. This adapter is stateless - all caching is
+ * handled by React Query at the hook level.
  *
  * This adapter:
  * - Fetches plain text logs from /api/workflow/{name}/logs
  * - Parses logs using log-parser
- * - Indexes and filters using log-index
- * - Computes histograms and facets client-side
+ * - Filters and computes derived data using pure functions
  *
- * Future Loki adapter will replace this with server-side operations.
+ * Future Loki adapter will perform these operations server-side.
  */
 
-import type { LogAdapter, LogQuery, LogQueryResult, HistogramResult, FieldFacet, AdapterCapabilities } from "../types";
-import { PLAIN_TEXT_ADAPTER_CAPABILITIES, LOG_QUERY_DEFAULTS } from "../constants";
+import type {
+  LogAdapter,
+  LogQuery,
+  LogQueryResult,
+  LogDataResult,
+  HistogramResult,
+  FieldFacet,
+  AdapterCapabilities,
+  LogEntry,
+} from "../types";
+import { PLAIN_TEXT_ADAPTER_CAPABILITIES, LOG_QUERY_DEFAULTS, FACETABLE_FIELDS } from "../constants";
 import { parseLogBatch } from "./log-parser";
-import { LogIndex, type LogIndexFilterOptions } from "./log-index";
+import { filterEntries, computeHistogram, computeFacets, type FilterParams } from "./compute";
 
 // =============================================================================
 // Types
@@ -52,17 +60,29 @@ export interface PlainTextAdapterConfig {
 }
 
 /**
- * Cache entry for loaded logs.
+ * Parameters for the unified queryAll method.
  */
-interface LogCache {
-  /** Full cache key (workflowId + devParams) */
-  cacheKey: string;
-  /** Log index with all entries */
-  index: LogIndex;
-  /** When the cache was last updated */
-  lastUpdated: Date;
-  /** Whether the workflow is still running (logs may update) */
-  isStreaming: boolean;
+export interface QueryAllParams {
+  /** Workflow ID to fetch logs for */
+  workflowId: string;
+  /** Filter by log levels */
+  levels?: FilterParams["levels"];
+  /** Filter by task names */
+  tasks?: FilterParams["tasks"];
+  /** Filter by source types */
+  sources?: FilterParams["sources"];
+  /** Text search query */
+  search?: string;
+  /** Use regex for search */
+  searchRegex?: boolean;
+  /** Start of time range */
+  start?: Date;
+  /** End of time range */
+  end?: Date;
+  /** Number of histogram buckets */
+  histogramBuckets?: number;
+  /** Fields to compute facets for */
+  facetFields?: string[];
 }
 
 // =============================================================================
@@ -70,19 +90,18 @@ interface LogCache {
 // =============================================================================
 
 /**
- * Adapter for plain text logs from the current OSMO backend.
+ * Stateless adapter for plain text logs from the current OSMO backend.
  *
- * Features:
- * - Lazy loading: logs are fetched on first query
- * - Client-side filtering using LogIndex
- * - Cursor-based pagination with stable ordering
- * - Cache invalidation for streaming workflows
+ * This adapter fetches and processes logs on every call. Caching is handled
+ * externally by React Query, enabling:
+ * - SSR via HydrationBoundary
+ * - Automatic cache invalidation
+ * - Single source of truth
  */
 export class PlainTextAdapter implements LogAdapter {
   readonly capabilities: AdapterCapabilities;
 
   private config: Required<PlainTextAdapterConfig>;
-  private cache = new Map<string, LogCache>();
 
   /**
    * Creates a new PlainTextAdapter.
@@ -99,44 +118,104 @@ export class PlainTextAdapter implements LogAdapter {
   }
 
   // ===========================================================================
-  // LogAdapter Interface
+  // Unified Query Method (New - Preferred)
+  // ===========================================================================
+
+  /**
+   * Fetches and returns all log data in a single call.
+   *
+   * This is the preferred method for the new useLogData() hook.
+   * Returns entries, histogram, and facets together for efficient caching.
+   *
+   * @param params - Query parameters
+   * @returns Promise resolving to unified log data result
+   */
+  async queryAll(params: QueryAllParams): Promise<LogDataResult> {
+    // Fetch and parse logs
+    const logText = await this.fetchLogs(params.workflowId);
+    const allEntries = parseLogBatch(logText, params.workflowId);
+
+    // Build filter params
+    const filterParams: FilterParams = {
+      levels: params.levels,
+      tasks: params.tasks,
+      sources: params.sources,
+      search: params.search,
+      searchRegex: params.searchRegex,
+      start: params.start,
+      end: params.end,
+    };
+
+    // Filter entries
+    const filteredEntries = filterEntries(allEntries, filterParams);
+
+    // Compute histogram from ALL entries (shows full time range)
+    const histogram = computeHistogram(allEntries, params.histogramBuckets ?? LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS);
+
+    // Compute facets from ALL entries (shows all available values)
+    const facets = computeFacets(allEntries, params.facetFields ?? FACETABLE_FIELDS);
+
+    return {
+      entries: filteredEntries,
+      histogram,
+      facets,
+      stats: {
+        totalCount: allEntries.length,
+        filteredCount: filteredEntries.length,
+      },
+    };
+  }
+
+  // ===========================================================================
+  // LogAdapter Interface (Legacy - for backward compatibility)
   // ===========================================================================
 
   /**
    * Queries log entries with filtering and pagination.
    *
+   * @deprecated Use queryAll() for new code. This method is kept for
+   * backward compatibility with existing hooks during migration.
+   *
    * @param params - Query parameters
    * @returns Query results with entries and pagination info
    */
   async query(params: LogQuery): Promise<LogQueryResult> {
-    const index = await this.getOrLoadIndex(params.workflowId);
+    // Fetch and parse logs
+    const logText = await this.fetchLogs(params.workflowId);
+    const allEntries = parseLogBatch(logText, params.workflowId);
 
-    // Build filter options from query params
-    const filterOpts = this.buildFilterOptions(params);
+    // Build filter params
+    const filterParams: FilterParams = {
+      levels: params.levels,
+      tasks: params.taskName ? [params.taskName] : undefined,
+      sources: params.sources,
+      search: params.search,
+      searchRegex: params.searchMode === "regex",
+      start: params.start,
+      end: params.end,
+    };
 
-    // Get filtered entries
-    const allFiltered = index.filter(filterOpts);
+    // Filter entries
+    const filteredEntries = filterEntries(allEntries, filterParams);
 
     // Apply pagination
     const limit = params.limit ?? LOG_QUERY_DEFAULTS.PAGE_SIZE;
     const startIdx = params.cursor ? this.decodeCursor(params.cursor) : 0;
 
     // Handle direction
-    let entries: typeof allFiltered;
+    let entries: LogEntry[];
     let nextCursor: string | undefined;
     let hasMore: boolean;
 
     if (params.direction === "backward") {
-      // Backward: return entries before cursor, newest first
-      const endIdx = params.cursor ? startIdx : allFiltered.length;
+      const endIdx = params.cursor ? startIdx : filteredEntries.length;
       const beginIdx = Math.max(0, endIdx - limit);
-      entries = allFiltered.slice(beginIdx, endIdx).reverse();
+      entries = filteredEntries.slice(beginIdx, endIdx).reverse();
       hasMore = beginIdx > 0;
       nextCursor = hasMore ? this.encodeCursor(beginIdx) : undefined;
     } else {
-      // Forward (default): return entries after cursor, oldest first
-      entries = allFiltered.slice(startIdx, startIdx + limit);
-      hasMore = startIdx + limit < allFiltered.length;
+      entries = filteredEntries.slice(startIdx, startIdx + limit);
+      hasMore = startIdx + limit < filteredEntries.length;
       nextCursor = hasMore ? this.encodeCursor(startIdx + limit) : undefined;
     }
 
@@ -145,7 +224,7 @@ export class PlainTextAdapter implements LogAdapter {
       nextCursor,
       hasMore,
       stats: {
-        queryTimeMs: 0, // Could measure actual time if needed
+        queryTimeMs: 0,
         scannedBytes: undefined,
       },
     };
@@ -153,7 +232,8 @@ export class PlainTextAdapter implements LogAdapter {
 
   /**
    * Gets histogram data for timeline visualization.
-   * Computed client-side from the log index.
+   *
+   * @deprecated Use queryAll() for new code.
    *
    * @param params - Query parameters (excluding pagination)
    * @param numBuckets - Number of histogram buckets
@@ -163,119 +243,29 @@ export class PlainTextAdapter implements LogAdapter {
     params: Omit<LogQuery, "cursor" | "limit">,
     numBuckets: number = LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS,
   ): Promise<HistogramResult> {
-    const index = await this.getOrLoadIndex(params.workflowId);
-
-    // For filtered histograms, we'd need to build a filtered index
-    // For now, return the full histogram
-    // TODO: Support filtered histograms if needed
-    return index.getHistogram(numBuckets);
+    const logText = await this.fetchLogs(params.workflowId);
+    const allEntries = parseLogBatch(logText, params.workflowId);
+    return computeHistogram(allEntries, numBuckets);
   }
 
   /**
    * Gets facet data for the Fields pane.
-   * Computed client-side from the log index.
+   *
+   * @deprecated Use queryAll() for new code.
    *
    * @param params - Query parameters (excluding pagination)
    * @param fields - Fields to compute facets for
    * @returns Field facets
    */
   async facets(params: Omit<LogQuery, "cursor" | "limit">, fields: string[]): Promise<FieldFacet[]> {
-    const index = await this.getOrLoadIndex(params.workflowId);
-
-    // TODO: Support filtered facets if needed
-    return index.getFacets(fields);
-  }
-
-  // ===========================================================================
-  // Cache Management
-  // ===========================================================================
-
-  /**
-   * Invalidates the cache for a workflow (with current devParams).
-   * Call this when new logs are expected (e.g., streaming workflow).
-   *
-   * @param workflowId - Workflow ID to invalidate
-   */
-  invalidateCache(workflowId: string): void {
-    const cacheKey = this.createCacheKey(workflowId);
-    this.cache.delete(cacheKey);
-  }
-
-  /**
-   * Invalidates ALL cache entries for a workflow (all scenarios).
-   * Use when you want to clear all cached data for a workflow.
-   *
-   * @param workflowId - Workflow ID prefix to invalidate
-   */
-  invalidateAllForWorkflow(workflowId: string): void {
-    for (const key of this.cache.keys()) {
-      if (key === workflowId || key.startsWith(`${workflowId}?`)) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  /**
-   * Clears all cached data.
-   */
-  clearCache(): void {
-    this.cache.clear();
-  }
-
-  /**
-   * Checks if a workflow's logs are cached (with current devParams).
-   *
-   * @param workflowId - Workflow ID to check
-   */
-  isCached(workflowId: string): boolean {
-    const cacheKey = this.createCacheKey(workflowId);
-    return this.cache.has(cacheKey);
+    const logText = await this.fetchLogs(params.workflowId);
+    const allEntries = parseLogBatch(logText, params.workflowId);
+    return computeFacets(allEntries, fields);
   }
 
   // ===========================================================================
   // Private Methods
   // ===========================================================================
-
-  /**
-   * Creates a cache key that includes both workflowId and devParams.
-   * This ensures different scenarios get different cache entries.
-   */
-  private createCacheKey(workflowId: string): string {
-    const devParamsStr = Object.entries(this.config.devParams)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join("&");
-    return devParamsStr ? `${workflowId}?${devParamsStr}` : workflowId;
-  }
-
-  /**
-   * Gets or loads the log index for a workflow.
-   * Cache key includes devParams so different scenarios are cached separately.
-   */
-  private async getOrLoadIndex(workflowId: string): Promise<LogIndex> {
-    const cacheKey = this.createCacheKey(workflowId);
-    let cached = this.cache.get(cacheKey);
-
-    if (!cached) {
-      // Load logs for the first time
-      const logText = await this.fetchLogs(workflowId);
-      const entries = parseLogBatch(logText, workflowId);
-
-      const index = new LogIndex();
-      index.addEntries(entries);
-
-      cached = {
-        cacheKey,
-        index,
-        lastUpdated: new Date(),
-        isStreaming: false, // Could be determined from workflow status
-      };
-
-      this.cache.set(cacheKey, cached);
-    }
-
-    return cached.index;
-  }
 
   /**
    * Fetches raw log text from the backend.
@@ -301,40 +291,6 @@ export class PlainTextAdapter implements LogAdapter {
     }
 
     return response.text();
-  }
-
-  /**
-   * Builds filter options from query parameters.
-   */
-  private buildFilterOptions(params: LogQuery): LogIndexFilterOptions {
-    const opts: LogIndexFilterOptions = {};
-
-    if (params.levels?.length) {
-      opts.levels = params.levels;
-    }
-
-    if (params.taskName) {
-      opts.tasks = [params.taskName];
-    }
-
-    if (params.sources?.length) {
-      opts.sources = params.sources;
-    }
-
-    if (params.search) {
-      opts.search = params.search;
-      opts.searchRegex = params.searchMode === "regex";
-    }
-
-    if (params.start) {
-      opts.start = params.start;
-    }
-
-    if (params.end) {
-      opts.end = params.end;
-    }
-
-    return opts;
   }
 
   /**
