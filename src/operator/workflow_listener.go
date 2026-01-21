@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -35,12 +36,14 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
 // WorkflowListener manages the bidirectional gRPC stream connection to the operator service
 type WorkflowListener struct {
 	args            utils.ListenerArgs
 	unackedMessages *utils.UnackMessages
+	progressWriter  *progress_check.ProgressWriter
 
 	// Connection state
 	conn   *grpc.ClientConn
@@ -56,9 +59,20 @@ type WorkflowListener struct {
 
 // NewWorkflowListener creates a new workflow listener instance
 func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
+	// Initialize progress writer
+	progressFile := filepath.Join(args.ProgressDir, "last_progress_workflow_listener")
+	progressWriter, err := progress_check.NewProgressWriter(progressFile)
+	if err != nil {
+		log.Printf("Warning: failed to create progress writer: %v", err)
+		progressWriter = nil
+	} else {
+		log.Printf("Progress writer initialized: %s", progressFile)
+	}
+
 	return &WorkflowListener{
 		args:            args,
 		unackedMessages: utils.NewUnackMessages(args.MaxUnackedMessages),
+		progressWriter:  progressWriter,
 	}
 }
 
@@ -125,6 +139,10 @@ func (wl *WorkflowListener) Run(ctx context.Context) error {
 
 // receiveMessages handles receiving ACK messages from the server
 func (wl *WorkflowListener) receiveMessages() {
+	// Rate limit progress reporting
+	lastProgressReport := time.Now()
+	progressInterval := time.Duration(wl.args.ProgressFrequencySec) * time.Second
+
 	for {
 		msg, err := wl.stream.Recv()
 		if err != nil {
@@ -145,6 +163,15 @@ func (wl *WorkflowListener) receiveMessages() {
 		// Handle ACK messages by removing from unacked queue
 		wl.unackedMessages.RemoveMessage(msg.AckUuid)
 		log.Printf("Received ACK: uuid=%s", msg.AckUuid)
+
+		// Report progress after receiving ACK (rate-limited)
+		now := time.Now()
+		if wl.progressWriter != nil && now.Sub(lastProgressReport) >= progressInterval {
+			if err := wl.progressWriter.ReportProgress(); err != nil {
+				log.Printf("Warning: failed to report progress: %v", err)
+			}
+			lastProgressReport = now
+		}
 	}
 }
 
@@ -162,6 +189,10 @@ func (wl *WorkflowListener) sendMessages() {
 		watchPod(wl.streamCtx, wl.args, podUpdateChan)
 	}()
 
+	// Ticker to report progress when idle
+	progressTicker := time.NewTicker(time.Duration(wl.args.ProgressFrequencySec) * time.Second)
+	defer progressTicker.Stop()
+
 	// Send pod updates to the server
 	for {
 		select {
@@ -174,6 +205,13 @@ func (wl *WorkflowListener) sendMessages() {
 			wl.drainChannel(podUpdateChan)
 			wl.streamCancel(fmt.Errorf("pod watcher stopped"))
 			return
+		case <-progressTicker.C:
+			// Report progress periodically even when idle
+			if wl.progressWriter != nil {
+				if err := wl.progressWriter.ReportProgress(); err != nil {
+					log.Printf("Warning: failed to report progress: %v", err)
+				}
+			}
 		case update := <-podUpdateChan:
 			if err := wl.sendPodUpdate(update); err != nil {
 				wl.streamCancel(fmt.Errorf("failed to send message: %w", err))
@@ -201,6 +239,7 @@ func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
 	if err := wl.stream.Send(msg); err != nil {
 		return err
 	}
+
 	return nil
 }
 

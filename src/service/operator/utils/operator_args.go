@@ -27,9 +27,11 @@ import (
 // OperatorArgs holds configuration for the operator service
 type OperatorArgs struct {
 	// Service configuration
-	Host            string
-	ServiceHostname string
-	LogLevel        string
+	Host                         string
+	ServiceHostname              string
+	LogLevel                     string
+	OperatorProgressDir          string
+	OperatorProgressFrequencySec int
 
 	// Redis configuration
 	RedisHost     string
@@ -57,6 +59,12 @@ func OperatorParse() OperatorArgs {
 	logLevel := flag.String("log-level",
 		"INFO",
 		"Logging level (DEBUG, INFO, WARN, ERROR)")
+	operatorProgressDir := flag.String("operator-progress-dir",
+		getEnv("OSMO_OPERATOR_PROGRESS_DIR", "/tmp/osmo/service/operator/"),
+		"The directory to write progress timestamps to (For liveness/startup probes)")
+	operatorProgressFrequencySec := flag.Int("operator-progress-frequency-sec",
+		getEnvInt("OSMO_OPERATOR_PROGRESS_FREQUENCY_SEC", 15),
+		"Progress frequency in seconds (for periodic progress reporting when idle)")
 
 	// Redis configuration
 	redisHost := flag.String("redis-host",
@@ -92,18 +100,20 @@ func OperatorParse() OperatorArgs {
 	flag.Parse()
 
 	return OperatorArgs{
-		Host:            *host,
-		ServiceHostname: *serviceHostname,
-		LogLevel:        *logLevel,
-		RedisHost:       *redisHost,
-		RedisPort:       *redisPort,
-		RedisPassword:   *redisPassword,
-		RedisDB:         *redisDB,
-		PostgresHost:    *postgresHost,
-		PostgresPort:    *postgresPort,
-		PostgresUser:    *postgresUser,
-		PostgresPass:    *postgresPass,
-		PostgresDBName:  *postgresDBName,
+		Host:                         *host,
+		ServiceHostname:              *serviceHostname,
+		LogLevel:                     *logLevel,
+		OperatorProgressDir:          *operatorProgressDir,
+		OperatorProgressFrequencySec: *operatorProgressFrequencySec,
+		RedisHost:                    *redisHost,
+		RedisPort:                    *redisPort,
+		RedisPassword:                *redisPassword,
+		RedisDB:                      *redisDB,
+		PostgresHost:                 *postgresHost,
+		PostgresPort:                 *postgresPort,
+		PostgresUser:                 *postgresUser,
+		PostgresPass:                 *postgresPass,
+		PostgresDBName:               *postgresDBName,
 	}
 }
 

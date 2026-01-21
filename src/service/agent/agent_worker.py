@@ -32,6 +32,7 @@ import src.lib.utils.logging
 from src.service.agent import helpers
 from src.utils import connectors, backend_messages, static_config
 from src.utils.metrics import metrics
+from src.utils.progress_check import progress
 
 
 # Redis Stream name for operator messages from backends
@@ -46,6 +47,19 @@ class AgentWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
                         connectors.PostgresConfig, src.lib.utils.logging.LoggingConfig,
                         metrics.MetricsCreatorConfig):
     """Configuration for the agent worker."""
+    progress_file: str = pydantic.Field(
+        command_line='progress_file',
+        env='OSMO_PROGRESS_FILE',
+        default='/tmp/osmo/service/last_progress_agent_worker',
+        description='The file to write progress timestamps to (For liveness/startup probes)')
+    progress_iter_frequency: str = pydantic.Field(
+        command_line='progress_iter_frequency',
+        env='OSMO_PROGRESS_ITER_FREQUENCY',
+        default='15s',
+        description='How often to write to progress file when processing tasks in a loop ('
+                    'e.g. write to progress every 1 minute processed, like uploaded to DB). '
+                    'Format needs to be <int><unit> where unit can be either s (seconds) and '
+                    'm (minutes).')
 
 
 class AgentWorker:
@@ -65,6 +79,9 @@ class AgentWorker:
         self.stream_name = OPERATOR_STREAM_NAME
         self.group_name = CONSUMER_GROUP_NAME
         self.consumer_name = f'worker-{socket.gethostname()}-{os.getpid()}'
+
+        # Progress writer for liveness/readiness probes
+        self._progress_writer = progress.ProgressWriter(config.progress_file)
 
         # Create consumer group if it doesn't exist
         self._ensure_consumer_group()
@@ -156,6 +173,9 @@ class AgentWorker:
                 tags={'type': message.type.value}
             )
 
+            # Report progress after successful message processing
+            self._progress_writer.report_progress()
+
         except json.JSONDecodeError as err:
             logging.error('Invalid JSON in message id=%s: %s, raw: %s',
                          message_id, str(err), message_json)
@@ -205,6 +225,10 @@ class AgentWorker:
                         message_json = message_data[b'message'].decode('utf-8')
                         self.process_message(message_id.decode('utf-8'), message_json)
 
+                # Report progress after claiming and processing abandoned messages
+                if claimed_messages:
+                    self._progress_writer.report_progress()
+
         except Exception as error:  # pylint: disable=broad-except
             logging.error('Error claiming abandoned messages: %s', error)
 
@@ -236,6 +260,8 @@ class AgentWorker:
                 )
 
                 if not messages:
+                    # Report progress even when idle to show worker is alive
+                    self._progress_writer.report_progress()
                     continue
 
                 # Process each message

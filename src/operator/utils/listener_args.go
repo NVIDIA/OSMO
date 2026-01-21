@@ -26,14 +26,16 @@ import (
 
 // ListenerArgs holds configuration for the workflow listener
 type ListenerArgs struct {
-	ServiceURL          string
-	Backend             string
-	Namespace           string
-	PodUpdateChanSize   int
-	ResyncPeriodSec     int
-	StateCacheTTLMin    int
-	MaxUnackedMessages  int
-	NodeConditionPrefix string
+	ServiceURL           string
+	Backend              string
+	Namespace            string
+	PodUpdateChanSize    int
+	ResyncPeriodSec      int
+	StateCacheTTLMin     int
+	MaxUnackedMessages   int
+	NodeConditionPrefix  string
+	ProgressDir          string
+	ProgressFrequencySec int
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -62,18 +64,26 @@ func ListenerParse() ListenerArgs {
 	nodeConditionPrefix := flag.String("nodeConditionPrefix",
 		getEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
 		"Prefix for node conditions")
+	progressDir := flag.String("progressDir",
+		getEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/operator/"),
+		"The directory to write progress timestamps to (For liveness/startup probes)")
+	progressFrequencySec := flag.Int("progressFrequencySec",
+		getEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),
+		"Progress frequency in seconds (for periodic progress reporting when idle)")
 
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL:          *serviceURL,
-		Backend:             *backend,
-		Namespace:           *namespace,
-		PodUpdateChanSize:   *podUpdateChanSize,
-		ResyncPeriodSec:     *resyncPeriodSec,
-		StateCacheTTLMin:    *stateCacheTTLMin,
-		MaxUnackedMessages:  *maxUnackedMessages,
-		NodeConditionPrefix: *nodeConditionPrefix,
+		ServiceURL:           *serviceURL,
+		Backend:              *backend,
+		Namespace:            *namespace,
+		PodUpdateChanSize:    *podUpdateChanSize,
+		ResyncPeriodSec:      *resyncPeriodSec,
+		StateCacheTTLMin:     *stateCacheTTLMin,
+		MaxUnackedMessages:   *maxUnackedMessages,
+		NodeConditionPrefix:  *nodeConditionPrefix,
+		ProgressDir:          *progressDir,
+		ProgressFrequencySec: *progressFrequencySec,
 	}
 }
 

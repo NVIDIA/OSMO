@@ -61,6 +61,7 @@ go_library(
     deps = [
         ":utils",
         "//src/proto/operator:operator_go_proto",
+        "//src/utils/progress_check:progress_writer",
         "@com_github_jackc_pgx_v5//pgxpool",
         "@com_github_redis_go_redis_v9//:go-redis",
         "@org_golang_google_grpc//:grpc",
