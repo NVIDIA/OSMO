@@ -66,7 +66,7 @@ workflow:
 
           echo "Downloaded the following datasets:"
 
-          DATASET_DIR={{input:0}}/input_mimic
+          DATASET_DIR={{input:0}}/groot_mimic
 
           ls -lh $DATASET_DIR
           echo "Input file:"
@@ -168,6 +168,6 @@ default-values:
   platform: rtx6000
   osmo_dataset: PhysAIRefArchitecture
   output_dataset: PhysAIRefArchitectureOut
-  task_name: input_mimic
+  task_name: groot_mimic
   image_name: nvcr.io/nvidian/isaac-lab:IsaacLab-main-5.1.0
   isaaclab_task: Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0
