@@ -57,6 +57,8 @@ export {
   prefetchWorkflowByName,
 } from "./workflows";
 export { fetchVersion, prefetchVersion } from "./version";
+export { fetchLogData, prefetchLogData } from "./logs";
+export type { PrefetchLogDataParams } from "./logs";
 
 // Re-export types for convenience
 export type { Pool, PoolsResponse } from "../adapter/types";

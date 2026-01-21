@@ -163,6 +163,29 @@ export interface LogQueryResult {
 }
 
 /**
+ * Unified log data result - returns everything needed for display.
+ *
+ * This is the primary return type for the stateless adapter's queryAll() method
+ * and the useLogData() hook. Contains entries, histogram, facets, and stats
+ * in a single response for efficient SSR and React Query caching.
+ */
+export interface LogDataResult {
+  /** Filtered log entries */
+  entries: LogEntry[];
+  /** Histogram data for timeline visualization */
+  histogram: HistogramResult;
+  /** Facet data for the Fields pane */
+  facets: FieldFacet[];
+  /** Query statistics */
+  stats: {
+    /** Total entries before filtering */
+    totalCount: number;
+    /** Entries after filtering */
+    filteredCount: number;
+  };
+}
+
+/**
  * Query statistics for debugging and monitoring.
  */
 export interface LogQueryStats {

@@ -24,7 +24,11 @@
 export { useLogAdapter, useLogAdapterCapabilities, LogAdapterProvider } from "./use-log-adapter";
 export type { LogAdapterProviderProps } from "./use-log-adapter";
 
-// Query hook
+// Unified data hook (preferred)
+export { useLogData } from "./use-log-data";
+export type { UseLogDataParams, UseLogDataReturn } from "./use-log-data";
+
+// Query hook (deprecated - use useLogData instead)
 export { useLogQuery } from "./use-log-query";
 export type { UseLogQueryParams, UseLogQueryReturn } from "./use-log-query";
 
