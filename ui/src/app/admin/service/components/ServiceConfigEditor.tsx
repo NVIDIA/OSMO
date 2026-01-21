@@ -45,6 +45,11 @@ const versionStringSchema = yup
   .trim()
   .matches(/^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/, "Version must be a valid version string");
 
+const durationStringSchema = yup
+  .string()
+  .trim()
+  .matches(/^\d+(?:ms|us|[dhms])$/, "Duration must be like 1d, 2h, 30m, 15s, 500ms, or 250us");
+
 const serviceConfigSchema = yup.object({
   changeDescription: yup.string().trim().required("Change Description is required").defined(),
   tags: yup.array().of(yup.string().trim().defined()).default([]).defined(),
@@ -54,9 +59,9 @@ const serviceConfigSchema = yup.object({
     .url("Service Base URL must be a valid URL")
     .required("Service Base URL is required")
     .defined(),
-  max_pod_restart_limit: yup.string().trim().required("Max Pod Restart Limit is required").defined(),
+  max_pod_restart_limit: durationStringSchema.required("Max Pod Restart Limit is required").defined(),
   agent_queue_size: agentQueueSizeSchema.defined(),
-  max_token_duration: yup.string().trim().required("Max Token Duration is required").defined(),
+  max_token_duration: durationStringSchema.required("Max Token Duration is required").defined(),
   latest_version: versionStringSchema.required("CLI Latest Version is required").defined(),
   min_supported_version: versionStringSchema.required("CLI Min Supported Version is required").defined(),
   issuer: yup.string().trim().required("Issuer is required").defined(),
