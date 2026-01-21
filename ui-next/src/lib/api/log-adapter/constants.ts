@@ -21,6 +21,7 @@
  * Used by log viewer components and adapters.
  */
 
+import { AlertCircle, Monitor, ListTree, RotateCcw, type LucideIcon } from "lucide-react";
 import type { LogLevel, LogIOType, LogSourceType } from "./types";
 
 // =============================================================================
@@ -224,6 +225,8 @@ export interface LogFieldDefinition {
   facetable: boolean;
   /** Whether this field is a label filter (fast in Loki) */
   isLabelFilter: boolean;
+  /** Optional icon component for UI display */
+  icon?: LucideIcon;
 }
 
 /**
@@ -236,6 +239,7 @@ export const LOG_FIELDS: readonly LogFieldDefinition[] = [
     shortLabel: "Level",
     facetable: true,
     isLabelFilter: true,
+    icon: AlertCircle,
   },
   {
     key: "source",
@@ -243,6 +247,7 @@ export const LOG_FIELDS: readonly LogFieldDefinition[] = [
     shortLabel: "Source",
     facetable: true,
     isLabelFilter: true,
+    icon: Monitor,
   },
   {
     key: "task",
@@ -250,6 +255,7 @@ export const LOG_FIELDS: readonly LogFieldDefinition[] = [
     shortLabel: "Task",
     facetable: true,
     isLabelFilter: true,
+    icon: ListTree,
   },
   {
     key: "retry",
@@ -257,8 +263,9 @@ export const LOG_FIELDS: readonly LogFieldDefinition[] = [
     shortLabel: "Retry",
     facetable: true,
     isLabelFilter: true,
+    icon: RotateCcw,
   },
-] as const;
+];
 
 /**
  * Field keys that are label filters (fast filtering in Loki).
@@ -269,6 +276,14 @@ export const LABEL_FILTER_FIELDS = LOG_FIELDS.filter((f) => f.isLabelFilter).map
  * Field keys that are facetable.
  */
 export const FACETABLE_FIELDS = LOG_FIELDS.filter((f) => f.facetable).map((f) => f.key);
+
+/**
+ * Lookup map for facetable field configurations.
+ * Provides O(1) access to field config by key.
+ */
+export const FACET_FIELD_CONFIG: ReadonlyMap<string, LogFieldDefinition> = new Map(
+  LOG_FIELDS.filter((f) => f.facetable).map((f) => [f.key, f]),
+);
 
 // =============================================================================
 // Default Values
