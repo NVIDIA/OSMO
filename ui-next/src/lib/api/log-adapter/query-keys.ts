@@ -37,6 +37,10 @@ import type { LogLevel, LogSourceType } from "./types";
 export interface LogDataQueryKeyParams {
   /** Workflow ID to fetch logs for */
   workflowId: string;
+  /** Task group ID for group-scoped queries (optional) */
+  groupId?: string;
+  /** Task ID for task-scoped queries (optional) */
+  taskId?: string;
   /** Filter by log levels */
   levels?: LogLevel[];
   /** Filter by task names */
@@ -79,6 +83,8 @@ export function createLogDataQueryKey(params: LogDataQueryKeyParams): readonly u
     "log-data",
     params.workflowId,
     {
+      groupId: params.groupId,
+      taskId: params.taskId,
       levels: params.levels,
       tasks: params.tasks,
       sources: params.sources,

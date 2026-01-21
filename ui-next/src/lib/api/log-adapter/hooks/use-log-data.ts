@@ -150,6 +150,8 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
     queryFn: () =>
       adapter.queryAll({
         workflowId: params.workflowId,
+        groupId: params.groupId,
+        taskId: params.taskId,
         levels: params.levels,
         tasks: params.tasks,
         sources: params.sources,

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { formatTime24WithMs } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter";
-import { getLevelBadgeClasses, getLevelAbbrev } from "../lib/level-utils";
+import { getLevelBadgeClasses, getLevelLabel } from "../lib/level-utils";
 
 // =============================================================================
 // Types
@@ -50,7 +50,7 @@ function ContextEntry({ entry, isTarget }: ContextEntryProps) {
       )}
     >
       <span className="text-muted-foreground shrink-0 tabular-nums">{formatTime24WithMs(entry.timestamp)}</span>
-      <span className={cn("shrink-0", getLevelBadgeClasses(level))}>{getLevelAbbrev(level)}</span>
+      <span className={cn("shrink-0", getLevelBadgeClasses(level))}>{getLevelLabel(level)}</span>
       {entry.labels.task && (
         <span className="text-muted-foreground max-w-[80px] shrink-0 truncate">[{entry.labels.task}]</span>
       )}

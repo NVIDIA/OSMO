@@ -65,6 +65,10 @@ export interface PlainTextAdapterConfig {
 export interface QueryAllParams {
   /** Workflow ID to fetch logs for */
   workflowId: string;
+  /** Task group ID for group-scoped queries (optional) */
+  groupId?: string;
+  /** Task ID for task-scoped queries (optional) */
+  taskId?: string;
   /** Filter by log levels */
   levels?: FilterParams["levels"];
   /** Filter by task names */
@@ -132,7 +136,7 @@ export class PlainTextAdapter implements LogAdapter {
    */
   async queryAll(params: QueryAllParams): Promise<LogDataResult> {
     // Fetch and parse logs
-    const logText = await this.fetchLogs(params.workflowId);
+    const logText = await this.fetchLogs(params.workflowId, params.groupId, params.taskId);
     const allEntries = parseLogBatch(logText, params.workflowId);
 
     // Build filter params
@@ -269,14 +273,29 @@ export class PlainTextAdapter implements LogAdapter {
 
   /**
    * Fetches raw log text from the backend.
+   *
+   * @param workflowId - Workflow ID to fetch logs for
+   * @param groupId - Optional task group ID for group-scoped queries
+   * @param taskId - Optional task ID for task-scoped queries
    */
-  private async fetchLogs(workflowId: string): Promise<string> {
+  private async fetchLogs(workflowId: string, groupId?: string, taskId?: string): Promise<string> {
     let url = `${this.config.baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
 
-    // Append optional URL params
-    if (this.config.devParams && Object.keys(this.config.devParams).length > 0) {
-      const params = new URLSearchParams(this.config.devParams);
-      url += `?${params.toString()}`;
+    // Build query params
+    const urlParams = new URLSearchParams(this.config.devParams);
+
+    // Add scope parameters if provided
+    if (groupId) {
+      urlParams.set("group_id", groupId);
+    }
+    if (taskId) {
+      urlParams.set("task_id", taskId);
+    }
+
+    // Append URL params if any exist
+    const paramString = urlParams.toString();
+    if (paramString) {
+      url += `?${paramString}`;
     }
 
     const response = await this.config.fetchFn(url, {

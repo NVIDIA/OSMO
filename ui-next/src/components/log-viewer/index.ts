@@ -60,7 +60,7 @@ export type { FieldsPaneProps } from "./components/FieldsPane";
 export { LogContext } from "./components/LogContext";
 export type { LogContextProps } from "./components/LogContext";
 
-export { LogToolbar, LogToolbarConnected } from "./components/LogToolbar";
+export { LogToolbar } from "./components/LogToolbar";
 export type { LogToolbarProps } from "./components/LogToolbar";
 
 // =============================================================================
@@ -78,7 +78,6 @@ export {
   getLevelBadgeClasses,
   getLevelDotClasses,
   getLevelLabel,
-  getLevelAbbrev,
   getLogRowClasses,
   isLevelAtLeast,
   getLevelsAtLeast,
@@ -86,6 +85,8 @@ export {
 
 export { chipsToLogQuery, hasActiveFilters } from "./lib/chips-to-log-query";
 export type { LogQueryFilters } from "./lib/chips-to-log-query";
+
+export { useCombinedEntries } from "./lib/use-combined-entries";
 
 // Note: Filter logic is now provided by @/components/filter-bar via filterByChips()
 // Use createLogFields() to get field definitions for log filtering.
