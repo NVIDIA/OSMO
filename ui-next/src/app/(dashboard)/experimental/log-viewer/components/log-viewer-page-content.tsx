@@ -34,7 +34,7 @@ const MOCK_WORKFLOW_ID = "log-viewer-playground";
  */
 export function LogViewerPageContent() {
   // Read scenario from URL (ScenarioSelector writes to same URL param)
-  const { devParams, tailDevParams } = useScenario();
+  const { devParams, liveDevParams } = useScenario();
 
   // Memoize header actions to prevent infinite re-render loop
   // usePage uses headerActions as a dependency, so a new JSX element triggers updates
@@ -53,7 +53,7 @@ export function LogViewerPageContent() {
         <LogViewerContainer
           workflowId={MOCK_WORKFLOW_ID}
           devParams={devParams}
-          tailDevParams={tailDevParams}
+          liveDevParams={liveDevParams}
           scope="workflow"
           className="h-full"
           viewerClassName="h-full"

@@ -70,19 +70,6 @@ export type { FooterProps } from "./components/Footer";
 export { TimelineHistogram } from "./components/TimelineHistogram";
 export type { TimelineHistogramProps } from "./components/TimelineHistogram";
 
-export { LogContext } from "./components/LogContext";
-export type { LogContextProps } from "./components/LogContext";
-
-// Legacy components (kept for backward compatibility)
-export { QueryBar, createLogFields } from "./components/QueryBar";
-export type { QueryBarProps } from "./components/QueryBar";
-
-export { FieldsPane } from "./components/FieldsPane";
-export type { FieldsPaneProps } from "./components/FieldsPane";
-
-export { LogToolbar } from "./components/LogToolbar";
-export type { LogToolbarProps } from "./components/LogToolbar";
-
 // =============================================================================
 // Store
 // =============================================================================
@@ -96,7 +83,6 @@ export type { LogViewerStore } from "./store/log-viewer-store";
 
 export {
   getLevelBadgeClasses,
-  getLevelDotClasses,
   getLevelLabel,
   getLogRowClasses,
   isLevelAtLeast,
@@ -110,7 +96,6 @@ export { useCombinedEntries } from "./lib/use-combined-entries";
 
 // Note: LogViewer is a pure display component - all filtering happens at Container level.
 // Use chipsToLogQuery() to convert filter chips to query params for useLogData().
-// createLogFields() provides field definitions for the QueryBar autocomplete.
 
 export {
   ROW_HEIGHT_ESTIMATE,

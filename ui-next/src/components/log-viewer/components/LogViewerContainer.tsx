@@ -12,10 +12,20 @@
  * Log Viewer Container
  *
  * A ready-to-use component that wires together data fetching (useLogData),
- * live tailing (useLogTail), and the LogViewer presentation component.
+ * live streaming (useLogTail), and the LogViewer presentation component.
  *
  * This is the recommended way to add a log viewer to a page - just provide
  * a workflowId and the container handles everything else.
+ *
+ * ## Live Mode
+ *
+ * When `enableLiveMode` is true and the store's `isLiveMode` is active:
+ * - New log entries are streamed in real-time
+ * - Auto-scroll to bottom is enabled
+ * - User scrolling away from bottom pauses live mode
+ *
+ * In the upcoming time range selector, live mode will be enabled when
+ * the user selects "NOW" as the end time.
  *
  * @example
  * ```tsx
@@ -28,12 +38,10 @@
  *   devParams={{ log_scenario: "error-heavy" }}
  * />
  *
- * // Full customization
+ * // Disable live streaming
  * <LogViewerContainer
  *   workflowId="my-workflow"
- *   scope="task"
- *   enableTailing={false}
- *   onFilterChipsChange={(chips) => syncToUrl(chips)}
+ *   enableLiveMode={false}
  * />
  * ```
  */
@@ -57,8 +65,8 @@ export interface LogViewerContainerProps {
   workflowId: string;
   /** Optional dev params (for playground scenarios) */
   devParams?: Record<string, string>;
-  /** Dev params for tailing (defaults to devParams if not specified) */
-  tailDevParams?: Record<string, string>;
+  /** Dev params for live streaming (defaults to devParams if not specified) */
+  liveDevParams?: Record<string, string>;
   /** Scope for filtering (workflow, group, task) */
   scope?: "workflow" | "group" | "task";
   /** Additional class names for the container wrapper */
@@ -69,8 +77,12 @@ export interface LogViewerContainerProps {
   onFilterChipsChange?: (chips: SearchChip[]) => void;
   /** Initial filter chips (used on mount, not synced after) */
   initialFilterChips?: SearchChip[];
-  /** Enable live tailing (default: true) */
-  enableTailing?: boolean;
+  /**
+   * Enable live mode capability (default: true).
+   * When true, logs can stream in real-time when isLiveMode is active in store.
+   * In the upcoming time range selector, this will be tied to end time = "NOW".
+   */
+  enableLiveMode?: boolean;
   /** Show border around the container (default: true) */
   showBorder?: boolean;
 }
@@ -85,13 +97,13 @@ export interface LogViewerContainerProps {
 export function LogViewerContainer({
   workflowId,
   devParams,
-  tailDevParams,
+  liveDevParams,
   scope = "workflow",
   className,
   viewerClassName,
   onFilterChipsChange,
   initialFilterChips = [],
-  enableTailing = true,
+  enableLiveMode = true,
   showBorder = true,
 }: LogViewerContainerProps) {
   // Remount when workflowId or devParams change to reset all state
@@ -102,13 +114,13 @@ export function LogViewerContainer({
       key={key}
       workflowId={workflowId}
       devParams={devParams}
-      tailDevParams={tailDevParams}
+      liveDevParams={liveDevParams}
       scope={scope}
       className={className}
       viewerClassName={viewerClassName}
       onFilterChipsChange={onFilterChipsChange}
       initialFilterChips={initialFilterChips}
-      enableTailing={enableTailing}
+      enableLiveMode={enableLiveMode}
       showBorder={showBorder}
     />
   );
@@ -121,20 +133,21 @@ export function LogViewerContainer({
 function LogViewerContainerInner({
   workflowId,
   devParams,
-  tailDevParams: tailDevParamsProp,
+  liveDevParams: liveDevParamsProp,
   scope,
   className,
   viewerClassName,
   onFilterChipsChange: onFilterChipsChangeProp,
   initialFilterChips,
-  enableTailing,
+  enableLiveMode,
   showBorder,
 }: LogViewerContainerProps) {
   // Filter chips state - single source of truth
   const [filterChips, setFilterChips] = useState<SearchChip[]>(initialFilterChips ?? []);
 
-  // Get tailing state from store
-  const isTailing = useLogViewerStore((s) => s.isTailing);
+  // Get live mode state from store
+  // In the upcoming time range selector, this will be true when end time = "NOW"
+  const isLiveMode = useLogViewerStore((s) => s.isLiveMode);
 
   // Convert filter chips to query params
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
@@ -148,6 +161,7 @@ function LogViewerContainerInner({
     entries: queryEntries,
     histogram,
     facets,
+    stats,
     isLoading,
     isFetching,
     isPlaceholderData,
@@ -164,19 +178,20 @@ function LogViewerContainerInner({
     search: queryFilters.search,
   });
 
-  // Tail dev params (defaults to main devParams if not specified)
-  const tailDevParams = useMemo(() => tailDevParamsProp ?? stableDevParams, [tailDevParamsProp, stableDevParams]);
+  // Live streaming dev params (defaults to main devParams if not specified)
+  const liveDevParams = useMemo(() => liveDevParamsProp ?? stableDevParams, [liveDevParamsProp, stableDevParams]);
 
-  // Live tailing hook - appends new entries as they stream in
-  const { entries: tailEntries, status: tailStatus } = useLogTail({
+  // Live streaming hook - appends new entries as they stream in
+  // Active when live mode is enabled and the capability is allowed
+  const { entries: liveEntries } = useLogTail({
     workflowId,
-    enabled: enableTailing && isTailing,
-    devParams: tailDevParams,
+    enabled: enableLiveMode && isLiveMode,
+    devParams: liveDevParams,
   });
 
-  // Combine query entries with streaming tail entries
+  // Combine query entries with live streaming entries
   // Uses ref-based buffer for stable array identity during streaming
-  const combinedEntries = useCombinedEntries(queryEntries, tailEntries);
+  const combinedEntries = useCombinedEntries(queryEntries, liveEntries);
 
   // Handle filter chip changes - update local state and notify parent
   const handleFilterChipsChange = useCallback(
@@ -203,6 +218,7 @@ function LogViewerContainerInner({
     <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
       <LogViewer
         entries={combinedEntries}
+        totalCount={stats.totalCount}
         isLoading={isLoading}
         isFetching={isFetching}
         error={error}
@@ -212,7 +228,6 @@ function LogViewerContainerInner({
         filterChips={filterChips}
         onFilterChipsChange={handleFilterChipsChange}
         scope={scope}
-        tailStatus={tailStatus}
         className={viewerClassName}
       />
     </div>

@@ -12,6 +12,13 @@
  * Loading skeleton for the LogViewer component. Matches the exact layout
  * to prevent cumulative layout shift (CLS = 0).
  *
+ * Layout matches LogViewer:
+ * 1. SearchBar (top)
+ * 2. FacetBar (optional, shows filter dropdowns)
+ * 3. TimelineHistogram (optional)
+ * 4. LogList (main content, full width)
+ * 5. Footer (bottom)
+ *
  * Used by:
  * - Suspense fallback during SSR streaming
  * - LogViewerContainer during initial data fetch
@@ -28,10 +35,8 @@ import { ROW_HEIGHT_ESTIMATE, HISTOGRAM_HEIGHT, SKELETON_WIDTHS } from "../lib/c
 export interface LogViewerSkeletonProps {
   /** Show histogram section (default: true) */
   showHistogram?: boolean;
-  /** Show fields pane sidebar (default: true) */
-  showFieldsPane?: boolean;
-  /** Show toolbar at bottom (default: true) */
-  showToolbar?: boolean;
+  /** Show facet bar with filter dropdowns (default: true) */
+  showFacetBar?: boolean;
   /** Additional class names */
   className?: string;
 }
@@ -48,8 +53,8 @@ export interface LogViewerSkeletonProps {
  * // Full skeleton
  * <LogViewerSkeleton />
  *
- * // Minimal skeleton (no histogram or fields)
- * <LogViewerSkeleton showHistogram={false} showFieldsPane={false} />
+ * // Minimal skeleton (no histogram or facets)
+ * <LogViewerSkeleton showHistogram={false} showFacetBar={false} />
  *
  * // As Suspense fallback
  * <Suspense fallback={<LogViewerSkeleton />}>
@@ -57,15 +62,10 @@ export interface LogViewerSkeletonProps {
  * </Suspense>
  * ```
  */
-export function LogViewerSkeleton({
-  showHistogram = true,
-  showFieldsPane = true,
-  showToolbar = true,
-  className,
-}: LogViewerSkeletonProps) {
+export function LogViewerSkeleton({ showHistogram = true, showFacetBar = true, className }: LogViewerSkeletonProps) {
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      {/* QueryBar skeleton */}
+      {/* Section 1: SearchBar skeleton */}
       <div className="shrink-0 border-b px-3 py-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-9 flex-1" />
@@ -73,7 +73,18 @@ export function LogViewerSkeleton({
         </div>
       </div>
 
-      {/* Histogram skeleton */}
+      {/* Section 2: FacetBar skeleton */}
+      {showFacetBar && (
+        <div className="shrink-0 border-b px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-20" />
+          </div>
+        </div>
+      )}
+
+      {/* Section 3: Histogram skeleton */}
       {showHistogram && (
         <div
           className="shrink-0 border-b px-3 py-2"
@@ -91,58 +102,27 @@ export function LogViewerSkeleton({
         </div>
       )}
 
-      {/* Main content area: FieldsPane + LogList */}
-      <div className="flex min-h-0 flex-1">
-        {/* FieldsPane skeleton */}
-        {showFieldsPane && (
-          <div className="w-48 shrink-0 space-y-4 border-r p-3">
-            {["level", "source", "task"].map((field) => (
-              <div
-                key={field}
-                className="space-y-2"
-              >
-                <span className="text-muted-foreground text-xs font-medium">{field}</span>
-                <div className="space-y-1">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between"
-                    >
-                      <Skeleton className="h-4 w-16" />
-                      <Skeleton className="h-4 w-8" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* LogList skeleton */}
-        <div className="flex-1 space-y-1 p-2">
-          {SKELETON_WIDTHS.map((width, i) => (
-            <Skeleton
-              key={i}
-              style={{ width, height: ROW_HEIGHT_ESTIMATE }}
-            />
-          ))}
-        </div>
+      {/* Section 4: LogList skeleton (full width) */}
+      <div className="min-h-0 flex-1 space-y-1 overflow-hidden p-2">
+        {SKELETON_WIDTHS.map((width, i) => (
+          <Skeleton
+            key={i}
+            style={{ width, height: ROW_HEIGHT_ESTIMATE }}
+          />
+        ))}
       </div>
 
-      {/* Toolbar skeleton */}
-      {showToolbar && (
-        <div className="shrink-0 border-t px-3 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
-            </div>
-            <Skeleton className="h-4 w-24" />
+      {/* Section 5: Footer skeleton */}
+      <div className="shrink-0 border-t px-3 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1">
+            <Skeleton className="size-8" />
+            <Skeleton className="size-8" />
+            <Skeleton className="size-8" />
           </div>
+          <Skeleton className="size-8" />
         </div>
-      )}
+      </div>
     </div>
   );
 }
