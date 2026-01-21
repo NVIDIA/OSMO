@@ -15,14 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import {
-  getLevelBadgeClasses,
-  getLevelDotClasses,
-  getLevelLabel,
-  getLogRowClasses,
-  isLevelAtLeast,
-  getLevelsAtLeast,
-} from "./level-utils";
+import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses, isLevelAtLeast, getLevelsAtLeast } from "./level-utils";
 import type { LogLevel } from "@/lib/api/log-adapter";
 
 // =============================================================================
@@ -45,28 +38,6 @@ describe("getLevelBadgeClasses", () => {
     const classes = getLevelBadgeClasses(undefined);
     expect(classes).toContain("rounded");
     expect(classes).toContain("text-xs");
-  });
-});
-
-// =============================================================================
-// getLevelDotClasses Tests
-// =============================================================================
-
-describe("getLevelDotClasses", () => {
-  it("returns classes for all log levels", () => {
-    const levels: LogLevel[] = ["debug", "info", "warn", "error", "fatal"];
-
-    for (const level of levels) {
-      const classes = getLevelDotClasses(level);
-      expect(classes).toContain("size-2");
-      expect(classes).toContain("rounded-full");
-    }
-  });
-
-  it("returns fallback classes for undefined level", () => {
-    const classes = getLevelDotClasses(undefined);
-    expect(classes).toContain("size-2");
-    expect(classes).toContain("rounded-full");
   });
 });
 

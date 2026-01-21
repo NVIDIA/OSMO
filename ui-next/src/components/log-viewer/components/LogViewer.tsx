@@ -10,7 +10,7 @@
 
 import { memo, useCallback, useMemo, useEffect, startTransition, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
-import type { LogEntry, HistogramBucket, FieldFacet, TailStatus } from "@/lib/api/log-adapter";
+import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
@@ -107,6 +107,8 @@ function updateChipsForSearchChange(currentChips: SearchChip[], searchText: stri
 export interface LogViewerProps {
   /** Log entries to display (already filtered by Container) */
   entries: LogEntry[];
+  /** Total count of entries before filtering */
+  totalCount?: number;
   /** Whether entries are currently loading (initial load) */
   isLoading?: boolean;
   /** Whether data is being refetched in background */
@@ -128,8 +130,6 @@ export interface LogViewerProps {
   onFilterChipsChange: (chips: SearchChip[]) => void;
   /** Scope of the log viewer */
   scope?: "workflow" | "group" | "task";
-  /** Current tail connection status */
-  tailStatus?: TailStatus;
   /** Additional CSS classes */
   className?: string;
 }
@@ -167,6 +167,7 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 
 function LogViewerInner({
   entries,
+  totalCount,
   isLoading = false,
   isFetching = false,
   error = null,
@@ -175,18 +176,17 @@ function LogViewerInner({
   onRefetch,
   filterChips,
   onFilterChipsChange,
-  scope = "workflow",
-  tailStatus,
+  // Reserved props for future scope-aware features (e.g., showing group/task context).
+  // Kept in the interface to maintain API stability.
+  scope: _scope = "workflow",
   className,
 }: LogViewerProps) {
-  // Suppress unused variable warning - tailStatus may be used in future enhancements
-  void tailStatus;
-
   const { clipboard, announcer } = useServices();
 
-  // Store state
-  const isTailing = useLogViewerStore((s) => s.isTailing);
-  const setTailing = useLogViewerStore((s) => s.setTailing);
+  // Store state - live mode enables auto-scroll and fetches latest logs
+  // In the upcoming time range selector, this will be true when end time = "NOW"
+  const isLiveMode = useLogViewerStore((s) => s.isLiveMode);
+  const setLiveMode = useLogViewerStore((s) => s.setLiveMode);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const toggleWrapLinesRaw = useLogViewerStore((s) => s.toggleWrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
@@ -209,9 +209,6 @@ function LogViewerInner({
       reset();
     };
   }, [reset]);
-
-  // Suppress unused variable warning - scope may be used in future enhancements
-  void scope;
 
   // Handle filter chip changes with View Transition for smooth visual updates
   const handleFilterChipsChange = useCallback(
@@ -286,13 +283,14 @@ function LogViewerInner({
     announcer.announce("Logs downloaded", "polite");
   }, [deferredEntries, announcer]);
 
-  // Handle scroll away from bottom (pause tailing)
+  // Handle scroll away from bottom - pauses live mode
+  // User can re-enable by clicking "Jump to Now" or selecting NOW in time range
   const handleScrollAwayFromBottom = useCallback(() => {
-    if (isTailing) {
-      setTailing(false);
-      announcer.announce("Tailing paused", "polite");
+    if (isLiveMode) {
+      setLiveMode(false);
+      announcer.announce("Live mode paused", "polite");
     }
-  }, [isTailing, setTailing, announcer]);
+  }, [isLiveMode, setLiveMode, announcer]);
 
   // Loading state
   if (isLoading && entries.length === 0) {
@@ -315,6 +313,7 @@ function LogViewerInner({
           value={searchText}
           onChange={handleSearchChange}
           resultCount={entries.length}
+          totalCount={totalCount ?? entries.length}
         />
       </div>
 
@@ -346,7 +345,7 @@ function LogViewerInner({
         <LogList
           entries={deferredEntries}
           onCopy={handleCopy}
-          isTailing={isTailing}
+          isLiveMode={isLiveMode}
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}
         />

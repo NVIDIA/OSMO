@@ -45,9 +45,12 @@ export interface LogListProps {
   onCopy?: (entry: LogEntry) => void;
   /** Callback when link is clicked */
   onCopyLink?: (entry: LogEntry) => void;
-  /** Whether auto-scrolling (tailing) is enabled */
-  isTailing?: boolean;
-  /** Callback when user scrolls away from bottom (disables tailing) */
+  /**
+   * Whether live mode is enabled (auto-scroll to bottom).
+   * In the upcoming time range selector, this will be true when end time = "NOW".
+   */
+  isLiveMode?: boolean;
+  /** Callback when user scrolls away from bottom (pauses live mode) */
   onScrollAwayFromBottom?: () => void;
   /**
    * Whether the displayed data is stale (background refetch in progress).
@@ -141,7 +144,7 @@ function LogListInner({
   className,
   onCopy,
   onCopyLink,
-  isTailing = false,
+  isLiveMode = false,
   onScrollAwayFromBottom,
   isStale = false,
 }: LogListProps) {
@@ -195,28 +198,28 @@ function LogListInner({
     }
   }, [resetCount, virtualizer]);
 
-  // Auto-scroll to bottom when tailing.
+  // Auto-scroll to bottom when in live mode (end time = NOW).
   // Uses the virtualizer's scrollToIndex for stable positioning - no manual
   // scroll calculations that can race with virtualizer updates.
   useLayoutEffect(() => {
-    if (!isTailing || flatItems.length === 0) return;
+    if (!isLiveMode || flatItems.length === 0) return;
 
     // Use the virtualizer's built-in scrollToIndex for consistent positioning.
     // align: 'end' ensures the last item is fully visible at the bottom.
     virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
-  }, [isTailing, flatItems.length, virtualizer]);
+  }, [isLiveMode, flatItems.length, virtualizer]);
 
-  // Detect scroll away from bottom
+  // Detect scroll away from bottom - pauses live mode when user scrolls up
   const handleScroll = useCallback(() => {
     if (!parentRef.current || !onScrollAwayFromBottom) return;
 
     const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < SCROLL_BOTTOM_THRESHOLD;
 
-    if (!isAtBottom && isTailing) {
+    if (!isAtBottom && isLiveMode) {
       onScrollAwayFromBottom();
     }
-  }, [isTailing, onScrollAwayFromBottom]);
+  }, [isLiveMode, onScrollAwayFromBottom]);
 
   // Empty state
   if (entries.length === 0) {
@@ -233,13 +236,16 @@ function LogListInner({
   const virtualItems = virtualizer.getVirtualItems();
   const scrollOffset = virtualizer.scrollOffset ?? 0;
 
-  // Find the current date based on scroll position
-  // Simple approach: find the last separator that's been scrolled past
+  // Find the current date based on scroll position.
+  // Simple approach: find the last separator that's been scrolled past.
   let currentDate: Date | null = null;
   let currentSeparatorIndex: number | null = null;
 
   for (const sep of separators) {
-    // Use measured position if available, otherwise estimate
+    // Access virtualizer.measurementsCache for accurate separator positions.
+    // NOTE: measurementsCache is an internal API of @tanstack/react-virtual.
+    // If this breaks in a future version, fall back to pure estimation:
+    // const sepStart = sep.index * ROW_HEIGHT_ESTIMATE;
     const measured = virtualizer.measurementsCache[sep.index];
     const sepStart = measured?.start ?? sep.index * ROW_HEIGHT_ESTIMATE;
 
