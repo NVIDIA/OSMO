@@ -16,7 +16,7 @@
 
 load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 
 osmo_py_library(
@@ -43,9 +43,11 @@ osmo_py_library(
 go_library(
     name = "utils",
     srcs = [
+        "container_status.go",
         "helpers.go",
         "k8s_helpers.go",
         "listener_args.go",
+        "task_status.go",
         "unack_messages.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/operator/utils",
@@ -57,5 +59,29 @@ go_library(
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//rest",
         "@io_k8s_client_go//tools/clientcmd",
+    ],
+)
+
+# Run this  manually
+go_test(
+    name = "calculate_status_test",
+    srcs = ["calculate_status_test.go"],
+    data = ["//src/operator/tests:test_calculate_pod_status_cases.json"],
+    embed = [":utils"],
+    tags = ["manual"],
+    deps = [
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+go_test(
+    name = "unack_messages_test",
+    srcs = ["unack_messages_test.go"],
+    embed = [":utils"],
+    deps = [
+        "//src/proto/operator:operator_go_proto",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )

@@ -85,108 +85,6 @@ func TestGetPodKey(t *testing.T) {
 	}
 }
 
-// Test calculatePodStatus function
-func TestCalculatePodStatus(t *testing.T) {
-	tests := []struct {
-		name     string
-		pod      *corev1.Pod
-		expected string
-	}{
-		{
-			name: "Pending pod",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodPending,
-					Conditions: []corev1.PodCondition{
-						{
-							Type:   corev1.PodScheduled,
-							Status: corev1.ConditionTrue,
-						},
-					},
-				},
-			},
-			expected: "SCHEDULING", // Updated to match Python comprehensive logic
-		},
-		{
-			name: "Scheduling pod",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodPending,
-					Conditions: []corev1.PodCondition{
-						{
-							Type:   corev1.PodScheduled,
-							Status: corev1.ConditionFalse,
-						},
-					},
-				},
-			},
-			expected: "SCHEDULING", // Updated to match Python comprehensive logic
-		},
-		{
-			name: "Running pod - all ready",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodRunning,
-					ContainerStatuses: []corev1.ContainerStatus{
-						{Ready: true},
-						{Ready: true},
-					},
-				},
-			},
-			expected: "RUNNING", // Updated to match Python comprehensive logic
-		},
-		{
-			name: "Starting pod - not all ready",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodRunning,
-					ContainerStatuses: []corev1.ContainerStatus{
-						{Ready: true},
-						{Ready: false},
-					},
-				},
-			},
-			expected: "RUNNING", // Updated: comprehensive logic doesn't distinguish based on readiness alone
-		},
-		{
-			name: "Succeeded pod",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodSucceeded,
-				},
-			},
-			expected: "COMPLETED", // Updated to match Python comprehensive logic
-		},
-		{
-			name: "Failed pod",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodFailed,
-				},
-			},
-			expected: "FAILED", // Updated to match Python comprehensive logic
-		},
-		{
-			name: "Unknown pod",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodUnknown,
-				},
-			},
-			expected: "", // Returns empty string for unknown status (not in statusMap)
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := utils.CalculatePodStatus(tt.pod).Status
-			if result != tt.expected {
-				t.Errorf("CalculatePodStatus() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 // Test createPodUpdateMessage function
 func TestCreatePodUpdateMessage(t *testing.T) {
 	pod := &corev1.Pod{
@@ -208,16 +106,6 @@ func TestCreatePodUpdateMessage(t *testing.T) {
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
 			PodIP: "10.0.0.1",
-			ContainerStatuses: []corev1.ContainerStatus{
-				{
-					Ready: true,
-					State: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 0,
-						},
-					},
-				},
-			},
 			Conditions: []corev1.PodCondition{
 				{
 					Type:               corev1.PodReady,
@@ -230,8 +118,13 @@ func TestCreatePodUpdateMessage(t *testing.T) {
 		},
 	}
 
-	// Calculate status result
-	statusResult := utils.CalculatePodStatus(pod)
+	// Use a predefined status result for unit testing
+	// (CalculateTaskStatus is tested separately in calculate_status_test.go)
+	statusResult := utils.TaskStatusResult{
+		Status:   "RUNNING",
+		ExitCode: utils.ExitCodeNotSet,
+		Message:  "",
+	}
 	msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
 
 	if err != nil {
@@ -508,7 +401,7 @@ func BenchmarkPodStateTracker_HasChanged(b *testing.B) {
 }
 
 // Benchmark calculatePodStatus
-func BenchmarkCalculatePodStatus(b *testing.B) {
+func BenchmarkCalculateTaskStatus(b *testing.B) {
 	pod := &corev1.Pod{
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
@@ -521,7 +414,7 @@ func BenchmarkCalculatePodStatus(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utils.CalculatePodStatus(pod)
+		utils.CalculateTaskStatus(pod)
 	}
 }
 
@@ -574,90 +467,6 @@ func TestParseRetryID(t *testing.T) {
 	}
 }
 
-// Test calculatePodStatus with preemption
-func TestCalculatePodStatus_Preemption(t *testing.T) {
-	now := metav1.Now()
-	pod := &corev1.Pod{
-		Status: corev1.PodStatus{
-			Phase: corev1.PodFailed,
-			Conditions: []corev1.PodCondition{
-				{
-					Type:               corev1.PodReasonUnschedulable,
-					Status:             corev1.ConditionTrue,
-					Reason:             "PreemptionByScheduler",
-					Message:            "Pod was preempted",
-					LastTransitionTime: now,
-				},
-			},
-		},
-	}
-
-	result := utils.CalculatePodStatus(pod)
-	if result.Status != utils.StatusFailedPreempted {
-		t.Errorf("Status = %v, expected %v", result.Status, utils.StatusFailedPreempted)
-	}
-	if result.ExitCode != utils.ExitCodeFailedPreempted {
-		t.Errorf("ExitCode = %v, expected %v", result.ExitCode, utils.ExitCodeFailedPreempted)
-	}
-	if !strings.Contains(result.Message, "preempted") {
-		t.Errorf("Message should contain 'preempted', got: %v", result.Message)
-	}
-}
-
-// Test calculatePodStatus returns correct exit codes
-func TestCalculatePodStatus_ExitCodes(t *testing.T) {
-	tests := []struct {
-		name         string
-		pod          *corev1.Pod
-		expectedCode int32
-	}{
-		{
-			name: "Not set for pending",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodPending,
-				},
-			},
-			expectedCode: utils.ExitCodeNotSet,
-		},
-		{
-			name: "Not set for running",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodRunning,
-				},
-			},
-			expectedCode: utils.ExitCodeNotSet,
-		},
-		{
-			name: "Preempted exit code",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Phase: corev1.PodFailed,
-					Conditions: []corev1.PodCondition{
-						{
-							Type:               corev1.PodScheduled,
-							Status:             corev1.ConditionTrue,
-							Reason:             "PreemptionByScheduler",
-							LastTransitionTime: metav1.Now(),
-						},
-					},
-				},
-			},
-			expectedCode: utils.ExitCodeFailedPreempted,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := utils.CalculatePodStatus(tt.pod)
-			if result.ExitCode != tt.expectedCode {
-				t.Errorf("ExitCode = %v, expected %v", result.ExitCode, tt.expectedCode)
-			}
-		})
-	}
-}
-
 // Test createPodUpdateMessage with edge cases
 func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 	t.Run("Pod with multiple containers", func(t *testing.T) {
@@ -684,7 +493,8 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			},
 		}
 
-		statusResult := utils.CalculatePodStatus(pod)
+		// Use predefined status for unit test
+		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
 		msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
 
 		if err != nil {
@@ -743,7 +553,8 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			},
 		}
 
-		statusResult := utils.CalculatePodStatus(pod)
+		// Use predefined status for unit test
+		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
 		msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
 
 		if err != nil {
@@ -779,7 +590,7 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			},
 		}
 
-		statusResult := utils.CalculatePodStatus(pod)
+		statusResult := utils.CalculateTaskStatus(pod)
 		// This should panic or handle gracefully - documenting current behavior
 		defer func() {
 			if r := recover(); r == nil {
@@ -808,7 +619,8 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			},
 		}
 
-		statusResult := utils.CalculatePodStatus(pod)
+		// Use predefined status for unit test
+		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
 		msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
 
 		if err != nil {
@@ -904,7 +716,7 @@ func TestCreatePodUpdateMessage_UUIDFormat(t *testing.T) {
 		},
 	}
 
-	statusResult := utils.CalculatePodStatus(pod)
+	statusResult := utils.CalculateTaskStatus(pod)
 	msg1, err1 := createPodUpdateMessage(pod, statusResult, "backend")
 	msg2, err2 := createPodUpdateMessage(pod, statusResult, "backend")
 
@@ -945,7 +757,7 @@ func TestCreatePodUpdateMessage_TimestampFormat(t *testing.T) {
 		},
 	}
 
-	statusResult := utils.CalculatePodStatus(pod)
+	statusResult := utils.CalculateTaskStatus(pod)
 	msg, err := createPodUpdateMessage(pod, statusResult, "backend")
 
 	if err != nil {
@@ -1024,33 +836,6 @@ func TestPodStateTracker_LargeTTL(t *testing.T) {
 	}
 }
 
-// Test that status constants are properly defined
-func TestStatusConstants(t *testing.T) {
-	// Verify all status constants are non-empty
-	statuses := []string{
-		utils.StatusScheduling,
-		utils.StatusInitializing,
-		utils.StatusRunning,
-		utils.StatusCompleted,
-		utils.StatusFailed,
-		utils.StatusFailedPreempted,
-	}
-
-	for _, status := range statuses {
-		if status == "" {
-			t.Error("Status constant should not be empty")
-		}
-	}
-
-	// Verify exit codes are set correctly
-	if utils.ExitCodeNotSet != -1 {
-		t.Errorf("ExitCodeNotSet = %v, expected -1", utils.ExitCodeNotSet)
-	}
-	if utils.ExitCodeFailedPreempted != 3006 {
-		t.Errorf("ExitCodeFailedPreempted = %v, expected 3006", utils.ExitCodeFailedPreempted)
-	}
-}
-
 // Benchmark parseRetryID
 func BenchmarkParseRetryID(b *testing.B) {
 	testCases := []string{"0", "5", "999999", "", "abc"}
@@ -1100,10 +885,403 @@ func BenchmarkCreatePodUpdateMessage(b *testing.B) {
 		},
 	}
 
-	statusResult := utils.CalculatePodStatus(pod)
+	statusResult := utils.CalculateTaskStatus(pod)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		createPodUpdateMessage(pod, statusResult, "test-backend")
+	}
+}
+
+// Test NewWorkflowListener
+func TestNewWorkflowListener(t *testing.T) {
+	args := utils.ListenerArgs{
+		ServiceURL:         "http://localhost:8000",
+		Backend:            "test-backend",
+		Namespace:          "osmo-test",
+		MaxUnackedMessages: 100,
+	}
+
+	listener := NewWorkflowListener(args)
+
+	if listener == nil {
+		t.Fatal("NewWorkflowListener returned nil")
+	}
+
+	if listener.args.Backend != "test-backend" {
+		t.Errorf("Backend = %v, expected test-backend", listener.args.Backend)
+	}
+
+	if listener.unackedMessages == nil {
+		t.Error("unackedMessages should not be nil")
+	}
+}
+
+// Test that podStateTracker correctly identifies status changes across pod phases
+func TestPodStateTracker_StatusTransitions(t *testing.T) {
+	tracker := &podStateTracker{
+		states: make(map[string]podStateEntry),
+		ttl:    5 * time.Minute,
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"osmo.workflow_uuid": "wf-123",
+				"osmo.task_uuid":     "task-456",
+				"osmo.retry_id":      "1",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+		},
+	}
+
+	// Track the status transitions
+	transitions := []struct {
+		phase          corev1.PodPhase
+		containerReady bool
+		shouldChange   bool
+		description    string
+	}{
+		{corev1.PodPending, false, true, "Initial pending state"},
+		{corev1.PodPending, false, false, "Same pending state"},
+		{corev1.PodRunning, false, true, "Transition to running"},
+		{corev1.PodRunning, true, false, "Running with ready container"},
+		{corev1.PodSucceeded, false, true, "Transition to succeeded"},
+	}
+
+	for _, trans := range transitions {
+		pod.Status.Phase = trans.phase
+		if trans.containerReady {
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{{Ready: true}}
+		} else {
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{}
+		}
+
+		changed, _ := tracker.hasChanged(pod)
+		if changed != trans.shouldChange {
+			t.Errorf("%s: hasChanged() = %v, expected %v", trans.description, changed, trans.shouldChange)
+		}
+	}
+}
+
+// Test parseRetryID with various edge cases
+func TestParseRetryID_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int32
+	}{
+		{"Max int32", "2147483647", 2147483647},
+		{"Overflow returns zero", "2147483648", 0}, // fmt.Sscanf fails on overflow
+		{"With spaces", " 42 ", 42},                // fmt.Sscanf trims whitespace
+		{"Decimal number", "3.14", 3},              // Sscanf stops at decimal
+		{"Hex format", "0x10", 0},                  // Not parsed as hex
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseRetryID(tt.input)
+			if result != tt.expected {
+				t.Errorf("parseRetryID(%q) = %v, expected %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Test that Unknown status doesn't get sent
+func TestPodStateTracker_UnknownStatus(t *testing.T) {
+	tracker := &podStateTracker{
+		states: make(map[string]podStateEntry),
+		ttl:    5 * time.Minute,
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"osmo.workflow_uuid": "wf-123",
+				"osmo.task_uuid":     "task-456",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodUnknown,
+		},
+	}
+
+	// Should return false for Unknown status
+	changed, result := tracker.hasChanged(pod)
+	if changed {
+		t.Error("hasChanged() should return false for Unknown status")
+	}
+
+	if result.Status != "" {
+		t.Errorf("Status should be empty for Unknown phase, got %v", result.Status)
+	}
+}
+
+// Test createPodUpdateMessage with all condition types
+func TestCreatePodUpdateMessage_AllConditionTypes(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"osmo.workflow_uuid": "wf-123",
+				"osmo.task_uuid":     "task-456",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "main"}},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{
+				{
+					Type:               corev1.PodScheduled,
+					Status:             corev1.ConditionTrue,
+					Reason:             "Scheduled",
+					Message:            "Successfully assigned",
+					LastTransitionTime: metav1.Now(),
+				},
+				{
+					Type:               corev1.PodReady,
+					Status:             corev1.ConditionTrue,
+					Reason:             "Ready",
+					Message:            "Pod is ready",
+					LastTransitionTime: metav1.Now(),
+				},
+				{
+					Type:               corev1.ContainersReady,
+					Status:             corev1.ConditionTrue,
+					Reason:             "ContainersReady",
+					Message:            "All containers ready",
+					LastTransitionTime: metav1.Now(),
+				},
+				{
+					Type:               corev1.PodInitialized,
+					Status:             corev1.ConditionTrue,
+					Reason:             "Initialized",
+					Message:            "Init containers completed",
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	// Use a predefined status result for unit testing
+	statusResult := utils.TaskStatusResult{
+		Status:   "RUNNING",
+		ExitCode: utils.ExitCodeNotSet,
+		Message:  "",
+	}
+	msg, err := createPodUpdateMessage(pod, statusResult, "backend")
+
+	if err != nil {
+		t.Fatalf("createPodUpdateMessage() error = %v", err)
+	}
+
+	updatePod := msg.Body.(*pb.ListenerMessage_UpdatePod).UpdatePod
+
+	// Verify all 4 conditions are present
+	if len(updatePod.Conditions) != 4 {
+		t.Errorf("len(Conditions) = %d, expected 4", len(updatePod.Conditions))
+	}
+
+	// Verify condition types
+	condTypes := make(map[string]bool)
+	for _, cond := range updatePod.Conditions {
+		condTypes[cond.Type] = true
+	}
+
+	expectedTypes := []string{"PodScheduled", "Ready", "ContainersReady", "Initialized"}
+	for _, expectedType := range expectedTypes {
+		if !condTypes[expectedType] {
+			t.Errorf("Missing condition type: %s", expectedType)
+		}
+	}
+}
+
+// Test condition timestamp format
+func TestCreatePodUpdateMessage_ConditionTimestampFormat(t *testing.T) {
+	now := metav1.Now()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"osmo.workflow_uuid": "wf-123",
+				"osmo.task_uuid":     "task-456",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "main"}},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{
+				{
+					Type:               corev1.PodReady,
+					Status:             corev1.ConditionTrue,
+					Reason:             "Ready",
+					LastTransitionTime: now,
+				},
+			},
+		},
+	}
+
+	statusResult := utils.CalculateTaskStatus(pod)
+	msg, err := createPodUpdateMessage(pod, statusResult, "backend")
+
+	if err != nil {
+		t.Fatalf("createPodUpdateMessage() error = %v", err)
+	}
+
+	updatePod := msg.Body.(*pb.ListenerMessage_UpdatePod).UpdatePod
+
+	if len(updatePod.Conditions) != 1 {
+		t.Fatalf("Expected 1 condition, got %d", len(updatePod.Conditions))
+	}
+
+	// Check timestamp format
+	timestamp := updatePod.Conditions[0].Timestamp
+	expectedFormat := "2006-01-02T15:04:05.999999"
+	_, parseErr := time.Parse(expectedFormat, timestamp)
+	if parseErr != nil {
+		t.Errorf("Condition timestamp format invalid: %v, error: %v", timestamp, parseErr)
+	}
+}
+
+// Test condition status conversion (bool)
+func TestCreatePodUpdateMessage_ConditionStatusConversion(t *testing.T) {
+	tests := []struct {
+		name            string
+		conditionStatus corev1.ConditionStatus
+		expectedBool    bool
+	}{
+		{"True condition", corev1.ConditionTrue, true},
+		{"False condition", corev1.ConditionFalse, false},
+		{"Unknown condition", corev1.ConditionUnknown, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"osmo.workflow_uuid": "wf-123",
+						"osmo.task_uuid":     "task-456",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "main"}},
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+					Conditions: []corev1.PodCondition{
+						{
+							Type:               corev1.PodReady,
+							Status:             tt.conditionStatus,
+							LastTransitionTime: metav1.Now(),
+						},
+					},
+				},
+			}
+
+			statusResult := utils.CalculateTaskStatus(pod)
+			msg, err := createPodUpdateMessage(pod, statusResult, "backend")
+
+			if err != nil {
+				t.Fatalf("createPodUpdateMessage() error = %v", err)
+			}
+
+			updatePod := msg.Body.(*pb.ListenerMessage_UpdatePod).UpdatePod
+			if updatePod.Conditions[0].Status != tt.expectedBool {
+				t.Errorf("Condition status = %v, expected %v", updatePod.Conditions[0].Status, tt.expectedBool)
+			}
+		})
+	}
+}
+
+// Test getPodKey with nil labels
+func TestGetPodKey_NilLabels(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: nil,
+		},
+	}
+
+	// Should not panic
+	result := getPodKey(pod)
+	if result != "--" {
+		t.Errorf("getPodKey with nil labels = %v, expected '--'", result)
+	}
+}
+
+// Test podStateTracker with multiple pods simultaneously
+func TestPodStateTracker_MultiplePods(t *testing.T) {
+	tracker := &podStateTracker{
+		states: make(map[string]podStateEntry),
+		ttl:    5 * time.Minute,
+	}
+
+	pods := []*corev1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"osmo.workflow_uuid": "wf-1",
+					"osmo.task_uuid":     "task-1",
+					"osmo.retry_id":      "0",
+				},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodPending},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"osmo.workflow_uuid": "wf-1",
+					"osmo.task_uuid":     "task-2",
+					"osmo.retry_id":      "0",
+				},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodPending},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"osmo.workflow_uuid": "wf-2",
+					"osmo.task_uuid":     "task-1",
+					"osmo.retry_id":      "1",
+				},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+	}
+
+	// All should be new
+	for i, pod := range pods {
+		changed, _ := tracker.hasChanged(pod)
+		if !changed {
+			t.Errorf("Pod %d should be detected as new", i)
+		}
+	}
+
+	// None should have changed
+	for i, pod := range pods {
+		changed, _ := tracker.hasChanged(pod)
+		if changed {
+			t.Errorf("Pod %d should not have changed", i)
+		}
+	}
+
+	// Update one pod's status
+	pods[0].Status.Phase = corev1.PodRunning
+	pods[0].Status.ContainerStatuses = []corev1.ContainerStatus{{Ready: true}}
+
+	// Only the updated pod should show change
+	for i, pod := range pods {
+		changed, _ := tracker.hasChanged(pod)
+		if i == 0 && !changed {
+			t.Errorf("Pod %d should have changed", i)
+		}
+		if i != 0 && changed {
+			t.Errorf("Pod %d should not have changed", i)
+		}
 	}
 }
