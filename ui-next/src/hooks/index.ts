@@ -86,6 +86,14 @@ export { useResultsCount, type UseResultsCountOptions } from "./use-results-coun
 // Synchronized Tick (for aligned live durations)
 export { useTick, useTickController, useLiveDuration, calculateLiveDuration } from "./use-tick";
 
+// View Transitions (smooth state changes with View Transitions API)
+export {
+  useViewTransition,
+  withViewTransition,
+  type UseViewTransitionOptions,
+  type UseViewTransitionReturn,
+} from "./use-view-transition";
+
 // Server Actions (optimistic UI)
 export { useOptimisticAction, useServerAction } from "./use-optimistic-action";
 
