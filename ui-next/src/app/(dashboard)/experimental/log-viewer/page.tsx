@@ -17,7 +17,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LogViewerSkeleton } from "@/components/log-viewer";
-import { LogViewerPageContent } from "./components/log-viewer-page-content";
+import { LogViewerWithData } from "./components/log-viewer-with-data";
 
 /**
  * Log Viewer Experimental Page (Server Component)
@@ -25,15 +25,24 @@ import { LogViewerPageContent } from "./components/log-viewer-page-content";
  * A dedicated playground for developing and testing the log viewer component.
  * Uses the reusable LogViewerContainer with scenario-based mock data.
  *
- * STREAMING ARCHITECTURE:
- * 1. Server immediately sends Chrome shell + LogViewerSkeleton
- * 2. LogViewerPageContent hydrates in background
- * 3. Once hydrated, content replaces skeleton
- * 4. Data streams in via React Query
+ * PARTIAL PRERENDER (PPR) ARCHITECTURE:
+ * 1. Server immediately sends Chrome shell + LogViewerSkeleton (static shell)
+ * 2. LogViewerWithData suspends while prefetching log data on server
+ * 3. When data is ready, React streams the content to replace skeleton
+ * 4. Client hydrates with data already in React Query cache (no client fetch!)
  *
- * This ensures instant visual feedback on hard refresh.
+ * This pattern mirrors production usage where log-viewer will be used on:
+ * - Task logs, Group logs, Workflow logs pages
+ * - Static logs (completed workflows) - biggest PPR benefit
+ * - Streaming logs (running workflows) - prefetch initial batch
+ * - Permalinked logs - server knows exactly what to fetch
  */
-export default function LogViewerExperimentalPage() {
+
+interface PageProps {
+  searchParams: Promise<{ scenario?: string }>;
+}
+
+export default function LogViewerExperimentalPage({ searchParams }: PageProps) {
   // Redirect to home in production (server-side, no client JS needed)
   if (process.env.NODE_ENV === "production") {
     redirect("/");
@@ -49,7 +58,7 @@ export default function LogViewerExperimentalPage() {
         </div>
       }
     >
-      <LogViewerPageContent />
+      <LogViewerWithData searchParams={searchParams} />
     </Suspense>
   );
 }
