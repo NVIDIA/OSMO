@@ -96,7 +96,7 @@ function FacetBarInner({ facets, selectedFilters, onFilterChange, facetConfig, c
   }
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+    <div className={cn("flex flex-wrap items-center gap-3", className)}>
       {facets.map((facet) => {
         const config = mergedConfig.get(facet.field);
         return (

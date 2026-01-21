@@ -45,31 +45,31 @@ export function getBasePath(): string {
   // This is a fallback for cases where env var isn't available
   if (typeof window !== "undefined") {
     const pathname = window.location.pathname;
-    
+
     // Match basePath patterns: /v2, /v2/, /v2/pools, etc.
     // Extract the first segment that looks like a version path (/v2, /v3, etc.)
     const match = pathname.match(/^\/(v\d+)(?:\/|$)/);
     if (match) {
       return `/${match[1]}`;
     }
-    
+
     // Also check if we're at the root with a basePath (e.g., /v2 with no trailing slash)
     // This handles the case where pathname is exactly "/v2"
     if (pathname.match(/^\/v\d+$/)) {
       return pathname;
     }
-    
+
     // Check the base element if present (Next.js sometimes sets this)
-    const baseElement = document.querySelector('base[href]');
+    const baseElement = document.querySelector("base[href]");
     if (baseElement) {
-      const baseHref = baseElement.getAttribute('href');
-      if (baseHref && baseHref !== '/') {
+      const baseHref = baseElement.getAttribute("href");
+      if (baseHref && baseHref !== "/") {
         try {
           const baseUrl = new URL(baseHref, window.location.origin);
           const basePath = baseUrl.pathname;
-          if (basePath && basePath !== '/') {
+          if (basePath && basePath !== "/") {
             // Remove trailing slash
-            return basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+            return basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
           }
         } catch {
           // Invalid URL, ignore
