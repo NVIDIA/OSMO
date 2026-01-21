@@ -8,14 +8,14 @@
 
 "use client";
 
-import { memo, useCallback, useMemo, useState, useEffect, startTransition, useDeferredValue } from "react";
+import { memo, useCallback, useMemo, useEffect, startTransition, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket, FieldFacet } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
-import { type SearchChip, filterByChips } from "@/components/filter-bar";
+import type { SearchChip } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks";
-import { QueryBar, createLogFields } from "./QueryBar";
+import { QueryBar } from "./QueryBar";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { FieldsPane } from "./FieldsPane";
 import { LogList } from "./LogList";
@@ -46,7 +46,7 @@ function buildActiveFiltersMap(chips: SearchChip[]): Map<string, Set<string>> {
 // =============================================================================
 
 export interface LogViewerProps {
-  /** Log entries to display */
+  /** Log entries to display (already filtered by Container) */
   entries: LogEntry[];
   /** Whether entries are currently loading (initial load) */
   isLoading?: boolean;
@@ -63,26 +63,14 @@ export interface LogViewerProps {
   facets?: FieldFacet[];
   /** Callback to refetch data */
   onRefetch?: () => void;
-  /** Callback when filters change (for URL sync) */
-  onFiltersChange?: (chips: SearchChip[]) => void;
-  /** Initial filter chips (from URL) */
-  initialChips?: SearchChip[];
+  /** Current filter chips (controlled by parent) */
+  filterChips: SearchChip[];
+  /** Callback when user changes filter chips */
+  onFilterChipsChange: (chips: SearchChip[]) => void;
   /** Scope of the log viewer */
   scope?: "workflow" | "group" | "task";
   /** Additional CSS classes */
   className?: string;
-  /**
-   * Total unfiltered entry count.
-   * When provided with `preFiltered=true`, used to display accurate "M of N results".
-   * If not provided, defaults to entries.length.
-   */
-  totalEntryCount?: number;
-  /**
-   * Whether entries are already filtered at the adapter level.
-   * When true, skips client-side filterByChips for O(1) performance.
-   * Use with chipsToLogQuery() to pass filters to useLogQuery.
-   */
-  preFiltered?: boolean;
 }
 
 // =============================================================================
@@ -124,17 +112,12 @@ function LogViewerInner({
   histogram,
   facets = [],
   onRefetch,
-  onFiltersChange,
-  initialChips = [],
+  filterChips,
+  onFilterChipsChange,
   scope = "workflow",
   className,
-  totalEntryCount,
-  preFiltered = false,
 }: LogViewerProps) {
   const { clipboard, announcer } = useServices();
-
-  // Local chip state (synced with URL via onFiltersChange)
-  const [chips, setChips] = useState<SearchChip[]>(initialChips);
 
   // Store state
   const isTailing = useLogViewerStore((s) => s.isTailing);
@@ -168,65 +151,47 @@ function LogViewerInner({
     };
   }, [reset]);
 
-  // Note: initialChips is used as initial state via useState above.
-  // No sync effect needed - if parent needs to control chips, use onFiltersChange callback.
-
   // Show task filter only at workflow/group scope
   const showTaskFilter = scope !== "task";
 
-  // Memoize log fields for filtering (same fields used by QueryBar)
-  const logFields = useMemo(() => createLogFields(showTaskFilter), [showTaskFilter]);
-
-  // Handle chip changes with View Transition for smooth visual updates
-  const handleChipsChange = useCallback(
+  // Handle filter chip changes with View Transition for smooth visual updates
+  const handleFilterChipsChange = useCallback(
     (newChips: SearchChip[]) => {
       // Use View Transition API for smooth crossfade when available
       // Falls back to immediate update if not supported
       withViewTransition(() => {
         startTransition(() => {
-          setChips(newChips);
-          onFiltersChange?.(newChips);
+          onFilterChipsChange(newChips);
         });
       });
     },
-    [onFiltersChange],
+    [onFilterChipsChange],
   );
 
-  // Filter entries using shared filterByChips from filter-bar
-  // Skip client-side filtering when entries are pre-filtered at the adapter level (O(1))
-  const filteredEntriesImmediate = useMemo(() => {
-    if (preFiltered) {
-      // Entries already filtered by LogIndex at adapter level - use as-is
-      return entries;
-    }
-    // Client-side filtering fallback (O(n))
-    return filterByChips(entries, chips, logFields);
-  }, [entries, chips, logFields, preFiltered]);
-
-  // Use deferred value to prevent blocking UI during heavy filtering
+  // Use deferred value to prevent blocking UI during streaming updates
   // React 19 will keep showing previous results while computing new ones
-  const filteredEntries = useDeferredValue(filteredEntriesImmediate);
+  const deferredEntries = useDeferredValue(entries);
 
   // Track if we're showing stale data (deferred value hasn't caught up)
-  const isStale = filteredEntries !== filteredEntriesImmediate || isFetching;
+  const isStale = deferredEntries !== entries || isFetching;
 
   // Build active filters map for FieldsPane
-  const activeFilters = useMemo(() => buildActiveFiltersMap(chips), [chips]);
+  const activeFilters = useMemo(() => buildActiveFiltersMap(filterChips), [filterChips]);
 
-  // Handle facet click - add/remove filter chip (uses handleChipsChange which has View Transitions)
+  // Handle facet click - add/remove filter chip
   const handleFacetClick = useCallback(
     (field: string, value: string) => {
-      const existing = chips.find((c) => c.field === field && c.value === value);
+      const existing = filterChips.find((c) => c.field === field && c.value === value);
       if (existing) {
         // Remove chip
-        handleChipsChange(chips.filter((c) => c !== existing));
+        handleFilterChipsChange(filterChips.filter((c) => c !== existing));
       } else {
         // Add chip
         const label = `${field}: ${value}`;
-        handleChipsChange([...chips, { field, value, label }]);
+        handleFilterChipsChange([...filterChips, { field, value, label }]);
       }
     },
-    [chips, handleChipsChange],
+    [filterChips, handleFilterChipsChange],
   );
 
   // Handle histogram bucket click
@@ -246,7 +211,7 @@ function LogViewerInner({
 
   // Handle download
   const handleDownload = useCallback(() => {
-    const content = filteredEntries.map((e) => formatLogLine(e)).join("\n");
+    const content = deferredEntries.map((e) => formatLogLine(e)).join("\n");
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -255,7 +220,7 @@ function LogViewerInner({
     a.click();
     URL.revokeObjectURL(url);
     announcer.announce("Logs downloaded", "polite");
-  }, [filteredEntries, announcer]);
+  }, [deferredEntries, announcer]);
 
   // Handle scroll away from bottom (pause tailing)
   const handleScrollAwayFromBottom = useCallback(() => {
@@ -265,14 +230,13 @@ function LogViewerInner({
     }
   }, [isTailing, setTailing, announcer]);
 
-  // Results count for QueryBar
-  // When preFiltered, use totalEntryCount for accurate "M of N results" display
+  // Results count for QueryBar - entries are already filtered by Container
   const resultsCount = useMemo(
     () => ({
-      total: preFiltered && totalEntryCount !== undefined ? totalEntryCount : entries.length,
-      filtered: chips.length > 0 ? filteredEntries.length : undefined,
+      total: entries.length,
+      filtered: undefined, // No client-side filtering, count is already filtered
     }),
-    [entries.length, filteredEntries.length, chips.length, preFiltered, totalEntryCount],
+    [entries.length],
   );
 
   // Show fields pane only at workflow/group scope
@@ -297,8 +261,8 @@ function LogViewerInner({
       <div className="shrink-0 border-b">
         <QueryBar
           entries={entries}
-          chips={chips}
-          onChipsChange={handleChipsChange}
+          chips={filterChips}
+          onChipsChange={handleFilterChipsChange}
           resultsCount={resultsCount}
           showTaskFilter={showTaskFilter}
           className="px-3 py-2"
@@ -340,7 +304,7 @@ function LogViewerInner({
         {/* Log list with native sticky date headers */}
         <div className="min-w-0 flex-1 overflow-hidden">
           <LogList
-            entries={filteredEntries}
+            entries={deferredEntries}
             onCopy={handleCopy}
             isTailing={isTailing}
             onScrollAwayFromBottom={handleScrollAwayFromBottom}
@@ -353,7 +317,7 @@ function LogViewerInner({
       <div className="shrink-0">
         <LogToolbar
           totalCount={entries.length}
-          filteredCount={chips.length > 0 ? filteredEntries.length : undefined}
+          filteredCount={undefined}
           isTailing={isTailing}
           onToggleTailing={toggleTailing}
           wrapLines={wrapLines}

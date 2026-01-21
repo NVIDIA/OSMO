@@ -33,7 +33,7 @@
  *   workflowId="my-workflow"
  *   scope="task"
  *   enableTailing={false}
- *   onFiltersChange={(chips) => syncToUrl(chips)}
+ *   onFilterChipsChange={(chips) => syncToUrl(chips)}
  * />
  * ```
  */
@@ -65,10 +65,10 @@ export interface LogViewerContainerProps {
   className?: string;
   /** Additional class names for the LogViewer */
   viewerClassName?: string;
-  /** Callback when filters change */
-  onFiltersChange?: (chips: SearchChip[]) => void;
-  /** Initial filter chips */
-  initialChips?: SearchChip[];
+  /** Callback when filter chips change */
+  onFilterChipsChange?: (chips: SearchChip[]) => void;
+  /** Initial filter chips (used on mount, not synced after) */
+  initialFilterChips?: SearchChip[];
   /** Enable live tailing (default: true) */
   enableTailing?: boolean;
   /** Show border around the container (default: true) */
@@ -89,8 +89,8 @@ export function LogViewerContainer({
   scope = "workflow",
   className,
   viewerClassName,
-  onFiltersChange,
-  initialChips = [],
+  onFilterChipsChange,
+  initialFilterChips = [],
   enableTailing = true,
   showBorder = true,
 }: LogViewerContainerProps) {
@@ -106,8 +106,8 @@ export function LogViewerContainer({
       scope={scope}
       className={className}
       viewerClassName={viewerClassName}
-      onFiltersChange={onFiltersChange}
-      initialChips={initialChips}
+      onFilterChipsChange={onFilterChipsChange}
+      initialFilterChips={initialFilterChips}
       enableTailing={enableTailing}
       showBorder={showBorder}
     />
@@ -125,13 +125,13 @@ function LogViewerContainerInner({
   scope,
   className,
   viewerClassName,
-  onFiltersChange: onFiltersChangeProp,
-  initialChips,
+  onFilterChipsChange: onFilterChipsChangeProp,
+  initialFilterChips,
   enableTailing,
   showBorder,
 }: LogViewerContainerProps) {
-  // Filter chips state
-  const [filterChips, setFilterChips] = useState<SearchChip[]>(initialChips ?? []);
+  // Filter chips state - single source of truth
+  const [filterChips, setFilterChips] = useState<SearchChip[]>(initialFilterChips ?? []);
 
   // Get tailing state from store
   const isTailing = useLogViewerStore((s) => s.isTailing);
@@ -176,17 +176,14 @@ function LogViewerContainerInner({
   // Uses ref-based buffer for stable array identity during streaming
   const combinedEntries = useCombinedEntries(queryEntries, tailEntries);
 
-  // Handle filter changes
-  const handleFiltersChange = useCallback(
+  // Handle filter chip changes - update local state and notify parent
+  const handleFilterChipsChange = useCallback(
     (chips: SearchChip[]) => {
       setFilterChips(chips);
-      onFiltersChangeProp?.(chips);
+      onFilterChipsChangeProp?.(chips);
     },
-    [onFiltersChangeProp],
+    [onFilterChipsChangeProp],
   );
-
-  // Check if any filters are active for preFiltered mode
-  const hasFilters = filterChips.length > 0;
 
   // Show skeleton ONLY during initial load (no previous data available)
   // Once we have data, we keep showing it with a subtle loading indicator
@@ -210,11 +207,10 @@ function LogViewerContainerInner({
         histogram={histogram}
         facets={facets}
         onRefetch={refetch}
-        onFiltersChange={handleFiltersChange}
-        initialChips={filterChips}
+        filterChips={filterChips}
+        onFilterChipsChange={handleFilterChipsChange}
         scope={scope}
         className={viewerClassName}
-        preFiltered={hasFilters}
       />
     </div>
   );

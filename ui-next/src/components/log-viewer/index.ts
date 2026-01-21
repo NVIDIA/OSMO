@@ -12,14 +12,21 @@
  * A GCP-inspired log viewer with virtualized scrolling, filtering, and histogram.
  * Uses adapter pattern for backend-agnostic design.
  *
- * Usage:
+ * Recommended usage (via Container):
+ * ```tsx
+ * import { LogViewerContainer } from "@/components/log-viewer";
+ *
+ * <LogViewerContainer workflowId="my-workflow" />
+ * ```
+ *
+ * Direct usage (for custom data sources):
  * ```tsx
  * import { LogViewer } from "@/components/log-viewer";
  *
  * <LogViewer
  *   entries={entries}
- *   histogram={histogram}
- *   facets={facets}
+ *   filterChips={filterChips}
+ *   onFilterChipsChange={setFilterChips}
  *   scope="workflow"
  * />
  * ```
@@ -88,9 +95,9 @@ export type { LogQueryFilters } from "./lib/chips-to-log-query";
 
 export { useCombinedEntries } from "./lib/use-combined-entries";
 
-// Note: Filter logic is now provided by @/components/filter-bar via filterByChips()
-// Use createLogFields() to get field definitions for log filtering.
-// For O(1) adapter-level filtering, use chipsToLogQuery() to convert chips to query params.
+// Note: LogViewer is a pure display component - all filtering happens at Container level.
+// Use chipsToLogQuery() to convert filter chips to query params for useLogData().
+// createLogFields() provides field definitions for the QueryBar autocomplete.
 
 export {
   ROW_HEIGHT_ESTIMATE,

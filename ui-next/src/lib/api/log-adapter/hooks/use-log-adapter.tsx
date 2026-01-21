@@ -17,16 +17,12 @@
 /**
  * useLogAdapter Hook
  *
- * Provides access to the log adapter instance.
- * Uses a singleton pattern for the default adapter.
+ * Provides access to the log adapter singleton instance.
  */
 
 "use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-
-import type { LogAdapter } from "../types";
-import { PlainTextAdapter, type PlainTextAdapterConfig } from "../adapters/plain-text-adapter";
+import { PlainTextAdapter } from "../adapters/plain-text-adapter";
 
 // =============================================================================
 // Singleton Adapter
@@ -46,80 +42,14 @@ function getDefaultAdapter(): PlainTextAdapter {
 }
 
 // =============================================================================
-// Context
-// =============================================================================
-
-const LogAdapterContext = createContext<LogAdapter | null>(null);
-
-/**
- * Props for LogAdapterProvider.
- */
-export interface LogAdapterProviderProps {
-  /** Custom adapter instance */
-  adapter?: LogAdapter;
-  /** Configuration for default PlainTextAdapter */
-  config?: PlainTextAdapterConfig;
-  /** Children */
-  children: ReactNode;
-}
-
-/**
- * Provider for custom log adapter instances.
- * If no adapter is provided, uses the default PlainTextAdapter.
- *
- * @example
- * ```tsx
- * // Use default adapter
- * <LogAdapterProvider>
- *   <LogViewer workflowId="my-workflow" />
- * </LogAdapterProvider>
- *
- * // Use custom adapter (e.g., for testing)
- * <LogAdapterProvider adapter={mockAdapter}>
- *   <LogViewer workflowId="my-workflow" />
- * </LogAdapterProvider>
- * ```
- */
-export function LogAdapterProvider({ adapter, config, children }: LogAdapterProviderProps): ReactNode {
-  const value = useMemo(() => {
-    if (adapter) return adapter;
-    if (config) return new PlainTextAdapter(config);
-    return getDefaultAdapter();
-  }, [adapter, config]);
-
-  return <LogAdapterContext.Provider value={value}>{children}</LogAdapterContext.Provider>;
-}
-
-// =============================================================================
 // Hook
 // =============================================================================
 
 /**
- * Hook to access the log adapter.
+ * Hook to access the log adapter singleton.
  *
- * Returns the adapter from context if provided, otherwise returns the
- * default PlainTextAdapter singleton.
- *
- * @returns LogAdapter instance
+ * @returns PlainTextAdapter instance
  */
 export function useLogAdapter(): PlainTextAdapter {
-  const contextAdapter = useContext(LogAdapterContext);
-
-  // If we have a context adapter that's a PlainTextAdapter, use it
-  // Otherwise use the default singleton
-  if (contextAdapter instanceof PlainTextAdapter) {
-    return contextAdapter;
-  }
-
   return getDefaultAdapter();
-}
-
-/**
- * Hook to access capabilities of the current adapter.
- *
- * @returns Adapter capabilities
- */
-export function useLogAdapterCapabilities() {
-  const adapter = useLogAdapter();
-  return adapter.capabilities;
 }
