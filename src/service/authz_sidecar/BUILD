@@ -150,16 +150,6 @@ oci_push(
     ],
 )
 
-# Legacy target alias for backward compatibility
-pkg_tar(
-    name = "authz_sidecar_pkg",
-    extension = "tgz",
-    package_dir = "/osmo",
-    srcs = [":authz_sidecar_bin"],
-    mode = "0755",
-    visibility = ["//visibility:public"],
-)
-
 # Integration test - requires running authz_sidecar service
 #
 # To run this test:
