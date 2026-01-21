@@ -55,17 +55,30 @@ export type { LogEntryRowProps } from "./components/LogEntryRow";
 export { LogList } from "./components/LogList";
 export type { LogListProps } from "./components/LogList";
 
-export { QueryBar, createLogFields } from "./components/QueryBar";
-export type { QueryBarProps } from "./components/QueryBar";
+export { SearchBar } from "./components/SearchBar";
+export type { SearchBarProps } from "./components/SearchBar";
+
+export { FacetDropdown } from "./components/FacetDropdown";
+export type { FacetDropdownProps } from "./components/FacetDropdown";
+
+export { FacetBar } from "./components/FacetBar";
+export type { FacetBarProps } from "./components/FacetBar";
+
+export { Footer } from "./components/Footer";
+export type { FooterProps } from "./components/Footer";
 
 export { TimelineHistogram } from "./components/TimelineHistogram";
 export type { TimelineHistogramProps } from "./components/TimelineHistogram";
 
-export { FieldsPane } from "./components/FieldsPane";
-export type { FieldsPaneProps } from "./components/FieldsPane";
-
 export { LogContext } from "./components/LogContext";
 export type { LogContextProps } from "./components/LogContext";
+
+// Legacy components (kept for backward compatibility)
+export { QueryBar, createLogFields } from "./components/QueryBar";
+export type { QueryBarProps } from "./components/QueryBar";
+
+export { FieldsPane } from "./components/FieldsPane";
+export type { FieldsPaneProps } from "./components/FieldsPane";
 
 export { LogToolbar } from "./components/LogToolbar";
 export type { LogToolbarProps } from "./components/LogToolbar";
