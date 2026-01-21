@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -15,7 +15,11 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { yupResolver } from "@hookform/resolvers/yup";
+import { Controller, useForm } from "react-hook-form";
+import * as yup from "yup";
 
 import { InlineBanner } from "~/components/InlineBanner";
 import { RoleEditor } from "~/components/RoleEditor";
@@ -31,95 +35,225 @@ interface ServiceConfigEditorProps {
   error?: string;
 }
 
+const agentQueueSizeSchema = yup
+  .string()
+  .required("Agent Queue Size is required")
+  .test("is-int", "Agent Queue Size must be a whole number", (value) => Boolean(value && /^\d+$/.test(value)));
+
+const versionStringSchema = yup
+  .string()
+  .trim()
+  .matches(/^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/, "Version must be a valid version string");
+
+const serviceConfigSchema = yup.object({
+  changeDescription: yup.string().trim().required("Change Description is required").defined(),
+  tags: yup.array().of(yup.string().trim().defined()).default([]).defined(),
+  service_base_url: yup
+    .string()
+    .trim()
+    .url("Service Base URL must be a valid URL")
+    .required("Service Base URL is required")
+    .defined(),
+  max_pod_restart_limit: yup.string().trim().required("Max Pod Restart Limit is required").defined(),
+  agent_queue_size: agentQueueSizeSchema.defined(),
+  max_token_duration: yup.string().trim().required("Max Token Duration is required").defined(),
+  latest_version: versionStringSchema.required("CLI Latest Version is required").defined(),
+  min_supported_version: versionStringSchema.required("CLI Min Supported Version is required").defined(),
+  issuer: yup.string().trim().required("Issuer is required").defined(),
+  audience: yup.string().trim().required("Audience is required").defined(),
+  user_roles: yup
+    .string()
+    .trim()
+    .required("User Roles is required")
+    .test("roles-not-empty", "User Roles must include at least one role", (value) => {
+      if (!value) {
+        return false;
+      }
+      return (
+        value
+          .split(",")
+          .map((role) => role.trim())
+          .filter(Boolean).length > 0
+      );
+    })
+    .defined(),
+  ctrl_roles: yup.string().trim().default("").defined(),
+  device_client_id: yup.string().trim().required("Device Client ID is required").defined(),
+  browser_client_id: yup.string().trim().required("Browser Client ID is required").defined(),
+  device_endpoint: yup
+    .string()
+    .trim()
+    .url("Device Endpoint must be a valid URL")
+    .required("Device Endpoint is required")
+    .defined(),
+  browser_endpoint: yup
+    .string()
+    .trim()
+    .url("Browser Endpoint must be a valid URL")
+    .required("Browser Endpoint is required")
+    .defined(),
+  token_endpoint: yup
+    .string()
+    .trim()
+    .url("Token Endpoint must be a valid URL")
+    .required("Token Endpoint is required")
+    .defined(),
+  logout_endpoint: yup
+    .string()
+    .trim()
+    .url("Logout Endpoint must be a valid URL")
+    .required("Logout Endpoint is required")
+    .defined(),
+});
+
+type ServiceConfigFormValues = yup.InferType<typeof serviceConfigSchema>;
+
 export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceConfigEditorProps) => {
-  // Change Data
-  const [changeDescription, setChangeDescription] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
   const [isComparing, setIsComparing] = useState(false);
   const [currentConfig, setCurrentConfig] = useState<ServiceConfig>(serviceConfig);
 
-  // General settings
-  const [serviceBaseUrl, setServiceBaseUrl] = useState(serviceConfig.service_base_url);
-  const [maxPodRestartLimit, setMaxPodRestartLimit] = useState(serviceConfig.max_pod_restart_limit);
-  const [agentQueueSize, setAgentQueueSize] = useState(serviceConfig.agent_queue_size.toString());
+  const defaultValues = useMemo<ServiceConfigFormValues>(
+    () => ({
+      changeDescription: "",
+      tags: [],
+      service_base_url: serviceConfig.service_base_url,
+      max_pod_restart_limit: serviceConfig.max_pod_restart_limit,
+      agent_queue_size: serviceConfig.agent_queue_size.toString(),
+      max_token_duration: serviceConfig.service_auth.max_token_duration,
+      latest_version: serviceConfig.cli_config.latest_version ?? "",
+      min_supported_version: serviceConfig.cli_config.min_supported_version ?? "",
+      issuer: serviceConfig.service_auth.issuer,
+      audience: serviceConfig.service_auth.audience,
+      user_roles: serviceConfig.service_auth.user_roles.join(", "),
+      ctrl_roles: serviceConfig.service_auth.ctrl_roles.join(", "),
+      device_client_id: serviceConfig.service_auth.login_info.device_client_id ?? "",
+      browser_client_id: serviceConfig.service_auth.login_info.browser_client_id ?? "",
+      device_endpoint: serviceConfig.service_auth.login_info.device_endpoint ?? "",
+      browser_endpoint: serviceConfig.service_auth.login_info.browser_endpoint ?? "",
+      token_endpoint: serviceConfig.service_auth.login_info.token_endpoint ?? "",
+      logout_endpoint: serviceConfig.service_auth.login_info.logout_endpoint ?? "",
+    }),
+    [serviceConfig],
+  );
 
-  // CLI Config
-  const [latestVersion, setLatestVersion] = useState(serviceConfig.cli_config.latest_version);
-  const [minSupportedVersion, setMinSupportedVersion] = useState(serviceConfig.cli_config.min_supported_version);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setFocus,
+    formState: { errors },
+  } = useForm<ServiceConfigFormValues>({
+    defaultValues,
+    resolver: yupResolver(serviceConfigSchema),
+  });
 
-  // Auth settings
-  const [issuer, setIssuer] = useState(serviceConfig.service_auth.issuer);
-  const [audience, setAudience] = useState(serviceConfig.service_auth.audience);
-  const [userRoles, setUserRoles] = useState(serviceConfig.service_auth.user_roles.join(", "));
-  const [ctrlRoles, setCtrlRoles] = useState(serviceConfig.service_auth.ctrl_roles.join(", "));
-  const [maxTokenDuration, setMaxTokenDuration] = useState(serviceConfig.service_auth.max_token_duration);
+  useEffect(() => {
+    reset(defaultValues);
+    setCurrentConfig(serviceConfig);
+    setIsComparing(false);
+  }, [defaultValues, reset, serviceConfig]);
 
-  // Login Info
-  const [deviceClientId, setDeviceClientId] = useState(serviceConfig.service_auth.login_info.device_client_id);
-  const [browserClientId, setBrowserClientId] = useState(serviceConfig.service_auth.login_info.browser_client_id);
-  const [deviceEndpoint, setDeviceEndpoint] = useState(serviceConfig.service_auth.login_info.device_endpoint);
-  const [browserEndpoint, setBrowserEndpoint] = useState(serviceConfig.service_auth.login_info.browser_endpoint);
-  const [tokenEndpoint, setTokenEndpoint] = useState(serviceConfig.service_auth.login_info.token_endpoint);
-  const [logoutEndpoint, setLogoutEndpoint] = useState(serviceConfig.service_auth.login_info.logout_endpoint);
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const onSubmit = (values: ServiceConfigFormValues) => {
+    if (isComparing) {
+      onSave(currentConfig);
+      return;
+    }
 
     setCurrentConfig({
-      service_base_url: serviceBaseUrl,
-      max_pod_restart_limit: maxPodRestartLimit,
-      agent_queue_size: parseInt(agentQueueSize, 10),
+      service_base_url: values.service_base_url,
+      max_pod_restart_limit: values.max_pod_restart_limit,
+      agent_queue_size: parseInt(values.agent_queue_size, 10),
       cli_config: {
-        latest_version: latestVersion,
-        min_supported_version: minSupportedVersion,
+        latest_version: values.latest_version,
+        min_supported_version: values.min_supported_version,
       },
       service_auth: {
         ...serviceConfig.service_auth,
-        issuer,
-        audience,
-        user_roles: userRoles
+        issuer: values.issuer,
+        audience: values.audience,
+        user_roles: values.user_roles
           .split(",")
-          .map((r) => r.trim())
+          .map((role) => role.trim())
           .filter(Boolean),
-        ctrl_roles: ctrlRoles
+        ctrl_roles: values.ctrl_roles
           .split(",")
-          .map((r) => r.trim())
+          .map((role) => role.trim())
           .filter(Boolean),
-        max_token_duration: maxTokenDuration,
+        max_token_duration: values.max_token_duration,
         login_info: {
-          device_client_id: deviceClientId,
-          browser_client_id: browserClientId,
-          device_endpoint: deviceEndpoint,
-          browser_endpoint: browserEndpoint,
-          token_endpoint: tokenEndpoint,
-          logout_endpoint: logoutEndpoint,
+          device_client_id: values.device_client_id,
+          browser_client_id: values.browser_client_id,
+          device_endpoint: values.device_endpoint,
+          browser_endpoint: values.browser_endpoint,
+          token_endpoint: values.token_endpoint,
+          logout_endpoint: values.logout_endpoint,
         },
       },
     });
     setIsComparing(true);
   };
 
+  const focusFirstError = () => {
+    const focusOrder: (keyof ServiceConfigFormValues)[] = [
+      "changeDescription",
+      "max_pod_restart_limit",
+      "agent_queue_size",
+      "max_token_duration",
+      "latest_version",
+      "min_supported_version",
+      "device_client_id",
+      "browser_client_id",
+      "issuer",
+      "audience",
+      "ctrl_roles",
+      "service_base_url",
+      "device_endpoint",
+      "browser_endpoint",
+      "token_endpoint",
+      "logout_endpoint",
+    ];
+
+    const firstErrorField = focusOrder.find((field) => errors[field]);
+    if (firstErrorField) {
+      setFocus(firstErrorField);
+    }
+  };
+
   return (
     <form
       className="relative flex flex-col w-full h-full overflow-y-auto"
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmit(onSubmit, focusFirstError)}
     >
       <div className="grid grid-cols-[1fr_auto] gap-global p-global border-y border-border bg-headerbg">
-        <TextInput
-          id="change_description"
-          label="Change Description"
-          value={changeDescription}
-          onChange={(e) => setChangeDescription(e.target.value)}
-          required
-          className="w-full"
+        <Controller
+          name="changeDescription"
+          control={control}
+          render={({ field }) => (
+            <TextInput
+              id="change_description"
+              label="Change Description"
+              value={field.value}
+              onChange={field.onChange}
+              ref={field.ref}
+              required
+              className="w-full"
+              errorText={errors.changeDescription?.message}
+            />
+          )}
         />
-        <RoleEditor
-          label="Tags"
-          entityLabel="Tag"
-          roles={tags}
-          setRoles={setTags}
-          message={null}
-          isError={false}
+        <Controller
+          name="tags"
+          control={control}
+          render={({ field }) => (
+            <RoleEditor
+              label="Tags"
+              entityLabel="Tag"
+              roles={field.value}
+              setRoles={field.onChange}
+              message={errors.tags?.message ?? null}
+              isError={Boolean(errors.tags)}
+            />
+          )}
         />
       </div>
       {isComparing ? (
@@ -144,128 +278,257 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
       ) : (
         <div className="config-editor">
           <div className="flex flex-col gap-global">
-            <TextInput
-              id="max_pod_restart_limit"
-              label="Max Pod Restart Limit"
-              value={maxPodRestartLimit}
-              onChange={(e) => setMaxPodRestartLimit(e.target.value)}
-              required
-              helperText="e.g., 15m, 1h, 30s"
+            <Controller
+              name="max_pod_restart_limit"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="max_pod_restart_limit"
+                  label="Max Pod Restart Limit"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  helperText="e.g., 15m, 1h, 30s"
+                  errorText={errors.max_pod_restart_limit?.message}
+                />
+              )}
             />
-            <TextInput
-              id="agent_queue_size"
-              label="Agent Queue Size"
-              type="number"
-              value={agentQueueSize}
-              onChange={(e) => setAgentQueueSize(e.target.value)}
-              required
+            <Controller
+              name="agent_queue_size"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="agent_queue_size"
+                  label="Agent Queue Size"
+                  type="number"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.agent_queue_size?.message}
+                />
+              )}
             />
-            <TextInput
-              id="max_token_duration"
-              label="Max Token Duration"
-              value={maxTokenDuration}
-              onChange={(e) => setMaxTokenDuration(e.target.value)}
-              required
-              helperText="e.g., 365d, 24h, 60m"
+            <Controller
+              name="max_token_duration"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="max_token_duration"
+                  label="Max Token Duration"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  helperText="e.g., 365d, 24h, 60m"
+                  errorText={errors.max_token_duration?.message}
+                />
+              )}
             />
-            <TextInput
-              id="latest_version"
-              label="CLI Latest Version"
-              value={latestVersion ?? ""}
-              onChange={(e) => setLatestVersion(e.target.value)}
-              required
+            <Controller
+              name="latest_version"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="latest_version"
+                  label="CLI Latest Version"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.latest_version?.message}
+                />
+              )}
             />
-            <TextInput
-              id="min_supported_version"
-              label="CLI Min Supported Version"
-              value={minSupportedVersion ?? ""}
-              onChange={(e) => setMinSupportedVersion(e.target.value)}
-              required
+            <Controller
+              name="min_supported_version"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="min_supported_version"
+                  label="CLI Min Supported Version"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.min_supported_version?.message}
+                />
+              )}
             />
-            <TextInput
-              id="device_client_id"
-              label="Device Client ID"
-              value={deviceClientId ?? ""}
-              onChange={(e) => setDeviceClientId(e.target.value)}
-              required
+            <Controller
+              name="device_client_id"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="device_client_id"
+                  label="Device Client ID"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.device_client_id?.message}
+                />
+              )}
             />
-            <TextInput
-              id="browser_client_id"
-              label="Browser Client ID"
-              value={browserClientId ?? ""}
-              onChange={(e) => setBrowserClientId(e.target.value)}
-              required
+            <Controller
+              name="browser_client_id"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="browser_client_id"
+                  label="Browser Client ID"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.browser_client_id?.message}
+                />
+              )}
             />
           </div>
           <div className="flex flex-col gap-global">
-            <TextInput
-              id="issuer"
-              label="Issuer"
-              value={issuer}
-              onChange={(e) => setIssuer(e.target.value)}
-              required
+            <Controller
+              name="issuer"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="issuer"
+                  label="Issuer"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.issuer?.message}
+                />
+              )}
             />
-            <TextInput
-              id="audience"
-              label="Audience"
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              required
+            <Controller
+              name="audience"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="audience"
+                  label="Audience"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.audience?.message}
+                />
+              )}
             />
-            <RoleEditor
-              label="User Roles"
-              entityLabel="Role"
-              roles={userRoles.split(",").map((r) => r.trim())}
-              setRoles={(roles) => setUserRoles(roles.join(", "))}
-              message={null}
-              isError={false}
+            <Controller
+              name="user_roles"
+              control={control}
+              render={({ field }) => (
+                <RoleEditor
+                  label="User Roles"
+                  entityLabel="Role"
+                  roles={field.value
+                    .split(",")
+                    .map((role) => role.trim())
+                    .filter(Boolean)}
+                  setRoles={(roles) => field.onChange(roles.join(", "))}
+                  message={errors.user_roles?.message ?? null}
+                  isError={Boolean(errors.user_roles)}
+                />
+              )}
             />
-            <TextInput
-              id="ctrl_roles"
-              label="Ctrl Roles"
-              value={ctrlRoles}
-              onChange={(e) => setCtrlRoles(e.target.value)}
-              helperText="Comma-separated list of roles"
+            <Controller
+              name="ctrl_roles"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="ctrl_roles"
+                  label="Ctrl Roles"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  helperText="Comma-separated list of roles"
+                  errorText={errors.ctrl_roles?.message}
+                />
+              )}
             />
           </div>
           <div className="flex flex-col gap-global md:col-span-2 lg:col-span-1">
-            <TextInput
-              id="service_base_url"
-              label="Service Base URL"
-              value={serviceBaseUrl}
-              onChange={(e) => setServiceBaseUrl(e.target.value)}
-              required
+            <Controller
+              name="service_base_url"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="service_base_url"
+                  label="Service Base URL"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.service_base_url?.message}
+                />
+              )}
             />
-            <TextInput
-              id="device_endpoint"
-              label="Device Endpoint"
-              value={deviceEndpoint ?? ""}
-              onChange={(e) => setDeviceEndpoint(e.target.value)}
-              required
+            <Controller
+              name="device_endpoint"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="device_endpoint"
+                  label="Device Endpoint"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.device_endpoint?.message}
+                />
+              )}
             />
-            <TextInput
-              id="browser_endpoint"
-              label="Browser Endpoint"
-              value={browserEndpoint ?? ""}
-              onChange={(e) => setBrowserEndpoint(e.target.value)}
-              required
+            <Controller
+              name="browser_endpoint"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="browser_endpoint"
+                  label="Browser Endpoint"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.browser_endpoint?.message}
+                />
+              )}
             />
-            <TextInput
-              id="token_endpoint"
-              label="Token Endpoint"
-              value={tokenEndpoint ?? ""}
-              onChange={(e) => setTokenEndpoint(e.target.value)}
-              required
+            <Controller
+              name="token_endpoint"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="token_endpoint"
+                  label="Token Endpoint"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.token_endpoint?.message}
+                />
+              )}
             />
-            <TextInput
-              id="logout_endpoint"
-              label="Logout Endpoint"
-              value={logoutEndpoint ?? ""}
-              onChange={(e) => setLogoutEndpoint(e.target.value)}
-              required
+            <Controller
+              name="logout_endpoint"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  id="logout_endpoint"
+                  label="Logout Endpoint"
+                  value={field.value}
+                  onChange={field.onChange}
+                  ref={field.ref}
+                  required
+                  errorText={errors.logout_endpoint?.message}
+                />
+              )}
             />
+            <InlineBanner status={error ? "error" : "none"}>{error}</InlineBanner>
           </div>
-          <InlineBanner status={error ? "error" : "none"}>{error}</InlineBanner>
         </div>
       )}
       <div className="flex justify-end gap-global p-global border-t border-border bg-footerbg sticky bottom-0">
@@ -282,22 +545,8 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
             type="button"
             className="btn btn-secondary"
             onClick={() => {
-              setServiceBaseUrl(serviceConfig.service_base_url);
-              setMaxPodRestartLimit(serviceConfig.max_pod_restart_limit);
-              setAgentQueueSize(serviceConfig.agent_queue_size.toString());
-              setLatestVersion(serviceConfig.cli_config.latest_version);
-              setMinSupportedVersion(serviceConfig.cli_config.min_supported_version);
-              setIssuer(serviceConfig.service_auth.issuer);
-              setAudience(serviceConfig.service_auth.audience);
-              setUserRoles(serviceConfig.service_auth.user_roles.join(", "));
-              setCtrlRoles(serviceConfig.service_auth.ctrl_roles.join(", "));
-              setMaxTokenDuration(serviceConfig.service_auth.max_token_duration);
-              setDeviceClientId(serviceConfig.service_auth.login_info.device_client_id);
-              setBrowserClientId(serviceConfig.service_auth.login_info.browser_client_id);
-              setDeviceEndpoint(serviceConfig.service_auth.login_info.device_endpoint);
-              setBrowserEndpoint(serviceConfig.service_auth.login_info.browser_endpoint);
-              setTokenEndpoint(serviceConfig.service_auth.login_info.token_endpoint);
-              setLogoutEndpoint(serviceConfig.service_auth.login_info.logout_endpoint);
+              reset(defaultValues);
+              setCurrentConfig(serviceConfig);
             }}
           >
             Reset

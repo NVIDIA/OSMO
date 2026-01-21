@@ -150,6 +150,7 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
             </button>
           )}
         </div>
+        {message && <p className="text-red-600 text-xs">{message}</p>}
       </div>
       <p
         aria-live="polite"
