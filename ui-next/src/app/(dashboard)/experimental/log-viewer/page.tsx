@@ -14,57 +14,42 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-"use client";
-
-import { useMemo } from "react";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { usePage } from "@/components/chrome";
-import { LogViewerContainer } from "@/components/log-viewer";
-import { ScenarioSelector, useScenario } from "./components/scenario-selector";
+import { LogViewerSkeleton } from "@/components/log-viewer";
+import { LogViewerPageContent } from "./components/log-viewer-page-content";
 
 /**
- * Mock workflow ID for the playground.
- */
-const MOCK_WORKFLOW_ID = "log-viewer-playground";
-
-/**
- * Log Viewer Experimental Page
+ * Log Viewer Experimental Page (Server Component)
  *
  * A dedicated playground for developing and testing the log viewer component.
  * Uses the reusable LogViewerContainer with scenario-based mock data.
+ *
+ * STREAMING ARCHITECTURE:
+ * 1. Server immediately sends Chrome shell + LogViewerSkeleton
+ * 2. LogViewerPageContent hydrates in background
+ * 3. Once hydrated, content replaces skeleton
+ * 4. Data streams in via React Query
+ *
+ * This ensures instant visual feedback on hard refresh.
  */
 export default function LogViewerExperimentalPage() {
-  // Redirect to home in production
+  // Redirect to home in production (server-side, no client JS needed)
   if (process.env.NODE_ENV === "production") {
     redirect("/");
   }
 
-  // Read scenario from URL (ScenarioSelector writes to same URL param)
-  const { devParams, tailDevParams } = useScenario();
-
-  // Memoize header actions to prevent infinite re-render loop
-  // usePage uses headerActions as a dependency, so a new JSX element triggers updates
-  const headerActions = useMemo(() => <ScenarioSelector />, []);
-
-  // Register page with scenario selector in header
-  usePage({
-    title: "Log Viewer",
-    breadcrumbs: [{ label: "Experimental", href: "/experimental" }],
-    headerActions,
-  });
-
   return (
-    <div className="flex h-full flex-col p-4">
-      <div className="relative flex-1">
-        <LogViewerContainer
-          workflowId={MOCK_WORKFLOW_ID}
-          devParams={devParams}
-          tailDevParams={tailDevParams}
-          scope="workflow"
-          className="h-full"
-          viewerClassName="h-full"
-        />
-      </div>
-    </div>
+    <Suspense
+      fallback={
+        <div className="flex h-full flex-col p-4">
+          <div className="border-border bg-card relative flex-1 overflow-hidden rounded-lg border">
+            <LogViewerSkeleton className="h-full" />
+          </div>
+        </div>
+      }
+    >
+      <LogViewerPageContent />
+    </Suspense>
   );
 }

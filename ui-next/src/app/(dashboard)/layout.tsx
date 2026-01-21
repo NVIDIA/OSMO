@@ -27,15 +27,23 @@ import { prefetchVersion } from "@/lib/api/server";
  * This ensures useVersion() in Header finds data in cache during SSR,
  * avoiding network requests that would fail in mock mode.
  *
+ * STREAMING: We start the prefetch but don't await it, allowing the shell
+ * to render immediately. The HydrationBoundary will include any cached data
+ * that resolves before the response finishes streaming.
+ *
  * Error handling is automatic via Next.js error.tsx files:
  * - (dashboard)/error.tsx - Catches all dashboard errors
  * - (dashboard)/pools/error.tsx - Catches pool-specific errors
  * - (dashboard)/resources/error.tsx - Catches resource-specific errors
  */
 export default async function DashboardLayout(props: { children: React.ReactNode }) {
-  // Prefetch shared data needed by Chrome/Header
+  // Start prefetch in parallel - don't block the layout render
+  // The query will populate the cache; client will use cached data or refetch
   const queryClient = new QueryClient();
-  await prefetchVersion(queryClient);
+
+  // Fire-and-forget prefetch - allows shell to stream immediately
+  // Version endpoint is fast and cached; blocking on it delays everything
+  void prefetchVersion(queryClient);
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
