@@ -13,6 +13,7 @@ import { Download, WrapText, ArrowDownToLine, Play, Pause, RotateCcw, Tag } from
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import type { TailStatus } from "@/lib/api/log-adapter";
 
 // =============================================================================
 // Types
@@ -43,8 +44,55 @@ export interface LogToolbarProps {
   onRefresh?: () => void;
   /** Whether currently loading */
   isLoading?: boolean;
+  /** Current tail connection status */
+  tailStatus?: TailStatus;
   /** Additional CSS classes */
   className?: string;
+}
+
+// =============================================================================
+// Tail Status Indicator
+// =============================================================================
+
+/**
+ * Visual indicator for tail connection status.
+ * Shows: Live (green), Connecting (amber), Paused (blue), Error (red).
+ */
+function TailStatusIndicator({ status }: { status?: TailStatus }) {
+  if (!status || status === "disconnected") return null;
+
+  const config: Record<Exclude<TailStatus, "disconnected">, { label: string; className: string; pulse: boolean }> = {
+    streaming: {
+      label: "Live",
+      className: "bg-green-500/10 text-green-600 dark:text-green-400",
+      pulse: true,
+    },
+    connecting: {
+      label: "Connecting",
+      className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      pulse: false,
+    },
+    paused: {
+      label: "Paused",
+      className: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+      pulse: false,
+    },
+    error: {
+      label: "Error",
+      className: "bg-destructive/10 text-destructive",
+      pulse: false,
+    },
+  };
+
+  const statusConfig = config[status];
+  if (!statusConfig) return null;
+
+  return (
+    <span className={cn("flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs", statusConfig.className)}>
+      {statusConfig.pulse && <span className="size-1.5 animate-pulse rounded-full bg-current" />}
+      {statusConfig.label}
+    </span>
+  );
 }
 
 // =============================================================================
@@ -64,6 +112,7 @@ function LogToolbarInner({
   onScrollToBottom,
   onRefresh,
   isLoading = false,
+  tailStatus,
   className,
 }: LogToolbarProps) {
   return (
@@ -87,12 +136,7 @@ function LogToolbarInner({
         </span>
 
         {/* Tailing indicator */}
-        {isTailing && (
-          <span className="flex items-center gap-1.5 rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600 dark:text-green-400">
-            <span className="size-1.5 animate-pulse rounded-full bg-green-500" />
-            Live
-          </span>
-        )}
+        {isTailing && <TailStatusIndicator status={tailStatus} />}
       </div>
 
       {/* Right: Actions */}
