@@ -27,7 +27,7 @@ const baseValidConfig = {
   issuer: "https://issuer.example.com",
   audience: "example-audience",
   user_roles: "admin, user",
-  ctrl_roles: "",
+  ctrl_roles: "admin",
   device_client_id: "device-client",
   browser_client_id: "browser-client",
   device_endpoint: "https://auth.example.com/device",
@@ -89,6 +89,23 @@ describe("serviceConfigSchema", () => {
     ).rejects.toMatchObject({
       errors: expect.arrayContaining(["User Roles must include at least one role"]),
     });
+  });
+
+  it("rejects empty ctrl roles", async () => {
+    await expect(
+      validateConfig({
+        ctrl_roles: "",
+      }),
+    ).rejects.toMatchObject({
+      errors: expect.arrayContaining(["Control Roles is required", "Control Roles must include at least one role"]),
+    });
+  });
+
+  it("accepts comma-separated ctrl roles", async () => {
+    const validated = await validateConfig({
+      ctrl_roles: "admin, operator",
+    });
+    expect(validated.ctrl_roles).toBe("admin, operator");
   });
 
   it("trims and normalizes user roles", async () => {

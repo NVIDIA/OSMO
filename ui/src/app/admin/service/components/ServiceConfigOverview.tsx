@@ -17,7 +17,7 @@ import { Colors, Tag } from "~/components/Tag";
 import { type ServiceConfig } from "~/models/config/service-config";
 import { formatForWrapping } from "~/utils/string";
 
-const highlightClass = "bg-yellow-100";
+const highlightClass = "bg-yellow-100 outline-3 outline-yellow-100";
 
 type GetValue = (config: ServiceConfig) => unknown;
 
