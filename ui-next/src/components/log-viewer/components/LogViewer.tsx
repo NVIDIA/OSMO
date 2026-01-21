@@ -20,8 +20,8 @@ import { TimelineHistogram } from "./TimelineHistogram";
 import { FieldsPane } from "./FieldsPane";
 import { LogList } from "./LogList";
 import { LogToolbar } from "./LogToolbar";
+import { LogViewerSkeleton } from "./LogViewerSkeleton";
 import { useLogViewerStore } from "../store/log-viewer-store";
-import { SKELETON_WIDTHS } from "../lib/constants";
 
 // =============================================================================
 // Helpers
@@ -83,31 +83,6 @@ export interface LogViewerProps {
    * Use with chipsToLogQuery() to pass filters to useLogQuery.
    */
   preFiltered?: boolean;
-}
-
-// =============================================================================
-// Loading Skeleton
-// =============================================================================
-
-function LogViewerSkeleton() {
-  return (
-    <div className="flex h-full animate-pulse flex-col">
-      {/* Query bar skeleton */}
-      <div className="bg-muted/30 h-10 border-b" />
-      {/* Histogram skeleton */}
-      <div className="bg-muted/20 h-20 border-b" />
-      {/* Content skeleton */}
-      <div className="flex-1 space-y-2 p-4">
-        {SKELETON_WIDTHS.map((width, i) => (
-          <div
-            key={i}
-            className="bg-muted/30 h-6 rounded"
-            style={{ width }}
-          />
-        ))}
-      </div>
-    </div>
-  );
 }
 
 // =============================================================================

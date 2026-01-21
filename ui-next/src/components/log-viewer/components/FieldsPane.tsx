@@ -12,7 +12,7 @@ import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldFacet, LogLevel } from "@/lib/api/log-adapter";
 import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
-import { getLevelBadgeClasses, getLevelAbbrev } from "../lib/level-utils";
+import { getLevelBadgeClasses, getLevelLabel } from "../lib/level-utils";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 
@@ -72,7 +72,7 @@ function FacetValueItem({ field, value, displayLabel, count, isActive, onClick }
         {/* Level badge or text label */}
         {isLevelField ? (
           <span className={cn("w-[52px] shrink-0 text-center", getLevelBadgeClasses(value as LogLevel))}>
-            {getLevelAbbrev(value as LogLevel)}
+            {getLevelLabel(value as LogLevel)}
           </span>
         ) : (
           <span className="truncate">{displayLabel}</span>

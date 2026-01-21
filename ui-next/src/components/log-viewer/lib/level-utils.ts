@@ -80,16 +80,9 @@ export function getLevelDotClasses(level: LogLevel | undefined): string {
 
 /**
  * Get the label for a log level.
+ * Returns uppercase abbreviation for display (e.g., "DEBUG", "INFO", "WARN").
  */
 export function getLevelLabel(level: LogLevel | undefined): string {
-  if (!level) return "Unknown";
-  return LOG_LEVEL_LABELS[level];
-}
-
-/**
- * Get level label for display.
- */
-export function getLevelAbbrev(level: LogLevel | undefined): string {
   switch (level) {
     case "debug":
       return "DEBUG";

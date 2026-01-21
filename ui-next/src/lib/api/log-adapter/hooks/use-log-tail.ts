@@ -39,6 +39,10 @@ import { parseLogLine } from "../adapters/log-parser";
 export interface UseLogTailParams {
   /** Workflow ID to tail logs for */
   workflowId: string;
+  /** Task group ID for group-scoped tailing (optional) */
+  groupId?: string;
+  /** Task ID for task-scoped tailing (optional) */
+  taskId?: string;
   /** Whether tailing is enabled */
   enabled?: boolean;
   /** Base URL for API requests */
@@ -98,6 +102,8 @@ const DEFAULT_MAX_BUFFER_SIZE = 10_000;
 export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
   const {
     workflowId,
+    groupId,
+    taskId,
     enabled = true,
     baseUrl = "",
     onEntries,
@@ -204,6 +210,14 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       // Mark this as a tailing request (for MSW to know to stream infinitely)
       urlObj.searchParams.set("tail", "true");
 
+      // Add scope parameters if provided
+      if (groupId) {
+        urlObj.searchParams.set("group_id", groupId);
+      }
+      if (taskId) {
+        urlObj.searchParams.set("task_id", taskId);
+      }
+
       // Apply optional URL params (used by experimental playground for mock scenarios)
       if (devParams) {
         for (const [key, value] of Object.entries(devParams)) {
@@ -266,7 +280,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         setStatus("error");
       }
     }
-  }, [baseUrl, workflowId, processChunk, devParams]);
+  }, [baseUrl, workflowId, groupId, taskId, processChunk, devParams]);
 
   /**
    * Starts tailing.

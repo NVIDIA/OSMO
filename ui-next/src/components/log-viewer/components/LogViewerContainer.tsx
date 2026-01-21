@@ -38,14 +38,15 @@
  * ```
  */
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { useLogData, useLogTail, type LogEntry } from "@/lib/api/log-adapter";
+import { useLogData, useLogTail } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { LogViewer } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
 import { useLogViewerStore } from "../store/log-viewer-store";
 import { chipsToLogQuery } from "../lib/chips-to-log-query";
+import { useCombinedEntries } from "../lib/use-combined-entries";
 
 // =============================================================================
 // Types
@@ -171,68 +172,9 @@ function LogViewerContainerInner({
     devParams: tailDevParams,
   });
 
-  // ==========================================================================
-  // Ref-based streaming buffer for stable array identity
-  // Avoids creating new arrays on every tail update for better performance
-  // ==========================================================================
-
-  // Cache the latest timestamp from query entries (computed once per query change)
-  const queryLatestTime = useMemo(() => {
-    if (queryEntries.length === 0) return 0;
-    let maxTime = 0;
-    for (const e of queryEntries) {
-      const t = e.timestamp.getTime();
-      if (t > maxTime) maxTime = t;
-    }
-    return maxTime;
-  }, [queryEntries]);
-
-  // Ref-based buffer maintains stable array identity during streaming
-  const combinedEntriesRef = useRef<LogEntry[]>([]);
-  const lastQueryEntriesRef = useRef<LogEntry[]>([]);
-  const processedTailCountRef = useRef(0);
-
-  // Version counter to trigger re-renders when buffer changes
-  const [bufferVersion, setBufferVersion] = useState(0);
-
-  // Update combined entries buffer when query or tail entries change
-  useEffect(() => {
-    // If query entries changed (different reference = new data load), reset buffer
-    if (queryEntries !== lastQueryEntriesRef.current) {
-      const newBuffer: LogEntry[] = [];
-      for (const e of queryEntries) newBuffer.push(e);
-      combinedEntriesRef.current = newBuffer;
-      lastQueryEntriesRef.current = queryEntries;
-      processedTailCountRef.current = 0;
-      setBufferVersion((v) => v + 1);
-      return;
-    }
-
-    // Append only new tail entries (incremental update)
-    const newTailCount = tailEntries.length - processedTailCountRef.current;
-    if (newTailCount > 0) {
-      let appended = false;
-      for (let i = processedTailCountRef.current; i < tailEntries.length; i++) {
-        const entry = tailEntries[i];
-        if (entry.timestamp.getTime() > queryLatestTime) {
-          combinedEntriesRef.current.push(entry);
-          appended = true;
-        }
-      }
-      processedTailCountRef.current = tailEntries.length;
-
-      if (appended) {
-        setBufferVersion((v) => v + 1);
-      }
-    }
-  }, [queryEntries, tailEntries, queryLatestTime]);
-
-  // Use buffer version in dependency to ensure consumers re-render
-  const combinedEntries = useMemo(
-    () => combinedEntriesRef.current,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- bufferVersion triggers update
-    [bufferVersion],
-  );
+  // Combine query entries with streaming tail entries
+  // Uses ref-based buffer for stable array identity during streaming
+  const combinedEntries = useCombinedEntries(queryEntries, tailEntries);
 
   // Handle filter changes
   const handleFiltersChange = useCallback(
