@@ -41,7 +41,7 @@ const PatchServiceConfigRequestSchema = z.object({
 });
 
 export const configsRouter = createTRPCRouter({
-  getServiceConfig: publicProcedure.query(async ({ ctx }): Promise<ServiceConfig> => {
+  getServiceConfig: publicProcedure.output(ServiceConfigSchema).query(async ({ ctx }): Promise<ServiceConfig> => {
     const response = await OsmoApiFetch("/api/configs/service", ctx);
     if (!response.ok) {
       const data = (await response.json()) as OSMOErrorResponse;
@@ -56,6 +56,7 @@ export const configsRouter = createTRPCRouter({
 
   patchServiceConfig: publicProcedure
     .input(PatchServiceConfigRequestSchema)
+    .output(ServiceConfigSchema)
     .mutation(async ({ ctx, input }): Promise<ServiceConfig> => {
       const response = await OsmoApiFetch("/api/configs/service", ctx, undefined, input, "PATCH", true);
       if (!response.ok) {
@@ -71,6 +72,7 @@ export const configsRouter = createTRPCRouter({
 
   getConfigHistory: publicProcedure
     .input(ConfigHistoryRequestSchema)
+    .output(ServiceConfigHistoryResponseSchema)
     .query(async ({ ctx, input }): Promise<ServiceConfigHistoryResponse> => {
       const searchParams = new URLSearchParams();
       searchParams.append("offset", input.offset.toString());

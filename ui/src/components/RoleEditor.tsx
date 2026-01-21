@@ -123,6 +123,7 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   handleAddRole();
+                  e.preventDefault();
                 } else if (e.key === "Escape") {
                   setIsAdding(false);
                   setNewRole("");

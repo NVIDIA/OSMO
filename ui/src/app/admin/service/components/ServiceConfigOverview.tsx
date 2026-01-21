@@ -15,6 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 import { Colors, Tag } from "~/components/Tag";
 import { type ServiceConfig } from "~/models/config/service-config";
+import { formatForWrapping } from "~/utils/string";
 
 const highlightClass = "bg-yellow-100";
 
@@ -76,11 +77,13 @@ export const ServiceConfigOverview = ({
     <div className="flex flex-col gap-global p-global w-full h-full">
       <dl
         aria-label="General Settings"
-        className="grid grid-cols-[auto_1fr] lg:grid-cols-[auto_1fr_auto_1fr] gap-global"
+        className="grid md:grid-cols-[auto_1fr] gap-global"
       >
         <dt>Service Base URL</dt>
         <dd>
-          <Diff getValue={(config) => config.service_base_url}>{serviceConfig.service_base_url}</Diff>
+          <Diff getValue={(config) => config.service_base_url}>
+            {formatForWrapping(serviceConfig.service_base_url ?? "-")}
+          </Diff>
         </dd>
         <dt>Max Pod Restart Limit</dt>
         <dd>
@@ -157,19 +160,19 @@ export const ServiceConfigOverview = ({
           </Diff>
         </dd>
         <dt>Keys</dt>
-        <dd className="lg:col-span-3">
+        <dd>
           <Diff getValue={(config) => config.service_auth.keys}>
             <ul className="list-none">
               {Object.entries(serviceConfig.service_auth.keys).map(([key, _value]) => {
                 return (
                   <li
-                    className="flex flex-row gap-1 border-none p-0 m-0"
+                    className="flex flex-row gap-global border-none p-0 m-0"
                     key={key}
                   >
                     {key}
                     {key === serviceConfig.service_auth.active_key ? (
                       <Tag
-                        className="inline-block"
+                        className="h-5"
                         color={Colors.tag}
                       >
                         Active
@@ -182,27 +185,27 @@ export const ServiceConfigOverview = ({
           </Diff>
         </dd>
         <dt>Device Endpoint</dt>
-        <dd className="lg:col-span-3">
+        <dd>
           <Diff getValue={(config) => config.service_auth.login_info.device_endpoint}>
-            {serviceConfig.service_auth.login_info.device_endpoint ?? "-"}
+            {formatForWrapping(serviceConfig.service_auth.login_info.device_endpoint ?? "-")}
           </Diff>
         </dd>
         <dt>Browser Endpoint</dt>
-        <dd className="lg:col-span-3">
+        <dd>
           <Diff getValue={(config) => config.service_auth.login_info.browser_endpoint}>
-            {serviceConfig.service_auth.login_info.browser_endpoint ?? "-"}
+            {formatForWrapping(serviceConfig.service_auth.login_info.browser_endpoint ?? "-")}
           </Diff>
         </dd>
         <dt>Token Endpoint</dt>
-        <dd className="lg:col-span-3">
+        <dd>
           <Diff getValue={(config) => config.service_auth.login_info.token_endpoint}>
-            {serviceConfig.service_auth.login_info.token_endpoint ?? "-"}
+            {formatForWrapping(serviceConfig.service_auth.login_info.token_endpoint ?? "-")}
           </Diff>
         </dd>
         <dt>Logout Endpoint</dt>
-        <dd className="lg:col-span-3">
+        <dd>
           <Diff getValue={(config) => config.service_auth.login_info.logout_endpoint}>
-            {serviceConfig.service_auth.login_info.logout_endpoint ?? "-"}
+            {formatForWrapping(serviceConfig.service_auth.login_info.logout_endpoint ?? "-")}
           </Diff>
         </dd>
       </dl>

@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
@@ -30,7 +30,7 @@ interface HistoryDetailsModalProps {
   open: boolean;
   onClose: () => void;
   configs: ServiceConfigHistoryItem[];
-  historyIndex?: number;
+  historyIndex: number;
   setHistoryIndex: (index: number) => void;
 }
 
@@ -42,16 +42,10 @@ export const HistoryDetailsModal = ({
   setHistoryIndex,
 }: HistoryDetailsModalProps) => {
   const [isShowingJSON, setIsShowingJSON] = useState(false);
-  const lastConfigIndex = useRef<number | undefined>(undefined);
 
-  const currentConfig = historyIndex !== undefined ? configs[historyIndex] : undefined;
-  const previousVersion = historyIndex !== undefined ? configs[historyIndex + 1] : undefined;
-  const nextVersion = historyIndex !== undefined ? configs[historyIndex - 1] : undefined;
-  const lastConfig = lastConfigIndex.current !== undefined ? configs[lastConfigIndex.current] : undefined;
-
-  useEffect(() => {
-    lastConfigIndex.current = historyIndex;
-  }, [historyIndex]);
+  const currentConfig = configs[historyIndex];
+  const previousVersion = configs[historyIndex + 1];
+  const nextVersion = configs[historyIndex - 1];
 
   return (
     <FullPageModal
@@ -59,10 +53,10 @@ export const HistoryDetailsModal = ({
         historyIndex !== undefined && (
           <>
             <div className="flex flex-row gap-1 items-center justify-center grow">
-              {previousVersion ? (
+              {previousVersion && previousVersion.revision > 1 ? (
                 <button
                   onClick={() => {
-                    setHistoryIndex(configs.length - 1);
+                    setHistoryIndex(configs.length - 2);
                   }}
                   title="First Version"
                 >
@@ -79,7 +73,7 @@ export const HistoryDetailsModal = ({
               )}
               <button
                 onClick={() => {
-                  previousVersion ? setHistoryIndex(historyIndex + 1) : setHistoryIndex(0);
+                  historyIndex < configs.length - 2 ? setHistoryIndex(historyIndex + 1) : setHistoryIndex(0);
                 }}
                 title="Previous Version"
               >
@@ -93,7 +87,7 @@ export const HistoryDetailsModal = ({
               </h2>
               <button
                 onClick={() => {
-                  nextVersion ? setHistoryIndex(historyIndex - 1) : setHistoryIndex(configs.length - 1);
+                  nextVersion ? setHistoryIndex(historyIndex - 1) : setHistoryIndex(configs.length - 2);
                 }}
                 title="Next Version"
               >
@@ -149,7 +143,6 @@ export const HistoryDetailsModal = ({
       }
       open={open}
       onClose={() => {
-        lastConfigIndex.current = undefined;
         onClose();
       }}
     >
@@ -181,11 +174,26 @@ export const HistoryDetailsModal = ({
               ))}
             </div>
           </InlineBanner>
-          <ServiceConfigOverview
-            serviceConfig={currentConfig.data}
-            previousConfig={lastConfig?.data}
-            isShowingJSON={isShowingJSON}
-          />
+          <div className="grid grid-cols-2 gap-global p-global w-full grow">
+            {previousVersion?.data && (
+              <div className="flex flex-col gap-global card h-full w-full">
+                <h3 className="body-header p-global">Revision {previousVersion.revision}</h3>
+                <ServiceConfigOverview
+                  serviceConfig={previousVersion.data}
+                  previousConfig={currentConfig.data}
+                  isShowingJSON={isShowingJSON}
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-global card h-full w-full">
+              <h3 className="body-header p-global">Revision {currentConfig.revision}</h3>
+              <ServiceConfigOverview
+                serviceConfig={currentConfig.data}
+                previousConfig={previousVersion?.data}
+                isShowingJSON={isShowingJSON}
+              />
+            </div>
+          </div>
         </>
       )}
     </FullPageModal>

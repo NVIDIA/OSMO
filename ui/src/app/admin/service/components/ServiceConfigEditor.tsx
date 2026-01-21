@@ -261,7 +261,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
         />
       </div>
       {isComparing ? (
-        <div className="flex flex-row gap-global p-global h-full">
+        <div className="flex flex-row gap-global p-global grow">
           <div className="flex flex-col gap-global card h-full">
             <h3 className="body-header p-global">Current Version</h3>
             <ServiceConfigOverview

@@ -30,7 +30,7 @@ import { HistoryDetailsModal } from "../components/HistoryDetailsModal";
 import { HistoryTable } from "../components/HistoryTable";
 
 export default function AdminPage() {
-  const [historyIndex, setHistoryIndex] = useState<number | undefined>(undefined);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [isShowingDetails, setIsShowingDetails] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [selectedRevisions, setSelectedRevisions] = useState<number[]>([]);
@@ -46,7 +46,7 @@ export default function AdminPage() {
   const compareRevisions = useMemo(() => {
     if (isComparing) {
       return configHistory.data?.configs
-        .filter((config) => selectedRevisions.includes(config.revision))
+        .filter((config) => selectedRevisions.includes(config.revision as number))
         .sort((a, b) => b.revision - a.revision);
     }
 
@@ -73,7 +73,7 @@ export default function AdminPage() {
   return (
     <>
       <PageHeader title="Service Config History">
-        {selectedRevisions.length > 0 && (
+        {selectedRevisions.length > 1 && (
           <IconButton
             className="btn btn-primary"
             icon="compare"
