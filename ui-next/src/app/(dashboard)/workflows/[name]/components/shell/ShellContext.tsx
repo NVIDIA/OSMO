@@ -32,6 +32,7 @@ import {
   disposeSession,
   useShellSessions,
 } from "@/components/shell";
+import { ShellNavigationGuard } from "./ShellNavigationGuard";
 
 // =============================================================================
 // Types
@@ -50,8 +51,15 @@ interface ShellContextValue {
   /** Check if a shell intent exists for a given task */
   hasActiveShell: (taskId: string) => boolean;
 
-  /** Disconnect all shells (called on page leave) */
+  /** Disconnect all shells for the current workflow (called on page leave) */
   disconnectAll: () => void;
+}
+
+interface ShellProviderProps {
+  /** Current workflow name - used for session filtering and navigation guard */
+  workflowName: string;
+  /** Children to render */
+  children: ReactNode;
 }
 
 // =============================================================================
@@ -64,13 +72,13 @@ const ShellContext = createContext<ShellContextValue | null>(null);
 // Provider
 // =============================================================================
 
-export function ShellProvider({ children }: { children: ReactNode }) {
-  // Subscribe to session changes so we can iterate over all shells for disconnectAll
+export function ShellProvider({ workflowName, children }: ShellProviderProps) {
+  // Subscribe to session changes so we can iterate over shells
   const { sessions } = useShellSessions();
 
-  const connectShell = useCallback((taskId: string, taskName: string, workflowName: string, shell: string) => {
+  const connectShell = useCallback((taskId: string, taskName: string, wfName: string, shell: string) => {
     // Delegate to cache - adds to shellIntents Map
-    openShellIntent(taskId, taskName, workflowName, shell);
+    openShellIntent(taskId, taskName, wfName, shell);
   }, []);
 
   const disconnectOnly = useCallback((taskId: string) => {
@@ -88,12 +96,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     return hasShellIntent(taskId);
   }, []);
 
+  // Disconnect all shells for the current workflow only
   const disconnectAll = useCallback(() => {
-    // Dispose all shells from current snapshot
-    for (const shell of sessions) {
+    // Filter to only dispose shells belonging to this workflow
+    const workflowSessions = sessions.filter((s) => s.workflowName === workflowName);
+    for (const shell of workflowSessions) {
       disposeSession(shell.taskId);
     }
-  }, [sessions]);
+  }, [sessions, workflowName]);
 
   const value = useMemo<ShellContextValue>(
     () => ({
@@ -106,7 +116,16 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     [connectShell, disconnectOnly, removeShell, hasActiveShell, disconnectAll],
   );
 
-  return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
+  return (
+    <ShellContext.Provider value={value}>
+      <ShellNavigationGuard
+        workflowName={workflowName}
+        onCleanup={disconnectAll}
+      >
+        {children}
+      </ShellNavigationGuard>
+    </ShellContext.Provider>
+  );
 }
 
 // =============================================================================
