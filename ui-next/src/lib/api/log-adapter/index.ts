@@ -129,17 +129,11 @@ export type { FilterParams, PlainTextAdapterConfig, QueryAllParams } from "./ada
 // =============================================================================
 
 export {
-  // Adapter context
+  // Adapter access
   useLogAdapter,
-  useLogAdapterCapabilities,
-  LogAdapterProvider,
-  // Unified data hook (preferred)
+  // Unified data hook (fetches entries + histogram + facets in one call)
   useLogData,
-  // Legacy hooks (deprecated - use useLogData instead)
-  useLogQuery,
-  useLogHistogram,
-  useLogFacets,
-  // Tail hook (still needed for streaming)
+  // Tail hook (streaming)
   useLogTail,
 } from "./hooks";
 
@@ -147,18 +141,4 @@ export {
 export { createLogDataQueryKey } from "./query-keys";
 export type { LogDataQueryKeyParams } from "./query-keys";
 
-export type {
-  LogAdapterProviderProps,
-  // Unified hook types
-  UseLogDataParams,
-  UseLogDataReturn,
-  // Legacy hook types
-  UseLogQueryParams,
-  UseLogQueryReturn,
-  UseLogHistogramParams,
-  UseLogHistogramReturn,
-  UseLogFacetsParams,
-  UseLogFacetsReturn,
-  UseLogTailParams,
-  UseLogTailReturn,
-} from "./hooks";
+export type { UseLogDataParams, UseLogDataReturn, UseLogTailParams, UseLogTailReturn } from "./hooks";
