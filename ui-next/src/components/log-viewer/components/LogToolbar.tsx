@@ -13,7 +13,6 @@ import { Download, WrapText, ArrowDownToLine, Play, Pause, RotateCcw, Tag } from
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { useLogViewerStore } from "../store/log-viewer-store";
 
 // =============================================================================
 // Types
@@ -206,52 +205,6 @@ function LogToolbarInner({
         </Tooltip>
       </div>
     </div>
-  );
-}
-
-// =============================================================================
-// Connected Component
-// =============================================================================
-
-/**
- * LogToolbar connected to the store.
- * Use this for automatic store integration.
- */
-export function LogToolbarConnected({
-  totalCount,
-  filteredCount,
-  onDownload,
-  onScrollToBottom,
-  onRefresh,
-  isLoading,
-  className,
-}: Omit<
-  LogToolbarProps,
-  "isTailing" | "onToggleTailing" | "wrapLines" | "onToggleWrapLines" | "showTask" | "onToggleShowTask"
->) {
-  const isTailing = useLogViewerStore((s) => s.isTailing);
-  const toggleTailing = useLogViewerStore((s) => s.toggleTailing);
-  const wrapLines = useLogViewerStore((s) => s.wrapLines);
-  const toggleWrapLines = useLogViewerStore((s) => s.toggleWrapLines);
-  const showTask = useLogViewerStore((s) => s.showTask);
-  const toggleShowTask = useLogViewerStore((s) => s.toggleShowTask);
-
-  return (
-    <LogToolbarInner
-      totalCount={totalCount}
-      filteredCount={filteredCount}
-      isTailing={isTailing}
-      onToggleTailing={toggleTailing}
-      wrapLines={wrapLines}
-      onToggleWrapLines={toggleWrapLines}
-      showTask={showTask}
-      onToggleShowTask={toggleShowTask}
-      onDownload={onDownload}
-      onScrollToBottom={onScrollToBottom}
-      onRefresh={onRefresh}
-      isLoading={isLoading}
-      className={className}
-    />
   );
 }
 

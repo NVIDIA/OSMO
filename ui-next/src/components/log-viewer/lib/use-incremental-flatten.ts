@@ -126,11 +126,15 @@ function createEmptyCache(): FlattenCache {
 export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   const cacheRef = useRef<FlattenCache>(createEmptyCache());
 
-  // Use entries.length as primary dependency for detecting changes
-  // This works correctly even when the array is mutated in place
+  // Extract dependencies outside useMemo to satisfy exhaustive-deps rule
+  // These values determine when we need to recompute:
+  // - entriesLength: detects appends and resets
+  // - firstEntryId: detects array replacement (new query results)
+  const entriesLength = entries.length;
+  const firstEntryId = entries[0]?.id;
+
   return useMemo(() => {
     const cache = cacheRef.current;
-    const entriesLength = entries.length;
 
     // Empty entries - reset cache and return empty result
     if (entriesLength === 0) {
@@ -142,7 +146,7 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
     }
 
     const firstEntry = entries[0];
-    const isFirstEntryMatch = cache.firstEntryId === firstEntry.id;
+    const isFirstEntryMatch = cache.firstEntryId === firstEntryId;
 
     // Detect scenario
     const isAppend = entriesLength > cache.processedCount && cache.processedCount > 0 && isFirstEntryMatch;
@@ -179,8 +183,7 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
     // Return same arrays (mutated in place) - React sees new result object
     // resetCount unchanged since this is an append, not a reset
     return { items: cache.items, separators: cache.separators, resetCount: cache.resetCount };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- entries.length triggers update
-  }, [entries.length, entries[0]?.id]);
+  }, [entries, entriesLength, firstEntryId]);
 }
 
 /**

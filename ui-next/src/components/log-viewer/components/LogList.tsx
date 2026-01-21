@@ -18,10 +18,10 @@
 
 import { useRef, useCallback, useEffect, memo, useLayoutEffect } from "react";
 import { cn } from "@/lib/utils";
+import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { LogEntryRow } from "./LogEntryRow";
-import { DateSeparator } from "./DateSeparator";
 import { useLogViewerStore } from "../store/log-viewer-store";
 import {
   ROW_HEIGHT_ESTIMATE,
@@ -55,6 +55,46 @@ export interface LogListProps {
    */
   isStale?: boolean;
 }
+
+// =============================================================================
+// Date Separator (Inlined)
+// =============================================================================
+
+const dashedLineStyle = {
+  backgroundImage: "linear-gradient(to right, transparent 50%, var(--border) 50%)",
+  backgroundSize: "6px 1px",
+  opacity: 0.4,
+};
+
+interface DateSeparatorProps {
+  date: Date;
+  className?: string;
+}
+
+/**
+ * A subtle date separator row for providing date context in log lists.
+ */
+const DateSeparator = memo(function DateSeparator({ date, className }: DateSeparatorProps) {
+  const formattedDate = formatDateShort(date);
+
+  return (
+    <div
+      className={cn("flex items-center gap-2 px-3 py-1", className)}
+      role="separator"
+      aria-label={`Logs from ${formattedDate}`}
+    >
+      <div
+        className="h-px flex-1"
+        style={dashedLineStyle}
+      />
+      <span className="text-muted-foreground/50 shrink-0 text-[10px] tracking-wider uppercase">{formattedDate}</span>
+      <div
+        className="h-px flex-1"
+        style={dashedLineStyle}
+      />
+    </div>
+  );
+});
 
 // =============================================================================
 // Sticky Header Component (CSS-driven)
