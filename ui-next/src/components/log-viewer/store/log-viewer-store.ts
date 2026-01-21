@@ -59,16 +59,10 @@ interface LogViewerActions {
   setTailing: (enabled: boolean) => void;
   /** Toggle tailing on/off */
   toggleTailing: () => void;
-  /** Set line wrapping */
-  setWrapLines: (wrap: boolean) => void;
   /** Toggle line wrapping */
   toggleWrapLines: () => void;
-  /** Set show task suffix */
-  setShowTask: (show: boolean) => void;
   /** Toggle show task suffix */
   toggleShowTask: () => void;
-  /** Set focused entry for keyboard navigation */
-  setFocusedEntry: (id: string | null) => void;
   /** Toggle fields pane collapsed/expanded */
   toggleFieldsPaneCollapsed: () => void;
   /** Reset store to initial state */
@@ -161,15 +155,6 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "toggleTailing",
         ),
 
-      setWrapLines: (wrap) =>
-        set(
-          (state) => {
-            state.wrapLines = wrap;
-          },
-          false,
-          "setWrapLines",
-        ),
-
       toggleWrapLines: () =>
         set(
           (state) => {
@@ -179,15 +164,6 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "toggleWrapLines",
         ),
 
-      setShowTask: (show) =>
-        set(
-          (state) => {
-            state.showTask = show;
-          },
-          false,
-          "setShowTask",
-        ),
-
       toggleShowTask: () =>
         set(
           (state) => {
@@ -195,15 +171,6 @@ export const useLogViewerStore = create<LogViewerStore>()(
           },
           false,
           "toggleShowTask",
-        ),
-
-      setFocusedEntry: (id) =>
-        set(
-          (state) => {
-            state.focusedEntryId = id;
-          },
-          false,
-          "setFocusedEntry",
         ),
 
       toggleFieldsPaneCollapsed: () =>

@@ -19,7 +19,6 @@ import {
   getLevelBadgeClasses,
   getLevelDotClasses,
   getLevelLabel,
-  getLevelAbbrev,
   getLogRowClasses,
   isLevelAtLeast,
   getLevelsAtLeast,
@@ -76,34 +75,16 @@ describe("getLevelDotClasses", () => {
 // =============================================================================
 
 describe("getLevelLabel", () => {
-  it("returns correct labels for all levels", () => {
-    expect(getLevelLabel("debug")).toBe("Debug");
-    expect(getLevelLabel("info")).toBe("Info");
-    expect(getLevelLabel("warn")).toBe("Warning");
-    expect(getLevelLabel("error")).toBe("Error");
-    expect(getLevelLabel("fatal")).toBe("Fatal");
-  });
-
-  it("returns Unknown for undefined level", () => {
-    expect(getLevelLabel(undefined)).toBe("Unknown");
-  });
-});
-
-// =============================================================================
-// getLevelAbbrev Tests
-// =============================================================================
-
-describe("getLevelAbbrev", () => {
-  it("returns correct abbreviations for all levels", () => {
-    expect(getLevelAbbrev("debug")).toBe("DEBUG");
-    expect(getLevelAbbrev("info")).toBe("INFO");
-    expect(getLevelAbbrev("warn")).toBe("WARN");
-    expect(getLevelAbbrev("error")).toBe("ERROR");
-    expect(getLevelAbbrev("fatal")).toBe("FATAL");
+  it("returns correct uppercase labels for all levels", () => {
+    expect(getLevelLabel("debug")).toBe("DEBUG");
+    expect(getLevelLabel("info")).toBe("INFO");
+    expect(getLevelLabel("warn")).toBe("WARN");
+    expect(getLevelLabel("error")).toBe("ERROR");
+    expect(getLevelLabel("fatal")).toBe("FATAL");
   });
 
   it("returns ??? for undefined level", () => {
-    expect(getLevelAbbrev(undefined)).toBe("???");
+    expect(getLevelLabel(undefined)).toBe("???");
   });
 });
 
