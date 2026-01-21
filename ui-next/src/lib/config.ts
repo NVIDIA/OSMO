@@ -19,6 +19,101 @@ export function isLocalDev(): boolean {
 }
 
 // =============================================================================
+// BasePath Configuration
+// =============================================================================
+
+/**
+ * Get the basePath for the application.
+ *
+ * This should match the basePath configured in next.config.ts.
+ * The basePath is exposed via NEXT_PUBLIC_BASE_PATH environment variable
+ * (set in next.config.ts env config).
+ *
+ * In client-side code, this can also be detected from window.location.pathname
+ * as a fallback, but the env var is more reliable.
+ *
+ * @returns The basePath (e.g., "/v2") or empty string if no basePath
+ */
+export function getBasePath(): string {
+  // First, check environment variable (set by next.config.ts)
+  // This is the most reliable source
+  if (process.env.NEXT_PUBLIC_BASE_PATH) {
+    return process.env.NEXT_PUBLIC_BASE_PATH;
+  }
+
+  // In client-side code, try to detect from current pathname
+  // This is a fallback for cases where env var isn't available
+  if (typeof window !== "undefined") {
+    const pathname = window.location.pathname;
+    
+    // Match basePath patterns: /v2, /v2/, /v2/pools, etc.
+    // Extract the first segment that looks like a version path (/v2, /v3, etc.)
+    const match = pathname.match(/^\/(v\d+)(?:\/|$)/);
+    if (match) {
+      return `/${match[1]}`;
+    }
+    
+    // Also check if we're at the root with a basePath (e.g., /v2 with no trailing slash)
+    // This handles the case where pathname is exactly "/v2"
+    if (pathname.match(/^\/v\d+$/)) {
+      return pathname;
+    }
+    
+    // Check the base element if present (Next.js sometimes sets this)
+    const baseElement = document.querySelector('base[href]');
+    if (baseElement) {
+      const baseHref = baseElement.getAttribute('href');
+      if (baseHref && baseHref !== '/') {
+        try {
+          const baseUrl = new URL(baseHref, window.location.origin);
+          const basePath = baseUrl.pathname;
+          if (basePath && basePath !== '/') {
+            // Remove trailing slash
+            return basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+          }
+        } catch {
+          // Invalid URL, ignore
+        }
+      }
+    }
+  }
+
+  // Default: no basePath (empty string)
+  // This matches next.config.ts default if basePath is not set
+  return "";
+}
+
+/**
+ * Prepend basePath to a URL path if basePath is configured.
+ *
+ * This ensures all client-side URLs are basePath-aware.
+ * API rewrites in next.config.ts handle /api/* routes before basePath is applied,
+ * but being explicit here makes the code more maintainable.
+ *
+ * @param path - The path to prepend basePath to (should start with /)
+ * @returns The path with basePath prepended if basePath is configured
+ *
+ * @example
+ * ```ts
+ * getBasePathUrl("/api/workflow") // "/v2/api/workflow" if basePath is "/v2"
+ * getBasePathUrl("/auth/login_info") // "/v2/auth/login_info" if basePath is "/v2"
+ * ```
+ */
+export function getBasePathUrl(path: string): string {
+  const basePath = getBasePath();
+  if (!basePath) {
+    return path;
+  }
+
+  // Ensure path starts with /
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  // Ensure basePath doesn't end with /
+  const normalizedBasePath = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
+
+  return `${normalizedBasePath}${normalizedPath}`;
+}
+
+// =============================================================================
 // API Configuration
 // =============================================================================
 
