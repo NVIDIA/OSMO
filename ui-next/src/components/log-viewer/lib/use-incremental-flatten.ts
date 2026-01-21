@@ -36,10 +36,22 @@ export interface SeparatorInfo {
   date: Date;
 }
 
-/** Result of flattening entries */
+/** Internal result of flattening (without reset tracking) */
+interface FlattenResultInternal {
+  items: VirtualItem[];
+  separators: SeparatorInfo[];
+}
+
+/** Result of flattening entries from the hook */
 export interface FlattenResult {
   items: VirtualItem[];
   separators: SeparatorInfo[];
+  /**
+   * Increments when items array is fully replaced (filter/reset).
+   * Does NOT increment for streaming appends.
+   * Use this to invalidate virtualizer measurements cache.
+   */
+  resetCount: number;
 }
 
 // =============================================================================
@@ -71,6 +83,8 @@ interface FlattenCache {
   firstEntryId: string | null;
   /** Version counter to force React updates */
   version: number;
+  /** Counter that increments only on full reset (not appends) */
+  resetCount: number;
 }
 
 /**
@@ -84,6 +98,7 @@ function createEmptyCache(): FlattenCache {
     processedCount: 0,
     firstEntryId: null,
     version: 0,
+    resetCount: 0,
   };
 }
 
@@ -121,8 +136,9 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
     if (entriesLength === 0) {
       if (cache.processedCount !== 0) {
         cacheRef.current = createEmptyCache();
+        cacheRef.current.resetCount = cache.resetCount + 1;
       }
-      return { items: [], separators: [] };
+      return { items: [], separators: [], resetCount: cacheRef.current.resetCount };
     }
 
     const firstEntry = entries[0];
@@ -135,12 +151,14 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
 
     // No change - return cached result with same reference
     if (isNoChange) {
-      return { items: cache.items, separators: cache.separators };
+      return { items: cache.items, separators: cache.separators, resetCount: cache.resetCount };
     }
 
     // Full recomputation needed (reset or first load)
     if (!isAppend) {
       const result = fullFlatten(entries);
+      // Increment resetCount only if this is a reset (not first load)
+      const newResetCount = cache.processedCount > 0 ? cache.resetCount + 1 : cache.resetCount;
       cacheRef.current = {
         items: result.items,
         separators: result.separators,
@@ -148,8 +166,9 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
         processedCount: entriesLength,
         firstEntryId: firstEntry.id,
         version: cache.version + 1,
+        resetCount: newResetCount,
       };
-      return result;
+      return { ...result, resetCount: newResetCount };
     }
 
     // Incremental append - O(k) where k = new entries
@@ -158,7 +177,8 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
     cache.version++;
 
     // Return same arrays (mutated in place) - React sees new result object
-    return { items: cache.items, separators: cache.separators };
+    // resetCount unchanged since this is an append, not a reset
+    return { items: cache.items, separators: cache.separators, resetCount: cache.resetCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- entries.length triggers update
   }, [entries.length, entries[0]?.id]);
 }
@@ -168,7 +188,7 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
  * Used for initial load or when entries are replaced.
  * Exported for testing.
  */
-export function fullFlatten(entries: LogEntry[]): FlattenResult {
+export function fullFlatten(entries: LogEntry[]): FlattenResultInternal {
   if (entries.length === 0) {
     return { items: [], separators: [] };
   }
