@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useRef, useCallback, useEffect, memo, useLayoutEffect } from "react";
+import { useRef, useCallback, memo, useLayoutEffect } from "react";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter";
@@ -195,12 +195,16 @@ function LogListInner({
     }
   }, [resetCount, virtualizer]);
 
-  // Auto-scroll to bottom when tailing
-  useEffect(() => {
-    if (isTailing && parentRef.current && entries.length > 0) {
-      parentRef.current.scrollTop = parentRef.current.scrollHeight;
-    }
-  }, [isTailing, entries.length]);
+  // Auto-scroll to bottom when tailing.
+  // Uses the virtualizer's scrollToIndex for stable positioning - no manual
+  // scroll calculations that can race with virtualizer updates.
+  useLayoutEffect(() => {
+    if (!isTailing || flatItems.length === 0) return;
+
+    // Use the virtualizer's built-in scrollToIndex for consistent positioning.
+    // align: 'end' ensures the last item is fully visible at the bottom.
+    virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
+  }, [isTailing, flatItems.length, virtualizer]);
 
   // Detect scroll away from bottom
   const handleScroll = useCallback(() => {
@@ -283,9 +287,12 @@ function LogListInner({
       <div
         className="relative z-10 w-full"
         style={{
-          height: `${virtualizer.getTotalSize()}px`,
+          // Use ceil to ensure container fits all content - floor could clip the last row
+          height: `${Math.ceil(virtualizer.getTotalSize())}px`,
           // Contain layout to prevent position recalculations from propagating
           contain: "layout",
+          // GPU layer for stable compositing of child transforms
+          transform: "translateZ(0)",
         }}
       >
         {virtualItems.map((virtualRow) => {
@@ -309,10 +316,9 @@ function LogListInner({
                 ref={virtualizer.measureElement}
                 className="bg-card absolute top-0 left-0 w-full"
                 style={{
-                  // Round to whole pixels to prevent sub-pixel jitter during streaming
-                  transform: `translateY(${Math.round(virtualRow.start)}px)`,
-                  // Force GPU compositing for smoother transform updates
-                  willChange: "transform, opacity",
+                  // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
+                  // translate3d forces GPU compositing layer for stable transforms.
+                  transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
                   // Use opacity instead of visibility for GPU-accelerated hiding
                   // This prevents artifacts during fast scrolling
                   opacity: shouldHide ? 0 : 1,
@@ -333,10 +339,9 @@ function LogListInner({
               ref={virtualizer.measureElement}
               className="absolute top-0 left-0 w-full"
               style={{
-                // Round to whole pixels to prevent sub-pixel jitter during streaming
-                transform: `translateY(${Math.round(virtualRow.start)}px)`,
-                // Force GPU compositing for smoother transform updates
-                willChange: "transform",
+                // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
+                // translate3d forces GPU compositing layer for stable transforms.
+                transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
               }}
             >
               <LogEntryRow
