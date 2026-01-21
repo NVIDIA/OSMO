@@ -15,11 +15,11 @@ import { formatLogLine } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks";
-import { QueryBar } from "./QueryBar";
+import { SearchBar } from "./SearchBar";
+import { FacetBar } from "./FacetBar";
 import { TimelineHistogram } from "./TimelineHistogram";
-import { FieldsPane } from "./FieldsPane";
 import { LogList } from "./LogList";
-import { LogToolbar } from "./LogToolbar";
+import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
 import { useLogViewerStore } from "../store/log-viewer-store";
 
@@ -28,17 +28,76 @@ import { useLogViewerStore } from "../store/log-viewer-store";
 // =============================================================================
 
 /**
- * Build an active filters map from chips.
- * Used for highlighting active filters in the FieldsPane.
+ * Extract search text from chips (first "text" field chip).
  */
-function buildActiveFiltersMap(chips: SearchChip[]): Map<string, Set<string>> {
+function getSearchTextFromChips(chips: SearchChip[]): string {
+  for (const chip of chips) {
+    if (chip.field === "text") {
+      return chip.value;
+    }
+  }
+  return "";
+}
+
+/**
+ * Build a selected filters map from chips for facet filtering.
+ * Groups chip values by field name.
+ */
+function buildSelectedFiltersMap(chips: SearchChip[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
   for (const chip of chips) {
+    // Skip text chips (handled by SearchBar)
+    if (chip.field === "text") continue;
+
     const existing = map.get(chip.field) ?? new Set();
     existing.add(chip.value);
     map.set(chip.field, existing);
   }
   return map;
+}
+
+/**
+ * Update chips based on facet filter changes.
+ * Preserves text chips and updates facet field chips.
+ */
+function updateChipsForFacetChange(currentChips: SearchChip[], field: string, newValues: Set<string>): SearchChip[] {
+  // Keep all chips that don't match the field being changed
+  const otherChips = currentChips.filter((c) => c.field !== field);
+
+  // Add new chips for each selected value
+  const newChips: SearchChip[] = [];
+  for (const value of newValues) {
+    newChips.push({
+      field,
+      value,
+      label: `${field}: ${value}`,
+    });
+  }
+
+  return [...otherChips, ...newChips];
+}
+
+/**
+ * Update chips based on search text change.
+ * Replaces or adds/removes the "text" chip.
+ */
+function updateChipsForSearchChange(currentChips: SearchChip[], searchText: string): SearchChip[] {
+  // Remove existing text chip
+  const otherChips = currentChips.filter((c) => c.field !== "text");
+
+  // Add new text chip if search is not empty
+  if (searchText.trim()) {
+    return [
+      ...otherChips,
+      {
+        field: "text",
+        value: searchText.trim(),
+        label: searchText.trim(),
+      },
+    ];
+  }
+
+  return otherChips;
 }
 
 // =============================================================================
@@ -120,18 +179,18 @@ function LogViewerInner({
   tailStatus,
   className,
 }: LogViewerProps) {
+  // Suppress unused variable warning - tailStatus may be used in future enhancements
+  void tailStatus;
+
   const { clipboard, announcer } = useServices();
 
   // Store state
   const isTailing = useLogViewerStore((s) => s.isTailing);
-  const toggleTailing = useLogViewerStore((s) => s.toggleTailing);
   const setTailing = useLogViewerStore((s) => s.setTailing);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const toggleWrapLinesRaw = useLogViewerStore((s) => s.toggleWrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
   const toggleShowTaskRaw = useLogViewerStore((s) => s.toggleShowTask);
-  const fieldsPaneCollapsed = useLogViewerStore((s) => s.fieldsPaneCollapsed);
-  const toggleFieldsPaneCollapsedRaw = useLogViewerStore((s) => s.toggleFieldsPaneCollapsed);
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
@@ -142,9 +201,6 @@ function LogViewerInner({
     withViewTransition(toggleShowTaskRaw);
   }, [toggleShowTaskRaw]);
 
-  const toggleFieldsPaneCollapsed = useCallback(() => {
-    withViewTransition(toggleFieldsPaneCollapsedRaw);
-  }, [toggleFieldsPaneCollapsedRaw]);
   const reset = useLogViewerStore((s) => s.reset);
 
   // Reset store on unmount
@@ -154,8 +210,8 @@ function LogViewerInner({
     };
   }, [reset]);
 
-  // Show task filter only at workflow/group scope
-  const showTaskFilter = scope !== "task";
+  // Suppress unused variable warning - scope may be used in future enhancements
+  void scope;
 
   // Handle filter chip changes with View Transition for smooth visual updates
   const handleFilterChipsChange = useCallback(
@@ -178,21 +234,26 @@ function LogViewerInner({
   // Track if we're showing stale data (deferred value hasn't caught up)
   const isStale = deferredEntries !== entries || isFetching;
 
-  // Build active filters map for FieldsPane
-  const activeFilters = useMemo(() => buildActiveFiltersMap(filterChips), [filterChips]);
+  // Extract search text from chips for SearchBar
+  const searchText = useMemo(() => getSearchTextFromChips(filterChips), [filterChips]);
 
-  // Handle facet click - add/remove filter chip
-  const handleFacetClick = useCallback(
-    (field: string, value: string) => {
-      const existing = filterChips.find((c) => c.field === field && c.value === value);
-      if (existing) {
-        // Remove chip
-        handleFilterChipsChange(filterChips.filter((c) => c !== existing));
-      } else {
-        // Add chip
-        const label = `${field}: ${value}`;
-        handleFilterChipsChange([...filterChips, { field, value, label }]);
-      }
+  // Build selected filters map for FacetBar
+  const selectedFilters = useMemo(() => buildSelectedFiltersMap(filterChips), [filterChips]);
+
+  // Handle search text change from SearchBar
+  const handleSearchChange = useCallback(
+    (newSearchText: string) => {
+      const updatedChips = updateChipsForSearchChange(filterChips, newSearchText);
+      handleFilterChipsChange(updatedChips);
+    },
+    [filterChips, handleFilterChipsChange],
+  );
+
+  // Handle facet filter change from FacetBar
+  const handleFacetFilterChange = useCallback(
+    (field: string, values: Set<string>) => {
+      const updatedChips = updateChipsForFacetChange(filterChips, field, values);
+      handleFilterChipsChange(updatedChips);
     },
     [filterChips, handleFilterChipsChange],
   );
@@ -233,18 +294,6 @@ function LogViewerInner({
     }
   }, [isTailing, setTailing, announcer]);
 
-  // Results count for QueryBar - entries are already filtered by Container
-  const resultsCount = useMemo(
-    () => ({
-      total: entries.length,
-      filtered: undefined, // No client-side filtering, count is already filtered
-    }),
-    [entries.length],
-  );
-
-  // Show fields pane only at workflow/group scope
-  const showFieldsPane = scope !== "task" && facets.length > 0;
-
   // Loading state
   if (isLoading && entries.length === 0) {
     return <LogViewerSkeleton />;
@@ -260,19 +309,27 @@ function LogViewerInner({
         />
       )}
 
-      {/* Query bar */}
-      <div className="shrink-0 border-b">
-        <QueryBar
-          entries={entries}
-          chips={filterChips}
-          onChipsChange={handleFilterChipsChange}
-          resultsCount={resultsCount}
-          showTaskFilter={showTaskFilter}
-          className="px-3 py-2"
+      {/* Section 1: SearchBar */}
+      <div className="shrink-0 border-b px-3 py-2">
+        <SearchBar
+          value={searchText}
+          onChange={handleSearchChange}
+          resultCount={entries.length}
         />
       </div>
 
-      {/* Histogram */}
+      {/* Section 2: FacetBar */}
+      {facets.length > 0 && (
+        <div className="shrink-0 border-b px-3 py-2">
+          <FacetBar
+            facets={facets}
+            selectedFilters={selectedFilters}
+            onFilterChange={handleFacetFilterChange}
+          />
+        </div>
+      )}
+
+      {/* Section 3: Timeline Histogram */}
       {histogram && histogram.buckets.length > 0 && (
         <div className="shrink-0 border-b px-3 py-2">
           <TimelineHistogram
@@ -284,45 +341,20 @@ function LogViewerInner({
         </div>
       )}
 
-      {/* Main content area */}
-      <div className="flex min-h-0 flex-1">
-        {/* Fields pane */}
-        {showFieldsPane && (
-          <div
-            className={cn(
-              "shrink-0 border-r transition-[width] duration-200 ease-out",
-              fieldsPaneCollapsed ? "w-8" : "w-48",
-            )}
-          >
-            <FieldsPane
-              facets={facets}
-              activeFilters={activeFilters}
-              onFacetClick={handleFacetClick}
-              collapsed={fieldsPaneCollapsed}
-              onToggleCollapse={toggleFieldsPaneCollapsed}
-            />
-          </div>
-        )}
-
-        {/* Log list with native sticky date headers */}
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <LogList
-            entries={deferredEntries}
-            onCopy={handleCopy}
-            isTailing={isTailing}
-            onScrollAwayFromBottom={handleScrollAwayFromBottom}
-            isStale={isStale}
-          />
-        </div>
+      {/* Section 4: LogList (full width) */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <LogList
+          entries={deferredEntries}
+          onCopy={handleCopy}
+          isTailing={isTailing}
+          onScrollAwayFromBottom={handleScrollAwayFromBottom}
+          isStale={isStale}
+        />
       </div>
 
-      {/* Toolbar */}
+      {/* Section 5: Footer */}
       <div className="shrink-0">
-        <LogToolbar
-          totalCount={entries.length}
-          filteredCount={undefined}
-          isTailing={isTailing}
-          onToggleTailing={toggleTailing}
+        <Footer
           wrapLines={wrapLines}
           onToggleWrapLines={toggleWrapLines}
           showTask={showTask}
@@ -330,7 +362,6 @@ function LogViewerInner({
           onDownload={handleDownload}
           onRefresh={onRefetch}
           isLoading={isLoading || isStale}
-          tailStatus={tailStatus}
         />
       </div>
     </div>

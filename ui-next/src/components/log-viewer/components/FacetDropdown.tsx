@@ -1,0 +1,175 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
+"use client";
+
+import { memo, useCallback } from "react";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useMounted } from "@/hooks";
+import { Button } from "@/components/shadcn/button";
+import { Checkbox } from "@/components/shadcn/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
+import type { FacetValue } from "@/lib/api/log-adapter";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface FacetDropdownProps {
+  /** Label for the dropdown button */
+  label: string;
+  /** Available values with counts */
+  values: FacetValue[];
+  /** Currently selected values */
+  selected: Set<string>;
+  /** Callback when selection changes */
+  onSelectionChange: (values: Set<string>) => void;
+  /** Optional formatter for display labels */
+  formatLabel?: (value: string) => string;
+  /** Additional CSS classes */
+  className?: string;
+}
+
+// =============================================================================
+// Facet Item
+// =============================================================================
+
+interface FacetItemProps {
+  value: string;
+  displayLabel: string;
+  count: number;
+  checked: boolean;
+  onToggle: () => void;
+}
+
+function FacetItem({ value, displayLabel, count, checked, onToggle }: FacetItemProps) {
+  return (
+    <label
+      htmlFor={`facet-${value}`}
+      className={cn(
+        "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors",
+        "hover:bg-muted/50",
+      )}
+    >
+      <Checkbox
+        id={`facet-${value}`}
+        checked={checked}
+        onCheckedChange={onToggle}
+      />
+      <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
+      <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{count.toLocaleString()}</span>
+    </label>
+  );
+}
+
+// =============================================================================
+// Component
+// =============================================================================
+
+function FacetDropdownInner({
+  label,
+  values,
+  selected,
+  onSelectionChange,
+  formatLabel,
+  className,
+}: FacetDropdownProps) {
+  const mounted = useMounted();
+
+  // Handle toggling a value
+  const handleToggle = useCallback(
+    (value: string) => {
+      const newSelected = new Set(selected);
+      if (newSelected.has(value)) {
+        newSelected.delete(value);
+      } else {
+        newSelected.add(value);
+      }
+      onSelectionChange(newSelected);
+    },
+    [selected, onSelectionChange],
+  );
+
+  // Count of selected values
+  const selectedCount = selected.size;
+
+  // Button label with count badge
+  const buttonLabel =
+    selectedCount > 0 ? (
+      <>
+        {label}
+        <span className="bg-primary text-primary-foreground ml-1 rounded-full px-1.5 py-0.5 text-xs font-medium">
+          {selectedCount}
+        </span>
+      </>
+    ) : (
+      label
+    );
+
+  // Show placeholder button during SSR/hydration
+  if (!mounted) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className={cn("gap-1", className)}
+      >
+        {buttonLabel}
+        <ChevronDown className="text-muted-foreground size-3.5" />
+      </Button>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant={selectedCount > 0 ? "secondary" : "outline"}
+          size="sm"
+          className={cn("gap-1", className)}
+        >
+          {buttonLabel}
+          <ChevronDown className="text-muted-foreground size-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-56 p-1"
+      >
+        <div className="max-h-64 overflow-y-auto overscroll-contain">
+          {values.length === 0 ? (
+            <div className="text-muted-foreground px-2 py-3 text-center text-sm">No values</div>
+          ) : (
+            values.map((item) => (
+              <FacetItem
+                key={item.value}
+                value={item.value}
+                displayLabel={formatLabel ? formatLabel(item.value) : item.value}
+                count={item.count}
+                checked={selected.has(item.value)}
+                onToggle={() => handleToggle(item.value)}
+              />
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export const FacetDropdown = memo(FacetDropdownInner);
