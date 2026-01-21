@@ -53,7 +53,7 @@ export const ShellContainer = memo(function ShellContainer({
   isShellTabActive,
 }: ShellContainerProps) {
   // Get shells from cache (unified snapshot of intents + sessions)
-  const { sessions: shells } = useShellSessions();
+  const { sessions: allShells } = useShellSessions();
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
@@ -63,7 +63,11 @@ export const ShellContainer = memo(function ShellContainer({
     updateSessionStatus(taskId, status);
   }, []);
 
-  // Don't render if no shells
+  // Filter shells to only include those from this workflow
+  // This prevents shells from other workflows from being rendered/mounted here
+  const shells = allShells.filter((shell) => shell.workflowName === workflowName);
+
+  // Don't render if no shells for this workflow
   if (shells.length === 0) {
     return null;
   }
