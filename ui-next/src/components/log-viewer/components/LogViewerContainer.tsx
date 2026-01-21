@@ -49,6 +49,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useLogData, useLogTail } from "@/lib/api/log-adapter";
+import type { LogFieldDefinition } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { LogViewer } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
@@ -85,6 +86,8 @@ export interface LogViewerContainerProps {
   enableLiveMode?: boolean;
   /** Show border around the container (default: true) */
   showBorder?: boolean;
+  /** Optional custom facet field configuration (icons, labels) - overrides defaults */
+  facetConfig?: ReadonlyMap<string, LogFieldDefinition>;
 }
 
 // =============================================================================
@@ -105,6 +108,7 @@ export function LogViewerContainer({
   initialFilterChips = [],
   enableLiveMode = true,
   showBorder = true,
+  facetConfig,
 }: LogViewerContainerProps) {
   // Remount when workflowId or devParams change to reset all state
   const key = useMemo(() => `${workflowId}-${JSON.stringify(devParams ?? {})}`, [workflowId, devParams]);
@@ -122,6 +126,7 @@ export function LogViewerContainer({
       initialFilterChips={initialFilterChips}
       enableLiveMode={enableLiveMode}
       showBorder={showBorder}
+      facetConfig={facetConfig}
     />
   );
 }
@@ -141,6 +146,7 @@ function LogViewerContainerInner({
   initialFilterChips,
   enableLiveMode,
   showBorder,
+  facetConfig,
 }: LogViewerContainerProps) {
   // Filter chips state - single source of truth
   const [filterChips, setFilterChips] = useState<SearchChip[]>(initialFilterChips ?? []);
@@ -224,6 +230,7 @@ function LogViewerContainerInner({
         error={error}
         histogram={histogram}
         facets={facets}
+        facetConfig={facetConfig}
         onRefetch={refetch}
         filterChips={filterChips}
         onFilterChipsChange={handleFilterChipsChange}
