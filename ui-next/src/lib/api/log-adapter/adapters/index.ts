@@ -23,10 +23,10 @@
 // Parser
 export { parseLogLine, parseLogBatch, stripAnsi, resetIdCounter, formatLogLine } from "./log-parser";
 
-// Index
-export { LogIndex } from "./log-index";
-export type { LogIndexFilterOptions } from "./log-index";
+// Compute functions (stateless, SSR-compatible)
+export { filterEntries, computeHistogram, computeFacets } from "./compute";
+export type { FilterParams } from "./compute";
 
 // Plain Text Adapter
 export { PlainTextAdapter, createPlainTextAdapter } from "./plain-text-adapter";
-export type { PlainTextAdapterConfig } from "./plain-text-adapter";
+export type { PlainTextAdapterConfig, QueryAllParams } from "./plain-text-adapter";
