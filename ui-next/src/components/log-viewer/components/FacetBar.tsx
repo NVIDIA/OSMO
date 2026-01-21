@@ -18,8 +18,8 @@
 
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import type { FieldFacet, LogLevel, LogSourceType } from "@/lib/api/log-adapter";
-import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
+import type { FieldFacet, LogLevel, LogSourceType, LogFieldDefinition } from "@/lib/api/log-adapter";
+import { LOG_LEVEL_LABELS, LOG_SOURCE_TYPE_LABELS, FACET_FIELD_CONFIG } from "@/lib/api/log-adapter";
 import { FacetDropdown } from "./FacetDropdown";
 
 // =============================================================================
@@ -33,6 +33,8 @@ export interface FacetBarProps {
   selectedFilters: Map<string, Set<string>>;
   /** Callback when a filter changes */
   onFilterChange: (field: string, values: Set<string>) => void;
+  /** Optional custom facet field configuration (overrides defaults from FACET_FIELD_CONFIG) */
+  facetConfig?: ReadonlyMap<string, LogFieldDefinition>;
   /** Additional CSS classes */
   className?: string;
 }
@@ -42,21 +44,11 @@ export interface FacetBarProps {
 // =============================================================================
 
 /**
- * Get display label for a field name.
+ * Get display label for a field name from config.
  */
-function getFieldLabel(field: string): string {
-  switch (field) {
-    case "level":
-      return "Level";
-    case "task":
-      return "Task";
-    case "source":
-      return "Source";
-    case "retry":
-      return "Retry";
-    default:
-      return field;
-  }
+function getFieldLabel(field: string, config: ReadonlyMap<string, LogFieldDefinition>): string {
+  const fieldConfig = config.get(field);
+  return fieldConfig?.shortLabel ?? field;
 }
 
 /**
@@ -77,7 +69,18 @@ function getValueFormatter(field: string): ((value: string) => string) | undefin
 // Component
 // =============================================================================
 
-function FacetBarInner({ facets, selectedFilters, onFilterChange, className }: FacetBarProps) {
+function FacetBarInner({ facets, selectedFilters, onFilterChange, facetConfig, className }: FacetBarProps) {
+  // Merge custom config with defaults (custom overrides default)
+  const mergedConfig = useMemo(() => {
+    if (!facetConfig) return FACET_FIELD_CONFIG;
+    // Create a new map with defaults, then override with custom config
+    const merged = new Map(FACET_FIELD_CONFIG);
+    for (const [key, value] of facetConfig) {
+      merged.set(key, value);
+    }
+    return merged;
+  }, [facetConfig]);
+
   // Memoize field formatters to avoid recreating on every render
   const fieldFormatters = useMemo(() => {
     const formatters = new Map<string, ((value: string) => string) | undefined>();
@@ -94,17 +97,21 @@ function FacetBarInner({ facets, selectedFilters, onFilterChange, className }: F
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {facets.map((facet) => (
-        <FacetDropdown
-          key={facet.field}
-          field={facet.field}
-          label={getFieldLabel(facet.field)}
-          values={facet.values}
-          selected={selectedFilters.get(facet.field) ?? new Set()}
-          onSelectionChange={onFilterChange}
-          formatLabel={fieldFormatters.get(facet.field)}
-        />
-      ))}
+      {facets.map((facet) => {
+        const config = mergedConfig.get(facet.field);
+        return (
+          <FacetDropdown
+            key={facet.field}
+            field={facet.field}
+            label={getFieldLabel(facet.field, mergedConfig)}
+            values={facet.values}
+            selected={selectedFilters.get(facet.field) ?? new Set()}
+            onSelectionChange={onFilterChange}
+            formatLabel={fieldFormatters.get(facet.field)}
+            icon={config?.icon}
+          />
+        );
+      })}
     </div>
   );
 }
