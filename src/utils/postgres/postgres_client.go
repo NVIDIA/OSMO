@@ -134,13 +134,6 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 	}, nil
 }
 
-// GetRoles retrieves roles by their names from the database.
-// This method wraps the standalone GetRoles function to satisfy the
-// PostgresClientInterface, which allows mock implementations in tests.
-func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*Role, error) {
-	return GetRoles(ctx, c, roleNames)
-}
-
 // Close closes the database connection pool
 func (c *PostgresClient) Close() {
 	c.logger.Info("closing postgres client")

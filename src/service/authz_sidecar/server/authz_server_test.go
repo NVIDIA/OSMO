@@ -28,7 +28,7 @@ import (
 
 func TestMatchMethod(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, logger)
+	server := NewAuthzServer(nil, nil, nil, logger)
 
 	tests := []struct {
 		name      string
@@ -86,7 +86,7 @@ func TestMatchMethod(t *testing.T) {
 
 func TestMatchPathPattern(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, logger)
+	server := NewAuthzServer(nil, nil, nil, logger)
 
 	tests := []struct {
 		name      string
@@ -144,7 +144,7 @@ func TestMatchPathPattern(t *testing.T) {
 
 func TestHasAccess(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, logger)
+	server := NewAuthzServer(nil, nil, nil, logger)
 
 	tests := []struct {
 		name       string
@@ -339,7 +339,7 @@ func TestHasAccess(t *testing.T) {
 
 func TestDefaultRoleAccess(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, logger)
+	server := NewAuthzServer(nil, nil, nil, logger)
 
 	// Simulate the osmo-default role permissions
 	defaultRole := &postgres.Role{
@@ -405,7 +405,7 @@ func TestDefaultRoleAccess(t *testing.T) {
 
 func TestAdminRoleAccess(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, logger)
+	server := NewAuthzServer(nil, nil, nil, logger)
 
 	// Simulate the osmo-admin role permissions
 	adminRole := &postgres.Role{

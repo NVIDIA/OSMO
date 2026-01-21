@@ -45,25 +45,31 @@ const (
 
 // PostgresClientInterface defines the interface for PostgreSQL operations
 type PostgresClientInterface interface {
-	GetRoles(ctx context.Context, roleNames []string) ([]*postgres.Role, error)
 	Close()
 	Ping(ctx context.Context) error
 }
 
+// RoleFetcher is a function type for fetching roles from the database.
+// This allows the authz server to be decoupled from the postgres package,
+// enabling easier testing with mock implementations.
+type RoleFetcher func(ctx context.Context, roleNames []string) ([]*postgres.Role, error)
+
 // AuthzServer implements Envoy External Authorization service
 type AuthzServer struct {
 	envoy_service_auth_v3.UnimplementedAuthorizationServer
-	pgClient  PostgresClientInterface
-	roleCache *RoleCache
-	logger    *slog.Logger
+	pgClient    PostgresClientInterface
+	roleFetcher RoleFetcher
+	roleCache   *RoleCache
+	logger      *slog.Logger
 }
 
 // NewAuthzServer creates a new authorization server
-func NewAuthzServer(pgClient PostgresClientInterface, roleCache *RoleCache, logger *slog.Logger) *AuthzServer {
+func NewAuthzServer(pgClient PostgresClientInterface, roleFetcher RoleFetcher, roleCache *RoleCache, logger *slog.Logger) *AuthzServer {
 	return &AuthzServer{
-		pgClient:  pgClient,
-		roleCache: roleCache,
-		logger:    logger,
+		pgClient:    pgClient,
+		roleFetcher: roleFetcher,
+		roleCache:   roleCache,
+		logger:      logger,
 	}
 }
 
@@ -157,7 +163,7 @@ func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, role
 	if !found {
 		// Query PostgreSQL
 		var err error
-		roles, err = s.pgClient.GetRoles(ctx, roleNames)
+		roles, err = s.roleFetcher(ctx, roleNames)
 		if err != nil {
 			return false, err
 		}

@@ -126,7 +126,12 @@ func main() {
 		slog.Int("max_size", *cacheMaxSize),
 	)
 
-	authzServer := server.NewAuthzServer(pgClient, roleCache, logger)
+	// Create role fetcher using the postgres client
+	roleFetcher := func(ctx context.Context, roleNames []string) ([]*postgres.Role, error) {
+		return postgres.GetRoles(ctx, pgClient, roleNames)
+	}
+
+	authzServer := server.NewAuthzServer(pgClient, roleFetcher, roleCache, logger)
 
 	logger.Info("authz server initialized")
 

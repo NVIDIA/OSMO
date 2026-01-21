@@ -63,6 +63,13 @@ func (m *MockPostgresClient) Ping(ctx context.Context) error {
 	return nil
 }
 
+// RoleFetcher returns a RoleFetcher function that uses the mock client
+func (m *MockPostgresClient) RoleFetcher() RoleFetcher {
+	return func(ctx context.Context, roleNames []string) ([]*postgres.Role, error) {
+		return m.GetRoles(ctx, roleNames)
+	}
+}
+
 func TestAuthzServerIntegration(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -124,9 +131,10 @@ func TestAuthzServerIntegration(t *testing.T) {
 
 	// Create authz server
 	server := &AuthzServer{
-		pgClient:  mockPG,
-		roleCache: roleCache,
-		logger:    logger,
+		pgClient:    mockPG,
+		roleFetcher: mockPG.RoleFetcher(),
+		roleCache:   roleCache,
+		logger:      logger,
 	}
 
 	tests := []struct {
@@ -278,9 +286,10 @@ func TestAuthzServerCaching(t *testing.T) {
 
 	// Create authz server
 	server := &AuthzServer{
-		pgClient:  mockPG,
-		roleCache: roleCache,
-		logger:    logger,
+		pgClient:    mockPG,
+		roleFetcher: mockPG.RoleFetcher(),
+		roleCache:   roleCache,
+		logger:      logger,
 	}
 
 	// Create request
@@ -331,7 +340,7 @@ func TestAuthzServerCaching(t *testing.T) {
 
 func TestAuthzServerMissingAttributes(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, logger)
+	server := NewAuthzServer(nil, nil, nil, logger)
 
 	tests := []struct {
 		name string
@@ -394,9 +403,10 @@ func TestAuthzServerEmptyRoles(t *testing.T) {
 	roleCache := NewRoleCache(cacheConfig, logger)
 
 	server := &AuthzServer{
-		pgClient:  mockPG,
-		roleCache: roleCache,
-		logger:    logger,
+		pgClient:    mockPG,
+		roleFetcher: mockPG.RoleFetcher(),
+		roleCache:   roleCache,
+		logger:      logger,
 	}
 
 	// Request with no roles header - should still get osmo-default
