@@ -2,6 +2,7 @@
   "name": "ui-next",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.26.1",
   "scripts": {
     "postinstall": "cp node_modules/elkjs/lib/elk-worker.min.js public/elk-worker.min.js 2>/dev/null || true && next telemetry disable",
     "dev": "next dev --turbopack",

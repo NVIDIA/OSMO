@@ -43,6 +43,17 @@ const scheme = sslEnabled ? "https" : "http";
 const API_URL = `${scheme}://${apiHostname}`;
 
 const nextConfig: NextConfig = {
+  // =============================================================================
+  // Deployment Configuration
+  // =============================================================================
+
+  // Base path for serving UI under a subpath (e.g., /v2)
+  // This allows ui-next to run alongside legacy UI on the same hostname
+  // - All routes become /v2/* (e.g., /v2/pools, /v2/workflows)
+  // - Static assets served from /v2/_next/static/*
+  // - API rewrites still forward to backend /api/* (no /v2 prefix)
+  basePath: "/v2",
+
   // Enable standalone output for containerized deployments
   output: "standalone",
 
