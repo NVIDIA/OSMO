@@ -17,7 +17,7 @@
 "use client";
 
 import { memo } from "react";
-import { Download, WrapText, RotateCcw, Tag } from "lucide-react";
+import { Download, RefreshCcw, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -122,7 +122,7 @@ function FooterInner({
                 onClick={onRefresh}
                 disabled={isLoading}
               >
-                <RotateCcw className={cn("size-4", isLoading && "animate-spin")} />
+                <RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
                 <span className="sr-only">Refresh</span>
               </Button>
             </TooltipTrigger>
