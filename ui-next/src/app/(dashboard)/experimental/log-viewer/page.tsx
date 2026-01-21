@@ -14,15 +14,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+"use client";
+
+import { useMemo } from "react";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
-import { LogViewerPlaygroundLoader } from "./log-viewer-playground-loader";
+import { usePage } from "@/components/chrome";
+import { LogViewerContainer } from "@/components/log-viewer";
+import { ScenarioSelector, useScenario } from "./components/scenario-selector";
+
+/**
+ * Mock workflow ID for the playground.
+ */
+const MOCK_WORKFLOW_ID = "log-viewer-playground";
 
 /**
  * Log Viewer Experimental Page
  *
  * A dedicated playground for developing and testing the log viewer component.
- * This page is only accessible in development mode.
+ * Uses the reusable LogViewerContainer with scenario-based mock data.
  */
 export default function LogViewerExperimentalPage() {
   // Redirect to home in production
@@ -30,17 +39,32 @@ export default function LogViewerExperimentalPage() {
     redirect("/");
   }
 
-  return (
-    <Suspense fallback={<LogViewerLoadingSkeleton />}>
-      <LogViewerPlaygroundLoader />
-    </Suspense>
-  );
-}
+  // Read scenario from URL (ScenarioSelector writes to same URL param)
+  const { devParams, tailDevParams } = useScenario();
 
-function LogViewerLoadingSkeleton() {
+  // Memoize header actions to prevent infinite re-render loop
+  // usePage uses headerActions as a dependency, so a new JSX element triggers updates
+  const headerActions = useMemo(() => <ScenarioSelector />, []);
+
+  // Register page with scenario selector in header
+  usePage({
+    title: "Log Viewer",
+    breadcrumbs: [{ label: "Experimental", href: "/experimental" }],
+    headerActions,
+  });
+
   return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="text-muted-foreground text-sm">Loading log viewer playground...</div>
+    <div className="flex h-full flex-col p-4">
+      <div className="relative flex-1">
+        <LogViewerContainer
+          workflowId={MOCK_WORKFLOW_ID}
+          devParams={devParams}
+          tailDevParams={tailDevParams}
+          scope="workflow"
+          className="h-full"
+          viewerClassName="h-full"
+        />
+      </div>
     </div>
   );
 }

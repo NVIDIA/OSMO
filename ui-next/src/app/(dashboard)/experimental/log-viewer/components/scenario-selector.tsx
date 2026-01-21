@@ -16,13 +16,74 @@
 
 "use client";
 
+import { useQueryState, parseAsStringLiteral } from "nuqs";
+import { useMounted } from "@/hooks";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 import { type LogScenarioName, getLogScenarioNames } from "@/mocks/generators";
+
+// =============================================================================
+// Types
+// =============================================================================
 
 /**
  * Re-export LogScenarioName as LogScenario for component API compatibility.
  */
 export type LogScenario = LogScenarioName;
+
+/**
+ * Valid scenario values for URL parsing.
+ */
+const SCENARIO_VALUES = ["normal", "error-heavy", "high-volume", "empty", "streaming"] as const;
+
+// =============================================================================
+// Hook: useScenario
+// =============================================================================
+
+/**
+ * Hook to read the current scenario from URL.
+ *
+ * This is a read-only hook for components that need to react to scenario changes.
+ * Use ScenarioSelector component for the UI that allows changing scenarios.
+ *
+ * @returns Current scenario and dev params ready for LogViewerContainer
+ *
+ * @example
+ * ```tsx
+ * const { scenario, devParams, tailDevParams } = useScenario();
+ *
+ * return (
+ *   <LogViewerContainer
+ *     workflowId="my-workflow"
+ *     devParams={devParams}
+ *     tailDevParams={tailDevParams}
+ *   />
+ * );
+ * ```
+ */
+export function useScenario() {
+  const [scenario] = useQueryState(
+    "scenario",
+    parseAsStringLiteral(SCENARIO_VALUES).withDefault("normal").withOptions({
+      shallow: true,
+      history: "replace",
+      clearOnDefault: true,
+    }),
+  );
+
+  return {
+    /** Current scenario name */
+    scenario: scenario as LogScenario,
+    /** Dev params for LogViewerContainer */
+    devParams: { log_scenario: scenario },
+    /** Tail dev params (always streaming for mock) */
+    tailDevParams: { log_scenario: "streaming" as const },
+  };
+}
+
+// =============================================================================
+// UI Configuration
+// =============================================================================
 
 interface ScenarioConfig {
   label: string;
@@ -32,7 +93,6 @@ interface ScenarioConfig {
 
 /**
  * UI configuration for each log scenario.
- * Matches the 5 core scenarios defined in log-scenarios.ts.
  */
 const SCENARIO_CONFIGS: Record<LogScenario, ScenarioConfig> = {
   normal: {
@@ -65,33 +125,59 @@ const SCENARIO_CONFIGS: Record<LogScenario, ScenarioConfig> = {
 // Use the canonical list of scenario names from the mock system
 const SCENARIOS = getLogScenarioNames();
 
-interface ScenarioSelectorProps {
-  value: LogScenario;
-  onChange: (scenario: LogScenario) => void;
-}
+// =============================================================================
+// Component: ScenarioSelector
+// =============================================================================
 
 /**
- * Dropdown selector for log scenarios.
- * Each scenario represents a different test case for the log viewer.
+ * Self-contained dropdown selector for log scenarios.
+ *
+ * Manages its own URL state via nuqs and handles hydration safety.
+ * Use useScenario() hook to read the current value elsewhere.
+ *
+ * @example
+ * ```tsx
+ * // In page header
+ * usePage({
+ *   title: "Log Viewer",
+ *   headerActions: <ScenarioSelector />,
+ * });
+ * ```
  */
-export function ScenarioSelector({ value, onChange }: ScenarioSelectorProps) {
+export function ScenarioSelector() {
+  const [scenario, setScenario] = useQueryState(
+    "scenario",
+    parseAsStringLiteral(SCENARIO_VALUES).withDefault("normal").withOptions({
+      shallow: true,
+      history: "replace",
+      clearOnDefault: true,
+    }),
+  );
+
+  // Hydration-safe rendering for Radix Select
+  const mounted = useMounted();
+
+  if (!mounted) {
+    return <Skeleton className="h-9 w-[220px]" />;
+  }
+
   return (
     <div className="flex items-center gap-2">
       <label className="text-muted-foreground text-sm font-medium">Scenario:</label>
       <Select
-        value={value}
-        onValueChange={(v) => onChange(v as LogScenario)}
+        value={scenario}
+        onValueChange={(v) => setScenario(v as LogScenario)}
       >
         <SelectTrigger className="w-[180px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {SCENARIOS.map((scenario) => {
-            const config = SCENARIO_CONFIGS[scenario];
+          {SCENARIOS.map((s) => {
+            const config = SCENARIO_CONFIGS[s];
             return (
               <SelectItem
-                key={scenario}
-                value={scenario}
+                key={s}
+                value={s}
               >
                 <div className="flex flex-col">
                   <span>{config.label}</span>
