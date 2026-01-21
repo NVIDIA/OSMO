@@ -512,7 +512,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   return (
     <DAGErrorBoundary>
-      <ShellProvider>
+      <ShellProvider workflowName={name}>
         <ShellPortalProvider>
           {/* Main Content: Side-by-Side Layout (DAG + Panel) */}
           <div
