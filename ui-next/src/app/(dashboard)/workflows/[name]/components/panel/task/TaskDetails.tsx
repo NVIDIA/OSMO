@@ -490,7 +490,6 @@ export const TaskDetails = memo(function TaskDetails({
         tabs={availableTabs}
         value={activeTab}
         onValueChange={handleTabChange}
-        compactBreakpoint={280}
       />
 
       {/* Tab Content */}

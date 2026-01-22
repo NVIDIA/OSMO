@@ -305,7 +305,6 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         tabs={WORKFLOW_TABS}
         value={activeTab}
         onValueChange={handleTabChange}
-        compactBreakpoint={280}
       />
 
       {/* Tab Content */}
