@@ -26,13 +26,16 @@
  * - The postinstall script copies elk-worker.min.js from node_modules to public/
  * - The file is gitignored (not checked into version control)
  * - Served from our own infrastructure (no third-party CDN dependency)
+ * - BasePath-aware: automatically includes /v2 prefix when deployed
  */
 
 import ELK from "elkjs/lib/elk-api.js";
+import { getBasePathUrl } from "@/lib/config";
 import type { ElkGraph, ElkLayoutResult } from "../types";
 
 // ELK worker script URL - served from our public folder
-const ELK_WORKER_URL = "/elk-worker.min.js";
+// Uses getBasePathUrl to ensure it works with basePath (/v2) in production
+const ELK_WORKER_URL = getBasePathUrl("/elk-worker.min.js");
 
 // =============================================================================
 // ELK Layout Client (Singleton)
