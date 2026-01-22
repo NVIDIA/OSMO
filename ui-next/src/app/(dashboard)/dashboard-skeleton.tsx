@@ -58,6 +58,11 @@ export function DashboardSkeleton() {
           ))}
         </div>
       </div>
+
+      {/* Version info skeleton */}
+      <div className="flex justify-center">
+        <Skeleton className="h-3 w-24" />
+      </div>
     </div>
   );
 }

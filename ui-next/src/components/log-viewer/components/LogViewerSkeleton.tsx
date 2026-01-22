@@ -75,7 +75,7 @@ export function LogViewerSkeleton({ showHistogram = true, showFacetBar = true, c
 
       {/* Section 2: FacetBar skeleton */}
       {showFacetBar && (
-        <div className="shrink-0 border-b px-3 py-2">
+        <div className="shrink-0 border-b px-3 py-3">
           <div className="flex items-center gap-2">
             <Skeleton className="h-8 w-20" />
             <Skeleton className="h-8 w-20" />
@@ -103,18 +103,20 @@ export function LogViewerSkeleton({ showHistogram = true, showFacetBar = true, c
       )}
 
       {/* Section 4: LogList skeleton (full width) */}
-      <div className="min-h-0 flex-1 space-y-1 overflow-hidden p-2">
-        {SKELETON_WIDTHS.map((width, i) => (
-          <Skeleton
-            key={i}
-            style={{ width, height: ROW_HEIGHT_ESTIMATE }}
-          />
-        ))}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="space-y-1 p-2">
+          {SKELETON_WIDTHS.map((width, i) => (
+            <Skeleton
+              key={i}
+              style={{ width, height: ROW_HEIGHT_ESTIMATE }}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Section 5: Footer skeleton */}
-      <div className="shrink-0 border-t px-3 py-2">
-        <div className="flex items-center justify-between">
+      <div className="shrink-0">
+        <div className="flex items-center justify-between border-t px-3 py-2">
           <div className="flex gap-1">
             <Skeleton className="size-8" />
             <Skeleton className="size-8" />
