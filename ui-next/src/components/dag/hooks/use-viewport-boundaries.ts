@@ -81,9 +81,9 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, useEffectEvent, type RefObject } from "react";
 import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@xyflow/react";
-import { useResizeObserver, useEventCallback } from "usehooks-ts";
+import { useResizeObserver } from "usehooks-ts";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { clamp } from "@/lib/utils";
 import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
@@ -297,7 +297,7 @@ export function useViewportBoundaries({
   // Viewport Actions (Stable Callbacks)
   // ---------------------------------------------------------------------------
 
-  const performCentering = useEventCallback((nodeId: string, zoom: number, duration: number) => {
+  const performCentering = useEffectEvent((nodeId: string, zoom: number, duration: number) => {
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
 
@@ -316,7 +316,7 @@ export function useViewportBoundaries({
     });
   });
 
-  const performClamping = useEventCallback((duration: number) => {
+  const performClamping = useEffectEvent((duration: number) => {
     const vp = reactFlowInstance.getViewport();
     const clampedVp = clampToTranslateExtent(vp, targetDims, nodeBounds);
     reactFlowInstance.setViewport(clampedVp, { duration });
@@ -381,8 +381,6 @@ export function useViewportBoundaries({
     containerDims.height,
     isDragging,
     initialSelectedNodeId,
-    performCentering,
-    performClamping,
     reactFlowInstance,
     rootNodeIds,
     selectedNodeId,
