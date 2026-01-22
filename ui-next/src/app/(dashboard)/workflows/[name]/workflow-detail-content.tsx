@@ -39,57 +39,40 @@
  * - Browser back/forward → Navigate through URL history
  *
  * Performance:
- * - ReactFlow (~200KB+) is dynamically imported - not in initial bundle
+ * - ReactFlow is bundled with this route (not lazy-loaded)
  * - ELK layout worker is preloaded for instant DAG rendering
- * - All ReactFlow hooks/components behind dynamic boundary
+ * - Server prefetches workflow data before client loads
+ * - DAG renders immediately when page loads (no spinner delay)
  */
 
 "use client";
 
-import dynamic from "next/dynamic";
 import { usePage } from "@/components/chrome";
 import { InlineErrorBoundary } from "@/components/error";
 import { preloadElkWorker } from "@/components/dag";
+import { WorkflowDetailInnerWithProvider } from "./workflow-detail-inner";
 
 // =============================================================================
-// Dynamic Import for ReactFlow
+// Direct Import for ReactFlow
 // =============================================================================
-// ReactFlow + ELK.js are heavy (~200KB+ gzipped). We dynamically import them
-// to keep the initial bundle small. This is especially important for:
-// - Mobile users on slow networks
-// - Users who navigate directly to non-workflow pages
-// - Faster initial page load across the app
+// RATIONALE: Workflow pages are the PRIMARY use case for this app.
+// The previous dynamic() import with ssr: false caused unnecessary delays:
+//   1. User navigates to workflow page
+//   2. Server prefetches data (fast! ✓)
+//   3. Client receives hydrated data (instant! ✓)
+//   4. Browser downloads ReactFlow chunk... (SLOW! ✗)
+//   5. Finally renders DAG
 //
-// The WorkflowDetailInner component contains ALL ReactFlow dependencies and
-// is behind this dynamic boundary to ensure @xyflow/react stays out of the
-// initial bundle.
-
-const WorkflowDetailInnerDynamic = dynamic(
-  () =>
-    import("./workflow-detail-inner")
-      .then((mod) => {
-        console.log("[DAG] Successfully loaded workflow detail inner module");
-        return mod.WorkflowDetailInnerWithProvider;
-      })
-      .catch((error) => {
-        console.error("[DAG] Failed to load workflow detail inner:", error);
-        throw error;
-      }),
-  {
-    ssr: false,
-    loading: () => {
-      console.log("[DAG] Loading workflow visualization...");
-      return (
-        <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
-          <div className="text-center text-gray-500 dark:text-zinc-500">
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
-            <p>Loading visualization...</p>
-          </div>
-        </div>
-      );
-    },
-  },
-);
+// By importing directly:
+//   - Next.js automatic route-based code splitting still applies
+//   - ReactFlow is bundled with THIS route, not the global bundle
+//   - No download delay - chunk is already part of the route bundle
+//   - DAG renders immediately when data is ready
+//
+// Trade-off: Slightly larger route bundle (~200KB), but:
+//   - This IS the main feature - users expect it immediately
+//   - Route-level splitting means other pages aren't affected
+//   - Much better UX for the 99% use case
 
 // Preload ELK worker on module load (before first render)
 // This hides worker initialization latency from the user
@@ -119,8 +102,9 @@ interface WorkflowDetailContentProps {
  * This is separated from the page.tsx to allow server-side prefetching
  * while keeping all interactive functionality client-side.
  *
- * Performance: All ReactFlow dependencies are dynamically loaded via
- * WorkflowDetailInnerDynamic to keep them out of the initial bundle.
+ * Performance: ReactFlow is imported directly (not dynamically) because
+ * workflow visualization is the primary feature. Next.js route-based code
+ * splitting ensures other pages aren't affected.
  */
 export function WorkflowDetailContent({ name }: WorkflowDetailContentProps) {
   usePage({
@@ -131,7 +115,7 @@ export function WorkflowDetailContent({ name }: WorkflowDetailContentProps) {
   return (
     <InlineErrorBoundary title="Unable to display workflow" onReset={() => window.location.reload()}>
       <div className="h-full">
-        <WorkflowDetailInnerDynamic name={name} />
+        <WorkflowDetailInnerWithProvider name={name} />
       </div>
     </InlineErrorBoundary>
   );

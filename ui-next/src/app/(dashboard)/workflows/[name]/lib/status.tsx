@@ -18,7 +18,8 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { useTheme } from "next-themes";
 import { Clock, Loader2, CheckCircle, XCircle, AlertCircle, Check, Circle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GroupNodeData } from "./dag-layout";
@@ -181,18 +182,43 @@ export function getStatusIconCompact(status: string, size = "size-3.5") {
   );
 }
 
-export function getMiniMapNodeColor(node: { data: unknown }): string {
-  const data = node.data as GroupNodeData;
-  if (!data?.group) return "#52525b";
-  const category = getStatusCategory(data.group.status);
-  return STATUS_STYLES[category].color;
-}
+/**
+ * Hook to get theme-aware minimap color functions.
+ * Returns memoized color and strokeColor functions that adapt to the current theme.
+ *
+ * Usage:
+ * ```tsx
+ * const { getMiniMapNodeColor, getMiniMapStrokeColor } = useMiniMapColors();
+ * ```
+ */
+export function useMiniMapColors() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme !== "light";
 
-export function getMiniMapStrokeColor(node: { data: unknown }): string {
-  const data = node.data as GroupNodeData;
-  if (!data?.group) return "#3f3f46";
-  const category = getStatusCategory(data.group.status);
-  return STATUS_STYLES[category].strokeColor;
+  // Memoize the color functions to prevent unnecessary re-renders
+  return useMemo(() => {
+    const getMiniMapNodeColor = (node: { data: unknown }): string => {
+      const data = node.data as GroupNodeData;
+      if (!data?.group) {
+        return isDark ? "#52525b" : "#d4d4d8"; // zinc-600 : zinc-300
+      }
+      const category = getStatusCategory(data.group.status);
+      const themeColors = isDark ? STATUS_STYLES[category].dark : STATUS_STYLES[category].light;
+      return themeColors.color;
+    };
+
+    const getMiniMapStrokeColor = (node: { data: unknown }): string => {
+      const data = node.data as GroupNodeData;
+      if (!data?.group) {
+        return isDark ? "#3f3f46" : "#a1a1aa"; // zinc-700 : zinc-400
+      }
+      const category = getStatusCategory(data.group.status);
+      const themeColors = isDark ? STATUS_STYLES[category].dark : STATUS_STYLES[category].light;
+      return themeColors.strokeColor;
+    };
+
+    return { getMiniMapNodeColor, getMiniMapStrokeColor };
+  }, [isDark]);
 }
 
 // Prewarm icon cache during idle time
