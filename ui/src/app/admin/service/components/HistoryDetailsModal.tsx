@@ -46,12 +46,6 @@ export const HistoryDetailsModal = ({
   const previousVersion = configs[historyIndex + 1];
   const nextVersion = configs[historyIndex - 1];
 
-  console.log("Configs:", configs);
-  console.log("Current Config:", currentConfig);
-  console.log("Previous Version:", previousVersion);
-  console.log("Next Version:", nextVersion);
-  console.log("History Index:", historyIndex);
-
   return (
     <FullPageModal
       headerChildren={
