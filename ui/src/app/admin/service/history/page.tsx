@@ -82,7 +82,7 @@ export default function AdminPage() {
             onClick={() => {
               setIsShowingDetails(true);
               setIsComparing(true);
-              setHistoryIndex(selectedRevisions.length - 1);
+              setHistoryIndex(0);
             }}
           />
         )}

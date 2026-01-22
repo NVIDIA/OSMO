@@ -18,21 +18,39 @@
 import { useState } from "react";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { OutlinedIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
 import PageHeader from "~/components/PageHeader";
 import { Spinner } from "~/components/Spinner";
+import { type ServiceConfig } from "~/models/config/service-config";
 import { api } from "~/trpc/react";
 
 import { ServiceConfigEditor } from "./components/ServiceConfigEditor";
 
 export default function AdminPage() {
+  const router = useRouter();
   const serviceConfig = api.configs.getServiceConfig.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
   const patchServiceConfig = api.configs.patchServiceConfig.useMutation();
   const [error, setError] = useState<string | undefined>(undefined);
+
+  const handleSave = async (description: string, tags: string[], config: ServiceConfig) => {
+    setError(undefined);
+    try {
+      await patchServiceConfig.mutateAsync({
+        description,
+        tags,
+        configs_dict: config,
+      });
+      router.push("/admin/service/history");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update service config";
+      setError(message);
+    }
+  };
 
   if (serviceConfig.error) {
     return (
@@ -65,20 +83,7 @@ export default function AdminPage() {
       <div className="flex flex-col w-full">
         <ServiceConfigEditor
           serviceConfig={serviceConfig.data}
-          onSave={async (description, tags, config) => {
-            setError(undefined);
-            try {
-              await patchServiceConfig.mutateAsync({
-                description,
-                tags,
-                configs_dict: config,
-              });
-              await serviceConfig.refetch();
-            } catch (err) {
-              const message = err instanceof Error ? err.message : "Failed to update service config";
-              setError(message);
-            }
-          }}
+          onSave={handleSave}
           error={error}
         />
       </div>

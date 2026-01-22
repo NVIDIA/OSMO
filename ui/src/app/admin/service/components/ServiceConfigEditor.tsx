@@ -56,7 +56,15 @@ export const durationStringSchema = yup
   });
 
 export const serviceConfigSchema = yup.object({
-  changeDescription: yup.string().trim().required("Change Description is required").defined(),
+  changeDescription: yup
+    .string()
+    .trim()
+    .when("$isComparing", {
+      is: true,
+      then: (schema) => schema.required("Change Description is required"),
+      otherwise: (schema) => schema.notRequired(),
+    })
+    .defined(),
   tags: yup.array().of(yup.string().trim().defined()).default([]).defined(),
   service_base_url: yup
     .string()
@@ -172,8 +180,15 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
     formState: { errors },
   } = useForm<ServiceConfigFormValues>({
     defaultValues,
-    resolver: yupResolver(serviceConfigSchema),
+    resolver: yupResolver(serviceConfigSchema, { context: { isComparing } }),
   });
+
+  const handleBack = () => {
+    setIsComparing(false);
+    requestAnimationFrame(() => {
+      setFocus("changeDescription");
+    });
+  };
 
   useEffect(() => {
     reset(defaultValues);
@@ -265,7 +280,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
               value={field.value}
               onChange={field.onChange}
               ref={field.ref}
-              required
+              required={isComparing}
               className="w-full"
               message={errors.changeDescription?.message}
               isError={Boolean(errors.changeDescription)}
@@ -289,7 +304,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
         />
       </div>
       {isComparing ? (
-        <div className="flex flex-row gap-global p-global grow">
+        <div className="grid grid-cols-2 gap-global p-global grow">
           <div className="flex flex-col gap-global card h-full">
             <h3 className="body-header p-global">Current Version</h3>
             <ServiceConfigOverview
@@ -597,7 +612,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => setIsComparing(false)}
+            onClick={handleBack}
           >
             Back
           </button>

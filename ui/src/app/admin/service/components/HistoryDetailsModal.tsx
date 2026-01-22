@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -19,11 +19,10 @@ import { useState } from "react";
 
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
-import { InlineBanner } from "~/components/InlineBanner";
-import { Colors, Tag } from "~/components/Tag";
 import { ViewToggleButton } from "~/components/ViewToggleButton";
 import { type ServiceConfigHistoryItem } from "~/models/config/service-config";
 
+import { ConfigChangeInfo } from "./ConfigChangeInfo";
 import { ServiceConfigOverview } from "./ServiceConfigOverview";
 
 interface HistoryDetailsModalProps {
@@ -47,11 +46,17 @@ export const HistoryDetailsModal = ({
   const previousVersion = configs[historyIndex + 1];
   const nextVersion = configs[historyIndex - 1];
 
+  console.log("Configs:", configs);
+  console.log("Current Config:", currentConfig);
+  console.log("Previous Version:", previousVersion);
+  console.log("Next Version:", nextVersion);
+  console.log("History Index:", historyIndex);
+
   return (
     <FullPageModal
       headerChildren={
-        historyIndex !== undefined && (
-          <>
+        <>
+          {configs.length > 2 ? (
             <div className="flex flex-row gap-1 items-center justify-center grow">
               {previousVersion && previousVersion.revision > 1 ? (
                 <button
@@ -115,31 +120,33 @@ export const HistoryDetailsModal = ({
                 />
               )}
             </div>
-            <fieldset
-              className="toggle-group"
-              aria-label="View Type"
+          ) : (
+            <h2 className="grow">Service Config</h2>
+          )}
+          <fieldset
+            className="toggle-group"
+            aria-label="View Type"
+          >
+            <ViewToggleButton
+              name="isShowingJSON"
+              checked={!isShowingJSON}
+              onChange={() => {
+                setIsShowingJSON(false);
+              }}
             >
-              <ViewToggleButton
-                name="isShowingJSON"
-                checked={!isShowingJSON}
-                onChange={() => {
-                  setIsShowingJSON(false);
-                }}
-              >
-                Details
-              </ViewToggleButton>
-              <ViewToggleButton
-                name="isShowingJSON"
-                checked={isShowingJSON}
-                onChange={() => {
-                  setIsShowingJSON(true);
-                }}
-              >
-                JSON
-              </ViewToggleButton>
-            </fieldset>
-          </>
-        )
+              Details
+            </ViewToggleButton>
+            <ViewToggleButton
+              name="isShowingJSON"
+              checked={isShowingJSON}
+              onChange={() => {
+                setIsShowingJSON(true);
+              }}
+            >
+              JSON
+            </ViewToggleButton>
+          </fieldset>
+        </>
       }
       open={open}
       onClose={() => {
@@ -148,36 +155,11 @@ export const HistoryDetailsModal = ({
     >
       {currentConfig && (
         <>
-          <InlineBanner status="info">
-            <p>
-              Created by <strong>{currentConfig.username}</strong> on{" "}
-              <strong>
-                {currentConfig.created_at.toLocaleString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </strong>
-              . {currentConfig.description}.
-            </p>
-            <div className="flex flex-row gap-1">
-              {currentConfig.tags?.map((tag) => (
-                <Tag
-                  key={tag}
-                  color={Colors.tag}
-                >
-                  {tag}
-                </Tag>
-              ))}
-            </div>
-          </InlineBanner>
           <div className="grid grid-cols-2 gap-global p-global w-full grow">
             {previousVersion?.data && (
-              <div className="flex flex-col gap-global card h-full w-full">
+              <div className="flex flex-col card h-full w-full">
                 <h3 className="body-header p-global">Revision {previousVersion.revision}</h3>
+                <ConfigChangeInfo config={previousVersion} />
                 <ServiceConfigOverview
                   serviceConfig={previousVersion.data}
                   previousConfig={currentConfig.data}
@@ -185,8 +167,9 @@ export const HistoryDetailsModal = ({
                 />
               </div>
             )}
-            <div className="flex flex-col gap-global card h-full w-full">
+            <div className="flex flex-col card h-full w-full">
               <h3 className="body-header p-global">Revision {currentConfig.revision}</h3>
+              <ConfigChangeInfo config={currentConfig} />
               <ServiceConfigOverview
                 serviceConfig={currentConfig.data}
                 previousConfig={previousVersion?.data}
