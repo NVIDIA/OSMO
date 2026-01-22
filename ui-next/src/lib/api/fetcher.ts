@@ -132,6 +132,10 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
       ...options,
     });
   } catch (error) {
+    // Check if this was an intentional abort
+    if (error instanceof Error && error.name === "AbortError") {
+      throw error;
+    }
     // Network error (CORS, offline, etc.) - NOT retryable
     const message = error instanceof Error ? error.message : "Network error";
     throw createApiError(`Network error: ${message}`, 0, false);
