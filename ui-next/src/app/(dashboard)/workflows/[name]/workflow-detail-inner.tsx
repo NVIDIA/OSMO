@@ -84,6 +84,7 @@ import { useNavigationState } from "./hooks/use-navigation-state";
 
 // Types
 import type { GroupWithLayout, TaskQueryResponse } from "./lib/workflow-types";
+import type { InitialView } from "./workflow-detail-content";
 
 // CSS for DAG (from route-level styles)
 import "./styles/dag.css";
@@ -95,13 +96,15 @@ import "./styles/dag.css";
 export interface WorkflowDetailInnerProps {
   /** Workflow name from URL params */
   name: string;
+  /** Server-parsed URL state for instant panel rendering */
+  initialView: InitialView;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
+export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerProps) {
   const [showMinimap, setShowMinimap] = useState(true);
 
   // Persisted panel preferences from Zustand store
@@ -142,6 +145,7 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
   useTickController(shouldTick);
 
   // URL-synced navigation state (nuqs)
+  // initialView provides instant state before nuqs hydration
   const {
     view: navView,
     selectedGroup,
@@ -157,7 +161,7 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
     navigateBackToGroup,
     setSelectedTab,
     setSelectedWorkflowTab,
-  } = useNavigationState({ groups: groupsWithLayout });
+  } = useNavigationState({ groups: groupsWithLayout, initialView });
 
   // Compute selection key for panel collapse behavior
   // This changes when user navigates to a different group/task, triggering auto-expand
@@ -630,10 +634,13 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
 }
 
 // Wrap in ReactFlowProvider
-export function WorkflowDetailInnerWithProvider(props: WorkflowDetailInnerProps) {
+export function WorkflowDetailInnerWithProvider({ name, initialView }: WorkflowDetailInnerProps) {
   return (
     <ReactFlowProvider>
-      <WorkflowDetailInner {...props} />
+      <WorkflowDetailInner
+        name={name}
+        initialView={initialView}
+      />
     </ReactFlowProvider>
   );
 }

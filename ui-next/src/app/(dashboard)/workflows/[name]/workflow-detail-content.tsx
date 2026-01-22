@@ -84,9 +84,17 @@ if (typeof window !== "undefined") {
 // Types
 // =============================================================================
 
+export interface InitialView {
+  groupName: string | null;
+  taskName: string | null;
+  taskRetryId: number | null;
+}
+
 interface WorkflowDetailContentProps {
   /** Workflow name from URL params */
   name: string;
+  /** Server-parsed URL state for instant panel rendering */
+  initialView: InitialView;
 }
 
 // =============================================================================
@@ -106,7 +114,7 @@ interface WorkflowDetailContentProps {
  * workflow visualization is the primary feature. Next.js route-based code
  * splitting ensures other pages aren't affected.
  */
-export function WorkflowDetailContent({ name }: WorkflowDetailContentProps) {
+export function WorkflowDetailContent({ name, initialView }: WorkflowDetailContentProps) {
   usePage({
     title: name,
     breadcrumbs: [{ label: "Workflows", href: "/workflows" }],
@@ -118,7 +126,10 @@ export function WorkflowDetailContent({ name }: WorkflowDetailContentProps) {
       onReset={() => window.location.reload()}
     >
       <div className="h-full">
-        <WorkflowDetailInnerWithProvider name={name} />
+        <WorkflowDetailInnerWithProvider
+          name={name}
+          initialView={initialView}
+        />
       </div>
     </InlineErrorBoundary>
   );

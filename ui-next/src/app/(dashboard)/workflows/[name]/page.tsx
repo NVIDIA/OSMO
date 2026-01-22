@@ -53,18 +53,23 @@ import { WorkflowDetailWithData } from "./workflow-detail-with-data";
 
 interface WorkflowDetailPageProps {
   params: Promise<{ name: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 // =============================================================================
 // Streaming SSR - Fast TTFB + Server Prefetch
 // =============================================================================
 
-export default function WorkflowDetailPage({ params }: WorkflowDetailPageProps) {
+export default function WorkflowDetailPage({ params, searchParams }: WorkflowDetailPageProps) {
   // No await - returns immediately with skeleton
   // WorkflowDetailWithData suspends and streams when data is ready
+  // searchParams passed to enable server-side URL parsing (zero client hydration delay)
   return (
     <Suspense fallback={<WorkflowDetailSkeleton />}>
-      <WorkflowDetailWithData params={params} />
+      <WorkflowDetailWithData
+        params={params}
+        searchParams={searchParams}
+      />
     </Suspense>
   );
 }
