@@ -156,16 +156,32 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
     [sessionKey, onStatusChange],
   );
 
-  // Attach callbacks to an existing WebSocket
+  // Use refs for external callbacks to bridge to the WebSocket system.
+  // This ensures the WebSocket handlers always have the latest callbacks
+  // without triggering re-effects or violating useEffectEvent rules.
+  const onDataRef = useRef(onData);
+  const onStatusChangeRef = useRef(onStatusChange);
+  const onConnectedRef = useRef(onConnected);
+  const onDisconnectedRef = useRef(onDisconnected);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onDataRef.current = onData;
+    onStatusChangeRef.current = onStatusChange;
+    onConnectedRef.current = onConnected;
+    onDisconnectedRef.current = onDisconnected;
+    onErrorRef.current = onError;
+  });
+
   const attachCallbacks = useCallback(
     (ws: WebSocket) => {
       ws.onmessage = (event) => {
         if (event.data instanceof ArrayBuffer) {
           const data = new Uint8Array(event.data);
-          onData?.(data);
+          onDataRef.current?.(data);
         } else if (typeof event.data === "string") {
           const data = sharedEncoder.encode(event.data);
-          onData?.(data);
+          onDataRef.current?.(data);
         }
       };
 
@@ -180,19 +196,18 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         // Always just update status to disconnected - session stays in list
         // User must explicitly click "Remove" to remove from list
         updateStatus("disconnected");
-        onDisconnected?.();
+        onDisconnectedRef.current?.();
       };
 
       ws.onerror = () => {
         const err = new Error("WebSocket connection failed");
         updateStatus("error", err.message);
-        onError?.(err);
+        onErrorRef.current?.(err);
       };
     },
-    [sessionKey, onData, onDisconnected, onError, updateStatus],
+    [sessionKey, updateStatus],
   );
 
-  // Connect to shell
   const connect = useCallback(async () => {
     // Check if we already have an active connection in the cache
     if (sessionKey && hasActiveConnection(sessionKey)) {
@@ -202,7 +217,7 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         attachCallbacks(session.connection.webSocket);
         usingCachedConnectionRef.current = true;
         updateStatus("connected");
-        onConnected?.();
+        onConnectedRef.current?.();
         return;
       }
     }
@@ -250,7 +265,7 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         }
 
         updateStatus("connected");
-        onConnected?.();
+        onConnectedRef.current?.();
       };
 
       // Attach other callbacks
@@ -258,9 +273,9 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Failed to create exec session");
       updateStatus("error", error.message);
-      onError?.(error);
+      onErrorRef.current?.(error);
     }
-  }, [sessionKey, workflowName, taskName, shell, execMutation, updateStatus, attachCallbacks, onConnected, onError]);
+  }, [sessionKey, workflowName, taskName, shell, execMutation, updateStatus, attachCallbacks]);
 
   // Disconnect from shell (explicitly close connection)
   const disconnect = useCallback(() => {
