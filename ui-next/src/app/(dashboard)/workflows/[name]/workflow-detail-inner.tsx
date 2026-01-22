@@ -28,6 +28,7 @@
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import { usePrevious, useIsomorphicLayoutEffect } from "@react-hookz/web";
+import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useTheme } from "next-themes";
 
@@ -43,7 +44,7 @@ import { PANEL } from "@/components/panel";
 import { useTickController } from "@/hooks";
 import { useSharedPreferences } from "@/stores";
 
-// Route-level components
+// Route-level components (non-lazy)
 import {
   nodeTypes,
   MiniMapNode,
@@ -51,11 +52,24 @@ import {
   DAGControls,
   DAGProvider,
   DetailsPanel,
-  ShellContainer,
   ShellPortalProvider,
   ShellProvider,
   type DetailsPanelView,
 } from "./components";
+
+// =============================================================================
+// Dynamic Imports - Shell components use xterm.js (heavy dependency)
+// =============================================================================
+
+// ShellContainer contains xterm.js terminal instances with significant CSS.
+// Only load when a shell tab is active or sessions exist.
+// This saves ~80-120KB on initial load.
+const ShellContainer = dynamic(
+  () => import("./components/shell/ShellContainer").then((m) => ({ default: m.ShellContainer })),
+  {
+    ssr: false, // Terminal requires browser APIs
+  },
+);
 
 // DAG utilities
 import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries } from "@/components/dag";

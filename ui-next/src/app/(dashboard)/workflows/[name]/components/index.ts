@@ -36,11 +36,10 @@ export {
 } from "./dag";
 
 // Panel components
+// NOTE: WorkflowDetails, GroupDetails, TaskDetails are NOT exported here
+// They are dynamically imported in DetailsPanel to enable code splitting
 export {
   DetailsPanel,
-  WorkflowDetails,
-  GroupDetails,
-  TaskDetails,
   DetailsPanelHeader,
   GroupTimeline,
   TaskTimeline,
@@ -53,11 +52,6 @@ export {
 } from "./panel";
 
 // Shell components
-export {
-  ShellContainer,
-  ShellPortalProvider,
-  ShellProvider,
-  useShellPortal,
-  useShellContext,
-  type ShellContainerProps,
-} from "./shell";
+// NOTE: ShellContainer is NOT exported here - it's dynamically imported in workflow-detail-inner
+// to keep xterm.js out of the main bundle
+export { ShellPortalProvider, ShellProvider, useShellPortal, useShellContext, type ShellContainerProps } from "./shell";

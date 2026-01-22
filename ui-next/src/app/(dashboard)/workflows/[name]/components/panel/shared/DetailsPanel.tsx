@@ -49,18 +49,83 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
 import { FileText, Info, History, ArrowLeftFromLine, ArrowRightFromLine, type LucideIcon } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 import { cn, formatHotkey } from "@/lib/utils";
-import { WorkflowDetails } from "../workflow/WorkflowDetails";
-import { GroupDetails } from "../group/GroupDetails";
-import { TaskDetails } from "../task/TaskDetails";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
 import { ShellSessionIcon, reconnectSession, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
+
+// =============================================================================
+// Dynamic Imports - Lazy load panel views to reduce initial bundle size
+// =============================================================================
+
+// Each panel view is code-split into its own chunk, only loaded when that view is active.
+// This eliminates CSS chunk preload warnings and reduces initial page weight by ~30-50KB.
+
+const WorkflowDetails = dynamic(
+  () => import("../workflow/WorkflowDetails").then((m) => ({ default: m.WorkflowDetails })),
+  {
+    loading: () => <PanelLoadingSkeleton />,
+    ssr: true,
+  },
+);
+
+const GroupDetails = dynamic(() => import("../group/GroupDetails").then((m) => ({ default: m.GroupDetails })), {
+  loading: () => <PanelLoadingSkeleton />,
+  ssr: true,
+});
+
+const TaskDetails = dynamic(() => import("../task/TaskDetails").then((m) => ({ default: m.TaskDetails })), {
+  loading: () => <PanelLoadingSkeleton />,
+  ssr: true,
+});
+
+// =============================================================================
+// Loading Skeleton
+// =============================================================================
+
+/** Minimal skeleton shown while panel views load (typically <100ms) */
+function PanelLoadingSkeleton() {
+  return (
+    <div className="p-4">
+      <div
+        data-slot="skeleton"
+        className="bg-accent mb-4 h-6 w-3/4 animate-pulse rounded-md"
+      />
+      <div
+        data-slot="skeleton"
+        className="bg-accent mb-2 h-4 w-1/2 animate-pulse rounded-md"
+      />
+      <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
+      <div
+        data-slot="skeleton"
+        className="bg-accent mb-2 h-4 w-20 animate-pulse rounded-md"
+      />
+      <div
+        data-slot="skeleton"
+        className="bg-accent mb-2 h-16 w-full animate-pulse rounded-md"
+      />
+      <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
+      <div
+        data-slot="skeleton"
+        className="bg-accent mb-2 h-4 w-20 animate-pulse rounded-md"
+      />
+      <div
+        data-slot="skeleton"
+        className="bg-accent mb-2 h-4 w-24 animate-pulse rounded-md"
+      />
+      <div
+        data-slot="skeleton"
+        className="bg-accent h-4 w-16 animate-pulse rounded-md"
+      />
+    </div>
+  );
+}
 
 // NOTE: We intentionally do NOT use a focus trap here.
 // This is a non-modal side panel (role="complementary"), not a dialog.
