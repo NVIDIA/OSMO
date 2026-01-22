@@ -303,6 +303,7 @@ export function SidePanel({
       )}
       style={{
         width: panelWidth,
+        contain: "layout style paint",
         willChange: isDragging ? "width" : "auto",
         ...(isCollapsed
           ? {}
