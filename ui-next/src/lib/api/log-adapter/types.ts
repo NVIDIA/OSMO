@@ -299,12 +299,16 @@ export interface LogAdapter {
   histogram(params: Omit<LogQuery, "cursor" | "limit">, buckets?: number): Promise<HistogramResult>;
 
   /**
-   * Get facet data for the Fields pane.
-   * @param params Query parameters (excluding pagination)
-   * @param fields Fields to compute facets for
-   * @returns Promise resolving to field facets
+   * Fetches and returns all log data in a single call.
+   *
+   * This is the preferred method for the new useLogData() hook.
+   * Returns entries, histogram, and facets together for efficient caching.
+   *
+   * @param params - Query parameters
+   * @param signal - Optional AbortSignal for request cancellation
+   * @returns Promise resolving to unified log data result
    */
-  facets(params: Omit<LogQuery, "cursor" | "limit">, fields: string[]): Promise<FieldFacet[]>;
+  queryAll(params: LogQuery, signal?: AbortSignal): Promise<LogDataResult>;
 }
 
 // =============================================================================

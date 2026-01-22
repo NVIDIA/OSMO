@@ -128,6 +128,9 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
   // Track if we're using cached connection
   const usingCachedConnectionRef = useRef(false);
 
+  // Create a ref for the AbortController to allow cancellation of the API request
+  const controllerRef = useRef<AbortController | null>(null);
+
   // API mutation for creating exec session
   const execMutation = useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost();
 
@@ -231,13 +234,29 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
     usingCachedConnectionRef.current = false;
     updateStatus("connecting");
 
+    // Create a new AbortController for this connection attempt
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
     try {
       // Create exec session via API
-      const response = await execMutation.mutateAsync({
-        name: workflowName,
-        taskName: taskName,
-        params: { entry_command: shell },
-      });
+      // Note: We use @ts-expect-error because the generated hook's MutateOptions
+      // doesn't explicitly include 'request' for our custom fetch, but the
+      // underlying fetcher implementation does support 'signal' via this object.
+      const response = await execMutation.mutateAsync(
+        {
+          name: workflowName,
+          taskName: taskName,
+          params: { entry_command: shell },
+        },
+        {
+          // @ts-expect-error - 'request' is supported by the fetcher but not in generated types
+          request: { signal: controller.signal },
+        },
+      );
+
+      // If we were aborted during the async call, stop here
+      if (controller.signal.aborted) return;
 
       // Build WebSocket URL
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -257,6 +276,12 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
+        // If we were aborted while the WebSocket was opening, close it
+        if (controller.signal.aborted) {
+          ws.close();
+          return;
+        }
+
         // Store in cache or local ref
         if (sessionKey) {
           updateSessionWebSocket(sessionKey, ws);
@@ -271,6 +296,11 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
       // Attach other callbacks
       attachCallbacks(ws);
     } catch (err) {
+      // Don't update state if this was an intentional abort
+      if (err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted"))) {
+        return;
+      }
+
       const error = err instanceof Error ? err : new Error("Failed to create exec session");
       updateStatus("error", error.message);
       onErrorRef.current?.(error);

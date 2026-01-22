@@ -60,8 +60,12 @@ export function UserProvider({ children }: UserProviderProps) {
 
   useEffect(() => {
     async function fetchUser() {
+      const controller = new AbortController();
       try {
-        const response = await fetch(getBasePathUrl("/api/me"), { credentials: "include" });
+        const response = await fetch(getBasePathUrl("/api/me"), {
+          credentials: "include",
+          signal: controller.signal,
+        });
         if (response.ok) {
           const data = await response.json();
           const roles = data.roles || [];
@@ -76,14 +80,23 @@ export function UserProvider({ children }: UserProviderProps) {
           setUser(null);
         }
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
         console.error("Failed to fetch user:", error);
         setUser(null);
       } finally {
         setIsLoading(false);
       }
+
+      return controller;
     }
 
-    fetchUser();
+    const fetchPromise = fetchUser();
+
+    return () => {
+      fetchPromise.then((controller) => controller?.abort());
+    };
   }, []);
 
   const logout = () => {
