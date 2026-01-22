@@ -202,6 +202,15 @@ describe("serviceConfigSchema", () => {
     }
   });
 
+  it("accepts empty min supported version", async () => {
+    await expect(
+      serviceConfigSchema.isValid({
+        ...baseValidConfig,
+        min_supported_version: "",
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("rejects invalid version strings", async () => {
     const invalidVersions = ["1.2", "v1.2.3", "1.2.3.", "1.2.3+build"];
 
