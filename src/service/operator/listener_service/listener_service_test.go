@@ -849,20 +849,21 @@ func TestResourceListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
 	}
 }
 
-func TestResourceListenerStream_HappyPath_DeleteResourceBody(t *testing.T) {
+func TestResourceListenerStream_HappyPath_DeleteResource(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
 
 	stream := newMockStream()
 
-	// Add test message with DeleteResourceBody
+	// Add test message with ResourceBody and delete=true
 	msg := &pb.ListenerMessage{
 		Uuid:      "delete-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_DeleteResource{
-			DeleteResource: &pb.DeleteResourceBody{
-				Resource: "node-to-delete",
+		Body: &pb.ListenerMessage_Resource{
+			Resource: &pb.ResourceBody{
+				Hostname: "node-to-delete",
+				Delete:   true,
 			},
 		},
 	}
@@ -1060,9 +1061,10 @@ func TestResourceListenerStream_MixedMessageTypes(t *testing.T) {
 	msg3 := &pb.ListenerMessage{
 		Uuid:      "delete-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_DeleteResource{
-			DeleteResource: &pb.DeleteResourceBody{
-				Resource: "node-2",
+		Body: &pb.ListenerMessage_Resource{
+			Resource: &pb.ResourceBody{
+				Hostname: "node-2",
+				Delete:   true,
 			},
 		},
 	}

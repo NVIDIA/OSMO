@@ -49,7 +49,6 @@ message ListenerMessage {
     LoggingBody logging = 4;
     ResourceBody resource = 5;
     ResourceUsageBody resource_usage = 6;
-    DeleteResourceBody delete_resource = 7;
   }
 }
 
@@ -100,7 +99,7 @@ message Taint {
   string time_added = 4;  // ISO 8601 timestamp, may be empty
 }
 
-// ResourceBody represents a node resource message (for node add/update events)
+// ResourceBody represents a node resource message (for node add/update/delete events)
 message ResourceBody {
   string hostname = 1;
   bool available = 2;
@@ -109,6 +108,7 @@ message ResourceBody {
   map<string, string> allocatable_fields = 5;
   map<string, string> label_fields = 6;
   repeated Taint taints = 7;
+  bool delete = 8;  // When true, indicates the node has been deleted
 }
 
 // ResourceUsageBody represents aggregated resource usage on a node
@@ -116,9 +116,4 @@ message ResourceUsageBody {
   string hostname = 1;
   map<string, string> usage_fields = 2;
   map<string, string> non_workflow_usage_fields = 3;
-}
-
-// DeleteResourceBody represents a node deletion message
-message DeleteResourceBody {
-  string resource = 1;  // The hostname of the deleted node
 }
