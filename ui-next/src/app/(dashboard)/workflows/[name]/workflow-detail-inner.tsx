@@ -28,7 +28,7 @@
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import { usePrevious, useIsomorphicLayoutEffect } from "@react-hookz/web";
-import Link from "next/link";
+import { Link } from "@/components/link";
 import { useTheme } from "next-themes";
 
 // ReactFlow imports (these will be in the dynamically loaded chunk)

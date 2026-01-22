@@ -16,7 +16,7 @@
 
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/components/link";
 import { Search, Command, LogIn, Home, ChevronRight, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/shadcn/button";
