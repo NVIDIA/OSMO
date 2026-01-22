@@ -32,10 +32,10 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/chrome";
-import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
+import { useUrlChips, usePanelState, useResultsCount, useViewTransition } from "@/hooks";
 import { PoolsDataTable } from "./components/table/pools-data-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";
@@ -47,6 +47,7 @@ import { usePoolsData } from "./hooks/use-pools-data";
 
 export function PoolsPageContent() {
   usePage({ title: "Pools" });
+  const { startTransition } = useViewTransition();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
@@ -61,6 +62,24 @@ export function PoolsPageContent() {
     setConfig: setSelectedPlatform,
     clear: clearSelectedPool,
   } = usePanelState();
+
+  const handlePoolSelect = useCallback(
+    (poolName: string | null) => {
+      startTransition(() => setSelectedPoolName(poolName));
+    },
+    [setSelectedPoolName, startTransition],
+  );
+
+  const handlePlatformSelect = useCallback(
+    (platform: string | null) => {
+      startTransition(() => setSelectedPlatform(platform));
+    },
+    [setSelectedPlatform, startTransition],
+  );
+
+  const handleClose = useCallback(() => {
+    startTransition(() => clearSelectedPool());
+  }, [clearSelectedPool, startTransition]);
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
@@ -95,10 +114,10 @@ export function PoolsPageContent() {
     <PoolPanelLayout
       pool={selectedPool}
       sharingGroups={sharingGroups}
-      onClose={clearSelectedPool}
-      onPoolSelect={setSelectedPoolName}
+      onClose={handleClose}
+      onPoolSelect={handlePoolSelect}
       selectedPlatform={selectedPlatform}
-      onPlatformSelect={setSelectedPlatform}
+      onPlatformSelect={handlePlatformSelect}
     >
       <div className="flex h-full flex-col gap-4 p-6">
         {/* Toolbar with search and controls */}
@@ -130,7 +149,7 @@ export function PoolsPageContent() {
               isLoading={isLoading}
               error={error ?? undefined}
               onRetry={refetch}
-              onPoolSelect={setSelectedPoolName}
+              onPoolSelect={handlePoolSelect}
               selectedPoolName={selectedPoolName}
               onSearchChipsChange={setSearchChips}
             />
