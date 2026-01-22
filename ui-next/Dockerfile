@@ -75,8 +75,11 @@ COPY src ./src
 COPY scripts ./scripts
 
 # Build with BuildKit cache for Next.js build cache
+# Set NEXT_PUBLIC_BASE_PATH during build so basePath is configured correctly
+# This ensures routes like /health are built at /v2/health (not /health)
+ARG NEXT_PUBLIC_BASE_PATH=/v2
 RUN --mount=type=cache,target=/app/.next/cache \
-    pnpm build
+    NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH} pnpm build
 
 # =============================================================================
 # Stage 2.5: Prepare cache directory (has shell for mkdir/chown)
