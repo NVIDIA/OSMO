@@ -23,7 +23,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, startTransition } from "react";
-import Link from "next/link";
+import { Link } from "@/components/link";
 import { usePage } from "@/components/chrome";
 import { usePools, useVersion } from "@/lib/api/adapter";
 import { useWorkflowsData } from "./workflows/hooks/use-workflows-data";
