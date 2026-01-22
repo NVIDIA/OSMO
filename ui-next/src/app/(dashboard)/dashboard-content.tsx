@@ -99,7 +99,10 @@ export function DashboardContent() {
   const recentWorkflows = workflows.slice(0, 5);
 
   return (
-    <div className="space-y-6 p-6">
+    <div
+      className="space-y-6 p-6"
+      style={{ contain: "layout style" }}
+    >
       {/* Stats cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
