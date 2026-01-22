@@ -131,14 +131,13 @@ export const elkWorker = new ELKLayoutClient();
 let preloadScheduled = false;
 
 /**
- * Preload the ELK worker during browser idle time.
+ * Preload the ELK worker eagerly on next tick.
  *
- * Uses requestIdleCallback to initialize the web worker without blocking
- * the main thread. Falls back to setTimeout for Safari/older browsers.
+ * Initializes the web worker immediately without blocking the main thread.
+ * Worker init is lightweight (~50ms) and runs in a separate thread.
  *
- * Performance: Call this early (e.g., on module load or route prefetch) to hide
- * worker initialization latency from the user. The minimal layout triggers
- * worker initialization without meaningful computation.
+ * Performance: Eager initialization ensures worker is ready before first
+ * layout calculation, eliminating 0-2 second requestIdleCallback delays.
  *
  * @example
  * ```tsx
@@ -156,9 +155,9 @@ export function preloadElkWorker(): void {
   if (preloadScheduled) return;
   preloadScheduled = true;
 
-  // Schedule preload during idle time to avoid blocking initial render
+  // Minimal layout request - just enough to initialize the worker
+  // Uses setTimeout(0) to avoid blocking initial render while starting ASAP
   const doPreload = () => {
-    // Minimal layout request - just enough to initialize the worker
     elkWorker
       .layout({
         id: "preload",
@@ -173,13 +172,9 @@ export function preloadElkWorker(): void {
       });
   };
 
-  // Use requestIdleCallback if available, otherwise setTimeout
-  if (typeof requestIdleCallback !== "undefined") {
-    requestIdleCallback(doPreload, { timeout: 2000 });
-  } else {
-    // Fallback for Safari - use setTimeout with small delay
-    setTimeout(doPreload, 100);
-  }
+  // Start immediately on next tick (not during idle time)
+  // Worker initialization is fast and non-blocking - no need to wait
+  setTimeout(doPreload, 0);
 }
 
 /**

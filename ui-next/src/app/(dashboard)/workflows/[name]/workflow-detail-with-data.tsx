@@ -36,12 +36,24 @@ import { WorkflowDetailContent } from "./workflow-detail-content";
 
 interface WorkflowDetailWithDataProps {
   params: Promise<{ name: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export async function WorkflowDetailWithData({ params }: WorkflowDetailWithDataProps) {
+export async function WorkflowDetailWithData({ params, searchParams }: WorkflowDetailWithDataProps) {
   // Await params (Next.js 15+ async params)
   const { name } = await params;
   const decodedName = decodeURIComponent(name);
+
+  // Parse URL search params on server (zero client hydration delay)
+  const urlParams = await searchParams;
+  const initialView = {
+    groupName: typeof urlParams.group === "string" ? urlParams.group : null,
+    taskName: typeof urlParams.task === "string" ? urlParams.task : null,
+    taskRetryId:
+      typeof urlParams.retry === "string" && !isNaN(parseInt(urlParams.retry, 10))
+        ? parseInt(urlParams.retry, 10)
+        : null,
+  };
 
   // Create QueryClient for this request
   const queryClient = new QueryClient();
@@ -51,9 +63,13 @@ export async function WorkflowDetailWithData({ params }: WorkflowDetailWithDataP
   await prefetchWorkflowByName(queryClient, decodedName);
 
   // Wrap in HydrationBoundary so client gets the cached data
+  // Pass initialView for instant panel rendering (no nuqs hydration delay)
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <WorkflowDetailContent name={decodedName} />
+      <WorkflowDetailContent
+        name={decodedName}
+        initialView={initialView}
+      />
     </HydrationBoundary>
   );
 }

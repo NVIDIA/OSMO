@@ -81,7 +81,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, startTransition, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@xyflow/react";
 import { useSyncedRef } from "@react-hookz/web";
 import { useResizeObserver, useDebounceCallback } from "usehooks-ts";
@@ -199,40 +199,11 @@ export function useViewportBoundaries({
   );
   const targetDimsRef = useSyncedRef(targetDims);
 
-  // Frozen dims: set to targetDims when animation starts, null otherwise
-  // Used to prevent d3-zoom from fighting the animation with per-frame constraints
-  const [frozenDims, setFrozenDims] = useState<Dimensions | null>(null);
-
-  // SINGLE SOURCE OF TRUTH: translateExtent always uses targetDims (calculated from state)
-  // This ensures translateExtent updates immediately when panel/sidebar state changes,
-  // rather than waiting for ResizeObserver to report the new DOM dimensions.
-  // frozenDims is only used during animations to prevent d3-zoom fighting.
-  const extentDims: Dimensions = frozenDims ?? targetDims;
-
-  // ---------------------------------------------------------------------------
-  // Readiness State (Coordination Primitive)
-  // ---------------------------------------------------------------------------
-  // Explicit state machine for initial centering coordination
-  // Both conditions must be met before centering can occur
-
-  const [readinessState, setReadinessState] = useState<{
-    dimensionsReady: boolean;
-    layoutReady: boolean;
-  }>({
-    dimensionsReady: false,
-    layoutReady: false,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Tracking Refs
-  // ---------------------------------------------------------------------------
-
-  const hasInitializedRef = useRef(false);
-  const prevLayoutDirectionRef = useRef(layoutDirection);
+  // Tracking refs (simplified - no state machine needed)
+  const hasCompletedInitialLayoutRef = useRef(false);
   const hasHandledInitialSelectionRef = useRef(false);
+  const prevLayoutDirectionRef = useRef(layoutDirection);
   const prevReCenterTriggerRef = useRef(reCenterTrigger);
-  const isAnimatingRef = useRef(false);
-  const animationGenerationRef = useRef(0);
   const prevIsLayoutingRef = useRef(isLayouting);
 
   // ---------------------------------------------------------------------------
@@ -276,13 +247,11 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
   // translateExtent: Pan boundaries for d3-zoom
   // ---------------------------------------------------------------------------
-  // Uses extentDims which is:
-  //   - frozenDims during animation (stable, matches animation target)
-  //   - containerDims otherwise (stable, no jump when targetDims changes)
+  // Use targetDims directly - simpler and works reliably
 
   const translateExtent = useMemo(
-    (): CoordinateExtent | undefined => calcExtentPure(extentDims, nodeBounds),
-    [calcExtentPure, extentDims, nodeBounds],
+    (): CoordinateExtent | undefined => calcExtentPure(targetDims, nodeBounds),
+    [calcExtentPure, targetDims, nodeBounds],
   );
 
   // ---------------------------------------------------------------------------
@@ -364,35 +333,17 @@ export function useViewportBoundaries({
     }
   }, [reactFlowInstance, targetDimsRef, nodeBoundsRef, calcExtentPure, clampToTranslateExtent]);
 
-  /** Animate viewport, freezing dims so translateExtent stays stable during animation. */
+  /** Animate viewport with simple completion tracking. */
   const animateViewport = useCallback(
     (viewport: Viewport, duration: number) => {
-      // Freeze dims to TARGET values - this freezes BOTH:
-      // 1. translateExtent (prevents d3-zoom per-frame fighting)
-      // 2. Animation target (prevents re-targeting mid-flight)
-      setFrozenDims(targetDimsRef.current);
-      isAnimatingRef.current = true;
-      const gen = ++animationGenerationRef.current;
-
       reactFlowInstance.setViewport(viewport, { duration }).then(() => {
-        if (animationGenerationRef.current === gen) {
-          isAnimatingRef.current = false;
-          // Unfreeze - translateExtent will now use targetDims (same source of truth)
-          // Since frozenDims === targetDims at freeze time, and targetDims is stable
-          // during animation (state doesn't change mid-animation), this transition is seamless.
-          setFrozenDims(null);
-
-          // Safety check: verify viewport is within bounds after unfreeze
-          // This handles edge cases where targetDims might have updated during animation
-          requestAnimationFrame(() => {
-            if (animationGenerationRef.current === gen && !isAnimatingRef.current) {
-              syncViewportToBounds();
-            }
-          });
-        }
+        // Safety sync after animation completes
+        requestAnimationFrame(() => {
+          syncViewportToBounds();
+        });
       });
     },
-    [reactFlowInstance, targetDimsRef, syncViewportToBounds],
+    [reactFlowInstance, syncViewportToBounds],
   );
 
   /** Center viewport on a node (uses zoom-aware clamping for precise centering). */
@@ -441,23 +392,26 @@ export function useViewportBoundaries({
   const getTargetDimsForAnimation = useCallback((): Dimensions => targetDimsRef.current, [targetDimsRef]);
 
   // ---------------------------------------------------------------------------
-  // Centering Logic (Pure Function)
+  // Centering Logic (Simplified)
   // ---------------------------------------------------------------------------
 
   /**
-   * Performs the actual centering operation.
-   * Separated from coordination logic for clarity.
+   * Performs initial centering after layout completes.
+   * Updates refs directly (no state updates - avoids setState-in-effect).
    */
-  const executeCentering = useCallback(() => {
+  const performInitialCentering = useCallback(() => {
     if (nodes.length === 0 || rootNodeIds.length === 0) return false;
+    if (!areDimensionsValid(containerDims)) return false;
 
     const d = getTargetDimsForAnimation();
     let centered = false;
 
     // Try to center on initially selected node (from URL)
     if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
-      hasHandledInitialSelectionRef.current = true;
       centered = centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
+      if (centered) {
+        hasHandledInitialSelectionRef.current = true;
+      }
     }
 
     // Fallback: center on first root node
@@ -466,47 +420,35 @@ export function useViewportBoundaries({
     }
 
     if (centered) {
-      hasInitializedRef.current = true;
       prevLayoutDirectionRef.current = layoutDirection;
+      hasCompletedInitialLayoutRef.current = true;
     }
 
     return centered;
-  }, [nodes.length, rootNodeIds, initialSelectedNodeId, centerOnNode, getTargetDimsForAnimation, layoutDirection]);
+  }, [
+    nodes.length,
+    rootNodeIds,
+    initialSelectedNodeId,
+    centerOnNode,
+    getTargetDimsForAnimation,
+    layoutDirection,
+    containerDims,
+    areDimensionsValid,
+  ]);
+
+  // Removed: Dimension readiness signal (barrier pattern removed)
 
   // ---------------------------------------------------------------------------
-  // Signal 1: Container Dimension Readiness
+  // Re-center on panel/sidebar changes (simplified)
   // ---------------------------------------------------------------------------
 
-  useEffect(() => {
-    const isValid = areDimensionsValid(containerDims);
-
-    startTransition(() => {
-      setReadinessState((prev) => {
-        // Only update if changed (avoid unnecessary re-renders)
-        if (prev.dimensionsReady !== isValid) {
-          return { ...prev, dimensionsReady: isValid };
-        }
-        return prev;
-      });
-    });
-  }, [containerDims, areDimensionsValid]);
-
-  // ---------------------------------------------------------------------------
-  // Effects: Re-center/Clamp Triggers
-  // ---------------------------------------------------------------------------
-
-  // On reCenterTrigger change (panel/sidebar toggle, drag end, selection change)
-  // Uses PANEL_TRANSITION (200ms) to match CSS transition duration.
-  // Since translateExtent uses targetDims (single source of truth), the viewport
-  // animation runs IN SYNC with the panel/sidebar CSS transition.
   useEffect(() => {
     const prev = prevReCenterTriggerRef.current;
     if (prev === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
 
     // Only recenter after initialization is complete
-    if (!hasInitializedRef.current) return;
-    if (isAnimatingRef.current) return;
+    if (!hasCompletedInitialLayoutRef.current) return;
 
     if (selectedNodeId) {
       const d = getTargetDimsForAnimation();
@@ -524,7 +466,7 @@ export function useViewportBoundaries({
   ]);
 
   // ---------------------------------------------------------------------------
-  // Signal 2: Layout Completion
+  // Layout Completion Handler (simplified)
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
@@ -533,70 +475,39 @@ export function useViewportBoundaries({
 
     if (!(wasLayouting && !isLayouting)) return; // Only on completion
 
-    // Update readiness state
-    startTransition(() => {
-      setReadinessState((prev) => {
-        if (!prev.layoutReady) {
-          return { ...prev, layoutReady: true };
-        }
-        return prev;
-      });
-    });
+    // Initial centering after first layout
+    if (!hasCompletedInitialLayoutRef.current) {
+      performInitialCentering();
+      return;
+    }
 
-    // Handle direction change (after initialization)
-    if (hasInitializedRef.current && prevLayoutDirectionRef.current !== layoutDirection) {
+    // Handle direction change after initialization
+    if (hasCompletedInitialLayoutRef.current && prevLayoutDirectionRef.current !== layoutDirection) {
       prevLayoutDirectionRef.current = layoutDirection;
       if (nodes.length > 0 && rootNodeIds.length > 0) {
         const d = getTargetDimsForAnimation();
         centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, d);
       }
     }
-  }, [isLayouting, layoutDirection, nodes.length, rootNodeIds, centerOnNode, getTargetDimsForAnimation]);
+  }, [
+    isLayouting,
+    layoutDirection,
+    nodes.length,
+    rootNodeIds,
+    centerOnNode,
+    getTargetDimsForAnimation,
+    performInitialCentering,
+  ]);
+
+  // Removed: Barrier pattern coordination (replaced with simple phase-based logic)
 
   // ---------------------------------------------------------------------------
-  // Coordination: Wait for ALL Signals (Barrier Pattern)
+  // Window Resize Handler (simplified)
   // ---------------------------------------------------------------------------
-
-  /**
-   * This effect acts as a barrier/waitgroup.
-   * It waits for ALL readiness signals before proceeding.
-   *
-   * DETERMINISTIC COORDINATION:
-   * - State updates are batched by React
-   * - This effect only runs when readinessState changes
-   * - Both signals must be true to proceed
-   * - No callbacks, no race conditions, pure state machine
-   *
-   * DEBUG: Inspect readinessState in React DevTools to see barrier state
-   */
-  useEffect(() => {
-    // Already initialized - nothing to do
-    if (hasInitializedRef.current) return;
-
-    // Barrier: wait for ALL conditions
-    const { dimensionsReady, layoutReady } = readinessState;
-
-    if (!dimensionsReady || !layoutReady) {
-      return; // Wait for remaining signals
-    }
-
-    // All signals received - proceed with centering
-    executeCentering();
-  }, [readinessState, executeCentering]);
-
-  // NOTE: Selection change centering is handled by the page via reCenterTrigger,
-  // NOT here. This ensures centering happens AFTER panel state settles,
-  // using correct dimensions. See page.tsx for the selection change effect.
-
-  // ---------------------------------------------------------------------------
-  // Window Resize Handler (debounced for performance)
-  // ---------------------------------------------------------------------------
-  // Uses debounce (not throttle) because we only need to recenter AFTER resize
-  // completes. During resize, translateExtent handles bounds naturally.
 
   const handleWindowResize = useDebounceCallback(() => {
-    // Only recenter if initialized and not animating
-    if (isAnimatingRef.current || !hasInitializedRef.current) return;
+    // Only recenter if initialized
+    if (!hasCompletedInitialLayoutRef.current) return;
 
     const sel = selectedNodeIdRef.current;
 
