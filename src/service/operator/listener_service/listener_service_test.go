@@ -714,3 +714,389 @@ func TestWorkflowListenerStream_WithEmptyBackendName(t *testing.T) {
 		t.Fatalf("expected 0 messages sent when connection is rejected, got %d", len(stream.sentMessages))
 	}
 }
+
+// ============================================================================
+// ResourceListenerStream Tests
+// ============================================================================
+
+func TestResourceListenerStream_HappyPath_ResourceBody(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+
+	// Add test messages with ResourceBody
+	msg1 := &pb.ListenerMessage{
+		Uuid:      "resource-uuid-1",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_Resource{
+			Resource: &pb.ResourceBody{
+				Hostname:   "node-1",
+				Available:  true,
+				Conditions: []string{"Ready"},
+				AllocatableFields: map[string]string{
+					"cpu":    "4000m",
+					"memory": "16Gi",
+				},
+				LabelFields: map[string]string{
+					"kubernetes.io/hostname": "node-1",
+				},
+			},
+		},
+	}
+	msg2 := &pb.ListenerMessage{
+		Uuid:      "resource-uuid-2",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_Resource{
+			Resource: &pb.ResourceBody{
+				Hostname:   "node-2",
+				Available:  false,
+				Conditions: []string{"Ready", "DiskPressure"},
+			},
+		},
+	}
+
+	stream.addRecvMessage(msg1)
+	stream.addRecvMessage(msg2)
+
+	// Start a goroutine to handle the stream
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- service.ResourceListenerStream(stream)
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("test timed out")
+	}
+
+	// Verify ACKs were sent
+	if len(stream.sentMessages) != 2 {
+		t.Fatalf("expected 2 ACK messages, got %d", len(stream.sentMessages))
+	}
+
+	// Verify first ACK
+	ack1 := stream.sentMessages[0]
+	if ack1.AckUuid != msg1.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg1.Uuid, ack1.AckUuid)
+	}
+
+	// Verify second ACK
+	ack2 := stream.sentMessages[1]
+	if ack2.AckUuid != msg2.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg2.Uuid, ack2.AckUuid)
+	}
+}
+
+func TestResourceListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+
+	// Add test message with ResourceUsageBody
+	msg := &pb.ListenerMessage{
+		Uuid:      "usage-uuid-1",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_ResourceUsage{
+			ResourceUsage: &pb.ResourceUsageBody{
+				Hostname: "node-1",
+				UsageFields: map[string]string{
+					"cpu":    "2000m",
+					"memory": "8Gi",
+				},
+				NonWorkflowUsageFields: map[string]string{
+					"cpu":    "500m",
+					"memory": "2Gi",
+				},
+			},
+		},
+	}
+
+	stream.addRecvMessage(msg)
+
+	// Start a goroutine to handle the stream
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- service.ResourceListenerStream(stream)
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("test timed out")
+	}
+
+	// Verify ACK was sent
+	if len(stream.sentMessages) != 1 {
+		t.Fatalf("expected 1 ACK message, got %d", len(stream.sentMessages))
+	}
+
+	ack := stream.sentMessages[0]
+	if ack.AckUuid != msg.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg.Uuid, ack.AckUuid)
+	}
+}
+
+func TestResourceListenerStream_HappyPath_DeleteResourceBody(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+
+	// Add test message with DeleteResourceBody
+	msg := &pb.ListenerMessage{
+		Uuid:      "delete-uuid-1",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_DeleteResource{
+			DeleteResource: &pb.DeleteResourceBody{
+				Resource: "node-to-delete",
+			},
+		},
+	}
+
+	stream.addRecvMessage(msg)
+
+	// Start a goroutine to handle the stream
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- service.ResourceListenerStream(stream)
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("test timed out")
+	}
+
+	// Verify ACK was sent
+	if len(stream.sentMessages) != 1 {
+		t.Fatalf("expected 1 ACK message, got %d", len(stream.sentMessages))
+	}
+
+	ack := stream.sentMessages[0]
+	if ack.AckUuid != msg.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg.Uuid, ack.AckUuid)
+	}
+}
+
+func TestResourceListenerStream_EOFClose(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+	stream.recvError = io.EOF
+
+	err := service.ResourceListenerStream(stream)
+	if err != nil {
+		t.Fatalf("expected nil error for EOF, got: %v", err)
+	}
+}
+
+func TestResourceListenerStream_ContextCanceled(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+	stream.recvError = context.Canceled
+
+	err := service.ResourceListenerStream(stream)
+	if err != nil {
+		t.Fatalf("expected nil error for context.Canceled, got: %v", err)
+	}
+}
+
+func TestResourceListenerStream_RecvError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+	expectedErr := errors.New("recv error")
+	stream.recvError = expectedErr
+
+	err := service.ResourceListenerStream(stream)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Fatalf("expected error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestResourceListenerStream_SendError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+
+	// Add a message to receive
+	msg := &pb.ListenerMessage{
+		Uuid:      "resource-uuid",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_Resource{
+			Resource: &pb.ResourceBody{
+				Hostname:  "node-1",
+				Available: true,
+			},
+		},
+	}
+	stream.addRecvMessage(msg)
+
+	// Set send error
+	expectedErr := errors.New("send error")
+	stream.sendError = expectedErr
+
+	err := service.ResourceListenerStream(stream)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Fatalf("expected error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestResourceListenerStream_WithoutBackendNameMetadata(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	// Create stream without metadata (should be rejected)
+	stream := &mockStream{
+		recvMessages: []*pb.ListenerMessage{},
+		sentMessages: []*pb.AckMessage{},
+		recvIndex:    0,
+		ctx:          context.Background(), // No metadata
+	}
+
+	// Try to establish stream - should fail immediately
+	err := service.ResourceListenerStream(stream)
+	if err == nil {
+		t.Fatal("expected error for missing backend-name metadata, got nil")
+	}
+
+	// Verify no messages were processed
+	if len(stream.sentMessages) != 0 {
+		t.Fatalf("expected 0 messages sent when connection is rejected, got %d", len(stream.sentMessages))
+	}
+}
+
+func TestResourceListenerStream_WithEmptyBackendName(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	// Create stream with empty backend name (should be rejected)
+	ctx := context.Background()
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("backend-name", ""))
+	stream := &mockStream{
+		recvMessages: []*pb.ListenerMessage{},
+		sentMessages: []*pb.AckMessage{},
+		recvIndex:    0,
+		ctx:          ctx,
+	}
+
+	// Try to establish stream - should fail immediately
+	err := service.ResourceListenerStream(stream)
+	if err == nil {
+		t.Fatal("expected error for empty backend-name metadata, got nil")
+	}
+
+	// Verify no messages were processed
+	if len(stream.sentMessages) != 0 {
+		t.Fatalf("expected 0 messages sent when connection is rejected, got %d", len(stream.sentMessages))
+	}
+}
+
+func TestResourceListenerStream_MixedMessageTypes(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	stream := newMockStream()
+
+	// Add mixed message types
+	msg1 := &pb.ListenerMessage{
+		Uuid:      "resource-uuid-1",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_Resource{
+			Resource: &pb.ResourceBody{
+				Hostname:  "node-1",
+				Available: true,
+			},
+		},
+	}
+	msg2 := &pb.ListenerMessage{
+		Uuid:      "usage-uuid-1",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_ResourceUsage{
+			ResourceUsage: &pb.ResourceUsageBody{
+				Hostname: "node-1",
+				UsageFields: map[string]string{
+					"cpu": "2000m",
+				},
+			},
+		},
+	}
+	msg3 := &pb.ListenerMessage{
+		Uuid:      "delete-uuid-1",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Body: &pb.ListenerMessage_DeleteResource{
+			DeleteResource: &pb.DeleteResourceBody{
+				Resource: "node-2",
+			},
+		},
+	}
+
+	stream.addRecvMessage(msg1)
+	stream.addRecvMessage(msg2)
+	stream.addRecvMessage(msg3)
+
+	// Start a goroutine to handle the stream
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- service.ResourceListenerStream(stream)
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("test timed out")
+	}
+
+	// Verify all ACKs were sent
+	if len(stream.sentMessages) != 3 {
+		t.Fatalf("expected 3 ACK messages, got %d", len(stream.sentMessages))
+	}
+
+	// Verify ACKs match messages
+	expectedUuids := []string{msg1.Uuid, msg2.Uuid, msg3.Uuid}
+	for i, ack := range stream.sentMessages {
+		if ack.AckUuid != expectedUuids[i] {
+			t.Errorf("ACK %d: expected AckUuid %s, got %s", i, expectedUuids[i], ack.AckUuid)
+		}
+	}
+}
