@@ -76,9 +76,11 @@ The main entry point for deploying OSMO. This script orchestrates:
 |--------|-------------|---------|
 | `--aws-region` | AWS region | `us-west-2` |
 | `--aws-profile` | AWS CLI profile | `default` |
-| `--cluster-name` | EKS cluster name | `osmo-cluster` |
+| `--cluster-name` | EKS cluster name (keep short, ≤12 chars) | `osmo-cluster` |
 | `--postgres-password` | PostgreSQL admin password | (interactive prompt) |
+| `--redis-password` | Redis auth token (min 16 chars) | (interactive prompt) |
 | `--environment` | Environment name | `dev` |
+| `--k8s-version` | Kubernetes version | `1.30` |
 
 ### `deploy-k8s.sh`
 
@@ -121,12 +123,14 @@ Azure-specific Terraform provisioning:
 
 ### `aws/terraform.sh`
 
-AWS-specific Terraform provisioning (placeholder for AWS support):
+AWS-specific Terraform provisioning:
 
-- EKS cluster creation
-- Amazon RDS PostgreSQL
+- Amazon EKS cluster creation
+- Amazon RDS PostgreSQL (Flexible Server)
 - Amazon ElastiCache Redis
-- VPC configuration
+- VPC with public/private subnets
+- Security groups and IAM roles
+- kubectl configuration via `aws eks update-kubeconfig`
 
 ## Examples
 
@@ -178,6 +182,32 @@ The script will prompt for:
 ./deploy-osmo-minimal.sh --provider azure --destroy
 ```
 
+### Interactive AWS Deployment
+
+```bash
+./deploy-osmo-minimal.sh --provider aws
+```
+
+The script will prompt for:
+1. AWS Region (defaults to `us-west-2`)
+2. AWS Profile (defaults to `default`)
+3. EKS Cluster name (keep short, max ~12 chars recommended)
+4. PostgreSQL password (with validation)
+5. Redis auth token (min 16 characters)
+6. Environment name
+
+### Non-Interactive AWS Deployment
+
+```bash
+./deploy-osmo-minimal.sh --provider aws \
+  --aws-region "us-west-2" \
+  --cluster-name "osmo-aws" \
+  --postgres-password "SecurePass123!" \
+  --non-interactive
+```
+
+> **Note:** Keep cluster names short (≤12 characters) to avoid AWS IAM role name length limits.
+
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -188,6 +218,7 @@ The script will prompt for:
 | `TF_SUBSCRIPTION_ID` | Azure subscription ID | - |
 | `TF_RESOURCE_GROUP` | Azure resource group | - |
 | `TF_POSTGRES_PASSWORD` | PostgreSQL password | - |
+| `TF_REDIS_PASSWORD` | Redis password/auth token | - |
 | `TF_CLUSTER_NAME` | Cluster name | `osmo-cluster` |
 | `TF_REGION` | Azure region | `East US 2` |
 | `TF_AWS_REGION` | AWS region | `us-west-2` |
@@ -259,7 +290,7 @@ kubectl logs -n osmo-minimal -l app=osmo-service
 kubectl logs -n osmo-operator -l app.kubernetes.io/name=osmo-backend-worker
 ```
 
-### Private Cluster Access
+### Private Cluster Access (Azure)
 
 For private AKS clusters, use `az aks command invoke`:
 

@@ -223,7 +223,7 @@ setup_provider_env() {
             ;;
         aws)
             source "$SCRIPT_DIR/aws/terraform.sh"
-            TERRAFORM_DIR="${AWS_TERRAFORM_DIR:-$SCRIPT_DIR/../terraform/aws}"
+            TERRAFORM_DIR="${AWS_TERRAFORM_DIR:-$SCRIPT_DIR/../terraform/aws/example}"
             ;;
     esac
 
@@ -358,8 +358,9 @@ handle_configuration() {
     else
         log_info "Using existing terraform.tfvars"
 
-        # Load password from tfvars
-        TF_POSTGRES_PASSWORD=$(grep 'postgres_password' "$tfvars_file" | cut -d'"' -f2 || echo "")
+        # Load passwords from tfvars
+        TF_POSTGRES_PASSWORD=$(grep 'postgres_password\|rds_password' "$tfvars_file" | head -1 | cut -d'"' -f2 || echo "")
+        TF_REDIS_PASSWORD=$(grep 'redis_auth_token\|redis_password' "$tfvars_file" | head -1 | cut -d'"' -f2 || echo "")
     fi
 }
 
@@ -376,10 +377,14 @@ deploy_osmo() {
     local saved_values_dir="$VALUES_DIR"
     local saved_dry_run="$DRY_RUN"
 
-    # Get postgres password
+    # Get passwords
     local postgres_password="${TF_POSTGRES_PASSWORD:-}"
+    local redis_password="${TF_REDIS_PASSWORD:-}"
     if [[ -z "$postgres_password" ]]; then
-        postgres_password=$(grep 'postgres_password' "$TERRAFORM_DIR/terraform.tfvars" | cut -d'"' -f2 || echo "")
+        postgres_password=$(grep 'postgres_password\|rds_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
+    fi
+    if [[ -z "$redis_password" ]]; then
+        redis_password=$(grep 'redis_auth_token\|redis_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
     fi
 
     # Run K8s deployment script
@@ -390,6 +395,7 @@ deploy_osmo() {
     OUTPUTS_FILE="$saved_outputs_file"
     VALUES_DIR="$saved_values_dir"
     POSTGRES_PASSWORD="$postgres_password"
+    REDIS_PASSWORD="$redis_password"
     DRY_RUN="$saved_dry_run"
 
     # Source the outputs file
