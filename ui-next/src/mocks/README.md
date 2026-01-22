@@ -1,6 +1,25 @@
-# Mock API
+# Mock System
 
-This document tracks the mock handlers and their alignment with the actual backend API.
+Development mocking system for the OSMO UI. Includes API mocking (MSW) and auth injection utilities.
+
+**⚠️ Production Safety:** All mock code is automatically removed from production builds via Turbopack aliasing (see `next.config.ts`). Zero production impact.
+
+## Components
+
+### 1. API Mocking (MSW)
+Mock API responses for local development and testing.
+
+### 2. Auth Injection
+Utilities for injecting auth tokens when testing against real or mock backends.
+
+**Usage in browser console:**
+```javascript
+devAuth.testUsers.admin()  // Inject admin user
+devAuth.testUsers.user()   // Inject regular user
+devAuth.skip()             // Skip auth entirely
+devAuth.status()           // Check current auth
+devAuth.clear()            // Clear auth cookies
+```
 
 ## Design Principle
 

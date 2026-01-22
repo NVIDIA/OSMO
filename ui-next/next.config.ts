@@ -163,6 +163,8 @@ const nextConfig: NextConfig = {
             // Replace MSW server with production stub to eliminate faker/msw from SERVER bundle
             // This ensures instrumentation.ts doesn't pull in any mock code
             "@/mocks/server": "@/mocks/server.production",
+            // Replace mock utilities with no-op stubs in production
+            "@/mocks/inject-auth": "@/mocks/inject-auth.production",
           }
         : {},
   },

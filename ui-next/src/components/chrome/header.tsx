@@ -17,7 +17,7 @@
 "use client";
 
 import { Link } from "@/components/link";
-import { Search, Command, LogIn, Home, ChevronRight, Menu } from "lucide-react";
+import { Search, Command, Home, ChevronRight, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -28,13 +28,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useSidebar } from "@/components/shadcn/sidebar";
-import { useAuth, useUser } from "@/lib/auth";
+import { useUser } from "@/lib/auth";
 import { useVersion } from "@/lib/api/adapter";
 import { usePageConfig, type BreadcrumbSegment } from "./page-context";
 
 export function Header() {
-  const { isAuthenticated, isSkipped, login, logout } = useAuth();
-  const { user, isLoading } = useUser();
+  const { user, isLoading, logout } = useUser();
   const { version } = useVersion();
   const pageConfig = usePageConfig();
   const { toggleSidebar } = useSidebar();
@@ -116,8 +115,8 @@ export function Header() {
 
         <ThemeToggle />
 
-        {/* User menu or Login button */}
-        {isAuthenticated && user ? (
+        {/* User menu */}
+        {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -172,21 +171,7 @@ export function Header() {
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800">
             <span className="h-4 w-4 animate-pulse rounded-full bg-zinc-300 dark:bg-zinc-700" />
           </div>
-        ) : isSkipped ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={login}
-            className="gap-1.5 text-zinc-500"
-          >
-            <LogIn className="h-4 w-4" />
-            <span className="hidden sm:inline">Log in</span>
-          </Button>
-        ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-sm font-medium text-zinc-500 dark:bg-zinc-800">
-            ?
-          </div>
-        )}
+        ) : null}
       </div>
     </header>
   );

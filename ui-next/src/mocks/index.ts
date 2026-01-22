@@ -20,6 +20,7 @@
  * This module exports:
  * - `handlers`: Array of MSW request handlers for browser mocking
  * - `server`: MSW server for Node.js testing (Vitest)
+ * - Auth injection utilities for local development testing
  *
  * Usage in tests:
  *   import { server } from '@/mocks';
@@ -29,7 +30,16 @@
  *
  * Usage in browser (via MockProvider):
  *   The MockProvider component sets up browser mocking automatically.
+ *
+ * Auth injection (development only):
+ *   // Browser console:
+ *   devAuth.testUsers.admin()  // Inject admin user
+ *   devAuth.skip()             // Skip auth entirely
+ *   devAuth.status()           // Check current auth
  */
 
 export { handlers } from "./handlers";
 export { server } from "./server";
+
+// Dev/test utilities (aliased to minimal stubs in production)
+export * from "./inject-auth";
