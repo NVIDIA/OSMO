@@ -204,7 +204,9 @@ export function useViewportBoundaries({
   const hasHandledInitialSelectionRef = useRef(false);
   const prevLayoutDirectionRef = useRef(layoutDirection);
   const prevReCenterTriggerRef = useRef(reCenterTrigger);
-  const prevIsLayoutingRef = useRef(isLayouting);
+  // Initialize to undefined to detect initial layout completion reliably
+  // (avoids missing the transition if layout completes before effect sets up)
+  const prevIsLayoutingRef = useRef<boolean | undefined>(undefined);
 
   // ---------------------------------------------------------------------------
   // Dimension Validation
@@ -473,7 +475,10 @@ export function useViewportBoundaries({
     const wasLayouting = prevIsLayoutingRef.current;
     prevIsLayoutingRef.current = isLayouting;
 
-    if (!(wasLayouting && !isLayouting)) return; // Only on completion
+    // Detect layout completion: was true (or undefined on first run) and now false
+    const layoutJustCompleted = (wasLayouting === true || wasLayouting === undefined) && !isLayouting;
+
+    if (!layoutJustCompleted) return;
 
     // Initial centering after first layout
     if (!hasCompletedInitialLayoutRef.current) {
