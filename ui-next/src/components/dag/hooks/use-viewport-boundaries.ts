@@ -81,7 +81,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition, type RefObject } from "react";
 import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@xyflow/react";
 import { useSyncedRef } from "@react-hookz/web";
 import { useResizeObserver, useDebounceCallback } from "usehooks-ts";
@@ -214,7 +214,7 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
   // Explicit state machine for initial centering coordination
   // Both conditions must be met before centering can occur
-  
+
   const [readinessState, setReadinessState] = useState<{
     dimensionsReady: boolean;
     layoutReady: boolean;
@@ -443,7 +443,7 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
   // Centering Logic (Pure Function)
   // ---------------------------------------------------------------------------
-  
+
   /**
    * Performs the actual centering operation.
    * Separated from coordination logic for clarity.
@@ -471,14 +471,7 @@ export function useViewportBoundaries({
     }
 
     return centered;
-  }, [
-    nodes.length,
-    rootNodeIds,
-    initialSelectedNodeId,
-    centerOnNode,
-    getTargetDimsForAnimation,
-    layoutDirection,
-  ]);
+  }, [nodes.length, rootNodeIds, initialSelectedNodeId, centerOnNode, getTargetDimsForAnimation, layoutDirection]);
 
   // ---------------------------------------------------------------------------
   // Signal 1: Container Dimension Readiness
@@ -486,13 +479,15 @@ export function useViewportBoundaries({
 
   useEffect(() => {
     const isValid = areDimensionsValid(containerDims);
-    
-    setReadinessState((prev) => {
-      // Only update if changed (avoid unnecessary re-renders)
-      if (prev.dimensionsReady !== isValid) {
-        return { ...prev, dimensionsReady: isValid };
-      }
-      return prev;
+
+    startTransition(() => {
+      setReadinessState((prev) => {
+        // Only update if changed (avoid unnecessary re-renders)
+        if (prev.dimensionsReady !== isValid) {
+          return { ...prev, dimensionsReady: isValid };
+        }
+        return prev;
+      });
     });
   }, [containerDims, areDimensionsValid]);
 
@@ -539,11 +534,13 @@ export function useViewportBoundaries({
     if (!(wasLayouting && !isLayouting)) return; // Only on completion
 
     // Update readiness state
-    setReadinessState((prev) => {
-      if (!prev.layoutReady) {
-        return { ...prev, layoutReady: true };
-      }
-      return prev;
+    startTransition(() => {
+      setReadinessState((prev) => {
+        if (!prev.layoutReady) {
+          return { ...prev, layoutReady: true };
+        }
+        return prev;
+      });
     });
 
     // Handle direction change (after initialization)
@@ -554,29 +551,22 @@ export function useViewportBoundaries({
         centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, d);
       }
     }
-  }, [
-    isLayouting,
-    layoutDirection,
-    nodes.length,
-    rootNodeIds,
-    centerOnNode,
-    getTargetDimsForAnimation,
-  ]);
+  }, [isLayouting, layoutDirection, nodes.length, rootNodeIds, centerOnNode, getTargetDimsForAnimation]);
 
   // ---------------------------------------------------------------------------
   // Coordination: Wait for ALL Signals (Barrier Pattern)
   // ---------------------------------------------------------------------------
-  
+
   /**
    * This effect acts as a barrier/waitgroup.
    * It waits for ALL readiness signals before proceeding.
-   * 
+   *
    * DETERMINISTIC COORDINATION:
    * - State updates are batched by React
    * - This effect only runs when readinessState changes
    * - Both signals must be true to proceed
    * - No callbacks, no race conditions, pure state machine
-   * 
+   *
    * DEBUG: Inspect readinessState in React DevTools to see barrier state
    */
   useEffect(() => {
@@ -585,7 +575,7 @@ export function useViewportBoundaries({
 
     // Barrier: wait for ALL conditions
     const { dimensionsReady, layoutReady } = readinessState;
-    
+
     if (!dimensionsReady || !layoutReady) {
       return; // Wait for remaining signals
     }
