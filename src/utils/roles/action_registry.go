@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package server
+package roles
 
 import (
 	"sort"
@@ -554,8 +554,8 @@ func methodMatchesPattern(method string, allowedMethods []string) bool {
 	return false
 }
 
-// matchPath checks if a request path matches a pattern (legacy function for compatibility)
-func matchPath(requestPath, pattern string) bool {
+// MatchPath checks if a request path matches a pattern (legacy function for compatibility)
+func MatchPath(requestPath, pattern string) bool {
 	// Exact match
 	if pattern == requestPath {
 		return true
@@ -600,8 +600,8 @@ func matchPath(requestPath, pattern string) bool {
 	return true
 }
 
-// matchMethod checks if a request method matches allowed methods (legacy function)
-func matchMethod(requestMethod string, allowedMethods []string) bool {
+// MatchMethod checks if a request method matches allowed methods (legacy function)
+func MatchMethod(requestMethod string, allowedMethods []string) bool {
 	for _, m := range allowedMethods {
 		if m == "*" || strings.EqualFold(m, requestMethod) {
 			return true
@@ -719,3 +719,4 @@ func IsValidAction(action string) bool {
 
 	return false
 }
+

@@ -23,7 +23,7 @@ import (
 	"os"
 	"testing"
 
-	"go.corp.nvidia.com/osmo/utils/postgres"
+	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
 func TestMatchMethod(t *testing.T) {
@@ -148,18 +148,18 @@ func TestHasAccess(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		role       *postgres.Role
+		role       *roles.Role
 		path       string
 		method     string
 		wantAccess bool
 	}{
 		{
 			name: "exact path and method match",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "Get"},
 						},
 					},
@@ -171,11 +171,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "wildcard path match",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow/*", Method: "Get"},
 						},
 					},
@@ -187,11 +187,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "wildcard method match",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "*"},
 						},
 					},
@@ -203,11 +203,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "deny pattern blocks access",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "*", Method: "*"},
 							{Base: "http", Path: "!/api/admin/*", Method: "*"},
 						},
@@ -220,11 +220,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "deny pattern allows other paths",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "*", Method: "*"},
 							{Base: "http", Path: "!/api/admin/*", Method: "*"},
 						},
@@ -237,11 +237,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "no matching path",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "Get"},
 						},
 					},
@@ -253,11 +253,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "no matching method",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "Get"},
 						},
 					},
@@ -269,16 +269,16 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "multiple policies first matches",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow/*", Method: "Get"},
 						},
 					},
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/task/*", Method: "Post"},
 						},
 					},
@@ -290,16 +290,16 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "multiple policies second matches",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/workflow/*", Method: "Get"},
 						},
 					},
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/task/*", Method: "Post"},
 						},
 					},
@@ -311,11 +311,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "websocket method match",
-			role: &postgres.Role{
+			role: &roles.Role{
 				Name: "test-role",
-				Policies: []postgres.RolePolicy{
+				Policies: []roles.RolePolicy{
 					{
-						Actions: []postgres.RoleAction{
+						Actions: []roles.RoleAction{
 							{Base: "http", Path: "/api/router/*/*/client/*", Method: "Websocket"},
 						},
 					},
@@ -342,11 +342,11 @@ func TestDefaultRoleAccess(t *testing.T) {
 	server := NewAuthzServer(nil, nil, nil, logger)
 
 	// Simulate the osmo-default role permissions
-	defaultRole := &postgres.Role{
+	defaultRole := &roles.Role{
 		Name: "osmo-default",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "/api/version", Method: "*"},
 					{Base: "http", Path: "/health", Method: "*"},
 					{Base: "http", Path: "/api/auth/login", Method: "Get"},
@@ -408,11 +408,11 @@ func TestAdminRoleAccess(t *testing.T) {
 	server := NewAuthzServer(nil, nil, nil, logger)
 
 	// Simulate the osmo-admin role permissions
-	adminRole := &postgres.Role{
+	adminRole := &roles.Role{
 		Name: "osmo-admin",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "*", Method: "*"},
 					{Base: "http", Path: "!/api/agent/*", Method: "*"},
 					{Base: "http", Path: "!/api/logger/*", Method: "*"},

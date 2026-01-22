@@ -31,6 +31,7 @@ go_library(
     deps = [
         "//src/service/authz_sidecar/server:server",
         "//src/utils/postgres:postgres",
+        "//src/utils/roles",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//health:go_default_library",
         "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",

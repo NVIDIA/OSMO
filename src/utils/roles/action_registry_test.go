@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package server
+package roles
 
 import (
 	"testing"
@@ -137,9 +137,9 @@ func TestMatchMethodRegistry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := matchMethod(tt.requestMethod, tt.allowedMethods)
+			got := MatchMethod(tt.requestMethod, tt.allowedMethods)
 			if got != tt.wantMatch {
-				t.Errorf("matchMethod(%q, %v) = %v, want %v",
+				t.Errorf("MatchMethod(%q, %v) = %v, want %v",
 					tt.requestMethod, tt.allowedMethods, got, tt.wantMatch)
 			}
 		})
@@ -313,3 +313,4 @@ func TestInternalActionsRestricted(t *testing.T) {
 		}
 	}
 }
+

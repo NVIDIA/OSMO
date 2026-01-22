@@ -16,25 +16,62 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package postgres
+// Package roles provides types and utilities for role-based access control.
+package roles
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
-// RoleAction represents a single role action
+// RoleAction represents a single role action.
+// It supports both legacy path-based actions and new semantic actions.
+//
+// Legacy format (path-based):
+//
+//	{"base": "http", "path": "/api/workflow/*", "method": "*"}
+//
+// New format (semantic action):
+//
+//	{"action": "workflow:Create"}
+//
+// The Action field takes precedence when set. If Action is empty,
+// the legacy Base/Path/Method fields are used.
 type RoleAction struct {
-	Base   string `json:"base"`
-	Path   string `json:"path"`
-	Method string `json:"method"`
+	// Action is the new semantic action string (e.g., "workflow:Create", "pool:List").
+	// When set, this takes precedence over the legacy path-based fields.
+	Action string `json:"action,omitempty"`
+
+	// Legacy path-based fields (for backwards compatibility)
+	Base   string `json:"base,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Method string `json:"method,omitempty"`
 }
 
-// RolePolicy represents a role policy with multiple actions
+// IsSemanticAction returns true if this RoleAction uses the new semantic action format.
+func (ra *RoleAction) IsSemanticAction() bool {
+	return ra.Action != ""
+}
+
+// IsLegacyAction returns true if this RoleAction uses the legacy path-based format.
+func (ra *RoleAction) IsLegacyAction() bool {
+	return ra.Action == "" && (ra.Base != "" || ra.Path != "" || ra.Method != "")
+}
+
+// RolePolicy represents a role policy with multiple actions.
+// Policies can optionally specify resources to scope the actions.
 type RolePolicy struct {
+	// Actions is the list of actions this policy allows or denies.
 	Actions []RoleAction `json:"actions"`
+
+	// Resources is the list of resource patterns this policy applies to.
+	// Examples: ["*"], ["workflow/*"], ["pool/production"], ["bucket/data-generation"]
+	// If empty, the policy applies to all resources ("*").
+	Resources []string `json:"resources,omitempty"`
 }
 
 // Role represents a complete role with policies
@@ -46,7 +83,8 @@ type Role struct {
 }
 
 // GetRoles retrieves roles by their names from the database
-func GetRoles(ctx context.Context, client *PostgresClient, roleNames []string) ([]*Role, error) {
+func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []string,
+	logger *slog.Logger) ([]*Role, error) {
 	if len(roleNames) == 0 {
 		return []*Role{}, nil
 	}
@@ -59,14 +97,14 @@ func GetRoles(ctx context.Context, client *PostgresClient, roleNames []string) (
               WHERE name = ANY($1)
               ORDER BY name`
 
-	client.logger.Debug("querying roles",
+	logger.Debug("querying roles",
 		slog.String("query", query),
 		slog.Any("roles", roleNames),
 	)
 
-	rows, err := client.pool.Query(ctx, query, roleNames)
+	rows, err := client.Pool().Query(ctx, query, roleNames)
 	if err != nil {
-		client.logger.Error("failed to query roles",
+		logger.Error("failed to query roles",
 			slog.String("error", err.Error()),
 			slog.Any("role_names", roleNames),
 		)
@@ -74,14 +112,14 @@ func GetRoles(ctx context.Context, client *PostgresClient, roleNames []string) (
 	}
 	defer rows.Close()
 
-	var roles []*Role
+	var result []*Role
 	for rows.Next() {
 		var role Role
 		var policiesStr string // Scan as string first to handle PostgreSQL's JSONB representation
 
 		err := rows.Scan(&role.Name, &role.Description, &policiesStr, &role.Immutable)
 		if err != nil {
-			client.logger.Error("failed to scan role",
+			logger.Error("failed to scan role",
 				slog.String("error", err.Error()),
 			)
 			return nil, fmt.Errorf("failed to scan role: %w", err)
@@ -93,7 +131,7 @@ func GetRoles(ctx context.Context, client *PostgresClient, roleNames []string) (
 		var policiesArray []json.RawMessage
 		err = json.Unmarshal(policiesJSON, &policiesArray)
 		if err != nil {
-			client.logger.Error("failed to unmarshal policies array",
+			logger.Error("failed to unmarshal policies array",
 				slog.String("error", err.Error()),
 				slog.String("role", role.Name),
 				slog.String("raw_json", string(policiesJSON)),
@@ -107,35 +145,39 @@ func GetRoles(ctx context.Context, client *PostgresClient, roleNames []string) (
 			var policy RolePolicy
 			err = json.Unmarshal(policyRaw, &policy)
 			if err != nil {
-				client.logger.Error("failed to unmarshal policy",
+				logger.Error("failed to unmarshal policy",
 					slog.String("error", err.Error()),
 					slog.String("role", role.Name),
 					slog.String("policy_raw", string(policyRaw)),
 				)
 				return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
 			}
+			// Ensure Resources is never nil (always an empty list if not specified)
+			if policy.Resources == nil {
+				policy.Resources = []string{}
+			}
 			role.Policies = append(role.Policies, policy)
 		}
 
-		roles = append(roles, &role)
+		result = append(result, &role)
 
-		client.logger.Debug("loaded role",
+		logger.Debug("loaded role",
 			slog.String("name", role.Name),
 			slog.Int("policies", len(role.Policies)),
 		)
 	}
 
 	if err := rows.Err(); err != nil {
-		client.logger.Error("error iterating rows",
+		logger.Error("error iterating rows",
 			slog.String("error", err.Error()),
 		)
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	client.logger.Info("roles loaded successfully",
-		slog.Int("count", len(roles)),
+	logger.Info("roles loaded successfully",
+		slog.Int("count", len(result)),
 		slog.Any("requested", roleNames),
 	)
 
-	return roles, nil
+	return result, nil
 }

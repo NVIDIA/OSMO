@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	"go.corp.nvidia.com/osmo/utils/postgres"
+	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
 const (
@@ -50,21 +50,21 @@ type PostgresClientInterface interface {
 }
 
 // RoleFetcher is a function type for fetching roles from the database.
-// This allows the authz server to be decoupled from the postgres package,
+// This allows the authz server to be decoupled from the roles package,
 // enabling easier testing with mock implementations.
-type RoleFetcher func(ctx context.Context, roleNames []string) ([]*postgres.Role, error)
+type RoleFetcher func(ctx context.Context, roleNames []string) ([]*roles.Role, error)
 
 // AuthzServer implements Envoy External Authorization service
 type AuthzServer struct {
 	envoy_service_auth_v3.UnimplementedAuthorizationServer
 	pgClient    PostgresClientInterface
 	roleFetcher RoleFetcher
-	roleCache   *RoleCache
+	roleCache   *roles.RoleCache
 	logger      *slog.Logger
 }
 
 // NewAuthzServer creates a new authorization server
-func NewAuthzServer(pgClient PostgresClientInterface, roleFetcher RoleFetcher, roleCache *RoleCache, logger *slog.Logger) *AuthzServer {
+func NewAuthzServer(pgClient PostgresClientInterface, roleFetcher RoleFetcher, roleCache *roles.RoleCache, logger *slog.Logger) *AuthzServer {
 	return &AuthzServer{
 		pgClient:    pgClient,
 		roleFetcher: roleFetcher,
@@ -189,7 +189,7 @@ func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, role
 
 // hasAccess checks if a role has access to the given path and method
 // This implements the same logic as Python's Role.has_access()
-func (s *AuthzServer) hasAccess(role *postgres.Role, path, method string) bool {
+func (s *AuthzServer) hasAccess(role *roles.Role, path, method string) bool {
 	allowed := false
 
 	for _, policy := range role.Policies {

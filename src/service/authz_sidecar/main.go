@@ -35,6 +35,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/service/authz_sidecar/server"
 	"go.corp.nvidia.com/osmo/utils/postgres"
+	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
 const (
@@ -113,12 +114,12 @@ func main() {
 	defer pgClient.Close()
 
 	// Create authorization server
-	cacheConfig := server.RoleCacheConfig{
+	cacheConfig := roles.RoleCacheConfig{
 		Enabled: *cacheEnabled,
 		TTL:     *cacheTTL,
 		MaxSize: *cacheMaxSize,
 	}
-	roleCache := server.NewRoleCache(cacheConfig, logger)
+	roleCache := roles.NewRoleCache(cacheConfig, logger)
 
 	logger.Info("role cache initialized",
 		slog.Bool("enabled", *cacheEnabled),
@@ -127,8 +128,8 @@ func main() {
 	)
 
 	// Create role fetcher using the postgres client
-	roleFetcher := func(ctx context.Context, roleNames []string) ([]*postgres.Role, error) {
-		return postgres.GetRoles(ctx, pgClient, roleNames)
+	roleFetcher := func(ctx context.Context, roleNames []string) ([]*roles.Role, error) {
+		return roles.GetRoles(ctx, pgClient, roleNames, logger)
 	}
 
 	authzServer := server.NewAuthzServer(pgClient, roleFetcher, roleCache, logger)
