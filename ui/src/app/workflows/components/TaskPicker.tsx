@@ -108,7 +108,9 @@ const TaskPicker = ({
       value={task ? formatTaskID(task, retry_id) : WORKFLOW_KEY}
       className="rounded-sm"
       label={label}
-      errorText={errorText}
+      message={errorText}
+      isError={Boolean(errorText)}
+      leaveSpaceForMessage={true}
       aria-label={label ?? "Task Picker"}
       onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
         const key = e.target.value;
