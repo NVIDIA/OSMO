@@ -36,9 +36,8 @@
 
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { useQueryState, parseAsString, parseAsInteger } from "nuqs";
-import { useEventCallback } from "usehooks-ts";
 import type { GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
 
 // =============================================================================
@@ -295,65 +294,77 @@ export function useNavigationState({ groups, initialView }: UseNavigationStateOp
   }, [groupName, taskName, selectedGroup, selectedTask]);
 
   // Navigation functions - use stable callbacks for memoized children
-  const navigateToGroup = useEventCallback((group: GroupWithLayout) => {
-    // For single-task groups, navigate directly to the task
-    if (group.tasks && group.tasks.length === 1) {
-      const task = group.tasks[0];
+  const navigateToGroup = useCallback(
+    (group: GroupWithLayout) => {
+      // For single-task groups, navigate directly to the task
+      if (group.tasks && group.tasks.length === 1) {
+        const task = group.tasks[0];
+        setGroupName(group.name);
+        setTaskName(task.name);
+        setTaskRetryId(task.retry_id);
+        setWorkflowTabParam(null); // Clear workflow tab when leaving workflow view
+        // Keep tab if navigating to same task, otherwise reset
+      } else {
+        // Multi-task group: show group view
+        setGroupName(group.name);
+        setTaskName(null);
+        setTaskRetryId(null);
+        setTabParam(null); // Clear tab when leaving task view
+        setWorkflowTabParam(null); // Clear workflow tab when leaving workflow view
+      }
+    },
+    [setGroupName, setTaskName, setTaskRetryId, setWorkflowTabParam, setTabParam],
+  );
+
+  const navigateToTask = useCallback(
+    (task: TaskQueryResponse, group: GroupWithLayout) => {
       setGroupName(group.name);
       setTaskName(task.name);
       setTaskRetryId(task.retry_id);
       setWorkflowTabParam(null); // Clear workflow tab when leaving workflow view
-      // Keep tab if navigating to same task, otherwise reset
-    } else {
-      // Multi-task group: show group view
-      setGroupName(group.name);
-      setTaskName(null);
-      setTaskRetryId(null);
-      setTabParam(null); // Clear tab when leaving task view
-      setWorkflowTabParam(null); // Clear workflow tab when leaving workflow view
-    }
-  });
+      // Note: Tab is preserved when navigating between tasks (user preference)
+      // Reset to overview only if current tab is shell but shell won't be available
+    },
+    [setGroupName, setTaskName, setTaskRetryId, setWorkflowTabParam],
+  );
 
-  const navigateToTask = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
-    setGroupName(group.name);
-    setTaskName(task.name);
-    setTaskRetryId(task.retry_id);
-    setWorkflowTabParam(null); // Clear workflow tab when leaving workflow view
-    // Note: Tab is preserved when navigating between tasks (user preference)
-    // Reset to overview only if current tab is shell but shell won't be available
-  });
-
-  const navigateToWorkflow = useEventCallback(() => {
+  const navigateToWorkflow = useCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
     setTabParam(null); // Clear tab when leaving task view
-  });
+  }, [setGroupName, setTaskName, setTaskRetryId, setTabParam]);
 
-  const navigateBackToGroup = useEventCallback(() => {
+  const navigateBackToGroup = useCallback(() => {
     // Keep group, clear task and tab
     setTaskName(null);
     setTaskRetryId(null);
     setTabParam(null);
-  });
+  }, [setTaskName, setTaskRetryId, setTabParam]);
 
-  const setSelectedTab = useEventCallback((tab: TaskTab) => {
-    // Only set non-overview tabs in URL (overview is the default)
-    setTabParam(tab === "overview" ? null : tab);
-  });
+  const setSelectedTab = useCallback(
+    (tab: TaskTab) => {
+      // Only set non-overview tabs in URL (overview is the default)
+      setTabParam(tab === "overview" ? null : tab);
+    },
+    [setTabParam],
+  );
 
-  const setSelectedWorkflowTab = useEventCallback((tab: WorkflowTab) => {
-    // Only set non-overview tabs in URL (overview is the default)
-    setWorkflowTabParam(tab === "overview" ? null : tab);
-  });
+  const setSelectedWorkflowTab = useCallback(
+    (tab: WorkflowTab) => {
+      // Only set non-overview tabs in URL (overview is the default)
+      setWorkflowTabParam(tab === "overview" ? null : tab);
+    },
+    [setWorkflowTabParam],
+  );
 
-  const clearNavigation = useEventCallback(() => {
+  const clearNavigation = useCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
     setTabParam(null);
     setWorkflowTabParam(null);
-  });
+  }, [setGroupName, setTaskName, setTaskRetryId, setTabParam, setWorkflowTabParam]);
 
   // Clear stale URL params if referenced group/task no longer exists
   // This handles cases like workflow refresh where structure changed
