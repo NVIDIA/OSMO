@@ -342,6 +342,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     reCenterTrigger,
     // Layout completion signal for callback-based centering (no timeouts)
     isLayouting,
+    isDragging: isPanelDragging,
   });
 
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
