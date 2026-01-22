@@ -33,6 +33,45 @@
  * - Animation completes → unfreeze
  * - translateExtent uses containerDims again (now at final size)
  *
+ * DETERMINISTIC COORDINATION via Barrier Pattern (like WaitGroup/Semaphore):
+ *
+ * Explicit state machine with readiness signals:
+ *   Signal 1: dimensionsReady (container measured via useResizeObserver)
+ *   Signal 2: layoutReady (ELK calculation complete)
+ *
+ * Coordination Effect (Barrier):
+ *   useEffect(() => {
+ *     if (dimensionsReady && layoutReady) {
+ *       executeCentering();  // Only when ALL signals true
+ *     }
+ *   }, [readinessState]);
+ *
+ * Flow (order-independent):
+ *   ┌─────────────────┐     ┌─────────────────┐
+ *   │ Signal 1 fires  │     │ Signal 2 fires  │
+ *   │ (any order)     │     │ (any order)     │
+ *   └────────┬────────┘     └────────┬────────┘
+ *            │                       │
+ *            └───────┬───────────────┘
+ *                    ▼
+ *           ┌─────────────────┐
+ *           │ Barrier Effect  │
+ *           │ Checks: both?   │
+ *           └────────┬────────┘
+ *                    │
+ *              Both Ready? ──Yes──> executeCentering()
+ *                    │
+ *                   No
+ *                    │
+ *                  Wait
+ *
+ * Benefits:
+ * - Pure state machine (no callback chains)
+ * - React batches state updates automatically
+ * - Order-independent (true barrier semantics)
+ * - Easy to reason about (declarative)
+ * - Same behavior dev/prod/slow/fast
+ *
  * PERFORMANCE:
  * - Uses `useSyncedRef` for stable callback references
  * - Memoizes all derived values
@@ -171,6 +210,20 @@ export function useViewportBoundaries({
   const extentDims: Dimensions = frozenDims ?? targetDims;
 
   // ---------------------------------------------------------------------------
+  // Readiness State (Coordination Primitive)
+  // ---------------------------------------------------------------------------
+  // Explicit state machine for initial centering coordination
+  // Both conditions must be met before centering can occur
+  
+  const [readinessState, setReadinessState] = useState<{
+    dimensionsReady: boolean;
+    layoutReady: boolean;
+  }>({
+    dimensionsReady: false,
+    layoutReady: false,
+  });
+
+  // ---------------------------------------------------------------------------
   // Tracking Refs
   // ---------------------------------------------------------------------------
 
@@ -181,6 +234,17 @@ export function useViewportBoundaries({
   const isAnimatingRef = useRef(false);
   const animationGenerationRef = useRef(0);
   const prevIsLayoutingRef = useRef(isLayouting);
+
+  // ---------------------------------------------------------------------------
+  // Dimension Validation
+  // ---------------------------------------------------------------------------
+
+  /** Check if dimensions are valid for centering operations. */
+  const areDimensionsValid = useCallback((d: Dimensions): boolean => {
+    // Dimensions are valid if they're significantly larger than the estimated minimums
+    // This prevents centering with placeholder/wrong dimensions during async loading
+    return d.width > 100 && d.height > 100;
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Core Functions: Extent Calculation
@@ -377,6 +441,62 @@ export function useViewportBoundaries({
   const getTargetDimsForAnimation = useCallback((): Dimensions => targetDimsRef.current, [targetDimsRef]);
 
   // ---------------------------------------------------------------------------
+  // Centering Logic (Pure Function)
+  // ---------------------------------------------------------------------------
+  
+  /**
+   * Performs the actual centering operation.
+   * Separated from coordination logic for clarity.
+   */
+  const executeCentering = useCallback(() => {
+    if (nodes.length === 0 || rootNodeIds.length === 0) return false;
+
+    const d = getTargetDimsForAnimation();
+    let centered = false;
+
+    // Try to center on initially selected node (from URL)
+    if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
+      hasHandledInitialSelectionRef.current = true;
+      centered = centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
+    }
+
+    // Fallback: center on first root node
+    if (!centered) {
+      centered = centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
+    }
+
+    if (centered) {
+      hasInitializedRef.current = true;
+      prevLayoutDirectionRef.current = layoutDirection;
+    }
+
+    return centered;
+  }, [
+    nodes.length,
+    rootNodeIds,
+    initialSelectedNodeId,
+    centerOnNode,
+    getTargetDimsForAnimation,
+    layoutDirection,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // Signal 1: Container Dimension Readiness
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    const isValid = areDimensionsValid(containerDims);
+    
+    setReadinessState((prev) => {
+      // Only update if changed (avoid unnecessary re-renders)
+      if (prev.dimensionsReady !== isValid) {
+        return { ...prev, dimensionsReady: isValid };
+      }
+      return prev;
+    });
+  }, [containerDims, areDimensionsValid]);
+
+  // ---------------------------------------------------------------------------
   // Effects: Re-center/Clamp Triggers
   // ---------------------------------------------------------------------------
 
@@ -389,7 +509,7 @@ export function useViewportBoundaries({
     if (prev === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
 
-    // Don't recenter before initial layout is complete
+    // Only recenter after initialization is complete
     if (!hasInitializedRef.current) return;
     if (isAnimatingRef.current) return;
 
@@ -408,54 +528,71 @@ export function useViewportBoundaries({
     reactFlowInstance,
   ]);
 
-  // On layout complete (isLayouting: true → false)
+  // ---------------------------------------------------------------------------
+  // Signal 2: Layout Completion
+  // ---------------------------------------------------------------------------
+
   useEffect(() => {
     const wasLayouting = prevIsLayoutingRef.current;
     prevIsLayoutingRef.current = isLayouting;
 
     if (!(wasLayouting && !isLayouting)) return; // Only on completion
-    if (nodes.length === 0 || rootNodeIds.length === 0) return;
 
-    const d = getTargetDimsForAnimation();
-
-    // Initial load
-    if (!hasInitializedRef.current) {
-      let centered = false;
-
-      // Try to center on initially selected node (from URL)
-      if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
-        hasHandledInitialSelectionRef.current = true;
-        centered = centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
+    // Update readiness state
+    setReadinessState((prev) => {
+      if (!prev.layoutReady) {
+        return { ...prev, layoutReady: true };
       }
+      return prev;
+    });
 
-      // Fallback: center on first root node
-      if (!centered) {
-        centered = centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
-      }
-
-      // Only mark initialized if centering succeeded
-      // This allows retry on next layout completion if centering failed
-      if (centered) {
-        hasInitializedRef.current = true;
-        prevLayoutDirectionRef.current = layoutDirection;
-      }
-      return;
-    }
-
-    // Direction change
-    if (prevLayoutDirectionRef.current !== layoutDirection) {
+    // Handle direction change (after initialization)
+    if (hasInitializedRef.current && prevLayoutDirectionRef.current !== layoutDirection) {
       prevLayoutDirectionRef.current = layoutDirection;
-      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, d);
+      if (nodes.length > 0 && rootNodeIds.length > 0) {
+        const d = getTargetDimsForAnimation();
+        centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, d);
+      }
     }
   }, [
     isLayouting,
+    layoutDirection,
     nodes.length,
     rootNodeIds,
-    layoutDirection,
-    initialSelectedNodeId,
     centerOnNode,
     getTargetDimsForAnimation,
   ]);
+
+  // ---------------------------------------------------------------------------
+  // Coordination: Wait for ALL Signals (Barrier Pattern)
+  // ---------------------------------------------------------------------------
+  
+  /**
+   * This effect acts as a barrier/waitgroup.
+   * It waits for ALL readiness signals before proceeding.
+   * 
+   * DETERMINISTIC COORDINATION:
+   * - State updates are batched by React
+   * - This effect only runs when readinessState changes
+   * - Both signals must be true to proceed
+   * - No callbacks, no race conditions, pure state machine
+   * 
+   * DEBUG: Inspect readinessState in React DevTools to see barrier state
+   */
+  useEffect(() => {
+    // Already initialized - nothing to do
+    if (hasInitializedRef.current) return;
+
+    // Barrier: wait for ALL conditions
+    const { dimensionsReady, layoutReady } = readinessState;
+    
+    if (!dimensionsReady || !layoutReady) {
+      return; // Wait for remaining signals
+    }
+
+    // All signals received - proceed with centering
+    executeCentering();
+  }, [readinessState, executeCentering]);
 
   // NOTE: Selection change centering is handled by the page via reCenterTrigger,
   // NOT here. This ensures centering happens AFTER panel state settles,
@@ -468,7 +605,8 @@ export function useViewportBoundaries({
   // completes. During resize, translateExtent handles bounds naturally.
 
   const handleWindowResize = useDebounceCallback(() => {
-    if (isAnimatingRef.current) return;
+    // Only recenter if initialized and not animating
+    if (isAnimatingRef.current || !hasInitializedRef.current) return;
 
     const sel = selectedNodeIdRef.current;
 
