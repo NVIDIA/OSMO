@@ -277,31 +277,31 @@ const EDGE_MARKERS: Record<
 > = {
   waiting: {
     type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.waiting.color,
+    color: STATUS_STYLES.waiting.light.color,
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
   },
   pending: {
     type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.pending.color,
+    color: STATUS_STYLES.pending.light.color,
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
   },
   running: {
     type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.running.color,
+    color: STATUS_STYLES.running.light.color,
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
   },
   completed: {
     type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.completed.color,
+    color: STATUS_STYLES.completed.light.color,
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
   },
   failed: {
     type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.failed.color,
+    color: STATUS_STYLES.failed.light.color,
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
   },
