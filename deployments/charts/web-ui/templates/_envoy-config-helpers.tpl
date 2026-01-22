@@ -516,16 +516,23 @@ function update_cookie_age(cookie, new_ages)
          cookie_name ~= "IdToken" and cookie_name ~= "OauthHMAC" then
         new_cookie = new_cookie .. ';' .. all
       end
+    -- For Path, skip it for auth cookies (we'll set it explicitly below)
+    elseif key == 'Path' then
+      if cookie_name ~= "RefreshToken" and cookie_name ~= "BearerToken" and
+         cookie_name ~= "IdToken" and cookie_name ~= "OauthHMAC" then
+        new_cookie = new_cookie .. ';' .. all
+      end
     -- If this is Http-Only, discard it, otherwise, append the property as is
     elseif all ~= 'HttpOnly' then
       new_cookie = new_cookie .. ';' .. all
     end
   end
 
-  -- Add domain for auth cookies if no domain was present
+  -- Add domain and path for auth cookies
   if cookie_name == "RefreshToken" or cookie_name == "BearerToken" or
      cookie_name == "IdToken" or cookie_name == "OauthHMAC" then
     new_cookie = new_cookie .. '; Domain=' .. hostname
+    new_cookie = new_cookie .. '; Path=/'
   end
 
   return new_cookie
