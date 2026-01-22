@@ -43,6 +43,7 @@ import {
   useImperativeHandle,
   useMemo,
   useDeferredValue,
+  useEffectEvent,
 } from "react";
 import { useEventCallback } from "usehooks-ts";
 import { cn } from "@/lib/utils";
@@ -270,51 +271,51 @@ export const ShellTerminal = memo(
     }, [isShellReady, fit]);
 
     // Handle keyboard shortcuts
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
-        // Prevents browser's native find from kicking in when inside the terminal
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
-          e.preventDefault();
-          setIsSearchOpen((prev) => !prev);
-          return;
-        }
+    const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+      // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
+      // Prevents browser's native find from kicking in when inside the terminal
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+        return;
+      }
 
-        // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
-        // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
-          const terminal = getTerminal();
-          if (terminal) {
-            const selection = terminal.getSelection();
-            if (selection) {
-              e.preventDefault();
-              copy(selection);
-              announce("Copied to clipboard", "polite");
-              return;
-            }
+      // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
+      // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
+        const terminal = getTerminal();
+        if (terminal) {
+          const selection = terminal.getSelection();
+          if (selection) {
+            e.preventDefault();
+            copy(selection);
+            announce("Copied to clipboard", "polite");
+            return;
           }
-          // No selection - let the event propagate for Ctrl+C (SIGINT) to work
         }
+        // No selection - let the event propagate for Ctrl+C (SIGINT) to work
+      }
 
-        // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
-          e.preventDefault();
-          // Use void operator to handle Promise without floating promise lint error
-          void navigator.clipboard.readText().then(
-            (text) => send(text),
-            // Silently fail if clipboard access denied (user didn't grant permission)
-            () => {},
-          );
-          return;
-        }
-      };
+      // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        // Use void operator to handle Promise without floating promise lint error
+        void navigator.clipboard.readText().then(
+          (text) => send(text),
+          // Silently fail if clipboard access denied (user didn't grant permission)
+          () => {},
+        );
+        return;
+      }
+    });
 
+    useEffect(() => {
       const container = containerRef.current;
       if (container) {
-        container.addEventListener("keydown", handleKeyDown);
-        return () => container.removeEventListener("keydown", handleKeyDown);
+        container.addEventListener("keydown", onKeyDown);
+        return () => container.removeEventListener("keydown", onKeyDown);
       }
-    }, [getTerminal, containerRef, copy, announce, send]);
+    }, [containerRef]);
 
     // Handle focus/blur for active state - stable refs via useEventCallback
     const handleFocus = useEventCallback(() => {
