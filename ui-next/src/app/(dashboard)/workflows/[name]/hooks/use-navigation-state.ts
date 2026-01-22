@@ -76,9 +76,17 @@ export interface NavigationSelection {
   taskRetryId: number | null;
 }
 
+export interface InitialView {
+  groupName: string | null;
+  taskName: string | null;
+  taskRetryId: number | null;
+}
+
 export interface UseNavigationStateOptions {
   /** All groups in the workflow (for resolving names to objects) */
   groups: GroupWithLayout[];
+  /** Server-parsed URL state for instant rendering before nuqs hydration */
+  initialView: InitialView;
 }
 
 export interface UseNavigationStateReturn {
@@ -159,6 +167,9 @@ export interface UseNavigationStateReturn {
  * Uses nuqs for URL state management with browser history integration.
  * Enables shareable deep links and natural back/forward navigation.
  *
+ * Performance: Uses initialView (server-parsed) for first render to avoid
+ * nuqs hydration delay (~100ms). After hydration, nuqs takes over for URL sync.
+ *
  * @example
  * ```tsx
  * const {
@@ -168,7 +179,7 @@ export interface UseNavigationStateReturn {
  *   navigateToGroup,
  *   navigateToTask,
  *   navigateBackToGroup,
- * } = useNavigationState({ groups });
+ * } = useNavigationState({ groups, initialView });
  *
  * // Navigate to a group (updates URL, enables back button)
  * handleNodeClick(group) => navigateToGroup(group);
@@ -177,10 +188,10 @@ export interface UseNavigationStateReturn {
  * handleTaskClick(task, group) => navigateToTask(task, group);
  * ```
  */
-export function useNavigationState({ groups }: UseNavigationStateOptions): UseNavigationStateReturn {
+export function useNavigationState({ groups, initialView }: UseNavigationStateOptions): UseNavigationStateReturn {
   // URL state for group selection
   // Uses "push" history so each navigation creates a new history entry
-  const [groupName, setGroupName] = useQueryState(
+  const [groupNameFromNuqs, setGroupName] = useQueryState(
     "group",
     parseAsString.withOptions({
       shallow: true,
@@ -190,7 +201,7 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
   );
 
   // URL state for task selection
-  const [taskName, setTaskName] = useQueryState(
+  const [taskNameFromNuqs, setTaskName] = useQueryState(
     "task",
     parseAsString.withOptions({
       shallow: true,
@@ -200,7 +211,7 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
   );
 
   // URL state for task retry ID (for distinguishing retries of the same task)
-  const [taskRetryId, setTaskRetryId] = useQueryState(
+  const [taskRetryIdFromNuqs, setTaskRetryId] = useQueryState(
     "retry",
     parseAsInteger.withOptions({
       shallow: true,
@@ -208,6 +219,15 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
       clearOnDefault: true,
     }),
   );
+
+  // Use initialView until nuqs returns non-null values (indicates hydration complete)
+  // This avoids setState-in-effect by using derived state instead
+  const isHydrated = groupNameFromNuqs !== null || taskNameFromNuqs !== null || taskRetryIdFromNuqs !== null;
+
+  // Use initialView before hydration, nuqs after
+  const groupName = isHydrated ? groupNameFromNuqs : initialView.groupName;
+  const taskName = isHydrated ? taskNameFromNuqs : initialView.taskName;
+  const taskRetryId = isHydrated ? taskRetryIdFromNuqs : initialView.taskRetryId;
 
   // URL state for task tab (only relevant in task view)
   // Uses "replace" history so tab changes don't create new history entries
