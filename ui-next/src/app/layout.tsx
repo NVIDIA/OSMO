@@ -34,7 +34,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
   // Use 'swap' for mono font - essential for terminal/code rendering
   display: "swap",
-  preload: true,
+  // Don't preload - mono font is primarily used in specific components (terminals, logs)
+  // that aren't immediately visible on all pages. This eliminates preload warnings
+  // while maintaining fast loading when needed via font-display: swap.
+  preload: false,
 });
 
 export const metadata: Metadata = {
