@@ -22,6 +22,7 @@ import { Link } from "@/components/link";
 import { Button } from "@/components/shadcn/button";
 import { ErrorDetails } from "./error-details";
 import { logError } from "@/lib/logger";
+import { getBasePath } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -111,7 +112,7 @@ export function RouteError({
             </Button>
             <Button
               variant="outline"
-              onClick={() => (window.location.href = "/")}
+              onClick={() => (window.location.href = getBasePath() || "/")}
               className="gap-2"
             >
               <Home className="h-4 w-4" />
@@ -168,7 +169,7 @@ export function RouteError({
           </Button>
           <Button
             variant="outline"
-            onClick={() => (window.location.href = "/")}
+            onClick={() => (window.location.href = getBasePath() || "/")}
             className="gap-2"
           >
             <Home className="h-4 w-4" />
