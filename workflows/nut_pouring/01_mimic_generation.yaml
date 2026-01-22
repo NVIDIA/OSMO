@@ -1,154 +1,83 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# SPDX-License-Identifier: Apache-2.0
-
-# Step 1: MimicGen - Generate synthetic demonstrations from teleoperation data
-# Usage: osmo workflow submit 01_mimic_generation.yaml --pool default
-
+version: 2
 workflow:
-  name: {{workflow_name}}
-  timeout:
-    exec_timeout: 168h # 7 days
-    queue_timeout: 48h
+  groups:
+  - name: isaac_mimic
+    tasks:
+    - args:
+      - /tmp/entry.sh
+      command:
+      - bash
+      environment:
+        ACCEPT_EULA: Y
+      files:
+      - contents: |-
+          set -euxo pipefail
+          
+          echo "=== Dataset Location ==="
+          echo "Dataset available at: {{input:0}}"
+          ls -lah {{input:0}}
+          echo ""
+          echo "=== HDF5 file ==="
+          ls -lah {{input:0}}/input_mimic/dataset_annotated_gr1_nut_pouring.hdf5
+          echo ""
+          echo "=== Copying nutpour_gr1t2_base_env_cfg.py ==="
+          cp /tmp/nutpour_gr1t2_base_env_cfg.py /workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/
+          ls -lah /workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/nutpour_gr1t2_base_env_cfg.py
+          echo ""
+          
+          echo "=== Setting up Isaac Lab ==="
+          cd /workspace/isaaclab
+          
+          # Create output directory
+          mkdir -p ./datasets
+          
+          echo "=== Running MimicGen Dataset Generation ==="
+          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+            --device cpu \
+            --headless \
+            --enable_pinocchio \
+            --enable_cameras \
+            --rendering_mode balanced \
+            --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+            --generation_num_trials 1000 \
+            --num_envs 5 \
+            --input_file {{input:0}}/input_mimic/dataset_annotated_gr1_nut_pouring.hdf5 \
+            --output_file ./datasets/generated_dataset_gr1_nut_pouring.hdf5
+          
+          echo ""
+          echo "=== Dataset Generation Complete ==="
+          ls -lah ./datasets/
+          
+          echo ""
+          echo "=== Copying output to Swift bucket ==="
+          cp ./datasets/generated_dataset_gr1_nut_pouring.hdf5 {{output}}/
+          ls -lah {{output}}/
+          
+          echo ""
+          echo "=== Output saved to Swift bucket ==="
+          echo "Output location: {{output}}"
+          
+          echo ""
+          echo "Starting interactive session for inspection..."
+          sleep infinity
+        path: /tmp/entry.sh
+      - localpath: nutpour_gr1t2_base_env_cfg.py
+        path: /tmp/nutpour_gr1t2_base_env_cfg.py
+      image: nvcr.io/nvidia/isaac-lab:2.2.0
+      inputs:
+      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/input_mimic
+      outputs:
+      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/mimic_generated_output
+      lead: true
+      name: mimic_task
+  name: isaac_mimic_25
   resources:
     default:
-      cpu: {{ num_cpu }}
-      gpu: {{ num_gpu }}
-      memory: {{ memory }}
-      storage: {{ storage }}
-
-  tasks:
-  - name: master  # Master task for torchrun
-    image: {{ image_name }}
-    environment:
-      ACCEPT_EULA: Y
-      NO_NUCLEUS: Y
-      OMNI_KIT_ALLOW_ROOT: 1
-
-
-    command: ["bash"]
-    args: ["/tmp/entry.sh"]
-    files:
-    - path: /tmp/entry.sh
-      contents: |
-
-          set -euxo pipefail
-          # Hide conflicting vulkan files, if needed
-          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
-            mv /usr/share/vulkan /usr/share/vulkan_hidden
-          fi
-          # https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5
-          echo "Downloaded the following datasets:"
-          DATASET_DIR={{input:0}}/groot_mimic
-
-          ls -lh $DATASET_DIR
-          echo "Input file:"
-          ls -lh $DATASET_DIR/dataset_annotated_gr1_nut_pouring.hdf5
-
-          # Display info on the system
-          nvidia-smi
-
-          echo ""
-          echo "=== Installing Isaac Lab extensions ==="
-          cd /workspace/isaaclab
-
-          # Install isaaclab_tasks extension
-          echo "Installing isaaclab_tasks..."
-          ./isaaclab.sh --install
-
-          # Check if there are additional extensions to install
-          if [ -d "source/extensions" ]; then
-              echo "Found extensions directory, listing contents:"
-              ls -la source/extensions/
-          fi
-
-          # Check for GR1 or manipulation extensions
-          find source -name "*gr1*" -o -name "*nut*" -o -name "*pour*" 2>/dev/null || echo "No GR1/nut pouring specific files found"
-
-          echo ""
-          echo "=== Checking where tasks are registered ==="
-
-          # Check the isaaclab_mimic envs __init__.py to see how tasks are registered
-          echo "Contents of isaaclab_mimic/envs/__init__.py:"
-          head -100 source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
-
-          echo ""
-          echo "Checking for GR1 nut pour registrations:"
-          grep -r "Isaac-NutPour-GR1T2" source/isaaclab_mimic/ || echo "No registration found for Isaac-NutPour-GR1T2"
-
-          echo ""
-          echo "Checking pinocchio_envs __init__.py:"
-          head -50 source/isaaclab_mimic/isaaclab_mimic/envs/pinocchio_envs/__init__.py
-
-          echo ""
-          echo "=== THE FIX: pinocchio_envs module is not imported by parent __init__.py ==="
-          echo "The GR1 tasks ARE registered in pinocchio_envs/__init__.py"
-          echo "But the parent envs/__init__.py doesn't import pinocchio_envs!"
-          echo "Adding import to trigger the registrations..."
-
-          # Patch the parent __init__.py to import pinocchio_envs
-          echo "" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
-          echo "# PATCHED: Import pinocchio_envs to register GR1 tasks" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
-          echo "from . import pinocchio_envs  # noqa: F401" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
-
-          echo "Import added! GR1 tasks should now be registered."
-
-          echo ""
-          echo "=== Verifying Pinocchio installation ==="
-          ./isaaclab.sh -p -c "import pinocchio; print(f'Pinocchio version: {pinocchio.__version__}')"
-
-          echo ""
-          echo "=== Patching Pink IK to fix Pinocchio C++ binding issue ==="
-
-          # Backup and patch the pink_kinematics_configuration.py file
-          cp source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py \
-             source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py.bak
-
-          # Fix the .tolist() call that fails with Pinocchio 2.7.0
-          sed -i 's/self\._all_joint_names = self\.full_model\.names\.tolist()\[1:\]/self._all_joint_names = [str(n) for n in self.full_model.names][1:]/' \
-             source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py
-
-          echo "Pink IK patched to work with Pinocchio 2.7.0"
-
-          echo ""
-          echo "=== Running data generation ==="
-
-          # Run the generation script on GPU (Pink IK controller works better on GPU)
-          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-            --device cuda:0 \
-            --headless \
-            --num_envs 1 \
-            --generation_num_trials 10 \
-            --input_file $DATASET_DIR/dataset_annotated_gr1_nut_pouring.hdf5 \
-            --output_file {{output}}/generated_dataset.hdf5 \
-            --task {{isaaclab_task}} \
-            --enable_cameras
-
-          echo ""
-          echo "=== Data generation completed ==="
-
-# Update default values
-default-values:
-  workflow_name: nut_pouring_mimic_generation
-  image_tag: latest
-  memory: 128Gi
-  storage: 500Gi
-  num_gpu: 1
-  num_cpu: 64
-  osmo_dataset: PhysAIRefArchitecture
-  output_dataset: PhysAIRefArchitectureOut
-  task_name: groot_mimic
-  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
-  isaaclab_task: Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0
+      cpu: 16
+      gpu: 1
+      memory: 20Gi
+      platform: ovx-a40
+      storage: 30Gi
+  timeout:
+    exec_timeout: 7d
+    queue_timeout: 2d
