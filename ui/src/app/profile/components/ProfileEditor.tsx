@@ -105,7 +105,6 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
             message="Enter your default bucket"
             className="w-full"
             isError={Boolean(!bucket)}
-            leaveSpaceForMessage={true}
           >
             <option value="">Select a bucket</option>
             {allBucketNames?.map((bucket) => (
@@ -130,7 +129,6 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
             message="Enter your default pool"
             className="w-full"
             isError={Boolean(!pool)}
-            leaveSpaceForMessage={true}
           >
             <option value="">Select a pool</option>
             {profile.pools?.map((pool) => (
