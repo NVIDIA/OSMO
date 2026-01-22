@@ -38,6 +38,9 @@ service ListenerService {
   // Bidirectional stream for workflow backend communication
   rpc WorkflowListenerStream(stream ListenerMessage) returns (stream AckMessage);
 
+  // Bidirectional stream for resource listener communication (node events and resource usage)
+  rpc ResourceListenerStream(stream ListenerMessage) returns (stream AckMessage);
+
   // Initialize a workflow backend
   rpc InitBackend(InitBackendRequest) returns (InitBackendResponse);
 }
