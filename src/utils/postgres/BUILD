@@ -30,6 +30,7 @@ go_library(
 )
 
 go_test(
+    name = "postgres_test",
     srcs = [
         "postgres_client_test.go",
     ],
