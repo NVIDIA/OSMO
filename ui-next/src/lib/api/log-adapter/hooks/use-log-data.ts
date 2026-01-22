@@ -147,22 +147,25 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
   // Use keepPreviousData to prevent flash when filters change
   const query = useQuery({
     queryKey,
-    queryFn: () =>
-      adapter.queryAll({
-        workflowId: params.workflowId,
-        groupId: params.groupId,
-        taskId: params.taskId,
-        levels: params.levels,
-        tasks: params.tasks,
-        retries: params.retries,
-        sources: params.sources,
-        search: params.search,
-        searchRegex: params.searchRegex,
-        start: params.start,
-        end: params.end,
-        histogramBuckets: params.histogramBuckets ?? LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS,
-        facetFields: params.facetFields ?? FACETABLE_FIELDS,
-      }),
+    queryFn: ({ signal }) =>
+      adapter.queryAll(
+        {
+          workflowId: params.workflowId,
+          groupId: params.groupId,
+          taskId: params.taskId,
+          levels: params.levels,
+          tasks: params.tasks,
+          retries: params.retries,
+          sources: params.sources,
+          search: params.search,
+          searchRegex: params.searchRegex,
+          start: params.start,
+          end: params.end,
+          histogramBuckets: params.histogramBuckets ?? LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS,
+          facetFields: params.facetFields ?? FACETABLE_FIELDS,
+        },
+        signal,
+      ),
     staleTime: params.staleTime ?? 30_000,
     enabled: params.enabled ?? true,
     // Keep previous data visible while refetching to avoid flash/flicker
