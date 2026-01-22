@@ -20,10 +20,11 @@
 # BUILD COMMANDS
 # =============================================================================
 #
-# Build for Kubernetes (from Apple Silicon Mac):
+# Standard build for Kubernetes (from Apple Silicon Mac):
 #   cd external/ui-next
 #   docker login nvcr.io
-#   docker build --platform linux/amd64 -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
+#   docker buildx build --platform linux/amd64 \
+#     -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
 #   docker push nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG
 #
 # Build for Kubernetes (from Linux/Intel Mac):
@@ -34,7 +35,19 @@
 #   docker buildx build --platform linux/amd64,linux/arm64 \
 #     -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG --push .
 #
-# Debug build (no cache):
+# Build with custom basePath (e.g., for canonical deployment at /):
+#   docker build --build-arg NEXT_PUBLIC_BASE_PATH="" \
+#     -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
+#
+# Build with source maps enabled (for debugging):
+#   docker build --build-arg ENABLE_SOURCE_MAPS=true \
+#     -t nvcr.io/nvstaging/osmo/web-ui-next:YOUR_TAG .
+#
+# Note: Backend API hostname is configured at RUNTIME via Kubernetes environment
+# variables (NEXT_PUBLIC_OSMO_API_HOSTNAME), not at build time. This makes the
+# Docker image portable across environments - critical for open source deployment.
+#
+# Debug build (no cache, verbose output):
 #   docker build --no-cache --progress=plain -t web-ui-next:debug .
 #
 # =============================================================================
@@ -74,12 +87,41 @@ COPY public ./public
 COPY src ./src
 COPY scripts ./scripts
 
-# Build with BuildKit cache for Next.js build cache
-# Set NEXT_PUBLIC_BASE_PATH during build so basePath is configured correctly
-# This ensures routes like /health are built at /v2/health (not /health)
+# =============================================================================
+# Build Arguments - Can be overridden at build time
+# =============================================================================
+# Example: docker build --build-arg NEXT_PUBLIC_BASE_PATH="" .
+#
+# BasePath for UI deployment (e.g., /v2 for dual deployment, "" for canonical)
 ARG NEXT_PUBLIC_BASE_PATH=/v2
+
+# Enable source maps in production (disabled by default for faster builds)
+ARG ENABLE_SOURCE_MAPS=false
+
+# Disable Next.js telemetry in CI/CD builds
+ARG NEXT_TELEMETRY_DISABLED=1
+
+# =============================================================================
+# Set build environment variables
+# =============================================================================
+# Convert ARGs to ENVs so Next.js build process can access them via process.env
+#
+# Note: NEXT_PUBLIC_OSMO_API_HOSTNAME and NEXT_PUBLIC_OSMO_SSL_ENABLED are
+# intentionally NOT set at build time. They are read at RUNTIME from the
+# container environment, making the Docker image portable across environments.
+# This is critical for open source deployment where backend hostname varies.
+
+ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
+ENV ENABLE_SOURCE_MAPS=${ENABLE_SOURCE_MAPS}
+ENV NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED}
+ENV NODE_ENV=production
+
+# =============================================================================
+# Build Next.js application
+# =============================================================================
+# BuildKit cache mount persists .next/cache between builds for faster rebuilds
 RUN --mount=type=cache,target=/app/.next/cache \
-    NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH} pnpm build
+    pnpm build
 
 # =============================================================================
 # Stage 2.5: Prepare cache directory (has shell for mkdir/chown)
@@ -109,9 +151,21 @@ COPY --from=builder /app/public ./public
 # Must be done before switching to nonroot user to ensure proper permissions
 COPY --from=cache-prep --chown=1000:1000 /cache ./.next/cache
 
+# =============================================================================
+# Runtime Environment Variables
+# =============================================================================
+# These can be overridden at runtime via Helm chart values (extraEnvs)
+# Note: NEXT_PUBLIC_* vars set at build time are baked into the bundle
+#       Runtime overrides only work for server-side code, not client-side
+
 ENV HOSTNAME=0.0.0.0
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_APP_NAME=OSMO
+
+# Optional: Set default runtime values (can be overridden by Kubernetes)
+# ENV NEXT_PUBLIC_BASE_PATH=/v2
+# ENV NEXT_PUBLIC_OSMO_API_HOSTNAME=osmo-service.osmo.svc.cluster.local:80
+# ENV NEXT_PUBLIC_OSMO_SSL_ENABLED=false
 
 USER nonroot
 
