@@ -18,6 +18,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { hasAdminRole } from "./roles";
+import { getBasePathUrl } from "@/lib/config";
 
 export interface User {
   id: string;
@@ -60,7 +61,7 @@ export function UserProvider({ children }: UserProviderProps) {
   useEffect(() => {
     async function fetchUser() {
       try {
-        const response = await fetch("/api/me", { credentials: "include" });
+        const response = await fetch(getBasePathUrl("/api/me"), { credentials: "include" });
         if (response.ok) {
           const data = await response.json();
           const roles = data.roles || [];
@@ -88,8 +89,8 @@ export function UserProvider({ children }: UserProviderProps) {
   const logout = () => {
     // Clear local state
     setUser(null);
-    // Redirect to Envoy logout
-    window.location.href = "/v2/logout";
+    // Redirect to Envoy logout (uses basePath from deployment config)
+    window.location.href = getBasePathUrl("/logout");
   };
 
   return <UserContext.Provider value={{ user, isLoading, logout }}>{children}</UserContext.Provider>;
