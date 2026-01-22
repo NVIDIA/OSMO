@@ -16,7 +16,7 @@
 
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/components/link";
 import { FlaskConical, ScrollText } from "lucide-react";
 import { usePage } from "@/components/chrome";
 

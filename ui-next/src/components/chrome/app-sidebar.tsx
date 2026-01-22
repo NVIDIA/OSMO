@@ -17,7 +17,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { Link } from "@/components/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import { useNavigation, type NavItem as NavItemType, type NavSection } from "@/lib/navigation";
