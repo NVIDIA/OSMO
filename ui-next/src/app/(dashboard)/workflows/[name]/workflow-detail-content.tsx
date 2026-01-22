@@ -113,7 +113,10 @@ export function WorkflowDetailContent({ name }: WorkflowDetailContentProps) {
   });
 
   return (
-    <InlineErrorBoundary title="Unable to display workflow" onReset={() => window.location.reload()}>
+    <InlineErrorBoundary
+      title="Unable to display workflow"
+      onReset={() => window.location.reload()}
+    >
       <div className="h-full">
         <WorkflowDetailInnerWithProvider name={name} />
       </div>

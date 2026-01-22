@@ -65,14 +65,7 @@ async function proxyRequest(request: NextRequest, method: string) {
   const headers = new Headers();
 
   // Copy important headers
-  const headersToForward = [
-    "content-type",
-    "authorization",
-    "x-osmo-auth",
-    "x-osmo-user",
-    "x-osmo-roles",
-    "cookie",
-  ];
+  const headersToForward = ["content-type", "authorization", "x-osmo-auth", "x-osmo-user", "x-osmo-roles", "cookie"];
 
   headersToForward.forEach((header) => {
     const value = request.headers.get(header);
