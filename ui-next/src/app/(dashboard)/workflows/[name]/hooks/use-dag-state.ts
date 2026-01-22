@@ -249,19 +249,15 @@ export function useDAGState({
         const result = await layoutCalculator(groupsWithLayout, expandedGroups, layoutDirection);
 
         if (!cancelled) {
-          // Use startTransition for non-blocking node/edge updates (low priority)
-          // This keeps the UI responsive during large graph updates
+          // CRITICAL: setIsLayouting(false) MUST be called inside startTransition
+          // along with setNodes/setEdges to ensure atomicity. This ensures that
+          // hooks like useViewportBoundaries see 'isLayouting === false' only
+          // when the new nodes are actually committed to state.
           startTransition(() => {
             setNodes(result.nodes);
             setEdges(result.edges);
+            setIsLayouting(false);
           });
-
-          // CRITICAL: setIsLayouting(false) is called AFTER scheduling nodes/edges updates
-          // but OUTSIDE startTransition to ensure it fires as soon as nodes are ready.
-          // This prevents a race where isLayouting=false is detected before nodes commit,
-          // which would cause performInitialCentering to fail (nodes.length === 0).
-          // The viewport effect depends on nodes.length, so it will re-run when nodes commit.
-          setIsLayouting(false);
         }
       } catch (error) {
         console.error("Layout calculation failed:", error);
