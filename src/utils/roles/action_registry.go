@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -517,8 +518,9 @@ func matchPathCompiled(requestParts []string, cp *compiledPattern) bool {
 	// Handle trailing wildcard patterns (e.g., /api/workflow/*)
 	if cp.hasTrailWild {
 		// Pattern: /api/workflow/* should match /api/workflow/abc and /api/workflow/abc/def
+		// but NOT /api/workflow (the wildcard must match at least one segment)
 		prefixLen := len(patternParts) - 1 // Exclude the trailing *
-		if len(requestParts) < prefixLen {
+		if len(requestParts) <= prefixLen {
 			return false
 		}
 
@@ -570,11 +572,12 @@ func MatchPath(requestPath, pattern string) bool {
 	requestParts := strings.Split(requestPath, "/")
 
 	// Pattern ending with /* can match paths with more segments
+	// but NOT paths that end at the prefix (wildcard must match at least one segment)
 	if strings.HasSuffix(pattern, "/*") {
 		prefixPattern := strings.TrimSuffix(pattern, "/*")
 		prefixParts := strings.Split(prefixPattern, "/")
 
-		if len(requestParts) < len(prefixParts) {
+		if len(requestParts) <= len(prefixParts) {
 			return false
 		}
 
@@ -720,3 +723,421 @@ func IsValidAction(action string) bool {
 	return false
 }
 
+// ============================================================================
+// LEGACY PATH-BASED AUTHORIZATION
+// ============================================================================
+//
+// The following functions support the legacy path-based authorization model
+// where roles are defined with Base/Path/Method patterns. This is maintained
+// for backwards compatibility with existing role definitions.
+//
+// Legacy format example:
+//   {"base": "http", "path": "/api/workflow/*", "method": "GET"}
+//   {"base": "http", "path": "!/api/admin/*", "method": "*"}  // Deny pattern
+//
+// New roles should use the semantic action model instead:
+//   {"action": "workflow:Create"}
+//
+// ============================================================================
+
+// LegacyMatchMethod checks if the method pattern matches the request method.
+// Supports wildcard "*" and case-insensitive matching.
+// This is used for legacy path-based authorization.
+func LegacyMatchMethod(pattern, method string) bool {
+	if pattern == "*" {
+		return true
+	}
+	return strings.EqualFold(pattern, method)
+}
+
+// LegacyMatchPathPattern uses glob pattern matching for path validation.
+// This mimics Python's fnmatch behavior for backwards compatibility.
+// This is used for legacy path-based authorization.
+func LegacyMatchPathPattern(pattern, path string) bool {
+	// Special case: single * should match everything (like Python fnmatch)
+	if pattern == "*" {
+		return true
+	}
+
+	// Convert glob pattern to regex-like matching
+	// Replace * with .* to match across path separators
+	// This mimics Python's fnmatch behavior
+	matched, err := filepath.Match(pattern, path)
+	if err != nil {
+		// Invalid pattern, return false
+		return false
+	}
+
+	// If filepath.Match fails, try simple string matching with * as wildcard
+	if !matched && strings.Contains(pattern, "*") {
+		// Convert glob pattern to simple prefix/suffix matching
+		if strings.HasSuffix(pattern, "/*") {
+			prefix := strings.TrimSuffix(pattern, "/*")
+			return strings.HasPrefix(path, prefix+"/") || path == prefix
+		}
+		if strings.HasPrefix(pattern, "*/") {
+			suffix := strings.TrimPrefix(pattern, "*/")
+			return strings.HasSuffix(path, "/"+suffix)
+		}
+		// For patterns like /api/*/task, check if it matches
+		parts := strings.Split(pattern, "/")
+		pathParts := strings.Split(path, "/")
+		if len(parts) != len(pathParts) {
+			return false
+		}
+		for i := range parts {
+			if parts[i] != "*" && parts[i] != pathParts[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	return matched
+}
+
+// LegacyActionResult represents the result of checking a legacy action
+type LegacyActionResult struct {
+	Allowed bool
+	Matched bool   // Whether any pattern matched
+	Pattern string // The pattern that matched (for logging)
+	IsDeny  bool   // Whether the match was a deny pattern
+}
+
+// CheckLegacyAction checks if a legacy path-based action allows or denies access.
+// Returns the result of the check including whether it matched and if it's a deny.
+//
+// Legacy actions use the Path field with optional "!" prefix for deny patterns:
+//   - "/api/workflow/*" - Allow pattern
+//   - "!/api/admin/*"   - Deny pattern (takes precedence)
+func CheckLegacyAction(action *RoleAction, path, method string) LegacyActionResult {
+	// Check method match first
+	if !LegacyMatchMethod(action.Method, method) {
+		return LegacyActionResult{Allowed: false, Matched: false}
+	}
+
+	// Check for deny pattern (path starts with "!")
+	if strings.HasPrefix(action.Path, "!") {
+		denyPath := action.Path[1:]
+		if LegacyMatchPathPattern(denyPath, path) {
+			return LegacyActionResult{
+				Allowed: false,
+				Matched: true,
+				Pattern: denyPath,
+				IsDeny:  true,
+			}
+		}
+		return LegacyActionResult{Allowed: false, Matched: false}
+	}
+
+	// Allow pattern
+	if LegacyMatchPathPattern(action.Path, path) {
+		return LegacyActionResult{
+			Allowed: true,
+			Matched: true,
+			Pattern: action.Path,
+			IsDeny:  false,
+		}
+	}
+
+	return LegacyActionResult{Allowed: false, Matched: false}
+}
+
+// CheckLegacyPolicyAccess checks if a role has access using legacy path-based authorization.
+// This implements the same logic as Python's Role.has_access().
+//
+// The function iterates through all policies and actions:
+//   - Deny patterns (paths starting with "!") take precedence and immediately deny
+//   - Allow patterns grant access if they match
+//   - First matching policy that allows access returns true
+func CheckLegacyPolicyAccess(role *Role, path, method string) (allowed bool, matchedPattern string, isDeny bool) {
+	for _, policy := range role.Policies {
+		policyAllowed := false
+		for _, action := range policy.Actions {
+			// Skip semantic actions - only process legacy actions
+			if action.IsSemanticAction() {
+				continue
+			}
+
+			result := CheckLegacyAction(&action, path, method)
+			if !result.Matched {
+				continue
+			}
+
+			if result.IsDeny {
+				// Deny pattern matched - immediately deny and break
+				return false, result.Pattern, true
+			}
+
+			// Allow pattern matched
+			policyAllowed = true
+			matchedPattern = result.Pattern
+		}
+
+		if policyAllowed {
+			return true, matchedPattern, false
+		}
+	}
+
+	return false, "", false
+}
+
+// ============================================================================
+// UNIFIED POLICY ACCESS CHECK
+// ============================================================================
+//
+// The following types and functions provide a unified interface for checking
+// policy access that handles both legacy path-based actions and new semantic
+// actions transparently.
+//
+// ============================================================================
+
+// ActionType indicates whether an action is legacy (path-based) or semantic
+type ActionType string
+
+const (
+	// ActionTypeLegacy indicates a legacy path-based action
+	ActionTypeLegacy ActionType = "legacy"
+	// ActionTypeSemantic indicates a new semantic action
+	ActionTypeSemantic ActionType = "semantic"
+	// ActionTypeNone indicates no action matched
+	ActionTypeNone ActionType = "none"
+)
+
+// AccessResult represents the result of a policy access check
+type AccessResult struct {
+	// Allowed indicates whether access is granted
+	Allowed bool
+	// Matched indicates whether any action pattern matched
+	Matched bool
+	// MatchedAction is the action string that matched (semantic action or path pattern)
+	MatchedAction string
+	// MatchedResource is the resource that was matched (for semantic actions)
+	MatchedResource string
+	// IsDeny indicates whether the match was a deny pattern (legacy only)
+	IsDeny bool
+	// ActionType indicates whether the match was legacy or semantic
+	ActionType ActionType
+	// RoleName is the name of the role that matched
+	RoleName string
+}
+
+// CheckSemanticAction checks if a semantic action grants access for the given path and method.
+// It resolves the path to a semantic action and checks if the policy action matches.
+//
+// Supports wildcards in action patterns:
+//   - "*" or "*:*" matches all actions
+//   - "workflow:*" matches all workflow actions
+//   - "*:Read" matches all Read actions across resources
+func CheckSemanticAction(policyAction *RoleAction, policyResources []string, path, method string) AccessResult {
+	// Resolve the path to a semantic action
+	resolvedAction, resolvedResource := ResolvePathToAction(path, method)
+	if resolvedAction == "" {
+		// Path doesn't map to any known action
+		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+	}
+
+	// Check if the policy action matches the resolved action
+	if !matchSemanticAction(policyAction.Action, resolvedAction) {
+		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+	}
+
+	// Check if the resource matches (if resources are specified)
+	if len(policyResources) > 0 {
+		resourceMatched := false
+		for _, policyResource := range policyResources {
+			if matchResource(policyResource, resolvedResource) {
+				resourceMatched = true
+				break
+			}
+		}
+		if !resourceMatched {
+			return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+		}
+	}
+
+	return AccessResult{
+		Allowed:         true,
+		Matched:         true,
+		MatchedAction:   policyAction.Action,
+		MatchedResource: resolvedResource,
+		ActionType:      ActionTypeSemantic,
+	}
+}
+
+// matchSemanticAction checks if a policy action pattern matches a resolved action.
+// Supports wildcards:
+//   - "*" or "*:*" matches everything
+//   - "workflow:*" matches all workflow actions
+//   - "*:Read" matches all Read actions
+func matchSemanticAction(pattern, action string) bool {
+	// Exact match
+	if pattern == action {
+		return true
+	}
+
+	// Universal wildcards
+	if pattern == "*" || pattern == "*:*" {
+		return true
+	}
+
+	// Resource wildcard (e.g., "workflow:*")
+	if strings.HasSuffix(pattern, ":*") {
+		prefix := strings.TrimSuffix(pattern, ":*")
+		return strings.HasPrefix(action, prefix+":")
+	}
+
+	// Action wildcard (e.g., "*:Read")
+	if strings.HasPrefix(pattern, "*:") {
+		suffix := strings.TrimPrefix(pattern, "*:")
+		return strings.HasSuffix(action, ":"+suffix)
+	}
+
+	return false
+}
+
+// matchResource checks if a policy resource pattern matches a resolved resource.
+// Supports wildcards:
+//   - "*" matches everything
+//   - "pool/*" matches all resources in pool scope
+//   - "bucket/my-bucket" matches exact resource
+func matchResource(pattern, resource string) bool {
+	// Exact match
+	if pattern == resource {
+		return true
+	}
+
+	// Universal wildcard
+	if pattern == "*" {
+		return true
+	}
+
+	// Prefix wildcard (e.g., "pool/*")
+	if strings.HasSuffix(pattern, "/*") {
+		prefix := strings.TrimSuffix(pattern, "/*")
+		return strings.HasPrefix(resource, prefix+"/") || resource == prefix+"/*"
+	}
+
+	// Resource itself is a wildcard pattern (e.g., "pool/*" resource matches "pool/*" pattern)
+	if strings.HasSuffix(resource, "/*") {
+		resourcePrefix := strings.TrimSuffix(resource, "/*")
+		if strings.HasSuffix(pattern, "/*") {
+			patternPrefix := strings.TrimSuffix(pattern, "/*")
+			return resourcePrefix == patternPrefix
+		}
+		// pattern "pool/prod" should match resource "pool/*"
+		return strings.HasPrefix(pattern, resourcePrefix+"/")
+	}
+
+	return false
+}
+
+// CheckPolicyAccess checks if a role has access to the given path and method.
+// This is the unified entry point that handles both legacy and semantic actions.
+//
+// The function:
+//  1. First checks semantic actions (new model) - these take precedence
+//  2. Falls back to legacy path-based actions for backwards compatibility
+//  3. Returns detailed information about what matched and why
+//
+// For semantic actions, it resolves the path/method to a semantic action and
+// checks against the role's policies.
+//
+// For legacy actions, it uses glob pattern matching on paths.
+func CheckPolicyAccess(role *Role, path, method string) AccessResult {
+	// First pass: Check semantic actions (new model takes precedence)
+	for _, policy := range role.Policies {
+		for _, action := range policy.Actions {
+			if !action.IsSemanticAction() {
+				continue
+			}
+
+			result := CheckSemanticAction(&action, policy.Resources, path, method)
+			if result.Matched {
+				result.RoleName = role.Name
+				return result
+			}
+		}
+	}
+
+	// Second pass: Check legacy path-based actions
+	for _, policy := range role.Policies {
+		policyAllowed := false
+		var matchedPattern string
+
+		for _, action := range policy.Actions {
+			if action.IsSemanticAction() {
+				continue
+			}
+
+			result := CheckLegacyAction(&action, path, method)
+			if !result.Matched {
+				continue
+			}
+
+			if result.IsDeny {
+				// Deny pattern matched - immediately deny
+				return AccessResult{
+					Allowed:       false,
+					Matched:       true,
+					MatchedAction: result.Pattern,
+					IsDeny:        true,
+					ActionType:    ActionTypeLegacy,
+					RoleName:      role.Name,
+				}
+			}
+
+			// Allow pattern matched
+			policyAllowed = true
+			matchedPattern = result.Pattern
+		}
+
+		if policyAllowed {
+			return AccessResult{
+				Allowed:       true,
+				Matched:       true,
+				MatchedAction: matchedPattern,
+				IsDeny:        false,
+				ActionType:    ActionTypeLegacy,
+				RoleName:      role.Name,
+			}
+		}
+	}
+
+	// No match found
+	return AccessResult{
+		Allowed:    false,
+		Matched:    false,
+		ActionType: ActionTypeNone,
+		RoleName:   role.Name,
+	}
+}
+
+// CheckRolesAccess checks if any of the given roles grants access to the path and method.
+// Returns the first AccessResult that grants access, or the last denial if none grant access.
+func CheckRolesAccess(roles []*Role, path, method string) AccessResult {
+	var lastResult AccessResult
+
+	for _, role := range roles {
+		result := CheckPolicyAccess(role, path, method)
+		if result.Allowed {
+			return result
+		}
+		// Keep track of the last result (for deny information)
+		if result.Matched {
+			lastResult = result
+		}
+	}
+
+	// If we had a matched deny, return it
+	if lastResult.Matched {
+		return lastResult
+	}
+
+	// No match at all
+	return AccessResult{
+		Allowed:    false,
+		Matched:    false,
+		ActionType: ActionTypeNone,
+	}
+}

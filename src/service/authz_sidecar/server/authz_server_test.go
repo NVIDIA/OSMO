@@ -19,17 +19,13 @@ SPDX-License-Identifier: Apache-2.0
 package server
 
 import (
-	"log/slog"
-	"os"
 	"testing"
 
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
-func TestMatchMethod(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, nil, logger)
-
+func TestLegacyMatchMethod(t *testing.T) {
+	// Test the legacy method matching from the roles package
 	tests := []struct {
 		name      string
 		pattern   string
@@ -76,18 +72,16 @@ func TestMatchMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := server.matchMethod(tt.pattern, tt.method)
+			got := roles.LegacyMatchMethod(tt.pattern, tt.method)
 			if got != tt.wantMatch {
-				t.Errorf("matchMethod(%q, %q) = %v, want %v", tt.pattern, tt.method, got, tt.wantMatch)
+				t.Errorf("LegacyMatchMethod(%q, %q) = %v, want %v", tt.pattern, tt.method, got, tt.wantMatch)
 			}
 		})
 	}
 }
 
-func TestMatchPathPattern(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, nil, logger)
-
+func TestLegacyMatchPathPattern(t *testing.T) {
+	// Test the legacy path pattern matching from the roles package
 	tests := []struct {
 		name      string
 		pattern   string
@@ -134,18 +128,16 @@ func TestMatchPathPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := server.matchPathPattern(tt.pattern, tt.path)
+			got := roles.LegacyMatchPathPattern(tt.pattern, tt.path)
 			if got != tt.wantMatch {
-				t.Errorf("matchPathPattern(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.wantMatch)
+				t.Errorf("LegacyMatchPathPattern(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.wantMatch)
 			}
 		})
 	}
 }
 
-func TestHasAccess(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, nil, logger)
-
+func TestCheckPolicyAccess(t *testing.T) {
+	// Test the unified policy access check from the roles package
 	tests := []struct {
 		name       string
 		role       *roles.Role
@@ -325,22 +317,128 @@ func TestHasAccess(t *testing.T) {
 			method:     "WEBSOCKET",
 			wantAccess: true,
 		},
+		// Semantic action tests
+		{
+			name: "semantic action workflow:Create",
+			role: &roles.Role{
+				Name: "test-role",
+				Policies: []roles.RolePolicy{
+					{
+						Actions: []roles.RoleAction{
+							{Action: "workflow:Create"},
+						},
+						Resources: []string{"*"},
+					},
+				},
+			},
+			path:       "/api/workflow",
+			method:     "POST",
+			wantAccess: true,
+		},
+		{
+			name: "semantic action workflow:Read",
+			role: &roles.Role{
+				Name: "test-role",
+				Policies: []roles.RolePolicy{
+					{
+						Actions: []roles.RoleAction{
+							{Action: "workflow:Read"},
+						},
+						Resources: []string{"*"},
+					},
+				},
+			},
+			path:       "/api/workflow/abc123",
+			method:     "GET",
+			wantAccess: true,
+		},
+		{
+			name: "semantic action wildcard workflow:*",
+			role: &roles.Role{
+				Name: "test-role",
+				Policies: []roles.RolePolicy{
+					{
+						Actions: []roles.RoleAction{
+							{Action: "workflow:*"},
+						},
+						Resources: []string{"*"},
+					},
+				},
+			},
+			path:       "/api/workflow",
+			method:     "DELETE",
+			wantAccess: false, // DELETE on collection not mapped
+		},
+		{
+			name: "semantic action wildcard *:Read",
+			role: &roles.Role{
+				Name: "test-role",
+				Policies: []roles.RolePolicy{
+					{
+						Actions: []roles.RoleAction{
+							{Action: "*:Read"},
+						},
+						Resources: []string{"*"},
+					},
+				},
+			},
+			path:       "/api/pool",
+			method:     "GET",
+			wantAccess: true,
+		},
+		{
+			name: "semantic action no match wrong action",
+			role: &roles.Role{
+				Name: "test-role",
+				Policies: []roles.RolePolicy{
+					{
+						Actions: []roles.RoleAction{
+							{Action: "bucket:Read"},
+						},
+						Resources: []string{"*"},
+					},
+				},
+			},
+			path:       "/api/workflow",
+			method:     "POST",
+			wantAccess: false,
+		},
+		{
+			name: "semantic action takes precedence over legacy",
+			role: &roles.Role{
+				Name: "test-role",
+				Policies: []roles.RolePolicy{
+					{
+						Actions: []roles.RoleAction{
+							{Action: "workflow:Create"},
+						},
+						Resources: []string{"*"},
+					},
+					{
+						Actions: []roles.RoleAction{
+							{Base: "http", Path: "!/api/workflow", Method: "*"},
+						},
+					},
+				},
+			},
+			path:       "/api/workflow",
+			method:     "POST",
+			wantAccess: true, // Semantic action matched first
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := server.hasAccess(tt.role, tt.path, tt.method)
-			if got != tt.wantAccess {
-				t.Errorf("hasAccess() = %v, want %v", got, tt.wantAccess)
+			result := roles.CheckPolicyAccess(tt.role, tt.path, tt.method)
+			if result.Allowed != tt.wantAccess {
+				t.Errorf("CheckPolicyAccess() = %v, want %v (actionType: %s, matched: %s)",
+					result.Allowed, tt.wantAccess, result.ActionType, result.MatchedAction)
 			}
 		})
 	}
 }
 
 func TestDefaultRoleAccess(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, nil, logger)
-
 	// Simulate the osmo-default role permissions
 	defaultRole := &roles.Role{
 		Name: "osmo-default",
@@ -395,18 +493,15 @@ func TestDefaultRoleAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := server.hasAccess(defaultRole, tt.path, tt.method)
-			if got != tt.wantAccess {
-				t.Errorf("hasAccess() = %v, want %v for path %s", got, tt.wantAccess, tt.path)
+			result := roles.CheckPolicyAccess(defaultRole, tt.path, tt.method)
+			if result.Allowed != tt.wantAccess {
+				t.Errorf("CheckPolicyAccess() = %v, want %v for path %s", result.Allowed, tt.wantAccess, tt.path)
 			}
 		})
 	}
 }
 
 func TestAdminRoleAccess(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	server := NewAuthzServer(nil, nil, nil, logger)
-
 	// Simulate the osmo-admin role permissions
 	adminRole := &roles.Role{
 		Name: "osmo-admin",
@@ -468,9 +563,105 @@ func TestAdminRoleAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := server.hasAccess(adminRole, tt.path, tt.method)
-			if got != tt.wantAccess {
-				t.Errorf("hasAccess() = %v, want %v for path %s", got, tt.wantAccess, tt.path)
+			result := roles.CheckPolicyAccess(adminRole, tt.path, tt.method)
+			if result.Allowed != tt.wantAccess {
+				t.Errorf("CheckPolicyAccess() = %v, want %v for path %s", result.Allowed, tt.wantAccess, tt.path)
+			}
+		})
+	}
+}
+
+func TestCheckRolesAccess(t *testing.T) {
+	// Test checking access across multiple roles
+	defaultRole := &roles.Role{
+		Name: "osmo-default",
+		Policies: []roles.RolePolicy{
+			{
+				Actions: []roles.RoleAction{
+					{Base: "http", Path: "/health", Method: "*"},
+				},
+			},
+		},
+	}
+
+	userRole := &roles.Role{
+		Name: "osmo-user",
+		Policies: []roles.RolePolicy{
+			{
+				Actions: []roles.RoleAction{
+					{Action: "workflow:Read"},
+					{Action: "workflow:Create"},
+				},
+				Resources: []string{"*"},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		roles      []*roles.Role
+		path       string
+		method     string
+		wantAccess bool
+		wantRole   string
+	}{
+		{
+			name:       "default role grants health access",
+			roles:      []*roles.Role{defaultRole},
+			path:       "/health",
+			method:     "GET",
+			wantAccess: true,
+			wantRole:   "osmo-default",
+		},
+		{
+			name:       "user role grants workflow read via semantic action",
+			roles:      []*roles.Role{userRole},
+			path:       "/api/workflow/abc123",
+			method:     "GET",
+			wantAccess: true,
+			wantRole:   "osmo-user",
+		},
+		{
+			name:       "user role grants workflow create via semantic action",
+			roles:      []*roles.Role{userRole},
+			path:       "/api/workflow",
+			method:     "POST",
+			wantAccess: true,
+			wantRole:   "osmo-user",
+		},
+		{
+			name:       "combined roles - first matches",
+			roles:      []*roles.Role{defaultRole, userRole},
+			path:       "/health",
+			method:     "GET",
+			wantAccess: true,
+			wantRole:   "osmo-default",
+		},
+		{
+			name:       "combined roles - second matches",
+			roles:      []*roles.Role{defaultRole, userRole},
+			path:       "/api/workflow",
+			method:     "POST",
+			wantAccess: true,
+			wantRole:   "osmo-user",
+		},
+		{
+			name:       "no matching role",
+			roles:      []*roles.Role{defaultRole},
+			path:       "/api/workflow",
+			method:     "POST",
+			wantAccess: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := roles.CheckRolesAccess(tt.roles, tt.path, tt.method)
+			if result.Allowed != tt.wantAccess {
+				t.Errorf("CheckRolesAccess() = %v, want %v", result.Allowed, tt.wantAccess)
+			}
+			if tt.wantAccess && result.RoleName != tt.wantRole {
+				t.Errorf("CheckRolesAccess() role = %q, want %q", result.RoleName, tt.wantRole)
 			}
 		})
 	}

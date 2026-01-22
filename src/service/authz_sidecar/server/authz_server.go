@@ -21,7 +21,6 @@ package server
 import (
 	"context"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
 	envoy_api_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -159,135 +158,60 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 // checkAccess verifies if the given roles have access to the path and method
 func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, roleNames []string) (bool, error) {
 	// Try cache first
-	roles, found := s.roleCache.Get(roleNames)
+	fetchedRoles, found := s.roleCache.Get(roleNames)
 	if !found {
 		// Query PostgreSQL
 		var err error
-		roles, err = s.roleFetcher(ctx, roleNames)
+		fetchedRoles, err = s.roleFetcher(ctx, roleNames)
 		if err != nil {
 			return false, err
 		}
 
 		// Update cache
-		s.roleCache.Set(roleNames, roles)
+		s.roleCache.Set(roleNames, fetchedRoles)
 	}
 
-	// Check each role's policies
-	for _, role := range roles {
-		if s.hasAccess(role, path, method) {
-			s.logger.Debug("access granted by role",
-				slog.String("role", role.Name),
+	// Use the unified policy access check from the roles package
+	// This handles both semantic actions and legacy path-based actions
+	result := roles.CheckRolesAccess(fetchedRoles, path, method)
+
+	// Log the result based on action type
+	s.logAccessResult(result, path, method)
+
+	return result.Allowed, nil
+}
+
+// logAccessResult logs the result of an access check with appropriate details
+func (s *AuthzServer) logAccessResult(result roles.AccessResult, path, method string) {
+	switch result.ActionType {
+	case roles.ActionTypeSemantic:
+		if result.Allowed {
+			s.logger.Debug("access granted by semantic action",
+				slog.String("role", result.RoleName),
+				slog.String("action", result.MatchedAction),
+				slog.String("resource", result.MatchedResource),
 				slog.String("path", path),
 				slog.String("method", method),
 			)
-			return true, nil
 		}
+	case roles.ActionTypeLegacy:
+		if result.IsDeny {
+			s.logger.Debug("access denied by legacy pattern",
+				slog.String("role", result.RoleName),
+				slog.String("deny_pattern", result.MatchedAction),
+				slog.String("path", path),
+			)
+		} else if result.Allowed {
+			s.logger.Debug("access granted by legacy pattern",
+				slog.String("role", result.RoleName),
+				slog.String("allow_pattern", result.MatchedAction),
+				slog.String("path", path),
+				slog.String("method", method),
+			)
+		}
+	case roles.ActionTypeNone:
+		// No match, nothing to log at debug level
 	}
-
-	return false, nil
-}
-
-// hasAccess checks if a role has access to the given path and method
-// This implements the same logic as Python's Role.has_access()
-func (s *AuthzServer) hasAccess(role *roles.Role, path, method string) bool {
-	allowed := false
-
-	for _, policy := range role.Policies {
-		for _, action := range policy.Actions {
-			// Check method match
-			if !s.matchMethod(action.Method, method) {
-				continue
-			}
-
-			// Check path match
-			if strings.HasPrefix(action.Path, "!") {
-				// Deny pattern - if matches, deny access
-				denyPath := action.Path[1:]
-				if s.matchPathPattern(denyPath, path) {
-					allowed = false
-					s.logger.Debug("deny pattern matched",
-						slog.String("role", role.Name),
-						slog.String("deny_pattern", denyPath),
-						slog.String("path", path),
-					)
-					break
-				}
-			} else {
-				// Allow pattern
-				if s.matchPathPattern(action.Path, path) {
-					allowed = true
-					s.logger.Debug("allow pattern matched",
-						slog.String("role", role.Name),
-						slog.String("allow_pattern", action.Path),
-						slog.String("path", path),
-					)
-				}
-			}
-		}
-
-		if allowed {
-			return true
-		}
-	}
-
-	return allowed
-}
-
-// matchMethod checks if the method pattern matches the request method
-// Supports wildcard "*" and case-insensitive matching
-func (s *AuthzServer) matchMethod(pattern, method string) bool {
-	if pattern == "*" {
-		return true
-	}
-	return strings.EqualFold(pattern, method)
-}
-
-// matchPathPattern uses glob pattern matching for path validation
-// This mimics Python's fnmatch behavior
-func (s *AuthzServer) matchPathPattern(pattern, path string) bool {
-	// Special case: single * should match everything (like Python fnmatch)
-	if pattern == "*" {
-		return true
-	}
-
-	// Convert glob pattern to regex-like matching
-	// Replace * with .* to match across path separators
-	// This mimics Python's fnmatch behavior
-	matched, err := filepath.Match(pattern, path)
-	if err != nil {
-		s.logger.Warn("invalid path pattern",
-			slog.String("pattern", pattern),
-			slog.String("error", err.Error()),
-		)
-		return false
-	}
-
-	// If filepath.Match fails, try simple string matching with * as wildcard
-	if !matched && strings.Contains(pattern, "*") {
-		// Convert glob pattern to simple prefix/suffix matching
-		if strings.HasSuffix(pattern, "/*") {
-			prefix := strings.TrimSuffix(pattern, "/*")
-			return strings.HasPrefix(path, prefix+"/") || path == prefix
-		}
-		if strings.HasPrefix(pattern, "*/") {
-			suffix := strings.TrimPrefix(pattern, "*/")
-			return strings.HasSuffix(path, "/"+suffix)
-		}
-		// For patterns like /api/*/task, check if it matches
-		parts := strings.Split(pattern, "/")
-		pathParts := strings.Split(path, "/")
-		if len(parts) != len(pathParts) {
-			return false
-		}
-		for i := range parts {
-			if parts[i] != "*" && parts[i] != pathParts[i] {
-				return false
-			}
-		}
-		return true
-	}
-
-	return matched
 }
 
 // allowResponse creates a successful authorization response
