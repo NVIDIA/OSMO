@@ -50,11 +50,10 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, startTransition } from "react";
+import { useState, useEffect, useMemo, startTransition, useCallback, useEffectEvent } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
-import { useEventCallback } from "usehooks-ts";
 import { VIEWPORT, type LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
 import { transformGroups as defaultTransformGroups } from "../lib/workflow-layout";
@@ -204,7 +203,7 @@ export function useDAGState({
   });
 
   // Callbacks for expansion state - stable callbacks for memoized children
-  const handleToggleExpand = useEventCallback((groupName: string) => {
+  const handleToggleExpand = useCallback((groupName: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupName)) {
@@ -214,25 +213,31 @@ export function useDAGState({
       }
       return next;
     });
-  });
+  }, []);
 
-  const handleExpandAll = useEventCallback(() => {
+  const handleExpandAll = useCallback(() => {
     const expandableNames = groupsWithLayout.filter((g) => (g.tasks || []).length > 1).map((g) => g.name);
     setExpandedGroups(new Set(expandableNames));
-  });
+  }, [groupsWithLayout]);
 
-  const handleCollapseAll = useEventCallback(() => {
+  const handleCollapseAll = useCallback(() => {
     setExpandedGroups(new Set());
-  });
+  }, []);
 
   // Selection handlers - delegate to external navigation callbacks
-  const handleSelectGroup = useEventCallback((group: GroupWithLayout) => {
-    onSelectGroup?.(group);
-  });
+  const handleSelectGroup = useCallback(
+    (group: GroupWithLayout) => {
+      onSelectGroup?.(group);
+    },
+    [onSelectGroup],
+  );
 
-  const handleSelectTask = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
-    onSelectTask?.(task, group);
-  });
+  const handleSelectTask = useCallback(
+    (task: TaskQueryResponse, group: GroupWithLayout) => {
+      onSelectTask?.(task, group);
+    },
+    [onSelectTask],
+  );
 
   // ReactFlow state - typed for our node data
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
@@ -240,6 +245,9 @@ export function useDAGState({
 
   // Calculate layout when relevant state changes (using injectable calculator)
   // Uses startTransition for non-blocking updates during layout calculation
+  const setNodesEvent = useEffectEvent((nodes: Node<GroupNodeData>[]) => setNodes(nodes));
+  const setEdgesEvent = useEffectEvent((edges: Edge[]) => setEdges(edges));
+
   useEffect(() => {
     let cancelled = false;
 
@@ -254,8 +262,8 @@ export function useDAGState({
           // hooks like useViewportBoundaries see 'isLayouting === false' only
           // when the new nodes are actually committed to state.
           startTransition(() => {
-            setNodes(result.nodes);
-            setEdges(result.edges);
+            setNodesEvent(result.nodes);
+            setEdgesEvent(result.edges);
             setIsLayouting(false);
           });
         }
@@ -273,7 +281,7 @@ export function useDAGState({
     return () => {
       cancelled = true;
     };
-  }, [groupsWithLayout, expandedGroups, layoutDirection, layoutCalculator, setNodes, setEdges]);
+  }, [groupsWithLayout, expandedGroups, layoutDirection, layoutCalculator]);
 
   // Calculate node bounds and fit-all zoom
   // Uses Float64Array for optimal numeric performance (SIMD-friendly)
