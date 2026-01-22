@@ -60,7 +60,7 @@ import {
 // DAG utilities
 import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries } from "@/components/dag";
 
-import { getMiniMapNodeColor, getMiniMapStrokeColor } from "./lib/status";
+import { useMiniMapColors } from "./lib/status";
 
 // Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
@@ -99,6 +99,9 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
   const [isPanning, setIsPanning] = useState(false);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
+
+  // Theme-aware minimap color functions
+  const { getMiniMapNodeColor, getMiniMapStrokeColor } = useMiniMapColors();
 
   // Sidebar state for viewport re-centering
   const { state: sidebarState } = useSidebar();
@@ -326,13 +329,17 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
   // See: https://reactflow.dev/learn/advanced-use/performance
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
-  const minimapStyle = useMemo(
-    () => ({
+
+  // Theme-aware minimap styles - updates when theme changes
+  const minimapStyle = useMemo(() => {
+    const isDark = resolvedTheme !== "light";
+    return {
       width: MINIMAP.WIDTH,
       height: MINIMAP.HEIGHT,
-    }),
-    [],
-  );
+      backgroundColor: isDark ? "oklch(0.24 0.018 250)" : "oklch(0.97 0.008 80)",
+      borderColor: isDark ? "oklch(0.32 0.02 250)" : "oklch(0.88 0.01 80)",
+    };
+  }, [resolvedTheme]);
 
   // Handlers - stable callbacks for memoized children
   const handleToggleMinimap = useEventCallback(() => {
@@ -503,6 +510,11 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
                           zoomable
                           position="top-left"
                           style={minimapStyle}
+                          maskColor={
+                            resolvedTheme !== "light"
+                              ? "oklch(0.08 0.015 250 / 0.55)"
+                              : "oklch(0.45 0.02 250 / 0.15)"
+                          }
                           nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
                           nodeComponent={MiniMapNode}
                           nodeColor={getMiniMapNodeColor}
