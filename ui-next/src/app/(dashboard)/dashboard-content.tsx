@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, startTransition } from "react";
 import Link from "next/link";
 import { usePage } from "@/components/chrome";
 import { usePools, useVersion } from "@/lib/api/adapter";
@@ -51,12 +51,16 @@ export function DashboardContent() {
   }, [pools]);
 
   // Capture mount time once for stable "last 24h" calculation
-  // Set client-side only to prevent hydration mismatch (server and client would have different timestamps)
-  // Use lazy initializer to avoid calling setState in useEffect
-  const [mountTime] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-    return Date.now();
-  });
+  // Initialize as null for SSR, then set on client after hydration
+  // This prevents hydration mismatch while still providing time-filtered stats after mount
+  const [mountTime, setMountTime] = useState<number | null>(null);
+
+  // Set mount time on client only (after hydration)
+  useEffect(() => {
+    startTransition(() => {
+      setMountTime(Date.now());
+    });
+  }, []);
 
   // Compute stats from workflows (last 24h)
   const workflowStats = useMemo(() => {

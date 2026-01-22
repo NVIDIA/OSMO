@@ -35,7 +35,10 @@ function getSnapshot(): number {
 }
 
 function getServerSnapshot(): number {
-  return Date.now();
+  // Return the initial tickNow value for SSR
+  // This ensures consistent output between server and client during hydration
+  // The value will update to actual timestamps after hydration via the tick() interval
+  return tickNow;
 }
 
 function tick(): void {

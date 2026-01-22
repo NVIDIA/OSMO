@@ -22,6 +22,7 @@ import { formatDuration } from "./workflow-types";
 import { getStatusCategory, STATUS_STYLES, type StatusCategory } from "./status";
 import type { TaskWithDuration } from "./workflow-types";
 import { TASK_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type TaskColumnId } from "./task-columns";
+import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
@@ -34,18 +35,6 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
 function getMinSize(id: TaskColumnId): number {
   const col = TASK_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
-}
-
-function formatTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
-  const date = new Date(dateStr);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "p" : "a";
-  const hour12 = hours % 12 || 12;
-  return `${month}/${day} ${hour12}:${minutes}${ampm}`;
 }
 
 export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
@@ -151,11 +140,18 @@ export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
       header: COLUMN_LABELS.startTime,
       minSize: getMinSize("startTime"),
       enableSorting: true,
-      cell: ({ row }) => (
-        <span className="whitespace-nowrap text-gray-500 tabular-nums dark:text-zinc-400">
-          {formatTime(row.original.start_time)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const startTime = row.original.start_time;
+        if (!startTime) return <span className="text-gray-400 dark:text-zinc-500">—</span>;
+        return (
+          <span
+            className="whitespace-nowrap text-gray-500 tabular-nums dark:text-zinc-400"
+            title={formatDateTimeFull(startTime)}
+          >
+            {formatDateTimeSuccinct(startTime)}
+          </span>
+        );
+      },
     },
     {
       id: "endTime",
@@ -163,11 +159,18 @@ export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
       header: COLUMN_LABELS.endTime,
       minSize: getMinSize("endTime"),
       enableSorting: true,
-      cell: ({ row }) => (
-        <span className="whitespace-nowrap text-gray-500 tabular-nums dark:text-zinc-400">
-          {formatTime(row.original.end_time)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const endTime = row.original.end_time;
+        if (!endTime) return <span className="text-gray-400 dark:text-zinc-500">—</span>;
+        return (
+          <span
+            className="whitespace-nowrap text-gray-500 tabular-nums dark:text-zinc-400"
+            title={formatDateTimeFull(endTime)}
+          >
+            {formatDateTimeSuccinct(endTime)}
+          </span>
+        );
+      },
     },
     {
       id: "retry",
