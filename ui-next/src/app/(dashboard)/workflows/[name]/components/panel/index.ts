@@ -32,23 +32,23 @@ export { DependencyPills } from "./shared/DependencyPills";
 // =============================================================================
 // Workflow Components
 // =============================================================================
+// NOTE: WorkflowDetails is NOT exported - dynamically imported in DetailsPanel
 
-export { WorkflowDetails } from "./workflow/WorkflowDetails";
 export type { WorkflowDetailsProps } from "./workflow/WorkflowDetails";
 export { WorkflowTimeline } from "./workflow/WorkflowTimeline";
 
 // =============================================================================
 // Group Components
 // =============================================================================
+// NOTE: GroupDetails is NOT exported - dynamically imported in DetailsPanel
 
-export { GroupDetails } from "./group/GroupDetails";
 export { GroupTimeline } from "./group/GroupTimeline";
 
 // =============================================================================
 // Task Components
 // =============================================================================
+// NOTE: TaskDetails is NOT exported - dynamically imported in DetailsPanel
 
-export { TaskDetails } from "./task/TaskDetails";
 export { TaskTimeline } from "./task/TaskTimeline";
 
 // =============================================================================
