@@ -35,17 +35,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 // See: README.md "Local Development" section for full documentation.
 // =============================================================================
 
-// Backend API URL for production rewrites
-// Rewrites proxy all /api/* requests to the configured backend
-const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
-const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
 
-// Default: disable SSL for localhost, enable for everything else
-// This matches the logic in src/lib/api/server/config.ts
-const isLocalhost = apiHostname.startsWith("localhost") || apiHostname.startsWith("127.0.0.1");
-const useSSL = sslEnabled && !isLocalhost;
-const scheme = useSSL ? "https" : "http";
-const API_URL = `${scheme}://${apiHostname}`;
 
 // Base path for serving UI under a subpath (e.g., /v2)
 // This allows ui-next to run alongside legacy UI on the same hostname
@@ -181,28 +171,35 @@ const nextConfig: NextConfig = {
   // Proxy & CORS Configuration
   // =============================================================================
 
-  // Proxy API requests to the backend (avoids CORS issues)
-  // In mock mode: Keep rewrites enabled! MSW node server intercepts the proxied requests.
-  // This means ALL API calls (SSR + client) go through the same MSW node handlers.
+  // API Proxying via Route Handler (app/api/[...path]/route.ts)
   //
-  // EXCEPTIONS:
-  // - /api/health: Next.js route handler for Kubernetes health checks (must not be proxied)
-  //   Route handlers should take precedence over beforeFiles rewrites, but to be safe,
-  //   we use afterFiles instead of beforeFiles so route handlers are checked first
-  // - /api/workflow/*/logs: Route Handler for proper streaming
-  //   Route handlers take precedence over rewrites
-  async rewrites() {
-    return {
-      // Use afterFiles instead of beforeFiles so route handlers (like /api/health) are checked first
-      // This ensures /api/health route handler works correctly
-      afterFiles: [
-        {
-          source: "/api/:path*",
-          destination: `${API_URL}/api/:path*`,
-        },
-      ],
-    };
-  },
+  // We use a catch-all Route Handler instead of rewrites() for API proxying.
+  // This allows the backend hostname to be configured at RUNTIME via environment variables,
+  // making the Docker image portable across environments (critical for open source).
+  //
+  // Route Handler Precedence:
+  // - /api/health - Specific route (health check)
+  // - /api/workflow/[name]/logs - Specific route (log streaming)
+  // - /api/[...path] - Catch-all proxy to backend
+  //
+  // Benefits:
+  // - ✅ Backend hostname configurable at runtime (not build time)
+  // - ✅ Single Docker image for all environments
+  // - ✅ Perfect for open source deployment
+  // - ✅ Environment variables read when request is processed
+  //
+  // Note: Rewrites would require baking backend URL at build time, requiring
+  // different images per environment. Route Handler approach is superior.
+  //
+  // Previous approach (REMOVED):
+  // async rewrites() {
+  //   return {
+  //     afterFiles: [
+  //       { source: "/api/:path*", destination: `${API_URL}/api/:path*` },
+  //     ],
+  //   };
+  // }
+  //
 
   // Handle CORS for preflight requests during development
   async headers() {
