@@ -20,10 +20,7 @@ go_library(
     name = "postgres",
     srcs = [
         "postgres_client.go",
-<<<<<<< HEAD
         "roles.go",
-=======
->>>>>>> origin/main
     ],
     importpath = "go.corp.nvidia.com/osmo/utils/postgres",
     visibility = ["//visibility:public"],
@@ -31,10 +28,8 @@ go_library(
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
-<<<<<<< HEAD
 
 go_test(
-    name = "postgres_test",
     srcs = [
         "postgres_client_test.go",
     ],
@@ -72,5 +67,3 @@ go_test(
     local = True,  # Run locally without sandboxing to access external database
 )
 
-=======
->>>>>>> origin/main
