@@ -23,6 +23,7 @@ import { Tag, Colors, TagSizes } from "./Tag";
 import { TextInput } from "./TextInput";
 
 interface RoleEditorProps {
+  required?: boolean;
   roles: string[];
   setRoles: (roles: string[]) => void;
   label: string;
@@ -31,7 +32,15 @@ interface RoleEditorProps {
   isError: boolean;
 }
 
-export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, entityLabel, message, isError }) => {
+export const RoleEditor: React.FC<RoleEditorProps> = ({
+  required = false,
+  roles,
+  setRoles,
+  label,
+  entityLabel,
+  message,
+  isError,
+}) => {
   const [newRole, setNewRole] = useState(""); // New role being added
   const [lastActionText, setLastActionText] = useState<string>("");
   const [isAdding, setIsAdding] = useState(false);
@@ -83,7 +92,7 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
           className="font-normal text-xs block"
           id={label}
         >
-          {label}
+          {label} {required && <span className="text-red-600">*</span>}
         </div>
         <div className="flex flex-wrap gap-1">
           <div

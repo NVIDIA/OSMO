@@ -436,6 +436,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
               control={control}
               render={({ field }) => (
                 <RoleEditor
+                  required
                   label="User Roles"
                   entityLabel="Role"
                   roles={field.value
@@ -453,6 +454,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
               control={control}
               render={({ field }) => (
                 <RoleEditor
+                  required
                   label="Control Roles"
                   entityLabel="Role"
                   roles={field.value
