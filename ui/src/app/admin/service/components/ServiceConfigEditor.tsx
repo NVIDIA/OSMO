@@ -62,7 +62,10 @@ export const serviceConfigSchema = yup.object({
   agent_queue_size: agentQueueSizeSchema.defined(),
   max_token_duration: durationStringSchema.required("Max Token Duration is required").defined(),
   latest_version: versionStringSchema.required("CLI Latest Version is required").defined(),
-  min_supported_version: versionStringSchema.required("CLI Min Supported Version is required").defined(),
+  min_supported_version: versionStringSchema
+    .transform((value) => (value === "" ? null : value))
+    .nullable()
+    .defined(),
   issuer: yup.string().trim().required("Issuer is required").defined(),
   audience: yup.string().trim().required("Audience is required").defined(),
   user_roles: yup
@@ -179,7 +182,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
       agent_queue_size: parseInt(values.agent_queue_size, 10),
       cli_config: {
         latest_version: values.latest_version,
-        min_supported_version: values.min_supported_version,
+        min_supported_version: values.min_supported_version ?? null,
       },
       service_auth: {
         ...serviceConfig.service_auth,
@@ -377,10 +380,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
                 <TextInput
                   id="min_supported_version"
                   label="CLI Min Supported Version"
-                  value={field.value}
+                  value={field.value ?? ""}
                   onChange={field.onChange}
                   ref={field.ref}
-                  required
                   message={errors.min_supported_version?.message}
                   isError={Boolean(errors.min_supported_version)}
                   leaveSpaceForMessage={true}
