@@ -111,7 +111,7 @@ export function ProgressBar({
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
-      value={max > 0 ? value : 0}
+      value={max > 0 ? Math.max(0, Math.min(value, max)) : 0}
       max={safeMax}
       className={cn(
         "relative w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",

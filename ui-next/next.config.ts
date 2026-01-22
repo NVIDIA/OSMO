@@ -39,7 +39,12 @@ const withBundleAnalyzer = bundleAnalyzer({
 // Rewrites proxy all /api/* requests to the configured backend
 const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
 const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-const scheme = sslEnabled ? "https" : "http";
+
+// Default: disable SSL for localhost, enable for everything else
+// This matches the logic in src/lib/api/server/config.ts
+const isLocalhost = apiHostname.startsWith("localhost") || apiHostname.startsWith("127.0.0.1");
+const useSSL = sslEnabled && !isLocalhost;
+const scheme = useSSL ? "https" : "http";
 const API_URL = `${scheme}://${apiHostname}`;
 
 // Base path for serving UI under a subpath (e.g., /v2)
