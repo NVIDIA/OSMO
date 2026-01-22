@@ -1,37 +1,19 @@
 /**
- * Authentication Module
+ * Authentication Module (Envoy-Managed)
  *
- * ┌─────────────────────────────────────────────────────────────────┐
- * │                      auth-provider.tsx                          │
- * │              AuthProvider, useAuth, public API                  │
- * └─────────────────────────────────────────────────────────────────┘
- *                              ↓
- * ┌─────────────────────────────────────────────────────────────────┐
- * │                      auth-backend.ts                            │
- * │         Backend abstraction (implements AuthBackend)            │
- * └─────────────────────────────────────────────────────────────────┘
- *                              ↓
- * ┌───────────────────────┬────────────────────────────────────────┐
- * │     token-utils.ts    │           token-storage.ts             │
- * │   JWT parsing/validation │     Token persistence              │
- * └───────────────────────┴────────────────────────────────────────┘
- *                              ↓
- * ┌─────────────────────────────────────────────────────────────────┐
- * │                      user-context.tsx                           │
- * │         User info derived from auth (UserProvider, useUser)     │
- * └─────────────────────────────────────────────────────────────────┘
+ * In production, Envoy sidecar handles all authentication.
+ * This module provides minimal client-side utilities:
+ * - User context (fetched from API)
+ * - Role checking
+ * - Server-side JWT helpers (for API routes)
  */
 
-// Provider and hooks
-export { AuthProvider, useAuth, getAuthToken, refreshToken } from "./auth-provider";
-
-// User context (derived from auth)
+// User context
 export { UserProvider, useUser, useIsAdmin, type User } from "./user-context";
 
-// Backend abstraction
-export { getAuthBackend, setAuthBackend } from "./auth-backend";
-export type { AuthBackend, AuthConfig, TokenRefreshResult } from "./auth-backend";
+// Role checking
+export { hasAdminRole } from "./roles";
 
-// Token utilities (for use by fetcher, etc.)
-export { parseJwtClaims, isTokenExpired, isTokenExpiringSoon } from "./token-utils";
-export type { AuthClaims } from "./token-utils";
+// Server-side JWT utilities (for API routes only)
+export { getJwtClaims, getUserRoles, extractToken, hasRole } from "./jwt-helper";
+export type { JwtClaims } from "./jwt-helper";

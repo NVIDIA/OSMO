@@ -69,7 +69,7 @@ export const handlers = [
 
   // List workflows (paginated)
   // Returns SrcServiceCoreWorkflowObjectsListResponse format
-  http.get("/api/workflow", async ({ request }) => {
+  http.get("*/api/workflow", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -587,7 +587,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
   // Task events
   // SINGLE SOURCE OF TRUTH: Get task data from workflow
-  http.get("/api/workflow/:name/task/:taskName/events", async ({ params }) => {
+  http.get("*/api/workflow/:name/task/:taskName/events", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
@@ -662,6 +662,16 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
+  // User endpoint - return mock user for local dev
+  http.get("*/api/me", () => {
+    return HttpResponse.json({
+      id: "dev-user-123",
+      email: "dev@nvidia.com",
+      name: "Dev User",
+      roles: ["admin", "user"],
+    });
+  }),
+
   // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:
   // - GET /api/workflow/:name/exec/task/:taskName/session/:sessionId
   // - GET /api/workflow/:name/exec/sessions
@@ -674,7 +684,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // ==========================================================================
 
   // Create port forward
-  http.post("/api/workflow/:name/webserver/:taskName", async ({ params, request }) => {
+  http.post("*/api/workflow/:name/webserver/:taskName", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
@@ -727,7 +737,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
   // List pools - returns pool names as plain text (matches backend behavior)
   // The UI uses /api/pool_quota instead for detailed pool info
-  http.get("/api/pool", async ({ request }) => {
+  http.get("*/api/pool", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -894,7 +904,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Only /api/profile/settings exists in the backend
 
   // Get profile settings
-  http.get("/api/profile/settings", async () => {
+  http.get("*/api/profile/settings", async () => {
     await delay(MOCK_DELAY);
 
     const settings = profileGenerator.generateSettings("current.user");
@@ -914,17 +924,28 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // ==========================================================================
   // Auth
   // ==========================================================================
+  //
+  // In production, authentication is handled by Envoy sidecar:
+  // - Login: Envoy redirects to OAuth provider (Keycloak)
+  // - Callback: Envoy handles at /v2/getAToken
+  // - Token refresh: Envoy manages automatically
+  // - Logout: Envoy handles at /v2/logout
+  // - User info: Envoy injects x-osmo-user header and forwards Bearer token
+  //
+  // In mock mode (local dev), auth is disabled for simplicity.
+  // Custom OAuth routes (/auth/callback, /auth/initiate, /auth/refresh_token)
+  // have been removed - they are not needed with Envoy.
+  //
+  // See: src/lib/auth/README.md for details on Envoy auth integration
+  // ==========================================================================
 
   // Backend auth endpoint - returns login configuration
-  // Called directly by getLoginInfo() in lib/auth/login-info.ts
-  // Uses wildcard to match both relative and absolute URLs (for server-side requests)
-  // Wildcard pattern (*) ensures basePath-agnostic matching (works with /v2, /v3, etc.)
+  // Called by getLoginInfo() in lib/auth/login-info.ts
   http.get("*/api/auth/login", async () => {
     await delay(MOCK_DELAY);
 
-    // Return auth disabled for mock mode
     return HttpResponse.json({
-      auth_enabled: false,
+      auth_enabled: false, // Disabled in mock mode
       device_endpoint: "",
       device_client_id: "",
       browser_endpoint: "",
@@ -934,42 +955,19 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  // Next.js API routes for auth (these intercept client requests before they reach the server)
-  // Uses wildcard to match both relative and absolute URLs (for server-side proxy requests)
-  // Wildcard pattern (*) ensures basePath-agnostic matching (works with /v2, /v3, etc.)
-  // Matches: /auth/login_info, /v2/auth/login_info, https://example.com/v2/auth/login_info
+  // Next.js auth config endpoint
+  // Used by AuthBackend.getConfig() to check if auth is enabled
   http.get("*/auth/login_info", async () => {
     await delay(MOCK_DELAY);
 
     return HttpResponse.json({
-      auth_enabled: false,
+      auth_enabled: false, // Disabled in mock mode
       device_endpoint: "",
       device_client_id: "",
       browser_endpoint: "",
       browser_client_id: "mock-client",
       token_endpoint: "",
       logout_endpoint: "",
-    });
-  }),
-
-  // Uses wildcard to match both relative and absolute URLs
-  http.get("*/auth/refresh_token", async () => {
-    await delay(MOCK_DELAY);
-
-    return HttpResponse.json({
-      isFailure: false,
-      id_token: "mock-id-token-refreshed",
-      refresh_token: "mock-refresh-token-refreshed",
-    });
-  }),
-
-  // Uses wildcard to match both relative and absolute URLs
-  // Wildcard pattern (*) ensures basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/auth/logout", async () => {
-    await delay(MOCK_DELAY);
-
-    return HttpResponse.json({
-      redirectTo: null,
     });
   }),
 
