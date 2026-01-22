@@ -148,13 +148,11 @@ export function isSslEnabled(): boolean {
 // =============================================================================
 
 /**
- * Auth client secret (server-side only).
+ * Auth is handled by Envoy sidecar in production.
+ * Envoy injects the x-osmo-user header and forwards the Bearer token.
  *
- * Configure AUTH_CLIENT_SECRET in .env.local
+ * To access user info and roles, decode the JWT from the Authorization header.
  */
-export function getAuthClientSecret(): string {
-  return process.env.AUTH_CLIENT_SECRET || "";
-}
 
 // =============================================================================
 // Timing Constants

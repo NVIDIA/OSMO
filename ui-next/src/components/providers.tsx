@@ -25,7 +25,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 import { PageProvider } from "@/components/chrome/page-context";
 import { ConfigProvider, ServiceProvider } from "@/contexts";
-import { AuthProvider, UserProvider } from "@/lib/auth";
+import { UserProvider } from "@/lib/auth";
 import { MockProvider } from "@/mocks/MockProvider";
 import { isApiError } from "@/lib/api/fetcher";
 import { QUERY_STALE_TIME_MS, QUERY_MAX_RETRY_DELAY_MS } from "@/lib/config";
@@ -142,11 +142,9 @@ export function Providers({ children, dehydratedState }: ProvidersProps) {
                   enableSystem
                   disableTransitionOnChange
                 >
-                  <AuthProvider>
-                    <UserProvider>
-                      <PageProvider>{children}</PageProvider>
-                    </UserProvider>
-                  </AuthProvider>
+                  <UserProvider>
+                    <PageProvider>{children}</PageProvider>
+                  </UserProvider>
                 </ThemeProvider>
               </HydrationBoundary>
             </QueryClientProvider>

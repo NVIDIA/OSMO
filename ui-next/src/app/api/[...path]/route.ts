@@ -25,6 +25,11 @@
  * - Single Docker image works for all environments
  * - Perfect for open source - users set hostname via env var
  *
+ * Authentication Flow:
+ * - In production: Envoy injects Authorization and x-osmo-user headers
+ * - In local dev: Forwards any auth headers from client
+ * - This proxy simply forwards headers to backend
+ *
  * This catches all /api/* routes EXCEPT:
  * - /api/health - Handled by app/api/health/route.ts
  * - /api/workflow/[name]/logs - Handled by app/api/workflow/[name]/logs/route.ts
@@ -65,7 +70,16 @@ async function proxyRequest(request: NextRequest, method: string) {
   const headers = new Headers();
 
   // Copy important headers
-  const headersToForward = ["content-type", "authorization", "x-osmo-auth", "x-osmo-user", "x-osmo-roles", "cookie"];
+  // In production: Envoy injects authorization, x-osmo-user, etc.
+  // In local dev: Client may send x-osmo-auth or other headers
+  const headersToForward = [
+    "content-type",
+    "authorization", // Envoy adds this with valid JWT
+    "x-osmo-auth", // Used in local dev
+    "x-osmo-user", // Envoy adds this (username)
+    "x-osmo-roles", // If configured in Envoy
+    "cookie", // Includes Envoy session cookie
+  ];
 
   headersToForward.forEach((header) => {
     const value = request.headers.get(header);
