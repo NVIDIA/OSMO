@@ -30,6 +30,7 @@
 
 import { useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useViewTransition } from "@/hooks";
 import {
   DataTable,
   TableLoadingSkeleton,
@@ -93,6 +94,7 @@ export function WorkflowsDataTable({
   isFetchingNextPage = false,
 }: WorkflowsDataTableProps) {
   const router = useRouter();
+  const { startTransition } = useViewTransition();
 
   // Shared preferences
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -158,9 +160,11 @@ export function WorkflowsDataTable({
   // Handle row click - navigate to workflow detail page
   const handleRowClick = useCallback(
     (workflow: WorkflowListEntry) => {
-      router.push(`/workflows/${encodeURIComponent(workflow.name)}`);
+      startTransition(() => {
+        router.push(`/workflows/${encodeURIComponent(workflow.name)}`);
+      });
     },
-    [router],
+    [router, startTransition],
   );
 
   // Get row href for middle-click support (opens in new tab)
