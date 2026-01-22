@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Card, CardContent } from "@/components/shadcn/card";
 
 /**
  * Dashboard loading skeleton.
@@ -28,7 +27,7 @@ import { Card, CardContent } from "@/components/shadcn/card";
 export default function Loading() {
   return (
     <div
-      className="flex h-full flex-col gap-6 contain-layout"
+      className="flex h-full flex-col gap-6 p-6 contain-layout"
       role="status"
       aria-label="Loading content"
     >
@@ -39,7 +38,7 @@ export default function Loading() {
       </div>
 
       {/* Main content skeleton - fills remaining space */}
-      <Card className="contain-layout-paint min-h-0 flex-1 gap-0 py-0">
+      <div className="contain-layout-paint min-h-0 flex-1 gap-0 py-0 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         {/* Filter bar skeleton */}
         <div className="border-border border-b p-4">
           <div className="flex items-center gap-3">
@@ -50,7 +49,7 @@ export default function Loading() {
         </div>
 
         {/* Table skeleton */}
-        <CardContent className="p-4">
+        <div className="p-4">
           {/* Table header skeleton */}
           <div className="border-border mb-4 flex items-center gap-4 border-b pb-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -77,8 +76,8 @@ export default function Loading() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Screen reader announcement */}
       <span className="sr-only">Content is loading, please wait...</span>
