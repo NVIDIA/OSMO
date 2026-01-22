@@ -10,6 +10,7 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
 export interface PanelTab {
   id: string;
@@ -23,7 +24,6 @@ export interface PanelTabsProps {
   value: string;
   onValueChange: (value: string) => void;
   iconOnly?: boolean;
-  compactBreakpoint?: number;
   className?: string;
 }
 
@@ -114,52 +114,81 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-export function PanelTabs({
-  tabs,
-  value,
-  onValueChange,
-  iconOnly: iconOnlyProp,
-  compactBreakpoint = 280,
-  className,
-}: PanelTabsProps) {
+/**
+ * PanelTabs - Chrome-style tabs with content-driven responsive behavior.
+ *
+ * Automatically switches to icon-only mode when the container is too narrow
+ * to fit the full labels. Uses ResizeObserver to detect label truncation.
+ */
+export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, className }: PanelTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
   const [isCompact, setIsCompact] = useState(false);
+
+  // Store the width where we switched to compact mode
+  const switchWidthRef = useRef<number>(0);
 
   // Inject styles once on mount
   useEffect(() => {
     injectStyles();
   }, []);
 
-  // Auto-detect compact mode based on container width
-  useEffect(() => {
-    if (iconOnlyProp !== undefined) return; // Skip if explicitly controlled
+  // Content-driven compact mode detection
+  useIsomorphicLayoutEffect(() => {
+    if (iconOnlyProp !== undefined) return;
 
     const container = containerRef.current;
-    if (!container) return;
+    const tabList = tabListRef.current;
+    if (!container || !tabList) return;
 
     const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setIsCompact(entry.contentRect.width < compactBreakpoint);
+      const entry = entries[0];
+      if (!entry) return;
+
+      const currentWidth = entry.contentRect.width;
+
+      if (!isCompact) {
+        // Check if any tab label is currently truncating
+        const labels = tabList.querySelectorAll(".tab-label");
+        let hasTruncation = false;
+
+        for (const label of Array.from(labels) as HTMLElement[]) {
+          // If scrollWidth > offsetWidth, the text is being clipped
+          if (label.scrollWidth > label.offsetWidth) {
+            hasTruncation = true;
+            break;
+          }
+        }
+
+        if (hasTruncation) {
+          switchWidthRef.current = currentWidth;
+          setIsCompact(true);
+        }
+      } else {
+        // If we are compact, switch back if we have significantly more space
+        // than when we switched to compact.
+        if (currentWidth > (switchWidthRef.current || 0) + 20) {
+          setIsCompact(false);
+        }
       }
     });
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [iconOnlyProp, compactBreakpoint]);
+  }, [iconOnlyProp, isCompact, tabs]);
+
+  // Reset when tabs change
+  useIsomorphicLayoutEffect(() => {
+    setIsCompact(false);
+    switchWidthRef.current = 0;
+  }, [tabs]);
 
   const iconOnly = iconOnlyProp ?? isCompact;
 
   const handleTabChange = useCallback(
     (tabId: string) => {
-      // Use View Transitions API if available
-      if (
-        typeof document !== "undefined" &&
-        "startViewTransition" in document &&
-        typeof document.startViewTransition === "function"
-      ) {
-        document.startViewTransition(() => {
-          onValueChange(tabId);
-        });
+      if (typeof document !== "undefined" && "startViewTransition" in document) {
+        document.startViewTransition(() => onValueChange(tabId));
       } else {
         onValueChange(tabId);
       }
@@ -167,11 +196,9 @@ export function PanelTabs({
     [onValueChange],
   );
 
-  // Keyboard navigation
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent, currentIndex: number) => {
       let nextIndex: number | null = null;
-
       switch (event.key) {
         case "ArrowLeft":
           nextIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
@@ -188,15 +215,12 @@ export function PanelTabs({
         default:
           return;
       }
-
       event.preventDefault();
       const nextTab = tabs[nextIndex];
       if (nextTab) {
         handleTabChange(nextTab.id);
-        // Focus the new tab
-        const tabList = containerRef.current?.querySelector('[role="tablist"]');
-        const buttons = tabList?.querySelectorAll('button[role="tab"]');
-        (buttons?.[nextIndex] as HTMLButtonElement)?.focus();
+        const buttons = tabListRef.current?.querySelectorAll<HTMLButtonElement>('button[role="tab"]');
+        buttons?.[nextIndex]?.focus();
       }
     },
     [tabs, handleTabChange],
@@ -208,6 +232,7 @@ export function PanelTabs({
       className={cn("panel-tabs relative shrink-0 bg-gray-100 pt-1.5 dark:bg-zinc-800", className)}
     >
       <div
+        ref={tabListRef}
         className="relative flex h-auto w-full gap-0"
         role="tablist"
         aria-label="Panel tabs"
@@ -233,14 +258,24 @@ export function PanelTabs({
               className={cn(
                 "panel-tab relative z-10 flex h-auto flex-1 items-center justify-center gap-1.5 py-[6px] text-sm font-medium transition-colors outline-none",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1",
+                "min-w-0",
                 iconOnly ? "px-2" : "px-4",
                 isActive
                   ? "rounded-t-md bg-white text-gray-900 dark:bg-zinc-900 dark:text-zinc-100"
-                  : "text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300",
+                  : [
+                      "text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300",
+                      "isolation-auto before:absolute before:inset-x-1.5 before:inset-y-1 before:z-[-1] before:rounded-md before:bg-transparent before:transition-colors hover:before:bg-black/5 dark:hover:before:bg-white/5",
+                    ],
+                isActive &&
+                  !isFirst &&
+                  "before:absolute before:bottom-0 before:-left-[6px] before:size-[6px] before:bg-[radial-gradient(circle_at_0%_0%,transparent_6px,white_6px)] dark:before:bg-[radial-gradient(circle_at_0%_0%,transparent_6px,rgb(24,24,27)_6px)]",
+                isActive &&
+                  !isLast &&
+                  "after:absolute after:-right-[6px] after:bottom-0 after:size-[6px] after:bg-[radial-gradient(circle_at_100%_0%,transparent_6px,white_6px)] dark:after:bg-[radial-gradient(circle_at_100%_0%,transparent_6px,rgb(24,24,27)_6px)]",
               )}
             >
-              {tab.icon && <tab.icon className={iconOnly ? "size-4" : "size-3.5"} />}
-              {!iconOnly && <span>{tab.label}</span>}
+              {tab.icon && <tab.icon className={iconOnly ? "size-4 shrink-0" : "size-3.5 shrink-0"} />}
+              {!iconOnly && <span className="tab-label truncate">{tab.label}</span>}
               {tab.statusContent}
             </button>
           );
