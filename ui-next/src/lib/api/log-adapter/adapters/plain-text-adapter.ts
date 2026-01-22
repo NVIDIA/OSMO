@@ -134,12 +134,18 @@ export class PlainTextAdapter implements LogAdapter {
    * Returns entries, histogram, and facets together for efficient caching.
    *
    * @param params - Query parameters
+   * @param signal - Optional AbortSignal for request cancellation
    * @returns Promise resolving to unified log data result
    */
-  async queryAll(params: QueryAllParams): Promise<LogDataResult> {
+  async queryAll(params: QueryAllParams, signal?: AbortSignal): Promise<LogDataResult> {
     // Fetch and parse logs
-    const logText = await this.fetchLogs(params.workflowId, params.groupId, params.taskId);
+    const logText = await this.fetchLogs(params.workflowId, params.groupId, params.taskId, signal);
     const allEntries = parseLogBatch(logText, params.workflowId);
+
+    // If aborted after fetch but before heavy processing, stop here
+    if (signal?.aborted) {
+      throw new Error("Log processing aborted");
+    }
 
     // Build filter params
     const filterParams: FilterParams = {
@@ -184,12 +190,18 @@ export class PlainTextAdapter implements LogAdapter {
    * backward compatibility with existing hooks during migration.
    *
    * @param params - Query parameters
+   * @param signal - Optional AbortSignal for request cancellation
    * @returns Query results with entries and pagination info
    */
-  async query(params: LogQuery): Promise<LogQueryResult> {
+  async query(params: LogQuery, signal?: AbortSignal): Promise<LogQueryResult> {
     // Fetch and parse logs
-    const logText = await this.fetchLogs(params.workflowId);
+    const logText = await this.fetchLogs(params.workflowId, undefined, undefined, signal);
     const allEntries = parseLogBatch(logText, params.workflowId);
+
+    // If aborted after fetch but before heavy processing, stop here
+    if (signal?.aborted) {
+      throw new Error("Log processing aborted");
+    }
 
     // Build filter params
     const filterParams: FilterParams = {
@@ -244,14 +256,21 @@ export class PlainTextAdapter implements LogAdapter {
    *
    * @param params - Query parameters (excluding pagination)
    * @param numBuckets - Number of histogram buckets
+   * @param signal - Optional AbortSignal for request cancellation
    * @returns Histogram data
    */
   async histogram(
     params: Omit<LogQuery, "cursor" | "limit">,
     numBuckets: number = LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS,
+    signal?: AbortSignal,
   ): Promise<HistogramResult> {
-    const logText = await this.fetchLogs(params.workflowId);
+    const logText = await this.fetchLogs(params.workflowId, undefined, undefined, signal);
     const allEntries = parseLogBatch(logText, params.workflowId);
+
+    if (signal?.aborted) {
+      throw new Error("Log processing aborted");
+    }
+
     return computeHistogram(allEntries, numBuckets);
   }
 
@@ -262,11 +281,21 @@ export class PlainTextAdapter implements LogAdapter {
    *
    * @param params - Query parameters (excluding pagination)
    * @param fields - Fields to compute facets for
+   * @param signal - Optional AbortSignal for request cancellation
    * @returns Field facets
    */
-  async facets(params: Omit<LogQuery, "cursor" | "limit">, fields: string[]): Promise<FieldFacet[]> {
-    const logText = await this.fetchLogs(params.workflowId);
+  async facets(
+    params: Omit<LogQuery, "cursor" | "limit">,
+    fields: string[],
+    signal?: AbortSignal,
+  ): Promise<FieldFacet[]> {
+    const logText = await this.fetchLogs(params.workflowId, undefined, undefined, signal);
     const allEntries = parseLogBatch(logText, params.workflowId);
+
+    if (signal?.aborted) {
+      throw new Error("Log processing aborted");
+    }
+
     return computeFacets(allEntries, fields);
   }
 
@@ -280,8 +309,14 @@ export class PlainTextAdapter implements LogAdapter {
    * @param workflowId - Workflow ID to fetch logs for
    * @param groupId - Optional task group ID for group-scoped queries
    * @param taskId - Optional task ID for task-scoped queries
+   * @param signal - Optional AbortSignal for request cancellation
    */
-  private async fetchLogs(workflowId: string, groupId?: string, taskId?: string): Promise<string> {
+  private async fetchLogs(
+    workflowId: string,
+    groupId?: string,
+    taskId?: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
     let url = `${this.config.baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
 
     // Build query params
@@ -306,6 +341,7 @@ export class PlainTextAdapter implements LogAdapter {
       headers: {
         Accept: "text/plain",
       },
+      signal,
     });
 
     if (!response.ok) {

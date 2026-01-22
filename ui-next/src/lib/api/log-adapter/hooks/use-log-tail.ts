@@ -180,7 +180,9 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
    */
   const startStreaming = useCallback(async () => {
     // Abort any existing connection
-    abortControllerRef.current?.abort();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -226,6 +228,9 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         throw new Error("Response body is not readable");
       }
 
+      // If we were aborted during the fetch, stop here
+      if (controller.signal.aborted) return;
+
       setStatus("streaming");
 
       const reader = response.body.getReader();
@@ -233,31 +238,35 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       let buffer = "";
 
       // Read stream
-      while (true) {
-        const { done, value } = await reader.read();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
 
-        if (done) {
-          // Process any remaining buffer
-          if (buffer.trim()) {
-            processChunk(buffer);
+          if (done) {
+            // Process any remaining buffer
+            if (buffer.trim()) {
+              processChunk(buffer);
+            }
+            setStatus("disconnected");
+            break;
           }
-          setStatus("disconnected");
-          break;
-        }
 
-        // Decode and process
-        buffer += decoder.decode(value, { stream: true });
+          // Decode and process
+          buffer += decoder.decode(value, { stream: true });
 
-        // Process complete lines
-        const lastNewline = buffer.lastIndexOf("\n");
-        if (lastNewline !== -1) {
-          const complete = buffer.slice(0, lastNewline);
-          buffer = buffer.slice(lastNewline + 1);
-          processChunk(complete);
+          // Process complete lines
+          const lastNewline = buffer.lastIndexOf("\n");
+          if (lastNewline !== -1) {
+            const complete = buffer.slice(0, lastNewline);
+            buffer = buffer.slice(lastNewline + 1);
+            processChunk(complete);
+          }
         }
+      } finally {
+        reader.releaseLock();
       }
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
+      if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
         // Intentional abort, not an error
         setStatus("disconnected");
       } else {
