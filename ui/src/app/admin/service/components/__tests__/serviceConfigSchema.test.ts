@@ -161,7 +161,7 @@ describe("serviceConfigSchema", () => {
   });
 
   it("rejects invalid duration formats", async () => {
-    const invalidDurations = ["1", "1w", "1.5s", "-1s", "1msm", "1s2"];
+    const invalidDurations = ["1", "10", "1w", "1.5s", "-1s", "1msm", "1s2"];
 
     for (const duration of invalidDurations) {
       await expect(
