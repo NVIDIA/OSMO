@@ -229,7 +229,8 @@ describe("getStatusStyle", () => {
   it("returns waiting style for waiting statuses", () => {
     const style = getStatusStyle("WAITING");
     expect(style.bg).toContain("gray");
-    expect(style.color).toBeDefined();
+    expect(style.light.color).toBeDefined();
+    expect(style.dark.color).toBeDefined();
   });
 
   it("returns running style for running statuses", () => {

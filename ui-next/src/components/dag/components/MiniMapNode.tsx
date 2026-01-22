@@ -20,16 +20,17 @@
  * MiniMapNode Component
  *
  * Custom node renderer for the ReactFlow MiniMap.
- * Renders nodes with correct dimensions and customizable colors.
+ * Renders nodes with correct dimensions and colors provided by parent.
  *
  * Performance: Memoized to prevent re-renders during viewport changes.
+ * Theme: Colors are provided by parent component via nodeColor/nodeStrokeColor props.
  */
 
 import { memo } from "react";
 import type { MiniMapNodeProps } from "@xyflow/react";
 import { NODE_DEFAULTS } from "../constants";
 
-/** Default colors for minimap nodes */
+/** Default fallback colors for minimap nodes (used if parent doesn't provide colors) */
 export const MINIMAP_COLORS = {
   fill: "#52525b", // zinc-600
   stroke: "#3f3f46", // zinc-700

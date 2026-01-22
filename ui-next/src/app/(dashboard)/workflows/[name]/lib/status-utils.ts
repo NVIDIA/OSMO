@@ -127,6 +127,7 @@ export function getStatusLabel(status: string): string {
 }
 
 // `color` and `strokeColor` are hex values needed for ReactFlow edges/minimap
+// Now with separate light/dark mode variants for theme-aware rendering
 export const STATUS_STYLES = {
   waiting: {
     bg: "bg-gray-100 dark:bg-zinc-800/60",
@@ -134,8 +135,14 @@ export const STATUS_STYLES = {
     text: "text-gray-500 dark:text-zinc-400",
     dot: "bg-gray-400 dark:bg-zinc-500",
     // Raw colors for ReactFlow (edges, minimap)
-    color: "#71717a",
-    strokeColor: "#52525b",
+    light: {
+      color: "#a1a1aa", // zinc-400
+      strokeColor: "#71717a", // zinc-500
+    },
+    dark: {
+      color: "#71717a", // zinc-500
+      strokeColor: "#52525b", // zinc-600
+    },
   },
   pending: {
     bg: "bg-amber-50 dark:bg-amber-950/60",
@@ -143,32 +150,56 @@ export const STATUS_STYLES = {
     text: "text-amber-600 dark:text-amber-400",
     dot: "bg-amber-500",
     // Raw colors for ReactFlow (edges, minimap)
-    color: "#f59e0b",
-    strokeColor: "#d97706",
+    light: {
+      color: "#fbbf24", // amber-400
+      strokeColor: "#f59e0b", // amber-500
+    },
+    dark: {
+      color: "#f59e0b", // amber-500
+      strokeColor: "#d97706", // amber-600
+    },
   },
   running: {
     bg: "bg-blue-50 dark:bg-blue-950/60",
     border: "border-blue-400 dark:border-blue-500",
     text: "text-blue-600 dark:text-blue-400",
     dot: "bg-blue-500",
-    color: "#3b82f6",
-    strokeColor: "#1d4ed8",
+    light: {
+      color: "#60a5fa", // blue-400
+      strokeColor: "#3b82f6", // blue-500
+    },
+    dark: {
+      color: "#3b82f6", // blue-500
+      strokeColor: "#1d4ed8", // blue-700
+    },
   },
   completed: {
     bg: "bg-emerald-50 dark:bg-emerald-950/60",
     border: "border-emerald-400 dark:border-emerald-600",
     text: "text-emerald-600 dark:text-emerald-400",
     dot: "bg-emerald-500",
-    color: "#10b981",
-    strokeColor: "#047857",
+    light: {
+      color: "#34d399", // emerald-400
+      strokeColor: "#10b981", // emerald-500
+    },
+    dark: {
+      color: "#10b981", // emerald-500
+      strokeColor: "#047857", // emerald-600
+    },
   },
   failed: {
     bg: "bg-red-50 dark:bg-red-950/60",
     border: "border-red-400 dark:border-red-500",
     text: "text-red-600 dark:text-red-400",
     dot: "bg-red-500",
-    color: "#ef4444",
-    strokeColor: "#b91c1c",
+    light: {
+      color: "#f87171", // red-400
+      strokeColor: "#ef4444", // red-500
+    },
+    dark: {
+      color: "#ef4444", // red-500
+      strokeColor: "#b91c1c", // red-700
+    },
   },
 } as const;
 
