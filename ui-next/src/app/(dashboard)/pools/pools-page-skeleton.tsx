@@ -29,6 +29,7 @@
  */
 
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 
 export function PoolsPageSkeleton() {
   return (
@@ -44,32 +45,11 @@ export function PoolsPageSkeleton() {
 
       {/* Table skeleton */}
       <div className="min-h-0 flex-1 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        {/* Header */}
-        <div className="flex h-11 items-center border-b border-zinc-200 px-4 dark:border-zinc-800">
-          <Skeleton className="h-4 w-6" />
-          <div className="ml-4 flex flex-1 gap-4">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 w-28" />
-          </div>
-        </div>
-
-        {/* Rows */}
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex h-12 items-center border-b border-zinc-100 px-4 last:border-b-0 dark:border-zinc-800/50"
-          >
-            <Skeleton className="h-4 w-4" />
-            <div className="ml-4 flex flex-1 gap-4">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-2 w-24 rounded-full" />
-            </div>
-          </div>
-        ))}
+        <TableSkeleton
+          columnCount={5}
+          rowCount={8}
+          showHeader={true}
+        />
       </div>
     </div>
   );

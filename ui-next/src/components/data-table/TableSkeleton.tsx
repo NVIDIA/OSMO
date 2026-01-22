@@ -84,10 +84,10 @@ const SkeletonRow = memo(function SkeletonRow({ columnCount, rowHeight, rowIndex
       {Array.from({ length: columnCount }).map((_, colIndex) => (
         <td
           key={colIndex}
-          className="flex flex-1 shrink-0 items-center px-4"
+          className="flex flex-1 shrink-0 items-center px-4 py-3"
         >
           <Skeleton
-            className="h-4"
+            className="h-4 bg-zinc-100 dark:bg-zinc-800"
             style={{ width: cellWidths[colIndex] }}
           />
         </td>
@@ -130,7 +130,7 @@ export const TableSkeleton = memo(function TableSkeleton({
                   {headers && headers.length > 0 ? (
                     <span className="truncate">{header}</span>
                   ) : (
-                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-16 bg-zinc-100 dark:bg-zinc-800" />
                   )}
                 </th>
               ))}

@@ -21,7 +21,7 @@ import { AppSidebar } from "./app-sidebar";
 import { Header } from "./header";
 import { SIDEBAR_CSS_VARS } from "./constants";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Card } from "@/components/shadcn/card";
+import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { useSharedPreferences, sharedPreferencesInitialState } from "@/stores";
 import { useMounted } from "@/hooks";
@@ -73,6 +73,7 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
             id="main-content"
             tabIndex={-1}
             className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
+            style={{ contain: "layout style" }}
             aria-label="Main content"
           >
             <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
@@ -138,26 +139,27 @@ function ChromeSkeleton({ children }: { children: React.ReactNode }) {
 
 function MainContentSkeleton() {
   return (
-    <div className="animate-in fade-in flex h-full flex-col gap-6 p-6 duration-300">
+    <div className="animate-in fade-in flex h-full flex-col gap-4 duration-300">
       {/* Page header skeleton */}
-      <div className="shrink-0 space-y-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-72" />
+      <div className="flex shrink-0 items-center justify-between p-6 pb-0">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-9" />
+        </div>
       </div>
 
       {/* Content skeleton */}
-      <Card className="flex-1 p-4">
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4"
-            >
-              <Skeleton className="h-10 flex-1" />
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className="mx-6 mb-6 flex-1 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+        <TableSkeleton
+          columnCount={5}
+          rowCount={10}
+          showHeader={true}
+        />
+      </div>
     </div>
   );
 }
