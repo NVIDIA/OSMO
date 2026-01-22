@@ -23,6 +23,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, startTransition } from "react";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Link } from "@/components/link";
 import { usePage } from "@/components/chrome";
 import { usePools, useVersion } from "@/lib/api/adapter";
@@ -140,7 +141,20 @@ export function DashboardContent() {
         </div>
         <div className="p-4">
           {workflowsLoading ? (
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</div>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between py-2"
+                >
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+              ))}
+            </div>
           ) : recentWorkflows.length === 0 ? (
             <div className="text-sm text-zinc-500 dark:text-zinc-400">No workflows to display</div>
           ) : (

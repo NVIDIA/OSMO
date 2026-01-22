@@ -36,12 +36,15 @@
  */
 
 import { cn } from "@/lib/utils";
+import { TableSkeleton } from "./TableSkeleton";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface TableLoadingSkeletonProps {
+  /** Number of columns to show */
+  columnCount?: number;
   /** Number of skeleton rows to display */
   rows?: number;
   /** Height of each skeleton row */
@@ -69,20 +72,21 @@ export interface TableErrorStateProps {
  * Loading skeleton for data tables.
  *
  * Displays animated placeholder rows while data is loading.
+ * Uses TableSkeleton internally for consistent layout.
  */
-export function TableLoadingSkeleton({ rows = 5, rowHeight = 48, className }: TableLoadingSkeletonProps) {
+export function TableLoadingSkeleton({
+  rows = 10,
+  rowHeight = 48,
+  columnCount = 5,
+  className,
+}: TableLoadingSkeletonProps) {
   return (
-    <div className={cn("table-container h-full", className)}>
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        {Array.from({ length: rows }, (_, i) => (
-          <div
-            key={i}
-            className="animate-pulse rounded bg-zinc-100 dark:bg-zinc-800"
-            style={{ height: rowHeight }}
-          />
-        ))}
-      </div>
-    </div>
+    <TableSkeleton
+      rowCount={rows}
+      rowHeight={rowHeight}
+      columnCount={columnCount}
+      className={className}
+    />
   );
 }
 
