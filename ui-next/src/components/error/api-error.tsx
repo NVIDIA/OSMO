@@ -16,10 +16,9 @@
 
 "use client";
 
-import { RefreshCw, LogIn } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { ErrorDetails } from "./error-details";
-import { useAuth } from "@/lib/auth/auth-provider";
 import { cn } from "@/lib/utils";
 
 /** Error-like object that has at least a message or detail */
@@ -80,61 +79,10 @@ function getErrorMessage(error: ErrorLike): string {
   return "An unexpected error occurred";
 }
 
-export function ApiError({
-  error,
-  onRetry,
-  title = "Failed to load data",
-  className,
-  authAware = false,
-  loginMessage = "You need to log in to view this content.",
-}: ApiErrorProps) {
-  const { isAuthenticated, authEnabled, login } = useAuth();
-
+export function ApiError({ error, onRetry, title = "Failed to load data", className }: ApiErrorProps) {
   if (!error) return null;
 
   const message = getErrorMessage(error);
-
-  // Auth-aware mode: show login prompt only if auth is enabled and user is not authenticated
-  if (authAware && authEnabled && !isAuthenticated) {
-    return (
-      <div
-        data-testid="api-error-login"
-        className={cn(
-          "rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/50",
-          className,
-        )}
-      >
-        <div className="flex items-center justify-between gap-4 p-4">
-          <div>
-            <p className="font-medium text-amber-800 dark:text-amber-200">{title}</p>
-            <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">{loginMessage}</p>
-          </div>
-
-          <div className="flex shrink-0 gap-2">
-            {onRetry && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onRetry()}
-                className="gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Retry
-              </Button>
-            )}
-            <Button
-              size="sm"
-              onClick={login}
-              className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Log in
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Standard error display
   return (

@@ -1,13 +1,17 @@
 /**
  * Custom fetcher for orval-generated API client.
- * Handles authentication, token refresh, and error responses.
+ * Handles error responses and request formatting.
  *
- * Uses relative URLs - next.config.ts rewrites proxy to the configured backend.
+ * In production, Envoy sidecar handles authentication:
+ * - Envoy intercepts all requests and validates session
+ * - Envoy adds Authorization header with valid JWT
+ * - Envoy refreshes tokens automatically (transparent to app)
+ * - App never manages tokens directly
+ *
+ * In local dev, tokens can be injected via cookies/localStorage (see lib/dev/inject-auth.ts)
  */
 
-import { getAuthToken, refreshToken, isTokenExpiringSoon } from "@/lib/auth";
-import { TOKEN_REFRESH_THRESHOLD_SECONDS, getBasePathUrl } from "@/lib/config";
-import { Headers as AuthHeaders } from "./headers";
+import { getBasePathUrl } from "@/lib/config";
 
 interface RequestConfig {
   url: string;
@@ -57,37 +61,28 @@ export function isApiError(error: unknown): error is ApiError {
   );
 }
 
-// Shared refresh promise - all concurrent callers await the same promise
-let refreshPromise: Promise<string | null> | null = null;
-
 /**
- * Ensure we have a valid token, refreshing if needed.
- *
- * Uses a shared promise pattern to prevent race conditions:
- * - Multiple concurrent requests share the same refresh promise
- * - The promise is reset only after refresh completes (success or failure)
- * - No flags needed - the promise itself acts as the mutex
+ * In production with Envoy, we don't manage tokens at all.
+ * In local dev, check if a token is available in localStorage/cookies for testing.
  */
-async function ensureValidToken(): Promise<string> {
-  let token = getAuthToken();
+function getDevAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
 
-  // If token is missing or expiring soon, try to refresh
-  if (!token || isTokenExpiringSoon(token, TOKEN_REFRESH_THRESHOLD_SECONDS)) {
-    // Only create promise once - all concurrent callers share it
-    if (!refreshPromise) {
-      refreshPromise = refreshToken().finally(() => {
-        // Reset after complete (success or failure) so future calls can refresh again
-        refreshPromise = null;
-      });
-    }
+  // Check localStorage (dev mode with injected tokens)
+  const localStorageToken = localStorage.getItem("IdToken") || localStorage.getItem("BearerToken");
+  if (localStorageToken) return localStorageToken;
 
-    const newToken = await refreshPromise;
-    if (newToken) {
-      token = newToken;
-    }
-  }
+  // Check cookies (might be set by dev helpers or copied from staging)
+  const cookies = document.cookie.split(";").reduce(
+    (acc, cookie) => {
+      const [key, value] = cookie.trim().split("=");
+      if (key) acc[key] = value;
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
 
-  return token;
+  return cookies["IdToken"] || cookies["BearerToken"] || null;
 }
 
 export const customFetch = async <T>(config: RequestConfig, options?: RequestInit): Promise<T> => {
@@ -115,8 +110,9 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     }
   }
 
-  // Get auth token, refreshing if needed
-  const authToken = await ensureValidToken();
+  // In production, Envoy adds auth headers automatically
+  // In local dev, check if we have a token to forward
+  const devToken = getDevAuthToken();
 
   let response: Response;
 
@@ -125,12 +121,14 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
       method,
       headers: {
         "Content-Type": "application/json",
-        ...(authToken ? { [AuthHeaders.AUTH]: authToken } : {}),
+        // Only add auth header in local dev if we have a token
+        // In production, Envoy handles this
+        ...(devToken ? { "x-osmo-auth": devToken } : {}),
         ...headers,
       },
       body: data ? JSON.stringify(data) : undefined,
       signal,
-      credentials: "include",
+      credentials: "include", // Important: forwards cookies (Envoy session)
       ...options,
     });
   } catch (error) {
@@ -139,39 +137,10 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     throw createApiError(`Network error: ${message}`, 0, false);
   }
 
-  // Handle auth errors - try to refresh token once using shared promise pattern
+  // Handle auth errors
+  // In production with Envoy: Should rarely happen (Envoy blocks unauthenticated requests)
+  // In local dev: Means the token is invalid or missing
   if (response.status === 401 || response.status === 403) {
-    // Use the same shared promise pattern to prevent concurrent refresh attempts
-    if (!refreshPromise) {
-      refreshPromise = refreshToken().finally(() => {
-        refreshPromise = null;
-      });
-    }
-
-    const newToken = await refreshPromise;
-
-    if (newToken) {
-      // Retry the request with the new token
-      const retryResponse = await fetch(fullUrl, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          [AuthHeaders.AUTH]: newToken,
-          ...headers,
-        },
-        body: data ? JSON.stringify(data) : undefined,
-        signal,
-        credentials: "include",
-        ...options,
-      });
-
-      if (retryResponse.ok) {
-        const text = await retryResponse.text();
-        if (!text) return {} as T;
-        return JSON.parse(text);
-      }
-    }
-
     throw createApiError(`Authentication required (${response.status})`, response.status, false);
   }
 
