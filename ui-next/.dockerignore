@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# =============================================================================
+# Docker Build Context Exclusions
+# =============================================================================
+# Files and directories to exclude from the Docker build context.
+# This speeds up builds and reduces the final image size.
+
+# Development dependencies
+node_modules
+.pnpm-store
+
+# Next.js build artifacts (we build inside Docker)
+.next
+out
+
+# Testing
+coverage
+test-results
+.playwright
+
+# Development tools
+.vscode
+.cursor
+.idea
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment files (configured at runtime via Helm)
+.env*
+!.env.example
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.github
+
+# Development-only assets (MSW is aliased out in production)
+# This file is only used in dev mode for mock API
+public/mockServiceWorker.js
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
