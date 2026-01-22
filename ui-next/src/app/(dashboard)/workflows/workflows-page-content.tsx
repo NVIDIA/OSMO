@@ -32,7 +32,8 @@
 
 import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/chrome";
-import { useUrlChips, useResultsCount } from "@/hooks";
+import { useUrlChips, useResultsCount, useViewTransition } from "@/hooks";
+import { useCallback } from "react";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
 import { WorkflowsToolbar } from "./components/workflows-toolbar";
 import { useWorkflowsData } from "./hooks/use-workflows-data";
@@ -44,6 +45,7 @@ import { useWorkflowsPreferencesStore, useWorkflowsTableStore } from "./stores/w
 
 export function WorkflowsPageContent() {
   usePage({ title: "Workflows" });
+  const { startTransition } = useViewTransition();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
@@ -52,6 +54,13 @@ export function WorkflowsPageContent() {
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
+
+  const handleSearchChipsChange = useCallback(
+    (chips: Parameters<typeof setSearchChips>[0]) => {
+      startTransition(() => setSearchChips(chips));
+    },
+    [setSearchChips, startTransition],
+  );
 
   // Show all users toggle from preferences store
   const showAllUsers = useWorkflowsPreferencesStore((s) => s.showAllUsers);
@@ -101,7 +110,7 @@ export function WorkflowsPageContent() {
           <WorkflowsToolbar
             workflows={allWorkflows}
             searchChips={searchChips}
-            onSearchChipsChange={setSearchChips}
+            onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
           />
         </InlineErrorBoundary>

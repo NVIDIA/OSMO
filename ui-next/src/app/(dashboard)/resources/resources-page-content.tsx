@@ -35,7 +35,7 @@
 import { useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome";
 import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
-import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
+import { useUrlChips, usePanelState, useResultsCount, useViewTransition } from "@/hooks";
 import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/stores";
 import { ResourcesTable } from "./components/table/resources-table";
@@ -50,6 +50,7 @@ import { useResourcesData } from "./hooks/use-resources-data";
 
 export function ResourcesPageContent() {
   usePage({ title: "Resources" });
+  const { startTransition } = useViewTransition();
 
   // Shared preferences for display mode
   const displayMode = useSharedPreferences((s) => s.displayMode);
@@ -68,6 +69,24 @@ export function ResourcesPageContent() {
     setConfig: setSelectedPoolConfig,
     clear: clearSelectedResource,
   } = usePanelState();
+
+  const handleResourceSelect = useCallback(
+    (resourceName: string | null) => {
+      startTransition(() => setSelectedResourceName(resourceName));
+    },
+    [setSelectedResourceName, startTransition],
+  );
+
+  const handlePoolSelect = useCallback(
+    (poolName: string | null) => {
+      startTransition(() => setSelectedPoolConfig(poolName));
+    },
+    [setSelectedPoolConfig, startTransition],
+  );
+
+  const handleClose = useCallback(() => {
+    startTransition(() => clearSelectedResource());
+  }, [clearSelectedResource, startTransition]);
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
@@ -113,9 +132,9 @@ export function ResourcesPageContent() {
   // Handle resource click
   const handleResourceClick = useCallback(
     (resource: Resource) => {
-      setSelectedResourceName(resource.name);
+      handleResourceSelect(resource.name);
     },
-    [setSelectedResourceName],
+    [handleResourceSelect],
   );
 
   // ==========================================================================
@@ -125,9 +144,9 @@ export function ResourcesPageContent() {
   return (
     <ResourcePanelLayout
       resource={selectedResource}
-      onClose={clearSelectedResource}
+      onClose={handleClose}
       selectedPool={selectedPoolConfig}
-      onPoolSelect={setSelectedPoolConfig}
+      onPoolSelect={handlePoolSelect}
     >
       <div className="flex h-full flex-col gap-4 p-6">
         {/* Toolbar with FilterBar */}

@@ -14,26 +14,58 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import { useViewTransition } from "@/hooks";
 import NextLink from "next/link";
-import type { ComponentProps } from "react";
+import { useCallback, type ComponentProps } from "react";
 
 /**
- * Custom Link wrapper that disables prefetching by default.
+ * Custom Link wrapper that disables prefetching by default and supports View Transitions.
  *
  * Prefetching is opt-in: use `prefetch={true}` to enable it explicitly.
+ * View Transitions are enabled by default for internal links.
  *
  * @example
- * // Default: No prefetch
+ * // Default: No prefetch, with View Transition
  * <Link href="/workflows">Workflows</Link>
  *
  * @example
  * // Opt-in: Explicit prefetch
  * <Link href="/dashboard" prefetch={true}>Dashboard</Link>
  */
-export function Link({ prefetch = false, ...props }: ComponentProps<typeof NextLink>) {
+export function Link({ prefetch = false, onClick, ...props }: ComponentProps<typeof NextLink>) {
+  const { startTransition } = useViewTransition();
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>) => {
+      // Call original onClick if provided
+      onClick?.(e);
+
+      // If default was prevented or it's a special click (cmd/ctrl), don't intercept
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+        return;
+      }
+
+      // Only transition for internal links
+      const href = props.href.toString();
+      const isInternal = href.startsWith("/") || href.startsWith(window.location.origin);
+
+      if (isInternal) {
+        // We don't prevent default because NextLink needs to handle the actual navigation.
+        // Instead, we just wrap the start of the transition.
+        // Note: This is a "best effort" transition for route changes.
+        startTransition(() => {
+          // No-op callback, the actual DOM update happens via Next.js navigation
+          // which is triggered by the default link behavior.
+        });
+      }
+    },
+    [onClick, props.href, startTransition],
+  );
+
   return (
     <NextLink
       prefetch={prefetch}
+      onClick={handleClick}
       {...props}
     />
   );

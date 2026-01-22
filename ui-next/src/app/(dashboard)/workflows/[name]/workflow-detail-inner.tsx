@@ -41,7 +41,7 @@ import "@xyflow/react/dist/style.css";
 import { useSidebar, SIDEBAR } from "@/components/chrome";
 import { useEventCallback } from "usehooks-ts";
 import { PANEL } from "@/components/panel";
-import { useTickController } from "@/hooks";
+import { useTickController, useViewTransition } from "@/hooks";
 import { useSharedPreferences } from "@/stores";
 
 // Route-level components (non-lazy)
@@ -189,6 +189,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // Re-center trigger state (moved here so wrapped handlers can access it)
   const [reCenterTrigger, setReCenterTrigger] = useState(0);
 
+  const { startTransition } = useViewTransition();
+
   // Wrapped navigation handlers that handle re-clicking on already selected nodes
   // When clicking on an already-selected node:
   // 1. Expand the panel if it's collapsed
@@ -204,7 +206,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
       setReCenterTrigger((t) => t + 1);
     } else {
       // New selection: navigate normally (useSidebarCollapsed will auto-expand)
-      navigateToGroup(group);
+      startTransition(() => navigateToGroup(group));
     }
   });
 
@@ -220,7 +222,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
       setReCenterTrigger((t) => t + 1);
     } else {
       // New selection: navigate normally (useSidebarCollapsed will auto-expand)
-      navigateToTask(task, group);
+      startTransition(() => navigateToTask(task, group));
     }
   });
 
@@ -392,7 +394,11 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 
   // Navigate back from group to workflow (URL navigation)
   const handleBackToWorkflow = useEventCallback(() => {
-    navigateToWorkflow();
+    startTransition(() => navigateToWorkflow());
+  });
+
+  const handleNavigateBackToGroup = useEventCallback(() => {
+    startTransition(() => navigateBackToGroup());
   });
 
   // Handle shell tab activation/deactivation from TaskDetails
@@ -597,10 +603,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
               group={selectedGroup}
               allGroups={dagGroups}
               task={selectedTask}
-              onBackToGroup={navigateBackToGroup}
+              onBackToGroup={handleNavigateBackToGroup}
               onBackToWorkflow={handleBackToWorkflow}
-              onSelectTask={navigateToTask}
-              onSelectGroup={navigateToGroup}
+              onSelectTask={handleNavigateToTask}
+              onSelectGroup={handleNavigateToGroup}
               panelPct={panelPct}
               onPanelResize={setPanelPct}
               isDetailsExpanded={isDetailsExpanded}

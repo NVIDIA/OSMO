@@ -12,6 +12,8 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
+import { useViewTransition } from "@/hooks";
+
 export interface PanelTab {
   id: string;
   label: string;
@@ -124,6 +126,7 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
   const containerRef = useRef<HTMLDivElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
   const [isCompact, setIsCompact] = useState(false);
+  const { startTransition } = useViewTransition();
 
   // Store the width where we switched to compact mode
   const switchWidthRef = useRef<number>(0);
@@ -187,13 +190,9 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
 
   const handleTabChange = useCallback(
     (tabId: string) => {
-      if (typeof document !== "undefined" && "startViewTransition" in document) {
-        document.startViewTransition(() => onValueChange(tabId));
-      } else {
-        onValueChange(tabId);
-      }
+      startTransition(() => onValueChange(tabId));
     },
-    [onValueChange],
+    [onValueChange, startTransition],
   );
 
   const handleKeyDown = useCallback(
