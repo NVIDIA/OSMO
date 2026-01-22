@@ -393,15 +393,36 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
     if (isLoading) {
       return (
         <div className="p-4">
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md mb-4 h-6 w-3/4" />
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md mb-2 h-4 w-1/2" />
+          <div
+            data-slot="skeleton"
+            className="bg-accent mb-4 h-6 w-3/4 animate-pulse rounded-md"
+          />
+          <div
+            data-slot="skeleton"
+            className="bg-accent mb-2 h-4 w-1/2 animate-pulse rounded-md"
+          />
           <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md mb-2 h-4 w-20" />
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md mb-2 h-16 w-full" />
+          <div
+            data-slot="skeleton"
+            className="bg-accent mb-2 h-4 w-20 animate-pulse rounded-md"
+          />
+          <div
+            data-slot="skeleton"
+            className="bg-accent mb-2 h-16 w-full animate-pulse rounded-md"
+          />
           <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md mb-2 h-4 w-20" />
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md mb-2 h-4 w-24" />
-          <div data-slot="skeleton" className="bg-accent animate-pulse rounded-md h-4 w-16" />
+          <div
+            data-slot="skeleton"
+            className="bg-accent mb-2 h-4 w-20 animate-pulse rounded-md"
+          />
+          <div
+            data-slot="skeleton"
+            className="bg-accent mb-2 h-4 w-24 animate-pulse rounded-md"
+          />
+          <div
+            data-slot="skeleton"
+            className="bg-accent h-4 w-16 animate-pulse rounded-md"
+          />
         </div>
       );
     }
@@ -414,7 +435,10 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
               The workflow <code className="rounded bg-gray-100 px-2 py-1 font-mono dark:bg-zinc-800">{name}</code> does
               not exist.
             </p>
-            <Link href="/workflows" className="text-blue-600 hover:underline dark:text-blue-400">
+            <Link
+              href="/workflows"
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
               ← Back to workflows
             </Link>
           </div>
@@ -427,7 +451,10 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
           <div className="text-center">
             <h2 className="mb-2 text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Workflow</h2>
             <p className="mb-4 text-gray-500 dark:text-zinc-400">{error.message}</p>
-            <button onClick={() => refetch()} className="text-blue-600 hover:underline dark:text-blue-400">
+            <button
+              onClick={() => refetch()}
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
               Try again
             </button>
           </div>
@@ -446,9 +473,15 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
           {/* Main Content: Side-by-Side Layout (DAG + Panel) */}
-          <div ref={containerRef} className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950">
+          <div
+            ref={containerRef}
+            className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
+          >
             {/* DAG Canvas - fills remaining space */}
-            <div ref={dagContainerRef} className="min-w-0 flex-1">
+            <div
+              ref={dagContainerRef}
+              className="min-w-0 flex-1"
+            >
               {isReady ? (
                 <main
                   id="dag-canvas"
@@ -495,7 +528,12 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
                       // Data attribute for CSS performance optimization
                       data-panning={isPanning ? "true" : "false"}
                     >
-                      <Background variant={BackgroundVariant.Dots} gap={BACKGROUND.GAP} size={BACKGROUND.DOT_SIZE} color={backgroundDotColor} />
+                      <Background
+                        variant={BackgroundVariant.Dots}
+                        gap={BACKGROUND.GAP}
+                        size={BACKGROUND.DOT_SIZE}
+                        color={backgroundDotColor}
+                      />
                       {/* Controls panel */}
                       <DAGControls
                         layoutDirection={layoutDirection}
@@ -511,9 +549,7 @@ export function WorkflowDetailInner({ name }: WorkflowDetailInnerProps) {
                           position="top-left"
                           style={minimapStyle}
                           maskColor={
-                            resolvedTheme !== "light"
-                              ? "oklch(0.08 0.015 250 / 0.55)"
-                              : "oklch(0.45 0.02 250 / 0.15)"
+                            resolvedTheme !== "light" ? "oklch(0.08 0.015 250 / 0.55)" : "oklch(0.45 0.02 250 / 0.15)"
                           }
                           nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
                           nodeComponent={MiniMapNode}
