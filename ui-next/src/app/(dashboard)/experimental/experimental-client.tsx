@@ -43,15 +43,15 @@ export function ExperimentalPageClient() {
     <div className="mx-auto max-w-4xl p-6">
       {/* Header */}
       <div className="mb-8 flex items-center gap-3">
-        <div className="rounded-lg bg-purple-500/10 p-2">
-          <FlaskConical className="h-6 w-6 text-purple-400" />
+        <div className="rounded-lg bg-purple-500/10 p-2 dark:bg-purple-500/20">
+          <FlaskConical className="h-6 w-6 text-purple-600 dark:text-purple-400" />
         </div>
         <p className="text-muted-foreground text-sm">Design exploration, prototypes, and experimental features</p>
       </div>
 
       {/* Warning */}
-      <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-        <p className="text-sm text-amber-200">
+      <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+        <p className="text-sm text-amber-900 dark:text-amber-200">
           <strong>Note:</strong> These pages are for development only and use mock data. This page is not accessible in
           production.
         </p>
