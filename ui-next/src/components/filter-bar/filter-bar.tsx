@@ -116,8 +116,11 @@ function FilterBarInner<T>({
     [suggestions, flatPresets, addChip, togglePreset],
   );
 
+  // Keyboard shortcuts (scoped to filter input)
+  // Shortcuts defined in: ./hotkeys.ts (FILTER_BAR_HOTKEYS)
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // FILTER_BAR_HOTKEYS.shortcuts.NAVIGATE_CHIPS_LEFT / NAVIGATE_CHIPS_RIGHT
       // Chip navigation with arrow keys
       if (e.key === "ArrowLeft") {
         if (focusedChipIndex >= 0) {
@@ -141,6 +144,7 @@ function FilterBarInner<T>({
           }
         }
       } else if (e.key === "Backspace" && inputValue === "" && chips.length > 0) {
+        // FILTER_BAR_HOTKEYS.shortcuts.REMOVE_CHIP_BACKSPACE
         if (focusedChipIndex >= 0) {
           e.preventDefault();
           removeChip(focusedChipIndex);
@@ -149,10 +153,12 @@ function FilterBarInner<T>({
           setFocusedChipIndex(chips.length - 1);
         }
       } else if (e.key === "Delete" && focusedChipIndex >= 0) {
+        // FILTER_BAR_HOTKEYS.shortcuts.REMOVE_CHIP_DELETE
         e.preventDefault();
         removeChip(focusedChipIndex);
         setFocusedChipIndex(chips.length === 1 ? -1 : Math.min(focusedChipIndex, chips.length - 2));
       } else if (e.key === "Escape") {
+        // FILTER_BAR_HOTKEYS.shortcuts.CLOSE_DROPDOWN
         if (isOpen) {
           e.preventDefault();
           e.stopPropagation();
@@ -161,6 +167,7 @@ function FilterBarInner<T>({
           inputRef.current?.blur();
         }
       } else if (e.key === "Enter") {
+        // FILTER_BAR_HOTKEYS.shortcuts.APPLY_FILTER
         // If user typed field:value (e.g., "pool:myvalue"), create chip immediately
         // This takes priority whether dropdown is open or closed
         if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
