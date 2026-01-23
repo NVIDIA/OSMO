@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Controller, useForm } from "react-hook-form";
-import * as yup from "yup";
+import type * as yup from "yup";
 
 import { InlineBanner } from "~/components/InlineBanner";
 import { RoleEditor } from "~/components/RoleEditor";
@@ -27,6 +27,7 @@ import { TextInput } from "~/components/TextInput";
 import { type ServiceConfig } from "~/models/config/service-config";
 
 import { ServiceConfigOverview } from "./ServiceConfigOverview";
+import { serviceConfigSchema } from "./ServiceConfigSchema";
 
 interface ServiceConfigEditorProps {
   serviceConfig: ServiceConfig;
@@ -34,119 +35,12 @@ interface ServiceConfigEditorProps {
   error?: string;
 }
 
-const agentQueueSizeSchema = yup
-  .string()
-  .required("Agent Queue Size is required")
-  .test("is-int", "Agent Queue Size must be a whole number", (value) => Boolean(value && /^\d+$/.test(value)));
-
-export const versionStringSchema = yup
-  .string()
-  .trim()
-  .matches(/^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/, "Invalid version");
-
-export const durationStringSchema = yup
-  .string()
-  .trim()
-  .matches(/^\d+(?:ms|us|[dhms])$/, "Duration must be like 1d, 2h, 30m, 15s, 500ms, or 250us")
-  .test("unit-required", "Duration must include a unit", (value) => {
-    if (!value) {
-      return false;
-    }
-    return /[a-z]/i.test(value);
-  });
-
-export const serviceConfigSchema = yup.object({
-  changeDescription: yup
-    .string()
-    .trim()
-    .when("$isComparing", {
-      is: true,
-      then: (schema) => schema.required("Change Description is required"),
-      otherwise: (schema) => schema.notRequired(),
-    })
-    .defined(),
-  tags: yup.array().of(yup.string().trim().defined()).default([]).defined(),
-  service_base_url: yup
-    .string()
-    .trim()
-    .url("Service Base URL must be a valid URL")
-    .required("Service Base URL is required")
-    .defined(),
-  max_pod_restart_limit: durationStringSchema.required("Max Pod Restart Limit is required").defined(),
-  agent_queue_size: agentQueueSizeSchema.defined(),
-  max_token_duration: durationStringSchema.required("Max Token Duration is required").defined(),
-  latest_version: versionStringSchema.required("CLI Latest Version is required").defined(),
-  min_supported_version: versionStringSchema
-    .transform((value) => (value === "" ? null : value))
-    .nullable()
-    .defined(),
-  issuer: yup.string().trim().required("Issuer is required").defined(),
-  audience: yup.string().trim().required("Audience is required").defined(),
-  user_roles: yup
-    .string()
-    .trim()
-    .required("User Roles is required")
-    .test("roles-not-empty", "User Roles must include at least one role", (value) => {
-      if (!value) {
-        return false;
-      }
-      return (
-        value
-          .split(",")
-          .map((role) => role.trim())
-          .filter(Boolean).length > 0
-      );
-    })
-    .defined(),
-  ctrl_roles: yup
-    .string()
-    .trim()
-    .required("Control Roles is required")
-    .test("roles-not-empty", "Control Roles must include at least one role", (value) => {
-      if (!value) {
-        return false;
-      }
-      return (
-        value
-          .split(",")
-          .map((role) => role.trim())
-          .filter(Boolean).length > 0
-      );
-    })
-    .defined(),
-  device_client_id: yup.string().trim().required("Device Client ID is required").defined(),
-  browser_client_id: yup.string().trim().required("Browser Client ID is required").defined(),
-  device_endpoint: yup
-    .string()
-    .trim()
-    .url("Device Endpoint must be a valid URL")
-    .required("Device Endpoint is required")
-    .defined(),
-  browser_endpoint: yup
-    .string()
-    .trim()
-    .url("Browser Endpoint must be a valid URL")
-    .required("Browser Endpoint is required")
-    .defined(),
-  token_endpoint: yup
-    .string()
-    .trim()
-    .url("Token Endpoint must be a valid URL")
-    .required("Token Endpoint is required")
-    .defined(),
-  logout_endpoint: yup
-    .string()
-    .trim()
-    .url("Logout Endpoint must be a valid URL")
-    .required("Logout Endpoint is required")
-    .defined(),
-});
-
 type ServiceConfigFormValues = yup.InferType<typeof serviceConfigSchema>;
 
 export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceConfigEditorProps) => {
   const [isComparing, setIsComparing] = useState(false);
   const [updatedConfig, setUpdatedConfig] = useState<ServiceConfig>(serviceConfig);
+  const [showNotDirtyMessage, setShowNotDirtyMessage] = useState(false);
 
   const defaultValues = useMemo<ServiceConfigFormValues>(
     () => ({
@@ -177,7 +71,7 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
     handleSubmit,
     reset,
     setFocus,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<ServiceConfigFormValues>({
     defaultValues,
     resolver: yupResolver(serviceConfigSchema, { context: { isComparing } }),
@@ -230,6 +124,11 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
     };
 
     setUpdatedConfig(updatedConfig);
+    setShowNotDirtyMessage(!isDirty);
+
+    if (!isDirty) {
+      return;
+    }
 
     if (isComparing) {
       onSave(values.changeDescription, values.tags, updatedConfig);
@@ -607,11 +506,15 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           </div>
         </div>
       )}
-      <div className="flex justify-end gap-global p-global border-t border-border bg-footerbg sticky bottom-0">
+      <InlineBanner
+        status={showNotDirtyMessage && !isDirty ? "error" : "none"}
+        className="flex flex-row gap-global p-global border-t border-border bg-footerbg sticky bottom-0"
+      >
+        <p className="grow">{showNotDirtyMessage && !isDirty ? "No changes to save" : ""}</p>
         {isComparing ? (
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-secondary bg-white"
             onClick={handleBack}
           >
             Back
@@ -619,10 +522,11 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
         ) : (
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-secondary bg-white"
             onClick={() => {
               reset(defaultValues);
               setUpdatedConfig(serviceConfig);
+              setShowNotDirtyMessage(false);
             }}
           >
             Reset
@@ -632,9 +536,9 @@ export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceCon
           type="submit"
           className="btn btn-primary"
         >
-          {isComparing ? "Save" : "Next"}
+          {isComparing ? "Confirm" : "Save"}
         </button>
-      </div>
+      </InlineBanner>
     </form>
   );
 };
