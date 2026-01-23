@@ -113,6 +113,38 @@ export function getBasePathUrl(path: string): string {
   return `${normalizedBasePath}${normalizedPath}`;
 }
 
+/**
+ * Remove basePath prefix from a URL path if basePath is configured.
+ *
+ * This is useful when you need to pass URLs to Next.js router methods (push, replace, etc.)
+ * which automatically add the basePath. Without stripping, you'd get double basePath
+ * (e.g., "/v2/v2/pools" instead of "/v2/pools").
+ *
+ * Common use case: Converting DOM hrefs (which include basePath) to router-compatible paths.
+ *
+ * @param path - The path to strip basePath from (should start with /)
+ * @returns The path with basePath removed if it was present
+ *
+ * @example
+ * ```ts
+ * stripBasePath("/v2/pools") // "/pools" if basePath is "/v2"
+ * stripBasePath("/pools")    // "/pools" if basePath is "/v2" (no basePath to strip)
+ * stripBasePath("/v2")       // "/" if basePath is "/v2"
+ * ```
+ */
+export function stripBasePath(path: string): string {
+  const basePath = getBasePath();
+  if (!basePath || !path.startsWith(basePath)) {
+    return path;
+  }
+
+  // Strip the basePath
+  const stripped = path.slice(basePath.length);
+
+  // Ensure result starts with / (or is "/" if empty)
+  return stripped || "/";
+}
+
 // =============================================================================
 // API Configuration
 // =============================================================================
