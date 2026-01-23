@@ -26,7 +26,7 @@
 
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { usePrevious, useIsomorphicLayoutEffect } from "@react-hookz/web";
 import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
@@ -100,11 +100,25 @@ export interface WorkflowDetailInnerProps {
   initialView: InitialView;
 }
 
+import { useSearchParams } from "next/navigation";
+import { dagDebug } from "@/components/dag/lib/dag-debug";
+
 // =============================================================================
 // Component
 // =============================================================================
 
 export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerProps) {
+  const searchParams = useSearchParams();
+  const isDebugEnabled = searchParams.get("debug") === "true";
+
+  useEffect(() => {
+    if (isDebugEnabled) {
+      dagDebug.enable();
+    } else {
+      dagDebug.disable();
+    }
+  }, [isDebugEnabled]);
+
   const [showMinimap, setShowMinimap] = useState(true);
 
   // Persisted panel preferences from Zustand store
@@ -519,6 +533,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
                     onSelectGroup={handleSelectGroup}
                     onSelectTask={handleSelectTask}
                     onToggleExpand={handleToggleExpand}
+                    debug={isDebugEnabled}
                   >
                     <ReactFlow
                       nodes={nodes}

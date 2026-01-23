@@ -257,11 +257,14 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   setSelectedTab: setSelectedTabProp,
 }: WorkflowDetailsProps) {
   // Tab configuration
-  const tabs = useMemo<PanelTab[]>(() => [
-    { id: "overview", label: "Overview", icon: Info },
-    { id: "logs", label: "Logs", icon: FileText },
-    { id: "events", label: "Events", icon: History },
-  ], []);
+  const tabs = useMemo<PanelTab[]>(
+    () => [
+      { id: "overview", label: "Overview", icon: Info },
+      { id: "logs", label: "Logs", icon: FileText },
+      { id: "events", label: "Events", icon: History },
+    ],
+    [],
+  );
 
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
