@@ -247,6 +247,9 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     sessionKeyRef.current = sessionKey;
   }, [sessionKey]);
 
+  // Track last resize dimensions to prevent duplicate events
+  const lastDimensionsRef = useRef<{ cols: number; rows: number } | null>(null);
+
   // Debounced resize handler with dimension guard to prevent buffer corruption.
   // When panel collapses or shell moves to hidden container, fitting to small
   // dimensions corrupts the terminal buffer. We check BEFORE fitting.
@@ -262,8 +265,14 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
         }
 
         fitAddonRef.current.fit();
+
+        // Only call onResize if dimensions actually changed (prevent duplicates)
         if (onResize) {
-          onResize(proposed.cols, proposed.rows);
+          const last = lastDimensionsRef.current;
+          if (!last || last.cols !== proposed.cols || last.rows !== proposed.rows) {
+            lastDimensionsRef.current = { cols: proposed.cols, rows: proposed.rows };
+            onResize(proposed.cols, proposed.rows);
+          }
         }
       } catch {
         // Fit may fail if shell is not visible
