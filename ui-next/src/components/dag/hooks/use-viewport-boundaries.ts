@@ -463,8 +463,9 @@ export function useViewportBoundaries({
         debounceTimerRef.current = setTimeout(() => {
           debounceTimerRef.current = null;
           dagDebug.log("AUTOPAN_START", { selectedNodeId, reason: "recenter_trigger" });
-          // Use stored target zoom to avoid drift from interrupted animations
-          performCentering(selectedNodeId, targetZoomRef.current, ANIMATION.PANEL_TRANSITION);
+          // Use current viewport zoom to preserve user's zoom level when clicking nodes
+          const currentZoom = reactFlowInstance.getViewport().zoom;
+          performCentering(selectedNodeId, currentZoom, ANIMATION.PANEL_TRANSITION);
           lastCenteringTimestampRef.current = Date.now();
           dagDebug.log("AUTOPAN_END", { selectedNodeId });
         }, 100); // 100ms debounce window
@@ -487,8 +488,10 @@ export function useViewportBoundaries({
     if (!isDragging && !isWithinCenteringAnimationWindow) {
       if (selectedNodeId) {
         // If a node is selected, center on it (consistent with CASE 3)
+        // Use current viewport zoom to preserve user's zoom level
         dagDebug.log("AUTOPAN_START", { selectedNodeId, reason: "dimension_change" });
-        performCentering(selectedNodeId, targetZoomRef.current, ANIMATION.BOUNDARY_ENFORCE);
+        const currentZoom = reactFlowInstance.getViewport().zoom;
+        performCentering(selectedNodeId, currentZoom, ANIMATION.BOUNDARY_ENFORCE);
         lastCenteringTimestampRef.current = Date.now();
         dagDebug.log("AUTOPAN_END", { selectedNodeId });
       } else {
