@@ -31,13 +31,14 @@
  * - Seamless content swap (React handles it)
  */
 
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPools } from "@/lib/api/server";
 import { PoolsPageContent } from "./pools-page-content";
+import { createQueryClient } from "@/lib/query-client";
 
 export async function PoolsWithData() {
-  // Create QueryClient for this request
-  const queryClient = new QueryClient();
+  // Create QueryClient for this request using shared factory
+  const queryClient = createQueryClient();
 
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready

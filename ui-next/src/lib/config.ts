@@ -165,8 +165,22 @@ export const COPY_FEEDBACK_DURATION_MS = 2000;
 
 /**
  * Default stale time for React Query.
+ * Increased to 2 minutes for better handling of slow/unreliable networks.
  */
-export const QUERY_STALE_TIME_MS = 60 * 1000; // 1 minute
+export const QUERY_STALE_TIME_MS = 2 * 60 * 1000; // 2 minutes
+
+/**
+ * Granular stale time constants for different data volatility levels.
+ * Use these for more precise cache control based on data characteristics.
+ */
+export const QUERY_STALE_TIME = {
+  /** Realtime data (30s) - for live/frequently changing data (running workflows, active tasks) */
+  REALTIME: 30_000,
+  /** Standard data (2min) - for semi-static data (workflow details, pool quotas) */
+  STANDARD: 2 * 60_000,
+  /** Static data (10min) - for rarely changing data (version info, platform configs) */
+  STATIC: 10 * 60_000,
+} as const;
 
 /**
  * Stale time for expensive queries (e.g., all resources across pools).

@@ -51,6 +51,7 @@ import {
   type ChipMappingConfig,
 } from "@/lib/api/chip-filter-utils";
 import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
+import { QUERY_STALE_TIME } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -153,7 +154,8 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     params: filterParams,
     config: {
       pageSize: 50,
-      staleTime: 60_000,
+      // Resources change infrequently - use STANDARD stale time (2min)
+      staleTime: QUERY_STALE_TIME.STANDARD,
     },
   });
 

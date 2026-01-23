@@ -30,9 +30,10 @@
  * - TanStack Query handles background refetch for live updates
  */
 
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowByName } from "@/lib/api/server";
 import { WorkflowDetailContent } from "./workflow-detail-content";
+import { createQueryClient } from "@/lib/query-client";
 
 interface WorkflowDetailWithDataProps {
   params: Promise<{ name: string }>;
@@ -40,7 +41,7 @@ interface WorkflowDetailWithDataProps {
 }
 
 export async function WorkflowDetailWithData({ params, searchParams }: WorkflowDetailWithDataProps) {
-  // Await params (Next.js 15+ async params)
+  // Next.js 16: await params/searchParams in async Server Components
   const { name } = await params;
   const decodedName = decodeURIComponent(name);
 
@@ -55,8 +56,9 @@ export async function WorkflowDetailWithData({ params, searchParams }: WorkflowD
         : null,
   };
 
-  // Create QueryClient for this request
-  const queryClient = new QueryClient();
+  // Create QueryClient for this request using shared factory
+  // This ensures server-side defaults match client-side defaults
+  const queryClient = createQueryClient();
 
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
