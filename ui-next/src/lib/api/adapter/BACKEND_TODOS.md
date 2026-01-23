@@ -734,13 +734,13 @@ Or with offset:
 // hooks.ts - useWorkflow adapter hook normalizes timestamps
 export function useWorkflow({ name, verbose }: UseWorkflowParams): UseWorkflowReturn {
   const { data, ... } = useGetWorkflowApiWorkflowNameGet(name, { verbose });
-  
+
   const workflow = useMemo(() => {
     const parsed = typeof data === "string" ? JSON.parse(data) : data;
     // Normalize timestamps at the API boundary
     return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
   }, [data]);
-  
+
   return { workflow, ... };
 }
 
@@ -768,7 +768,7 @@ timestamp = datetime.now(timezone.utc)
 # When serializing (Pydantic)
 class MyModel(BaseModel):
     start_time: datetime
-    
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None
@@ -1030,6 +1030,244 @@ for status in PoolStatus:
 
 ---
 
+### 22. WebSocket Shell Resize Messages Echoed to Terminal Buffer
+
+**Priority:** High
+**Status:** Active workaround in UI (`use-websocket-shell.ts`)
+
+The WebSocket shell implementation sends terminal resize messages as JSON strings (`{"Rows":39,"Cols":132}`) over the same WebSocket channel as user input and shell output. These resize messages are being echoed back to the client and appear in the terminal buffer.
+
+**Root cause:** In `external/src/runtime/cmd/user/user.go`, the `userExec` function:
+
+1. **Line 103-112**: Reads the INITIAL resize message on connection:
+   ```go
+   var initSize struct {
+       Rows uint16 `json:"rows"`
+       Cols uint16 `json:"cols"`
+   }
+   if err := dec.Decode(&initSize); err != nil {
+       // ...
+   }
+   ```
+
+2. **Line 147**: Sets initial PTY size:
+   ```go
+   if err := pty.Setsize(terminal, &pty.Winsize{Rows: initSize.Rows, Cols: initSize.Cols}); err != nil {
+   ```
+
+3. **Line 155-160**: Blindly copies ALL subsequent WebSocket data to PTY:
+   ```go
+   go func() {
+       _, err = io.Copy(terminal, conn)  // ← Problem: includes resize messages!
+       // ...
+   }()
+   ```
+
+4. **Line 162-168**: Copies PTY output back to WebSocket:
+   ```go
+   go func() {
+       _, err = io.Copy(conn, terminal)  // ← Echoes resize messages back
+       // ...
+   }()
+   ```
+
+**What happens:**
+- User resizes terminal → Client sends `{"Rows":39,"Cols":132}` via WebSocket
+- `io.Copy(terminal, conn)` writes this JSON string to the PTY input
+- PTY doesn't recognize it as a control sequence (it's just text)
+- The string appears in the shell buffer and may be echoed back
+- User sees: `{"Rows":39,"Cols":77}{"Rows":39,"Cols":132}` in their terminal
+
+**Additional issues:**
+- **Duplicate resize events**: UI was sending duplicate resize events when dimensions hadn't changed (fixed in UI with deduplication)
+- **No separation of control vs data**: Resize messages and user input share the same channel
+
+**Ideal solution (backend fix):**
+
+The proper architectural solution is to **multiplex control frames and user data** so they don't interfere with each other. There are several approaches:
+
+**Option 1: Framed message protocol (RECOMMENDED)**
+
+Wrap all WebSocket messages in a frame envelope that distinguishes message types:
+
+```go
+type MessageType string
+
+const (
+    MessageTypeData   MessageType = "data"    // User keyboard input / shell output
+    MessageTypeResize MessageType = "resize"  // Terminal resize
+    MessageTypePing   MessageType = "ping"    // Keepalive
+    MessageTypePong   MessageType = "pong"    // Keepalive response
+)
+
+type Frame struct {
+    Type    MessageType     `json:"type"`
+    Payload json.RawMessage `json:"payload"`
+}
+
+type ResizePayload struct {
+    Rows uint16 `json:"rows"`
+    Cols uint16 `json:"cols"`
+}
+
+type DataPayload struct {
+    Data []byte `json:"data"`  // base64 encoded
+}
+
+// WebSocket message handler
+go func() {
+    decoder := json.NewDecoder(conn)
+    for {
+        var frame Frame
+        if err := decoder.Decode(&frame); err != nil {
+            break
+        }
+
+        switch frame.Type {
+        case MessageTypeResize:
+            var resize ResizePayload
+            json.Unmarshal(frame.Payload, &resize)
+            pty.Setsize(terminal, &pty.Winsize{Rows: resize.Rows, Cols: resize.Cols})
+
+        case MessageTypeData:
+            var data DataPayload
+            json.Unmarshal(frame.Payload, &data)
+            terminal.Write(data.Data)
+
+        case MessageTypePing:
+            // Respond with pong
+            sendFrame(conn, Frame{Type: MessageTypePong, Payload: nil})
+        }
+    }
+}()
+```
+
+Client sends:
+```json
+{"type":"resize","payload":{"rows":39,"cols":132}}
+{"type":"data","payload":{"data":"bHMgLWxhCg=="}}
+```
+
+**Benefits:**
+- Clean separation of control vs data
+- Extensible: Easy to add new message types (ping/pong, session control, file transfer)
+- Self-documenting: Message type is explicit
+- No ambiguity: Cannot accidentally interpret control message as user input
+
+**Option 2: Binary framing with length prefix**
+
+Use WebSocket binary frames with a simple protocol:
+```
+[1 byte: message type][4 bytes: length][N bytes: payload]
+```
+
+- `type=0x00`: User data (raw bytes)
+- `type=0x01`: Resize (4 bytes: rows, cols as uint16)
+- `type=0x02`: Ping
+- `type=0x03`: Pong
+
+**Benefits:**
+- Efficient: No JSON parsing overhead for user data
+- Fast: Binary protocol is faster than JSON
+- Clear: Type byte makes intent explicit
+
+**Drawbacks:**
+- Less human-readable (harder to debug)
+- More complex parsing logic
+
+**Option 3: Separate WebSocket connections**
+
+Use two WebSocket connections:
+- `ws://host/api/router/exec/{workflow}/client/{key}/data` - User I/O stream
+- `ws://host/api/router/exec/{workflow}/client/{key}/control` - Control messages
+
+**Benefits:**
+- Complete separation
+- Can use different protocols for each (binary for data, JSON for control)
+
+**Drawbacks:**
+- Two connections = more resources
+- Harder to keep in sync
+- Complicates client-side state management
+
+**Recommended approach:**
+
+**Option 1 (Framed message protocol)** is the best balance of:
+- Clean separation of concerns (no mixing control/data)
+- Extensibility (easy to add new message types)
+- Debuggability (JSON is human-readable)
+- Industry standard (similar to JSON-RPC, LSP, DAP protocols)
+
+This is how most modern terminal protocols work:
+- VS Code Remote: Uses framed JSON messages over WebSocket
+- Docker exec API: Uses HTTP/2 with separate streams for stdin/stdout/stderr
+- Kubernetes exec: Uses SPDY/WebSocket with subprotocol headers
+
+**Current UI workarounds:**
+
+1. **Resize message filtering** (`use-websocket-shell.ts` lines 179-207):
+   ```typescript
+   ws.onmessage = (event) => {
+       // Filter out resize messages that might be echoed back
+       const text = new TextDecoder().decode(data);
+       if (text.match(/^\{"Rows":\d+,"Cols":\d+\}$/)) {
+           console.debug("[Shell] Filtered resize message:", text);
+           return;  // Don't write to terminal
+       }
+       onDataRef.current?.(data);
+   };
+   ```
+
+2. **Duplicate event prevention** (`use-shell.ts` lines 250-273):
+   ```typescript
+   // Track last resize dimensions to prevent duplicate events
+   const lastDimensionsRef = useRef<{ cols: number; rows: number } | null>(null);
+
+   if (onResize) {
+       const last = lastDimensionsRef.current;
+       if (!last || last.cols !== proposed.cols || last.rows !== proposed.rows) {
+           lastDimensionsRef.current = { cols: proposed.cols, rows: proposed.rows };
+           onResize(proposed.cols, proposed.rows);
+       }
+   }
+   ```
+
+**Impact:**
+- **Confusing UX**: Users see JSON resize messages in their terminal
+- **Extra client complexity**: UI must filter control messages from data stream
+- **Race conditions**: If resize message is split across packets, filter might miss it
+- **Not extensible**: Adding new control messages (ping/pong, file transfer) requires more brittle filtering
+- **Violates separation of concerns**: Control plane and data plane are mixed
+
+**When fixed (with framed protocol):**
+1. Remove resize message filtering from `use-websocket-shell.ts`
+2. Update client to send/receive framed messages:
+   ```typescript
+   // Send resize
+   ws.send(JSON.stringify({ type: "resize", payload: { rows: 39, cols: 132 } }));
+
+   // Send user input
+   ws.send(JSON.stringify({ type: "data", payload: { data: base64(input) } }));
+
+   // Receive messages
+   ws.onmessage = (event) => {
+       const frame = JSON.parse(event.data);
+       if (frame.type === "data") {
+           terminal.write(atob(frame.payload.data));
+       }
+   };
+   ```
+3. Protocol is now extensible for future features (ping/pong, file transfer, etc.)
+4. No ambiguity or filtering needed
+
+**Migration path:**
+1. Backend implements framed protocol with backward compatibility (detect old vs new clients)
+2. Update UI to use framed protocol
+3. Deprecate old protocol after transition period
+4. Remove backward compatibility code
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -1055,6 +1293,7 @@ for status in PoolStatus:
 | #19 Status sort order not generated | Low | status-utils.ts | Use generated sortOrder |
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
+| #22 Shell resize messages echoed | **High** | use-websocket-shell.ts, use-shell.ts | Remove filtering workaround |
 
 ### Priority Guide
 
