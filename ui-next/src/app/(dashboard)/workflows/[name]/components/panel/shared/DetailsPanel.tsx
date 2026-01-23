@@ -406,22 +406,28 @@ export const DetailsPanel = memo(function DetailsPanel({
       onToggleCollapsed();
     }
     // Navigate back to workflow view if we're on group or task
-    if (view !== "workflow" && onBackToWorkflow) {
-      onBackToWorkflow();
+    if (view !== "workflow") {
+      // Call onBackToWorkflow if provided, otherwise no-op
+      // (onBackToWorkflow should always be provided per the interface, but being defensive)
+      if (onBackToWorkflow) {
+        onBackToWorkflow();
+      }
     }
-    // Set the workflow tab
-    setSelectedWorkflowTab?.(tab);
+    // Set the workflow tab (must be after navigation to ensure we're in workflow view)
+    if (setSelectedWorkflowTab) {
+      setSelectedWorkflowTab(tab);
+    }
   });
 
   // Build quick actions for the edge strip
+  // Always show quick actions (they'll navigate back to workflow if needed)
   const quickActions: QuickAction[] = useMemo(() => {
-    if (!workflow) return [];
     return [
       { id: "overview", icon: Info, label: "Workflow Overview", onClick: () => navigateToWorkflowTab("overview") },
       { id: "logs", icon: FileText, label: "Workflow Logs", onClick: () => navigateToWorkflowTab("logs") },
       { id: "events", icon: History, label: "Workflow Events", onClick: () => navigateToWorkflowTab("events") },
     ];
-  }, [workflow, navigateToWorkflowTab]);
+  }, [navigateToWorkflowTab]);
 
   // Unified edge strip - always visible on left side
   // Contains: expand/collapse button, quick actions, shell sessions
