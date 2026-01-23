@@ -43,7 +43,6 @@ import {
   useImperativeHandle,
   useMemo,
   useDeferredValue,
-  useEffectEvent,
 } from "react";
 import { useEventCallback } from "usehooks-ts";
 import { cn } from "@/lib/utils";
@@ -270,47 +269,58 @@ export const ShellTerminal = memo(
       }
     }, [isShellReady, fit]);
 
+    // Use refs for keyboard shortcut handlers to bridge to the DOM event system.
+    // This ensures the event listener always has the latest callbacks without
+    // triggering re-registration or violating useEffectEvent rules (which prohibit
+    // passing Effect Events to external APIs like addEventListener).
+    const keyboardHandlersRef = useRef({ setIsSearchOpen, getTerminal, copy, announce, send });
+    useEffect(() => {
+      keyboardHandlersRef.current = { setIsSearchOpen, getTerminal, copy, announce, send };
+    }, [setIsSearchOpen, getTerminal, copy, announce, send]);
+
     // Handle keyboard shortcuts
-    const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
-      // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
-      // Prevents browser's native find from kicking in when inside the terminal
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        setIsSearchOpen((prev) => !prev);
-        return;
-      }
-
-      // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
-      // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
-        const terminal = getTerminal();
-        if (terminal) {
-          const selection = terminal.getSelection();
-          if (selection) {
-            e.preventDefault();
-            copy(selection);
-            announce("Copied to clipboard", "polite");
-            return;
-          }
-        }
-        // No selection - let the event propagate for Ctrl+C (SIGINT) to work
-      }
-
-      // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
-        e.preventDefault();
-        // Use void operator to handle Promise without floating promise lint error
-        void navigator.clipboard.readText().then(
-          (text) => send(text),
-          // Silently fail if clipboard access denied (user didn't grant permission)
-          () => {},
-        );
-        return;
-      }
-    });
-
     useEffect(() => {
       const container = containerRef.current;
+      const onKeyDown = (e: KeyboardEvent) => {
+        const { setIsSearchOpen, getTerminal, copy, announce, send } = keyboardHandlersRef.current;
+
+        // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
+        // Prevents browser's native find from kicking in when inside the terminal
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          setIsSearchOpen((prev) => !prev);
+          return;
+        }
+
+        // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
+        // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
+          const terminal = getTerminal();
+          if (terminal) {
+            const selection = terminal.getSelection();
+            if (selection) {
+              e.preventDefault();
+              copy(selection);
+              announce("Copied to clipboard", "polite");
+              return;
+            }
+          }
+          // No selection - let the event propagate for Ctrl+C (SIGINT) to work
+        }
+
+        // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
+          e.preventDefault();
+          // Use void operator to handle Promise without floating promise lint error
+          void navigator.clipboard.readText().then(
+            (text) => send(text),
+            // Silently fail if clipboard access denied (user didn't grant permission)
+            () => {},
+          );
+          return;
+        }
+      };
+
       if (container) {
         container.addEventListener("keydown", onKeyDown);
         return () => container.removeEventListener("keydown", onKeyDown);
