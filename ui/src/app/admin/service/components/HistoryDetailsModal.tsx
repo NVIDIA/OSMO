@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -35,17 +35,28 @@ interface HistoryDetailsModalProps {
   setRightRevision: (index: number) => void;
 }
 
-const RevisionSelector = ({ value, onSelect }: { value: number; onSelect: (index: number) => void }) => {
+const RevisionSelector = ({
+  id,
+  value,
+  onSelect,
+}: {
+  id: string;
+  value: number;
+  onSelect: (index: number) => void;
+}) => {
   const { configs } = useHistoryDetails();
 
+  // The -999px is to hide the text from the select element so that you only see the revision number.
   return (
     <Select
       className="w-full bg-headerbg border-none! font-bold"
-      id="revision-selector"
+      id={id}
       value={value.toString()}
       onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
         onSelect(Number(e.target.value));
       }}
+      slotLeft={<span className="font-bold">{`Revision ${value}`}</span>}
+      style={{ textIndent: "-9999px" }}
     >
       {configs.map((config: ServiceConfigHistoryItem) => (
         <option
@@ -121,6 +132,7 @@ export const HistoryDetailsModal = ({
             {previousVersion?.data && (
               <div className="flex flex-col card h-full w-full">
                 <RevisionSelector
+                  id="left-revision-selector"
                   value={leftRevision}
                   onSelect={setLeftRevision}
                 />
@@ -134,6 +146,7 @@ export const HistoryDetailsModal = ({
             )}
             <div className="flex flex-col card h-full w-full">
               <RevisionSelector
+                id="right-revision-selector"
                 value={rightRevision}
                 onSelect={setRightRevision}
               />
