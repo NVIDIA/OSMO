@@ -50,7 +50,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, startTransition, useCallback, useEffectEvent } from "react";
+import { useState, useEffect, useMemo, startTransition, useCallback, useEffectEvent, useRef } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
@@ -64,6 +64,7 @@ import {
   type GroupNodeData,
   type LayoutResult,
 } from "../lib/dag-layout";
+import { dagDebug } from "@/components/dag/lib/dag-debug";
 
 // =============================================================================
 // Types
@@ -179,6 +180,7 @@ export function useDAGState({
   const [isLayouting, setIsLayouting] = useState(false);
 
   // Compute topological levels from dependency graph (using injectable transformer)
+  // Note: 'groups' is now stabilized at the adapter layer (src/lib/api/adapter/hooks.ts)
   const groupsWithLayout = useMemo(() => groupTransformer(groups), [groupTransformer, groups]);
 
   // Get root node IDs (level 0) for initial zoom target
@@ -188,13 +190,24 @@ export function useDAGState({
   );
 
   // Initialize expanded groups when workflow changes
+  const prevGroupsWithLayoutRef = useRef<GroupWithLayout[]>([]);
   useEffect(() => {
-    // Clear layout cache when workflow fundamentally changes
-    cacheManager.clear();
-    // Use startTransition to avoid cascading renders when resetting state
-    startTransition(() => {
-      setExpandedGroups(expandedGroupsComputer(groupsWithLayout));
-    });
+    // Only re-initialize if the group names or structure actually changed
+    // This prevents loops where a state update causes a re-render with new array refs
+    const structureChanged =
+      groupsWithLayout.length !== prevGroupsWithLayoutRef.current.length ||
+      groupsWithLayout.some((g, i) => g.name !== prevGroupsWithLayoutRef.current[i]?.name);
+
+    if (structureChanged) {
+      prevGroupsWithLayoutRef.current = groupsWithLayout;
+      // Clear layout cache when workflow fundamentally changes
+      cacheManager.clear();
+      // Use startTransition to avoid cascading renders when resetting state
+      startTransition(() => {
+        const nextExpanded = expandedGroupsComputer(groupsWithLayout);
+        setExpandedGroups(nextExpanded);
+      });
+    }
   }, [groupsWithLayout, cacheManager, expandedGroupsComputer]);
 
   // Cleanup on unmount - clear layout cache to free memory when navigating away
@@ -243,15 +256,31 @@ export function useDAGState({
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
-  // Calculate layout when relevant state changes (using injectable calculator)
-  // Uses startTransition for non-blocking updates during layout calculation
   const setNodesEvent = useEffectEvent((nodes: Node<GroupNodeData>[]) => setNodes(nodes));
   const setEdgesEvent = useEffectEvent((edges: Edge[]) => setEdges(edges));
 
+  const lastRunInputRef = useRef<{
+    groups: GroupWithLayout[];
+    expanded: Set<string>;
+    direction: string;
+  } | null>(null);
+
   useEffect(() => {
+    // Prevent redundant runs if dependencies haven't actually changed
+    // This is a safety measure against unstable parent component re-renders
+    if (
+      lastRunInputRef.current &&
+      lastRunInputRef.current.groups === groupsWithLayout &&
+      lastRunInputRef.current.expanded === expandedGroups &&
+      lastRunInputRef.current.direction === layoutDirection
+    ) {
+      return;
+    }
+
     let cancelled = false;
 
     const runLayout = async () => {
+      lastRunInputRef.current = { groups: groupsWithLayout, expanded: expandedGroups, direction: layoutDirection };
       setIsLayouting(true);
       try {
         const result = await layoutCalculator(groupsWithLayout, expandedGroups, layoutDirection);
@@ -262,6 +291,7 @@ export function useDAGState({
           // hooks like useViewportBoundaries see 'isLayouting === false' only
           // when the new nodes are actually committed to state.
           startTransition(() => {
+            dagDebug.log("STATE_COMMIT", { nodeCount: result.nodes.length, edgeCount: result.edges.length });
             setNodesEvent(result.nodes);
             setEdgesEvent(result.edges);
             setIsLayouting(false);

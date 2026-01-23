@@ -36,6 +36,7 @@ import type {
 } from "../types";
 import { LAYOUT_SPACING, EDGE_STYLE, LAYOUT_CACHE } from "../constants";
 import { elkWorker } from "./elk-worker-client";
+import { dagDebug } from "../lib/dag-debug";
 
 // ============================================================================
 // Layout Cache
@@ -163,7 +164,9 @@ export async function calculatePositions(
   };
 
   // Run ELK layout (off main thread via web worker)
+  dagDebug.log("LAYOUT_START", { nodeCount: nodes.length, direction });
   const layoutResult = await elkWorker.layout(elkGraph);
+  dagDebug.log("LAYOUT_END", { nodeCount: nodes.length });
 
   // Build position map from layout results
   const positions = new Map<string, LayoutPosition>();
