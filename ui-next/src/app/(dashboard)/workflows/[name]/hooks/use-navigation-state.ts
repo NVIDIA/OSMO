@@ -219,11 +219,13 @@ export function useNavigationState({ groups, initialView }: UseNavigationStateOp
     }),
   );
 
-  // Use initialView until nuqs returns non-null values (indicates hydration complete)
-  // This avoids setState-in-effect by using derived state instead
-  const isHydrated = groupNameFromNuqs !== null || taskNameFromNuqs !== null || taskRetryIdFromNuqs !== null;
+  // Track if nuqs has hydrated (once hydrated, always use nuqs state even if null)
+  // nuqs returns undefined before hydration, null after hydration (when param is cleared)
+  // This distinction allows us to use initialView only during the initial render
+  const isHydrated =
+    groupNameFromNuqs !== undefined || taskNameFromNuqs !== undefined || taskRetryIdFromNuqs !== undefined;
 
-  // Use initialView before hydration, nuqs after
+  // Use initialView before hydration, nuqs after (even if nuqs values are null)
   const groupName = isHydrated ? groupNameFromNuqs : initialView.groupName;
   const taskName = isHydrated ? taskNameFromNuqs : initialView.taskName;
   const taskRetryId = isHydrated ? taskRetryIdFromNuqs : initialView.taskRetryId;
