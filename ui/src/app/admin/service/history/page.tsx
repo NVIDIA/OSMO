@@ -64,7 +64,7 @@ export default function AdminPage() {
   return (
     <HistoryDetailsProvider configs={configHistory.data?.configs}>
       <PageHeader title="Service Config History">
-        {selectedRevisions.length > 1 && (
+        {selectedRevisions.length === 2 && (
           <IconButton
             className="btn btn-primary"
             icon="compare"
