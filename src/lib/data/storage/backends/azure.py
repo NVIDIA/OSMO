@@ -287,7 +287,6 @@ def _extract_account_key_from_connection_string(connection_string: str) -> str:
 
 def create_client(
     data_cred: credentials.DataCredential,
-    storage_account: str | None = None,  # pylint: disable=unused-argument
     account_url: str | None = None,
 ) -> blob.BlobServiceClient:
     """
@@ -880,7 +879,6 @@ class AzureBlobStorageClientFactory(provider.StorageClientFactory):
     """
 
     data_cred: credentials.DataCredential
-    storage_account: str
     account_url: str
 
     @override
@@ -888,7 +886,6 @@ class AzureBlobStorageClientFactory(provider.StorageClientFactory):
         return AzureBlobStorageClient(
             azure_client_factory=lambda: create_client(
                 self.data_cred,
-                storage_account=self.storage_account,
                 account_url=self.account_url,
             ),
             data_cred=self.data_cred,

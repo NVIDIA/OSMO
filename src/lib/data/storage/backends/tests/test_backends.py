@@ -247,7 +247,6 @@ class AzureDefaultDataCredentialTest(unittest.TestCase):
         # Act
         azure.create_client(
             data_cred,
-            storage_account='mystorageaccount',
             account_url='https://mystorageaccount.blob.core.windows.net',
         )
 

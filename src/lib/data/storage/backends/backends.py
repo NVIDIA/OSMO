@@ -910,7 +910,6 @@ class AzureBlobStorageBackend(common.StorageBackend):
         def _validate_auth():
             with azure.create_client(
                 data_cred,
-                storage_account=self.storage_account,
                 account_url=self.auth_endpoint,
             ) as service_client:
                 if self.container:
@@ -960,7 +959,6 @@ class AzureBlobStorageBackend(common.StorageBackend):
 
         return azure.AzureBlobStorageClientFactory(
             data_cred=data_cred,
-            storage_account=self.storage_account,
             account_url=self.auth_endpoint,
         )
 
