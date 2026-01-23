@@ -66,6 +66,12 @@ declare global {
       getVolumes: () => Promise<MockVolumes>;
       help: () => void;
     };
+    __dev?: {
+      clearServiceWorker: () => Promise<void>;
+      serviceWorkerStatus: () => Promise<void>;
+      clearCaches: () => Promise<void>;
+      help: () => void;
+    };
   }
 }
 
@@ -90,8 +96,9 @@ export function MockProvider({ children }: MockProviderProps) {
     // Browser service workers handle streaming correctly (unlike msw/node)
     // Determine basePath: Next.js serves static files under basePath (e.g., /v2)
     // Use the centralized basePath utility for consistency
+    const basePath = getBasePath();
+
     const getServiceWorkerUrl = () => {
-      const basePath = getBasePath();
       if (!basePath) {
         return "/mockServiceWorker.js";
       }
@@ -100,16 +107,26 @@ export function MockProvider({ children }: MockProviderProps) {
       return `${normalizedBasePath}/mockServiceWorker.js`;
     };
 
+    // Service worker scope: only intercept API requests, not static assets
+    // This prevents service worker from caching _next/static/* and breaking hot reload
+    // With basePath: /v2/api/ (intercepts /v2/api/*)
+    // Without basePath: /api/ (intercepts /api/*)
+    const scope = basePath ? `${basePath}/api/` : "/api/";
+
     import("./browser")
       .then(({ worker }) =>
         worker.start({
           onUnhandledRequest: "bypass",
-          serviceWorker: { url: getServiceWorkerUrl() },
+          serviceWorker: {
+            url: getServiceWorkerUrl(),
+            options: { scope }, // Limit scope to API requests only
+          },
           quiet: true, // Disable request logging in console
         }),
       )
       .then(() => {
         setIsReady(true);
+        console.log(`[MSW] Service worker registered with scope: ${scope}`);
       })
       .catch((err) => {
         console.warn("[MSW] Browser worker failed:", err);
@@ -182,6 +199,44 @@ Changes take effect on the next API request.
         `);
       },
     };
+
+    // Set up developer utilities for service worker management
+    // This helps when hot reload isn't working due to old service worker
+    import("@/lib/dev/service-worker-manager")
+      .then(({ clearServiceWorker, showServiceWorkerStatus, clearAllCaches }) => {
+        window.__dev = {
+          clearServiceWorker: async () => {
+            console.log("💡 Clearing service worker and reloading...");
+            await clearServiceWorker(true);
+          },
+          serviceWorkerStatus: async () => {
+            await showServiceWorkerStatus();
+          },
+          clearCaches: async () => {
+            await clearAllCaches();
+          },
+          help: () => {
+            console.log(`
+🔧 Developer Utilities
+
+Service Worker Management (for hot reload issues):
+  await __dev.clearServiceWorker()    // Unregister SW, clear caches, and reload
+  await __dev.serviceWorkerStatus()   // Check SW status
+  await __dev.clearCaches()           // Clear all caches only
+
+Note: If hot reload isn't working after code changes, run:
+  __dev.clearServiceWorker()
+
+This unregisters the old service worker and reloads the page.
+            `);
+          },
+        };
+
+        console.log("🔧 Developer tools available. Type __dev.help() for options.");
+      })
+      .catch((error) => {
+        console.warn("Could not load developer utilities:", error);
+      });
 
     // Show initial state
     console.log("🔧 Mock mode active. Fetching server volumes...");
