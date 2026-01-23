@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -15,108 +15,76 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import FullPageModal from "~/components/FullPageModal";
-import { OutlinedIcon } from "~/components/Icon";
+import { Select } from "~/components/Select";
 import { ViewToggleButton } from "~/components/ViewToggleButton";
 import { type ServiceConfigHistoryItem } from "~/models/config/service-config";
 
 import { ConfigChangeInfo } from "./ConfigChangeInfo";
+import { useHistoryDetails } from "./HistoryDetailsContext";
 import { ServiceConfigOverview } from "./ServiceConfigOverview";
 
 interface HistoryDetailsModalProps {
   open: boolean;
   onClose: () => void;
-  configs: ServiceConfigHistoryItem[];
-  historyIndex: number;
-  setHistoryIndex: (index: number) => void;
+  leftRevision: number;
+  rightRevision: number;
+  setLeftRevision: (index: number) => void;
+  setRightRevision: (index: number) => void;
 }
+
+const RevisionSelector = ({ value, onSelect }: { value: number; onSelect: (index: number) => void }) => {
+  const { configs } = useHistoryDetails();
+
+  return (
+    <Select
+      className="w-full bg-headerbg border-none! font-bold"
+      id="revision-selector"
+      value={value.toString()}
+      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+        onSelect(Number(e.target.value));
+      }}
+    >
+      {configs.map((config: ServiceConfigHistoryItem) => (
+        <option
+          key={config.revision}
+          value={config.revision.toString()}
+        >
+          {`Revision ${config.revision}: ${config.description}`}
+        </option>
+      ))}
+    </Select>
+  );
+};
 
 export const HistoryDetailsModal = ({
   open,
   onClose,
-  configs,
-  historyIndex,
-  setHistoryIndex,
+  leftRevision,
+  rightRevision,
+  setLeftRevision,
+  setRightRevision,
 }: HistoryDetailsModalProps) => {
   const [isShowingJSON, setIsShowingJSON] = useState(false);
+  const { configs } = useHistoryDetails();
 
-  const currentConfig = configs[historyIndex];
-  const previousVersion = configs[historyIndex + 1];
-  const nextVersion = configs[historyIndex - 1];
+  const currentConfig = useMemo(
+    () => configs.find((config: ServiceConfigHistoryItem) => config.revision === rightRevision),
+    [configs, rightRevision],
+  );
+
+  const previousVersion = useMemo(
+    () => configs.find((config: ServiceConfigHistoryItem) => config.revision === leftRevision),
+    [configs, leftRevision],
+  );
 
   return (
     <FullPageModal
       headerChildren={
         <>
-          {configs.length > 2 ? (
-            <div className="flex flex-row gap-1 items-center justify-center grow">
-              {previousVersion && previousVersion.revision > 1 ? (
-                <button
-                  onClick={() => {
-                    setHistoryIndex(configs.length - 2);
-                  }}
-                  title="First Version"
-                >
-                  <OutlinedIcon
-                    name="first_page"
-                    className="text-lg!"
-                  />
-                </button>
-              ) : (
-                <OutlinedIcon
-                  name="first_page"
-                  className="text-lg! opacity-50"
-                />
-              )}
-              <button
-                onClick={() => {
-                  historyIndex < configs.length - 2 ? setHistoryIndex(historyIndex + 1) : setHistoryIndex(0);
-                }}
-                title="Previous Version"
-              >
-                <OutlinedIcon
-                  name="keyboard_double_arrow_left"
-                  className="text-lg!"
-                />
-              </button>
-              <h2 className="whitespace-nowrap overflow-hidden text-ellipsis min-w-25 text-center">
-                Revision {currentConfig?.revision}
-              </h2>
-              <button
-                onClick={() => {
-                  nextVersion ? setHistoryIndex(historyIndex - 1) : setHistoryIndex(configs.length - 2);
-                }}
-                title="Next Version"
-              >
-                <OutlinedIcon
-                  name="keyboard_double_arrow_right"
-                  className="text-lg!"
-                />
-              </button>
-              {nextVersion ? (
-                <button
-                  onClick={() => {
-                    setHistoryIndex(0);
-                  }}
-                  title="Last Version"
-                >
-                  <OutlinedIcon
-                    name="last_page"
-                    className="text-lg!"
-                  />
-                </button>
-              ) : (
-                <OutlinedIcon
-                  name="last_page"
-                  className="text-lg! opacity-50"
-                />
-              )}
-            </div>
-          ) : (
-            <h2 className="grow">Service Config</h2>
-          )}
+          <h2 className="grow">Service Config</h2>
           <fieldset
             className="toggle-group"
             aria-label="View Type"
@@ -152,7 +120,10 @@ export const HistoryDetailsModal = ({
           <div className="grid grid-cols-2 gap-global p-global w-full grow">
             {previousVersion?.data && (
               <div className="flex flex-col card h-full w-full">
-                <h3 className="body-header p-global">Revision {previousVersion.revision}</h3>
+                <RevisionSelector
+                  value={leftRevision}
+                  onSelect={setLeftRevision}
+                />
                 <ConfigChangeInfo config={previousVersion} />
                 <ServiceConfigOverview
                   serviceConfig={previousVersion.data}
@@ -162,7 +133,10 @@ export const HistoryDetailsModal = ({
               </div>
             )}
             <div className="flex flex-col card h-full w-full">
-              <h3 className="body-header p-global">Revision {currentConfig.revision}</h3>
+              <RevisionSelector
+                value={rightRevision}
+                onSelect={setRightRevision}
+              />
               <ConfigChangeInfo config={currentConfig} />
               <ServiceConfigOverview
                 serviceConfig={currentConfig.data}
