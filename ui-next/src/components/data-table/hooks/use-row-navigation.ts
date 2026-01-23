@@ -189,6 +189,7 @@ export function useRowNavigation({
   );
 
   // Handle keyboard navigation on a row
+  // Shortcuts defined in: ../hotkeys.ts (DATA_TABLE_HOTKEYS)
   const handleRowKeyDown = useCallback(
     (e: React.KeyboardEvent, currentIndex: number) => {
       if (disabled || rowCount === 0) return;
@@ -197,33 +198,40 @@ export function useRowNavigation({
 
       switch (e.key) {
         case "ArrowUp":
+          // DATA_TABLE_HOTKEYS.shortcuts.NAVIGATE_UP
           // Going up - align to end so row is fully visible at bottom of scroll
           navigateToRow(currentIndex - 1, "end");
           break;
 
         case "ArrowDown":
+          // DATA_TABLE_HOTKEYS.shortcuts.NAVIGATE_DOWN
           // Going down - align to start so row is fully visible at top of scroll
           navigateToRow(currentIndex + 1, "start");
           break;
 
         case "Home":
+          // DATA_TABLE_HOTKEYS.shortcuts.JUMP_TO_TOP
           navigateToRow(0, "start");
           break;
 
         case "End":
+          // DATA_TABLE_HOTKEYS.shortcuts.JUMP_TO_BOTTOM
           navigateToRow(rowCount - 1, "end");
           break;
 
         case "PageUp":
+          // DATA_TABLE_HOTKEYS.shortcuts.PAGE_UP
           navigateToRow(currentIndex - visibleRowCount, "center");
           break;
 
         case "PageDown":
+          // DATA_TABLE_HOTKEYS.shortcuts.PAGE_DOWN
           navigateToRow(currentIndex + visibleRowCount, "center");
           break;
 
         case "Enter":
         case " ":
+          // DATA_TABLE_HOTKEYS.shortcuts.ACTIVATE_ROW / ACTIVATE_ROW_SPACE
           // Use stable ref to avoid stale closure issues
           onRowActivateRef.current?.(currentIndex);
           break;

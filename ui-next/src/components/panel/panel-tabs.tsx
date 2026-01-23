@@ -195,20 +195,26 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
     [onValueChange, startTransition],
   );
 
+  // Keyboard navigation (scoped to tab list)
+  // Shortcuts defined in: ./hotkeys.ts (PANEL_HOTKEYS)
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent, currentIndex: number) => {
       let nextIndex: number | null = null;
       switch (event.key) {
         case "ArrowLeft":
+          // PANEL_HOTKEYS.shortcuts.PREVIOUS_TAB
           nextIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
           break;
         case "ArrowRight":
+          // PANEL_HOTKEYS.shortcuts.NEXT_TAB
           nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
           break;
         case "Home":
+          // PANEL_HOTKEYS.shortcuts.FIRST_TAB
           nextIndex = 0;
           break;
         case "End":
+          // PANEL_HOTKEYS.shortcuts.LAST_TAB
           nextIndex = tabs.length - 1;
           break;
         default:
