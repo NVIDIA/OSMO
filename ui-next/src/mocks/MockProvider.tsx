@@ -92,46 +92,90 @@ export function MockProvider({ children }: MockProviderProps) {
       return;
     }
 
-    // Start browser-side MSW for proper streaming support
-    // Browser service workers handle streaming correctly (unlike msw/node)
-    // Determine basePath: Next.js serves static files under basePath (e.g., /v2)
-    // Use the centralized basePath utility for consistency
-    const basePath = getBasePath();
+    // Initialize mock mode with proper sequencing:
+    // 1. Check/inject JWT cookie (synchronous)
+    // 2. Start MSW and wait for it to be fully ready (deterministic)
+    // 3. Only then render children (including UserProvider)
+    const initMSW = async () => {
+      // Step 1: Ensure JWT cookie exists
+      const { generateMockJWT } = await import("./inject-auth");
 
-    const getServiceWorkerUrl = () => {
-      if (!basePath) {
-        return "/mockServiceWorker.js";
+      // Check if JWT cookie already exists
+      const cookies = document.cookie.split(";").reduce(
+        (acc, cookie) => {
+          const [key, value] = cookie.trim().split("=");
+          if (key) acc[key] = value;
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+
+      if (!cookies["IdToken"] && !cookies["BearerToken"]) {
+        // No JWT exists, inject one
+        const mockJwt = generateMockJWT("dev", ["admin", "user"]);
+        document.cookie = `IdToken=${mockJwt}; path=/; max-age=28800`; // 8 hours
+        console.log("🔐 Mock JWT injected for user: dev");
+      } else {
+        console.log("🔐 Existing JWT cookie found, reusing");
       }
-      // Ensure basePath doesn't end with / and path starts with /
-      const normalizedBasePath = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
-      return `${normalizedBasePath}/mockServiceWorker.js`;
+
+      // Step 2: Start MSW and wait for it to be fully ready
+      const basePath = getBasePath();
+
+      const getServiceWorkerUrl = () => {
+        if (!basePath) {
+          return "/mockServiceWorker.js";
+        }
+        // Ensure basePath doesn't end with / and path starts with /
+        const normalizedBasePath = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
+        return `${normalizedBasePath}/mockServiceWorker.js`;
+      };
+
+      // Service worker scope: use default (root) for reliable control
+      // MSW will only intercept requests that have handlers
+      // No scope restriction needed - the worker controls the whole origin
+
+      const { worker } = await import("./browser");
+
+      await worker.start({
+        onUnhandledRequest: "bypass",
+        serviceWorker: {
+          url: getServiceWorkerUrl(),
+          // Use default scope for reliable control
+        },
+        quiet: true, // Disable request logging in console
+      });
+
+      console.log("[MSW] Service worker registered");
+
+      // On first load, the service worker won't be controlling the page yet.
+      // We need to reload once to let it take control.
+      if (!navigator.serviceWorker.controller) {
+        // Check if we've already reloaded once to avoid infinite reload loop
+        const hasReloaded = sessionStorage.getItem("msw_reloaded");
+
+        if (!hasReloaded) {
+          console.log("[MSW] First load: reloading to activate service worker...");
+          sessionStorage.setItem("msw_reloaded", "true");
+          window.location.reload();
+          return; // Don't set isReady, page will reload
+        } else {
+          // We've already reloaded but SW still not controlling - proceed anyway
+          console.warn("[MSW] Service worker not controlling after reload, proceeding anyway");
+        }
+      } else {
+        console.log("[MSW] Service worker is controlling");
+        // Clear reload flag since SW is working
+        sessionStorage.removeItem("msw_reloaded");
+      }
+
+      setIsReady(true);
     };
 
-    // Service worker scope: only intercept API requests, not static assets
-    // This prevents service worker from caching _next/static/* and breaking hot reload
-    // With basePath: /v2/api/ (intercepts /v2/api/*)
-    // Without basePath: /api/ (intercepts /api/*)
-    const scope = basePath ? `${basePath}/api/` : "/api/";
-
-    import("./browser")
-      .then(({ worker }) =>
-        worker.start({
-          onUnhandledRequest: "bypass",
-          serviceWorker: {
-            url: getServiceWorkerUrl(),
-            options: { scope }, // Limit scope to API requests only
-          },
-          quiet: true, // Disable request logging in console
-        }),
-      )
-      .then(() => {
-        setIsReady(true);
-        console.log(`[MSW] Service worker registered with scope: ${scope}`);
-      })
-      .catch((err) => {
-        console.warn("[MSW] Browser worker failed:", err);
-        setIsReady(true); // Continue anyway, server-side MSW is fallback
-      });
+    initMSW().catch((err) => {
+      console.error("[MSW] Failed to initialize:", err);
+      setIsReady(true); // Continue anyway to avoid blocking the app
+    });
 
     // Helper to create a setter that calls the server action
     const createSetter = (key: keyof MockVolumes) => async (n: number) => {
