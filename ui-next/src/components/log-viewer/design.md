@@ -13,6 +13,18 @@
 > **Status**: Core implementation complete (W0-W4). This document tracks current state and remaining work.
 > **Implementation**: `src/components/log-viewer/`, `src/lib/api/log-adapter/`
 
+## Recent Design Changes (Jan 2026)
+
+**Footer Redesign:**
+1. ✅ **Button order updated:** Download → Wrap → Task (left-aligned), Refresh (right-aligned after entry count)
+2. ✅ **Entry count added:** `M of N entries` display (right-aligned)
+   - **M** = Filtered entries (after search + facets + levels + sources)
+   - **N** = Total entries (after scope pre-filtering, before user filters)
+   - Updates in real-time as filters change or logs stream
+3. ✅ **Refresh button positioned:** Right side, after entry count
+
+**Key principle:** Entry count provides context for how much of the log is visible after filtering.
+
 ---
 
 ## Table of Contents
@@ -35,7 +47,7 @@ The log viewer follows a **5-section vertical layout** with clear separation of 
 
 ```
 +------------------------------------------------------------------+
-| [🔍 search logs...                                        2,450] | ← SearchBar
+| [🔍 search logs...                                            ] | ← SearchBar
 +------------------------------------------------------------------+
 | [Level (1) ▾] [Task (2) ▾] [Source ▾]                            | ← FacetBar
 +------------------------------------------------------------------+
@@ -45,7 +57,7 @@ The log viewer follows a **5-section vertical layout** with clear separation of 
 | LogList (full width, virtualized)                                | ← Logs
 |                                                                  |
 +------------------------------------------------------------------+
-| [Wrap] [Task] [⬇]                                      [Refresh] | ← Footer
+| [⬇] [Wrap] [Task]                       [245 of 1,203 entries] [↻] | ← Footer
 +------------------------------------------------------------------+
 ```
 
@@ -55,12 +67,12 @@ The log viewer follows a **5-section vertical layout** with clear separation of 
 |-----------|---------|-------|-------|
 | **LogViewerContainer** | Data orchestration | workflowId, scope, devParams | Filter chips (local) |
 | **LogViewer** | UI orchestration | entries, histogram, facets, chips | None (stateless) |
-| **SearchBar** | Text search input | value, onChange, resultCount | Local input (deferred) |
+| **SearchBar** | Text search input | value, onChange | Local input (deferred) |
 | **FacetBar** | Category filters | facets, selectedFilters, onFilterChange | None (controlled) |
 | **TimelineHistogram** | Log density viz | buckets, intervalMs, onBucketClick | None (stateless) |
 | **LogList** | Virtual log list | entries, isLiveMode, onScrollAway | Scroll position |
 | **LogEntryRow** | Single entry | entry, isExpanded, wrapLines, showTask | None (controlled) |
-| **Footer** | Display controls | wrapLines, showTask, onDownload | None (controlled) |
+| **Footer** | Actions + entry count | wrapLines, showTask, onDownload, onRefresh, filteredCount, totalCount | None (controlled) |
 | **FacetDropdown** | Single facet UI | field, values, selected, onChange | Open state |
 
 ### Data Flow
@@ -74,7 +86,7 @@ graph TD
     Adapter[PlainTextAdapter]
     Compute[compute functions]
     UI[LogViewer + children]
-    
+
     Container -->|manages| Chips
     Chips -->|convert| Convert
     Convert -->|LogQueryFilters| Hook
@@ -162,6 +174,32 @@ const combinedEntries = useCombinedEntries(queryEntries, liveEntries);
 **Alternative design (not implemented):** Implicit streaming from time range end.
 See [Timeline Features](#timeline-features-future) for proposed approach.
 
+### SearchBar
+
+**Purpose:** Free-text search input for filtering logs.
+
+```
++------------------------------------------------------------------+
+| [🔍 search logs...                                            ] |
++------------------------------------------------------------------+
+```
+
+**Behavior:**
+- **Input:** Text search with deferred value (useDeferredValue) to avoid blocking typing
+- **Search conversion:** Text input becomes a filter chip with `field: "text"`
+
+**Example flow:**
+```typescript
+// User types "error timeout"
+SearchBar input: "error timeout"
+  ↓
+Creates chip: { field: "text", value: "error timeout" }
+  ↓
+Footer shows: [12 of 2,450 entries]
+               ↑          ↑
+               M (filtered)  N (total)
+```
+
 ### Histogram
 
 **Current state:** Visualization only, no time filtering.
@@ -192,6 +230,60 @@ See [Timeline Features](#timeline-features-future) for proposed approach.
 - No preset buttons (All, First 5m, Last 15m, Last 1h)
 - No drag-to-select interaction
 - No visual selection overlay
+
+### Footer
+
+**Purpose:** Action buttons and entry count display.
+
+**Layout:** Left-aligned buttons, right-aligned entry count.
+
+```
++------------------------------------------------------------------+
+| [⬇] [Wrap] [Task]                       [245 of 1,203 entries] [↻] |
++------------------------------------------------------------------+
+```
+
+**Components:**
+
+| Button | Icon | Action | Position | When Visible |
+|--------|------|--------|----------|--------------|
+| **Download** | ⬇ (Download) | Export filtered logs as text file | Left | Always |
+| **Wrap** | Toggle | Enable/disable line wrapping | Left | Always |
+| **Task** | Toggle | Show/hide task name suffix on entries | Left | Multi-task view only |
+| **Refresh** | ↻ (RefreshCw) | Manually refetch logs from backend | Right (after count) | Always |
+
+**Entry Count (right-aligned, before Refresh):**
+- **Format:** `M of N entries` (with locale number formatting)
+- **M** = Number of entries matching current filters (search + facets + levels + sources)
+- **N** = Total number of entries in memory (after scope pre-filtering, before user filters)
+- **Updates:** Real-time as filters change or new logs stream in
+
+**Entry Count Logic:**
+
+| Scenario | Display | Explanation |
+|----------|---------|-------------|
+| No filters active | `1,203 of 1,203 entries` | M = N (all entries visible) |
+| Search active | `245 of 1,203 entries` | M = filtered count, N = total |
+| Facet filters active | `89 of 1,203 entries` | M = filtered count, N = total |
+| Search + facets | `12 of 1,203 entries` | M = combined filter result, N = total |
+| Live streaming | Updates both M and N | Both increase as new logs arrive |
+| Task scope | `450 of 450 entries` | N = only this task's logs (pre-filtered by scope) |
+| Workflow scope | `1,203 of 1,203 entries` | N = all workflow logs (pre-filtered by scope) |
+
+**Implementation notes:**
+- `totalCount` (N) = Total entries after scope filtering but before user filters
+- `filteredCount` (M) = Entries after applying all user filters (search, facets, levels, sources)
+- Both counts update reactively when:
+  - New logs stream in via live mode
+  - User adds/removes filters
+  - User changes scope (task vs workflow view)
+- Format with `toLocaleString()` for readability (e.g., `1,203` not `1203`)
+
+**Button behavior:**
+1. **Download** (left): Exports only the filtered entries (M), respects active filters
+2. **Wrap** (left): Toggles `wrapLines` in Zustand store, affects all LogEntryRow components
+3. **Task** (left): Toggles `showTask` in Zustand store, shows/hides task suffix in log messages
+4. **Refresh** (right): Clears cache and refetches from backend (useful when live mode is off)
 
 ### Directory Structure (Actual)
 
@@ -490,7 +582,7 @@ Selection is always clamped to workflow bounds:
 | State | Explicit store field | No explicit field needed |
 | Clarity | Clear on/off state | Less obvious to users |
 
-**Decision needed:** 
+**Decision needed:**
 - **Keep explicit** for clarity and current working state?
 - **Migrate to implicit** for simplicity as timeline proposes?
 
@@ -544,7 +636,7 @@ Selection is always clamped to workflow bounds:
      start: undefined, // Default: workflow start
      end: undefined,   // Default: NOW (streaming)
    });
-   
+
    // Pass to useLogData
    const { entries } = useLogData({
      workflowId,
