@@ -14,9 +14,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { Chrome } from "@/components/chrome";
 import { prefetchVersion } from "@/lib/api/server";
+import { createQueryClient } from "@/lib/query-client";
 
 /**
  * Dashboard layout with shared data prefetch.
@@ -35,11 +36,11 @@ import { prefetchVersion } from "@/lib/api/server";
  * - (dashboard)/error.tsx - Catches all dashboard errors
  * - (dashboard)/pools/error.tsx - Catches pool-specific errors
  * - (dashboard)/resources/error.tsx - Catches resource-specific errors
- */
+ * */
 export default async function DashboardLayout(props: { children: React.ReactNode }) {
   // Start prefetch in parallel - don't block the layout render
   // The query will populate the cache; client will use cached data or refetch
-  const queryClient = new QueryClient();
+  const queryClient = createQueryClient();
 
   // Fire-and-forget prefetch - allows shell to stream immediately
   // Version endpoint is fast and cached; blocking on it delays everything

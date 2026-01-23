@@ -1,6 +1,6 @@
 // React Query hooks with transformation to ideal types. Use these instead of generated hooks.
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
@@ -9,7 +9,7 @@ import {
   getResourcesApiResourcesGet,
   getPoolQuotasApiPoolQuotaGet,
 } from "../generated";
-import { QUERY_STALE_TIME_EXPENSIVE_MS } from "@/lib/config";
+import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
 
 import {
@@ -30,21 +30,27 @@ import {
   type PoolMetadata,
 } from "./pools-shim";
 import type { PaginationParams } from "@/lib/api/pagination";
+import { normalizeWorkflowTimestamps } from "./utils";
 
 export function usePools() {
-  const query = useGetPoolQuotasApiPoolQuotaGet({ all_pools: true });
-
-  const result = useMemo(() => {
-    if (!query.data) return { pools: [], sharingGroups: [] };
-    return transformPoolsResponse(query.data);
-  }, [query.data]);
+  const { data, isLoading, error, refetch } = useGetPoolQuotasApiPoolQuotaGet(
+    { all_pools: true },
+    {
+      query: {
+        select: useCallback((rawData: unknown) => {
+          if (!rawData) return { pools: [], sharingGroups: [] };
+          return transformPoolsResponse(rawData);
+        }, []),
+      },
+    },
+  );
 
   return {
-    pools: result.pools,
-    sharingGroups: result.sharingGroups,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    pools: data?.pools ?? [],
+    sharingGroups: data?.sharingGroups ?? [],
+    isLoading,
+    error,
+    refetch,
   };
 }
 
@@ -86,82 +92,100 @@ export function useFilteredPools(params: PoolFilterParams = {}) {
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
 
 export function usePool(poolName: string) {
-  const query = useGetPoolQuotasApiPoolQuotaGet({
-    pools: [poolName],
-    all_pools: false,
-  });
-
-  const pool = useMemo(() => {
-    if (!query.data) return null;
-    return transformPoolDetail(query.data, poolName);
-  }, [query.data, poolName]);
+  const { data, isLoading, error, refetch } = useGetPoolQuotasApiPoolQuotaGet(
+    {
+      pools: [poolName],
+      all_pools: false,
+    },
+    {
+      query: {
+        select: useCallback(
+          (rawData: unknown) => {
+            if (!rawData) return null;
+            return transformPoolDetail(rawData, poolName);
+          },
+          [poolName],
+        ),
+      },
+    },
+  );
 
   return {
-    pool,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    pool: data ?? null,
+    isLoading,
+    error,
+    refetch,
   };
 }
 
 export function usePoolResources(poolName: string) {
-  const query = useGetResourcesApiResourcesGet({
-    pools: [poolName],
-    all_pools: false,
-  });
-
-  const result = useMemo((): PoolResourcesResponse => {
-    if (!query.data) return { resources: [], platforms: [] };
-    return transformResourcesResponse(query.data, poolName);
-  }, [query.data, poolName]);
+  const { data, isLoading, error, refetch } = useGetResourcesApiResourcesGet(
+    {
+      pools: [poolName],
+      all_pools: false,
+    },
+    {
+      query: {
+        select: useCallback(
+          (rawData: unknown): PoolResourcesResponse => {
+            if (!rawData) return { resources: [], platforms: [] };
+            return transformResourcesResponse(rawData, poolName);
+          },
+          [poolName],
+        ),
+      },
+    },
+  );
 
   return {
-    resources: result.resources,
-    platforms: result.platforms,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    resources: data?.resources ?? [],
+    platforms: data?.platforms ?? [],
+    isLoading,
+    error,
+    refetch,
   };
 }
 
 export function useAllResources() {
-  const query = useGetResourcesApiResourcesGet({
-    all_pools: true,
-  });
-
-  const result = useMemo((): AllResourcesResponse => {
-    if (!query.data) return { resources: [], pools: [], platforms: [] };
-    return transformAllResourcesResponse(query.data);
-  }, [query.data]);
+  const { data, isLoading, error, refetch } = useGetResourcesApiResourcesGet(
+    { all_pools: true },
+    {
+      query: {
+        select: useCallback((rawData: unknown): AllResourcesResponse => {
+          if (!rawData) return { resources: [], pools: [], platforms: [] };
+          return transformAllResourcesResponse(rawData);
+        }, []),
+      },
+    },
+  );
 
   return {
-    resources: result.resources,
-    pools: result.pools,
-    platforms: result.platforms,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    resources: data?.resources ?? [],
+    pools: data?.pools ?? [],
+    platforms: data?.platforms ?? [],
+    isLoading,
+    error,
+    refetch,
   };
 }
 
 // SSR: Version is prefetched at dashboard layout level
 export function useVersion() {
-  const query = useGetVersionApiVersionGet({
+  const { data, isLoading, error } = useGetVersionApiVersionGet({
     query: {
-      // Version rarely changes - cache for 5 minutes
-      staleTime: 5 * 60 * 1000,
+      // Version rarely changes - use STATIC stale time
+      staleTime: QUERY_STALE_TIME.STATIC,
+      select: useCallback((rawData: unknown) => {
+        if (!rawData) return null;
+        return transformVersionResponse(rawData);
+      }, []),
     },
   });
 
-  const version = useMemo(() => {
-    if (!query.data) return null;
-    return transformVersionResponse(query.data);
-  }, [query.data]);
-
   return {
-    version,
-    isLoading: query.isLoading,
-    error: query.error,
+    version: data ?? null,
+    isLoading,
+    error,
   };
 }
 
@@ -308,7 +332,6 @@ export function useResourceDetail(
 }
 
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "../generated";
-import { normalizeWorkflowTimestamps } from "./utils";
 
 interface UseWorkflowParams {
   name: string;
@@ -324,23 +347,38 @@ interface UseWorkflowReturn {
 }
 
 // WORKAROUND: Timestamps need normalization (Issue: BACKEND_TODOS.md#16) and string parsing (Issue: BACKEND_TODOS.md#1)
+//
+// This hook uses TanStack Query's built-in structural sharing to prevent infinite re-renders
+// when the backend returns semantically identical data with new object references.
+// The `select` option with `structuralSharing: true` (enabled globally) performs automatic
+// deep equality checks and preserves references when data is semantically identical.
 export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWorkflowReturn {
-  const { data, isLoading, error, refetch } = useGetWorkflowApiWorkflowNameGet(name, { verbose });
-
-  // Parse and transform the workflow response
+  // Parse and transform the workflow response using TanStack Query's select option
   // WORKAROUND: API returns string that needs parsing (BACKEND_TODOS.md#1)
   // WORKAROUND: Timestamps may lack timezone suffix (BACKEND_TODOS.md#16)
-  const workflow = useMemo(() => {
-    if (!data) return null;
-    try {
-      const parsed = typeof data === "string" ? JSON.parse(data) : data;
-      // Normalize timestamps at the API boundary so UI gets clean data
-      return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
-    } catch {
-      console.error("Failed to parse workflow response:", data);
-      return null;
-    }
-  }, [data]);
+  const { data, isLoading, error, refetch } = useGetWorkflowApiWorkflowNameGet(
+    name,
+    { verbose },
+    {
+      query: {
+        // Transform at query level - structural sharing prevents re-renders on identical data
+        select: useCallback((rawData: string) => {
+          if (!rawData) return null;
+          try {
+            const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+            // Normalize timestamps at the API boundary so UI gets clean data
+            return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
+          } catch {
+            console.error("Failed to parse workflow response:", rawData);
+            return null;
+          }
+        }, []),
+        // Note: structuralSharing is already enabled globally in query-client.ts
+        // This performs automatic deep equality checks and preserves references
+        // when data is semantically identical, preventing unnecessary re-renders
+      },
+    },
+  );
 
   // Check if workflow was not found (404 error)
   const isNotFound = useMemo(() => {
@@ -350,7 +388,7 @@ export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWor
   }, [error]);
 
   return {
-    workflow,
+    workflow: data ?? null,
     isLoading,
     error: error as Error | null,
     refetch,

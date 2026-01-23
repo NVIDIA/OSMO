@@ -31,6 +31,7 @@ import {
   type ServerFetchOptions,
 } from "./config";
 import { normalizeWorkflowTimestamps } from "../adapter/utils";
+import { getGetWorkflowApiWorkflowNameGetQueryKey } from "../generated";
 import type {
   WorkflowQueryResponse,
   SrcServiceCoreWorkflowObjectsListResponse,
@@ -201,9 +202,12 @@ export async function prefetchWorkflowByName(
   name: string,
   options: ServerFetchOptions = {},
 ): Promise<void> {
-  // Query key matches generated: ["/api/workflow/${name}", { verbose: true }]
+  // Use the generated query key helper to ensure perfect consistency with client hooks
+  // This ensures a cache hit during hydration.
+  const queryKey = getGetWorkflowApiWorkflowNameGetQueryKey(name, { verbose: true });
+
   await queryClient.prefetchQuery({
-    queryKey: [`/api/workflow/${name}`, { verbose: true }],
+    queryKey,
     queryFn: () => fetchWorkflowByNameRaw(name, true, options),
   });
 }
