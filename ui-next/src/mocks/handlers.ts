@@ -662,15 +662,17 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
-  // User endpoint - return mock user for local dev
-  http.get("*/api/me", () => {
-    return HttpResponse.json({
-      id: "dev-user-123",
-      email: "dev@nvidia.com",
-      name: "Dev User",
-      roles: ["admin", "user"],
-    });
-  }),
+  // ==========================================================================
+  // Auth / User
+  // ==========================================================================
+  // /api/me is NOT intercepted by MSW - it bypasses to the Next.js route handler.
+  //
+  // This keeps mock mode high-fidelity with production:
+  // - Production: Envoy sets JWT in Authorization header → /api/me decodes it
+  // - Mock: MockProvider sets JWT in cookie → /api/me decodes it (cookie fallback)
+  //
+  // Both use the same Next.js route handler (/api/me/route.ts) and JWT decoding.
+  // No handler needed here - MSW's onUnhandledRequest: "bypass" lets it through.
 
   // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:
   // - GET /api/workflow/:name/exec/task/:taskName/session/:sessionId
