@@ -19,16 +19,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -36,74 +32,40 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
 // WorkflowListener manages the bidirectional gRPC stream connection to the operator service
 type WorkflowListener struct {
-	args            utils.ListenerArgs
-	unackedMessages *utils.UnackMessages
-	progressWriter  *progress_check.ProgressWriter
-
-	// Connection state
-	conn   *grpc.ClientConn
-	client pb.ListenerServiceClient
-	stream pb.ListenerService_WorkflowListenerStreamClient
-
-	// Stream coordination
-	streamCtx    context.Context
-	streamCancel context.CancelCauseFunc
-	wg           sync.WaitGroup
-	closeOnce    sync.Once
+	*utils.BaseListener
+	args      utils.ListenerArgs
+	stream    pb.ListenerService_WorkflowListenerStreamClient
+	closeOnce sync.Once
 }
 
 // NewWorkflowListener creates a new workflow listener instance
 func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
-	// Initialize progress writer
-	progressFile := filepath.Join(args.ProgressDir, "last_progress_workflow_listener")
-	progressWriter, err := progress_check.NewProgressWriter(progressFile)
-	if err != nil {
-		log.Printf("Warning: failed to create progress writer: %v", err)
-		progressWriter = nil
-	} else {
-		log.Printf("Progress writer initialized: %s", progressFile)
-	}
-
 	return &WorkflowListener{
-		args:            args,
-		unackedMessages: utils.NewUnackMessages(args.MaxUnackedMessages),
-		progressWriter:  progressWriter,
+		BaseListener: utils.NewBaseListener(args, "last_progress_workflow_listener"),
+		args:         args,
 	}
 }
 
 // Connect establishes a gRPC connection and stream
 func (wl *WorkflowListener) Connect(ctx context.Context) error {
-	// Parse serviceURL to extract host:port for gRPC
-	serviceAddr, err := utils.ParseServiceURL(wl.args.ServiceURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse service URL: %w", err)
+	// Initialize the base connection
+	if err := wl.BaseListener.InitConnection(ctx, wl.args.ServiceURL); err != nil {
+		return err
 	}
-
-	// Connect to the gRPC server
-	wl.conn, err = grpc.NewClient(
-		serviceAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to connect to service: %w", err)
-	}
-
-	// Create the listener service client
-	wl.client = pb.NewListenerServiceClient(wl.conn)
 
 	// Establish the bidirectional stream
-	wl.stream, err = wl.client.WorkflowListenerStream(ctx)
+	var err error
+	wl.stream, err = wl.GetClient().WorkflowListenerStream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
 
 	// Context for coordinated shutdown of goroutines with error cause
-	wl.streamCtx, wl.streamCancel = context.WithCancelCause(ctx)
+	wl.InitStreamContext(ctx)
 
 	log.Printf("Connected to operator service, stream established")
 	return nil
@@ -117,64 +79,27 @@ func (wl *WorkflowListener) Run(ctx context.Context) error {
 	defer wl.Close()
 
 	// Resend all unacked messages from previous connection (if any)
-	if err := wl.unackedMessages.ResendAll(wl.stream); err != nil {
+	if err := wl.GetUnackedMessages().ResendAll(wl.stream); err != nil {
 		return err
 	}
 
 	// Launch goroutines for send and receive
-	wl.wg.Add(2)
+	wl.AddToWaitGroup(2)
 	go func() {
-		defer wl.wg.Done()
-		wl.receiveMessages()
+		defer wl.WaitGroupDone()
+		wl.BaseListener.ReceiveAcks(wl.stream, "workflow")
 	}()
 
 	go func() {
-		defer wl.wg.Done()
+		defer wl.WaitGroupDone()
 		wl.sendMessages()
 	}()
 
 	// Wait for completion
-	return wl.waitForCompletion(ctx)
+	return wl.WaitForCompletion(ctx, wl.closeStream)
 }
 
 // receiveMessages handles receiving ACK messages from the server
-func (wl *WorkflowListener) receiveMessages() {
-	// Rate limit progress reporting
-	lastProgressReport := time.Now()
-	progressInterval := time.Duration(wl.args.ProgressFrequencySec) * time.Second
-
-	for {
-		msg, err := wl.stream.Recv()
-		if err != nil {
-			// Check if context was cancelled
-			if wl.streamCtx.Err() != nil {
-				log.Println("Stopping message receiver (context cancelled)...")
-				return
-			}
-			if err == io.EOF {
-				log.Println("Server closed the stream")
-				wl.streamCancel(io.EOF)
-				return
-			}
-			wl.streamCancel(fmt.Errorf("failed to receive message: %w", err))
-			return
-		}
-
-		// Handle ACK messages by removing from unacked queue
-		wl.unackedMessages.RemoveMessage(msg.AckUuid)
-		log.Printf("Received ACK: uuid=%s", msg.AckUuid)
-
-		// Report progress after receiving ACK (rate-limited)
-		now := time.Now()
-		if wl.progressWriter != nil && now.Sub(lastProgressReport) >= progressInterval {
-			if err := wl.progressWriter.ReportProgress(); err != nil {
-				log.Printf("Warning: failed to report progress: %v", err)
-			}
-			lastProgressReport = now
-		}
-	}
-}
-
 // sendMessages consumes pod updates from a channel and sends them to the server
 func (wl *WorkflowListener) sendMessages() {
 	// Create a channel to receive pod updates (with pre-calculated status) from the watcher
@@ -183,10 +108,13 @@ func (wl *WorkflowListener) sendMessages() {
 	// Create a channel to signal if watchPod exits unexpectedly
 	watcherDone := make(chan struct{})
 
+	streamCtx := wl.GetStreamContext()
+	streamCancel := wl.GetStreamCancel()
+
 	// Start pod watcher in a separate goroutine
 	go func() {
 		defer close(watcherDone)
-		watchPod(wl.streamCtx, wl.args, podUpdateChan)
+		watchPod(streamCtx, wl.args, podUpdateChan)
 	}()
 
 	// Ticker to report progress when idle
@@ -196,25 +124,26 @@ func (wl *WorkflowListener) sendMessages() {
 	// Send pod updates to the server
 	for {
 		select {
-		case <-wl.streamCtx.Done():
+		case <-streamCtx.Done():
 			log.Println("Stopping message sender, draining channel...")
 			wl.drainChannel(podUpdateChan)
 			return
 		case <-watcherDone:
 			log.Println("Pod watcher stopped unexpectedly, draining channel...")
 			wl.drainChannel(podUpdateChan)
-			wl.streamCancel(fmt.Errorf("pod watcher stopped"))
+			streamCancel(fmt.Errorf("pod watcher stopped"))
 			return
 		case <-progressTicker.C:
 			// Report progress periodically even when idle
-			if wl.progressWriter != nil {
-				if err := wl.progressWriter.ReportProgress(); err != nil {
+			progressWriter := wl.GetProgressWriter()
+			if progressWriter != nil {
+				if err := progressWriter.ReportProgress(); err != nil {
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
 		case update := <-podUpdateChan:
 			if err := wl.sendPodUpdate(update); err != nil {
-				wl.streamCancel(fmt.Errorf("failed to send message: %w", err))
+				streamCancel(fmt.Errorf("failed to send message: %w", err))
 				return
 			}
 		}
@@ -230,8 +159,11 @@ func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
 		return nil // Don't fail the stream for one message
 	}
 
+	streamCtx := wl.GetStreamContext()
+	unackedMessages := wl.GetUnackedMessages()
+
 	// Add message to unacked queue before sending
-	if err := wl.unackedMessages.AddMessage(wl.streamCtx, msg); err != nil {
+	if err := unackedMessages.AddMessage(streamCtx, msg); err != nil {
 		log.Printf("Failed to add message to unacked queue: %v", err)
 		return nil // Don't fail the stream
 	}
@@ -247,6 +179,7 @@ func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
 // This prevents message loss during connection breaks
 func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
 	drained := 0
+	unackedMessages := wl.GetUnackedMessages()
 	for {
 		select {
 		case update := <-podUpdateChan:
@@ -255,7 +188,7 @@ func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
 				log.Printf("Failed to create message during drain: %v", err)
 				continue
 			}
-			wl.unackedMessages.AddMessageForced(msg)
+			unackedMessages.AddMessageForced(msg)
 			drained++
 		default:
 			if drained > 0 {
@@ -264,40 +197,6 @@ func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
 			return
 		}
 	}
-}
-
-// waitForCompletion waits for goroutines to finish
-func (wl *WorkflowListener) waitForCompletion(ctx context.Context) error {
-	// Wait for context cancellation (from parent or goroutines)
-	<-wl.streamCtx.Done()
-
-	// Check if error came from a goroutine or parent context
-	var finalErr error
-	if cause := context.Cause(wl.streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
-		log.Printf("Error from goroutine: %v", cause)
-		finalErr = fmt.Errorf("stream error: %w", cause)
-	} else if ctx.Err() != nil {
-		log.Println("Context cancelled, initiating graceful shutdown...")
-		finalErr = ctx.Err()
-	}
-
-	// Close stream and wait for goroutines with timeout
-	wl.closeStream()
-
-	shutdownComplete := make(chan struct{})
-	go func() {
-		wl.wg.Wait()
-		close(shutdownComplete)
-	}()
-
-	select {
-	case <-shutdownComplete:
-		log.Println("All goroutines stopped gracefully")
-	case <-time.After(5 * time.Second):
-		log.Println("Warning: goroutines did not stop within timeout")
-	}
-
-	return finalErr
 }
 
 // closeStream ensures stream is closed only once
@@ -313,13 +212,8 @@ func (wl *WorkflowListener) closeStream() {
 
 // Close cleans up resources
 func (wl *WorkflowListener) Close() {
-	if wl.streamCancel != nil {
-		wl.streamCancel(nil)
-	}
 	wl.closeStream()
-	if wl.conn != nil {
-		wl.conn.Close()
-	}
+	wl.BaseListener.CloseConnection()
 }
 
 // podWithStatus bundles a pod with its calculated status to avoid duplicate computation
