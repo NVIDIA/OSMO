@@ -38,7 +38,7 @@ export default function Loading() {
       </div>
 
       {/* Main content skeleton - fills remaining space */}
-      <div className="contain-layout-paint min-h-0 flex-1 gap-0 py-0 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="contain-layout-paint min-h-0 flex-1 gap-0 rounded-lg border border-zinc-200 bg-white py-0 dark:border-zinc-800 dark:bg-zinc-950">
         {/* Filter bar skeleton */}
         <div className="border-border border-b p-4">
           <div className="flex items-center gap-3">

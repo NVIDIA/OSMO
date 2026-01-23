@@ -247,20 +247,6 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }:
   );
 });
 
-// =============================================================================
-// Tab Configuration
-// =============================================================================
-
-const WORKFLOW_TABS: PanelTab[] = [
-  { id: "overview", label: "Overview", icon: Info },
-  { id: "logs", label: "Logs", icon: FileText },
-  { id: "events", label: "Events", icon: History },
-];
-
-// =============================================================================
-// Main Component
-// =============================================================================
-
 export const WorkflowDetails = memo(function WorkflowDetails({
   workflow,
   onCancel,
@@ -270,6 +256,13 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   selectedTab: selectedTabProp,
   setSelectedTab: setSelectedTabProp,
 }: WorkflowDetailsProps) {
+  // Tab configuration
+  const tabs = useMemo<PanelTab[]>(() => [
+    { id: "overview", label: "Overview", icon: Info },
+    { id: "logs", label: "Logs", icon: FileText },
+    { id: "events", label: "Events", icon: History },
+  ], []);
+
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const canCancel = statusCategory === "running" || statusCategory === "waiting";
@@ -302,7 +295,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
 
       {/* Tab Navigation - Chrome-style tabs with curved connectors */}
       <PanelTabs
-        tabs={WORKFLOW_TABS}
+        tabs={tabs}
         value={activeTab}
         onValueChange={handleTabChange}
       />

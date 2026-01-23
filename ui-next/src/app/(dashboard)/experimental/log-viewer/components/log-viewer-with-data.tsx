@@ -35,9 +35,10 @@
  * - Permalinked logs
  */
 
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchLogData } from "@/lib/api/server";
 import { LogViewerPageContent } from "./log-viewer-page-content";
+import { createQueryClient } from "@/lib/query-client";
 
 /**
  * Mock workflow ID for the playground.
@@ -61,12 +62,12 @@ interface LogViewerWithDataProps {
 }
 
 export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps) {
-  // Parse scenario from URL (default to "normal")
+  // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;
   const scenario: LogScenario = isValidScenario(params.scenario) ? params.scenario : "normal";
 
-  // Create QueryClient for this request
-  const queryClient = new QueryClient();
+  // Create QueryClient for this request using shared factory
+  const queryClient = createQueryClient();
 
   // Build dev params matching what the client uses
   const devParams = { log_scenario: scenario };
