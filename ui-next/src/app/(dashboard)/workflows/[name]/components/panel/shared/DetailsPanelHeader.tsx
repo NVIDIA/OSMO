@@ -258,6 +258,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
             className="flex shrink-0 items-center"
           >
             <button
+              type="button"
               onClick={segment.onClick}
               className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
               aria-label={`Navigate to ${segment.label}`}
