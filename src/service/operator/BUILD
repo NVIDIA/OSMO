@@ -33,6 +33,7 @@ go_library(
     visibility = ["//src/service/operator:__subpackages__"],
     deps = [
         "//src/proto/operator:operator_go_proto",
+        "//src/utils/postgres",
         "@com_github_jackc_pgx_v5//pgxpool",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
@@ -94,7 +95,6 @@ go_library(
     deps = [
         ":listener_service",
         ":utils",
-        "@com_github_jackc_pgx_v5//pgxpool",
         "@com_github_redis_go_redis_v9//:go-redis",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//health",
