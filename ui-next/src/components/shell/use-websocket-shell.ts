@@ -363,7 +363,7 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
       }
 
       const msg = JSON.stringify({ Rows: rows, Cols: cols });
-      ws.send(msg);
+      ws.send(sharedEncoder.encode(msg));
     },
     [sessionKey],
   );
