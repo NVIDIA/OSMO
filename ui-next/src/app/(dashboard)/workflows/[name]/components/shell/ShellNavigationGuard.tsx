@@ -255,7 +255,7 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
     // The href from the DOM already includes basePath (e.g., "/v2/pools")
     // but router.push() expects a path without basePath (e.g., "/pools")
     const targetUrl = stripBasePath(pendingNavigation.url);
-    
+
     // Use client-side navigation for better performance
     router.push(targetUrl);
 
