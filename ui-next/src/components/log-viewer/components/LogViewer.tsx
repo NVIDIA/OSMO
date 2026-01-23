@@ -315,8 +315,6 @@ function LogViewerInner({
         <SearchBar
           value={searchText}
           onChange={handleSearchChange}
-          resultCount={entries.length}
-          totalCount={totalCount ?? entries.length}
         />
       </div>
 
@@ -365,6 +363,8 @@ function LogViewerInner({
           onDownload={handleDownload}
           onRefresh={onRefetch}
           isLoading={isLoading || isStale}
+          filteredCount={entries.length}
+          totalCount={totalCount ?? entries.length}
         />
       </div>
     </div>
