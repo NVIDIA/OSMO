@@ -1,0 +1,606 @@
+{
+  "version": "1.0",
+  "description": "Test cases for resource usage aggregation logic",
+  "test_cases": [
+    {
+      "name": "single_container_basic_requests",
+      "description": "Pod with single container having CPU and memory requests",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-1",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "main",
+                "requests": {
+                  "cpu": "1000m",
+                  "memory": "1Gi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 1000,
+            "memory": 1048576,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "multi_container_summation",
+      "description": "Pod with multiple containers - resources should be summed",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-2",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "main",
+                "requests": {
+                  "cpu": "500m",
+                  "memory": "512Mi"
+                }
+              },
+              {
+                "name": "sidecar",
+                "requests": {
+                  "cpu": "200m",
+                  "memory": "256Mi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 700,
+            "memory": 786432,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "missing_requests_treated_as_zero",
+      "description": "Container without requests should contribute 0",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-3",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "main",
+                "requests": {}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "gpu_requests",
+      "description": "Pod requesting GPUs",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-4",
+            "namespace": "osmo",
+            "node_name": "gpu-node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "gpu-app",
+                "requests": {
+                  "cpu": "4000m",
+                  "memory": "16Gi",
+                  "nvidia.com/gpu": "2"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "gpu-node-1": {
+            "cpu": 4000,
+            "memory": 16777216,
+            "storage": 0,
+            "gpu": 2
+          }
+        },
+        "node_non_workflow_totals": {
+          "gpu-node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "ephemeral_storage_requests",
+      "description": "Pod with ephemeral storage requests",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-5",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "storage-app",
+                "requests": {
+                  "cpu": "500m",
+                  "memory": "1Gi",
+                  "ephemeral-storage": "10Gi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 500,
+            "memory": 1048576,
+            "storage": 10485760,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "non_workflow_namespace_split",
+      "description": "Pods in different namespaces - only workflow namespace excluded from non_workflow totals",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-6",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "workflow",
+                "requests": {
+                  "cpu": "1000m",
+                  "memory": "2Gi"
+                }
+              }
+            ]
+          },
+          {
+            "uid": "pod-7",
+            "namespace": "kube-system",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "system",
+                "requests": {
+                  "cpu": "500m",
+                  "memory": "1Gi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 1500,
+            "memory": 3145728,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 500,
+            "memory": 1048576,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "multiple_pods_same_node",
+      "description": "Multiple pods on the same node should aggregate correctly",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-8",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "app1",
+                "requests": {
+                  "cpu": "1000m",
+                  "memory": "1Gi"
+                }
+              }
+            ]
+          },
+          {
+            "uid": "pod-9",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "app2",
+                "requests": {
+                  "cpu": "2000m",
+                  "memory": "2Gi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 3000,
+            "memory": 3145728,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "pods_on_different_nodes",
+      "description": "Pods on different nodes should track separately",
+      "input": {
+        "workflow_namespace": "osmo",
+        "pods": [
+          {
+            "uid": "pod-10",
+            "namespace": "osmo",
+            "node_name": "node-1",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "app",
+                "requests": {
+                  "cpu": "1000m",
+                  "memory": "1Gi"
+                }
+              }
+            ]
+          },
+          {
+            "uid": "pod-11",
+            "namespace": "osmo",
+            "node_name": "node-2",
+            "phase": "Running",
+            "containers": [
+              {
+                "name": "app",
+                "requests": {
+                  "cpu": "2000m",
+                  "memory": "2Gi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 1000,
+            "memory": 1048576,
+            "storage": 0,
+            "gpu": 0
+          },
+          "node-2": {
+            "cpu": 2000,
+            "memory": 2097152,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          },
+          "node-2": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "pod_update_changes_resources",
+      "description": "Updating a pod should correctly recalculate totals",
+      "input": {
+        "workflow_namespace": "osmo",
+        "operations": [
+          {
+            "action": "add",
+            "pod": {
+              "uid": "pod-12",
+              "namespace": "osmo",
+              "node_name": "node-1",
+              "phase": "Running",
+              "containers": [
+                {
+                  "name": "app",
+                  "requests": {
+                    "cpu": "1000m",
+                    "memory": "1Gi"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "action": "update",
+            "pod": {
+              "uid": "pod-12",
+              "namespace": "osmo",
+              "node_name": "node-1",
+              "phase": "Running",
+              "containers": [
+                {
+                  "name": "app",
+                  "requests": {
+                    "cpu": "2000m",
+                    "memory": "2Gi"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 2000,
+            "memory": 2097152,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "pod_delete",
+      "description": "Deleting a pod should remove its contribution",
+      "input": {
+        "workflow_namespace": "osmo",
+        "operations": [
+          {
+            "action": "add",
+            "pod": {
+              "uid": "pod-13",
+              "namespace": "osmo",
+              "node_name": "node-1",
+              "phase": "Running",
+              "containers": [
+                {
+                  "name": "app",
+                  "requests": {
+                    "cpu": "1000m",
+                    "memory": "1Gi"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "action": "delete",
+            "pod": {
+              "uid": "pod-13",
+              "namespace": "osmo",
+              "node_name": "node-1",
+              "phase": "Running",
+              "containers": [
+                {
+                  "name": "app",
+                  "requests": {
+                    "cpu": "1000m",
+                    "memory": "1Gi"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "pod_migration_between_nodes",
+      "description": "Pod changing nodes should update both old and new node totals",
+      "input": {
+        "workflow_namespace": "osmo",
+        "operations": [
+          {
+            "action": "add",
+            "pod": {
+              "uid": "pod-14",
+              "namespace": "osmo",
+              "node_name": "node-1",
+              "phase": "Running",
+              "containers": [
+                {
+                  "name": "app",
+                  "requests": {
+                    "cpu": "1000m",
+                    "memory": "1Gi"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "action": "update",
+            "pod": {
+              "uid": "pod-14",
+              "namespace": "osmo",
+              "node_name": "node-2",
+              "phase": "Running",
+              "containers": [
+                {
+                  "name": "app",
+                  "requests": {
+                    "cpu": "1000m",
+                    "memory": "1Gi"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "node_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          },
+          "node-2": {
+            "cpu": 1000,
+            "memory": 1048576,
+            "storage": 0,
+            "gpu": 0
+          }
+        },
+        "node_non_workflow_totals": {
+          "node-1": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          },
+          "node-2": {
+            "cpu": 0,
+            "memory": 0,
+            "storage": 0,
+            "gpu": 0
+          }
+        }
+      }
+    }
+  ]
+}
