@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import Link from "next/link";
 
@@ -26,13 +26,14 @@ import PageHeader from "~/components/PageHeader";
 import { Spinner } from "~/components/Spinner";
 import { api } from "~/trpc/react";
 
+import { HistoryDetailsProvider } from "../components/HistoryDetailsContext";
 import { HistoryDetailsModal } from "../components/HistoryDetailsModal";
 import { HistoryTable } from "../components/HistoryTable";
 
 export default function AdminPage() {
-  const [historyIndex, setHistoryIndex] = useState(0);
+  const [leftRevision, setLeftRevision] = useState(0);
+  const [rightRevision, setRightRevision] = useState(0);
   const [isShowingDetails, setIsShowingDetails] = useState(false);
-  const [isComparing, setIsComparing] = useState(false);
   const [selectedRevisions, setSelectedRevisions] = useState<number[]>([]);
 
   const configHistory = api.configs.getConfigHistory.useQuery({
@@ -42,16 +43,6 @@ export default function AdminPage() {
     config_types: "SERVICE",
     omit_data: false,
   });
-
-  const compareRevisions = useMemo(() => {
-    if (isComparing) {
-      return configHistory.data?.configs
-        .filter((config) => selectedRevisions.includes(config.revision))
-        .sort((a, b) => b.revision - a.revision);
-    }
-
-    return configHistory.data?.configs;
-  }, [selectedRevisions, configHistory.data, isComparing]);
 
   if (configHistory.error) {
     return (
@@ -71,7 +62,7 @@ export default function AdminPage() {
   }
 
   return (
-    <>
+    <HistoryDetailsProvider configs={configHistory.data?.configs}>
       <PageHeader title="Service Config History">
         {selectedRevisions.length > 1 && (
           <IconButton
@@ -81,8 +72,8 @@ export default function AdminPage() {
             aria-label="Compare"
             onClick={() => {
               setIsShowingDetails(true);
-              setIsComparing(true);
-              setHistoryIndex(0);
+              setLeftRevision(Math.min(...selectedRevisions));
+              setRightRevision(Math.max(...selectedRevisions));
             }}
           />
         )}
@@ -103,20 +94,26 @@ export default function AdminPage() {
       <HistoryTable
         configs={configHistory.data?.configs}
         isLoading={configHistory.isLoading}
-        onSelectRevision={(index) => {
-          setHistoryIndex(index);
+        onSelectRevision={(revision) => {
+          if (revision > 1) {
+            setLeftRevision(revision - 1);
+            setRightRevision(revision);
+          } else {
+            setLeftRevision(1);
+            setRightRevision(2);
+          }
           setIsShowingDetails(true);
-          setIsComparing(false);
         }}
         onRowSelectionChange={setSelectedRevisions}
       />
       <HistoryDetailsModal
         open={isShowingDetails}
         onClose={() => setIsShowingDetails(false)}
-        configs={compareRevisions ?? []}
-        historyIndex={historyIndex}
-        setHistoryIndex={setHistoryIndex}
+        leftRevision={leftRevision}
+        rightRevision={rightRevision}
+        setLeftRevision={setLeftRevision}
+        setRightRevision={setRightRevision}
       />
-    </>
+    </HistoryDetailsProvider>
   );
 }
