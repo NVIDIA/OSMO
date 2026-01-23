@@ -278,12 +278,14 @@ export const ShellTerminal = memo(
       keyboardHandlersRef.current = { setIsSearchOpen, getTerminal, copy, announce, send };
     }, [setIsSearchOpen, getTerminal, copy, announce, send]);
 
-    // Handle keyboard shortcuts
+    // Handle keyboard shortcuts (scoped to terminal container)
+    // Shortcuts defined in: ./hotkeys.ts (TERMINAL_HOTKEYS)
     useEffect(() => {
       const container = containerRef.current;
       const onKeyDown = (e: KeyboardEvent) => {
         const { setIsSearchOpen, getTerminal, copy, announce, send } = keyboardHandlersRef.current;
 
+        // TERMINAL_HOTKEYS.shortcuts.TOGGLE_SEARCH
         // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
         // Prevents browser's native find from kicking in when inside the terminal
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
@@ -292,6 +294,7 @@ export const ShellTerminal = memo(
           return;
         }
 
+        // TERMINAL_HOTKEYS.shortcuts.COPY_SELECTION
         // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
         // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
@@ -308,6 +311,7 @@ export const ShellTerminal = memo(
           // No selection - let the event propagate for Ctrl+C (SIGINT) to work
         }
 
+        // TERMINAL_HOTKEYS.shortcuts.PASTE
         // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
           e.preventDefault();

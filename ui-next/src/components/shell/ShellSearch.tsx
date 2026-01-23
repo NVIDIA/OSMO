@@ -90,9 +90,11 @@ export const ShellSearch = memo(function ShellSearch({
     inputRef.current?.focus();
   }, []);
 
-  // Handle keyboard shortcuts
+  // Handle keyboard shortcuts (scoped to search input)
+  // Shortcuts defined in: ./hotkeys.ts (SHELL_SEARCH_HOTKEYS)
   // useEventCallback: stable ref, always accesses latest props
   const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
+    // SHELL_SEARCH_HOTKEYS.shortcuts.FOCUS_SEARCH
     // Prevent Ctrl/Cmd+F from triggering browser find when search is already open
     if (e.key === "f" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -101,6 +103,7 @@ export const ShellSearch = memo(function ShellSearch({
       return;
     }
 
+    // SHELL_SEARCH_HOTKEYS.shortcuts.FIND_NEXT / FIND_PREVIOUS
     if (e.key === "Enter") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -109,6 +112,7 @@ export const ShellSearch = memo(function ShellSearch({
         onFindNext();
       }
     } else if (e.key === "Escape") {
+      // SHELL_SEARCH_HOTKEYS.shortcuts.CLOSE_SEARCH
       e.preventDefault();
       onClose();
     }
