@@ -598,7 +598,7 @@ export function sendResize(key: string, rows: number, cols: number): boolean {
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
 
   const msg = JSON.stringify({ Rows: rows, Cols: cols });
-  ws.send(msg);
+  ws.send(sharedEncoder.encode(msg));
   return true;
 }
 
