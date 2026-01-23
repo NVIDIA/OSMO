@@ -165,7 +165,25 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.BaseListener.ReportProgress()
+		// Ticker to report progress when idle
+		progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
+		defer progressTicker.Stop()
+
+		for {
+			select {
+			case <-streamCtx.Done():
+				log.Println("Progress reporter stopped")
+				return
+			case <-progressTicker.C:
+				// Report progress periodically even when idle
+				progressWriter := rl.GetProgressWriter()
+				if progressWriter != nil {
+					if err := progressWriter.ReportProgress(); err != nil {
+						log.Printf("Warning: failed to report progress: %v", err)
+					}
+				}
+			}
+		}
 	}()
 
 	// Wait for all goroutines to complete

@@ -185,25 +185,6 @@ func (bl *BaseListener) CloseConnection() {
 	}
 }
 
-// ReportProgress reports progress periodically
-func (bl *BaseListener) ReportProgress() {
-	progressTicker := time.NewTicker(time.Duration(bl.args.ProgressFrequencySec) * time.Second)
-	defer progressTicker.Stop()
-
-	for {
-		select {
-		case <-bl.streamCtx.Done():
-			return
-		case <-progressTicker.C:
-			if bl.progressWriter != nil {
-				if err := bl.progressWriter.ReportProgress(); err != nil {
-					log.Printf("Warning: failed to report progress: %v", err)
-				}
-			}
-		}
-	}
-}
-
 // GetUnackedMessages returns the unacked messages queue
 func (bl *BaseListener) GetUnackedMessages() *UnackMessages {
 	return bl.unackedMessages
