@@ -119,6 +119,11 @@ async function proxyRequest(request: NextRequest, method: string) {
       }
     });
 
+    // Add cache control headers to prevent caching
+    responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    responseHeaders.set("Pragma", "no-cache");
+    responseHeaders.set("Expires", "0");
+
     // Forward response body
     const responseBody = await response.arrayBuffer();
 
@@ -137,7 +142,12 @@ async function proxyRequest(request: NextRequest, method: string) {
       }),
       {
         status: 502,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
       },
     );
   }
@@ -177,6 +187,9 @@ export async function OPTIONS(_request: NextRequest) {
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, x-osmo-auth, x-osmo-user",
       "Access-Control-Max-Age": "86400",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
     },
   });
 }
