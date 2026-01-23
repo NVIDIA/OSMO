@@ -28,13 +28,14 @@
  * - Total wait time = slowest API, not sum of all APIs
  */
 
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPoolsForDashboard, prefetchWorkflowsList } from "@/lib/api/server";
 import { DashboardContent } from "./dashboard-content";
+import { createQueryClient } from "@/lib/query-client";
 
 export async function DashboardWithData() {
-  // Create QueryClient for this request
-  const queryClient = new QueryClient();
+  // Create QueryClient for this request using shared factory
+  const queryClient = createQueryClient();
 
   // This await causes the component to suspend
   // Parallel prefetch - all APIs called simultaneously for fastest loading

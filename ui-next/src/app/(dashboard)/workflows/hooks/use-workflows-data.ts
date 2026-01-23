@@ -40,6 +40,7 @@ import {
   hasActiveWorkflowFilters,
   type WorkflowFilterParams,
 } from "@/lib/api/adapter";
+import { QUERY_STALE_TIME } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -116,7 +117,8 @@ export function useWorkflowsData({
     params: { searchChips, showAllUsers, sortDirection },
     config: {
       pageSize,
-      staleTime: 60_000, // 1 minute
+      // Workflows are live data - use REALTIME stale time (30s)
+      staleTime: QUERY_STALE_TIME.REALTIME,
     },
   });
 

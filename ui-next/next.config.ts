@@ -73,6 +73,11 @@ const nextConfig: NextConfig = {
   // - Dynamic content streams in via React Suspense
   // - Users see instant content, no blank loading screens
   //
+  // React 19 Compatibility:
+  // - All async Server Components use React 19's use() hook for params/searchParams
+  // - This provides better TypeScript inference and clearer async boundaries
+  // - Combined with cacheComponents, this delivers optimal server-side rendering
+  //
   // IMPORTANT: Only enable in production!
   // In development, cacheComponents causes constant re-rendering and slow iteration
   // as Next.js repeatedly analyzes which components can be cached on every file change.
