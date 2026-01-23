@@ -786,7 +786,7 @@ func TestNewResourceListener(t *testing.T) {
 		t.Error("Expected aggregator to be initialized")
 	}
 
-	if listener.unackedMessages == nil {
+	if listener.GetUnackedMessages() == nil {
 		t.Error("Expected unackedMessages to be initialized")
 	}
 }

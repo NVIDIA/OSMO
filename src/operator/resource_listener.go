@@ -19,17 +19,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"math"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +35,6 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
 // ResourceListenerArgs holds configuration for the resource listener
@@ -52,73 +47,38 @@ type ResourceListenerArgs struct {
 
 // ResourceListener manages the bidirectional gRPC stream for resource (node) events
 type ResourceListener struct {
-	args            ResourceListenerArgs
-	unackedMessages *utils.UnackMessages
-	progressWriter  *progress_check.ProgressWriter
-
-	// Connection state
-	conn   *grpc.ClientConn
-	client pb.ListenerServiceClient
-	stream pb.ListenerService_ResourceListenerStreamClient
-
-	// Stream coordination
-	streamCtx    context.Context
-	streamCancel context.CancelCauseFunc
-	wg           sync.WaitGroup
-	closeOnce    sync.Once
-
-	// Resource aggregator
+	*utils.BaseListener
+	args       ResourceListenerArgs
+	stream     pb.ListenerService_ResourceListenerStreamClient
+	closeOnce  sync.Once
 	aggregator *ResourceUsageAggregator
 }
 
 // NewResourceListener creates a new resource listener instance
 func NewResourceListener(args ResourceListenerArgs) *ResourceListener {
-	// Initialize progress writer
-	progressFile := filepath.Join(args.ProgressDir, "last_progress_resource_listener")
-	progressWriter, err := progress_check.NewProgressWriter(progressFile)
-	if err != nil {
-		log.Printf("Warning: failed to create progress writer: %v", err)
-		progressWriter = nil
-	} else {
-		log.Printf("Progress writer initialized: %s", progressFile)
-	}
-
 	return &ResourceListener{
-		args:            args,
-		unackedMessages: utils.NewUnackMessages(args.MaxUnackedMessages),
-		progressWriter:  progressWriter,
-		aggregator:      NewResourceUsageAggregator(args.Namespace),
+		BaseListener: utils.NewBaseListener(args.ListenerArgs, "last_progress_resource_listener"),
+		args:         args,
+		aggregator:   NewResourceUsageAggregator(args.Namespace),
 	}
 }
 
 // Connect establishes a gRPC connection and stream
 func (rl *ResourceListener) Connect(ctx context.Context) error {
-	// Parse serviceURL to extract host:port for gRPC
-	serviceAddr, err := utils.ParseServiceURL(rl.args.ServiceURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse service URL: %w", err)
+	// Initialize the base connection
+	if err := rl.BaseListener.InitConnection(ctx, rl.args.ServiceURL); err != nil {
+		return err
 	}
-
-	// Connect to the gRPC server
-	rl.conn, err = grpc.NewClient(
-		serviceAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to connect to service: %w", err)
-	}
-
-	// Create the listener service client
-	rl.client = pb.NewListenerServiceClient(rl.conn)
 
 	// Establish the bidirectional stream
-	rl.stream, err = rl.client.ResourceListenerStream(ctx)
+	var err error
+	rl.stream, err = rl.GetClient().ResourceListenerStream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
 
 	// Context for coordinated shutdown of goroutines with error cause
-	rl.streamCtx, rl.streamCancel = context.WithCancelCause(ctx)
+	rl.InitStreamContext(ctx)
 
 	log.Printf("Connected to operator service, resource stream established")
 	return nil
@@ -132,64 +92,27 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 	defer rl.Close()
 
 	// Resend all unacked messages from previous connection (if any)
-	if err := rl.unackedMessages.ResendAll(rl.stream); err != nil {
+	if err := rl.GetUnackedMessages().ResendAll(rl.stream); err != nil {
 		return err
 	}
 
 	// Launch goroutines for send and receive
-	rl.wg.Add(2)
+	rl.AddToWaitGroup(2)
 	go func() {
-		defer rl.wg.Done()
-		rl.receiveMessages()
+		defer rl.WaitGroupDone()
+		rl.BaseListener.ReceiveAcks(rl.stream, "resource")
 	}()
 
 	go func() {
-		defer rl.wg.Done()
+		defer rl.WaitGroupDone()
 		rl.sendMessages()
 	}()
 
 	// Wait for completion
-	return rl.waitForCompletion(ctx)
+	return rl.WaitForCompletion(ctx, rl.closeStream)
 }
 
 // receiveMessages handles receiving ACK messages from the server
-func (rl *ResourceListener) receiveMessages() {
-	// Rate limit progress reporting
-	lastProgressReport := time.Now()
-	progressInterval := time.Duration(rl.args.ProgressFrequencySec) * time.Second
-
-	for {
-		msg, err := rl.stream.Recv()
-		if err != nil {
-			// Check if context was cancelled
-			if rl.streamCtx.Err() != nil {
-				log.Println("Stopping resource message receiver (context cancelled)...")
-				return
-			}
-			if err == io.EOF {
-				log.Println("Server closed the resource stream")
-				rl.streamCancel(io.EOF)
-				return
-			}
-			rl.streamCancel(fmt.Errorf("failed to receive message: %w", err))
-			return
-		}
-
-		// Handle ACK messages by removing from unacked queue
-		rl.unackedMessages.RemoveMessage(msg.AckUuid)
-		log.Printf("Received ACK for resource message: uuid=%s", msg.AckUuid)
-
-		// Report progress after receiving ACK (rate-limited)
-		now := time.Now()
-		if rl.progressWriter != nil && now.Sub(lastProgressReport) >= progressInterval {
-			if err := rl.progressWriter.ReportProgress(); err != nil {
-				log.Printf("Warning: failed to report progress: %v", err)
-			}
-			lastProgressReport = now
-		}
-	}
-}
-
 // sendMessages starts informers and processes resource events
 func (rl *ResourceListener) sendMessages() {
 	// Create channels for different message types
@@ -204,6 +127,9 @@ func (rl *ResourceListener) sendMessages() {
 	// Channels to signal if watchers exit unexpectedly
 	resourceWatcherDone := make(chan struct{})
 	podWatcherDone := make(chan struct{})
+
+	streamCtx := rl.GetStreamContext()
+	streamCancel := rl.GetStreamCancel()
 
 	// Start node resource watcher goroutine
 	wg.Add(1)
@@ -225,21 +151,21 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.sendFromChannel("resource", resourceChan, resourceWatcherDone)
+		rl.sendFromChannel("resource", resourceChan, resourceWatcherDone, streamCtx, streamCancel)
 	}()
 
 	// Start usage message sender goroutine (dedicated to usageChan)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.sendFromChannel("usage", usageChan, podWatcherDone)
+		rl.sendFromChannel("usage", usageChan, podWatcherDone, streamCtx, streamCancel)
 	}()
 
 	// Start progress reporter goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.reportProgress()
+		rl.BaseListener.ReportProgress()
 	}()
 
 	// Wait for all goroutines to complete
@@ -249,44 +175,25 @@ func (rl *ResourceListener) sendMessages() {
 
 // sendFromChannel sends messages from a channel to the server
 // Each channel has its own dedicated sender to avoid starvation
-func (rl *ResourceListener) sendFromChannel(name string, msgChan <-chan *pb.ListenerMessage, watcherDone <-chan struct{}) {
+func (rl *ResourceListener) sendFromChannel(name string, msgChan <-chan *pb.ListenerMessage, watcherDone <-chan struct{}, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
 	log.Printf("Starting %s message sender", name)
 	defer log.Printf("Stopping %s message sender", name)
 
 	for {
 		select {
-		case <-rl.streamCtx.Done():
+		case <-streamCtx.Done():
 			log.Printf("Context done, draining %s channel...", name)
 			rl.drainChannel(msgChan)
 			return
 		case <-watcherDone:
 			log.Printf("%s watcher stopped unexpectedly, draining channel...", name)
 			rl.drainChannel(msgChan)
-			rl.streamCancel(fmt.Errorf("%s watcher stopped", name))
+			streamCancel(fmt.Errorf("%s watcher stopped", name))
 			return
 		case msg := <-msgChan:
 			if err := rl.sendResourceMessage(msg); err != nil {
-				rl.streamCancel(fmt.Errorf("failed to send %s message: %w", name, err))
+				streamCancel(fmt.Errorf("failed to send %s message: %w", name, err))
 				return
-			}
-		}
-	}
-}
-
-// reportProgress reports progress periodically
-func (rl *ResourceListener) reportProgress() {
-	progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
-	defer progressTicker.Stop()
-
-	for {
-		select {
-		case <-rl.streamCtx.Done():
-			return
-		case <-progressTicker.C:
-			if rl.progressWriter != nil {
-				if err := rl.progressWriter.ReportProgress(); err != nil {
-					log.Printf("Warning: failed to report progress: %v", err)
-				}
 			}
 		}
 	}
@@ -295,7 +202,8 @@ func (rl *ResourceListener) reportProgress() {
 // sendResourceMessage sends a single resource message
 func (rl *ResourceListener) sendResourceMessage(msg *pb.ListenerMessage) error {
 	// Add message to unacked queue before sending
-	if err := rl.unackedMessages.AddMessage(rl.streamCtx, msg); err != nil {
+	streamCtx := rl.GetStreamContext()
+	if err := rl.GetUnackedMessages().AddMessage(streamCtx, msg); err != nil {
 		log.Printf("Failed to add message to unacked queue: %v", err)
 		return nil // Don't fail the stream
 	}
@@ -310,10 +218,11 @@ func (rl *ResourceListener) sendResourceMessage(msg *pb.ListenerMessage) error {
 // drainChannel saves any remaining messages in the channel to unacked queue
 func (rl *ResourceListener) drainChannel(resourceChan <-chan *pb.ListenerMessage) {
 	drained := 0
+	unackedMessages := rl.GetUnackedMessages()
 	for {
 		select {
 		case msg := <-resourceChan:
-			rl.unackedMessages.AddMessageForced(msg)
+			unackedMessages.AddMessageForced(msg)
 			drained++
 		default:
 			if drained > 0 {
@@ -322,40 +231,6 @@ func (rl *ResourceListener) drainChannel(resourceChan <-chan *pb.ListenerMessage
 			return
 		}
 	}
-}
-
-// waitForCompletion waits for goroutines to finish
-func (rl *ResourceListener) waitForCompletion(ctx context.Context) error {
-	// Wait for context cancellation (from parent or goroutines)
-	<-rl.streamCtx.Done()
-
-	// Check if error came from a goroutine or parent context
-	var finalErr error
-	if cause := context.Cause(rl.streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
-		log.Printf("Error from goroutine: %v", cause)
-		finalErr = fmt.Errorf("stream error: %w", cause)
-	} else if ctx.Err() != nil {
-		log.Println("Context cancelled, initiating graceful shutdown...")
-		finalErr = ctx.Err()
-	}
-
-	// Close stream and wait for goroutines with timeout
-	rl.closeStream()
-
-	shutdownComplete := make(chan struct{})
-	go func() {
-		rl.wg.Wait()
-		close(shutdownComplete)
-	}()
-
-	select {
-	case <-shutdownComplete:
-		log.Println("All resource listener goroutines stopped gracefully")
-	case <-time.After(5 * time.Second):
-		log.Println("Warning: resource listener goroutines did not stop within timeout")
-	}
-
-	return finalErr
 }
 
 // closeStream ensures stream is closed only once
@@ -371,13 +246,8 @@ func (rl *ResourceListener) closeStream() {
 
 // Close cleans up resources
 func (rl *ResourceListener) Close() {
-	if rl.streamCancel != nil {
-		rl.streamCancel(nil)
-	}
 	rl.closeStream()
-	if rl.conn != nil {
-		rl.conn.Close()
-	}
+	rl.BaseListener.CloseConnection()
 }
 
 // watchResources starts node informer and processes node events
@@ -411,7 +281,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 		if msg != nil {
 			select {
 			case resourceChan <- msg:
-			case <-rl.streamCtx.Done():
+			case <-rl.GetStreamContext().Done():
 				return
 			}
 		}
@@ -459,11 +329,11 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 	})
 
 	// Start the informer
-	nodeInformerFactory.Start(rl.streamCtx.Done())
+	nodeInformerFactory.Start(rl.GetStreamContext().Done())
 
 	// Wait for cache sync
 	log.Println("Waiting for node informer cache to sync...")
-	if !cache.WaitForCacheSync(rl.streamCtx.Done(), nodeInformer.HasSynced) {
+	if !cache.WaitForCacheSync(rl.GetStreamContext().Done(), nodeInformer.HasSynced) {
 		log.Println("Failed to sync node informer cache")
 		return
 	}
@@ -482,7 +352,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 
 	for {
 		select {
-		case <-rl.streamCtx.Done():
+		case <-rl.GetStreamContext().Done():
 			log.Println("Node resource watcher stopped")
 			return
 		case <-func() <-chan time.Time {
@@ -586,11 +456,11 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 	})
 
 	// Start the informer
-	podInformerFactory.Start(rl.streamCtx.Done())
+	podInformerFactory.Start(rl.GetStreamContext().Done())
 
 	// Wait for cache sync
 	log.Println("Waiting for pod informer cache to sync...")
-	if !cache.WaitForCacheSync(rl.streamCtx.Done(), podInformer.HasSynced) {
+	if !cache.WaitForCacheSync(rl.GetStreamContext().Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
 		return
 	}
@@ -606,7 +476,7 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 
 	for {
 		select {
-		case <-rl.streamCtx.Done():
+		case <-rl.GetStreamContext().Done():
 			log.Println("Pod watcher stopped")
 			return
 		case <-flushTicker.C:
@@ -636,7 +506,7 @@ func (rl *ResourceListener) rebuildNodesFromStore(
 		if msg != nil {
 			select {
 			case resourceChan <- msg:
-			case <-rl.streamCtx.Done():
+			case <-rl.GetStreamContext().Done():
 				return
 			}
 		}
@@ -681,7 +551,7 @@ func (rl *ResourceListener) flushDirtyNodes(resourceChan chan<- *pb.ListenerMess
 			select {
 			case resourceChan <- msg:
 				log.Printf("Sent resource_usage for node: %s", hostname)
-			case <-rl.streamCtx.Done():
+			case <-rl.GetStreamContext().Done():
 				return
 			}
 		}
