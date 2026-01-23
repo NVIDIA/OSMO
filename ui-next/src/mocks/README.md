@@ -84,6 +84,72 @@ When adding new mock handlers:
 5. ✅ Document any intentional deviations in "Intentional Shims"
 6. ✅ If endpoint doesn't exist in backend, create a backend issue first
 
+## Troubleshooting
+
+### Hot Reload Not Working in Mock Mode
+
+**Symptom:** UI code changes don't appear after saving, even with hard refresh (Cmd+Shift+R). Changes only appear in incognito mode.
+
+**Root Cause:** The MSW service worker is registered with a **limited scope** to only intercept API requests (`/api/*` or `/v2/api/*` with basePath). This prevents it from caching static assets. However, if you had an older version of the service worker registered with root scope `/`, it may still be active and interfering with hot reload.
+
+**Quick Fix:**
+```javascript
+// In browser console
+__dev.clearServiceWorker()
+```
+
+This will:
+1. Unregister all service workers
+2. Clear all caches
+3. Reload the page
+
+The new service worker will register with the correct scope automatically.
+
+**Check Service Worker Status:**
+```javascript
+__dev.serviceWorkerStatus()
+```
+
+**Expected scope:**
+- Without basePath: `/api/` (only intercepts `/api/*`)
+- With basePath `/v2`: `/v2/api/` (only intercepts `/v2/api/*`)
+
+**What the scoped service worker does:**
+- ✅ Intercepts API requests for mocking
+- ❌ Does NOT intercept static assets (`/_next/static/*`)
+- ❌ Does NOT interfere with hot reload
+
+**Manual cleanup (if __dev is not available):**
+1. Open DevTools → Application → Service Workers
+2. Click "Unregister" for all service workers
+3. Clear site data (Application → Storage → Clear site data)
+4. Hard refresh (Cmd+Shift+R)
+
+**Why incognito mode works:**
+Incognito mode starts with a fresh browser profile, so no service worker is registered.
+
+### Service Worker Scope
+
+The MSW service worker is configured with a **basePath-aware scope** to only intercept API requests:
+
+```typescript
+// From src/mocks/MockProvider.tsx
+const basePath = getBasePath();
+const scope = basePath ? `${basePath}/api/` : "/api/";
+
+worker.start({
+  serviceWorker: {
+    url: getServiceWorkerUrl(),
+    options: { scope }, // Limits interception to API routes only
+  },
+});
+```
+
+This ensures:
+- MSW only sees API requests (`/api/*` or `/v2/api/*`)
+- Static assets are handled by browser's normal caching (respects Next.js cache headers)
+- Hot reload works correctly with Turbopack
+
 ## Updating This Document
 
 After running `pnpm generate-api` to update `generated.ts`, review this document to ensure:
