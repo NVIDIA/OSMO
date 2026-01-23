@@ -111,3 +111,6 @@ export {
 // Components
 export { DAGControls, DAGErrorBoundary, MiniMapNode, MINIMAP_COLORS } from "./components";
 export type { DAGControlsProps } from "./components";
+
+// Debug utilities (console logging only, gated by ?debug=true)
+export { dagDebug } from "./lib/dag-debug";

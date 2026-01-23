@@ -32,6 +32,7 @@
 import ELK from "elkjs/lib/elk-api.js";
 import { getBasePathUrl } from "@/lib/config";
 import type { ElkGraph, ElkLayoutResult } from "../types";
+import { dagDebug } from "../lib/dag-debug";
 
 // ELK worker script URL - served from our public folder
 // Uses getBasePathUrl to ensure it works with basePath (/v2) in production
@@ -94,8 +95,18 @@ class ELKLayoutClient {
     }
 
     this.pendingRequests++;
+    const requestId = Math.random().toString(36).substring(7);
+    if (this.pendingRequests > 1) {
+      dagDebug.log("READINESS_SIGNAL", {
+        message: `ELK worker concurrency detected: ${this.pendingRequests} requests`,
+        requestId,
+      });
+    }
+    dagDebug.log("READINESS_SIGNAL", { message: `ELK worker request ${requestId} started`, graphId: graph.id });
     try {
-      return await (this.elk.layout(graph) as Promise<ElkLayoutResult>);
+      const result = await (this.elk.layout(graph) as Promise<ElkLayoutResult>);
+      dagDebug.log("READINESS_SIGNAL", { message: `ELK worker request ${requestId} finished` });
+      return result;
     } finally {
       this.pendingRequests--;
     }
