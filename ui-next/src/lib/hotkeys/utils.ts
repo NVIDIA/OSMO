@@ -64,7 +64,15 @@ export function getShortcutsByCategory(): Record<
   }>
 > {
   const registries = getAllHotkeyRegistries();
-  const byCategory: Record<string, any[]> = {};
+  const byCategory: Record<
+    string,
+    Array<{
+      key: string;
+      description: string;
+      registry: string;
+      scoped: boolean;
+    }>
+  > = {};
 
   for (const registry of registries) {
     for (const def of Object.values(registry.shortcuts)) {
