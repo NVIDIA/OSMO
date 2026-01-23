@@ -29,20 +29,21 @@
  * - Result: cache hit when client hydrates!
  */
 
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowsList } from "@/lib/api/server";
 import { WorkflowsPageContent } from "./workflows-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
+import { createQueryClient } from "@/lib/query-client";
 
 interface WorkflowsWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function WorkflowsWithData({ searchParams }: WorkflowsWithDataProps) {
-  // Create QueryClient for this request
-  const queryClient = new QueryClient();
+  // Create QueryClient for this request using shared factory
+  const queryClient = createQueryClient();
 
-  // Parse URL filter params (same format nuqs will read on client)
+  // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;
   const filterChips = parseUrlChips(params.f);
 
