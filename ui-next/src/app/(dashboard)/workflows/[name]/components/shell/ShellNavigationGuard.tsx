@@ -40,6 +40,7 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/shadcn/button";
 import { useShellSessions } from "@/components/shell";
+import { stripBasePath } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -250,8 +251,13 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
     // Close dialog
     setIsDialogOpen(false);
 
-    // Navigate to the pending URL
-    router.push(pendingNavigation.url);
+    // Strip basePath before calling router.push() to avoid duplication
+    // The href from the DOM already includes basePath (e.g., "/v2/pools")
+    // but router.push() expects a path without basePath (e.g., "/pools")
+    const targetUrl = stripBasePath(pendingNavigation.url);
+    
+    // Use client-side navigation for better performance
+    router.push(targetUrl);
 
     // Reset state after a short delay (in case navigation fails)
     setTimeout(() => {
