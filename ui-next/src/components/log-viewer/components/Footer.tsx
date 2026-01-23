@@ -41,6 +41,10 @@ export interface FooterProps {
   onRefresh?: () => void;
   /** Whether currently loading/refreshing */
   isLoading?: boolean;
+  /** Number of filtered entries (M) */
+  filteredCount: number;
+  /** Total number of entries (N) */
+  totalCount: number;
   /** Additional CSS classes */
   className?: string;
 }
@@ -57,12 +61,31 @@ function FooterInner({
   onDownload,
   onRefresh,
   isLoading = false,
+  filteredCount,
+  totalCount,
   className,
 }: FooterProps) {
   return (
     <div className={cn("flex items-center justify-between gap-4 border-t px-3 py-2", className)}>
-      {/* Left: Display options */}
+      {/* Left: Action buttons */}
       <div className="flex items-center gap-1">
+        {/* Download button */}
+        {onDownload && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onDownload}
+              >
+                <Download className="size-4" />
+                <span className="sr-only">Download logs</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Download logs</TooltipContent>
+          </Tooltip>
+        )}
+
         {/* Wrap lines toggle */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -92,27 +115,16 @@ function FooterInner({
           </TooltipTrigger>
           <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
         </Tooltip>
-
-        {/* Download button */}
-        {onDownload && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onDownload}
-              >
-                <Download className="size-4" />
-                <span className="sr-only">Download logs</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Download logs</TooltipContent>
-          </Tooltip>
-        )}
       </div>
 
-      {/* Right: Refresh */}
-      <div className="flex items-center gap-1">
+      {/* Right: Entry count and refresh */}
+      <div className="flex items-center gap-2">
+        {/* Entry count */}
+        <div className="text-muted-foreground text-sm tabular-nums">
+          {filteredCount.toLocaleString()} of {totalCount.toLocaleString()} entries
+        </div>
+
+        {/* Refresh button */}
         {onRefresh && (
           <Tooltip>
             <TooltipTrigger asChild>

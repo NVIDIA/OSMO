@@ -30,10 +30,6 @@ export interface SearchBarProps {
   value: string;
   /** Callback when search value changes (debounced) */
   onChange: (value: string) => void;
-  /** Filtered result count (shown when searching) */
-  resultCount: number;
-  /** Total entry count */
-  totalCount: number;
   /** Placeholder text */
   placeholder?: string;
   /** Additional CSS classes */
@@ -47,8 +43,6 @@ export interface SearchBarProps {
 function SearchBarInner({
   value,
   onChange,
-  resultCount,
-  totalCount,
   placeholder = "Search logs...",
   className,
 }: SearchBarProps) {
@@ -91,9 +85,6 @@ function SearchBarInner({
     onChange(deferredValue);
   }
 
-  // Use localValue for immediate UI feedback (not the lagging controlled value)
-  const isSearching = localValue.length > 0;
-
   return (
     <div className={cn("relative flex items-center", className)}>
       {/* Search icon */}
@@ -105,15 +96,8 @@ function SearchBarInner({
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
         placeholder={placeholder}
-        className="pr-44 pl-9"
+        className="pl-9"
       />
-
-      {/* Result count suffix */}
-      <span className="text-muted-foreground pointer-events-none absolute right-3 text-sm tabular-nums">
-        {isSearching
-          ? `${resultCount.toLocaleString()} of ${totalCount.toLocaleString()} entries`
-          : `${totalCount.toLocaleString()} entries`}
-      </span>
     </div>
   );
 }
