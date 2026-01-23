@@ -912,7 +912,7 @@ func TestNewWorkflowListener(t *testing.T) {
 		t.Errorf("Backend = %v, expected test-backend", listener.args.Backend)
 	}
 
-	if listener.unackedMessages == nil {
+	if listener.GetUnackedMessages() == nil {
 		t.Error("unackedMessages should not be nil")
 	}
 }

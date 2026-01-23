@@ -43,6 +43,7 @@ osmo_py_library(
 go_library(
     name = "utils",
     srcs = [
+        "base_listener.go",
         "container_status.go",
         "helpers.go",
         "k8s_helpers.go",
@@ -54,11 +55,15 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//src/proto/operator:operator_go_proto",
+        "//src/utils/progress_check:progress_writer",
+        "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//rest",
         "@io_k8s_client_go//tools/clientcmd",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
     ],
 )
 
