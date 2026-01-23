@@ -1030,10 +1030,10 @@ for status in PoolStatus:
 
 ---
 
-### 22. WebSocket Shell Resize Messages Echoed to Terminal Buffer
+### 22. WebSocket Shell Resize Messages Corrupt User Input Buffer
 
-**Priority:** High
-**Status:** Active workaround in UI (`use-websocket-shell.ts`)
+**Priority:** Critical
+**Status:** Partial workaround in UI (`use-websocket-shell.ts`) - **does not fix input corruption**
 
 The WebSocket shell implementation sends terminal resize messages as JSON strings (`{"Rows":39,"Cols":132}`) over the same WebSocket channel as user input and shell output. These resize messages are being echoed back to the client and appear in the terminal buffer.
 
@@ -1073,10 +1073,13 @@ The WebSocket shell implementation sends terminal resize messages as JSON string
 
 **What happens:**
 - User resizes terminal → Client sends `{"Rows":39,"Cols":132}` via WebSocket
-- `io.Copy(terminal, conn)` writes this JSON string to the PTY input
-- PTY doesn't recognize it as a control sequence (it's just text)
-- The string appears in the shell buffer and may be echoed back
-- User sees: `{"Rows":39,"Cols":77}{"Rows":39,"Cols":132}` in their terminal
+- `io.Copy(terminal, conn)` writes this JSON string to the PTY input stream
+- The JSON enters bash's **input buffer** (not visible yet - no echo)
+- User types a command and presses Enter
+- Bash attempts to execute the buffered content: `Rows:39Rows:39` (JSON mangled by bash parsing) + user's command
+- Result: `bash: Rows:39Rows:39: command not found`
+
+**This is worse than visual pollution - it actively corrupts user input!**
 
 **Additional issues:**
 - **Duplicate resize events**: UI was sending duplicate resize events when dimensions hadn't changed (fixed in UI with deduplication)
@@ -1203,12 +1206,13 @@ This is how most modern terminal protocols work:
 - Docker exec API: Uses HTTP/2 with separate streams for stdin/stdout/stderr
 - Kubernetes exec: Uses SPDY/WebSocket with subprotocol headers
 
-**Current UI workarounds:**
+**Current UI workarounds (PARTIAL - doesn't fix input corruption):**
 
 1. **Resize message filtering** (`use-websocket-shell.ts` lines 179-207):
    ```typescript
    ws.onmessage = (event) => {
        // Filter out resize messages that might be echoed back
+       // NOTE: This only prevents echoes in output, NOT input buffer corruption!
        const text = new TextDecoder().decode(data);
        if (text.match(/^\{"Rows":\d+,"Cols":\d+\}$/)) {
            console.debug("[Shell] Filtered resize message:", text);
@@ -1217,6 +1221,7 @@ This is how most modern terminal protocols work:
        onDataRef.current?.(data);
    };
    ```
+   **Limitation:** This only filters messages coming FROM the server. It cannot prevent the backend from writing resize JSON to the PTY input buffer.
 
 2. **Duplicate event prevention** (`use-shell.ts` lines 250-273):
    ```typescript
@@ -1231,13 +1236,20 @@ This is how most modern terminal protocols work:
        }
    }
    ```
+   **Limitation:** Reduces frequency but doesn't solve the fundamental problem - any resize still corrupts input.
 
 **Impact:**
-- **Confusing UX**: Users see JSON resize messages in their terminal
-- **Extra client complexity**: UI must filter control messages from data stream
+- **Data corruption**: Resize messages corrupt the shell's input buffer, causing "command not found" errors
+- **Unpredictable behavior**: JSON gets mangled by bash parsing (`{"Rows":39}` → `Rows:39Rows:39`)
+- **User commands fail**: Any command entered after a resize has garbage prepended to it
+- **Confusing UX**: Users see cryptic "command not found" errors for commands they didn't type
+- **Client-side filtering insufficient**: Our filter only catches echoes from server, can't prevent PTY input corruption
+- **Extra client complexity**: UI must filter control messages from data stream (only helps with echoes, not input corruption)
 - **Race conditions**: If resize message is split across packets, filter might miss it
 - **Not extensible**: Adding new control messages (ping/pong, file transfer) requires more brittle filtering
 - **Violates separation of concerns**: Control plane and data plane are mixed
+
+**Note:** The client-side workaround in `use-websocket-shell.ts` only prevents resize message **echoes** from appearing in the output. It cannot prevent the resize JSON from corrupting the PTY input buffer on the backend. This is a **critical backend issue** that requires the framed protocol fix.
 
 **When fixed (with framed protocol):**
 1. Remove resize message filtering from `use-websocket-shell.ts`
@@ -1293,11 +1305,12 @@ This is how most modern terminal protocols work:
 | #19 Status sort order not generated | Low | status-utils.ts | Use generated sortOrder |
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
-| #22 Shell resize messages echoed | **High** | use-websocket-shell.ts, use-shell.ts | Remove filtering workaround |
+| #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
 
 ### Priority Guide
 
-- **High**: Affects performance/scalability for large clusters
+- **CRITICAL**: Breaks core functionality, data corruption, or security issue
+- **High**: Affects performance/scalability for large clusters or incorrect behavior
 - **Medium**: Requires extra API calls or complex client-side logic
 - **Low**: Minor inconvenience or code cleanliness issue
 
