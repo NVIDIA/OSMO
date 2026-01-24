@@ -84,6 +84,25 @@ function getGeneratedLogsCache(): Map<string, string> {
   return new Map<string, string>();
 }
 
+/**
+ * Extract the last timestamp from a log string.
+ * Used to continue streaming chronologically from static logs.
+ *
+ * @param logs - Raw log text (newline-separated)
+ * @returns Last timestamp found, or undefined if no valid logs
+ */
+function extractLastTimestamp(logs: string): Date | undefined {
+  const lines = logs.split("\n").filter(Boolean);
+  if (lines.length === 0) return undefined;
+
+  const lastLine = lines[lines.length - 1];
+  // Parse "YYYY/MM/DD HH:mm:ss" format
+  const match = lastLine.match(/^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return undefined;
+
+  return new Date(Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]));
+}
+
 // Dev utility: Clear log cache when needed (e.g., when testing different scenarios)
 // Usage in browser console: window.__clearLogCache()
 if (typeof globalThis !== "undefined") {
@@ -327,56 +346,39 @@ export const handlers = [
     // Only stream infinitely when:
     // 1. scenario.features.streaming is true (streaming scenario)
     // 2. isTailing is true (client explicitly requested streaming via tail=true)
-    //
-    // Uses setInterval instead of async loop - each tick is independent,
-    // no promise chain is created, avoiding MSW's listener accumulation issue.
     if (scenario.features.streaming && isTailing) {
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
       const encoder = new TextEncoder();
 
-      // Pre-generate some log data to queue (simpler than async generator for MSW)
-      const tasks = taskNames.length > 0 ? taskNames : ["main"];
-      const levels = ["INFO", "DEBUG", "WARN", "ERROR"];
-      const messages = [
-        "Processing batch",
-        "Loading data from storage",
-        "Checkpoint saved",
-        "GPU memory: 85%",
-        "Epoch completed",
-        "Validating output",
-        "Syncing gradients",
-        "LR adjusted: 0.001",
-        "Cache hit: 94%",
-        "Connection established",
-      ];
+      // Extract last timestamp from cached logs for chronological continuity
+      const logCache = getGeneratedLogsCache();
+      const cacheKey = `${name}:${scenarioName}:${taskFilter ?? "all"}:${retryId ?? "0"}`;
+      const cachedLogs = logCache.get(cacheKey) || "";
+      const continueFrom = extractLastTimestamp(cachedLogs);
 
-      let intervalId: ReturnType<typeof setInterval> | null = null;
-      let lineNum = 0;
-
-      const generateLine = (): string => {
-        const now = new Date();
-        const ts = now.toISOString().replace("T", " ").slice(0, 19);
-        const task = tasks[lineNum % tasks.length];
-        const level = lineNum % 20 === 0 ? "ERROR" : lineNum % 5 === 0 ? "WARN" : levels[lineNum % 2];
-        const msg = messages[lineNum % messages.length];
-        lineNum++;
-        return `${ts} [${task}] ${level}: ${msg} (line ${lineNum})\n`;
-      };
+      // Create streaming generator with chronological timestamps
+      const streamGen = logGenerator.createStream({
+        workflowName: name,
+        scenario,
+        taskNames,
+        continueFrom,
+        streamDelayMs: streamDelay,
+      });
 
       const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          // setInterval is truly fire-and-forget - no promise chain
-          intervalId = setInterval(() => {
-            try {
-              controller.enqueue(encoder.encode(generateLine()));
-            } catch {
-              // Stream was closed, clean up
-              if (intervalId) clearInterval(intervalId);
+        async start(controller) {
+          try {
+            for await (const line of streamGen) {
+              controller.enqueue(encoder.encode(line));
             }
-          }, streamDelay);
+          } catch {
+            // Stream closed or error occurred
+          } finally {
+            controller.close();
+          }
         },
-        cancel() {
-          if (intervalId) clearInterval(intervalId);
+        async cancel() {
+          // Generator cleanup happens automatically when loop breaks
         },
       });
 
@@ -404,7 +406,11 @@ export const handlers = [
 
     if (!logs) {
       // Generate logs (expensive operation - only happens once per cache key)
-      logs = logGenerator.generateForScenario(name, scenarioName, taskNames);
+      logs = logGenerator.generateForScenario({
+        workflowName: name,
+        scenarioName,
+        taskNames,
+      });
       // Cache for future requests
       logCache.set(cacheKey, logs);
     }
@@ -625,7 +631,11 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     if (!logs) {
       // If using a specific scenario, use scenario-based generation
       if (scenarioName !== "normal") {
-        logs = logGenerator.generateForScenario(workflowName, scenarioName, [taskName]);
+        logs = logGenerator.generateForScenario({
+          workflowName,
+          scenarioName,
+          taskNames: [taskName],
+        });
       } else {
         // Use legacy method for backward compatibility in normal case
         const status = task?.status ?? "RUNNING";
