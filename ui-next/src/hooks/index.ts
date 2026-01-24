@@ -46,6 +46,7 @@
  * - `useExpandableChips` - Unique measurement logic for chip overflow
  * - `useUrlChips` - URL state management for FilterBar chips
  * - `useTick` / `useTickController` - Synchronized timestamp for aligned live durations
+ * - `useServerMutation` - Execute Next.js Server Actions (mutations) with loading states
  */
 
 // =============================================================================
@@ -92,6 +93,9 @@ export {
   type UseViewTransitionOptions,
   type UseViewTransitionReturn,
 } from "./use-view-transition";
+
+// Server Mutations (Next.js Server Actions)
+export { useServerMutation, type UseServerMutationOptions, type UseServerMutationReturn } from "./use-server-mutation";
 
 // =============================================================================
 // Hydration Safety
