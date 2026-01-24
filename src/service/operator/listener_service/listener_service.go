@@ -101,6 +101,7 @@ type listenerStream interface {
 func (ls *ListenerService) pushMessageToRedis(
 	ctx context.Context,
 	msg *pb.ListenerMessage,
+	backendName string,
 ) error {
 	// Convert the protobuf message to JSON
 	// UseProtoNames ensures field names match the .proto file (snake_case)
@@ -113,11 +114,12 @@ func (ls *ListenerService) pushMessageToRedis(
 		return fmt.Errorf("failed to marshal message to JSON: %w", err)
 	}
 
-	// Add message to Redis Stream
+	// Add message to Redis Stream with backend name
 	err = ls.redisClient.XAdd(ctx, &redis.XAddArgs{
 		Stream: operatorMessagesStream,
 		Values: map[string]interface{}{
 			"message": string(messageJSON),
+			"backend": backendName,
 		},
 	}).Err()
 	if err != nil {
@@ -172,7 +174,7 @@ func (ls *ListenerService) handleListenerStream(stream listenerStream, streamTyp
 		}
 
 		// Push message to Redis Stream before sending ACK
-		if err := ls.pushMessageToRedis(ctx, msg); err != nil {
+		if err := ls.pushMessageToRedis(ctx, msg, backendName); err != nil {
 			ls.logger.ErrorContext(ctx, "failed to push message to Redis stream",
 				slog.String("error", err.Error()),
 				slog.String("uuid", msg.Uuid))

@@ -127,6 +127,7 @@ class ResourceBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     allocatable_fields: Dict
     label_fields: Dict
     taints: List[Dict] = []
+    delete: bool = False
 
 
 class ResourceUsageBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
