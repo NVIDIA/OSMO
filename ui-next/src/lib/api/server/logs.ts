@@ -70,6 +70,54 @@ export interface PrefetchLogDataParams {
 }
 
 // =============================================================================
+// Server-Side Cache for Processed Log Data (Development Only)
+// =============================================================================
+// Cache for processed log data to avoid expensive re-parsing/re-computation
+// during hot reload in DEVELOPMENT mode.
+//
+// IMPORTANT: This cache is ONLY active in development (NODE_ENV !== 'production').
+// In production, logs are real and change frequently - caching would show stale data.
+// The React cache() already handles per-request deduplication in production.
+//
+// Key format: "workflowId:devParams:histogramBuckets" (stringified)
+// This is safe in dev because MSW returns deterministic data for the same params.
+//
+// HMR SURVIVAL: We store the cache on globalThis to survive module reloads.
+// During HMR, the module is re-executed but globalThis persists, so cached
+// data remains available. This is critical for dev performance - without it,
+// every HMR would trigger expensive log parsing (~500-2000 entries) and
+// histogram/facet computation, causing 15+ second delays.
+const CACHE_KEY = "__osmoServerLogCache__";
+
+function getProcessedLogDataCache(): Map<string, LogDataResult> | null {
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+  // Use globalThis to survive HMR - module-level Maps are recreated on hot reload
+  if (typeof globalThis !== "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = globalThis as any;
+    if (!g[CACHE_KEY]) {
+      g[CACHE_KEY] = new Map<string, LogDataResult>();
+    }
+    return g[CACHE_KEY] as Map<string, LogDataResult>;
+  }
+  return null;
+}
+
+// Dev utility: Clear processed log cache
+if (typeof globalThis !== "undefined" && process.env.NODE_ENV !== "production") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).__clearServerLogCache = () => {
+    const cache = getProcessedLogDataCache();
+    const size = cache?.size ?? 0;
+    cache?.clear();
+    console.log(`[Server] Processed log cache cleared (${size} entries)`);
+    return size;
+  };
+}
+
+// =============================================================================
 // Fetch Functions
 // =============================================================================
 
@@ -79,10 +127,23 @@ export interface PrefetchLogDataParams {
  * Uses React's cache() for request deduplication within a single render.
  * Multiple components calling this in the same request will share the result.
  *
+ * Also uses a module-level cache to avoid expensive re-parsing during hot reload.
+ *
  * @param params - Fetch parameters
  * @returns Unified log data result
  */
 export const fetchLogData = cache(async (params: PrefetchLogDataParams): Promise<LogDataResult> => {
+  // Build cache key
+  const cacheKey = `${params.workflowId}:${JSON.stringify(params.devParams ?? {})}:${params.histogramBuckets ?? LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS}`;
+
+  // Check cache first (dev optimization for hot reload)
+  // Uses globalThis-based cache that survives HMR
+  const devCache = getProcessedLogDataCache();
+  const cached = devCache?.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const baseUrl = getServerApiBaseUrl();
   const headers = await getServerFetchHeaders();
 
@@ -111,14 +172,14 @@ export const fetchLogData = cache(async (params: PrefetchLogDataParams): Promise
 
   const logText = await response.text();
 
-  // Parse entries
+  // Parse entries (expensive operation)
   const entries = parseLogBatch(logText, params.workflowId);
 
-  // Compute derived data
+  // Compute derived data (expensive operations)
   const histogram = computeHistogram(entries, params.histogramBuckets ?? LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS);
   const facets = computeFacets(entries, params.facetFields ?? FACETABLE_FIELDS);
 
-  return {
+  const result: LogDataResult = {
     entries,
     histogram,
     facets,
@@ -127,6 +188,11 @@ export const fetchLogData = cache(async (params: PrefetchLogDataParams): Promise
       filteredCount: entries.length, // No filters applied on server prefetch
     },
   };
+
+  // Cache the processed result (dev only, survives HMR via globalThis)
+  devCache?.set(cacheKey, result);
+
+  return result;
 });
 
 // =============================================================================
