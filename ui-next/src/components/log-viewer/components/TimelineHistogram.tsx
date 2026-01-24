@@ -298,14 +298,14 @@ function TimeRangeHeader({
             type="datetime-local"
             value={formatForInput(startTime)}
             onChange={handleStartChange}
-            className="border-input bg-background text-foreground rounded border px-2 py-1 text-xs"
+            className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
           />
           <span className="text-muted-foreground text-xs">to</span>
           <input
             type="datetime-local"
             value={formatForInput(endTime)}
             onChange={handleEndChange}
-            className="border-input bg-background text-foreground rounded border px-2 py-1 text-xs"
+            className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
         {showPresets && (
@@ -377,7 +377,7 @@ function TimelineHistogramInner({
   // Empty state
   if (buckets.length === 0) {
     return (
-      <div className={cn("space-y-2", className)}>
+      <div className={cn("space-y-4", className)}>
         {showTimeRangeHeader && (
           <TimeRangeHeader
             startTime={startTime}
@@ -406,7 +406,7 @@ function TimelineHistogramInner({
   }
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn(className)}>
       {/* Top Controls - Always visible */}
       <div className="flex items-center justify-between gap-2">
         {showTimeRangeHeader && (
@@ -453,7 +453,7 @@ function TimelineHistogramInner({
           opacity: isCollapsed ? 0 : 1,
         }}
       >
-        <div className="space-y-2">
+        <div className="space-y-2 pt-4">
           <div className="relative">
             <div
               className="relative flex items-end gap-px"

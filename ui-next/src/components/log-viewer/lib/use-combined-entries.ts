@@ -39,15 +39,21 @@
 
 import { useMemo } from "react";
 import type { LogEntry } from "@/lib/api/log-adapter";
+import { filterEntries, type FilterParams } from "@/lib/api/log-adapter/adapters/compute";
 
 /**
  * Combines query entries with live streaming entries.
  *
  * @param queryEntries - Entries from the main log query (replaces buffer on change)
  * @param liveEntries - Entries from live streaming (appended incrementally when isLiveMode is active)
+ * @param filterParams - Optional filter parameters to apply to live entries
  * @returns Combined entries array
  */
-export function useCombinedEntries(queryEntries: LogEntry[], liveEntries: LogEntry[]): LogEntry[] {
+export function useCombinedEntries(
+  queryEntries: LogEntry[],
+  liveEntries: LogEntry[],
+  filterParams?: FilterParams,
+): LogEntry[] {
   // Compute the combined entries based on both inputs
   // This is a pure computation - no refs, no side effects during render
   return useMemo(() => {
@@ -56,9 +62,9 @@ export function useCombinedEntries(queryEntries: LogEntry[], liveEntries: LogEnt
       return queryEntries;
     }
 
-    // If no query entries, just return live entries
+    // If no query entries, filter and return live entries
     if (queryEntries.length === 0) {
-      return liveEntries;
+      return filterParams ? filterEntries(liveEntries, filterParams) : liveEntries;
     }
 
     // Find the latest timestamp from query entries
@@ -69,11 +75,16 @@ export function useCombinedEntries(queryEntries: LogEntry[], liveEntries: LogEnt
     }
 
     // Filter live entries that are newer than the latest query entry
-    const newLiveEntries: LogEntry[] = [];
+    let newLiveEntries: LogEntry[] = [];
     for (const entry of liveEntries) {
       if (entry.timestamp.getTime() > queryLatestTime) {
         newLiveEntries.push(entry);
       }
+    }
+
+    // Apply filters to new live entries if provided
+    if (filterParams && newLiveEntries.length > 0) {
+      newLiveEntries = filterEntries(newLiveEntries, filterParams);
     }
 
     // If no new live entries after filtering, just return query entries
@@ -83,5 +94,5 @@ export function useCombinedEntries(queryEntries: LogEntry[], liveEntries: LogEnt
 
     // Combine query entries with filtered live entries
     return [...queryEntries, ...newLiveEntries];
-  }, [queryEntries, liveEntries]);
+  }, [queryEntries, liveEntries, filterParams]);
 }
