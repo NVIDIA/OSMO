@@ -46,17 +46,12 @@ export interface UseCopyOptions {
 }
 
 export interface UseCopyReturn {
-  /** Whether text was recently copied */
   copied: boolean;
-  /** Copy text to clipboard */
   copy: (text: string) => Promise<boolean>;
 }
 
 /**
  * Hook for copying text to clipboard with automatic feedback state.
- *
- * @param options - Configuration options
- * @returns Object with copied state and copy function
  */
 export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   const { resetDelay = 2000 } = options;
