@@ -61,7 +61,6 @@ export { useCopy, type UseCopyOptions, type UseCopyReturn } from "./use-copy";
 // Accessibility
 export {
   useAnnouncer,
-  cleanupAnnouncer,
   type UseAnnouncerOptions,
   type AnnouncerPoliteness,
   type AnnounceFunction,
@@ -78,7 +77,7 @@ export {
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
 
 // URL State (consolidated patterns for nuqs)
-export { useSelectionState, useConfigState, usePanelState, type UsePanelStateReturn } from "./use-url-state";
+export { usePanelState, type UsePanelStateReturn } from "./use-url-state";
 
 // Results Count (for FilterBar display)
 export { useResultsCount, type UseResultsCountOptions } from "./use-results-count";
@@ -93,9 +92,6 @@ export {
   type UseViewTransitionOptions,
   type UseViewTransitionReturn,
 } from "./use-view-transition";
-
-// Server Actions (optimistic UI)
-export { useOptimisticAction, useServerAction } from "./use-optimistic-action";
 
 // =============================================================================
 // Hydration Safety

@@ -46,14 +46,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
 } from "@/components/shadcn/dropdown-menu";
-import {
-  PanelHeader,
-  PanelBackButton,
-  PanelBadge,
-  PanelTitle,
-  PanelSubtitle,
-  WidthPresetMenuItems,
-} from "@/components/panel";
+import { PanelHeader, PanelBadge, PanelTitle, PanelSubtitle, WidthPresetMenuItems } from "@/components/panel";
 import { getStatusIcon } from "../../../lib/status";
 import type { DetailsPanelHeaderProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 
@@ -226,10 +219,8 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   title,
   subtitle,
   statusContent,
-  onBack,
   menuContent,
   onPanelResize,
-  breadcrumb,
   breadcrumbs,
   viewType,
   isLead,
@@ -271,14 +262,6 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
             />
           </span>
         ))}
-
-      {/* Legacy single breadcrumb (fallback for backwards compatibility) */}
-      {!breadcrumbs && breadcrumb && onBack && (
-        <PanelBackButton
-          onClick={onBack}
-          label={breadcrumb}
-        />
-      )}
 
       {/* Title - with optional task switcher */}
       {hasSiblings ? (
