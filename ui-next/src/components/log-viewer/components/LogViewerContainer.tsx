@@ -48,7 +48,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { useLogData, useLogTail } from "@/lib/api/log-adapter";
+import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { LogViewer } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
@@ -211,7 +211,6 @@ function LogViewerContainerInner({
   // Uses keepPreviousData to prevent flash when filters change
   const {
     entries: queryEntries,
-    histogram,
     stats,
     isLoading,
     isFetching,
@@ -244,8 +243,25 @@ function LogViewerContainerInner({
   });
 
   // Combine query entries with live streaming entries
-  // Uses ref-based buffer for stable array identity during streaming
-  const combinedEntries = useCombinedEntries(queryEntries, liveEntries);
+  // Applies current filters to live entries to ensure visual consistency
+  const combinedEntries = useCombinedEntries(queryEntries, liveEntries, {
+    levels: queryFilters.levels,
+    tasks: queryFilters.tasks,
+    retries: queryFilters.retries,
+    sources: queryFilters.sources,
+    search: queryFilters.search,
+    start: startTime,
+    end: endTime,
+  });
+
+  // Recompute histogram from combined entries to stay in sync with visible log entries
+  // This ensures:
+  // - Buckets adjust dynamically based on the current time range
+  // - Histogram includes new live entries
+  // - Bucket intervals adapt as the effective time range changes
+  const histogram = useMemo(() => {
+    return computeHistogram(combinedEntries, 50);
+  }, [combinedEntries]);
 
   // Handle filter chip changes - update local state and notify parent
   const handleFilterChipsChange = useCallback(
