@@ -46,29 +46,10 @@ export { LogViewerSkeleton } from "./components/LogViewerSkeleton";
 export type { LogViewerSkeletonProps } from "./components/LogViewerSkeleton";
 
 // =============================================================================
-// Sub-components (for advanced usage)
-// =============================================================================
-
-export { LogEntryRow } from "./components/LogEntryRow";
-export type { LogEntryRowProps } from "./components/LogEntryRow";
-
-export { LogList } from "./components/LogList";
-export type { LogListProps } from "./components/LogList";
-
-export { SearchBar } from "./components/SearchBar";
-export type { SearchBarProps } from "./components/SearchBar";
-
-export { Footer } from "./components/Footer";
-export type { FooterProps } from "./components/Footer";
-
-export { TimelineHistogram } from "./components/TimelineHistogram";
-export type { TimelineHistogramProps } from "./components/TimelineHistogram";
-
-// =============================================================================
 // Store
 // =============================================================================
 
-export { useLogViewerStore, initialState as logViewerInitialState } from "./store/log-viewer-store";
+export { useLogViewerStore } from "./store/log-viewer-store";
 export type { LogViewerStore } from "./store/log-viewer-store";
 
 // =============================================================================
@@ -90,13 +71,3 @@ export { useCombinedEntries } from "./lib/use-combined-entries";
 
 // Note: LogViewer is a pure display component - all filtering happens at Container level.
 // Use chipsToLogQuery() to convert filter chips to query params for useLogData().
-
-export {
-  ROW_HEIGHT_ESTIMATE,
-  OVERSCAN_COUNT,
-  SCROLL_BOTTOM_THRESHOLD,
-  HISTOGRAM_HEIGHT,
-  HISTOGRAM_BAR_GAP,
-  HISTOGRAM_MIN_BAR_WIDTH,
-  SKELETON_WIDTHS,
-} from "./lib/constants";

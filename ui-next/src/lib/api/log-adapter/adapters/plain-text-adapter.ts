@@ -29,16 +29,7 @@
  * Future Loki adapter will perform these operations server-side.
  */
 
-import type {
-  LogAdapter,
-  LogQuery,
-  LogQueryResult,
-  LogDataResult,
-  HistogramResult,
-  FieldFacet,
-  AdapterCapabilities,
-  LogEntry,
-} from "../types";
+import type { LogAdapter, LogDataResult, AdapterCapabilities } from "../types";
 import { PLAIN_TEXT_ADAPTER_CAPABILITIES, LOG_QUERY_DEFAULTS, FACETABLE_FIELDS } from "../constants";
 import { parseLogBatch } from "./log-parser";
 import { filterEntries, computeHistogram, computeFacets, type FilterParams } from "./compute";
@@ -177,126 +168,6 @@ export class PlainTextAdapter implements LogAdapter {
         filteredCount: filteredEntries.length,
       },
     };
-  }
-
-  // ===========================================================================
-  // LogAdapter Interface (Legacy - for backward compatibility)
-  // ===========================================================================
-
-  /**
-   * Queries log entries with filtering and pagination.
-   *
-   * @deprecated Use queryAll() for new code. This method is kept for
-   * backward compatibility with existing hooks during migration.
-   *
-   * @param params - Query parameters
-   * @param signal - Optional AbortSignal for request cancellation
-   * @returns Query results with entries and pagination info
-   */
-  async query(params: LogQuery, signal?: AbortSignal): Promise<LogQueryResult> {
-    // Fetch and parse logs
-    const logText = await this.fetchLogs(params.workflowId, undefined, undefined, signal);
-    const allEntries = parseLogBatch(logText, params.workflowId);
-
-    // If aborted after fetch but before heavy processing, stop here
-    if (signal?.aborted) {
-      throw new Error("Log processing aborted");
-    }
-
-    // Build filter params
-    const filterParams: FilterParams = {
-      levels: params.levels,
-      tasks: params.taskName ? [params.taskName] : undefined,
-      sources: params.sources,
-      search: params.search,
-      searchRegex: params.searchMode === "regex",
-      start: params.start,
-      end: params.end,
-    };
-
-    // Filter entries
-    const filteredEntries = filterEntries(allEntries, filterParams);
-
-    // Apply pagination
-    const limit = params.limit ?? LOG_QUERY_DEFAULTS.PAGE_SIZE;
-    const startIdx = params.cursor ? this.decodeCursor(params.cursor) : 0;
-
-    // Handle direction
-    let entries: LogEntry[];
-    let nextCursor: string | undefined;
-    let hasMore: boolean;
-
-    if (params.direction === "backward") {
-      const endIdx = params.cursor ? startIdx : filteredEntries.length;
-      const beginIdx = Math.max(0, endIdx - limit);
-      entries = filteredEntries.slice(beginIdx, endIdx).reverse();
-      hasMore = beginIdx > 0;
-      nextCursor = hasMore ? this.encodeCursor(beginIdx) : undefined;
-    } else {
-      entries = filteredEntries.slice(startIdx, startIdx + limit);
-      hasMore = startIdx + limit < filteredEntries.length;
-      nextCursor = hasMore ? this.encodeCursor(startIdx + limit) : undefined;
-    }
-
-    return {
-      entries,
-      nextCursor,
-      hasMore,
-      stats: {
-        queryTimeMs: 0,
-        scannedBytes: undefined,
-      },
-    };
-  }
-
-  /**
-   * Gets histogram data for timeline visualization.
-   *
-   * @deprecated Use queryAll() for new code.
-   *
-   * @param params - Query parameters (excluding pagination)
-   * @param numBuckets - Number of histogram buckets
-   * @param signal - Optional AbortSignal for request cancellation
-   * @returns Histogram data
-   */
-  async histogram(
-    params: Omit<LogQuery, "cursor" | "limit">,
-    numBuckets: number = LOG_QUERY_DEFAULTS.HISTOGRAM_BUCKETS,
-    signal?: AbortSignal,
-  ): Promise<HistogramResult> {
-    const logText = await this.fetchLogs(params.workflowId, undefined, undefined, signal);
-    const allEntries = parseLogBatch(logText, params.workflowId);
-
-    if (signal?.aborted) {
-      throw new Error("Log processing aborted");
-    }
-
-    return computeHistogram(allEntries, numBuckets);
-  }
-
-  /**
-   * Gets facet data for the Fields pane.
-   *
-   * @deprecated Use queryAll() for new code.
-   *
-   * @param params - Query parameters (excluding pagination)
-   * @param fields - Fields to compute facets for
-   * @param signal - Optional AbortSignal for request cancellation
-   * @returns Field facets
-   */
-  async facets(
-    params: Omit<LogQuery, "cursor" | "limit">,
-    fields: string[],
-    signal?: AbortSignal,
-  ): Promise<FieldFacet[]> {
-    const logText = await this.fetchLogs(params.workflowId, undefined, undefined, signal);
-    const allEntries = parseLogBatch(logText, params.workflowId);
-
-    if (signal?.aborted) {
-      throw new Error("Log processing aborted");
-    }
-
-    return computeFacets(allEntries, fields);
   }
 
   // ===========================================================================
