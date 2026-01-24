@@ -39,13 +39,9 @@ import { VirtualItemTypes } from "../constants";
 // =============================================================================
 
 export interface VirtualizedRow {
-  /** Index in the virtual list */
   index: number;
-  /** Pixel offset from top */
   start: number;
-  /** Row height in pixels */
   size: number;
-  /** Unique key for React */
   key: string | number;
 }
 
@@ -54,43 +50,31 @@ export interface UseVirtualizedTableOptions<T, TSectionMeta = unknown> {
   items?: T[];
   /** Sectioned data (mutually exclusive with items) */
   sections?: Section<T, TSectionMeta>[];
-  /** Row key extractor */
   getRowId: (item: T) => string;
-  /** Scroll container ref */
   scrollRef: React.RefObject<HTMLElement | null>;
-  /** Row height in pixels */
   rowHeight: number;
   /** Section header height (required if using sections) */
   sectionHeight?: number;
-  /** Overscan count for virtualization */
   overscan?: number;
-  /** Enable infinite scroll */
   hasNextPage?: boolean;
-  /** Load more callback */
   onLoadMore?: () => void;
-  /** Is currently loading more */
   isFetchingNextPage?: boolean;
 }
 
 export interface UseVirtualizedTableResult<T, TSectionMeta = unknown> {
-  /** Virtual rows to render */
   virtualRows: VirtualizedRow[];
-  /** Total height of all rows */
   totalHeight: number;
   /** Total data row count (excluding section headers, for aria-rowcount) */
   totalRowCount: number;
   /** Total virtual item count (sections + data rows, for navigation) */
   virtualItemCount: number;
-  /** Get item for a virtual row index */
   getItem: (
     index: number,
   ) =>
     | { type: typeof VirtualItemTypes.SECTION; section: Section<T, TSectionMeta> }
     | { type: typeof VirtualItemTypes.ROW; item: T }
     | null;
-  /** Trigger measurement recalculation */
   measure: () => void;
-  /** Scroll to a specific virtual index */
   scrollToIndex: (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => void;
   /** Ref callback for dynamic row measurement - attach to row elements */
   measureElement: (node: Element | null) => void;
