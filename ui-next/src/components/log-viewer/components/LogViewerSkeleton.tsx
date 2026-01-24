@@ -13,11 +13,10 @@
  * to prevent cumulative layout shift (CLS = 0).
  *
  * Layout matches LogViewer:
- * 1. SearchBar (top)
- * 2. FacetBar (optional, shows filter dropdowns)
- * 3. TimelineHistogram (optional)
- * 4. LogList (main content, full width)
- * 5. Footer (bottom)
+ * 1. SearchBar (top, includes filtering)
+ * 2. TimelineHistogram (optional)
+ * 3. LogList (main content, full width)
+ * 4. Footer (bottom)
  *
  * Used by:
  * - Suspense fallback during SSR streaming
@@ -35,8 +34,6 @@ import { ROW_HEIGHT_ESTIMATE, HISTOGRAM_HEIGHT, SKELETON_WIDTHS } from "../lib/c
 export interface LogViewerSkeletonProps {
   /** Show histogram section (default: true) */
   showHistogram?: boolean;
-  /** Show facet bar with filter dropdowns (default: true) */
-  showFacetBar?: boolean;
   /** Additional class names */
   className?: string;
 }
@@ -53,8 +50,8 @@ export interface LogViewerSkeletonProps {
  * // Full skeleton
  * <LogViewerSkeleton />
  *
- * // Minimal skeleton (no histogram or facets)
- * <LogViewerSkeleton showHistogram={false} showFacetBar={false} />
+ * // Minimal skeleton (no histogram)
+ * <LogViewerSkeleton showHistogram={false} />
  *
  * // As Suspense fallback
  * <Suspense fallback={<LogViewerSkeleton />}>
@@ -62,29 +59,18 @@ export interface LogViewerSkeletonProps {
  * </Suspense>
  * ```
  */
-export function LogViewerSkeleton({ showHistogram = true, showFacetBar = true, className }: LogViewerSkeletonProps) {
+export function LogViewerSkeleton({ showHistogram = true, className }: LogViewerSkeletonProps) {
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      {/* Section 1: SearchBar skeleton */}
-      <div className="shrink-0 border-b px-3 py-2">
+      {/* Section 1: SearchBar skeleton (includes filtering UI) */}
+      <div className="shrink-0 border-b p-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-9 flex-1" />
           <Skeleton className="h-5 w-24" />
         </div>
       </div>
 
-      {/* Section 2: FacetBar skeleton */}
-      {showFacetBar && (
-        <div className="shrink-0 border-b px-3 py-3">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-20" />
-            <Skeleton className="h-8 w-20" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-        </div>
-      )}
-
-      {/* Section 3: Histogram skeleton */}
+      {/* Section 2: Histogram skeleton */}
       {showHistogram && (
         <div
           className="shrink-0 border-b px-3 py-2"
@@ -102,7 +88,7 @@ export function LogViewerSkeleton({ showHistogram = true, showFacetBar = true, c
         </div>
       )}
 
-      {/* Section 4: LogList skeleton (full width) */}
+      {/* Section 3: LogList skeleton (full width) */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="space-y-1 p-2">
           {SKELETON_WIDTHS.map((width, i) => (
@@ -114,7 +100,7 @@ export function LogViewerSkeleton({ showHistogram = true, showFacetBar = true, c
         </div>
       </div>
 
-      {/* Section 5: Footer skeleton */}
+      {/* Section 4: Footer skeleton */}
       <div className="shrink-0">
         <div className="flex items-center justify-between border-t px-3 py-2">
           <div className="flex gap-1">
