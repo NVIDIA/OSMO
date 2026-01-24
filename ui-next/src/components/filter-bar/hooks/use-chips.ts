@@ -149,16 +149,10 @@ export function useChips<T>({
   }, [onChipsChange]);
 
   /**
-   * Get the chips for a preset (supports both single and multi-chip presets).
+   * Get the chips for a preset.
    */
   const getPresetChips = useCallback((preset: SearchPreset): SearchChip[] => {
-    if (preset.chips && preset.chips.length > 0) {
-      return preset.chips;
-    }
-    if (preset.chip) {
-      return [preset.chip];
-    }
-    return [];
+    return preset.chips;
   }, []);
 
   /**
