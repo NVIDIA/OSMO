@@ -47,7 +47,6 @@
 
 export { usePoolsData } from "./hooks/use-pools-data";
 export { useSortedPools } from "./hooks/use-sorted-pools";
-export { useLayoutDimensions } from "./hooks/use-layout-dimensions";
 
 // =============================================================================
 // Search Fields & Presets

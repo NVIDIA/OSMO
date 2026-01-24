@@ -126,13 +126,6 @@ export function filterChipsByFields(chips: SearchChip[], handledFields: Set<stri
 }
 
 /**
- * Check if any filters are active (chips present).
- */
-export function hasFilters(chips: SearchChip[]): boolean {
-  return chips.length > 0;
-}
-
-/**
  * Build a stable cache key segment from chips.
  *
  * Creates a deterministic string from chips for use in query keys.
