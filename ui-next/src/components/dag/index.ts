@@ -91,7 +91,6 @@ export {
 export {
   elkWorker,
   preloadElkWorker,
-  isElkWorkerReady,
   calculatePositions,
   buildEdges,
   findRootNodes,

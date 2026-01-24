@@ -284,21 +284,6 @@ export interface LogAdapter {
   readonly capabilities: AdapterCapabilities;
 
   /**
-   * Query log entries with filtering and pagination.
-   * @param params Query parameters
-   * @returns Promise resolving to query results
-   */
-  query(params: LogQuery): Promise<LogQueryResult>;
-
-  /**
-   * Get histogram data for timeline visualization.
-   * @param params Query parameters (excluding pagination)
-   * @param buckets Number of histogram buckets (default: 50)
-   * @returns Promise resolving to histogram data
-   */
-  histogram(params: Omit<LogQuery, "cursor" | "limit">, buckets?: number): Promise<HistogramResult>;
-
-  /**
    * Fetches and returns all log data in a single call.
    *
    * This is the preferred method for the new useLogData() hook.
