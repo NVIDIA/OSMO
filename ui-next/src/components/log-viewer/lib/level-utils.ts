@@ -33,7 +33,7 @@ export type { LogLevel };
  * Computed at module load to avoid calling cn() on every row render.
  */
 const LEVEL_BADGE_BASE_CLASSES =
-  "inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-medium border";
+  "inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-mono font-semibold border";
 
 const LEVEL_BADGE_CLASSES: ReadonlyMap<LogLevel | undefined, string> = new Map([
   ...LOG_LEVELS.map((level) => {
@@ -110,22 +110,11 @@ export function getLevelsAtLeast(minLevel: LogLevel): LogLevel[] {
  * Provides subtle background tinting for errors/warnings.
  */
 export function getLogRowClasses(level: LogLevel | undefined, options?: { expanded?: boolean }): string {
-  const baseClasses = cn(
+  return cn(
     "group relative",
     "px-3 py-1",
     "hover:bg-muted/50",
     "transition-colors duration-75",
     options?.expanded && "bg-muted/30",
   );
-
-  // Add subtle left border for severity indication
-  switch (level) {
-    case "error":
-    case "fatal":
-      return cn(baseClasses, "border-l-2 border-l-red-500/50");
-    case "warn":
-      return cn(baseClasses, "border-l-2 border-l-amber-500/50");
-    default:
-      return cn(baseClasses, "border-l-2 border-l-transparent");
-  }
 }

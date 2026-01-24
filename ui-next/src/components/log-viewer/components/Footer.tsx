@@ -19,7 +19,6 @@
 import { memo } from "react";
 import { Download, RefreshCcw, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
 // =============================================================================
@@ -65,82 +64,84 @@ function FooterInner({
   totalCount,
   className,
 }: FooterProps) {
+  const isFiltered = filteredCount !== totalCount;
+
   return (
-    <div className={cn("flex items-center justify-between gap-4 border-t px-3 py-2", className)}>
-      {/* Left: Action buttons */}
-      <div className="flex items-center gap-1">
-        {/* Download button */}
-        {onDownload && (
+    <div className={cn("border-input shrink-0 border-t px-3 py-2", className)}>
+      <div className="flex items-center justify-between text-xs">
+        {/* Left: Action buttons */}
+        <div className="flex items-center gap-2">
+          {/* Download button */}
+          {onDownload && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onDownload}
+                  className="hover:bg-accent rounded p-1"
+                >
+                  <Download className="size-4" />
+                  <span className="sr-only">Download logs</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Download logs</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Wrap lines toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onDownload}
+              <button
+                onClick={onToggleWrapLines}
+                className={cn("rounded p-1", wrapLines ? "bg-accent" : "hover:bg-accent")}
               >
-                <Download className="size-4" />
-                <span className="sr-only">Download logs</span>
-              </Button>
+                <WrapText className="size-4" />
+                <span className="sr-only">{wrapLines ? "Disable" : "Enable"} line wrap</span>
+              </button>
             </TooltipTrigger>
-            <TooltipContent side="top">Download logs</TooltipContent>
+            <TooltipContent side="top">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
           </Tooltip>
-        )}
 
-        {/* Wrap lines toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={wrapLines ? "secondary" : "ghost"}
-              size="icon-sm"
-              onClick={onToggleWrapLines}
-            >
-              <WrapText className="size-4" />
-              <span className="sr-only">{wrapLines ? "Disable" : "Enable"} line wrap</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
-        </Tooltip>
-
-        {/* Show task toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={showTask ? "secondary" : "ghost"}
-              size="icon-sm"
-              onClick={onToggleShowTask}
-            >
-              <Tag className="size-4" />
-              <span className="sr-only">{showTask ? "Hide" : "Show"} task</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
-        </Tooltip>
-      </div>
-
-      {/* Right: Entry count and refresh */}
-      <div className="flex items-center gap-2">
-        {/* Entry count */}
-        <div className="text-muted-foreground text-sm tabular-nums">
-          {filteredCount.toLocaleString()} of {totalCount.toLocaleString()} entries
+          {/* Show task toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleShowTask}
+                className={cn("rounded p-1", showTask ? "bg-accent" : "hover:bg-accent")}
+              >
+                <Tag className="size-4" />
+                <span className="sr-only">{showTask ? "Hide" : "Show"} task</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
+          </Tooltip>
         </div>
 
-        {/* Refresh button */}
-        {onRefresh && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onRefresh}
-                disabled={isLoading}
-              >
-                <RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
-                <span className="sr-only">Refresh</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Refresh logs</TooltipContent>
-          </Tooltip>
-        )}
+        {/* Right: Entry count and refresh */}
+        <div className="flex items-center gap-2">
+          {/* Entry count */}
+          <span className="text-muted-foreground tabular-nums">
+            {isFiltered
+              ? `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()} entries`
+              : `${totalCount.toLocaleString()} entries`}
+          </span>
+
+          {/* Refresh button */}
+          {onRefresh && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                  className="hover:bg-accent rounded p-1 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
+                  <span className="sr-only">Refresh</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Refresh logs</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
     </div>
   );

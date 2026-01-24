@@ -30,7 +30,7 @@ describe("getLevelBadgeClasses", () => {
       const classes = getLevelBadgeClasses(level);
       expect(classes).toContain("rounded");
       expect(classes).toContain("text-xs");
-      expect(classes).toContain("font-medium");
+      expect(classes).toContain("font-semibold");
     }
   });
 
@@ -71,6 +71,9 @@ describe("getLogRowClasses", () => {
       const classes = getLogRowClasses(level);
       expect(classes).toContain("group");
       expect(classes).toContain("relative");
+      expect(classes).toContain("px-3");
+      expect(classes).toContain("py-1");
+      expect(classes).toContain("hover:bg-muted/50");
     }
   });
 
@@ -79,24 +82,11 @@ describe("getLogRowClasses", () => {
     expect(classes).toContain("bg-muted/30");
   });
 
-  it("adds red border for error level", () => {
-    const classes = getLogRowClasses("error");
-    expect(classes).toContain("border-l-red-500/50");
-  });
-
-  it("adds red border for fatal level", () => {
-    const classes = getLogRowClasses("fatal");
-    expect(classes).toContain("border-l-red-500/50");
-  });
-
-  it("adds amber border for warn level", () => {
-    const classes = getLogRowClasses("warn");
-    expect(classes).toContain("border-l-amber-500/50");
-  });
-
-  it("adds transparent border for info/debug levels", () => {
-    expect(getLogRowClasses("info")).toContain("border-l-transparent");
-    expect(getLogRowClasses("debug")).toContain("border-l-transparent");
+  it("does not add level-specific styling", () => {
+    // Row classes are now level-agnostic - level styling is on the badge only
+    const errorClasses = getLogRowClasses("error");
+    const infoClasses = getLogRowClasses("info");
+    expect(errorClasses).toBe(infoClasses);
   });
 });
 

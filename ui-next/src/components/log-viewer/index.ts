@@ -58,12 +58,6 @@ export type { LogListProps } from "./components/LogList";
 export { SearchBar } from "./components/SearchBar";
 export type { SearchBarProps } from "./components/SearchBar";
 
-export { FacetDropdown } from "./components/FacetDropdown";
-export type { FacetDropdownProps } from "./components/FacetDropdown";
-
-export { FacetBar } from "./components/FacetBar";
-export type { FacetBarProps } from "./components/FacetBar";
-
 export { Footer } from "./components/Footer";
 export type { FooterProps } from "./components/Footer";
 
