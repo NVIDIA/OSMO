@@ -15,22 +15,42 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Optimistic Action Hook (React 19)
+ * Server Mutation Hook
  *
- * Provides optimistic UI updates for server actions.
- * Uses React 19's useOptimistic for instant feedback while
- * the server action is in flight.
+ * Executes Next.js Server Actions with loading states, error handling,
+ * and accessibility features.
+ *
+ * Server Actions run on the server and automatically revalidate caches
+ * using Next.js primitives (revalidatePath, updateTag, refresh).
  *
  * @example
  * ```tsx
- * const { execute, isPending, error } = useOptimisticAction(cancelWorkflow, {
+ * import { cancelWorkflow } from '@/app/(dashboard)/workflows/actions';
+ * import { useServerMutation } from '@/hooks';
+ *
+ * const { execute, isPending, error } = useServerMutation(cancelWorkflow, {
  *   onSuccess: () => toast.success("Workflow cancelled"),
  *   onError: (error) => toast.error(error),
+ *   successMessage: "Workflow cancelled",
  * });
  *
  * <Button onClick={() => execute(workflowName)} disabled={isPending}>
  *   {isPending ? "Cancelling..." : "Cancel"}
  * </Button>
+ * ```
+ *
+ * ## Architecture
+ *
+ * This hook is for WRITE operations (mutations). Use TanStack Query for READ operations:
+ *
+ * ```typescript
+ * // READ operations (queries)
+ * const { workflows } = useWorkflows();         // TanStack Query
+ * const { workflow } = useWorkflowDetail();     // TanStack Query
+ *
+ * // WRITE operations (mutations)
+ * const { execute } = useServerMutation(cancelWorkflow);     // This hook
+ * const { execute } = useServerMutation(retryWorkflow);      // This hook
  * ```
  */
 
@@ -40,10 +60,10 @@ import { useState, useCallback, useTransition } from "react";
 import { useServices } from "@/contexts";
 import type { ActionResult } from "@/app/(dashboard)/workflows/actions";
 
-interface UseOptimisticActionOptions {
-  /** Called on successful action */
+export interface UseServerMutationOptions {
+  /** Called on successful mutation */
   onSuccess?: () => void;
-  /** Called on action error */
+  /** Called on mutation error */
   onError?: (error: string) => void;
   /** Success message for screen reader announcement */
   successMessage?: string;
@@ -51,10 +71,10 @@ interface UseOptimisticActionOptions {
   errorMessagePrefix?: string;
 }
 
-interface UseOptimisticActionReturn<TArgs extends unknown[]> {
-  /** Execute the action */
+export interface UseServerMutationReturn<TArgs extends unknown[]> {
+  /** Execute the server mutation */
   execute: (...args: TArgs) => Promise<void>;
-  /** Whether the action is currently in flight */
+  /** Whether the mutation is currently in flight */
   isPending: boolean;
   /** Last error message, if any */
   error: string | null;
@@ -63,17 +83,20 @@ interface UseOptimisticActionReturn<TArgs extends unknown[]> {
 }
 
 /**
- * Hook for executing server actions with optimistic updates and loading states.
+ * Hook for executing Next.js Server Actions with loading states and error handling.
+ *
+ * Uses React 19's useTransition for non-blocking updates during the mutation.
+ * Provides automatic screen reader announcements for accessibility.
  *
  * @param action - The server action to execute
  * @param options - Callbacks and configuration
  * @returns Object with execute function, pending state, and error
  */
-export function useOptimisticAction<TArgs extends unknown[]>(
+export function useServerMutation<TArgs extends unknown[]>(
   action: (...args: TArgs) => Promise<ActionResult>,
-  options: UseOptimisticActionOptions = {},
-): UseOptimisticActionReturn<TArgs> {
-  const { onSuccess, onError, successMessage, errorMessagePrefix = "Action failed" } = options;
+  options: UseServerMutationOptions = {},
+): UseServerMutationReturn<TArgs> {
+  const { onSuccess, onError, successMessage, errorMessagePrefix = "Mutation failed" } = options;
 
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -118,9 +141,3 @@ export function useOptimisticAction<TArgs extends unknown[]>(
     resetError,
   };
 }
-
-// =============================================================================
-// Specialized Hooks for Common Actions
-// =============================================================================
-
-export { useOptimisticAction as useServerAction };
