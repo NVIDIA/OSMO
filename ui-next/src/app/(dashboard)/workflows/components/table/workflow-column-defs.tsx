@@ -25,6 +25,7 @@ import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
 import { WORKFLOW_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type WorkflowColumnId } from "../../lib/workflow-columns";
 import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay, type StatusCategory } from "../../lib/workflow-constants";
 import { formatDuration } from "../../[name]/lib/workflow-types";
+import { WorkflowStatus } from "@/lib/api/generated";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
@@ -155,7 +156,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => {
         const duration = row.original.duration ?? null;
-        const isRunning = row.original.status === "RUNNING";
+        const isRunning = row.original.status === WorkflowStatus.RUNNING;
 
         return (
           <span

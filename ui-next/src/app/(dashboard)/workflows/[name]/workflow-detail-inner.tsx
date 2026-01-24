@@ -102,6 +102,7 @@ export interface WorkflowDetailInnerProps {
 
 import { useSearchParams } from "next/navigation";
 import { dagDebug } from "@/components/dag/lib/dag-debug";
+import { WorkflowStatus } from "@/lib/api/generated";
 
 // =============================================================================
 // Component
@@ -154,7 +155,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // PERFORMANCE: Pause ticking during pan/zoom to prevent React re-renders mid-frame
   // This eliminates the occasional frame drop when tick fires during drag
   const workflowStatus = workflow?.status;
-  const isWorkflowActive = workflowStatus === "PENDING" || workflowStatus === "RUNNING" || workflowStatus === "WAITING";
+  const isWorkflowActive =
+    workflowStatus === WorkflowStatus.PENDING ||
+    workflowStatus === WorkflowStatus.RUNNING ||
+    workflowStatus === WorkflowStatus.WAITING;
   const shouldTick = isWorkflowActive && !isPanning;
   useTickController(shouldTick);
 
