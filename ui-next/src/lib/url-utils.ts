@@ -75,10 +75,4 @@ export function parseUrlChips(param: string | string[] | undefined): SearchChip[
  * @param chips - Array of SearchChip objects
  * @returns Sorted, comma-joined string for cache key
  */
-export function chipsToKeyString(chips: SearchChip[]): string {
-  if (chips.length === 0) return "";
-  return chips
-    .map((c) => `${c.field}:${c.value}`)
-    .sort()
-    .join(",");
-}
+export { chipsToCacheKey as chipsToKeyString } from "@/lib/api/chip-filter-utils";
