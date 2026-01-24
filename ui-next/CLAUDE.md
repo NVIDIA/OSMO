@@ -2,6 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 CRITICAL - Verification Before Declaring Done
+
+**Before saying "Done", "Fixed", "Complete", or reporting success, ALWAYS run:**
+
+```bash
+cd external/ui-next && pnpm type-check && pnpm lint && pnpm test --run
+```
+
+**All checks must pass with ZERO errors and ZERO warnings.** If any check fails, fix immediately and re-run ALL checks.
+
+**When fixing errors:**
+- ❌ NEVER suppress with `@ts-ignore` or `eslint-disable`
+- ❌ NEVER use `any` type
+- ✅ ALWAYS resolve the root cause properly
+
+**After all checks pass, format the code:**
+```bash
+pnpm format
+```
+
 ## Development Commands
 
 ### Daily Workflow
@@ -156,6 +176,80 @@ import { usePoolsData } from '@/app/(dashboard)/pools';
 import { usePoolsData } from '@/app/(dashboard)/pools/hooks/use-pools-data';
 ```
 
+### Type Imports: Adapter vs Generated
+
+**Critical distinction:** Import **types** from `adapter`, but **enums** from `generated`:
+
+```typescript
+// ❌ FORBIDDEN: Types from generated change without notice
+import type { Pool } from "@/lib/api/generated";
+
+// ✅ REQUIRED: Types from adapter are stable
+import type { Pool } from "@/lib/api/adapter";
+
+// ✅ REQUIRED: Enums MUST come from generated for type safety
+import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
+```
+
+**Why this matters:**
+- Backend adds a new status → TypeScript error forces UI update
+- No silent failures from typos (`"RUNING"` vs `"RUNNING"`)
+- Refactoring is safe (rename in one place, compiler finds all uses)
+
+## Forbidden Patterns - NEVER DO THESE
+
+```typescript
+// ❌ FORBIDDEN: String literals for enums
+if (pool.status === "ONLINE") { ... }
+if (workflow.priority === "HIGH") { ... }
+const statuses = ["RUNNING", "COMPLETED"];
+
+// ✅ REQUIRED: Use generated enums for type safety
+import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
+if (pool.status === PoolStatus.ONLINE) { ... }
+if (workflow.priority === WorkflowPriority.HIGH) { ... }
+const statuses = [WorkflowStatus.RUNNING, WorkflowStatus.COMPLETED];
+```
+
+```typescript
+// ❌ FORBIDDEN: Manual fetch patterns
+const [data, setData] = useState(null);
+const [loading, setLoading] = useState(true);
+useEffect(() => { fetch(...).then(setData); }, []);
+
+// ✅ REQUIRED: TanStack Query via adapter hooks
+const { pools, isLoading, error } = usePools();
+```
+
+```typescript
+// ❌ FORBIDDEN: Non-semantic interactive elements
+<div onClick={handleClick}>Click me</div>
+<span role="button" onClick={handleClick}>Action</span>
+
+// ✅ REQUIRED: Semantic HTML or shadcn components
+<Button onClick={handleClick}>Click me</Button>
+<button onClick={handleClick}>Action</button>
+```
+
+```typescript
+// ❌ FORBIDDEN: Defining your own enum-like types
+type Priority = "HIGH" | "NORMAL" | "LOW";
+type Status = "ONLINE" | "OFFLINE";
+
+// ✅ REQUIRED: Derive from generated enums
+import { WorkflowPriority, PoolStatus } from "@/lib/api/generated";
+type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
+```
+
+```typescript
+// ❌ FORBIDDEN: Hardcoded arrays of enum values
+const ALL_STATUSES = ["PENDING", "RUNNING", "COMPLETED", "FAILED"];
+
+// ✅ REQUIRED: Derive from generated enum
+import { WorkflowStatus } from "@/lib/api/generated";
+const ALL_STATUSES = Object.values(WorkflowStatus);
+```
+
 ## Common Development Tasks
 
 ### Adding a New API Endpoint
@@ -214,6 +308,21 @@ npx shadcn@latest add dialog   # Add from shadcn/ui
 ```
 
 Components are added to `src/components/shadcn/`. For custom components, add to `src/components/[feature]/`.
+
+### Check Existing Components First
+
+**Before creating ANY component, search these locations:**
+
+| Need | Check First | Common Files |
+|------|-------------|--------------|
+| UI primitives | `@/components/shadcn/` | button, dialog, input, select, tooltip, popover |
+| Composed components | `@/components/` | DataTable, SmartSearch, Panel, TableToolbar |
+| Hooks | `@/hooks/` | useCopy, useAnnouncer, useServices, usePanelState |
+| Table stores | `@/stores/` | createTableStore factory |
+| Utilities | `@/lib/utils.ts` | cn, formatters, validators |
+| Library hooks | `usehooks-ts`, `@react-hookz/web` | useDebounce, useLocalStorage, etc. |
+
+**Rule: If it exists, USE it. If it's close, EXTEND it. Only then CREATE.**
 
 ## Backend Integration Notes
 
@@ -332,6 +441,184 @@ test("shows pool list", async ({ page, withData }) => {
 
 **IMPORTANT**: `cacheComponents: false` in development (causes constant re-rendering). Only enabled in production builds.
 
+## SSR/PPR Hydration Safety
+
+**SSR with localStorage causes hydration mismatches.** The server renders with default state, but the client has different values in localStorage. React sees different HTML → hydration error.
+
+### Zustand Stores with Persistence
+
+```tsx
+// ❌ FORBIDDEN: Direct store access for persisted values in SSR components
+const displayMode = useSharedPreferences((s) => s.displayMode);
+
+// ✅ REQUIRED: Use hydration-safe selectors from @/stores
+import { useDisplayMode, useCompactMode, useSidebarOpen } from "@/stores";
+const displayMode = useDisplayMode();
+```
+
+| Selector | SSR Value | After Hydration |
+|----------|-----------|-----------------|
+| `useDisplayMode()` | `"free"` | localStorage value |
+| `useCompactMode()` | `false` | localStorage value |
+| `useSidebarOpen()` | `true` | localStorage value |
+| `useDetailsExpanded()` | `false` | localStorage value |
+| `useDetailsPanelCollapsed()` | `false` | localStorage value |
+| `usePanelWidthPct()` | `50` | localStorage value |
+
+### Date/Time Formatting
+
+```tsx
+// ❌ FORBIDDEN: Locale-dependent formatting during SSR
+date.toLocaleString();
+new Date().toDateString() === date.toDateString(); // "is today" check
+
+// ✅ REQUIRED: SSR-safe formatters from @/lib/format-date
+import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
+formatDateTimeFull(date);      // "Jan 15, 2026, 2:30:45 PM"
+formatDateTimeSuccinct(date);  // "1/15/26 2:30p"
+```
+
+For relative time ("today"), use after hydration check:
+
+```tsx
+import { useIsHydrated } from "@/hooks";
+import { formatDateTimeRelative, formatDateTimeFull } from "@/lib/format-date";
+
+const isHydrated = useIsHydrated();
+const time = isHydrated ? formatDateTimeRelative(date) : formatDateTimeFull(date);
+```
+
+### Client-Only UI (Radix dropdowns, DnD)
+
+```tsx
+// ❌ FORBIDDEN: Radix components without hydration guard (generates different IDs)
+return <DropdownMenu>...</DropdownMenu>;
+
+// ✅ REQUIRED: Guard with useMounted
+import { useMounted } from "@/hooks";
+
+const mounted = useMounted();
+if (!mounted) return <Button disabled>...</Button>;
+return <DropdownMenu>...</DropdownMenu>;
+```
+
+### Creating Hydration-Safe Selectors for Custom Stores
+
+```tsx
+import { createHydratedSelector } from "@/hooks";
+import { useMyStore, initialState } from "./my-store";
+
+export const useMyValue = createHydratedSelector(
+  useMyStore,
+  (s) => s.myValue,
+  initialState.myValue,
+);
+```
+
+### Performance Requirements
+
+| Scenario | MUST Use | Reason |
+|----------|----------|--------|
+| Lists > 50 items | TanStack Virtual + `contain-strict` | Prevent DOM bloat |
+| Search inputs | `useDeferredValue` | Don't block typing |
+| Heavy state updates | `startTransition` | Keep UI responsive |
+| Scroll containers | `overscroll-behavior: contain` | Prevent scroll chaining |
+
+**Animation rules:**
+- ✅ Animate: `transform`, `opacity` (GPU-accelerated)
+- ❌ NEVER animate: `width`, `height`, `margin`, `padding` (causes reflow)
+
+### Loop Optimization
+
+```typescript
+// ❌ SLOW
+const edges = groups.flatMap((g) => g.edges.map(...));
+
+// ✅ FAST
+const edges: Edge[] = [];
+for (const g of groups) {
+  for (const e of g.edges) edges.push(e);
+}
+```
+
+### Concurrent Features
+
+```typescript
+import { startTransition } from "react";
+startTransition(() => {
+  setNodes(result.nodes);
+});
+```
+
+### Data Attribute Handlers
+
+```typescript
+const handleClick = useCallback((e) => {
+  const idx = Number(e.currentTarget.dataset.index);
+}, [items]);
+
+<button data-index={i} onClick={handleClick} />
+```
+
+## React 19: useEffectEvent Usage
+
+`useEffectEvent` is used to extract **non-reactive** logic from Effects. It allows an Effect to read the latest props/state without re-running when those values change.
+
+### ✅ When to use
+- **Effect Synchronization**: When logic inside a `useEffect` needs to access the latest state/props but shouldn't trigger the effect to re-run.
+- **Event Listeners**: Inside an effect that attaches a DOM/Window listener (e.g., `keydown`, `resize`) to ensure the handler always sees fresh state.
+- **Bridging External Systems**: Bridging React state to non-React systems (WebSockets, Maps API, etc.) inside an effect.
+
+### ❌ When NOT to use
+- **UI Event Handlers**: Never use for `onClick`, `onChange`, or other handlers passed to JSX. Use `useCallback` or standard functions instead.
+- **Prop Drilling**: Never pass a function returned by `useEffectEvent` as a prop to other components.
+- **During Render**: Never call an Effect Event during the render phase (e.g., inside `useMemo` or the component body).
+- **Dependency Arrays**: Never include an Effect Event in a dependency array (it is a stable reference by design).
+
+### 💡 The "Reactive vs. Non-Reactive" Rule
+- If the logic should **trigger** an update when values change → Use `useEffect` with dependencies.
+- If the logic should **react** to an event but only **read** the latest values → Use `useEffectEvent`.
+
+## Accessibility Requirements
+
+All interactive elements MUST be keyboard accessible:
+
+- **Enter/Space**: Activate buttons and controls
+- **Arrow keys**: Navigate within composite widgets
+- **Escape**: Close modals, cancel operations
+- **Tab**: Move between focusable elements
+
+```tsx
+// ✅ REQUIRED: Screen reader announcements for dynamic changes
+const { announcer } = useServices();
+await clipboard.copy(text);
+announcer.announce("Copied to clipboard", "polite");
+```
+
+```tsx
+// ✅ REQUIRED: Focus visible styling
+<Button className="focus-nvidia">...</Button>
+```
+
+## Single Source of Truth
+
+NEVER hardcode these values. ALWAYS use the designated source:
+
+| What | Source | NOT |
+|------|--------|-----|
+| Row heights, spacing | `useConfig()` → `table.rowHeights` | Magic numbers like `48` |
+| Panel widths | `useConfig()` → `panel.*` | Hardcoded `320px` |
+| API types | `@/lib/api/adapter/` | `@/lib/api/generated.ts` |
+| Enums ONLY | `@/lib/api/generated.ts` | String literals |
+| Status enums | `WorkflowStatus`, `TaskGroupStatus`, `PoolStatus` | `"RUNNING"`, `"ONLINE"` |
+| Priority enum | `WorkflowPriority` | `"HIGH"`, `"NORMAL"`, `"LOW"` |
+| CSS variables | `globals.css` | Inline hex colors |
+| Feature constants | `feature/lib/constants.ts` | Scattered magic strings |
+| Column configs | `feature/lib/feature-columns.ts` | Inline column definitions |
+| Clipboard operations | `useServices().clipboard` | `navigator.clipboard` directly |
+| Screen reader announcements | `useServices().announcer` | Manual aria-live regions |
+| URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
+
 ## Code Style Notes
 
 ### ESLint Rules
@@ -418,6 +705,22 @@ pnpm dev:mock
 | API Codegen | orval (from OpenAPI) |
 | Testing | Vitest (unit), Playwright (E2E) |
 | Mocking | MSW (dev mode), Playwright route mocking (E2E) |
+
+## Final Verification Checklist
+
+Before submitting any code, verify:
+
+- [ ] Did I run `pnpm type-check && pnpm lint && pnpm test --run` with ZERO errors/warnings?
+- [ ] Did I check `@/components/` before creating a new component?
+- [ ] Are ALL imports from public APIs (`index.ts` exports)?
+- [ ] Are types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
+- [ ] Am I using enum values (e.g., `PoolStatus.ONLINE`) instead of string literals (`"ONLINE"`)?
+- [ ] Is every interactive element keyboard accessible?
+- [ ] Did I use TanStack/Zustand/nuqs instead of manual state?
+- [ ] Are there any magic numbers that should be constants or config values?
+- [ ] Did I run `pnpm format` after all checks passed?
+
+**If any answer is NO, fix it before proceeding.**
 
 ## Next Steps After Reading This
 
