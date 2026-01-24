@@ -89,10 +89,19 @@ func NewListenerService(
 	}
 }
 
+// listenerStream is an interface for bidirectional gRPC streams that handle ListenerMessages.
+// Both WorkflowListenerStream and ResourceListenerStream implement this interface.
+type listenerStream interface {
+	Context() context.Context
+	Recv() (*pb.ListenerMessage, error)
+	Send(*pb.AckMessage) error
+}
+
 // pushMessageToRedis pushes the received message to Redis Stream
 func (ls *ListenerService) pushMessageToRedis(
 	ctx context.Context,
 	msg *pb.ListenerMessage,
+	backendName string,
 ) error {
 	// Convert the protobuf message to JSON
 	// UseProtoNames ensures field names match the .proto file (snake_case)
@@ -105,11 +114,12 @@ func (ls *ListenerService) pushMessageToRedis(
 		return fmt.Errorf("failed to marshal message to JSON: %w", err)
 	}
 
-	// Add message to Redis Stream
+	// Add message to Redis Stream with backend name
 	err = ls.redisClient.XAdd(ctx, &redis.XAddArgs{
 		Stream: operatorMessagesStream,
 		Values: map[string]interface{}{
 			"message": string(messageJSON),
+			"backend": backendName,
 		},
 	}).Err()
 	if err != nil {
@@ -123,14 +133,13 @@ func (ls *ListenerService) pushMessageToRedis(
 	return nil
 }
 
-// WorkflowListenerStream handles bidirectional streaming for workflow backend communication
-//
-// Protocol flow:
-// 1. Backend connects and sends backend-name via gRPC metadata (required)
-// 2. Server receives messages and sends ACK responses
-// 3. Continues until stream is closed
-func (ls *ListenerService) WorkflowListenerStream(
-	stream pb.ListenerService_WorkflowListenerStreamServer) error {
+// handleListenerStream processes messages from a bidirectional gRPC stream.
+// It handles the common logic for both WorkflowListenerStream and ResourceListenerStream:
+// - Extracting backend name from metadata
+// - Receiving messages and pushing to Redis
+// - Sending ACK responses
+// - Reporting progress
+func (ls *ListenerService) handleListenerStream(stream listenerStream, streamType string) error {
 	ctx := stream.Context()
 
 	// Extract backend name from gRPC metadata (required)
@@ -144,9 +153,9 @@ func (ls *ListenerService) WorkflowListenerStream(
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	ls.logger.InfoContext(ctx, "workflow listener stream opened",
+	ls.logger.InfoContext(ctx, streamType+" listener stream opened",
 		slog.String("backend_name", backendName))
-	defer ls.logger.InfoContext(ctx, "workflow listener stream closed",
+	defer ls.logger.InfoContext(ctx, streamType+" listener stream closed",
 		slog.String("backend_name", backendName))
 
 	lastProgressReport := time.Now()
@@ -165,7 +174,7 @@ func (ls *ListenerService) WorkflowListenerStream(
 		}
 
 		// Push message to Redis Stream before sending ACK
-		if err := ls.pushMessageToRedis(ctx, msg); err != nil {
+		if err := ls.pushMessageToRedis(ctx, msg, backendName); err != nil {
 			ls.logger.ErrorContext(ctx, "failed to push message to Redis stream",
 				slog.String("error", err.Error()),
 				slog.String("uuid", msg.Uuid))
@@ -192,6 +201,20 @@ func (ls *ListenerService) WorkflowListenerStream(
 			lastProgressReport = now
 		}
 	}
+}
+
+// WorkflowListenerStream handles bidirectional streaming for workflow backend communication.
+// It receives workflow-related messages (update_pod, logging) and sends ACK responses.
+func (ls *ListenerService) WorkflowListenerStream(
+	stream pb.ListenerService_WorkflowListenerStreamServer) error {
+	return ls.handleListenerStream(stream, "workflow")
+}
+
+// ResourceListenerStream handles bidirectional streaming for resource listener communication.
+// It receives resource-related messages (resource, resource_usage, delete_resource) and sends ACK responses.
+func (ls *ListenerService) ResourceListenerStream(
+	stream pb.ListenerService_ResourceListenerStreamServer) error {
+	return ls.handleListenerStream(stream, "resource")
 }
 
 // InitBackend handles backend initialization requests
