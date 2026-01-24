@@ -157,24 +157,6 @@ export function getApiHostname(): string {
   return process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
 }
 
-/**
- * Check if SSL is enabled.
- *
- * Defaults to false for localhost (no SSL certs typically available),
- * true for all other hostnames.
- */
-export function isSslEnabled(): boolean {
-  const explicit = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED;
-  if (explicit !== undefined) {
-    return explicit !== "false";
-  }
-
-  // Default: disable SSL for localhost, enable for everything else
-  const hostname = getApiHostname();
-  const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
-  return !isLocalhost;
-}
-
 // =============================================================================
 // Auth Configuration
 // =============================================================================
@@ -189,11 +171,6 @@ export function isSslEnabled(): boolean {
 // =============================================================================
 // Timing Constants
 // =============================================================================
-
-/**
- * How long to show "copied" feedback in UI.
- */
-export const COPY_FEEDBACK_DURATION_MS = 2000;
 
 /**
  * Default stale time for React Query.
@@ -223,11 +200,6 @@ export const QUERY_STALE_TIME_EXPENSIVE_MS = 5 * 60 * 1000; // 5 minutes
  * Maximum retry delay for React Query.
  */
 export const QUERY_MAX_RETRY_DELAY_MS = 5000;
-
-/**
- * Refresh token this many seconds before it expires (lazy refresh in fetcher).
- */
-export const TOKEN_REFRESH_THRESHOLD_SECONDS = 60;
 
 // =============================================================================
 // UI Layout Constants
