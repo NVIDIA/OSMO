@@ -44,7 +44,7 @@ import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "
 import { createPoolColumns } from "./pool-column-defs";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { useSortedPools } from "../../hooks/use-sorted-pools";
-import { useLayoutDimensions } from "../../hooks/use-layout-dimensions";
+import { useCssVarDimensions } from "@/lib/css-utils";
 import { getStatusDisplay } from "../../lib/constants";
 import "../../styles/pools.css";
 
@@ -92,7 +92,13 @@ export function PoolsDataTable({
   selectedPoolName,
   onSearchChipsChange,
 }: PoolsDataTableProps) {
-  const layout = useLayoutDimensions();
+  // Layout dimensions from CSS variables
+  const layout = useCssVarDimensions({
+    headerHeight: ["--pools-header-height", "2.25rem"],
+    sectionHeight: ["--pools-section-height", "2.25rem"],
+    rowHeight: ["--pools-row-height", "3rem"],
+    rowHeightCompact: ["--pools-row-height-compact", "2rem"],
+  } as const);
 
   // Shared preferences
   const displayMode = useSharedPreferences((s) => s.displayMode);
