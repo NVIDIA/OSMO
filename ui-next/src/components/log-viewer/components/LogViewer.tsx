@@ -9,6 +9,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, startTransition, useDeferredValue } from "react";
+import { User, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
@@ -103,11 +104,10 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              LEVEL_STYLES.error,
-              active && "ring-2 ring-red-600/30 ring-inset dark:ring-red-400/30",
-              !active && "opacity-50",
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-red-600/50 dark:group-data-[selected=true]:ring-red-400/50",
-              !active && "hover:opacity-75",
+              active
+                ? "bg-red-600 text-white dark:bg-red-500"
+                : cn(LEVEL_STYLES.error, "opacity-80 hover:opacity-90"),
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
             ERROR
@@ -121,11 +121,10 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              LEVEL_STYLES.warn,
-              active && "ring-2 ring-yellow-600/30 ring-inset dark:ring-yellow-400/30",
-              !active && "opacity-50",
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-yellow-600/50 dark:group-data-[selected=true]:ring-yellow-400/50",
-              !active && "hover:opacity-75",
+              active
+                ? "bg-yellow-600 text-white dark:bg-yellow-500"
+                : cn(LEVEL_STYLES.warn, "opacity-80 hover:opacity-90"),
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
             WARN
@@ -139,11 +138,10 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              LEVEL_STYLES.info,
-              active && "ring-2 ring-blue-600/30 ring-inset dark:ring-blue-400/30",
-              !active && "opacity-50",
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-blue-600/50 dark:group-data-[selected=true]:ring-blue-400/50",
-              !active && "hover:opacity-75",
+              active
+                ? "bg-blue-600 text-white dark:bg-blue-500"
+                : cn(LEVEL_STYLES.info, "opacity-80 hover:opacity-90"),
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
             INFO
@@ -157,11 +155,10 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              LEVEL_STYLES.debug,
-              active && "ring-2 ring-gray-600/30 ring-inset dark:ring-gray-400/30",
-              !active && "opacity-50",
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-gray-600/50 dark:group-data-[selected=true]:ring-gray-400/50",
-              !active && "hover:opacity-75",
+              active
+                ? "bg-gray-600 text-white dark:bg-gray-500"
+                : cn(LEVEL_STYLES.debug, "opacity-80 hover:opacity-90"),
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
             DEBUG
@@ -176,12 +173,40 @@ const LOG_FILTER_PRESETS: {
       {
         id: "source-user",
         chip: { field: "source", value: "user", label: "source:user" },
-        render: ({ active }: { active: boolean }) => <span className={active ? "font-semibold" : ""}>User</span>,
+        render: ({ active }: { active: boolean }) => (
+          <span
+            className={cn(
+              "flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+              active
+                ? "bg-nvidia text-white"
+                : "bg-nvidia-bg text-nvidia-dark opacity-80 hover:opacity-90 dark:bg-nvidia-bg-dark dark:text-nvidia-light",
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
+              "mx-1",
+            )}
+          >
+            <User className="h-3 w-3 text-current" />
+            USER
+          </span>
+        ),
       },
       {
         id: "source-osmo",
         chip: { field: "source", value: "osmo", label: "source:osmo" },
-        render: ({ active }: { active: boolean }) => <span className={active ? "font-semibold" : ""}>OSMO</span>,
+        render: ({ active }: { active: boolean }) => (
+          <span
+            className={cn(
+              "flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+              active
+                ? "bg-nvidia text-white"
+                : "bg-nvidia-bg text-nvidia-dark opacity-80 hover:opacity-90 dark:bg-nvidia-bg-dark dark:text-nvidia-light",
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
+              "mx-1",
+            )}
+          >
+            <Cpu className="h-3 w-3 text-current" />
+            OSMO
+          </span>
+        ),
       },
     ],
   },
