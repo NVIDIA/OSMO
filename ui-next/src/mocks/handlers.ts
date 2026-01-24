@@ -58,6 +58,45 @@ const MOCK_DELAY = getMockDelay();
 const WORKFLOW_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/logs$/;
 const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
 
+// =============================================================================
+// Log Generation Cache (HMR-Survivable)
+// =============================================================================
+// Cache for generated logs to avoid expensive regeneration during hot reload.
+// Key format: "workflowName:scenarioName:taskFilter:retryId"
+// Since generation is deterministic (seeded), caching is safe and improves dev experience.
+// This maintains high-fidelity mocks while providing instant hot reload performance.
+//
+// HMR SURVIVAL: We store the cache on globalThis to survive module reloads.
+// During HMR, the module is re-executed but globalThis persists, so cached
+// raw log text remains available. This prevents expensive log re-generation.
+const MSW_LOG_CACHE_KEY = "__osmoMswLogCache__";
+
+function getGeneratedLogsCache(): Map<string, string> {
+  if (typeof globalThis !== "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = globalThis as any;
+    if (!g[MSW_LOG_CACHE_KEY]) {
+      g[MSW_LOG_CACHE_KEY] = new Map<string, string>();
+    }
+    return g[MSW_LOG_CACHE_KEY] as Map<string, string>;
+  }
+  // Fallback for non-globalThis environments (shouldn't happen in practice)
+  return new Map<string, string>();
+}
+
+// Dev utility: Clear log cache when needed (e.g., when testing different scenarios)
+// Usage in browser console: window.__clearLogCache()
+if (typeof globalThis !== "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).__clearLogCache = () => {
+    const cache = getGeneratedLogsCache();
+    const size = cache.size;
+    cache.clear();
+    console.log(`[MSW] Log cache cleared (${size} entries)`);
+    return size;
+  };
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -354,10 +393,24 @@ export const handlers = [
     // For non-streaming scenarios, apply minimal delay and return all at once
     await delay(MOCK_DELAY);
 
-    // Use scenario-based generation
-    let logs = logGenerator.generateForScenario(name, scenarioName, taskNames);
+    // Build cache key from workflow name, scenario, and task filter
+    // Since generation is deterministic (seeded), caching is safe
+    const cacheKey = `${name}:${scenarioName}:${taskFilter ?? "all"}:${retryId ?? "0"}`;
+
+    // Check cache first - avoids expensive regeneration during hot reload
+    // Uses globalThis-based cache that survives HMR
+    const logCache = getGeneratedLogsCache();
+    let logs = logCache.get(cacheKey);
+
+    if (!logs) {
+      // Generate logs (expensive operation - only happens once per cache key)
+      logs = logGenerator.generateForScenario(name, scenarioName, taskNames);
+      // Cache for future requests
+      logCache.set(cacheKey, logs);
+    }
 
     // Apply filters (matches real backend behavior)
+    // Note: We cache before filtering because filters are cheap to apply
     logs = filterLogs(logs);
 
     // Use HttpResponse.text() from MSW for proper lifecycle management
@@ -562,27 +615,38 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     // For non-streaming scenarios, use legacy task log generation or scenario-based
     await delay(MOCK_DELAY);
 
-    // If using a specific scenario, use scenario-based generation
-    if (scenarioName !== "normal") {
-      const logs = logGenerator.generateForScenario(workflowName, scenarioName, [taskName]);
-      return new Response(logs, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "X-Log-Scenario": scenarioName,
-        },
-      });
+    // Build cache key for task logs
+    const cacheKey = `task:${workflowName}:${taskName}:${scenarioName}`;
+
+    // Check cache first - uses globalThis-based cache that survives HMR
+    const taskLogCache = getGeneratedLogsCache();
+    let logs = taskLogCache.get(cacheKey);
+
+    if (!logs) {
+      // If using a specific scenario, use scenario-based generation
+      if (scenarioName !== "normal") {
+        logs = logGenerator.generateForScenario(workflowName, scenarioName, [taskName]);
+      } else {
+        // Use legacy method for backward compatibility in normal case
+        const status = task?.status ?? "RUNNING";
+        const duration =
+          task?.end_time && task?.start_time
+            ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
+            : undefined;
+
+        logs = logGenerator.generateTaskLogs(workflowName, taskName, status, duration);
+      }
+
+      // Cache the generated logs
+      taskLogCache.set(cacheKey, logs);
     }
 
-    // Use legacy method for backward compatibility in normal case
-    const status = task?.status ?? "RUNNING";
-    const duration =
-      task?.end_time && task?.start_time
-        ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
-        : undefined;
-
-    const logs = logGenerator.generateTaskLogs(workflowName, taskName, status, duration);
-
-    return HttpResponse.text(logs);
+    return HttpResponse.text(logs, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        ...(scenarioName !== "normal" && { "X-Log-Scenario": scenarioName }),
+      },
+    });
   }),
 
   // Task events
