@@ -40,10 +40,6 @@ import { useState, useCallback, useTransition } from "react";
 import { useServices } from "@/contexts";
 import type { ActionResult } from "@/app/(dashboard)/workflows/actions";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 interface UseOptimisticActionOptions {
   /** Called on successful action */
   onSuccess?: () => void;
@@ -65,10 +61,6 @@ interface UseOptimisticActionReturn<TArgs extends unknown[]> {
   /** Reset the error state */
   resetError: () => void;
 }
-
-// =============================================================================
-// Hook
-// =============================================================================
 
 /**
  * Hook for executing server actions with optimistic updates and loading states.

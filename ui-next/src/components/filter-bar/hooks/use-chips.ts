@@ -27,13 +27,9 @@ import { useCallback, useState } from "react";
 import type { SearchField, SearchChip, SearchPreset } from "../lib";
 
 export interface UseChipsOptions<T> {
-  /** Current chips */
   chips: SearchChip[];
-  /** Callback when chips change */
   onChipsChange: (chips: SearchChip[]) => void;
-  /** Data for validation */
   data: T[];
-  /** Field definitions */
   fields: readonly SearchField<T>[];
   /** Display mode for resolving shorthand fields */
   displayMode?: "free" | "used";
@@ -42,19 +38,12 @@ export interface UseChipsOptions<T> {
 export interface UseChipsReturn<T> {
   /** Add a chip for a field/value pair (validates first). Returns true if added. */
   addChip: (field: SearchField<T>, value: string) => boolean;
-  /** Remove a chip by index */
   removeChip: (index: number) => void;
-  /** Clear all chips */
   clearChips: () => void;
-  /** Check if a preset is currently active */
   isPresetActive: (preset: SearchPreset) => boolean;
-  /** Toggle a preset on/off */
   togglePreset: (preset: SearchPreset) => void;
-  /** Current validation error (null if none) */
   validationError: string | null;
-  /** Set a validation error manually */
   setValidationError: (error: string | null) => void;
-  /** Clear the validation error */
   clearValidationError: () => void;
 }
 
@@ -100,7 +89,6 @@ export function useChips<T>({
         }
       }
 
-      // Clear any validation error
       setValidationError(null);
 
       // Resolve shorthand fields to explicit form
@@ -184,11 +172,9 @@ export function useChips<T>({
       if (presetChips.length === 0) return;
 
       if (isPresetActive(preset)) {
-        // Remove all preset chips
         const presetChipSet = new Set(presetChips.map((c) => `${c.field}:${c.value}`));
         onChipsChange(chips.filter((c) => !presetChipSet.has(`${c.field}:${c.value}`)));
       } else {
-        // Add missing preset chips
         const existingSet = new Set(chips.map((c) => `${c.field}:${c.value}`));
         const newChips = [...chips];
 
