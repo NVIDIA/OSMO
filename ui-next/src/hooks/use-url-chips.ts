@@ -30,6 +30,7 @@
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import type { SearchChip } from "@/stores";
+import { parseUrlChips } from "@/lib/url-utils";
 
 // =============================================================================
 // Types
@@ -80,21 +81,8 @@ export function useUrlChips(options: UseUrlChipsOptions = {}): UseUrlChipsResult
     }),
   );
 
-  // Parse filter strings to SearchChip format
-  const searchChips = useMemo<SearchChip[]>(() => {
-    if (!filterStrings || filterStrings.length === 0) return [];
-    return filterStrings
-      .map((str) => {
-        const colonIndex = str.indexOf(":");
-        if (colonIndex === -1) return null;
-        const field = str.slice(0, colonIndex);
-        const value = str.slice(colonIndex + 1);
-        if (!field || !value) return null;
-        const label = `${field}: ${value}`;
-        return { field, value, label };
-      })
-      .filter((chip): chip is SearchChip => chip !== null);
-  }, [filterStrings]);
+  // Parse filter strings to SearchChip format (reuse shared parsing logic)
+  const searchChips = useMemo<SearchChip[]>(() => parseUrlChips(filterStrings ?? []), [filterStrings]);
 
   // Convert chips back to filter strings for URL
   const setSearchChips = useCallback(
