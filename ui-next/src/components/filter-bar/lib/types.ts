@@ -136,15 +136,10 @@ export interface SearchPreset {
   /** Unique identifier */
   id: string;
   /**
-   * Single chip to add when this preset is clicked.
-   * @deprecated Use `chips` for new implementations.
-   */
-  chip?: SearchChip;
-  /**
-   * Multiple chips to add when this preset is clicked.
+   * Chips to add when this preset is clicked.
    * All chips are added/removed together. Preset is active only when ALL are present.
    */
-  chips?: SearchChip[];
+  chips: SearchChip[];
   /**
    * Render function for preset content.
    * The caller is responsible for all visual content (labels, icons, counts, etc.).
