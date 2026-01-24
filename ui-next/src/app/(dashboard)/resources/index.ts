@@ -53,7 +53,6 @@ export { useResourcesData } from "./hooks/use-resources-data";
 
 export {
   RESOURCE_SEARCH_FIELDS,
-  createResourceSearchFields,
   parseNumericFilter,
   validateNumericFilter,
   compareNumeric,

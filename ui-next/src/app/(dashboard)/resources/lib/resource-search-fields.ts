@@ -150,13 +150,5 @@ export const RESOURCE_SEARCH_FIELDS: readonly SearchField<Resource>[] = Object.f
   ...NUMERIC_RESOURCE_SEARCH_FIELDS,
 ]);
 
-/**
- * Create resource search fields.
- * @deprecated Use RESOURCE_SEARCH_FIELDS constant instead
- */
-export function createResourceSearchFields(): SearchField<Resource>[] {
-  return [...RESOURCE_SEARCH_FIELDS];
-}
-
 /** Re-export numeric filter utilities for testing */
 export { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";
