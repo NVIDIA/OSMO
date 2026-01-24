@@ -644,6 +644,35 @@ import { usePools } from '@/lib/api/adapter';
 import { PoolCard } from './pool-card';
 ```
 
+### Copyright Headers
+
+**ALL new files MUST include the NVIDIA copyright header at the top.**
+
+```typescript
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+```
+
+**When to include:**
+- ✅ REQUIRED: All new `.ts`, `.tsx`, `.js`, `.jsx` files
+- ✅ REQUIRED: All new component files, hooks, utilities, tests
+- ❌ SKIP: Config files (e.g., `next.config.ts`, `tailwind.config.ts`)
+- ❌ SKIP: Package files (`package.json`, `tsconfig.json`)
+- ❌ SKIP: Generated files (e.g., `src/lib/api/generated.ts`)
+
 ## Hermetic Development (Mock Mode)
 
 Run UI **without any backend** using deterministic synthetic data:
@@ -718,6 +747,7 @@ Before submitting any code, verify:
 - [ ] Is every interactive element keyboard accessible?
 - [ ] Did I use TanStack/Zustand/nuqs instead of manual state?
 - [ ] Are there any magic numbers that should be constants or config values?
+- [ ] Do all NEW files have the NVIDIA copyright header?
 - [ ] Did I run `pnpm format` after all checks passed?
 
 **If any answer is NO, fix it before proceeding.**
