@@ -14,57 +14,35 @@
  *
  * Usage:
  * ```ts
- * const expanded = useLogViewerStore((s) => s.expandedEntryIds);
- * const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
+ * const wrapLines = useLogViewerStore((s) => s.wrapLines);
+ * const toggleWrapLines = useLogViewerStore((s) => s.toggleWrapLines);
  * ```
  */
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { enableMapSet } from "immer";
-
-// Enable Immer's MapSet plugin for Set/Map support in state
-enableMapSet();
 
 // =============================================================================
 // Types
 // =============================================================================
 
 interface LogViewerState {
-  /** Set of expanded log entry IDs */
-  expandedEntryIds: Set<string>;
-  /**
-   * Whether live mode is enabled (auto-scroll to bottom, fetch latest logs).
-   *
-   * In the upcoming time range selector, this will be true when end time = "NOW".
-   * When user scrolls away from bottom, live mode is paused.
-   * When user selects a historical time range, live mode is disabled.
-   */
-  isLiveMode: boolean;
   /** Whether to wrap long lines */
   wrapLines: boolean;
   /** Whether to show task suffix on log entries */
   showTask: boolean;
+  /** Whether the timeline histogram is collapsed */
+  timelineCollapsed: boolean;
 }
 
 interface LogViewerActions {
-  /** Toggle expansion state of a log entry */
-  toggleExpand: (id: string) => void;
-  /** Expand a specific entry */
-  expand: (id: string) => void;
-  /** Collapse a specific entry */
-  collapse: (id: string) => void;
-  /** Collapse all entries */
-  collapseAll: () => void;
-  /** Set live mode enabled/disabled */
-  setLiveMode: (enabled: boolean) => void;
-  /** Toggle live mode on/off */
-  toggleLiveMode: () => void;
   /** Toggle line wrapping */
   toggleWrapLines: () => void;
   /** Toggle show task suffix */
   toggleShowTask: () => void;
+  /** Toggle timeline histogram collapsed state */
+  toggleTimelineCollapsed: () => void;
   /** Reset store to initial state */
   reset: () => void;
 }
@@ -80,10 +58,9 @@ export type LogViewerStore = LogViewerState & LogViewerActions;
  * Exported for testing - allows resetting store to known state.
  */
 export const initialState: LogViewerState = {
-  expandedEntryIds: new Set(),
-  isLiveMode: false,
   wrapLines: false,
   showTask: true,
+  timelineCollapsed: false,
 };
 
 // =============================================================================
@@ -94,64 +71,6 @@ export const useLogViewerStore = create<LogViewerStore>()(
   devtools(
     immer((set) => ({
       ...initialState,
-
-      toggleExpand: (id) =>
-        set(
-          (state) => {
-            if (state.expandedEntryIds.has(id)) {
-              state.expandedEntryIds.delete(id);
-            } else {
-              state.expandedEntryIds.add(id);
-            }
-          },
-          false,
-          "toggleExpand",
-        ),
-
-      expand: (id) =>
-        set(
-          (state) => {
-            state.expandedEntryIds.add(id);
-          },
-          false,
-          "expand",
-        ),
-
-      collapse: (id) =>
-        set(
-          (state) => {
-            state.expandedEntryIds.delete(id);
-          },
-          false,
-          "collapse",
-        ),
-
-      collapseAll: () =>
-        set(
-          (state) => {
-            state.expandedEntryIds.clear();
-          },
-          false,
-          "collapseAll",
-        ),
-
-      setLiveMode: (enabled) =>
-        set(
-          (state) => {
-            state.isLiveMode = enabled;
-          },
-          false,
-          "setLiveMode",
-        ),
-
-      toggleLiveMode: () =>
-        set(
-          (state) => {
-            state.isLiveMode = !state.isLiveMode;
-          },
-          false,
-          "toggleLiveMode",
-        ),
 
       toggleWrapLines: () =>
         set(
@@ -171,13 +90,21 @@ export const useLogViewerStore = create<LogViewerStore>()(
           "toggleShowTask",
         ),
 
+      toggleTimelineCollapsed: () =>
+        set(
+          (state) => {
+            state.timelineCollapsed = !state.timelineCollapsed;
+          },
+          false,
+          "toggleTimelineCollapsed",
+        ),
+
       reset: () =>
         set(
           () => ({
-            expandedEntryIds: new Set(),
-            isLiveMode: false,
             wrapLines: false,
             showTask: true,
+            timelineCollapsed: false,
           }),
           false,
           "reset",
