@@ -9,13 +9,15 @@
 "use client";
 
 import { memo, useCallback, useEffect, startTransition, useDeferredValue } from "react";
-import { User, Cpu } from "lucide-react";
+import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
 import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks";
+import { Button } from "@/components/shadcn/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 import { SearchBar } from "./SearchBar";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { LogList } from "./LogList";
@@ -104,9 +106,7 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active
-                ? "bg-red-600 text-white dark:bg-red-500"
-                : cn(LEVEL_STYLES.error, "opacity-80 hover:opacity-90"),
+              active ? "bg-red-600 text-white dark:bg-red-500" : cn(LEVEL_STYLES.error, "opacity-80 hover:opacity-90"),
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
@@ -138,9 +138,7 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active
-                ? "bg-blue-600 text-white dark:bg-blue-500"
-                : cn(LEVEL_STYLES.info, "opacity-80 hover:opacity-90"),
+              active ? "bg-blue-600 text-white dark:bg-blue-500" : cn(LEVEL_STYLES.info, "opacity-80 hover:opacity-90"),
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
@@ -179,7 +177,7 @@ const LOG_FILTER_PRESETS: {
               "flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
               active
                 ? "bg-nvidia text-white"
-                : "bg-nvidia-bg text-nvidia-dark opacity-80 hover:opacity-90 dark:bg-nvidia-bg-dark dark:text-nvidia-light",
+                : "bg-nvidia-bg text-nvidia-dark dark:bg-nvidia-bg-dark dark:text-nvidia-light opacity-80 hover:opacity-90",
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
               "mx-1",
             )}
@@ -198,7 +196,7 @@ const LOG_FILTER_PRESETS: {
               "flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
               active
                 ? "bg-nvidia text-white"
-                : "bg-nvidia-bg text-nvidia-dark opacity-80 hover:opacity-90 dark:bg-nvidia-bg-dark dark:text-nvidia-light",
+                : "bg-nvidia-bg text-nvidia-dark dark:bg-nvidia-bg-dark dark:text-nvidia-light opacity-80 hover:opacity-90",
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
               "mx-1",
             )}
@@ -242,6 +240,18 @@ export interface LogViewerProps {
   scope?: "workflow" | "group" | "task";
   /** Additional CSS classes */
   className?: string;
+  /** Start time for log query (undefined = from beginning) */
+  startTime?: Date;
+  /** End time for log query (undefined = to now/latest) */
+  endTime?: Date;
+  /** Active time range preset */
+  activePreset?: "all" | "5m" | "15m" | "1h" | "6h" | "24h";
+  /** Callback to set start time */
+  onStartTimeChange?: (time: Date | undefined) => void;
+  /** Callback to set end time */
+  onEndTimeChange?: (time: Date | undefined) => void;
+  /** Callback to apply a time range preset */
+  onPresetSelect?: (preset: "all" | "5m" | "15m" | "1h" | "6h" | "24h") => void;
 }
 
 // =============================================================================
@@ -289,17 +299,24 @@ function LogViewerInner({
   // Kept in the interface to maintain API stability.
   scope: _scope = "workflow",
   className,
+  startTime,
+  endTime,
+  activePreset,
+  onStartTimeChange,
+  onEndTimeChange,
+  onPresetSelect,
 }: LogViewerProps) {
   const { clipboard, announcer } = useServices();
 
-  // Store state - live mode enables auto-scroll and fetches latest logs
-  // In the upcoming time range selector, this will be true when end time = "NOW"
-  const isLiveMode = useLogViewerStore((s) => s.isLiveMode);
-  const setLiveMode = useLogViewerStore((s) => s.setLiveMode);
+  // Store state - only UI preferences
+  const timelineCollapsed = useLogViewerStore((s) => s.timelineCollapsed);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const toggleWrapLinesRaw = useLogViewerStore((s) => s.toggleWrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
   const toggleShowTaskRaw = useLogViewerStore((s) => s.toggleShowTask);
+
+  // Derive live mode from end time (endTime === undefined means "NOW" / live mode)
+  const isLiveMode = endTime === undefined;
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
@@ -340,11 +357,90 @@ function LogViewerInner({
   // Track if we're showing stale data (deferred value hasn't caught up)
   const isStale = deferredEntries !== entries || isFetching;
 
-  // Handle histogram bucket click
-  const handleBucketClick = useCallback((bucket: HistogramBucket) => {
-    // Could implement time range filtering here
-    console.log("Bucket clicked:", bucket);
-  }, []);
+  // Handle histogram bucket click - jump to that time
+  const handleBucketClick = useCallback(
+    (bucket: HistogramBucket) => {
+      if (!onStartTimeChange || !onEndTimeChange) return;
+      // Set time range around the clicked bucket
+      // Show ±5 minutes around the bucket
+      const bucketTime = bucket.timestamp.getTime();
+      const fiveMinutes = 5 * 60 * 1000;
+      onStartTimeChange(new Date(bucketTime - fiveMinutes));
+      onEndTimeChange(new Date(bucketTime + fiveMinutes));
+      announcer.announce("Time range updated", "polite");
+    },
+    [onStartTimeChange, onEndTimeChange, announcer],
+  );
+
+  // Handle preset selection
+  const handlePresetSelect = useCallback(
+    (preset: "all" | "5m" | "15m" | "1h" | "6h" | "24h") => {
+      if (!onPresetSelect) return;
+      onPresetSelect(preset);
+      announcer.announce(`Showing ${preset === "all" ? "all logs" : `last ${preset}`}`, "polite");
+    },
+    [onPresetSelect, announcer],
+  );
+
+  // Handle zoom in - halve the time range
+  const handleZoomIn = useCallback(() => {
+    if (!onStartTimeChange || !onEndTimeChange || !onPresetSelect) return;
+    // If we have a time range, zoom in by halving it
+    if (startTime && endTime) {
+      const start = startTime.getTime();
+      const end = endTime.getTime();
+      const duration = end - start;
+      const center = start + duration / 2;
+      const newDuration = duration / 2;
+
+      onStartTimeChange(new Date(center - newDuration / 2));
+      onEndTimeChange(new Date(center + newDuration / 2));
+      announcer.announce("Zoomed in", "polite");
+    } else if (startTime && !endTime) {
+      // Start time set, end is NOW - halve the duration
+      const start = startTime.getTime();
+      const now = Date.now();
+      const duration = now - start;
+      const newDuration = duration / 2;
+
+      onStartTimeChange(new Date(now - newDuration));
+      announcer.announce("Zoomed in", "polite");
+    } else {
+      // No specific range - default to last 5 minutes
+      onPresetSelect("5m");
+      announcer.announce("Zoomed to last 5 minutes", "polite");
+    }
+  }, [startTime, endTime, onStartTimeChange, onEndTimeChange, onPresetSelect, announcer]);
+
+  // Handle zoom out - double the time range
+  const handleZoomOut = useCallback(() => {
+    if (!onStartTimeChange || !onEndTimeChange || !onPresetSelect) return;
+    // If we have a time range, zoom out by doubling it
+    if (startTime && endTime) {
+      const start = startTime.getTime();
+      const end = endTime.getTime();
+      const duration = end - start;
+      const center = start + duration / 2;
+      const newDuration = duration * 2;
+
+      onStartTimeChange(new Date(center - newDuration / 2));
+      onEndTimeChange(new Date(center + newDuration / 2));
+      announcer.announce("Zoomed out", "polite");
+    } else if (startTime && !endTime) {
+      // Start time set, end is NOW - double the duration
+      const start = startTime.getTime();
+      const now = Date.now();
+      const duration = now - start;
+      const newDuration = duration * 2;
+
+      onStartTimeChange(new Date(now - newDuration));
+      announcer.announce("Zoomed out", "polite");
+    } else {
+      // No specific range - show all
+      onPresetSelect("all");
+      announcer.announce("Zoomed to all logs", "polite");
+    }
+  }, [startTime, endTime, onStartTimeChange, onEndTimeChange, onPresetSelect, announcer]);
 
   // Handle copy
   const handleCopy = useCallback(
@@ -368,14 +464,14 @@ function LogViewerInner({
     announcer.announce("Logs downloaded", "polite");
   }, [deferredEntries, announcer]);
 
-  // Handle scroll away from bottom - pauses live mode
+  // Handle scroll away from bottom - pauses live mode by setting end time to current time
   // User can re-enable by clicking "Jump to Now" or selecting NOW in time range
   const handleScrollAwayFromBottom = useCallback(() => {
-    if (isLiveMode) {
-      setLiveMode(false);
+    if (isLiveMode && onEndTimeChange) {
+      onEndTimeChange(new Date());
       announcer.announce("Live mode paused", "polite");
     }
-  }, [isLiveMode, setLiveMode, announcer]);
+  }, [isLiveMode, onEndTimeChange, announcer]);
 
   // Loading state
   if (isLoading && entries.length === 0) {
@@ -412,6 +508,53 @@ function LogViewerInner({
             intervalMs={histogram.intervalMs}
             onBucketClick={handleBucketClick}
             height={80}
+            // Time range header with controls
+            showTimeRangeHeader
+            startTime={startTime}
+            endTime={endTime}
+            onStartTimeChange={onStartTimeChange}
+            onEndTimeChange={onEndTimeChange}
+            // Presets
+            showPresets
+            activePreset={activePreset}
+            onPresetSelect={handlePresetSelect}
+            // Collapsed state
+            defaultCollapsed={timelineCollapsed}
+            // Zoom controls overlay
+            customControls={
+              <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleZoomIn}
+                      className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
+                    >
+                      <ZoomIn className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <span className="text-xs">Zoom in (halve time range)</span>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleZoomOut}
+                      className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
+                    >
+                      <ZoomOut className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <span className="text-xs">Zoom out (double time range)</span>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            }
           />
         </div>
       )}
