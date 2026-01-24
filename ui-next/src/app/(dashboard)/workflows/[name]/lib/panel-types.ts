@@ -234,16 +234,6 @@ export interface DetailsPanelHeaderProps {
    * ```
    */
   breadcrumbs?: BreadcrumbSegment[];
-  /**
-   * Single breadcrumb text (legacy, prefer `breadcrumbs` for new code).
-   * @deprecated Use `breadcrumbs` array for multi-level navigation.
-   */
-  breadcrumb?: string;
-  /**
-   * Back button handler (used with single breadcrumb prop).
-   * @deprecated Use `breadcrumbs` array for multi-level navigation.
-   */
-  onBack?: () => void;
   /** Panel resize callback for snap presets */
   onPanelResize?: (pct: number) => void;
   /** Additional menu content */
