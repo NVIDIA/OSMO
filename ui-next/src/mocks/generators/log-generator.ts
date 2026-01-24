@@ -147,7 +147,8 @@ export class LogGenerator {
    * Generate logs for a workflow using a specific scenario.
    * This is the primary entry point for scenario-based log generation.
    */
-  generateForScenario(workflowName: string, scenarioName?: string, taskNames?: string[]): string {
+  generateForScenario(options: { workflowName: string; scenarioName?: string; taskNames?: string[] }): string {
+    const { workflowName, scenarioName, taskNames } = options;
     const scenario = getLogScenario(scenarioName ?? getActiveScenario());
 
     // Handle empty scenario
@@ -213,17 +214,29 @@ export class LogGenerator {
   /**
    * Create an async generator for streaming log generation.
    * Yields log lines with configurable delay for tailing simulation.
+   *
+   * @param options.workflowName - Workflow name for seeding
+   * @param options.scenario - Log scenario configuration
+   * @param options.taskNames - Optional task names to use
+   * @param options.continueFrom - Timestamp to continue from (for chronological streaming)
+   * @param options.streamDelayMs - Delay between stream entries in milliseconds (default: 200)
    */
-  async *createStream(
-    workflowName: string,
-    scenario: LogScenarioConfig,
-    taskNames?: string[],
-  ): AsyncGenerator<string, void, unknown> {
+  async *createStream(options: {
+    workflowName: string;
+    scenario: LogScenarioConfig;
+    taskNames?: string[];
+    continueFrom?: Date;
+    streamDelayMs?: number;
+  }): AsyncGenerator<string, void, unknown> {
+    const { workflowName, scenario, taskNames, continueFrom, streamDelayMs = 200 } = options;
+
     faker.seed(this.baseSeed + hashString(workflowName + scenario.name));
 
     const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
     const taskContexts = this.buildTaskContexts(tasks, scenario);
-    const startTime = new Date();
+
+    // Start from continueFrom timestamp if provided, otherwise use current time
+    let currentTime = continueFrom ? new Date(continueFrom.getTime()) : new Date();
 
     // For infinite streaming, loop forever. Otherwise use configured volume.
     const isInfinite = scenario.features.infinite === true;
@@ -235,9 +248,15 @@ export class LogGenerator {
         });
 
     for (let i = 0; i < numLines; i++) {
-      // Use real current time for infinite streaming to simulate live logs
-      const timestamp = isInfinite ? new Date() : new Date(startTime.getTime() + i * 1000);
+      // Advance time by configured delay with millisecond jitter to prevent collisions
+      // IMPORTANT: Add millisecond jitter to prevent timestamp collisions
+      const jitter = faker.number.int({ min: 0, max: 50 }); // 0-50ms variance
+      currentTime = new Date(currentTime.getTime() + streamDelayMs + jitter);
+
+      // Pick task context (varies tasks and retries)
       const taskCtx = faker.helpers.arrayElement(taskContexts);
+
+      // Use scenario distributions (not hardcoded patterns)
       const level = this.pickLevel(scenario.levelDistribution);
       const ioType = this.pickIOType(scenario.ioTypeDistribution);
 
@@ -251,8 +270,11 @@ export class LogGenerator {
         message = this.generateMultilineContent(level);
       }
 
-      const line = this.formatLogLineV2(timestamp, taskCtx, ioType, message);
+      const line = this.formatLogLineV2(currentTime, taskCtx, ioType, message);
       yield line + "\n";
+
+      // Add actual delay between yields
+      await new Promise((resolve) => setTimeout(resolve, streamDelayMs));
     }
   }
 
