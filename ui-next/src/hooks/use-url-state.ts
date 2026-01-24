@@ -152,29 +152,13 @@ export function useConfigState(key: string = "config") {
  * ```
  */
 export function usePanelState(selectionKey: string = "view", configKey: string = "config"): UsePanelStateReturn {
-  const [selection, setSelectionRaw] = useSelectionState(selectionKey);
-  const [config, setConfigRaw] = useConfigState(configKey);
+  const [selection, setSelection] = useSelectionState(selectionKey);
+  const [config, setConfig] = useConfigState(configKey);
 
-  // Wrap setters to match simpler signature
-  const setSelection = useCallback(
-    (value: string | null) => {
-      setSelectionRaw(value);
-    },
-    [setSelectionRaw],
-  );
-
-  const setConfig = useCallback(
-    (value: string | null) => {
-      setConfigRaw(value);
-    },
-    [setConfigRaw],
-  );
-
-  // Clear both selection and config
   const clear = useCallback(() => {
-    setSelectionRaw(null);
-    setConfigRaw(null);
-  }, [setSelectionRaw, setConfigRaw]);
+    setSelection(null);
+    setConfig(null);
+  }, [setSelection, setConfig]);
 
   return {
     selection,
