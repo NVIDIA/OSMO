@@ -58,8 +58,6 @@ export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata } from "./hook
 // Resource shim types (will be simplified when backend supports pagination)
 export type { PaginatedResourcesResult, ResourceFilterParams } from "./resources-shim";
 
-// Utilities
-export { deriveResourceTypes } from "./utils";
 // Note: normalizeTimestamp, normalizeWorkflowTimestamps are internal -
 // useWorkflow() applies them automatically so UI doesn't need to call them
 
