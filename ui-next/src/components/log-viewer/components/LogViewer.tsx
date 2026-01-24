@@ -19,7 +19,7 @@ import { withViewTransition } from "@/hooks";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 import { SearchBar } from "./SearchBar";
-import { TimelineHistogram } from "./TimelineHistogram";
+import { TimelineHistogram, type TimeRangePreset } from "./TimelineHistogram";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
@@ -245,13 +245,13 @@ export interface LogViewerProps {
   /** End time for log query (undefined = to now/latest) */
   endTime?: Date;
   /** Active time range preset */
-  activePreset?: "all" | "5m" | "15m" | "1h" | "6h" | "24h";
+  activePreset?: TimeRangePreset;
   /** Callback to set start time */
   onStartTimeChange?: (time: Date | undefined) => void;
   /** Callback to set end time */
   onEndTimeChange?: (time: Date | undefined) => void;
   /** Callback to apply a time range preset */
-  onPresetSelect?: (preset: "all" | "5m" | "15m" | "1h" | "6h" | "24h") => void;
+  onPresetSelect?: (preset: TimeRangePreset) => void;
 }
 
 // =============================================================================
@@ -374,10 +374,11 @@ function LogViewerInner({
 
   // Handle preset selection
   const handlePresetSelect = useCallback(
-    (preset: "all" | "5m" | "15m" | "1h" | "6h" | "24h") => {
+    (preset: TimeRangePreset) => {
       if (!onPresetSelect) return;
       onPresetSelect(preset);
-      announcer.announce(`Showing ${preset === "all" ? "all logs" : `last ${preset}`}`, "polite");
+      const message = preset === "all" ? "all logs" : preset === "custom" ? "custom time range" : `last ${preset}`;
+      announcer.announce(`Showing ${message}`, "polite");
     },
     [onPresetSelect, announcer],
   );

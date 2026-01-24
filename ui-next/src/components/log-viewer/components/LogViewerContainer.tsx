@@ -52,6 +52,7 @@ import { useLogData, useLogTail } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { LogViewer } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
+import type { TimeRangePreset } from "./TimelineHistogram";
 import { chipsToLogQuery } from "../lib/chips-to-log-query";
 import { useCombinedEntries } from "../lib/use-combined-entries";
 
@@ -147,13 +148,13 @@ function LogViewerContainerInner({
   // Time range state - will be managed via nuqs in the future
   const [startTime, setStartTime] = useState<Date | undefined>(undefined);
   const [endTime, setEndTime] = useState<Date | undefined>(undefined);
-  const [activePreset, setActivePreset] = useState<"all" | "5m" | "15m" | "1h" | "6h" | "24h" | undefined>("all");
+  const [activePreset, setActivePreset] = useState<TimeRangePreset | undefined>("all");
 
   // Derive live mode from end time (endTime === undefined means "NOW" / live mode)
   const isLiveMode = endTime === undefined;
 
   // Handle preset selection
-  const handlePresetSelect = useCallback((preset: "all" | "5m" | "15m" | "1h" | "6h" | "24h") => {
+  const handlePresetSelect = useCallback((preset: TimeRangePreset) => {
     setActivePreset(preset);
     const now = new Date();
 
@@ -182,18 +183,22 @@ function LogViewerContainerInner({
         setStartTime(new Date(now.getTime() - 24 * 60 * 60 * 1000));
         setEndTime(undefined);
         break;
+      case "custom":
+        // Custom preset is set programmatically via time changes
+        // No action needed here
+        break;
     }
   }, []);
 
-  // Handle manual time changes - clear preset
+  // Handle manual time changes - set to custom preset
   const handleStartTimeChange = useCallback((time: Date | undefined) => {
     setStartTime(time);
-    setActivePreset(undefined);
+    setActivePreset("custom");
   }, []);
 
   const handleEndTimeChange = useCallback((time: Date | undefined) => {
     setEndTime(time);
-    setActivePreset(undefined);
+    setActivePreset("custom");
   }, []);
 
   // Convert filter chips to query params
