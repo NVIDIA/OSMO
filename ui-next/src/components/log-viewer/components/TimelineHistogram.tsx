@@ -15,13 +15,13 @@ import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/shadcn/select";
-import { ChevronUp, ChevronDown } from "lucide-react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { Button } from "@/components/shadcn/button";
+import { ChevronUp, ChevronDown, Check } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -62,7 +62,7 @@ export interface TimelineHistogramProps {
   showTimeRangeHeader?: boolean;
 }
 
-export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h";
+export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h" | "custom";
 
 // =============================================================================
 // Constants
@@ -78,11 +78,12 @@ const DEFAULT_HEIGHT = 80;
 // Time range presets configuration
 const PRESET_LABELS: Record<TimeRangePreset, string> = {
   all: "All",
-  "5m": "5m",
-  "15m": "15m",
-  "1h": "1h",
-  "6h": "6h",
-  "24h": "24h",
+  "5m": "Last 5m",
+  "15m": "Last 15m",
+  "1h": "Last 1h",
+  "6h": "Last 6h",
+  "24h": "Last 24h",
+  custom: "Custom",
 };
 
 const PRESET_ORDER: TimeRangePreset[] = ["all", "5m", "15m", "1h", "6h", "24h"];
@@ -198,22 +199,43 @@ interface TimeRangePresetsProps {
 }
 
 function TimeRangePresets({ activePreset, onPresetSelect }: TimeRangePresetsProps) {
+  const displayLabel = activePreset ? PRESET_LABELS[activePreset] : "Range";
+
   return (
-    <Select
-      value={activePreset}
-      onValueChange={(value) => onPresetSelect?.(value as TimeRangePreset)}
-    >
-      <SelectTrigger size="sm" className="h-6 w-auto min-w-[60px] text-[10px] px-2">
-        <SelectValue placeholder="Range" />
-      </SelectTrigger>
-      <SelectContent>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+        >
+          {displayLabel}
+          <ChevronDown className="size-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="w-32"
+      >
         {PRESET_ORDER.map((preset) => (
-          <SelectItem key={preset} value={preset} className="text-[10px]">
-            {PRESET_LABELS[preset]}
-          </SelectItem>
+          <DropdownMenuItem
+            key={preset}
+            onClick={() => onPresetSelect?.(preset)}
+            className="justify-between text-xs"
+          >
+            <span>{PRESET_LABELS[preset]}</span>
+            {activePreset === preset ? <Check className="size-3" /> : <span className="size-3" />}
+          </DropdownMenuItem>
         ))}
-      </SelectContent>
-    </Select>
+        <DropdownMenuItem
+          disabled
+          className="justify-between text-xs"
+        >
+          <span className="text-muted-foreground">Custom</span>
+          {activePreset === "custom" ? <Check className="text-muted-foreground size-3" /> : <span className="size-3" />}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -244,6 +266,7 @@ function TimeRangeHeader({
     const date = new Date(e.target.value);
     if (!isNaN(date.getTime())) {
       onStartTimeChange?.(date);
+      onPresetSelect?.("custom");
     }
   };
 
@@ -251,6 +274,7 @@ function TimeRangeHeader({
     const date = new Date(e.target.value);
     if (!isNaN(date.getTime())) {
       onEndTimeChange?.(date);
+      onPresetSelect?.("custom");
     }
   };
 
@@ -452,10 +476,7 @@ function TimelineHistogramInner({
 
           {/* Time Axis */}
           <div className="text-muted-foreground flex justify-between pb-2 text-[10px] tabular-nums">
-            <span>
-              {startLabel ||
-                (buckets[0] && formatTime24Short(buckets[0].timestamp))}
-            </span>
+            <span>{startLabel || (buckets[0] && formatTime24Short(buckets[0].timestamp))}</span>
             <span>{terminalLabel || "NOW"}</span>
           </div>
         </div>
