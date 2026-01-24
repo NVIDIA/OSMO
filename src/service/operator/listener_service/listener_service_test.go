@@ -736,7 +736,7 @@ func TestResourceListenerStream_HappyPath_ResourceBody(t *testing.T) {
 				Available:  true,
 				Conditions: []string{"Ready"},
 				AllocatableFields: map[string]string{
-					"cpu":    "4000m",
+					"cpu":    "4000",
 					"memory": "16Gi",
 				},
 				LabelFields: map[string]string{
@@ -809,11 +809,11 @@ func TestResourceListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
 			ResourceUsage: &pb.ResourceUsageBody{
 				Hostname: "node-1",
 				UsageFields: map[string]string{
-					"cpu":    "2000m",
+					"cpu":    "2000",
 					"memory": "8Gi",
 				},
 				NonWorkflowUsageFields: map[string]string{
-					"cpu":    "500m",
+					"cpu":    "500",
 					"memory": "2Gi",
 				},
 			},
@@ -1053,7 +1053,7 @@ func TestResourceListenerStream_MixedMessageTypes(t *testing.T) {
 			ResourceUsage: &pb.ResourceUsageBody{
 				Hostname: "node-1",
 				UsageFields: map[string]string{
-					"cpu": "2000m",
+					"cpu": "2000",
 				},
 			},
 		},
