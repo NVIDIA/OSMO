@@ -101,7 +101,7 @@ const LOG_FILTER_PRESETS: {
     items: [
       {
         id: "level-error",
-        chip: { field: "level", value: "error", label: "level:error" },
+        chips: [{ field: "level", value: "error", label: "level:error" }],
         render: ({ active }: { active: boolean }) => (
           <span
             className={cn(
@@ -116,7 +116,7 @@ const LOG_FILTER_PRESETS: {
       },
       {
         id: "level-warn",
-        chip: { field: "level", value: "warn", label: "level:warn" },
+        chips: [{ field: "level", value: "warn", label: "level:warn" }],
         render: ({ active }: { active: boolean }) => (
           <span
             className={cn(
@@ -133,7 +133,7 @@ const LOG_FILTER_PRESETS: {
       },
       {
         id: "level-info",
-        chip: { field: "level", value: "info", label: "level:info" },
+        chips: [{ field: "level", value: "info", label: "level:info" }],
         render: ({ active }: { active: boolean }) => (
           <span
             className={cn(
@@ -148,7 +148,7 @@ const LOG_FILTER_PRESETS: {
       },
       {
         id: "level-debug",
-        chip: { field: "level", value: "debug", label: "level:debug" },
+        chips: [{ field: "level", value: "debug", label: "level:debug" }],
         render: ({ active }: { active: boolean }) => (
           <span
             className={cn(
@@ -170,7 +170,7 @@ const LOG_FILTER_PRESETS: {
     items: [
       {
         id: "source-user",
-        chip: { field: "source", value: "user", label: "source:user" },
+        chips: [{ field: "source", value: "user", label: "source:user" }],
         render: ({ active }: { active: boolean }) => (
           <span
             className={cn(
@@ -189,7 +189,7 @@ const LOG_FILTER_PRESETS: {
       },
       {
         id: "source-osmo",
-        chip: { field: "source", value: "osmo", label: "source:osmo" },
+        chips: [{ field: "source", value: "osmo", label: "source:osmo" }],
         render: ({ active }: { active: boolean }) => (
           <span
             className={cn(
