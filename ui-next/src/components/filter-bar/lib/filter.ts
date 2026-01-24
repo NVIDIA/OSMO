@@ -29,11 +29,6 @@ import type { SearchChip, SearchField } from "./types";
  * Filter items by chips.
  * Same-field chips are OR'd, different-field chips are AND'd.
  *
- * @param items - Items to filter
- * @param chips - Active filter chips
- * @param fields - Field definitions with match functions
- * @returns Filtered items
- *
  * @example
  * ```ts
  * // Filter pools by status OR platform AND backend
