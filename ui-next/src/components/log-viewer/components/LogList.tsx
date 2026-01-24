@@ -23,12 +23,7 @@ import type { LogEntry } from "@/lib/api/log-adapter";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { LogEntryRow } from "./LogEntryRow";
 import { useLogViewerStore } from "../store/log-viewer-store";
-import {
-  ROW_HEIGHT_ESTIMATE,
-  DATE_SEPARATOR_HEIGHT,
-  OVERSCAN_COUNT,
-  SCROLL_BOTTOM_THRESHOLD,
-} from "../lib/constants";
+import { ROW_HEIGHT_ESTIMATE, DATE_SEPARATOR_HEIGHT, OVERSCAN_COUNT, SCROLL_BOTTOM_THRESHOLD } from "../lib/constants";
 import { useIncrementalFlatten } from "../lib/use-incremental-flatten";
 
 // =============================================================================
