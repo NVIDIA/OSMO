@@ -16,20 +16,28 @@
 
 "use client";
 
-import { memo, useDeferredValue, useState } from "react";
-import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Input } from "@/components/shadcn/input";
+import { memo } from "react";
+import { FilterBar } from "@/components/filter-bar";
+import type { SearchField, SearchChip, SearchPreset } from "@/components/filter-bar/lib/types";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface SearchBarProps {
-  /** Current search value */
-  value: string;
-  /** Callback when search value changes (debounced) */
-  onChange: (value: string) => void;
+export interface SearchBarProps<T = unknown> {
+  /** Data to filter */
+  data: T[];
+  /** Field definitions for filtering */
+  fields: readonly SearchField<T>[];
+  /** Current filter chips */
+  chips: SearchChip[];
+  /** Callback when chips change */
+  onChipsChange: (chips: SearchChip[]) => void;
+  /** Optional filter presets */
+  presets?: {
+    label: string;
+    items: SearchPreset[];
+  }[];
   /** Placeholder text */
   placeholder?: string;
   /** Additional CSS classes */
@@ -40,66 +48,26 @@ export interface SearchBarProps {
 // Component
 // =============================================================================
 
-function SearchBarInner({
-  value,
-  onChange,
-  placeholder = "Search logs...",
+function SearchBarInner<T>({
+  data,
+  fields,
+  chips,
+  onChipsChange,
+  presets,
+  placeholder = "Search logs or use level:, task:, source:, pod:...",
   className,
-}: SearchBarProps) {
-  // Local state for immediate input feedback.
-  // Initialize with parent's value.
-  const [localValue, setLocalValue] = useState(value);
-
-  // Track the last parent value we synced from.
-  // This allows us to detect when parent provides a new value (external reset).
-  const [lastSyncedParentValue, setLastSyncedParentValue] = useState(value);
-
-  // Track last emitted value to parent (avoids notifying with same value).
-  const [lastEmittedValue, setLastEmittedValue] = useState(value);
-
-  // Sync local state when controlled value changes from parent (external reset).
-  // This uses the "updating state during render" pattern recommended by React:
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-  if (value !== lastSyncedParentValue) {
-    setLastSyncedParentValue(value);
-    // Only update local value if parent's value differs from what we last sent
-    if (value !== lastEmittedValue) {
-      setLocalValue(value);
-      setLastEmittedValue(value);
-    }
-  }
-
-  // Defer the value to prevent blocking typing during filtering.
-  // React 19's useDeferredValue handles the transition automatically.
-  const deferredValue = useDeferredValue(localValue);
-
-  // Notify parent when deferred value changes.
-  // Uses "updating state during render" pattern to trigger onChange.
-  // This is the React-recommended pattern for derived computations:
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-  if (deferredValue !== lastEmittedValue) {
-    setLastEmittedValue(deferredValue);
-    // Schedule the onChange call. React batches these updates.
-    // Note: This is intentionally during render - React handles it correctly
-    // as part of the state update during render pattern.
-    onChange(deferredValue);
-  }
-
+}: SearchBarProps<T>) {
   return (
-    <div className={cn("relative flex items-center", className)}>
-      {/* Search icon */}
-      <Search className="text-muted-foreground absolute left-3 size-4" />
-
-      {/* Input */}
-      <Input
-        type="text"
-        value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
-        placeholder={placeholder}
-        className="pl-9"
-      />
-    </div>
+    <FilterBar
+      data={data}
+      fields={fields}
+      chips={chips}
+      onChipsChange={onChipsChange}
+      presets={presets}
+      placeholder={placeholder}
+      className={className}
+    />
   );
 }
 
-export const SearchBar = memo(SearchBarInner);
+export const SearchBar = memo(SearchBarInner) as typeof SearchBarInner;

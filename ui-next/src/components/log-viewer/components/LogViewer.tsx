@@ -8,15 +8,14 @@
 
 "use client";
 
-import { memo, useCallback, useMemo, useEffect, startTransition, useDeferredValue } from "react";
+import { memo, useCallback, useEffect, startTransition, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
-import type { LogEntry, HistogramBucket, FieldFacet, LogFieldDefinition } from "@/lib/api/log-adapter";
+import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
 import { formatLogLine } from "@/lib/api/log-adapter";
-import type { SearchChip } from "@/components/filter-bar";
+import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks";
 import { SearchBar } from "./SearchBar";
-import { FacetBar } from "./FacetBar";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
@@ -27,78 +26,166 @@ import { useLogViewerStore } from "../store/log-viewer-store";
 // Helpers
 // =============================================================================
 
-/**
- * Extract search text from chips (first "text" field chip).
- */
-function getSearchTextFromChips(chips: SearchChip[]): string {
-  for (const chip of chips) {
-    if (chip.field === "text") {
-      return chip.value;
-    }
-  }
-  return "";
-}
+// Level styles matching the log body chips exactly
+const LEVEL_STYLES = {
+  error: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+  warn: "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30",
+  info: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30",
+  debug: "text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-950/30",
+  fatal: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30",
+} as const;
 
-/**
- * Build a selected filters map from chips for facet filtering.
- * Groups chip values by field name.
- */
-function buildSelectedFiltersMap(chips: SearchChip[]): Map<string, Set<string>> {
-  const map = new Map<string, Set<string>>();
-  for (const chip of chips) {
-    // Skip text chips (handled by SearchBar)
-    if (chip.field === "text") continue;
+// Field definitions for SearchBar/FilterBar
+const LOG_FILTER_FIELDS: readonly SearchField<LogEntry>[] = [
+  {
+    id: "level",
+    label: "Level",
+    prefix: "level:",
+    getValues: () => ["error", "warn", "info", "debug", "fatal"],
+    match: (item, value) => item.labels.level === value,
+    exhaustive: true,
+  },
+  {
+    id: "source",
+    label: "Source",
+    prefix: "source:",
+    getValues: () => ["user", "osmo"],
+    match: (item, value) => item.labels.source === value,
+    exhaustive: true,
+  },
+  {
+    id: "task",
+    label: "Task",
+    prefix: "task:",
+    getValues: (data) => [
+      ...new Set(data.map((log) => log.labels.task).filter((task): task is string => task !== undefined)),
+    ],
+    match: (item, value) => item.labels.task === value,
+    freeFormHint: "Type to search tasks",
+  },
+  {
+    id: "retry",
+    label: "Retry",
+    prefix: "retry:",
+    getValues: (data) => [
+      ...new Set(data.map((log) => log.labels.retry).filter((retry): retry is string => retry !== undefined)),
+    ],
+    match: (item, value) => item.labels.retry === value,
+    validate: (value) => {
+      const num = Number(value);
+      if (isNaN(num)) {
+        return "Retry must be a number";
+      }
+      if (!Number.isInteger(num)) {
+        return "Retry must be a whole number";
+      }
+      if (num < 0) {
+        return "Retry must be 0 or greater";
+      }
+      return true;
+    },
+    freeFormHint: "Type retry number (0, 1, 2, ...)",
+  },
+] as const;
 
-    const existing = map.get(chip.field) ?? new Set();
-    existing.add(chip.value);
-    map.set(chip.field, existing);
-  }
-  return map;
-}
-
-/**
- * Update chips based on facet filter changes.
- * Preserves text chips and updates facet field chips.
- */
-function updateChipsForFacetChange(currentChips: SearchChip[], field: string, newValues: Set<string>): SearchChip[] {
-  // Keep all chips that don't match the field being changed
-  const otherChips = currentChips.filter((c) => c.field !== field);
-
-  // Add new chips for each selected value
-  const newChips: SearchChip[] = [];
-  for (const value of newValues) {
-    newChips.push({
-      field,
-      value,
-      label: `${field}: ${value}`,
-    });
-  }
-
-  return [...otherChips, ...newChips];
-}
-
-/**
- * Update chips based on search text change.
- * Replaces or adds/removes the "text" chip.
- */
-function updateChipsForSearchChange(currentChips: SearchChip[], searchText: string): SearchChip[] {
-  // Remove existing text chip
-  const otherChips = currentChips.filter((c) => c.field !== "text");
-
-  // Add new text chip if search is not empty
-  if (searchText.trim()) {
-    return [
-      ...otherChips,
+// Preset configurations
+const LOG_FILTER_PRESETS: {
+  label: string;
+  items: SearchPreset[];
+}[] = [
+  {
+    label: "Level",
+    items: [
       {
-        field: "text",
-        value: searchText.trim(),
-        label: searchText.trim(),
+        id: "level-error",
+        chip: { field: "level", value: "error", label: "level:error" },
+        render: ({ active }: { active: boolean }) => (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+              LEVEL_STYLES.error,
+              active && "ring-2 ring-red-600/30 ring-inset dark:ring-red-400/30",
+              !active && "opacity-50",
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-red-600/50 dark:group-data-[selected=true]:ring-red-400/50",
+              !active && "hover:opacity-75",
+            )}
+          >
+            ERROR
+          </span>
+        ),
       },
-    ];
-  }
-
-  return otherChips;
-}
+      {
+        id: "level-warn",
+        chip: { field: "level", value: "warn", label: "level:warn" },
+        render: ({ active }: { active: boolean }) => (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+              LEVEL_STYLES.warn,
+              active && "ring-2 ring-yellow-600/30 ring-inset dark:ring-yellow-400/30",
+              !active && "opacity-50",
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-yellow-600/50 dark:group-data-[selected=true]:ring-yellow-400/50",
+              !active && "hover:opacity-75",
+            )}
+          >
+            WARN
+          </span>
+        ),
+      },
+      {
+        id: "level-info",
+        chip: { field: "level", value: "info", label: "level:info" },
+        render: ({ active }: { active: boolean }) => (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+              LEVEL_STYLES.info,
+              active && "ring-2 ring-blue-600/30 ring-inset dark:ring-blue-400/30",
+              !active && "opacity-50",
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-blue-600/50 dark:group-data-[selected=true]:ring-blue-400/50",
+              !active && "hover:opacity-75",
+            )}
+          >
+            INFO
+          </span>
+        ),
+      },
+      {
+        id: "level-debug",
+        chip: { field: "level", value: "debug", label: "level:debug" },
+        render: ({ active }: { active: boolean }) => (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+              LEVEL_STYLES.debug,
+              active && "ring-2 ring-gray-600/30 ring-inset dark:ring-gray-400/30",
+              !active && "opacity-50",
+              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md group-data-[selected=true]:ring-2 group-data-[selected=true]:ring-gray-600/50 dark:group-data-[selected=true]:ring-gray-400/50",
+              !active && "hover:opacity-75",
+            )}
+          >
+            DEBUG
+          </span>
+        ),
+      },
+    ],
+  },
+  {
+    label: "Source",
+    items: [
+      {
+        id: "source-user",
+        chip: { field: "source", value: "user", label: "source:user" },
+        render: ({ active }: { active: boolean }) => <span className={active ? "font-semibold" : ""}>User</span>,
+      },
+      {
+        id: "source-osmo",
+        chip: { field: "source", value: "osmo", label: "source:osmo" },
+        render: ({ active }: { active: boolean }) => <span className={active ? "font-semibold" : ""}>OSMO</span>,
+      },
+    ],
+  },
+];
 
 // =============================================================================
 // Types
@@ -120,10 +207,6 @@ export interface LogViewerProps {
     buckets: HistogramBucket[];
     intervalMs: number;
   };
-  /** Field facets for sidebar */
-  facets?: FieldFacet[];
-  /** Optional custom facet field configuration (icons, labels) - overrides defaults */
-  facetConfig?: ReadonlyMap<string, LogFieldDefinition>;
   /** Callback to refetch data */
   onRefetch?: () => void;
   /** Current filter chips (controlled by parent) */
@@ -174,8 +257,6 @@ function LogViewerInner({
   isFetching = false,
   error = null,
   histogram,
-  facets = [],
-  facetConfig,
   onRefetch,
   filterChips,
   onFilterChipsChange,
@@ -234,30 +315,6 @@ function LogViewerInner({
   // Track if we're showing stale data (deferred value hasn't caught up)
   const isStale = deferredEntries !== entries || isFetching;
 
-  // Extract search text from chips for SearchBar
-  const searchText = useMemo(() => getSearchTextFromChips(filterChips), [filterChips]);
-
-  // Build selected filters map for FacetBar
-  const selectedFilters = useMemo(() => buildSelectedFiltersMap(filterChips), [filterChips]);
-
-  // Handle search text change from SearchBar
-  const handleSearchChange = useCallback(
-    (newSearchText: string) => {
-      const updatedChips = updateChipsForSearchChange(filterChips, newSearchText);
-      handleFilterChipsChange(updatedChips);
-    },
-    [filterChips, handleFilterChipsChange],
-  );
-
-  // Handle facet filter change from FacetBar
-  const handleFacetFilterChange = useCallback(
-    (field: string, values: Set<string>) => {
-      const updatedChips = updateChipsForFacetChange(filterChips, field, values);
-      handleFilterChipsChange(updatedChips);
-    },
-    [filterChips, handleFilterChipsChange],
-  );
-
   // Handle histogram bucket click
   const handleBucketClick = useCallback((bucket: HistogramBucket) => {
     // Could implement time range filtering here
@@ -310,27 +367,19 @@ function LogViewerInner({
         />
       )}
 
-      {/* Section 1: SearchBar */}
-      <div className="shrink-0 border-b px-3 py-2">
+      {/* Section 1: SearchBar with FilterBar */}
+      <div className="shrink-0 border-b p-2">
         <SearchBar
-          value={searchText}
-          onChange={handleSearchChange}
+          data={entries}
+          fields={LOG_FILTER_FIELDS}
+          chips={filterChips}
+          onChipsChange={handleFilterChipsChange}
+          presets={LOG_FILTER_PRESETS}
+          placeholder="Search logs or use level:, task:, source:, retry:..."
         />
       </div>
 
-      {/* Section 2: FacetBar */}
-      {facets.length > 0 && (
-        <div className="shrink-0 border-b px-3 py-3">
-          <FacetBar
-            facets={facets}
-            selectedFilters={selectedFilters}
-            onFilterChange={handleFacetFilterChange}
-            facetConfig={facetConfig}
-          />
-        </div>
-      )}
-
-      {/* Section 3: Timeline Histogram */}
+      {/* Section 2: Timeline Histogram */}
       {histogram && histogram.buckets.length > 0 && (
         <div className="shrink-0 border-b px-3 py-2">
           <TimelineHistogram
@@ -342,7 +391,7 @@ function LogViewerInner({
         </div>
       )}
 
-      {/* Section 4: LogList (full width) */}
+      {/* Section 3: LogList (full width) */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <LogList
           entries={deferredEntries}
@@ -353,7 +402,7 @@ function LogViewerInner({
         />
       </div>
 
-      {/* Section 5: Footer */}
+      {/* Section 4: Footer */}
       <div className="shrink-0">
         <Footer
           wrapLines={wrapLines}

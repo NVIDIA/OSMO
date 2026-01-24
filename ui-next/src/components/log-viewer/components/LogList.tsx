@@ -142,8 +142,8 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
 function LogListInner({
   entries,
   className,
-  onCopy,
-  onCopyLink,
+  onCopy: _onCopy,
+  onCopyLink: _onCopyLink,
   isLiveMode = false,
   onScrollAwayFromBottom,
   isStale = false,
@@ -154,7 +154,6 @@ function LogListInner({
   const expandedEntryIds = useLogViewerStore((s) => s.expandedEntryIds);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
-  const toggleExpand = useLogViewerStore((s) => s.toggleExpand);
 
   // Flatten entries with date separators using incremental algorithm
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
@@ -336,8 +335,6 @@ function LogListInner({
           }
 
           // Log entry row
-          const isExpanded = expandedEntryIds.has(item.entry.id);
-
           return (
             <div
               key={item.entry.id}
@@ -352,12 +349,8 @@ function LogListInner({
             >
               <LogEntryRow
                 entry={item.entry}
-                isExpanded={isExpanded}
                 wrapLines={wrapLines}
                 showTask={showTask}
-                onToggleExpand={toggleExpand}
-                onCopy={onCopy}
-                onCopyLink={onCopyLink}
               />
             </div>
           );
