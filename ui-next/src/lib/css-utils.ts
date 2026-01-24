@@ -25,10 +25,6 @@
 
 import { useMemo } from "react";
 
-// =============================================================================
-// Pure Functions
-// =============================================================================
-
 /**
  * Parse a CSS value (rem or px) to pixels.
  */
@@ -53,10 +49,6 @@ export function getCssVarPx(name: string, fallbackRem: string): number {
   const val = getComputedStyle(root).getPropertyValue(name).trim() || fallbackRem;
   return parseCssValue(val, rootFontSize);
 }
-
-// =============================================================================
-// Hooks
-// =============================================================================
 
 /**
  * CSS variable configuration for useCssVarDimensions.

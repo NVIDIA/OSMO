@@ -447,7 +447,6 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     };
   }, [isReady]); // Re-run when terminal becomes ready
 
-  // Focus the shell
   const focus = useCallback(() => {
     terminalRef.current?.focus();
   }, []);
@@ -462,7 +461,6 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     terminal.options.cursorStyle = active ? "block" : "underline";
   }, []);
 
-  // Write data to shell
   const write = useCallback((data: string | Uint8Array) => {
     const terminal = terminalRef.current;
     if (!terminal) return;
@@ -472,19 +470,16 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     });
   }, []);
 
-  // Clear shell screen
   const clear = useCallback(() => {
     terminalRef.current?.clear();
   }, []);
 
-  // Get current dimensions
   const getDimensions = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) return null;
     return { rows: terminal.rows, cols: terminal.cols };
   }, []);
 
-  // Trigger fit to container
   const fit = useCallback(() => {
     debouncedFit();
   }, [debouncedFit]);

@@ -55,11 +55,9 @@ import { useQueryState, parseAsString } from "nuqs";
 export interface UsePanelStateReturn {
   /** Current selection value (e.g., selected item name) */
   selection: string | null;
-  /** Set the selection value */
   setSelection: (value: string | null) => void;
   /** Current config value (e.g., selected sub-item or tab) */
   config: string | null;
-  /** Set the config value */
   setConfig: (value: string | null) => void;
   /** Clear both selection and config */
   clear: () => void;
@@ -73,9 +71,6 @@ export interface UsePanelStateReturn {
  * URL state for primary selection (e.g., selected item in a list).
  *
  * Uses `history: "push"` so users can navigate back to previous selections.
- *
- * @param key - URL parameter key (default: "view")
- * @returns Tuple of [value, setter] like useState
  *
  * @example
  * ```tsx
@@ -103,9 +98,6 @@ export function useSelectionState(key: string = "view") {
  *
  * Uses `history: "replace"` so config changes don't pollute browser history.
  *
- * @param key - URL parameter key (default: "config")
- * @returns Tuple of [value, setter] like useState
- *
  * @example
  * ```tsx
  * const [selectedPlatform, setSelectedPlatform] = useConfigState();
@@ -132,10 +124,6 @@ export function useConfigState(key: string = "config") {
  *
  * Provides selection state (push history) and config state (replace history)
  * along with a clear function to reset both.
- *
- * @param selectionKey - URL parameter for selection (default: "view")
- * @param configKey - URL parameter for config (default: "config")
- * @returns Object with selection, config, setters, and clear function
  *
  * @example
  * ```tsx

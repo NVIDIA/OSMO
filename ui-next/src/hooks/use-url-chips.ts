@@ -32,10 +32,6 @@ import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import type { SearchChip } from "@/stores";
 import { parseUrlChips } from "@/lib/url-utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface UseUrlChipsOptions {
   /** URL parameter name (default: "f") */
   paramName?: string;
@@ -47,10 +43,6 @@ export interface UseUrlChipsResult {
   /** Update search chips (syncs to URL) */
   setSearchChips: (chips: SearchChip[]) => void;
 }
-
-// =============================================================================
-// Hook
-// =============================================================================
 
 /**
  * Hook for URL-synced search chips.
