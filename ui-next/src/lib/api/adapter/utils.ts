@@ -23,9 +23,6 @@
  * Includes workarounds for backend API issues (see BACKEND_TODOS.md).
  */
 
-import { BackendResourceType } from "@/lib/api/generated";
-import type { Resource } from "./types";
-
 // =============================================================================
 // Timestamp Utilities (BACKEND_TODOS.md Issue #16)
 // =============================================================================
@@ -123,33 +120,4 @@ export function normalizeWorkflowTimestamps<T extends Record<string, unknown>>(w
   }
 
   return normalized as T;
-}
-
-// =============================================================================
-// Resource Type Utilities
-// =============================================================================
-
-/**
- * All possible resource allocation types as an array.
- * Use this instead of hardcoding ["SHARED", "RESERVED", "UNUSED"].
- */
-export const ALL_RESOURCE_TYPES = Object.values(BackendResourceType) as BackendResourceType[];
-
-/**
- * Derive unique resource types from a list of resources.
- * Returns types in the canonical order defined by ALL_RESOURCE_TYPES.
- *
- * @param resources - Array of resources to extract types from
- * @returns Array of BackendResourceType values present in the resources
- *
- * @example
- * ```ts
- * const types = deriveResourceTypes(resources);
- * // Returns: ["SHARED", "RESERVED"] (in canonical order)
- * ```
- */
-export function deriveResourceTypes(resources: Resource[]): BackendResourceType[] {
-  const types = new Set<BackendResourceType>();
-  resources.forEach((resource) => types.add(resource.resourceType));
-  return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
 }
