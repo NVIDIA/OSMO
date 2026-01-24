@@ -164,11 +164,10 @@ class AgentWorker:
             if message_body.update_pod:
                 helpers.queue_update_group_job(self.postgres, message_body.update_pod)
             elif message_body.resource:
-                print('Resource')
                 helpers.update_resource(self.postgres, backend_name, message_body.resource)
             elif message_body.resource_usage:
-                print('Resource usage')
-                helpers.update_resource_usage(self.postgres, backend_name, message_body.resource_usage)
+                helpers.update_resource_usage(
+                    self.postgres, backend_name, message_body.resource_usage)
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)
