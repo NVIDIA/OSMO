@@ -25,7 +25,6 @@ import { LogEntryRow } from "./LogEntryRow";
 import { useLogViewerStore } from "../store/log-viewer-store";
 import {
   ROW_HEIGHT_ESTIMATE,
-  EXPANDED_ROW_HEIGHT_ESTIMATE,
   DATE_SEPARATOR_HEIGHT,
   OVERSCAN_COUNT,
   SCROLL_BOTTOM_THRESHOLD,
@@ -151,7 +150,6 @@ function LogListInner({
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Get store values at parent level - avoid per-row subscriptions
-  const expandedEntryIds = useLogViewerStore((s) => s.expandedEntryIds);
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
 
@@ -159,7 +157,7 @@ function LogListInner({
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
   const { items: flatItems, separators, resetCount } = useIncrementalFlatten(entries);
 
-  // Estimate size callback - uses lookup for expanded entries
+  // Estimate size callback
   const estimateSize = useCallback(
     (index: number): number => {
       const item = flatItems[index];
@@ -169,14 +167,9 @@ function LogListInner({
         return DATE_SEPARATOR_HEIGHT;
       }
 
-      // Check if this entry is expanded
-      if (expandedEntryIds.has(item.entry.id)) {
-        return EXPANDED_ROW_HEIGHT_ESTIMATE;
-      }
-
       return ROW_HEIGHT_ESTIMATE;
     },
-    [flatItems, expandedEntryIds],
+    [flatItems],
   );
 
   // Single virtualizer for entire list

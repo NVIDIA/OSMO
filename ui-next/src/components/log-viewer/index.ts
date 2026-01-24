@@ -93,7 +93,6 @@ export { useCombinedEntries } from "./lib/use-combined-entries";
 
 export {
   ROW_HEIGHT_ESTIMATE,
-  EXPANDED_ROW_HEIGHT_ESTIMATE,
   OVERSCAN_COUNT,
   SCROLL_BOTTOM_THRESHOLD,
   HISTOGRAM_HEIGHT,
