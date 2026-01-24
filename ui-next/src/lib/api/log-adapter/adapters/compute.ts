@@ -194,20 +194,23 @@ export function computeHistogram(entries: LogEntry[], numBuckets = 50): Histogra
     levelCounts.set(level, (levelCounts.get(level) ?? 0) + 1);
   }
 
-  // Convert to sorted bucket array
-  const sortedKeys = [...bucketMap.keys()].sort((a, b) => a - b);
+  // Generate all buckets in the time range (including empty ones)
+  const minBucketKey = Math.floor(minTime / intervalMs);
+  const maxBucketKey = Math.floor(maxTime / intervalMs);
   const buckets: HistogramBucket[] = [];
 
-  for (const bucketKey of sortedKeys) {
-    const levelCounts = bucketMap.get(bucketKey)!;
+  for (let bucketKey = minBucketKey; bucketKey <= maxBucketKey; bucketKey++) {
+    const levelCounts = bucketMap.get(bucketKey);
     const counts: Partial<Record<LogLevel, number>> = {};
     let total = 0;
 
-    for (const level of LOG_LEVELS) {
-      const count = levelCounts.get(level) ?? 0;
-      if (count > 0) {
-        counts[level] = count;
-        total += count;
+    if (levelCounts) {
+      for (const level of LOG_LEVELS) {
+        const count = levelCounts.get(level) ?? 0;
+        if (count > 0) {
+          counts[level] = count;
+          total += count;
+        }
       }
     }
 
