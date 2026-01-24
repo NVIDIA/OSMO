@@ -52,7 +52,6 @@ import { useLogData, useLogTail } from "@/lib/api/log-adapter";
 import type { SearchChip } from "@/components/filter-bar";
 import { LogViewer } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
-import { useLogViewerStore } from "../store/log-viewer-store";
 import { chipsToLogQuery } from "../lib/chips-to-log-query";
 import { useCombinedEntries } from "../lib/use-combined-entries";
 
@@ -145,9 +144,57 @@ function LogViewerContainerInner({
   // Filter chips state - single source of truth
   const [filterChips, setFilterChips] = useState<SearchChip[]>(initialFilterChips ?? []);
 
-  // Get live mode state from store
-  // In the upcoming time range selector, this will be true when end time = "NOW"
-  const isLiveMode = useLogViewerStore((s) => s.isLiveMode);
+  // Time range state - will be managed via nuqs in the future
+  const [startTime, setStartTime] = useState<Date | undefined>(undefined);
+  const [endTime, setEndTime] = useState<Date | undefined>(undefined);
+  const [activePreset, setActivePreset] = useState<"all" | "5m" | "15m" | "1h" | "6h" | "24h" | undefined>("all");
+
+  // Derive live mode from end time (endTime === undefined means "NOW" / live mode)
+  const isLiveMode = endTime === undefined;
+
+  // Handle preset selection
+  const handlePresetSelect = useCallback((preset: "all" | "5m" | "15m" | "1h" | "6h" | "24h") => {
+    setActivePreset(preset);
+    const now = new Date();
+
+    switch (preset) {
+      case "all":
+        setStartTime(undefined);
+        setEndTime(undefined);
+        break;
+      case "5m":
+        setStartTime(new Date(now.getTime() - 5 * 60 * 1000));
+        setEndTime(undefined); // NOW
+        break;
+      case "15m":
+        setStartTime(new Date(now.getTime() - 15 * 60 * 1000));
+        setEndTime(undefined);
+        break;
+      case "1h":
+        setStartTime(new Date(now.getTime() - 60 * 60 * 1000));
+        setEndTime(undefined);
+        break;
+      case "6h":
+        setStartTime(new Date(now.getTime() - 6 * 60 * 60 * 1000));
+        setEndTime(undefined);
+        break;
+      case "24h":
+        setStartTime(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+        setEndTime(undefined);
+        break;
+    }
+  }, []);
+
+  // Handle manual time changes - clear preset
+  const handleStartTimeChange = useCallback((time: Date | undefined) => {
+    setStartTime(time);
+    setActivePreset(undefined);
+  }, []);
+
+  const handleEndTimeChange = useCallback((time: Date | undefined) => {
+    setEndTime(time);
+    setActivePreset(undefined);
+  }, []);
 
   // Convert filter chips to query params
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
@@ -175,6 +222,9 @@ function LogViewerContainerInner({
     retries: queryFilters.retries,
     sources: queryFilters.sources,
     search: queryFilters.search,
+    // Pass time range
+    start: startTime,
+    end: endTime,
   });
 
   // Live streaming dev params (defaults to main devParams if not specified)
@@ -227,6 +277,12 @@ function LogViewerContainerInner({
         onFilterChipsChange={handleFilterChipsChange}
         scope={scope}
         className={viewerClassName}
+        startTime={startTime}
+        endTime={endTime}
+        activePreset={activePreset}
+        onStartTimeChange={handleStartTimeChange}
+        onEndTimeChange={handleEndTimeChange}
+        onPresetSelect={handlePresetSelect}
       />
     </div>
   );
