@@ -19,7 +19,7 @@ import { withViewTransition } from "@/hooks";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 import { FilterBar } from "@/components/filter-bar";
-import { TimelineHistogram, type TimeRangePreset } from "./timeline";
+import { TimelineContainer, type TimeRangePreset } from "./timeline";
 import { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR } from "./timeline/use-timeline-gestures";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
@@ -531,7 +531,7 @@ function LogViewerInner({
 
       {/* Section 2: Timeline Histogram - Always visible as a control element */}
       <div className="shrink-0 border-b px-3 py-2">
-        <TimelineHistogram
+        <TimelineContainer
           buckets={histogram?.buckets ?? []}
           pendingBuckets={pendingHistogram?.buckets}
           onBucketClick={handleBucketClick}

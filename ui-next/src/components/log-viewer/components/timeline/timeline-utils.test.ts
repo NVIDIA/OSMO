@@ -252,13 +252,14 @@ describe("validatePanConstraint", () => {
       new Date(2000), // currentDisplayStart
       new Date(3000), // currentDisplayEnd (range = 1000)
       bounds,
-      0.5, // currentStartPercent (dragger at 50%)
+      0.5, // currentStartPercent (dragger at 50% = window's left overlay right edge)
       new Date(1800), // effectiveStartTime
     );
-    // New effective start would be: 400 + 0.5 * 1000 = 900
-    // But boundary start is 1000, so boundary > effective start (violation!)
+    // New effective start position would be: 400 + 0.5 * 1000 = 900
+    // But boundary start is 1000, so boundary > effective start position
+    // This means invalidZoneLeft's right edge would pass window's left overlay right edge
     expect(result.blocked).toBe(true);
-    expect(result.reason).toBe("effective-start-violation");
+    expect(result.reason).toBe("left-invalid-zone-boundary");
   });
 
   it("should allow zoom violating effective start constraint", () => {
