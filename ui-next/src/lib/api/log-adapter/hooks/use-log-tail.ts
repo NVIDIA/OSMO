@@ -107,6 +107,10 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
     devParams,
   } = params;
 
+  // Extract primitive values from devParams to avoid object reference instability
+  // This ensures the effect only re-runs when actual values change, not when the object reference changes
+  const logScenario = devParams?.log_scenario;
+
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [status, setStatus] = useState<TailStatus>("disconnected");
   const [error, setError] = useState<Error | null>(null);
@@ -175,8 +179,8 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
 
   /**
    * Starts the streaming connection.
-   * Uses the regular /logs endpoint with Transfer-Encoding: chunked.
-   * The backend streams logs as they arrive for running workflows.
+   * Uses primitive logScenario value instead of full devParams object to avoid
+   * restarting the stream when devParams object reference changes but values are identical.
    */
   const startStreaming = useCallback(async () => {
     // Abort any existing connection
@@ -191,7 +195,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
     setError(null);
 
     try {
-      // Use the regular logs endpoint - backend streams via Transfer-Encoding: chunked
+      // Build URL - reconstruct devParams from primitive value
       const urlObj = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
 
       // Mark this as a tailing request (for MSW to know to stream infinitely)
@@ -205,11 +209,9 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         urlObj.searchParams.set("task_id", taskId);
       }
 
-      // Apply optional URL params (used by experimental playground for mock scenarios)
-      if (devParams) {
-        for (const [key, value] of Object.entries(devParams)) {
-          urlObj.searchParams.set(key, value);
-        }
+      // Apply optional URL params (reconstruct from primitive)
+      if (logScenario) {
+        urlObj.searchParams.set("log_scenario", logScenario);
       }
 
       const response = await fetch(urlObj.toString(), {
@@ -274,7 +276,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         setStatus("error");
       }
     }
-  }, [baseUrl, workflowId, groupId, taskId, processChunk, devParams]);
+  }, [baseUrl, workflowId, groupId, taskId, logScenario, processChunk]);
 
   /**
    * Starts tailing.
@@ -300,6 +302,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
   }, []);
 
   // Start/stop based on enabled prop
+  // Uses primitive logScenario value to prevent restarts on object reference changes
   useEffect(() => {
     if (enabled && workflowId) {
       start();

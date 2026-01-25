@@ -106,8 +106,12 @@ export function LogViewerContainer({
   enableLiveMode = true,
   showBorder = true,
 }: LogViewerContainerProps) {
-  // Remount when workflowId or devParams change to reset all state
-  const key = useMemo(() => `${workflowId}-${JSON.stringify(devParams ?? {})}`, [workflowId, devParams]);
+  // Extract primitive values from devParams to create a stable key
+  // This prevents remounting when devParams object reference changes but values are identical
+  const logScenario = devParams?.log_scenario;
+
+  // Remount when workflowId or log scenario changes to reset all state
+  const key = useMemo(() => `${workflowId}-${logScenario ?? ""}`, [workflowId, logScenario]);
 
   return (
     <LogViewerContainerInner
@@ -204,42 +208,49 @@ function LogViewerContainerInner({
   // Convert filter chips to query params
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
 
-  // Memoize devParams to prevent unnecessary refetches
-  const stableDevParams = useMemo(() => devParams, [devParams]);
+  // Extract primitive value from devParams for stable memoization
+  // This prevents refetches when devParams object reference changes but values are identical
+  const logScenario = devParams?.log_scenario;
+
+  // Reconstruct devParams from primitive to ensure stable reference
+  const stableDevParams = useMemo(() => (logScenario ? { log_scenario: logScenario } : undefined), [logScenario]);
+
+  // Memoize the entire params object to prevent unnecessary refetches
+  // This ensures the params object reference is stable when values don't change
+  const logDataParams = useMemo(
+    () => ({
+      workflowId,
+      devParams: stableDevParams,
+      levels: queryFilters.levels,
+      tasks: queryFilters.tasks,
+      retries: queryFilters.retries,
+      sources: queryFilters.sources,
+      search: queryFilters.search,
+      start: startTime,
+      end: endTime,
+      // Disable keepPreviousData - prefer skeleton over stale data
+      keepPrevious: false,
+    }),
+    [workflowId, stableDevParams, queryFilters, startTime, endTime],
+  );
 
   // Unified data hook - returns entries, histogram, facets together
-  // Uses keepPreviousData to prevent flash when filters change
-  const {
-    entries: queryEntries,
-    stats,
-    isLoading,
-    isFetching,
-    isPlaceholderData,
-    error,
-    refetch,
-  } = useLogData({
-    workflowId,
-    devParams: stableDevParams,
-    // Pass filter params
-    levels: queryFilters.levels,
-    tasks: queryFilters.tasks,
-    retries: queryFilters.retries,
-    sources: queryFilters.sources,
-    search: queryFilters.search,
-    // Pass time range
-    start: startTime,
-    end: endTime,
-  });
+  const { entries: queryEntries, stats, isLoading, isFetching, error, refetch } = useLogData(logDataParams);
 
   // Live streaming dev params (defaults to main devParams if not specified)
-  const liveDevParams = useMemo(() => liveDevParamsProp ?? stableDevParams, [liveDevParamsProp, stableDevParams]);
+  // Extract primitive and reconstruct to ensure stability
+  const liveLogScenario = liveDevParamsProp?.log_scenario ?? logScenario;
+  const stableLiveDevParams = useMemo(
+    () => (liveLogScenario ? { log_scenario: liveLogScenario } : undefined),
+    [liveLogScenario],
+  );
 
   // Live streaming hook - appends new entries as they stream in
   // Active when live mode is enabled and the capability is allowed
   const { entries: liveEntries } = useLogTail({
     workflowId,
     enabled: enableLiveMode && isLiveMode,
-    devParams: liveDevParams,
+    devParams: stableLiveDevParams,
   });
 
   // Combine query entries with live streaming entries
@@ -254,14 +265,48 @@ function LogViewerContainerInner({
     end: endTime,
   });
 
+  // Compute display range with padding (7.5% on each side)
+  const { displayStart, displayEnd } = useMemo(() => {
+    const PADDING_RATIO = 0.075;
+
+    // Fallback time (static, only used when no data available)
+    const fallbackStart = new Date(2024, 0, 1);
+
+    // Determine data boundaries
+    // For start: use startTime, or first log timestamp, or fallback
+    const firstLogTime = combinedEntries[0]?.timestamp ?? fallbackStart;
+    const dataStart = startTime ?? firstLogTime;
+
+    // For end: use endTime, or last log timestamp + 1 minute (approximates NOW)
+    const lastLogTime = combinedEntries[combinedEntries.length - 1]?.timestamp ?? firstLogTime;
+    const approximateNow = new Date(lastLogTime.getTime() + 60_000);
+    const dataEnd = endTime ?? approximateNow;
+
+    // Calculate padding
+    const rangeMs = dataEnd.getTime() - dataStart.getTime();
+    const paddingMs = Math.max(rangeMs * PADDING_RATIO, 60_000 * PADDING_RATIO); // Min 6 seconds padding
+
+    return {
+      displayStart: new Date(dataStart.getTime() - paddingMs),
+      displayEnd: new Date(dataEnd.getTime() + paddingMs),
+    };
+  }, [startTime, endTime, combinedEntries]);
+
   // Recompute histogram from combined entries to stay in sync with visible log entries
   // This ensures:
   // - Buckets adjust dynamically based on the current time range
   // - Histogram includes new live entries
   // - Bucket intervals adapt as the effective time range changes
+  // - Buckets are marked as in/out of effective range for visual dimming
   const histogram = useMemo(() => {
-    return computeHistogram(combinedEntries, 50);
-  }, [combinedEntries]);
+    return computeHistogram(combinedEntries, {
+      numBuckets: 50,
+      displayStart,
+      displayEnd,
+      effectiveStart: startTime,
+      effectiveEnd: endTime,
+    });
+  }, [combinedEntries, displayStart, displayEnd, startTime, endTime]);
 
   // Handle filter chip changes - update local state and notify parent
   const handleFilterChipsChange = useCallback(
@@ -272,9 +317,9 @@ function LogViewerContainerInner({
     [onFilterChipsChangeProp],
   );
 
-  // Show skeleton ONLY during initial load (no previous data available)
-  // Once we have data, we keep showing it with a subtle loading indicator
-  const showSkeleton = isLoading && combinedEntries.length === 0 && !isPlaceholderData;
+  // Show skeleton during initial load and when refetching without data
+  // User preference: show skeleton instead of stale data for correctness
+  const showSkeleton = isLoading && combinedEntries.length === 0;
 
   if (showSkeleton) {
     return (
@@ -300,6 +345,8 @@ function LogViewerContainerInner({
         className={viewerClassName}
         startTime={startTime}
         endTime={endTime}
+        displayStart={displayStart}
+        displayEnd={displayEnd}
         activePreset={activePreset}
         onStartTimeChange={handleStartTimeChange}
         onEndTimeChange={handleEndTimeChange}

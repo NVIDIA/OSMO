@@ -122,7 +122,7 @@ export {
   createPlainTextAdapter,
 } from "./adapters";
 
-export type { FilterParams, PlainTextAdapterConfig, QueryAllParams } from "./adapters";
+export type { FilterParams, ComputeHistogramOptions, PlainTextAdapterConfig, QueryAllParams } from "./adapters";
 
 // =============================================================================
 // Hooks (client-side only)

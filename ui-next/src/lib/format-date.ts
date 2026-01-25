@@ -66,6 +66,30 @@ export function formatDateTimeFull(date: Date | string | null): string {
 }
 
 /**
+ * Format a date in a consistent, locale-independent format (UTC).
+ * Output: "Jan 15, 2026, 2:30:45 PM UTC"
+ *
+ * UTC version for debugging - matches raw log format timezone.
+ */
+export function formatDateTimeFullUTC(date: Date | string | null): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const month = MONTHS_SHORT[d.getUTCMonth()];
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  const hours = d.getUTCHours();
+  const minutes = d.getUTCMinutes().toString().padStart(2, "0");
+  const seconds = d.getUTCSeconds().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 || 12;
+
+  return `${month} ${day}, ${year}, ${hour12}:${minutes}:${seconds} ${ampm} UTC`;
+}
+
+/**
  * Format a date in a succinct format for table cells.
  * Output: "1/15 2:30p" (same year) or "1/15/26 2:30p" (different year)
  *
@@ -175,6 +199,26 @@ export function formatTime24(date: Date | string | null): string {
 }
 
 /**
+ * Format time in 24-hour format with seconds (UTC).
+ * Output: "14:30:45"
+ *
+ * UTC version for debugging - matches raw log format exactly.
+ * Useful when you want to see the same timezone as the backend logs.
+ */
+export function formatTime24UTC(date: Date | string | null): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const hours = d.getUTCHours().toString().padStart(2, "0");
+  const minutes = d.getUTCMinutes().toString().padStart(2, "0");
+  const seconds = d.getUTCSeconds().toString().padStart(2, "0");
+
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+/**
  * Format time in 24-hour format with milliseconds.
  * Output: "14:30:45.123"
  *
@@ -210,6 +254,25 @@ export function formatTime24Short(date: Date | string | null): string {
 
   const hours = d.getHours().toString().padStart(2, "0");
   const minutes = d.getMinutes().toString().padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+/**
+ * Format time in 24-hour format without seconds (UTC).
+ * Output: "14:30"
+ *
+ * UTC version for debugging - matches raw log format timezone.
+ * Ideal for histogram time axis labels when debugging.
+ */
+export function formatTime24ShortUTC(date: Date | string | null): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const hours = d.getUTCHours().toString().padStart(2, "0");
+  const minutes = d.getUTCMinutes().toString().padStart(2, "0");
 
   return `${hours}:${minutes}`;
 }
