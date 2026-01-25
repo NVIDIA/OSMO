@@ -34,7 +34,7 @@
 
 import { cn } from "@/lib/utils";
 import { TimelineDragger } from "./TimelineDragger";
-import type { UseDraggerGestureReturn } from "./use-dragger-gesture";
+import type { DraggerGesture } from "./use-timeline-gestures";
 
 // =============================================================================
 // Types
@@ -50,9 +50,9 @@ export interface TimelineWindowProps {
   /** Right panel width as percentage (0-100) */
   rightPanelWidth: number;
   /** Start dragger gesture handler */
-  startDragger: UseDraggerGestureReturn;
+  startDragger: DraggerGesture;
   /** End dragger gesture handler */
-  endDragger: UseDraggerGestureReturn;
+  endDragger: DraggerGesture;
   /** Additional CSS classes */
   className?: string;
 }
@@ -102,34 +102,24 @@ export function TimelineWindow({
       )}
 
       {/* Start gripper - left edge of the window */}
-      <div
-        className="pointer-events-auto"
-        onMouseDown={startDragger.onMouseDown}
+      <TimelineDragger
+        leftPercent={startDragger.positionPercent}
+        side="start"
+        isDragging={startDragger.isDragging}
+        isBlocked={startDragger.isBlocked}
+        onPointerDown={startDragger.onPointerDown}
         onKeyDown={startDragger.onKeyDown}
-      >
-        <TimelineDragger
-          leftPercent={startDragger.positionPercent}
-          side="start"
-          isDragging={startDragger.isDragging}
-          isBlocked={startDragger.isBlocked}
-          innerRef={startDragger.draggerRef}
-        />
-      </div>
+      />
 
       {/* End gripper - right edge of the window */}
-      <div
-        className="pointer-events-auto"
-        onMouseDown={endDragger.onMouseDown}
+      <TimelineDragger
+        leftPercent={endDragger.positionPercent}
+        side="end"
+        isDragging={endDragger.isDragging}
+        isBlocked={endDragger.isBlocked}
+        onPointerDown={endDragger.onPointerDown}
         onKeyDown={endDragger.onKeyDown}
-      >
-        <TimelineDragger
-          leftPercent={endDragger.positionPercent}
-          side="end"
-          isDragging={endDragger.isDragging}
-          isBlocked={endDragger.isBlocked}
-          innerRef={endDragger.draggerRef}
-        />
-      </div>
+      />
     </div>
   );
 }
