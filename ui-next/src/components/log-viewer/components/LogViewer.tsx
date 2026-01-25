@@ -18,7 +18,7 @@ import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
-import { SearchBar } from "./SearchBar";
+import { FilterBar } from "@/components/filter-bar";
 import { TimelineHistogram, type TimeRangePreset } from "./TimelineHistogram";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
@@ -418,65 +418,47 @@ function LogViewerInner({
     [onEndTimeChange, onClearPendingDisplay],
   );
 
-  // Handle zoom in - halve the time range
+  // Handle zoom in - matches cmd+wheel up behavior (narrow display by 20%)
   const handleZoomIn = useCallback(() => {
-    if (!onStartTimeChange || !onEndTimeChange || !onPresetSelect) return;
-    // If we have a time range, zoom in by halving it
-    if (startTime && endTime) {
-      const start = startTime.getTime();
-      const end = endTime.getTime();
-      const duration = end - start;
-      const center = start + duration / 2;
-      const newDuration = duration / 2;
+    if (!onDisplayRangeChange || !displayStart || !displayEnd) return;
 
-      onStartTimeChange(new Date(center - newDuration / 2));
-      onEndTimeChange(new Date(center + newDuration / 2));
-      announcer.announce("Zoomed in", "polite");
-    } else if (startTime && !endTime) {
-      // Start time set, end is NOW - halve the duration
-      const start = startTime.getTime();
-      const now = Date.now();
-      const duration = now - start;
-      const newDuration = duration / 2;
+    const ZOOM_IN_FACTOR = 0.8; // Same as use-timeline-wheel
+    const MIN_RANGE_MS = 60_000; // 1 minute minimum
 
-      onStartTimeChange(new Date(now - newDuration));
-      announcer.announce("Zoomed in", "polite");
-    } else {
-      // No specific range - default to last 5 minutes
-      onPresetSelect("5m");
-      announcer.announce("Zoomed to last 5 minutes", "polite");
+    const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
+    const newDisplayRangeMs = displayRangeMs * ZOOM_IN_FACTOR;
+
+    if (newDisplayRangeMs < MIN_RANGE_MS) {
+      announcer.announce("Cannot zoom in further", "polite");
+      return;
     }
-  }, [startTime, endTime, onStartTimeChange, onEndTimeChange, onPresetSelect, announcer]);
 
-  // Handle zoom out - double the time range
+    // Center on the middle of current display
+    const displayCenterMs = (displayStart.getTime() + displayEnd.getTime()) / 2;
+    const newDisplayStartMs = displayCenterMs - newDisplayRangeMs / 2;
+    const newDisplayEndMs = displayCenterMs + newDisplayRangeMs / 2;
+
+    onDisplayRangeChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
+    announcer.announce("Zoomed in", "polite");
+  }, [displayStart, displayEnd, onDisplayRangeChange, announcer]);
+
+  // Handle zoom out - matches cmd+wheel down behavior (widen display by 25%)
   const handleZoomOut = useCallback(() => {
-    if (!onStartTimeChange || !onEndTimeChange || !onPresetSelect) return;
-    // If we have a time range, zoom out by doubling it
-    if (startTime && endTime) {
-      const start = startTime.getTime();
-      const end = endTime.getTime();
-      const duration = end - start;
-      const center = start + duration / 2;
-      const newDuration = duration * 2;
+    if (!onDisplayRangeChange || !displayStart || !displayEnd) return;
 
-      onStartTimeChange(new Date(center - newDuration / 2));
-      onEndTimeChange(new Date(center + newDuration / 2));
-      announcer.announce("Zoomed out", "polite");
-    } else if (startTime && !endTime) {
-      // Start time set, end is NOW - double the duration
-      const start = startTime.getTime();
-      const now = Date.now();
-      const duration = now - start;
-      const newDuration = duration * 2;
+    const ZOOM_OUT_FACTOR = 1.25; // Same as use-timeline-wheel
 
-      onStartTimeChange(new Date(now - newDuration));
-      announcer.announce("Zoomed out", "polite");
-    } else {
-      // No specific range - show all
-      onPresetSelect("all");
-      announcer.announce("Zoomed to all logs", "polite");
-    }
-  }, [startTime, endTime, onStartTimeChange, onEndTimeChange, onPresetSelect, announcer]);
+    const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
+    const newDisplayRangeMs = displayRangeMs * ZOOM_OUT_FACTOR;
+
+    // Center on the middle of current display
+    const displayCenterMs = (displayStart.getTime() + displayEnd.getTime()) / 2;
+    const newDisplayStartMs = displayCenterMs - newDisplayRangeMs / 2;
+    const newDisplayEndMs = displayCenterMs + newDisplayRangeMs / 2;
+
+    onDisplayRangeChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
+    announcer.announce("Zoomed out", "polite");
+  }, [displayStart, displayEnd, onDisplayRangeChange, announcer]);
 
   // Handle copy
   const handleCopy = useCallback(
@@ -524,9 +506,9 @@ function LogViewerInner({
         />
       )}
 
-      {/* Section 1: SearchBar with FilterBar */}
+      {/* Section 1: Filter bar */}
       <div className="shrink-0 border-b p-2">
-        <SearchBar
+        <FilterBar
           data={entries}
           fields={LOG_FILTER_FIELDS}
           chips={filterChips}
@@ -542,7 +524,6 @@ function LogViewerInner({
           <TimelineHistogram
             buckets={histogram.buckets}
             pendingBuckets={pendingHistogram?.buckets}
-            intervalMs={histogram.intervalMs}
             onBucketClick={handleBucketClick}
             height={80}
             // Time range header with controls
@@ -562,6 +543,9 @@ function LogViewerInner({
             defaultCollapsed={timelineCollapsed}
             // Enable interactive draggers
             enableInteractiveDraggers
+            // Entity boundaries for pan limits (mock: use first bucket as start)
+            entityStartTime={histogram.buckets[0]?.timestamp}
+            entityEndTime={undefined} // undefined = still running (for now)
             // Zoom controls overlay
             customControls={
               <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">
@@ -577,7 +561,7 @@ function LogViewerInner({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <span className="text-xs">Zoom in (halve time range)</span>
+                    <span className="text-xs">Zoom in (Cmd+Wheel up)</span>
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
@@ -592,7 +576,7 @@ function LogViewerInner({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <span className="text-xs">Zoom out (double time range)</span>
+                    <span className="text-xs">Zoom out (Cmd+Wheel down)</span>
                   </TooltipContent>
                 </Tooltip>
               </div>

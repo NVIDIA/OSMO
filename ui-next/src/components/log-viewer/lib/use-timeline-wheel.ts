@@ -101,8 +101,6 @@ export function useTimelineWheel({
   displayEnd,
   effectiveStart,
   effectiveEnd,
-  isEndTimeNow,
-  onPendingRangeChange,
   onPendingDisplayChange,
 }: UseTimelineWheelOptions): void {
   const handleWheel = useCallback(
@@ -127,7 +125,8 @@ export function useTimelineWheel({
       const actualStartMs = startMs ?? now - 60 * 60 * 1000; // Default: 1 hour ago
       const actualEndMs = endMs ?? now; // Default: NOW
 
-      const rangeMs = actualEndMs - actualStartMs;
+      // Validate we have a sensible range
+      if (actualEndMs <= actualStartMs) return;
 
       if (isZoom) {
         // Zoom in/out: Adjust display range centered on histogram middle
@@ -150,7 +149,7 @@ export function useTimelineWheel({
         // Apply pending display change (draggers stay in place, histogram rescales)
         onPendingDisplayChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
       } else {
-        // Pan left/right (shifts display window only, effective range stays same)
+        // Pan left/right (shifts display window only, histogram slides)
         const isPanLeft = e.deltaY < 0;
         const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
         const panAmountMs = displayRangeMs * PAN_FACTOR;
@@ -162,11 +161,11 @@ export function useTimelineWheel({
         // For now, we allow panning freely - backend will clamp to available data
         // In the future, we could constrain based on bucket boundaries
 
-        // Apply pending display change (histogram slides, draggers stay in place)
+        // Apply pending display change (draggers stay at same pixel position, histogram slides)
         onPendingDisplayChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
       }
     },
-    [enabled, displayStart, displayEnd, effectiveStart, effectiveEnd, isEndTimeNow, onPendingRangeChange, onPendingDisplayChange],
+    [enabled, displayStart, displayEnd, effectiveStart, effectiveEnd, onPendingDisplayChange],
   );
 
   // Attach wheel event listener

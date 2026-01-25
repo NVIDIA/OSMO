@@ -212,9 +212,9 @@ function LogViewerContainerInner({
     end: endTime,
   });
 
-  // Compute display range with padding (7.5% on each side)
+  // Compute display range with padding (10% on each side to ensure invalid zones are visible)
   const { displayStart, displayEnd } = useMemo(() => {
-    const PADDING_RATIO = 0.075;
+    const PADDING_RATIO = 0.1; // Increased from 7.5% to ensure invalid zones are visible
 
     // Fallback time (static, only used when no data available)
     const fallbackStart = new Date(2024, 0, 1);
@@ -229,9 +229,9 @@ function LogViewerContainerInner({
     const approximateNow = new Date(lastLogTime.getTime() + 60_000);
     const dataEnd = endTime ?? approximateNow;
 
-    // Calculate padding
+    // Calculate padding (minimum 10 seconds to ensure invalid zone visibility)
     const rangeMs = dataEnd.getTime() - dataStart.getTime();
-    const paddingMs = Math.max(rangeMs * PADDING_RATIO, 60_000 * PADDING_RATIO); // Min 6 seconds padding
+    const paddingMs = Math.max(rangeMs * PADDING_RATIO, 10_000); // Min 10 seconds padding
 
     return {
       displayStart: new Date(dataStart.getTime() - paddingMs),
