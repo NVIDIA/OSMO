@@ -25,14 +25,20 @@
  * - `f` - Filter chips (repeated): `?f=level:error&f=task:train`
  * - `start` - Start time (ISO string): `?start=2026-01-24T10:00:00Z`
  * - `end` - End time (ISO string): `?end=2026-01-24T11:00:00Z`
- * - `preset` - Time range preset: `?preset=15m`
  *
  * ## Time Range Logic
  *
- * - No end time = "NOW" = live mode (tailing latest logs)
- * - Start + no end = "last X time from now"
+ * - No start/end = "all time"
+ * - Start only = "from start to NOW" = live mode (tailing latest logs)
  * - Start + end = fixed historical range
- * - Preset = quick selection (5m, 15m, 1h, etc.)
+ * - Presets resolve to actual start/end times (e.g., "last 5m" = start: now - 5m, end: undefined)
+ *
+ * ## Active Preset Detection
+ *
+ * The active preset is derived from current start/end times:
+ * - `?start=2026-01-24T19:11:00Z` (no end) → "5m" if diff ≈ 5 minutes
+ * - No params → "all"
+ * - Custom times → "custom"
  *
  * @example
  * ```tsx
@@ -41,12 +47,15 @@
  *   setFilterChips,
  *   startTime,
  *   endTime,
- *   activePreset,
+ *   activePreset, // Derived from start/end
  *   setStartTime,
  *   setEndTime,
- *   setPreset,
+ *   setPreset, // Resolves to start/end
  *   isLiveMode,
  * } = useLogViewerUrlState();
+ *
+ * // Set preset - updates start/end in URL
+ * setPreset("5m"); // → ?start=2026-01-24T19:11:00Z
  *
  * // Live mode detection
  * if (isLiveMode) {
@@ -58,7 +67,7 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsArrayOf, parseAsString, parseAsIsoDateTime, parseAsStringLiteral } from "nuqs";
+import { useQueryState, parseAsArrayOf, parseAsString, parseAsIsoDateTime } from "nuqs";
 import type { SearchChip } from "@/components/filter-bar";
 import type { TimeRangePreset } from "../components/TimelineHistogram";
 import { parseUrlChips } from "@/lib/url-utils";
@@ -80,16 +89,46 @@ export interface UseLogViewerUrlStateReturn {
   endTime: Date | undefined;
   setEndTime: (time: Date | undefined) => void;
 
-  /** Active time range preset */
+  /** Active time range preset (derived from current start/end) */
   activePreset: TimeRangePreset | undefined;
+  /** Set preset (resolves to actual start/end times) */
   setPreset: (preset: TimeRangePreset) => void;
 
   /** Derived state - true when endTime is undefined (tailing latest) */
   isLiveMode: boolean;
 }
 
-// Valid preset values for URL parsing
-const PRESET_VALUES = ["all", "5m", "15m", "1h", "6h", "24h", "custom"] as const;
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Derive the active preset from current start/end times.
+ * Returns the matching preset or "custom" if times don't match any preset.
+ */
+function deriveActivePreset(start: Date | null, end: Date | null): TimeRangePreset {
+  // All time
+  if (!start && !end) {
+    return "all";
+  }
+
+  // Live mode (no end time) - check if start matches a preset
+  if (!end && start) {
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const toleranceMs = 10000; // 10 second tolerance for "now"
+
+    // Check each preset duration
+    if (Math.abs(diffMs - 5 * 60 * 1000) < toleranceMs) return "5m";
+    if (Math.abs(diffMs - 15 * 60 * 1000) < toleranceMs) return "15m";
+    if (Math.abs(diffMs - 60 * 60 * 1000) < toleranceMs) return "1h";
+    if (Math.abs(diffMs - 6 * 60 * 60 * 1000) < toleranceMs) return "6h";
+    if (Math.abs(diffMs - 24 * 60 * 60 * 1000) < toleranceMs) return "24h";
+  }
+
+  // Custom range
+  return "custom";
+}
 
 // =============================================================================
 // Hook
@@ -98,7 +137,8 @@ const PRESET_VALUES = ["all", "5m", "15m", "1h", "6h", "24h", "custom"] as const
 /**
  * URL-synced state for log viewer filters and time range.
  *
- * All state is persisted to URL query parameters, enabling shareable log views.
+ * Presets are resolved to actual start/end times in the URL.
+ * For example, "last 5m" becomes: ?start=2026-01-24T19:11:00Z (with no end = live mode)
  */
 export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
   // ───────────────────────────────────────────────────────────────────────────
@@ -152,19 +192,12 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
   );
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Time Range Preset
+  // Derived Preset (computed from start/end, not stored in URL)
   // ───────────────────────────────────────────────────────────────────────────
 
-  const [activePreset, setActivePresetRaw] = useQueryState(
-    "preset",
-    parseAsStringLiteral(PRESET_VALUES).withDefault("all").withOptions({
-      shallow: true,
-      history: "replace",
-      clearOnDefault: true,
-    }),
-  );
+  const activePreset = useMemo<TimeRangePreset>(() => deriveActivePreset(startTime, endTime), [startTime, endTime]);
 
-  // Helper to set preset and derive time range
+  // Helper to set preset by resolving to actual start/end times
   const setPreset = useCallback(
     (preset: TimeRangePreset) => {
       const now = new Date();
@@ -173,57 +206,34 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
         case "all":
           setStartTime(null);
           setEndTime(null);
-          setActivePresetRaw("all");
           break;
         case "5m":
           setStartTime(new Date(now.getTime() - 5 * 60 * 1000));
           setEndTime(null); // NOW = live mode
-          setActivePresetRaw("5m");
           break;
         case "15m":
           setStartTime(new Date(now.getTime() - 15 * 60 * 1000));
           setEndTime(null);
-          setActivePresetRaw("15m");
           break;
         case "1h":
           setStartTime(new Date(now.getTime() - 60 * 60 * 1000));
           setEndTime(null);
-          setActivePresetRaw("1h");
           break;
         case "6h":
           setStartTime(new Date(now.getTime() - 6 * 60 * 60 * 1000));
           setEndTime(null);
-          setActivePresetRaw("6h");
           break;
         case "24h":
           setStartTime(new Date(now.getTime() - 24 * 60 * 60 * 1000));
           setEndTime(null);
-          setActivePresetRaw("24h");
           break;
         case "custom":
-          setActivePresetRaw("custom");
-          // Don't change start/end - they're set manually
+          // Custom preset doesn't change start/end - they're set manually
+          // This case is for completeness but shouldn't be called in practice
           break;
       }
     },
-    [setStartTime, setEndTime, setActivePresetRaw],
-  );
-
-  // Wrap setters to mark preset as "custom" when times are set manually
-  const setStartTimeWithCustom = useCallback(
-    (time: Date | undefined) => {
-      setStartTime(time ?? null);
-      setActivePresetRaw("custom");
-    },
-    [setStartTime, setActivePresetRaw],
-  );
-
-  const setEndTimeWithCustom = useCallback(
-    (time: Date | undefined) => {
-      setEndTime(time ?? null);
-      setActivePresetRaw("custom");
-    },
-    [setEndTime, setActivePresetRaw],
+    [setStartTime, setEndTime],
   );
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -232,14 +242,29 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
 
   const isLiveMode = endTime === null || endTime === undefined;
 
+  // Wrap setters to convert undefined to null for nuqs
+  const setStartTimeWrapped = useCallback(
+    (time: Date | undefined) => {
+      setStartTime(time ?? null);
+    },
+    [setStartTime],
+  );
+
+  const setEndTimeWrapped = useCallback(
+    (time: Date | undefined) => {
+      setEndTime(time ?? null);
+    },
+    [setEndTime],
+  );
+
   return {
     filterChips,
     setFilterChips,
     startTime: startTime ?? undefined,
-    setStartTime: setStartTimeWithCustom,
+    setStartTime: setStartTimeWrapped,
     endTime: endTime ?? undefined,
-    setEndTime: setEndTimeWithCustom,
-    activePreset: activePreset as TimeRangePreset,
+    setEndTime: setEndTimeWrapped,
+    activePreset,
     setPreset,
     isLiveMode,
   };
