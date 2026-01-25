@@ -16,15 +16,28 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { usePage } from "@/components/chrome";
 import { LogViewerContainer } from "@/components/log-viewer";
 import { ScenarioSelector, useScenario } from "./scenario-selector";
+import { addRecentWorkflow } from "../lib/recent-workflows";
+import type { WorkflowStatus } from "@/lib/api/generated";
 
 /**
- * Mock workflow ID for the playground.
+ * Workflow metadata for timeline bounds
  */
-const MOCK_WORKFLOW_ID = "log-viewer-playground";
+interface WorkflowMetadata {
+  name: string;
+  status: WorkflowStatus;
+  submitTime?: Date;
+  startTime?: Date;
+  endTime?: Date;
+}
+
+interface LogViewerPageContentProps {
+  workflowId: string;
+  workflowMetadata: WorkflowMetadata | null;
+}
 
 /**
  * Log Viewer Page Content (Client Component)
@@ -32,18 +45,26 @@ const MOCK_WORKFLOW_ID = "log-viewer-playground";
  * Contains all the client-side logic for the log viewer experimental page.
  * Wrapped in Suspense by the parent Server Component page.
  */
-export function LogViewerPageContent() {
+export function LogViewerPageContent({ workflowId, workflowMetadata }: LogViewerPageContentProps) {
   // Read scenario from URL (ScenarioSelector writes to same URL param)
   const { devParams, liveDevParams } = useScenario();
+
+  // Save workflow to recent workflows on mount
+  useEffect(() => {
+    addRecentWorkflow(workflowId);
+  }, [workflowId]);
 
   // Memoize header actions to prevent infinite re-render loop
   // usePage uses headerActions as a dependency, so a new JSX element triggers updates
   const headerActions = useMemo(() => <ScenarioSelector />, []);
 
-  // Register page with scenario selector in header
+  // Register page with workflow name in breadcrumbs
   usePage({
-    title: "Log Viewer",
-    breadcrumbs: [{ label: "Experimental", href: "/experimental" }],
+    title: workflowMetadata?.name ?? workflowId,
+    breadcrumbs: [
+      { label: "Experimental", href: "/experimental" },
+      { label: "Log Viewer", href: "/experimental/log-viewer" },
+    ],
     headerActions,
   });
 
@@ -51,7 +72,8 @@ export function LogViewerPageContent() {
     <div className="flex h-full flex-col p-4">
       <div className="relative flex-1">
         <LogViewerContainer
-          workflowId={MOCK_WORKFLOW_ID}
+          workflowId={workflowId}
+          workflowMetadata={workflowMetadata}
           devParams={devParams}
           liveDevParams={liveDevParams}
           scope="workflow"

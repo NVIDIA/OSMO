@@ -36,9 +36,10 @@
  */
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchLogData } from "@/lib/api/server";
+import { prefetchLogData, fetchWorkflowByName } from "@/lib/api/server";
 import { LogViewerPageContent } from "./log-viewer-page-content";
 import { createQueryClient } from "@/lib/query-client";
+import { WorkflowSelector } from "./workflow-selector";
 
 /**
  * Mock workflow ID for the playground.
@@ -58,16 +59,58 @@ function isValidScenario(value: unknown): value is LogScenario {
 
 interface LogViewerWithDataProps {
   /** URL search params passed from page */
-  searchParams: Promise<{ scenario?: string }>;
+  searchParams: Promise<{ workflow?: string; scenario?: string }>;
 }
 
 export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps) {
   // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;
+  const workflowId = params.workflow ?? MOCK_WORKFLOW_ID;
   const scenario: LogScenario = isValidScenario(params.scenario) ? params.scenario : "normal";
 
   // Create QueryClient for this request using shared factory
   const queryClient = createQueryClient();
+
+  // Fetch and validate workflow metadata
+  let workflowMetadata = null;
+  let error = null;
+
+  try {
+    const workflow = await fetchWorkflowByName(workflowId, true);
+
+    if (!workflow) {
+      // Workflow not found
+      return (
+        <WorkflowSelector
+          error={{
+            message: `Workflow "${workflowId}" not found. Please check the workflow ID and try again.`,
+            isTransient: false,
+          }}
+          initialWorkflowId={workflowId}
+        />
+      );
+    }
+
+    // Extract metadata for timeline bounds
+    workflowMetadata = {
+      name: workflow.name,
+      status: workflow.status,
+      submitTime: workflow.submit_time ? new Date(workflow.submit_time) : undefined,
+      startTime: workflow.start_time ? new Date(workflow.start_time) : undefined,
+      endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
+    };
+  } catch (err) {
+    // Transient error (network, server error, etc.)
+    return (
+      <WorkflowSelector
+        error={{
+          message: `Failed to load workflow "${workflowId}". This may be a temporary issue.`,
+          isTransient: true,
+        }}
+        initialWorkflowId={workflowId}
+      />
+    );
+  }
 
   // Build dev params matching what the client uses
   const devParams = { log_scenario: scenario };
@@ -75,14 +118,14 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
   // Prefetch log data - this await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
   await prefetchLogData(queryClient, {
-    workflowId: MOCK_WORKFLOW_ID,
+    workflowId,
     devParams,
   });
 
   // Wrap in HydrationBoundary so client gets the cached data
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <LogViewerPageContent />
+      <LogViewerPageContent workflowId={workflowId} workflowMetadata={workflowMetadata} />
     </HydrationBoundary>
   );
 }
