@@ -20,39 +20,44 @@
  * Colocated components and hooks for the timeline histogram feature.
  * This module handles time range selection, visualization, and interaction.
  *
- * ## Architecture
+ * ## Architecture (2-Layer Model)
  *
- * The timeline uses a layered approach:
- * 1. **Histogram bars** (bottom layer) - visualization of log distribution
- * 2. **Invalid zones** (middle layer) - striped areas beyond entity boundaries
- * 3. **Timeline window** (top layer) - viewing portal with panels and grippers
+ * The timeline uses a 2-layer architecture:
  *
- * ## Components
- * - TimelineHistogram: Main histogram component with time range selection
- * - TimelineWindow: Unified viewing window with panels and grippers
- * - InvalidZone: Striped overlay for areas beyond entity boundaries (also pan boundaries)
- * - TimelineControls: Apply/Cancel buttons for pending changes
+ * **Layer 1 (Pannable Content):**
+ *   [invalidZoneLeft] <---> [histogram bars] <---> [invalidZoneRight]
  *
- * ## State Management
- * - useTimelineState: Unified state hook (internal)
- * - useTimelineGestures: Gesture handling with @use-gesture/react (internal)
+ *   - All elements pan together as a single unit
+ *   - Rendered by TimelineHistogram (internal component)
  *
- * ## Utilities
- * - timeline-utils: Pure calculation functions (internal)
+ * **Layer 2 (Fixed Window):**
+ *   [left overlay] | <----- viewport -----> | [right overlay]
+ *
+ *   - Stays fixed while Layer 1 pans underneath
+ *   - Rendered by TimelineWindow (internal component)
+ *
+ * ## Public API
+ *
+ * - **TimelineContainer**: Main component - orchestrates state, gestures, and composition
+ *   - Use this component in your application
+ *   - Handles all state management and gesture handling
+ *   - Composes TimelineHistogram + TimelineWindow + TimelineControls
+ *
+ * ## Internal Components
+ *
+ * - TimelineHistogram: Pure presentation component (Layer 1 content)
+ * - TimelineWindow: Fixed window overlay (Layer 2 content)
+ * - InvalidZone: Striped areas beyond entity boundaries
+ * - TimelineControls: Apply/Cancel buttons
+ * - useTimelineState: State management hook
+ * - useTimelineGestures: Gesture handling hooks
+ * - timeline-utils: Pure calculation functions
  */
 
-// Components
-export { TimelineHistogram } from "./TimelineHistogram";
-export type { TimelineHistogramProps, TimeRangePreset } from "./TimelineHistogram";
+// Public API - Main component
+export { TimelineContainer } from "./TimelineContainer";
+export type { TimelineContainerProps, TimeRangePreset } from "./TimelineContainer";
 
-export { TimelineWindow } from "./TimelineWindow";
-export type { TimelineWindowProps } from "./TimelineWindow";
-
-export { InvalidZone } from "./InvalidZone";
-export type { InvalidZoneProps } from "./InvalidZone";
-
-export { TimelineControls } from "./TimelineControls";
-export type { TimelineControlsProps } from "./TimelineControls";
-
-// Note: All hooks (useTimelineState, useTimelineGestures) and utilities (timeline-utils)
-// are internal and not exported. They are implementation details of TimelineHistogram.
+// Note: All internal components, hooks, and utilities are NOT exported.
+// They are implementation details of TimelineContainer.
+// Use TimelineContainer as the public API.

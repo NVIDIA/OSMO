@@ -14,7 +14,7 @@
  *
  * Layout matches LogViewer:
  * 1. SearchBar (top, includes filtering)
- * 2. TimelineHistogram (optional)
+ * 2. TimelineContainer (optional)
  * 3. LogList (main content, full width)
  * 4. Footer (bottom)
  *
