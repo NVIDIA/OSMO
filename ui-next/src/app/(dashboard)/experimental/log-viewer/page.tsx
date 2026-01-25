@@ -18,6 +18,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LogViewerSkeleton } from "@/components/log-viewer";
 import { LogViewerWithData } from "./components/log-viewer-with-data";
+import { WorkflowSelector } from "./components/workflow-selector";
 
 /**
  * Log Viewer Experimental Page (Server Component)
@@ -39,15 +40,24 @@ import { LogViewerWithData } from "./components/log-viewer-with-data";
  */
 
 interface PageProps {
-  searchParams: Promise<{ scenario?: string }>;
+  searchParams: Promise<{ workflow?: string; scenario?: string }>;
 }
 
-export default function LogViewerExperimentalPage({ searchParams }: PageProps) {
+export default async function LogViewerExperimentalPage({ searchParams }: PageProps) {
   // Redirect to home in production (server-side, no client JS needed)
   if (process.env.NODE_ENV === "production") {
     redirect("/");
   }
 
+  const params = await searchParams;
+  const workflowId = params.workflow;
+
+  // No workflow selected - show selector
+  if (!workflowId) {
+    return <WorkflowSelector />;
+  }
+
+  // Workflow selected - show log viewer with data
   return (
     <Suspense
       fallback={
