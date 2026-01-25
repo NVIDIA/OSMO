@@ -34,8 +34,10 @@ import { useServices } from "@/contexts/service-context";
 // =============================================================================
 
 export interface TimelineHistogramProps {
-  /** Histogram buckets to display */
+  /** Histogram buckets to display (committed state) */
   buckets: HistogramBucket[];
+  /** Pending histogram buckets (shown during pan/zoom before Apply) */
+  pendingBuckets?: HistogramBucket[];
   /** Bucket interval in milliseconds */
   intervalMs: number;
   /** Callback when a bucket is clicked */
@@ -64,10 +66,12 @@ export interface TimelineHistogramProps {
   displayStart?: Date;
   /** Display range end (with padding) */
   displayEnd?: Date;
-  /** Callback when start time changes */
+  /** Callback when start time changes (on Apply) */
   onStartTimeChange?: (date: Date | undefined) => void;
-  /** Callback when end time changes */
+  /** Callback when end time changes (on Apply) */
   onEndTimeChange?: (date: Date | undefined) => void;
+  /** Callback when display range changes (real-time during pan/zoom for bucket re-query) */
+  onDisplayRangeChange?: (start: Date, end: Date) => void;
   /** Whether to show the time range header (default: false) */
   showTimeRangeHeader?: boolean;
   /** Whether to enable interactive draggers (default: false) */
@@ -345,6 +349,7 @@ function TimeRangeHeader({
 
 function TimelineHistogramInner({
   buckets,
+  pendingBuckets,
   intervalMs: _intervalMs,
   onBucketClick,
   onRangeSelect: _onRangeSelect,
@@ -361,12 +366,16 @@ function TimelineHistogramInner({
   displayEnd,
   onStartTimeChange,
   onEndTimeChange,
+  onDisplayRangeChange,
   showTimeRangeHeader = false,
   enableInteractiveDraggers = false,
 }: TimelineHistogramProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const { announcer } = useServices();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Use pending buckets if available (during pan/zoom), otherwise use committed buckets
+  const activeBuckets = pendingBuckets ?? buckets;
 
   // ============================================================================
   // STATE: Clean separation of concerns
@@ -393,12 +402,12 @@ function TimelineHistogramInner({
 
   // Current display range (with pending or from props)
   const derivedDisplayStart = useMemo(
-    () => pendingDisplayStart ?? displayStart ?? buckets[0]?.timestamp ?? new Date(),
-    [pendingDisplayStart, displayStart, buckets],
+    () => pendingDisplayStart ?? displayStart ?? activeBuckets[0]?.timestamp ?? new Date(),
+    [pendingDisplayStart, displayStart, activeBuckets],
   );
   const derivedDisplayEnd = useMemo(
-    () => pendingDisplayEnd ?? displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? new Date(),
-    [pendingDisplayEnd, displayEnd, buckets],
+    () => pendingDisplayEnd ?? displayEnd ?? activeBuckets[activeBuckets.length - 1]?.timestamp ?? new Date(),
+    [pendingDisplayEnd, displayEnd, activeBuckets],
   );
 
   // Calculate current dragger positions as percentages (0-1)
@@ -435,27 +444,43 @@ function TimelineHistogramInner({
     return new Date(derivedDisplayStart.getTime() + currentEndPercent * displayRangeMs);
   }, [currentEndPercent, derivedDisplayStart, derivedDisplayEnd, endTime]);
 
-  // Calculate bar container transform for pan animation
+  // Calculate bar container transform for pan/zoom animation
   const barTransform = useMemo(() => {
+    // If we have pendingBuckets, they're already the correct data for the display range
+    // No transform needed - just render them directly
+    if (pendingBuckets) return "translateX(0) scaleX(1)";
+
     // Original display range (from props or first/last bucket)
     const originalDisplayStart = displayStart ?? buckets[0]?.timestamp;
-    if (!originalDisplayStart) return "translateX(0)";
+    const originalDisplayEnd = displayEnd ?? buckets[buckets.length - 1]?.timestamp;
+    if (!originalDisplayStart || !originalDisplayEnd) return "translateX(0) scaleX(1)";
 
-    // Calculate how much the display has shifted
-    const shiftMs = derivedDisplayStart.getTime() - originalDisplayStart.getTime();
-    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
-    if (displayRangeMs <= 0) return "translateX(0)";
+    const originalDisplayStartMs = originalDisplayStart.getTime();
+    const originalDisplayEndMs = originalDisplayEnd.getTime();
+    const originalRangeMs = originalDisplayEndMs - originalDisplayStartMs;
+    if (originalRangeMs <= 0) return "translateX(0) scaleX(1)";
 
-    // Convert shift to percentage (negative because bars move opposite to display shift)
-    const shiftPercent = -(shiftMs / displayRangeMs) * 100;
-    return `translateX(${shiftPercent}%)`;
-  }, [displayStart, buckets, derivedDisplayStart, derivedDisplayEnd]);
+    const currentDisplayStartMs = derivedDisplayStart.getTime();
+    const currentDisplayEndMs = derivedDisplayEnd.getTime();
+    const currentRangeMs = currentDisplayEndMs - currentDisplayStartMs;
+    if (currentRangeMs <= 0) return "translateX(0) scaleX(1)";
+
+    // Calculate scale: bars expand when display narrows (zoom in), compress when display widens (zoom out)
+    const scale = originalRangeMs / currentRangeMs;
+
+    // Calculate translation to keep bars aligned with display range
+    // We need to shift the bars based on how the display start has moved
+    const shiftMs = currentDisplayStartMs - originalDisplayStartMs;
+    const translatePercent = -(shiftMs / currentRangeMs) * 100;
+
+    return `translateX(${translatePercent}%) scaleX(${scale})`;
+  }, [pendingBuckets, displayStart, displayEnd, buckets, derivedDisplayStart, derivedDisplayEnd]);
 
   // ============================================================================
   // CALLBACKS: User interactions
   // ============================================================================
 
-  // Pan: Shift display range only (dragger percentages stay same)
+  // Pan/Zoom: Shift display range only (dragger percentages stay same)
   const handlePendingDisplayChange = useCallback(
     (newDisplayStart: Date, newDisplayEnd: Date) => {
       // Capture current dragger percentages if not already pending
@@ -470,10 +495,13 @@ function TimelineHistogramInner({
       setPendingDisplayStart(newDisplayStart);
       setPendingDisplayEnd(newDisplayEnd);
 
+      // Notify parent to fetch new buckets for this display range
+      onDisplayRangeChange?.(newDisplayStart, newDisplayEnd);
+
       // Note: dragger percentages are now frozen, so draggers stay at same pixel position
       // but now point to different times (derived from frozen percentages + new display range)
     },
-    [pendingStartPercent, pendingEndPercent, currentStartPercent, currentEndPercent],
+    [pendingStartPercent, pendingEndPercent, currentStartPercent, currentEndPercent, onDisplayRangeChange],
   );
 
   // Drag/Zoom: Update dragger percentages + auto-adjust display
@@ -493,15 +521,21 @@ function TimelineHistogramInner({
       }
 
       // Auto-adjust display range to keep draggers visible
-      const startMs = newStart?.getTime() ?? buckets[0]?.timestamp.getTime() ?? Date.now() - 60 * 60 * 1000;
+      const startMs = newStart?.getTime() ?? activeBuckets[0]?.timestamp.getTime() ?? Date.now() - 60 * 60 * 1000;
       const endMs = newEnd?.getTime() ?? Date.now();
       const rangeMs = endMs - startMs;
       const paddingMs = Math.max(rangeMs * PADDING_RATIO, 60_000 * PADDING_RATIO);
 
-      setPendingDisplayStart(new Date(startMs - paddingMs));
-      setPendingDisplayEnd(new Date(endMs + paddingMs));
+      const newDisplayStart = new Date(startMs - paddingMs);
+      const newDisplayEnd = new Date(endMs + paddingMs);
+
+      setPendingDisplayStart(newDisplayStart);
+      setPendingDisplayEnd(newDisplayEnd);
+
+      // Notify parent to fetch new buckets
+      onDisplayRangeChange?.(newDisplayStart, newDisplayEnd);
     },
-    [derivedDisplayStart, derivedDisplayEnd, buckets],
+    [derivedDisplayStart, derivedDisplayEnd, activeBuckets, onDisplayRangeChange],
   );
 
   // Apply: Commit effective times to parent
@@ -622,18 +656,18 @@ function TimelineHistogramInner({
   // Get the start timestamp label (left edge) - use effective (pending) values
   const startLabel = useMemo(() => {
     if (effectiveStartTime) return formatTime24ShortUTC(effectiveStartTime);
-    if (buckets.length > 0) return formatTime24ShortUTC(buckets[0].timestamp);
+    if (activeBuckets.length > 0) return formatTime24ShortUTC(activeBuckets[0].timestamp);
     return null;
-  }, [effectiveStartTime, buckets]);
+  }, [effectiveStartTime, activeBuckets]);
 
   // Find max total for scaling
   const maxTotal = useMemo(() => {
     let max = 0;
-    for (const bucket of buckets) {
+    for (const bucket of activeBuckets) {
       if (bucket.total > max) max = bucket.total;
     }
     return max;
-  }, [buckets]);
+  }, [activeBuckets]);
 
   // Calculate which buckets should be dimmed based on effective range (includes pending)
   const shouldDimBucket = useCallback(
@@ -662,7 +696,7 @@ function TimelineHistogramInner({
   );
 
   // Empty state
-  if (buckets.length === 0) {
+  if (activeBuckets.length === 0) {
     return (
       <div className={cn("space-y-4", className)}>
         {showTimeRangeHeader && (
@@ -769,7 +803,7 @@ function TimelineHistogramInner({
                   transform: barTransform,
                 }}
               >
-                {buckets.map((bucket, i) => (
+                {activeBuckets.map((bucket, i) => (
                   <StackedBar
                     key={`${bucket.timestamp.getTime()}-${i}`}
                     bucket={bucket}
@@ -838,7 +872,7 @@ function TimelineHistogramInner({
 
           {/* Time Axis */}
           <div className="text-muted-foreground flex justify-between pb-2 text-[10px] tabular-nums">
-            <span>{startLabel || (buckets[0] && formatTime24ShortUTC(buckets[0].timestamp))}</span>
+            <span>{startLabel || (activeBuckets[0] && formatTime24ShortUTC(activeBuckets[0].timestamp))}</span>
             <span>{terminalLabel || "NOW"}</span>
           </div>
         </div>
