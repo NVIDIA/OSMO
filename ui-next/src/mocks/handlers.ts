@@ -39,7 +39,7 @@ import {
   getLogScenario,
 } from "./generators";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay } from "./utils";
-import { getMockWorkflow } from "../app/(dashboard)/experimental/log-viewer/lib/mock-workflows";
+import { getMockWorkflow } from "./mock-workflows";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -254,10 +254,18 @@ export const handlers = [
     const isTailing = url.searchParams.get("tail") === "true";
 
     const scenario = getLogScenario(scenarioName);
-    const workflow = workflowGenerator.getByName(name);
+
+    // Get workflow metadata (check mock workflows first, then generated workflows)
+    const mockWorkflow = getMockWorkflow(name);
+    const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
+
     const taskNames = taskFilter
       ? [taskFilter]
-      : (workflow?.groups.flatMap((g) => g.tasks.map((t) => t.name)) ?? ["main"]);
+      : (workflow?.groups.flatMap((g) => g.tasks?.map((t) => t.name) ?? []) ?? ["main"]);
+
+    // Extract time range from workflow metadata for realistic log timestamps
+    const workflowStartTime = workflow?.start_time ? new Date(workflow.start_time) : undefined;
+    const workflowEndTime = workflow?.end_time ? new Date(workflow.end_time) : undefined;
 
     // Helper function to filter logs (matches backend filter_log behavior)
     const filterLogs = (logs: string): string => {
@@ -305,13 +313,14 @@ export const handlers = [
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
       const encoder = new TextEncoder();
 
-      // Create streaming generator starting from reference date
-      // Each workflow + scenario combination generates deterministic timestamps
+      // Create streaming generator using workflow's time range
+      // For still-running workflows (no end time), stream from current time
+      // For completed workflows, this shouldn't be used (streaming only makes sense for running workflows)
       const streamGen = logGenerator.createStream({
         workflowName: name,
         scenario,
         taskNames,
-        continueFrom: undefined, // Start from MOCK_REFERENCE_DATE
+        continueFrom: workflowStartTime, // Start streaming from workflow start (or MOCK_REFERENCE_DATE if no start)
         streamDelayMs: streamDelay,
       });
 
@@ -346,10 +355,13 @@ export const handlers = [
     await delay(MOCK_DELAY);
 
     // Generate logs (deterministic based on workflow name + scenario)
+    // Use workflow's actual time range for realistic timestamps
     let logs = logGenerator.generateForScenario({
       workflowName: name,
       scenarioName,
       taskNames,
+      startTime: workflowStartTime,
+      endTime: workflowEndTime,
     });
 
     // Apply filters (matches real backend behavior)
@@ -500,8 +512,15 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const isTailing = url.searchParams.get("tail") === "true";
 
     const scenario = getLogScenario(scenarioName);
-    const workflow = workflowGenerator.getByName(workflowName);
-    const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
+
+    // Get workflow and task metadata (check mock workflows first)
+    const mockWorkflow = getMockWorkflow(workflowName);
+    const workflow = mockWorkflow ?? workflowGenerator.getByName(workflowName);
+    const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
+
+    // Extract time range from task metadata for realistic log timestamps
+    const taskStartTime = task?.start_time ? new Date(task.start_time) : undefined;
+    const taskEndTime = task?.end_time ? new Date(task.end_time) : undefined;
 
     // For streaming scenario with tail=true, use setInterval pattern (same as workflow logs)
     if (scenario.features.streaming && isTailing) {
@@ -558,13 +577,16 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     await delay(MOCK_DELAY);
 
     // Generate logs (deterministic based on workflow + task + scenario)
+    // Use task's actual time range for realistic timestamps
     let logs: string;
     if (scenarioName !== "normal") {
-      // Use scenario-based generation
+      // Use scenario-based generation with task time range
       logs = logGenerator.generateForScenario({
         workflowName,
         scenarioName,
         taskNames: [taskName],
+        startTime: taskStartTime,
+        endTime: taskEndTime,
       });
     } else {
       // Use legacy method for backward compatibility in normal case
@@ -594,7 +616,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const taskName = params.taskName as string;
 
     const workflow = workflowGenerator.getByName(workflowName);
-    const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
+    const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
 
     const events = eventGenerator.generateTaskEvents(
       workflowName,

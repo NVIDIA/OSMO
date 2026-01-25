@@ -20,11 +20,17 @@
  * Colocated components and hooks for the timeline histogram feature.
  * This module handles time range selection, visualization, and interaction.
  *
+ * ## Architecture
+ *
+ * The timeline uses a layered approach:
+ * 1. **Histogram bars** (bottom layer) - visualization of log distribution
+ * 2. **Invalid zones** (middle layer) - striped areas beyond entity boundaries
+ * 3. **Timeline window** (top layer) - viewing portal with panels and grippers
+ *
  * ## Components
  * - TimelineHistogram: Main histogram component with time range selection
- * - TimelineDragger: Draggable handle for time boundaries
- * - TimelineOverlay: Semi-transparent overlay for padding zones
- * - InvalidZoneOverlay: Striped overlay for invalid time zones
+ * - TimelineWindow: Unified viewing window with panels and grippers
+ * - InvalidZone: Striped overlay for areas beyond entity boundaries (also pan boundaries)
  * - TimelineControls: Apply/Cancel buttons for pending changes
  *
  * ## Hooks
@@ -36,17 +42,21 @@
 export { TimelineHistogram } from "./TimelineHistogram";
 export type { TimelineHistogramProps, TimeRangePreset } from "./TimelineHistogram";
 
+export { TimelineWindow } from "./TimelineWindow";
+export type { TimelineWindowProps } from "./TimelineWindow";
+
+export { InvalidZone } from "./InvalidZone";
+export type { InvalidZoneProps } from "./InvalidZone";
+
+export { TimelineControls } from "./TimelineControls";
+export type { TimelineControlsProps } from "./TimelineControls";
+
+// Legacy exports (deprecated - use TimelineWindow instead)
 export { TimelineDragger } from "./TimelineDragger";
 export type { TimelineDraggerProps } from "./TimelineDragger";
 
 export { TimelineOverlay } from "./TimelineOverlay";
 export type { TimelineOverlayProps } from "./TimelineOverlay";
-
-export { InvalidZoneOverlay } from "./InvalidZoneOverlay";
-export type { InvalidZoneOverlayProps } from "./InvalidZoneOverlay";
-
-export { TimelineControls } from "./TimelineControls";
-export type { TimelineControlsProps } from "./TimelineControls";
 
 // Note: useDraggerGesture and useTimelineWheel are internal hooks
 // used only by TimelineHistogram and are not exported
