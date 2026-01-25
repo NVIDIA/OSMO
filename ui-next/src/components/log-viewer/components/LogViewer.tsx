@@ -20,7 +20,7 @@ import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 import { FilterBar } from "@/components/filter-bar";
 import { TimelineHistogram, type TimeRangePreset } from "./timeline";
-import { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR } from "./timeline/use-timeline-wheel";
+import { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR } from "./timeline/use-timeline-gestures";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";

@@ -33,9 +33,12 @@
  * - InvalidZone: Striped overlay for areas beyond entity boundaries (also pan boundaries)
  * - TimelineControls: Apply/Cancel buttons for pending changes
  *
- * ## Hooks
- * - useDraggerGesture: Mouse/keyboard interactions for draggers
- * - useTimelineWheel: Mouse wheel pan/zoom interactions
+ * ## State Management
+ * - useTimelineState: Unified state hook (internal)
+ * - useTimelineGestures: Gesture handling with @use-gesture/react (internal)
+ *
+ * ## Utilities
+ * - timeline-utils: Pure calculation functions (internal)
  */
 
 // Components
@@ -51,12 +54,5 @@ export type { InvalidZoneProps } from "./InvalidZone";
 export { TimelineControls } from "./TimelineControls";
 export type { TimelineControlsProps } from "./TimelineControls";
 
-// Legacy exports (deprecated - use TimelineWindow instead)
-export { TimelineDragger } from "./TimelineDragger";
-export type { TimelineDraggerProps } from "./TimelineDragger";
-
-export { TimelineOverlay } from "./TimelineOverlay";
-export type { TimelineOverlayProps } from "./TimelineOverlay";
-
-// Note: useDraggerGesture and useTimelineWheel are internal hooks
-// used only by TimelineHistogram and are not exported
+// Note: All hooks (useTimelineState, useTimelineGestures) and utilities (timeline-utils)
+// are internal and not exported. They are implementation details of TimelineHistogram.
