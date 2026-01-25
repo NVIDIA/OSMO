@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, FormEvent, useEffect } from "react";
+import { useState, useCallback, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { getRecentWorkflows } from "../lib/recent-workflows";
@@ -16,12 +16,7 @@ interface WorkflowSelectorProps {
 export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSelectorProps) {
   const router = useRouter();
   const [workflowId, setWorkflowId] = useState(initialWorkflowId);
-  const [recentWorkflows, setRecentWorkflows] = useState<string[]>([]);
-
-  // Load recent workflows on mount
-  useEffect(() => {
-    setRecentWorkflows(getRecentWorkflows());
-  }, []);
+  const [recentWorkflows] = useState<string[]>(() => getRecentWorkflows());
 
   const handleSubmit = useCallback(
     (e: FormEvent) => {
@@ -99,15 +94,18 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
         )}
 
         {/* Input Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+        >
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+            <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
             <input
               type="text"
               value={workflowId}
               onChange={(e) => setWorkflowId(e.target.value)}
               placeholder="Enter workflow ID or name..."
-              className="w-full rounded-lg border border-zinc-300 bg-white py-3 pl-10 pr-4 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
+              className="w-full rounded-lg border border-zinc-300 bg-white py-3 pr-4 pl-10 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
             />
           </div>
           <button

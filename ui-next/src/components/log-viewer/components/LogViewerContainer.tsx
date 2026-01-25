@@ -54,6 +54,7 @@ import { LogViewerSkeleton } from "./LogViewerSkeleton";
 import { chipsToLogQuery } from "../lib/chips-to-log-query";
 import { useCombinedEntries } from "../lib/use-combined-entries";
 import { useLogViewerUrlState } from "../lib/use-log-viewer-url-state";
+import { useTick, useTickController } from "@/hooks/use-tick";
 
 // =============================================================================
 // Types
@@ -148,6 +149,12 @@ function LogViewerContainerInner({
   enableLiveMode,
   showBorder,
 }: LogViewerContainerProps) {
+  // Enable synchronized ticking when workflow is running (no endTime)
+  useTickController(workflowMetadata?.endTime === undefined);
+
+  // Get synchronized "NOW" timestamp across all components
+  const now = useTick();
+
   // URL-synced state for filters and time range
   const {
     filterChips,
@@ -225,28 +232,26 @@ function LogViewerContainerInner({
     end: endTime,
   });
 
+  // Extract stable timestamp primitives to prevent recalculation when arrays get new references
+  const firstLogTimeMs = combinedEntries[0]?.timestamp.getTime();
+  const lastLogTimeMs = combinedEntries[combinedEntries.length - 1]?.timestamp.getTime();
+  const workflowStartTimeMs = workflowMetadata?.startTime?.getTime();
+  const workflowEndTimeMs = workflowMetadata?.endTime?.getTime();
+
   // Compute display range with padding (10% on each side to ensure invalid zones are visible)
   const { displayStart, displayEnd } = useMemo(() => {
     const PADDING_RATIO = 0.1; // Increased from 7.5% to ensure invalid zones are visible
 
-    // Fallback time (static, only used when no data available)
-    const fallbackStart = new Date(2024, 0, 1);
+    // Determine data boundaries with proper fallback hierarchy
+    // For start: use query startTime, or entity start time, or first log timestamp, or 1 hour before NOW
+    const firstLogTime = firstLogTimeMs ? new Date(firstLogTimeMs) : undefined;
+    const entityStartTime = workflowStartTimeMs ? new Date(workflowStartTimeMs) : undefined;
+    const dataStart = startTime ?? entityStartTime ?? firstLogTime ?? new Date(now - 60 * 60 * 1000);
 
-    // Determine entity boundaries from workflow metadata
-    // Use workflow start_time (or submit_time as fallback) as left bound
-    const entityStartTime = workflowMetadata?.startTime ?? workflowMetadata?.submitTime;
-    // Use workflow end_time as right bound (undefined if still running)
-    const entityEndTime = workflowMetadata?.endTime;
-
-    // Determine data boundaries
-    // For start: use startTime, or entity start time, or first log timestamp, or fallback
-    const firstLogTime = combinedEntries[0]?.timestamp ?? fallbackStart;
-    const dataStart = startTime ?? entityStartTime ?? firstLogTime;
-
-    // For end: use endTime, or entity end time, or last log timestamp + 1 minute (approximates NOW)
-    const lastLogTime = combinedEntries[combinedEntries.length - 1]?.timestamp ?? firstLogTime;
-    const approximateNow = new Date(lastLogTime.getTime() + 60_000);
-    const dataEnd = endTime ?? entityEndTime ?? approximateNow;
+    // For end: use query endTime, or entity end time, or last log timestamp, or NOW
+    const lastLogTime = lastLogTimeMs ? new Date(lastLogTimeMs) : undefined;
+    const entityEndTime = workflowEndTimeMs ? new Date(workflowEndTimeMs) : undefined;
+    const dataEnd = endTime ?? entityEndTime ?? lastLogTime ?? new Date(now);
 
     // Calculate padding (minimum 10 seconds to ensure invalid zone visibility)
     const rangeMs = dataEnd.getTime() - dataStart.getTime();
@@ -256,7 +261,7 @@ function LogViewerContainerInner({
       displayStart: new Date(dataStart.getTime() - paddingMs),
       displayEnd: new Date(dataEnd.getTime() + paddingMs),
     };
-  }, [startTime, endTime, combinedEntries, workflowMetadata]);
+  }, [startTime, endTime, firstLogTimeMs, lastLogTimeMs, workflowStartTimeMs, workflowEndTimeMs, now]);
 
   // Recompute histogram from combined entries to stay in sync with visible log entries
   // This ensures:
@@ -299,6 +304,42 @@ function LogViewerContainerInner({
     setPendingDisplayEnd(undefined);
   }, []);
 
+  // Check if workflow has started - if not, show a message
+  const workflowNotStarted = workflowMetadata && !workflowMetadata.startTime;
+
+  if (workflowNotStarted) {
+    return (
+      <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="bg-muted text-muted-foreground rounded-full p-4">
+            <svg
+              className="size-8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <div className="space-y-1">
+            <p className="text-foreground text-sm font-medium">Workflow Not Started</p>
+            <p className="text-muted-foreground text-xs">
+              {workflowMetadata.submitTime
+                ? `Submitted ${workflowMetadata.submitTime.toLocaleString()}, waiting to start`
+                : "Workflow has been submitted but hasn't started yet"}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Show skeleton during initial load and when refetching without data
   // User preference: show skeleton instead of stale data for correctness
   const showSkeleton = isLoading && combinedEntries.length === 0;
@@ -336,6 +377,9 @@ function LogViewerContainerInner({
         onPresetSelect={setPreset}
         onDisplayRangeChange={handleDisplayRangeChange}
         onClearPendingDisplay={handleClearPendingDisplay}
+        entityStartTime={workflowMetadata?.startTime}
+        entityEndTime={workflowMetadata?.endTime}
+        now={now}
       />
     </div>
   );
