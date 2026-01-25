@@ -42,21 +42,21 @@ import { memo, useMemo, useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
-import { Button } from "@/components/shadcn/button";
-import { ChevronUp, ChevronDown, Check } from "lucide-react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { TimelineWindow } from "./TimelineWindow";
 import { TimelineControls } from "./TimelineControls";
-import { useTimelineState } from "./use-timeline-state";
-import { useTimelineWheelGesture, useTimelineDraggerGesture } from "./use-timeline-gestures";
+import { TimeRangePresets } from "./TimeRangePresets";
+import { TimeRangeHeader } from "./TimeRangeHeader";
+import { useTimelineState } from "../hooks/use-timeline-state";
+import { useTimelineWheelGesture, useTimelineDraggerGesture } from "../hooks/use-timeline-gestures";
 import { useServices } from "@/contexts/service-context";
-import type { TimelineBounds } from "./timeline-utils";
+import {
+  calculateOverlayPositions,
+  calculatePanBoundaries,
+  isEndTimeNow as checkIsEndTimeNow,
+} from "../lib/timeline-utils";
+import { DEFAULT_HEIGHT, DISPLAY_PADDING_RATIO, MIN_PADDING_MS, type TimeRangePreset } from "../lib/timeline-constants";
 
 // =============================================================================
 // Types
@@ -112,159 +112,160 @@ export interface TimelineContainerProps {
   now?: number;
 }
 
-export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h" | "custom";
+// Re-export TimeRangePreset for consumers
+export type { TimeRangePreset };
 
 // =============================================================================
-// Constants
+// Hooks
 // =============================================================================
 
-const DEFAULT_HEIGHT = 80;
+/**
+ * Hook to compute pan boundaries from entity times.
+ */
+function usePanBoundaries(
+  entityStartTime: Date | undefined,
+  entityEndTime: Date | undefined,
+  buckets: HistogramBucket[],
+  now: number | undefined,
+) {
+  return useMemo(() => {
+    const startMs = entityStartTime?.getTime() ?? buckets[0]?.timestamp.getTime();
+    if (!startMs) return null;
 
-/** Padding ratio for display range (7.5% on each side) */
-const DISPLAY_PADDING_RATIO = 0.075;
-
-/** Minimum padding in milliseconds (30 seconds) */
-const MIN_PADDING_MS = 30_000;
-
-/** Threshold for considering end time as "now" (1 minute) */
-const NOW_THRESHOLD_MS = 60_000;
-
-const PRESET_LABELS: Record<TimeRangePreset, string> = {
-  all: "All",
-  "5m": "Last 5m",
-  "15m": "Last 15m",
-  "1h": "Last 1h",
-  "6h": "Last 6h",
-  "24h": "Last 24h",
-  custom: "Custom",
-};
-
-const PRESET_ORDER: TimeRangePreset[] = ["all", "5m", "15m", "1h", "6h", "24h"];
-
-// =============================================================================
-// Time Range Presets Component
-// =============================================================================
-
-interface TimeRangePresetsProps {
-  activePreset?: TimeRangePreset;
-  onPresetSelect?: (preset: TimeRangePreset) => void;
+    const currentNow = now ?? startMs + 7 * 24 * 60 * 60 * 1000;
+    return calculatePanBoundaries(startMs, entityEndTime?.getTime(), currentNow, DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
+  }, [entityStartTime, entityEndTime, buckets, now]);
 }
 
-function TimeRangePresets({ activePreset, onPresetSelect }: TimeRangePresetsProps) {
-  const displayLabel = activePreset ? PRESET_LABELS[activePreset] : "Range";
+/**
+ * Hook to compute overlay positions for the timeline window.
+ */
+function useOverlayPositions(
+  enabled: boolean,
+  currentDisplay: { start: Date; end: Date },
+  currentEffective: { start: Date | undefined; end: Date | undefined },
+  entityStartTime: Date | undefined,
+  entityEndTime: Date | undefined,
+) {
+  return useMemo(() => {
+    if (!enabled) return null;
 
+    const displayStartMs = currentDisplay.start.getTime();
+    const displayEndMs = currentDisplay.end.getTime();
+    const effectiveStartMs = currentEffective.start?.getTime() ?? entityStartTime?.getTime() ?? displayStartMs;
+    const effectiveEndMs = currentEffective.end?.getTime() ?? entityEndTime?.getTime() ?? displayEndMs;
+
+    return calculateOverlayPositions(displayStartMs, displayEndMs, effectiveStartMs, effectiveEndMs);
+  }, [enabled, currentDisplay, currentEffective, entityStartTime, entityEndTime]);
+}
+
+/**
+ * Hook to compute time axis labels.
+ */
+function useTimeLabels(
+  currentEffective: { start: Date | undefined; end: Date | undefined },
+  buckets: HistogramBucket[],
+  entityStartTime: Date | undefined,
+  isEndTimeNow: boolean,
+) {
+  const startLabel = useMemo(() => {
+    const time = currentEffective.start ?? buckets[0]?.timestamp ?? entityStartTime;
+    return time ? formatTime24ShortUTC(time) : null;
+  }, [currentEffective.start, buckets, entityStartTime]);
+
+  const endLabel = useMemo(() => {
+    if (isEndTimeNow) return "NOW";
+    return currentEffective.end ? formatTime24ShortUTC(currentEffective.end) : null;
+  }, [isEndTimeNow, currentEffective.end]);
+
+  return { startLabel, endLabel };
+}
+
+// =============================================================================
+// Sub-components
+// =============================================================================
+
+interface CollapseButtonProps {
+  isCollapsed: boolean;
+  onToggle: () => void;
+  className?: string;
+}
+
+function CollapseButton({ isCollapsed, onToggle, className }: CollapseButtonProps): React.ReactNode {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1 text-xs"
-        >
-          {displayLabel}
+    <button
+      onClick={onToggle}
+      className={cn(
+        "text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors",
+        className,
+      )}
+      aria-label={isCollapsed ? "Expand histogram" : "Collapse histogram"}
+    >
+      {isCollapsed ? (
+        <>
+          <span>Expand</span>
           <ChevronDown className="size-3" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="w-32"
-      >
-        {PRESET_ORDER.map((preset) => (
-          <DropdownMenuItem
-            key={preset}
-            onClick={() => onPresetSelect?.(preset)}
-            className="justify-between text-xs"
-          >
-            <span>{PRESET_LABELS[preset]}</span>
-            {activePreset === preset ? <Check className="size-3" /> : <span className="size-3" />}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuItem
-          disabled
-          className="justify-between text-xs"
-        >
-          <span className="text-muted-foreground">Custom</span>
-          {activePreset === "custom" ? <Check className="text-muted-foreground size-3" /> : <span className="size-3" />}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </>
+      ) : (
+        <>
+          <span>Collapse</span>
+          <ChevronUp className="size-3" />
+        </>
+      )}
+    </button>
   );
 }
 
 // =============================================================================
-// Time Range Header Component
+// Empty State Component
 // =============================================================================
 
-interface TimeRangeHeaderProps {
-  startTime?: Date;
-  endTime?: Date;
-  onStartTimeChange?: (date: Date) => void;
-  onEndTimeChange?: (date: Date) => void;
-  showPresets?: boolean;
-  activePreset?: TimeRangePreset;
-  onPresetSelect?: (preset: TimeRangePreset) => void;
+interface TimelineEmptyStateProps {
+  height: number;
+  className?: string;
+  showTimeRangeHeader: boolean;
+  showPresets: boolean;
+  headerProps: {
+    startTime?: Date;
+    endTime?: Date;
+    onStartTimeChange?: (date: Date) => void;
+    onEndTimeChange?: (date: Date) => void;
+    activePreset?: TimeRangePreset;
+    onPresetSelect?: (preset: TimeRangePreset) => void;
+  };
 }
 
-function TimeRangeHeader({
-  startTime,
-  endTime,
-  onStartTimeChange,
-  onEndTimeChange,
+function TimelineEmptyState({
+  height,
+  className,
+  showTimeRangeHeader,
   showPresets,
-  activePreset,
-  onPresetSelect,
-}: TimeRangeHeaderProps) {
-  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const date = new Date(e.target.value);
-    if (!isNaN(date.getTime())) {
-      onStartTimeChange?.(date);
-      onPresetSelect?.("custom");
-    }
-  };
-
-  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const date = new Date(e.target.value);
-    if (!isNaN(date.getTime())) {
-      onEndTimeChange?.(date);
-      onPresetSelect?.("custom");
-    }
-  };
-
-  const formatForInput = (date?: Date) => {
-    if (!date) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
+  headerProps,
+}: TimelineEmptyStateProps): React.ReactNode {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">Time Range:</span>
-        <div className="flex items-center gap-2">
-          <input
-            type="datetime-local"
-            value={formatForInput(startTime)}
-            onChange={handleStartChange}
-            className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
-          />
-          <span className="text-muted-foreground text-xs">to</span>
-          <input
-            type="datetime-local"
-            value={formatForInput(endTime)}
-            onChange={handleEndChange}
-            className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
-          />
-        </div>
-        {showPresets && (
-          <TimeRangePresets
-            activePreset={activePreset}
-            onPresetSelect={onPresetSelect}
-          />
-        )}
+    <div className={cn("space-y-4", className)}>
+      {showTimeRangeHeader && (
+        <TimeRangeHeader
+          startTime={headerProps.startTime}
+          endTime={headerProps.endTime}
+          onStartTimeChange={headerProps.onStartTimeChange}
+          onEndTimeChange={headerProps.onEndTimeChange}
+          showPresets={showPresets}
+          activePreset={headerProps.activePreset}
+          onPresetSelect={headerProps.onPresetSelect}
+        />
+      )}
+      {!showTimeRangeHeader && showPresets && (
+        <TimeRangePresets
+          activePreset={headerProps.activePreset}
+          onPresetSelect={headerProps.onPresetSelect}
+        />
+      )}
+      <div
+        className="bg-muted text-muted-foreground flex items-center justify-center rounded text-xs"
+        style={{ height }}
+      >
+        No data for histogram
       </div>
     </div>
   );
@@ -297,7 +298,7 @@ function TimelineContainerInner({
   entityStartTime,
   entityEndTime,
   now,
-}: TimelineContainerProps) {
+}: TimelineContainerProps): React.ReactNode {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const { announcer } = useServices();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -305,8 +306,11 @@ function TimelineContainerInner({
   // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
+  // Check if end time is considered "NOW"
+  const isEndTimeNow = checkIsEndTimeNow(endTime);
+
   // ============================================================================
-  // UNIFIED STATE: Single source of truth
+  // STATE MANAGEMENT
   // ============================================================================
 
   const timelineState = useTimelineState({
@@ -323,50 +327,26 @@ function TimelineContainerInner({
   const { currentDisplay, currentEffective, hasPendingChanges, actions } = timelineState;
 
   // ============================================================================
-  // PAN BOUNDARIES
+  // DERIVED VALUES
   // ============================================================================
 
-  const panBoundaries: TimelineBounds | null = useMemo(() => {
-    const startMs = entityStartTime?.getTime() ?? activeBuckets[0]?.timestamp.getTime();
-    if (!startMs) return null;
-
-    let endMs: number;
-    if (entityEndTime) {
-      const durationMs = entityEndTime.getTime() - startMs;
-      const paddingMs = Math.max(durationMs * DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
-      endMs = entityEndTime.getTime() + paddingMs;
-    } else {
-      const currentNow = now ?? startMs + 7 * 24 * 60 * 60 * 1000;
-      endMs = currentNow + 60_000;
-    }
-
-    return {
-      minTime: new Date(startMs),
-      maxTime: new Date(endMs),
-    };
-  }, [entityStartTime, entityEndTime, activeBuckets, now]);
+  const panBoundaries = usePanBoundaries(entityStartTime, entityEndTime, activeBuckets, now);
+  const overlayPositions = useOverlayPositions(
+    enableInteractiveDraggers,
+    currentDisplay,
+    currentEffective,
+    entityStartTime,
+    entityEndTime,
+  );
+  const { startLabel, endLabel } = useTimeLabels(currentEffective, activeBuckets, entityStartTime, isEndTimeNow);
 
   // ============================================================================
-  // GESTURES: Unified gesture handling with @use-gesture/react
+  // GESTURES
   // ============================================================================
 
-  // Wheel gesture (attaches directly to containerRef via target option)
   useTimelineWheelGesture(containerRef, timelineState, panBoundaries, onDisplayRangeChange ?? (() => {}));
 
-  const isEndTimeNow = useMemo(() => {
-    if (!endTime) return true;
-    const nowTime = new Date();
-    const diffMs = Math.abs(nowTime.getTime() - endTime.getTime());
-    return diffMs < NOW_THRESHOLD_MS;
-  }, [endTime]);
-
-  const startDragger = useTimelineDraggerGesture(
-    "start",
-    containerRef,
-    timelineState,
-    currentEffective.start,
-    false, // Start dragger never blocked
-  );
+  const startDragger = useTimelineDraggerGesture("start", containerRef, timelineState, currentEffective.start, false);
 
   const endDragger = useTimelineDraggerGesture("end", containerRef, timelineState, currentEffective.end, isEndTimeNow);
 
@@ -379,9 +359,9 @@ function TimelineContainerInner({
     onEndTimeChange?.(currentEffective.end);
     actions.commitPending();
 
-    const startLabel = currentEffective.start ? formatTime24ShortUTC(currentEffective.start) : "beginning";
-    const endLabel = currentEffective.end ? formatTime24ShortUTC(currentEffective.end) : "NOW";
-    announcer.announce(`Time range updated to ${startLabel} to ${endLabel}`, "polite");
+    const startLabelText = currentEffective.start ? formatTime24ShortUTC(currentEffective.start) : "beginning";
+    const endLabelText = currentEffective.end ? formatTime24ShortUTC(currentEffective.end) : "NOW";
+    announcer.announce(`Time range updated to ${startLabelText} to ${endLabelText}`, "polite");
   }, [currentEffective, onStartTimeChange, onEndTimeChange, actions, announcer]);
 
   const handleCancel = useCallback(() => {
@@ -389,78 +369,42 @@ function TimelineContainerInner({
     announcer.announce("Time range changes cancelled", "polite");
   }, [actions, announcer]);
 
+  const handleToggleCollapse = useCallback(() => {
+    setIsCollapsed((prev) => !prev);
+  }, []);
+
   // ============================================================================
-  // DERIVED VALUES FOR RENDERING
+  // EMPTY STATE
   // ============================================================================
 
-  // Overlay positions (Layer 2: Fixed window)
-  const overlayPositions = useMemo(() => {
-    if (!enableInteractiveDraggers) return null;
-
-    const displayRangeMs = currentDisplay.end.getTime() - currentDisplay.start.getTime();
-    if (displayRangeMs <= 0) return null;
-
-    const effectiveStartMs =
-      currentEffective.start?.getTime() ?? entityStartTime?.getTime() ?? currentDisplay.start.getTime();
-    const leftWidth = ((effectiveStartMs - currentDisplay.start.getTime()) / displayRangeMs) * 100;
-
-    const effectiveEndMs = currentEffective.end?.getTime() ?? entityEndTime?.getTime() ?? currentDisplay.end.getTime();
-    const rightStart = ((effectiveEndMs - currentDisplay.start.getTime()) / displayRangeMs) * 100;
-    const rightWidth = 100 - rightStart;
-
-    return {
-      leftWidth: Math.max(0, leftWidth),
-      rightStart: Math.max(0, Math.min(100, rightStart)),
-      rightWidth: Math.max(0, rightWidth),
-    };
-  }, [enableInteractiveDraggers, currentDisplay, currentEffective, entityStartTime, entityEndTime]);
-
-  // Time labels for axis
-  const startLabel = useMemo(() => {
-    const time = currentEffective.start ?? activeBuckets[0]?.timestamp ?? entityStartTime;
-    return time ? formatTime24ShortUTC(time) : null;
-  }, [currentEffective.start, activeBuckets, entityStartTime]);
-
-  const endLabel = useMemo(() => {
-    if (isEndTimeNow) return "NOW";
-    return currentEffective.end ? formatTime24ShortUTC(currentEffective.end) : null;
-  }, [isEndTimeNow, currentEffective.end]);
-
-  // Empty state
   const showEmptyMessage = activeBuckets.length === 0 && !entityStartTime;
 
   if (showEmptyMessage) {
     return (
-      <div className={cn("space-y-4", className)}>
-        {showTimeRangeHeader && (
-          <TimeRangeHeader
-            startTime={startTime}
-            endTime={endTime}
-            onStartTimeChange={onStartTimeChange}
-            onEndTimeChange={onEndTimeChange}
-            showPresets={showPresets}
-            activePreset={activePreset}
-            onPresetSelect={onPresetSelect}
-          />
-        )}
-        {!showTimeRangeHeader && showPresets && (
-          <TimeRangePresets
-            activePreset={activePreset}
-            onPresetSelect={onPresetSelect}
-          />
-        )}
-        <div
-          className="bg-muted text-muted-foreground flex items-center justify-center rounded text-xs"
-          style={{ height }}
-        >
-          No data for histogram
-        </div>
-      </div>
+      <TimelineEmptyState
+        height={height}
+        className={className}
+        showTimeRangeHeader={showTimeRangeHeader}
+        showPresets={showPresets}
+        headerProps={{
+          startTime,
+          endTime,
+          onStartTimeChange,
+          onEndTimeChange,
+          activePreset,
+          onPresetSelect,
+        }}
+      />
     );
   }
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
     <div className={cn(className)}>
+      {/* Header row with presets, controls, and collapse button */}
       <div className="flex items-center justify-between gap-2">
         {showTimeRangeHeader && (
           <TimeRangeHeader
@@ -489,28 +433,14 @@ function TimelineContainerInner({
           />
         )}
 
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn(
-            "text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors",
-            !hasPendingChanges && "ml-auto",
-          )}
-          aria-label={isCollapsed ? "Expand histogram" : "Collapse histogram"}
-        >
-          {isCollapsed ? (
-            <>
-              <span>Expand</span>
-              <ChevronDown className="size-3" />
-            </>
-          ) : (
-            <>
-              <span>Collapse</span>
-              <ChevronUp className="size-3" />
-            </>
-          )}
-        </button>
+        <CollapseButton
+          isCollapsed={isCollapsed}
+          onToggle={handleToggleCollapse}
+          className={!hasPendingChanges ? "ml-auto" : undefined}
+        />
       </div>
 
+      {/* Collapsible histogram area */}
       <div
         className="overflow-hidden transition-all duration-300 ease-in-out"
         style={{
@@ -556,6 +486,7 @@ function TimelineContainerInner({
             {customControls && <div className="absolute bottom-1 left-1">{customControls}</div>}
           </div>
 
+          {/* Time axis labels */}
           <div className="text-muted-foreground flex justify-between pb-2 text-[10px] tabular-nums">
             <span>{startLabel}</span>
             <span>{endLabel ?? "NOW"}</span>

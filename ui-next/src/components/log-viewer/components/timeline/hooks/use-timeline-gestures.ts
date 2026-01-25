@@ -44,29 +44,18 @@
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import { validatePanConstraint, clampTimeToRange, type TimelineBounds } from "./timeline-utils";
+import { validatePanConstraint, clampTimeToRange, type TimelineBounds } from "../lib/timeline-utils";
+import {
+  PAN_FACTOR,
+  ZOOM_IN_FACTOR,
+  ZOOM_OUT_FACTOR,
+  MIN_RANGE_MS,
+  KEYBOARD_NUDGE_MS,
+  NOW_THRESHOLD_MS,
+} from "../lib/timeline-constants";
 
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Pan amount as fraction of visible range (10% per wheel tick) */
-const PAN_FACTOR = 0.1;
-
-/** Zoom in factor (narrow by 20%) */
-export const ZOOM_IN_FACTOR = 0.8;
-
-/** Zoom out factor (widen by 25%) */
-export const ZOOM_OUT_FACTOR = 1.25;
-
-/** Minimum range in milliseconds (1 minute) */
-const MIN_RANGE_MS = 60_000;
-
-/** Keyboard nudge amount in milliseconds (5 minutes) */
-const KEYBOARD_NUDGE_MS = 5 * 60 * 1000;
-
-/** Threshold for considering end time as "now" (1 minute) */
-const NOW_THRESHOLD_MS = 60_000;
+// Re-export zoom factors for external use
+export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
 
 // =============================================================================
 // Wheel Gestures

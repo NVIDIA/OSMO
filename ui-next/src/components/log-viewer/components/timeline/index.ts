@@ -49,14 +49,18 @@
  * - TimelineWindow: Fixed window overlay (Layer 2 content)
  * - InvalidZone: Striped areas beyond entity boundaries
  * - TimelineControls: Apply/Cancel buttons
+ * - TimeRangePresets: Dropdown for preset time ranges
+ * - TimeRangeHeader: Time range inputs with optional presets
  * - useTimelineState: State management hook
  * - useTimelineGestures: Gesture handling hooks
  * - timeline-utils: Pure calculation functions
+ * - timeline-constants: Shared constants
+ * - timeline-context: React context for dependency injection
  */
 
 // Public API - Main component
-export { TimelineContainer } from "./TimelineContainer";
-export type { TimelineContainerProps, TimeRangePreset } from "./TimelineContainer";
+export { TimelineContainer } from "./components/TimelineContainer";
+export type { TimelineContainerProps, TimeRangePreset } from "./components/TimelineContainer";
 
 // Note: All internal components, hooks, and utilities are NOT exported.
 // They are implementation details of TimelineContainer.
