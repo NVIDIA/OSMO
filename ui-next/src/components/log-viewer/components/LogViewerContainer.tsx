@@ -171,8 +171,8 @@ function LogViewerContainerInner({
       search: queryFilters.search,
       start: startTime,
       end: endTime,
-      // Disable keepPreviousData - prefer skeleton over stale data
-      keepPrevious: false,
+      // Keep previous data visible while fetching to prevent flickering
+      keepPrevious: true,
     }),
     [workflowId, stableDevParams, queryFilters, startTime, endTime],
   );
