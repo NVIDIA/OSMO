@@ -69,5 +69,8 @@ export type { LogQueryFilters } from "./lib/chips-to-log-query";
 
 export { useCombinedEntries } from "./lib/use-combined-entries";
 
+export { useLogViewerUrlState } from "./lib/use-log-viewer-url-state";
+export type { UseLogViewerUrlStateReturn } from "./lib/use-log-viewer-url-state";
+
 // Note: LogViewer is a pure display component - all filtering happens at Container level.
 // Use chipsToLogQuery() to convert filter chips to query params for useLogData().

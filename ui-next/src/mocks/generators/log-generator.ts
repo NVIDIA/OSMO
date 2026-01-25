@@ -158,8 +158,14 @@ export class LogGenerator {
    * Generate logs for a workflow using a specific scenario.
    * This is the primary entry point for scenario-based log generation.
    */
-  generateForScenario(options: { workflowName: string; scenarioName?: string; taskNames?: string[] }): string {
-    const { workflowName, scenarioName, taskNames } = options;
+  generateForScenario(options: {
+    workflowName: string;
+    scenarioName?: string;
+    taskNames?: string[];
+    startTime?: Date;
+    endTime?: Date;
+  }): string {
+    const { workflowName, scenarioName, taskNames, startTime: requestedStartTime, endTime: requestedEndTime } = options;
     const scenario = getLogScenario(scenarioName ?? getActiveScenario());
 
     // Handle empty scenario
@@ -182,19 +188,42 @@ export class LogGenerator {
 
     // Generate log lines
     const lines: GeneratedLogLine[] = [];
-    // Use deterministic start time based on reference date + faker seed
-    // This ensures chronological ordering while maintaining deterministic generation
-    // Start from 1-3 days before reference date (seeded, so consistent per workflow+scenario)
-    const daysAgo = faker.number.int({ min: 1, max: 3 });
-    const hoursAgo = faker.number.int({ min: 0, max: 23 });
-    const startTime = new Date(MOCK_REFERENCE_DATE);
-    startTime.setDate(startTime.getDate() - daysAgo);
-    startTime.setHours(hoursAgo, 0, 0, 0); // Round to start of hour for cleaner timestamps
-    const durationMs = faker.number.int({ min: 60000, max: 3600000 });
-    const msPerLog = durationMs / Math.max(1, numLines);
 
+    // Determine time range for log distribution
+    let startTime: Date;
+    let endTime: Date;
+
+    if (requestedStartTime && requestedEndTime) {
+      // Use requested range
+      startTime = new Date(requestedStartTime);
+      endTime = new Date(requestedEndTime);
+    } else if (requestedStartTime) {
+      // Start time provided, end is now
+      startTime = new Date(requestedStartTime);
+      endTime = new Date(MOCK_REFERENCE_DATE);
+    } else if (requestedEndTime) {
+      // End time provided, start is 24h before
+      endTime = new Date(requestedEndTime);
+      startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+    } else {
+      // No range specified - use last 24 hours for better distribution
+      endTime = new Date(MOCK_REFERENCE_DATE);
+      startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    const durationMs = endTime.getTime() - startTime.getTime();
+
+    // Create interesting time distribution instead of linear
+    // Use a mix of bursts (dense activity) and gaps (quiet periods)
     for (let i = 0; i < numLines; i++) {
-      const timestamp = new Date(startTime.getTime() + i * msPerLog);
+      // Create non-linear time progression with activity bursts
+      // Use sine wave to create natural-looking activity patterns
+      const normalizedProgress = i / Math.max(1, numLines - 1); // 0 to 1
+      const burstPattern = 0.5 + 0.3 * Math.sin(normalizedProgress * Math.PI * 3); // 3 bursts across timeline
+      const jitter = faker.number.float({ min: -0.1, max: 0.1 }); // Random variance
+      const timeProgress = Math.max(0, Math.min(1, normalizedProgress + burstPattern * 0.2 + jitter * 0.1));
+
+      const timestamp = new Date(startTime.getTime() + timeProgress * durationMs);
       const taskCtx = faker.helpers.arrayElement(taskContexts);
       const level = this.pickLevel(scenario.levelDistribution);
       const ioType = this.pickIOType(scenario.ioTypeDistribution);
@@ -338,14 +367,14 @@ export class LogGenerator {
 
     const lines: string[] = [];
     const numLines = faker.number.int(this.volume.logsPerTask);
-    const duration = durationSeconds ?? faker.number.int({ min: 60, max: 3600 });
+    // Use longer default duration for better time distribution (1-24 hours)
+    const duration = durationSeconds ?? faker.number.int({ min: 3600, max: 86400 });
 
     // Start time - use reference date with seeded offset for deterministic generation
-    const daysAgo = faker.number.int({ min: 1, max: 7 });
-    const hoursAgo = faker.number.int({ min: 0, max: 23 });
+    // Start from last 2 days for better spread
+    const hoursAgo = faker.number.int({ min: 1, max: 48 });
     const startTime = new Date(MOCK_REFERENCE_DATE);
-    startTime.setDate(startTime.getDate() - daysAgo);
-    startTime.setHours(hoursAgo, 0, 0, 0);
+    startTime.setHours(startTime.getHours() - hoursAgo, 0, 0, 0);
 
     // Add OSMO startup logs
     lines.push(...this.generateOsmoStartup(startTime, taskName));
