@@ -46,15 +46,14 @@
  * ```
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
-import type { SearchChip } from "@/components/filter-bar";
 import { LogViewer } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
-import type { TimeRangePreset } from "./TimelineHistogram";
 import { chipsToLogQuery } from "../lib/chips-to-log-query";
 import { useCombinedEntries } from "../lib/use-combined-entries";
+import { useLogViewerUrlState } from "../lib/use-log-viewer-url-state";
 
 // =============================================================================
 // Types
@@ -73,10 +72,6 @@ export interface LogViewerContainerProps {
   className?: string;
   /** Additional class names for the LogViewer */
   viewerClassName?: string;
-  /** Callback when filter chips change */
-  onFilterChipsChange?: (chips: SearchChip[]) => void;
-  /** Initial filter chips (used on mount, not synced after) */
-  initialFilterChips?: SearchChip[];
   /**
    * Enable live mode capability (default: true).
    * When true, logs can stream in real-time when isLiveMode is active in store.
@@ -101,8 +96,6 @@ export function LogViewerContainer({
   scope = "workflow",
   className,
   viewerClassName,
-  onFilterChipsChange,
-  initialFilterChips = [],
   enableLiveMode = true,
   showBorder = true,
 }: LogViewerContainerProps) {
@@ -122,8 +115,6 @@ export function LogViewerContainer({
       scope={scope}
       className={className}
       viewerClassName={viewerClassName}
-      onFilterChipsChange={onFilterChipsChange}
-      initialFilterChips={initialFilterChips}
       enableLiveMode={enableLiveMode}
       showBorder={showBorder}
     />
@@ -141,69 +132,21 @@ function LogViewerContainerInner({
   scope,
   className,
   viewerClassName,
-  onFilterChipsChange: onFilterChipsChangeProp,
-  initialFilterChips,
   enableLiveMode,
   showBorder,
 }: LogViewerContainerProps) {
-  // Filter chips state - single source of truth
-  const [filterChips, setFilterChips] = useState<SearchChip[]>(initialFilterChips ?? []);
-
-  // Time range state - will be managed via nuqs in the future
-  const [startTime, setStartTime] = useState<Date | undefined>(undefined);
-  const [endTime, setEndTime] = useState<Date | undefined>(undefined);
-  const [activePreset, setActivePreset] = useState<TimeRangePreset | undefined>("all");
-
-  // Derive live mode from end time (endTime === undefined means "NOW" / live mode)
-  const isLiveMode = endTime === undefined;
-
-  // Handle preset selection
-  const handlePresetSelect = useCallback((preset: TimeRangePreset) => {
-    setActivePreset(preset);
-    const now = new Date();
-
-    switch (preset) {
-      case "all":
-        setStartTime(undefined);
-        setEndTime(undefined);
-        break;
-      case "5m":
-        setStartTime(new Date(now.getTime() - 5 * 60 * 1000));
-        setEndTime(undefined); // NOW
-        break;
-      case "15m":
-        setStartTime(new Date(now.getTime() - 15 * 60 * 1000));
-        setEndTime(undefined);
-        break;
-      case "1h":
-        setStartTime(new Date(now.getTime() - 60 * 60 * 1000));
-        setEndTime(undefined);
-        break;
-      case "6h":
-        setStartTime(new Date(now.getTime() - 6 * 60 * 60 * 1000));
-        setEndTime(undefined);
-        break;
-      case "24h":
-        setStartTime(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-        setEndTime(undefined);
-        break;
-      case "custom":
-        // Custom preset is set programmatically via time changes
-        // No action needed here
-        break;
-    }
-  }, []);
-
-  // Handle manual time changes - set to custom preset
-  const handleStartTimeChange = useCallback((time: Date | undefined) => {
-    setStartTime(time);
-    setActivePreset("custom");
-  }, []);
-
-  const handleEndTimeChange = useCallback((time: Date | undefined) => {
-    setEndTime(time);
-    setActivePreset("custom");
-  }, []);
+  // URL-synced state for filters and time range
+  const {
+    filterChips,
+    setFilterChips,
+    startTime,
+    endTime,
+    activePreset,
+    setStartTime,
+    setEndTime,
+    setPreset,
+    isLiveMode,
+  } = useLogViewerUrlState();
 
   // Convert filter chips to query params
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
@@ -308,15 +251,6 @@ function LogViewerContainerInner({
     });
   }, [combinedEntries, displayStart, displayEnd, startTime, endTime]);
 
-  // Handle filter chip changes - update local state and notify parent
-  const handleFilterChipsChange = useCallback(
-    (chips: SearchChip[]) => {
-      setFilterChips(chips);
-      onFilterChipsChangeProp?.(chips);
-    },
-    [onFilterChipsChangeProp],
-  );
-
   // Show skeleton during initial load and when refetching without data
   // User preference: show skeleton instead of stale data for correctness
   const showSkeleton = isLoading && combinedEntries.length === 0;
@@ -340,7 +274,7 @@ function LogViewerContainerInner({
         histogram={histogram}
         onRefetch={refetch}
         filterChips={filterChips}
-        onFilterChipsChange={handleFilterChipsChange}
+        onFilterChipsChange={setFilterChips}
         scope={scope}
         className={viewerClassName}
         startTime={startTime}
@@ -348,9 +282,9 @@ function LogViewerContainerInner({
         displayStart={displayStart}
         displayEnd={displayEnd}
         activePreset={activePreset}
-        onStartTimeChange={handleStartTimeChange}
-        onEndTimeChange={handleEndTimeChange}
-        onPresetSelect={handlePresetSelect}
+        onStartTimeChange={setStartTime}
+        onEndTimeChange={setEndTime}
+        onPresetSelect={setPreset}
       />
     </div>
   );
