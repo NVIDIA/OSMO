@@ -250,6 +250,44 @@ import { WorkflowStatus } from "@/lib/api/generated";
 const ALL_STATUSES = Object.values(WorkflowStatus);
 ```
 
+```typescript
+// ❌ CRITICAL BUG: Returning new objects every render
+// This causes cascading re-renders, canceled requests, and performance issues
+function useConfig() {
+  const [value] = useQueryState("key");
+  return {
+    params: { key: value },           // NEW object every render!
+    options: { flag: true },          // NEW object every render!
+  };
+}
+
+// ✅ REQUIRED: Memoize returned objects to stabilize references
+function useConfig() {
+  const [value] = useQueryState("key");
+
+  // Memoize objects - only create new instance when dependencies change
+  const params = useMemo(() => ({ key: value }), [value]);
+  const options = useMemo(() => ({ flag: true }), []); // Constant, no deps
+
+  return { params, options };
+}
+
+// WHY THIS MATTERS:
+// - React Query uses object references in query keys
+// - useEffect/useMemo dependencies compare by reference
+// - New objects trigger cascading updates even when values are identical
+// - Causes: canceled requests, unnecessary re-renders, infinite loops
+//
+// REAL EXAMPLE from log viewer (caused 3 canceled requests on every render):
+// - useScenario() returned new { log_scenario: "streaming" } every render
+// - LogViewerContainer received new devParams prop
+// - useLogData regenerated query key -> canceled & restarted request
+// - useLogTail restarted streaming connection -> canceled & restarted
+//
+// TanStack Query's structural sharing helps with query RESULTS,
+// but cannot fix unstable objects in query KEYS or hook dependencies.
+```
+
 ## Common Development Tasks
 
 ### Adding a New API Endpoint
@@ -561,6 +599,11 @@ const handleClick = useCallback((e) => {
 ```
 
 ## React 19: useEffectEvent Usage
+
+⚠️ **CRITICAL WARNING (React 19.2.x):** `useEffectEvent` may cause infinite `reconnectPassiveEffects`
+loops in Next.js 16 + TanStack Query environments. If you encounter infinite rendering or console
+spam, immediately revert to primitive unpacking with `useMemo` instead (see "Returning new objects"
+in Forbidden Patterns section).
 
 `useEffectEvent` is used to extract **non-reactive** logic from Effects. It allows an Effect to read the latest props/state without re-running when those values change.
 
