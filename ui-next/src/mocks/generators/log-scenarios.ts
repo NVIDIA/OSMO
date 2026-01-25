@@ -97,14 +97,16 @@ const DEFAULT_LEVEL_DISTRIBUTION: Record<LogLevel, number> = {
 /**
  * Default IO type distribution.
  * Matches backend IOType usage patterns.
+ *
+ * NOTE: DUMP disabled until we have proper UI visualization for progress bars.
  */
 const DEFAULT_IO_DISTRIBUTION: Record<LogIOType, number> = {
-  stdout: 0.58,
+  stdout: 0.62, // Increased from 0.58 (absorbed dump's 0.04)
   osmo_ctrl: 0.28,
   stderr: 0.05,
   download: 0.025,
   upload: 0.025,
-  dump: 0.04, // Progress bars, tqdm output (no timestamp/prefix)
+  dump: 0, // DISABLED: Progress bars need special UI treatment
 };
 
 /**
@@ -158,12 +160,12 @@ export const LOG_SCENARIOS: Record<LogScenarioName, LogScenarioConfig> = {
       fatal: 0.05,
     },
     ioTypeDistribution: {
-      stdout: 0.28,
+      stdout: 0.31, // Increased from 0.28 (absorbed dump's 0.03)
       osmo_ctrl: 0.14,
       stderr: 0.5,
       download: 0.025,
       upload: 0.025,
-      dump: 0.03,
+      dump: 0, // DISABLED: Progress bars need special UI treatment
     },
     features: { ...DEFAULT_FEATURES, multiLine: true, taskCount: 4 },
   },
