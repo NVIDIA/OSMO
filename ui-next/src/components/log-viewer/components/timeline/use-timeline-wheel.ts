@@ -50,12 +50,12 @@ const PAN_FACTOR = 0.1;
 /**
  * Zoom in factor (narrow by 20%).
  */
-const ZOOM_IN_FACTOR = 0.8;
+export const ZOOM_IN_FACTOR = 0.8;
 
 /**
  * Zoom out factor (widen by 25%).
  */
-const ZOOM_OUT_FACTOR = 1.25;
+export const ZOOM_OUT_FACTOR = 1.25;
 
 /**
  * Minimum range in milliseconds (1 minute).
@@ -79,8 +79,6 @@ export interface UseTimelineWheelOptions {
   effectiveStart: Date | undefined;
   /** Current effective end time */
   effectiveEnd: Date | undefined;
-  /** Callback when pending range changes (zoom/dragger) */
-  onPendingRangeChange: (start: Date | undefined, end: Date | undefined) => void;
   /** Callback when pending display changes (pan/zoom) */
   onPendingDisplayChange: (displayStart: Date, displayEnd: Date) => void;
 }
@@ -101,6 +99,12 @@ export function useTimelineWheel({
   effectiveEnd,
   onPendingDisplayChange,
 }: UseTimelineWheelOptions): void {
+  // Extract stable primitives to prevent callback recreation on every Date object change
+  const displayStartMs = displayStart.getTime();
+  const displayEndMs = displayEnd.getTime();
+  const effectiveStartMs = effectiveStart?.getTime();
+  const effectiveEndMs = effectiveEnd?.getTime();
+
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       if (!enabled) return;
@@ -112,8 +116,8 @@ export function useTimelineWheel({
       e.preventDefault();
 
       // Get current effective range
-      const startMs = effectiveStart?.getTime();
-      const endMs = effectiveEnd?.getTime();
+      const startMs = effectiveStartMs;
+      const endMs = effectiveEndMs;
       const now = Date.now();
 
       // If both are undefined, can't do anything
@@ -133,14 +137,14 @@ export function useTimelineWheel({
         const factor = isZoomIn ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
 
         // Calculate new display range
-        const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
+        const displayRangeMs = displayEndMs - displayStartMs;
         const newDisplayRangeMs = displayRangeMs * factor;
 
         // Respect minimum range
         if (newDisplayRangeMs < MIN_RANGE_MS) return;
 
         // Use the center of the DISPLAY range as the zoom origin
-        const displayCenterMs = (displayStart.getTime() + displayEnd.getTime()) / 2;
+        const displayCenterMs = (displayStartMs + displayEndMs) / 2;
         const newDisplayStartMs = displayCenterMs - newDisplayRangeMs / 2;
         const newDisplayEndMs = displayCenterMs + newDisplayRangeMs / 2;
 
@@ -149,12 +153,12 @@ export function useTimelineWheel({
       } else {
         // Pan left/right (shifts display window only, histogram slides)
         const isPanLeft = e.deltaY < 0;
-        const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
+        const displayRangeMs = displayEndMs - displayStartMs;
         const panAmountMs = displayRangeMs * PAN_FACTOR;
         const deltaMs = isPanLeft ? -panAmountMs : panAmountMs;
 
-        const newDisplayStartMs = displayStart.getTime() + deltaMs;
-        const newDisplayEndMs = displayEnd.getTime() + deltaMs;
+        const newDisplayStartMs = displayStartMs + deltaMs;
+        const newDisplayEndMs = displayEndMs + deltaMs;
 
         // For now, we allow panning freely - backend will clamp to available data
         // In the future, we could constrain based on bucket boundaries
@@ -163,7 +167,7 @@ export function useTimelineWheel({
         onPendingDisplayChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
       }
     },
-    [enabled, displayStart, displayEnd, effectiveStart, effectiveEnd, onPendingDisplayChange],
+    [enabled, displayStartMs, displayEndMs, effectiveStartMs, effectiveEndMs, onPendingDisplayChange],
   );
 
   // Attach wheel event listener

@@ -15,19 +15,23 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * Invalid Zone Overlay Component
+ * Invalid Zone Component
  *
- * Renders striped overlays over zones beyond entity boundaries (regions where
- * logs cannot exist - before workflow/group/task started or after completion).
+ * Renders striped overlays over zones beyond entity boundaries - areas where
+ * logs cannot exist (before workflow/group/task started or after completion).
  *
- * This provides clear visual feedback that panning beyond these zones is blocked.
+ * ## Purpose
+ *
+ * - Visual indicator: Shows where logs will never appear
+ * - Panning boundary: These zones also act as hard stops for panning
+ * - Entity bounds: Represents the absolute min/max times for the entity
  *
  * ## Visual Design
  *
  * - Diagonal stripe pattern (45deg) using CSS repeating-linear-gradient
  * - Light mode: subtle dark stripes (opacity 0.04 / 0.10)
  * - Dark mode: subtle light stripes (opacity 0.03 / 0.08)
- * - Z-index: auto (rendered before TimelineOverlay, so appears underneath)
+ * - Z-index: 0 (below TimelineWindow panels)
  * - Always visible when invalid zones are in viewport
  */
 
@@ -39,12 +43,12 @@ import { cn } from "@/lib/utils";
 // Types
 // =============================================================================
 
-export interface InvalidZoneOverlayProps {
+export interface InvalidZoneProps {
   /** Position from left edge as percentage (0-100) */
   leftPercent: number;
   /** Width as percentage (0-100) */
   widthPercent: number;
-  /** Side: left (before start) or right (after end) */
+  /** Side: left (before entity start) or right (after entity end) */
   side: "left" | "right";
   /** Additional CSS classes */
   className?: string;
@@ -55,9 +59,10 @@ export interface InvalidZoneOverlayProps {
 // =============================================================================
 
 /**
- * Striped overlay for invalid zones beyond entity boundaries.
+ * Invalid Zone - areas beyond entity boundaries where logs cannot exist.
+ * Also acts as a panning boundary stopper.
  */
-export function InvalidZoneOverlay({ leftPercent, widthPercent, side, className }: InvalidZoneOverlayProps) {
+export function InvalidZone({ leftPercent, widthPercent, side, className }: InvalidZoneProps) {
   if (widthPercent <= 0) return null;
 
   return (
