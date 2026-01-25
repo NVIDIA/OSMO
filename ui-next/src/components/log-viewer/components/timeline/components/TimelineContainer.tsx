@@ -121,20 +121,18 @@ export type { TimeRangePreset };
 
 /**
  * Hook to compute pan boundaries from entity times.
+ * Returns null if entityStartTime is not available (graceful degradation - no invalid zones shown).
  */
-function usePanBoundaries(
-  entityStartTime: Date | undefined,
-  entityEndTime: Date | undefined,
-  buckets: HistogramBucket[],
-  now: number | undefined,
-) {
+function usePanBoundaries(entityStartTime: Date | undefined, entityEndTime: Date | undefined, now: number | undefined) {
   return useMemo(() => {
-    const startMs = entityStartTime?.getTime() ?? buckets[0]?.timestamp.getTime();
+    // Only use entityStartTime - do not fall back to first log timestamp
+    // This ensures invalid zones accurately reflect workflow boundaries
+    const startMs = entityStartTime?.getTime();
     if (!startMs) return null;
 
     const currentNow = now ?? startMs + 7 * 24 * 60 * 60 * 1000;
     return calculatePanBoundaries(startMs, entityEndTime?.getTime(), currentNow, DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
-  }, [entityStartTime, entityEndTime, buckets, now]);
+  }, [entityStartTime, entityEndTime, now]);
 }
 
 /**
@@ -330,7 +328,7 @@ function TimelineContainerInner({
   // DERIVED VALUES
   // ============================================================================
 
-  const panBoundaries = usePanBoundaries(entityStartTime, entityEndTime, activeBuckets, now);
+  const panBoundaries = usePanBoundaries(entityStartTime, entityEndTime, now);
   const overlayPositions = useOverlayPositions(
     enableInteractiveDraggers,
     currentDisplay,
@@ -462,11 +460,11 @@ function TimelineContainerInner({
                 displayStart={displayStart}
                 displayEnd={displayEnd}
                 currentDisplay={currentDisplay}
-                panBoundaries={panBoundaries}
                 currentEffective={currentEffective}
                 enableInteractiveDraggers={enableInteractiveDraggers}
                 entityStartTime={entityStartTime}
                 entityEndTime={entityEndTime}
+                now={now}
                 onBucketClick={onBucketClick}
               />
 
