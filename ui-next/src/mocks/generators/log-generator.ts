@@ -38,11 +38,23 @@ import { hashString } from "../utils";
 // ============================================================================
 
 /**
- * Fixed reference date for mock data generation.
- * Represents "now" for all mock scenarios to ensure deterministic, chronological logs.
- * Without this, logs could be generated from random dates causing out-of-order display.
+ * Reference date for mock data generation.
+ * Represents "now" for all mock scenarios.
+ *
+ * Uses the current time (rounded to the hour) to ensure logs align with
+ * user-selected time ranges. This prevents filtering issues when presets
+ * calculate times relative to the browser's current time.
+ *
+ * Rounded to the hour for partial determinism within each hour.
  */
-const MOCK_REFERENCE_DATE = new Date("2026-01-24T13:00:00.000Z");
+function getMockReferenceDate(): Date {
+  const now = new Date();
+  // Round down to the current hour for stability
+  now.setMinutes(0, 0, 0);
+  return now;
+}
+
+const MOCK_REFERENCE_DATE = getMockReferenceDate();
 
 // ============================================================================
 // Types
