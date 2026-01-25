@@ -49,10 +49,12 @@ export interface TimelineDraggerProps {
   isDragging?: boolean;
   /** Whether drag is blocked (e.g., trying to extend past NOW) */
   isBlocked?: boolean;
+  /** Pointer down handler for initiating drag */
+  onPointerDown?: (e: React.PointerEvent) => void;
+  /** Key down handler for keyboard navigation */
+  onKeyDown?: (e: React.KeyboardEvent) => void;
   /** Additional CSS classes */
   className?: string;
-  /** Ref for the dragger element (for gesture tracking) */
-  innerRef?: React.Ref<HTMLDivElement>;
 }
 
 // =============================================================================
@@ -67,12 +69,12 @@ export function TimelineDragger({
   side,
   isDragging = false,
   isBlocked = false,
+  onPointerDown,
+  onKeyDown,
   className,
-  innerRef,
 }: TimelineDraggerProps) {
   return (
     <div
-      ref={innerRef}
       role="slider"
       aria-label={`${side === "start" ? "Start" : "End"} time boundary`}
       aria-orientation="horizontal"
@@ -80,8 +82,10 @@ export function TimelineDragger({
       aria-valuemin={0}
       aria-valuemax={100}
       tabIndex={0}
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
       className={cn(
-        "group absolute top-0 z-10 flex h-full items-center justify-center",
+        "group pointer-events-auto absolute top-0 z-10 flex h-full items-center justify-center",
         "transition-opacity duration-200",
         // Hit area: 16px wide (8px on each side of the line)
         "w-4",
