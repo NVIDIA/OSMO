@@ -67,7 +67,7 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsArrayOf, parseAsString, parseAsIsoDateTime } from "nuqs";
+import { useQueryState, useQueryStates, parseAsArrayOf, parseAsString, parseAsIsoDateTime } from "nuqs";
 import type { SearchChip } from "@/components/filter-bar";
 import type { TimeRangePreset } from "../components/TimelineHistogram";
 import { parseUrlChips } from "@/lib/url-utils";
@@ -171,25 +171,31 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
 
   // ───────────────────────────────────────────────────────────────────────────
   // Time Range (ISO datetime strings)
+  // Using useQueryStates for atomic updates to prevent losing other URL params
   // ───────────────────────────────────────────────────────────────────────────
 
-  const [startTime, setStartTime] = useQueryState(
-    "start",
-    parseAsIsoDateTime.withOptions({
+  const [timeRange, setTimeRange] = useQueryStates(
+    {
+      start: parseAsIsoDateTime.withOptions({
+        shallow: true,
+        history: "replace",
+        clearOnDefault: true,
+      }),
+      end: parseAsIsoDateTime.withOptions({
+        shallow: true,
+        history: "replace",
+        clearOnDefault: true,
+      }),
+    },
+    {
+      // Ensure atomic updates - all params change together
       shallow: true,
       history: "replace",
-      clearOnDefault: true,
-    }),
+    },
   );
 
-  const [endTime, setEndTime] = useQueryState(
-    "end",
-    parseAsIsoDateTime.withOptions({
-      shallow: true,
-      history: "replace",
-      clearOnDefault: true,
-    }),
-  );
+  const startTime = timeRange.start;
+  const endTime = timeRange.end;
 
   // ───────────────────────────────────────────────────────────────────────────
   // Derived Preset (computed from start/end, not stored in URL)
@@ -198,34 +204,44 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
   const activePreset = useMemo<TimeRangePreset>(() => deriveActivePreset(startTime, endTime), [startTime, endTime]);
 
   // Helper to set preset by resolving to actual start/end times
+  // Uses atomic update to preserve other URL params (like scenario)
   const setPreset = useCallback(
     (preset: TimeRangePreset) => {
       const now = new Date();
 
       switch (preset) {
         case "all":
-          setStartTime(null);
-          setEndTime(null);
+          setTimeRange({ start: null, end: null });
           break;
         case "5m":
-          setStartTime(new Date(now.getTime() - 5 * 60 * 1000));
-          setEndTime(null); // NOW = live mode
+          setTimeRange({
+            start: new Date(now.getTime() - 5 * 60 * 1000),
+            end: null, // NOW = live mode
+          });
           break;
         case "15m":
-          setStartTime(new Date(now.getTime() - 15 * 60 * 1000));
-          setEndTime(null);
+          setTimeRange({
+            start: new Date(now.getTime() - 15 * 60 * 1000),
+            end: null,
+          });
           break;
         case "1h":
-          setStartTime(new Date(now.getTime() - 60 * 60 * 1000));
-          setEndTime(null);
+          setTimeRange({
+            start: new Date(now.getTime() - 60 * 60 * 1000),
+            end: null,
+          });
           break;
         case "6h":
-          setStartTime(new Date(now.getTime() - 6 * 60 * 60 * 1000));
-          setEndTime(null);
+          setTimeRange({
+            start: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+            end: null,
+          });
           break;
         case "24h":
-          setStartTime(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-          setEndTime(null);
+          setTimeRange({
+            start: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+            end: null,
+          });
           break;
         case "custom":
           // Custom preset doesn't change start/end - they're set manually
@@ -233,7 +249,7 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
           break;
       }
     },
-    [setStartTime, setEndTime],
+    [setTimeRange],
   );
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -243,18 +259,19 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
   const isLiveMode = endTime === null || endTime === undefined;
 
   // Wrap setters to convert undefined to null for nuqs
+  // Use atomic updates to preserve other URL params
   const setStartTimeWrapped = useCallback(
     (time: Date | undefined) => {
-      setStartTime(time ?? null);
+      setTimeRange({ start: time ?? null });
     },
-    [setStartTime],
+    [setTimeRange],
   );
 
   const setEndTimeWrapped = useCallback(
     (time: Date | undefined) => {
-      setEndTime(time ?? null);
+      setTimeRange({ end: time ?? null });
     },
-    [setEndTime],
+    [setTimeRange],
   );
 
   return {
