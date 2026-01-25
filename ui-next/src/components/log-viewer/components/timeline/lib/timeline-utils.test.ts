@@ -23,6 +23,9 @@ import {
   shouldBlockPan,
   validatePanConstraint,
   calculateDisplayRangeWithPadding,
+  calculateOverlayPositions,
+  isEndTimeNow,
+  calculatePanBoundaries,
   type TimelineBounds,
 } from "./timeline-utils";
 
@@ -370,5 +373,122 @@ describe("calculateDisplayRangeWithPadding", () => {
     // 7.5% of 1000000ms = 75000ms > 30000ms min
     expect(result.displayStart.getTime()).toBe(0 - 75000);
     expect(result.displayEnd.getTime()).toBe(1_000_000 + 75000);
+  });
+});
+
+describe("calculateOverlayPositions", () => {
+  it("should return null for zero display range", () => {
+    const result = calculateOverlayPositions(1000, 1000, 1000, 1000);
+    expect(result).toBeNull();
+  });
+
+  it("should return null for negative display range", () => {
+    const result = calculateOverlayPositions(2000, 1000, 1000, 2000);
+    expect(result).toBeNull();
+  });
+
+  it("should calculate positions when effective matches display", () => {
+    const result = calculateOverlayPositions(1000, 2000, 1000, 2000);
+    expect(result).toEqual({
+      leftWidth: 0,
+      rightStart: 100,
+      rightWidth: 0,
+    });
+  });
+
+  it("should calculate left overlay when effective starts after display", () => {
+    const result = calculateOverlayPositions(1000, 2000, 1250, 2000);
+    expect(result).toEqual({
+      leftWidth: 25, // (1250-1000)/(2000-1000) * 100
+      rightStart: 100,
+      rightWidth: 0,
+    });
+  });
+
+  it("should calculate right overlay when effective ends before display", () => {
+    const result = calculateOverlayPositions(1000, 2000, 1000, 1750);
+    expect(result).toEqual({
+      leftWidth: 0,
+      rightStart: 75, // (1750-1000)/(2000-1000) * 100
+      rightWidth: 25,
+    });
+  });
+
+  it("should calculate both overlays for narrow effective range", () => {
+    const result = calculateOverlayPositions(1000, 2000, 1200, 1800);
+    expect(result).toEqual({
+      leftWidth: 20, // (1200-1000)/(2000-1000) * 100
+      rightStart: 80, // (1800-1000)/(2000-1000) * 100
+      rightWidth: 20,
+    });
+  });
+
+  it("should clamp negative left width to 0", () => {
+    // Effective start before display start
+    const result = calculateOverlayPositions(1000, 2000, 800, 1800);
+    expect(result?.leftWidth).toBe(0);
+  });
+});
+
+describe("isEndTimeNow", () => {
+  it("should return true for undefined end time", () => {
+    expect(isEndTimeNow(undefined)).toBe(true);
+  });
+
+  it("should return true for time within threshold", () => {
+    const recentTime = new Date(Date.now() - 30_000); // 30 seconds ago
+    expect(isEndTimeNow(recentTime)).toBe(true);
+  });
+
+  it("should return false for time beyond threshold", () => {
+    const oldTime = new Date(Date.now() - 120_000); // 2 minutes ago
+    expect(isEndTimeNow(oldTime)).toBe(false);
+  });
+
+  it("should respect custom threshold", () => {
+    const time = new Date(Date.now() - 5000); // 5 seconds ago
+    expect(isEndTimeNow(time, 3000)).toBe(false); // 3s threshold
+    expect(isEndTimeNow(time, 10000)).toBe(true); // 10s threshold
+  });
+});
+
+describe("calculatePanBoundaries", () => {
+  it("should calculate boundaries for completed entity", () => {
+    const result = calculatePanBoundaries(
+      1000, // entityStartMs
+      2000, // entityEndMs
+      3000, // now (ignored for completed)
+      0.1, // 10% padding
+      0, // no min padding
+    );
+
+    // Duration = 1000ms, padding = 100ms
+    expect(result.minTime.getTime()).toBe(1000);
+    expect(result.maxTime.getTime()).toBe(2100); // 2000 + 100
+  });
+
+  it("should use minimum padding for completed entity", () => {
+    const result = calculatePanBoundaries(
+      1000,
+      1100, // Short 100ms duration
+      3000,
+      0.1, // 10% = 10ms
+      50, // Min 50ms
+    );
+
+    expect(result.minTime.getTime()).toBe(1000);
+    expect(result.maxTime.getTime()).toBe(1150); // 1100 + 50
+  });
+
+  it("should extend to NOW + 1min for running entity", () => {
+    const now = 5000;
+    const result = calculatePanBoundaries(
+      1000,
+      undefined, // Running
+      now,
+    );
+
+    expect(result.minTime.getTime()).toBe(1000);
+    expect(result.maxTime.getTime()).toBe(5000 + 60_000); // now + 1 minute
   });
 });
