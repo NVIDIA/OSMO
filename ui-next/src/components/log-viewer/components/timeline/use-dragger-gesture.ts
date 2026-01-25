@@ -33,7 +33,7 @@
  * - Cancel button discards pending
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 
 // =============================================================================
 // Constants
@@ -206,12 +206,15 @@ export function useDraggerGesture({
     };
   }, [isDragging, onMouseMove, onMouseUp]);
 
-  return {
-    isDragging,
-    isBlocked,
-    positionPercent,
-    onMouseDown,
-    onKeyDown,
-    draggerRef,
-  };
+  return useMemo(
+    () => ({
+      isDragging,
+      isBlocked,
+      positionPercent,
+      onMouseDown,
+      onKeyDown,
+      draggerRef,
+    }),
+    [isDragging, isBlocked, positionPercent, onMouseDown, onKeyDown],
+  );
 }

@@ -73,40 +73,40 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
 
   // Fetch and validate workflow metadata
   let workflowMetadata = null;
-  let error = null;
+  let workflowError = null;
 
   try {
     const workflow = await fetchWorkflowByName(workflowId, true);
 
     if (!workflow) {
       // Workflow not found
-      return (
-        <WorkflowSelector
-          error={{
-            message: `Workflow "${workflowId}" not found. Please check the workflow ID and try again.`,
-            isTransient: false,
-          }}
-          initialWorkflowId={workflowId}
-        />
-      );
+      workflowError = {
+        message: `Workflow "${workflowId}" not found. Please check the workflow ID and try again.`,
+        isTransient: false,
+      };
+    } else {
+      // Extract metadata for timeline bounds
+      workflowMetadata = {
+        name: workflow.name,
+        status: workflow.status,
+        submitTime: workflow.submit_time ? new Date(workflow.submit_time) : undefined,
+        startTime: workflow.start_time ? new Date(workflow.start_time) : undefined,
+        endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
+      };
     }
-
-    // Extract metadata for timeline bounds
-    workflowMetadata = {
-      name: workflow.name,
-      status: workflow.status,
-      submitTime: workflow.submit_time ? new Date(workflow.submit_time) : undefined,
-      startTime: workflow.start_time ? new Date(workflow.start_time) : undefined,
-      endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
-    };
-  } catch (err) {
+  } catch (_err) {
     // Transient error (network, server error, etc.)
+    workflowError = {
+      message: `Failed to load workflow "${workflowId}". This may be a temporary issue.`,
+      isTransient: true,
+    };
+  }
+
+  // Return error component if there was an error
+  if (workflowError) {
     return (
       <WorkflowSelector
-        error={{
-          message: `Failed to load workflow "${workflowId}". This may be a temporary issue.`,
-          isTransient: true,
-        }}
+        error={workflowError}
         initialWorkflowId={workflowId}
       />
     );
@@ -125,7 +125,10 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
   // Wrap in HydrationBoundary so client gets the cached data
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <LogViewerPageContent workflowId={workflowId} workflowMetadata={workflowMetadata} />
+      <LogViewerPageContent
+        workflowId={workflowId}
+        workflowMetadata={workflowMetadata}
+      />
     </HydrationBoundary>
   );
 }
