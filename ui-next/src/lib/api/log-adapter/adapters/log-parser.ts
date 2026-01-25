@@ -251,9 +251,12 @@ export function parseLogLine(line: string, workflowId: string): LogEntry | null 
  * Parses a batch of log lines efficiently.
  * Uses for...of loop with push for optimal performance.
  *
+ * IMPORTANT: Does NOT sort entries - trusts backend to return chronological data.
+ * Backend is the source of truth for ordering.
+ *
  * @param text - Multi-line log text (newline separated)
  * @param workflowId - Workflow ID for labeling
- * @returns Array of parsed LogEntry objects
+ * @returns Array of parsed LogEntry objects in backend-provided order
  */
 export function parseLogBatch(text: string, workflowId: string): LogEntry[] {
   if (!text) return [];
@@ -265,6 +268,25 @@ export function parseLogBatch(text: string, workflowId: string): LogEntry[] {
     const entry = parseLogLine(line, workflowId);
     if (entry) {
       entries.push(entry);
+    }
+  }
+
+  // DEBUG: Check if backend returned sorted logs
+  if (process.env.NODE_ENV === "development" && entries.length > 1) {
+    let outOfOrder = 0;
+    for (let i = 1; i < Math.min(entries.length, 10); i++) {
+      if (entries[i].timestamp < entries[i - 1].timestamp) {
+        outOfOrder++;
+      }
+    }
+    if (outOfOrder > 0) {
+      console.warn(
+        `[parseLogBatch] Backend returned ${outOfOrder} out-of-order entries in first 10. ` +
+          `First 3 dates: ${entries
+            .slice(0, 3)
+            .map((e) => e.timestamp.toISOString().split("T")[0])
+            .join(", ")}`,
+      );
     }
   }
 

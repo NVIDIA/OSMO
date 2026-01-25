@@ -16,6 +16,7 @@
 
 "use client";
 
+import { useMemo } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useMounted } from "@/hooks";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -71,13 +72,20 @@ export function useScenario() {
     }),
   );
 
+  // Memoize devParams to prevent unnecessary re-renders and request cancellations
+  // Without this, new objects are created every render, triggering cascading updates
+  const devParams = useMemo(() => ({ log_scenario: scenario }), [scenario]);
+
+  // Memoize liveDevParams (constant value, only needs to be created once)
+  const liveDevParams = useMemo(() => ({ log_scenario: "streaming" as const }), []);
+
   return {
     /** Current scenario name */
     scenario: scenario as LogScenario,
     /** Dev params for LogViewerContainer */
-    devParams: { log_scenario: scenario },
+    devParams,
     /** Live mode dev params (always streaming for mock) */
-    liveDevParams: { log_scenario: "streaming" as const },
+    liveDevParams,
   };
 }
 

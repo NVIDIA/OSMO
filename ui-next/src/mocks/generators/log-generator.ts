@@ -34,6 +34,17 @@ import { getLogScenario, getActiveScenario, type LogScenarioConfig } from "./log
 import { hashString } from "../utils";
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * Fixed reference date for mock data generation.
+ * Represents "now" for all mock scenarios to ensure deterministic, chronological logs.
+ * Without this, logs could be generated from random dates causing out-of-order display.
+ */
+const MOCK_REFERENCE_DATE = new Date("2026-01-24T13:00:00.000Z");
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -171,7 +182,14 @@ export class LogGenerator {
 
     // Generate log lines
     const lines: GeneratedLogLine[] = [];
-    const startTime = faker.date.recent({ days: 7 });
+    // Use deterministic start time based on reference date + faker seed
+    // This ensures chronological ordering while maintaining deterministic generation
+    // Start from 1-3 days before reference date (seeded, so consistent per workflow+scenario)
+    const daysAgo = faker.number.int({ min: 1, max: 3 });
+    const hoursAgo = faker.number.int({ min: 0, max: 23 });
+    const startTime = new Date(MOCK_REFERENCE_DATE);
+    startTime.setDate(startTime.getDate() - daysAgo);
+    startTime.setHours(hoursAgo, 0, 0, 0); // Round to start of hour for cleaner timestamps
     const durationMs = faker.number.int({ min: 60000, max: 3600000 });
     const msPerLog = durationMs / Math.max(1, numLines);
 
@@ -235,8 +253,9 @@ export class LogGenerator {
     const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
     const taskContexts = this.buildTaskContexts(tasks, scenario);
 
-    // Start from continueFrom timestamp if provided, otherwise use current time
-    let currentTime = continueFrom ? new Date(continueFrom.getTime()) : new Date();
+    // Start from continueFrom timestamp if provided, otherwise use reference date
+    // Using reference date ensures chronological continuity with static logs
+    let currentTime = continueFrom ? new Date(continueFrom.getTime()) : new Date(MOCK_REFERENCE_DATE);
 
     // For infinite streaming, loop forever. Otherwise use configured volume.
     const isInfinite = scenario.features.infinite === true;
@@ -292,8 +311,12 @@ export class LogGenerator {
     const numLines = faker.number.int(this.volume.logsPerTask);
     const duration = durationSeconds ?? faker.number.int({ min: 60, max: 3600 });
 
-    // Start time
-    const startTime = faker.date.recent({ days: 7 });
+    // Start time - use reference date with seeded offset for deterministic generation
+    const daysAgo = faker.number.int({ min: 1, max: 7 });
+    const hoursAgo = faker.number.int({ min: 0, max: 23 });
+    const startTime = new Date(MOCK_REFERENCE_DATE);
+    startTime.setDate(startTime.getDate() - daysAgo);
+    startTime.setHours(hoursAgo, 0, 0, 0);
 
     // Add OSMO startup logs
     lines.push(...this.generateOsmoStartup(startTime, taskName));
@@ -755,12 +778,14 @@ export class LogGenerator {
   }
 
   private formatTimestamp(date: Date): string {
-    const y = date.getFullYear();
-    const m = (date.getMonth() + 1).toString().padStart(2, "0");
-    const d = date.getDate().toString().padStart(2, "0");
-    const h = date.getHours().toString().padStart(2, "0");
-    const min = date.getMinutes().toString().padStart(2, "0");
-    const s = date.getSeconds().toString().padStart(2, "0");
+    // Format in UTC to match backend behavior
+    // Parser interprets these timestamps as UTC via Date.UTC()
+    const y = date.getUTCFullYear();
+    const m = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+    const d = date.getUTCDate().toString().padStart(2, "0");
+    const h = date.getUTCHours().toString().padStart(2, "0");
+    const min = date.getUTCMinutes().toString().padStart(2, "0");
+    const s = date.getUTCSeconds().toString().padStart(2, "0");
     return `${y}/${m}/${d} ${h}:${min}:${s}`;
   }
 }

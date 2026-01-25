@@ -25,7 +25,7 @@ export { parseLogLine, parseLogBatch, stripAnsi, resetIdCounter, formatLogLine }
 
 // Compute functions (stateless, SSR-compatible)
 export { filterEntries, computeHistogram, computeFacets } from "./compute";
-export type { FilterParams } from "./compute";
+export type { FilterParams, ComputeHistogramOptions } from "./compute";
 
 // Plain Text Adapter
 export { PlainTextAdapter, createPlainTextAdapter } from "./plain-text-adapter";
