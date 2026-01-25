@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/shadcn/button";
 import { ChevronUp, ChevronDown, Check } from "lucide-react";
 import { TimelineOverlay } from "./TimelineOverlay";
+import { InvalidZoneOverlay } from "./InvalidZoneOverlay";
 import { TimelineDragger } from "./TimelineDragger";
 import { TimelineControls } from "./TimelineControls";
 import { useDraggerGesture } from "../lib/use-dragger-gesture";
@@ -38,12 +39,8 @@ export interface TimelineHistogramProps {
   buckets: HistogramBucket[];
   /** Pending histogram buckets (shown during pan/zoom before Apply) */
   pendingBuckets?: HistogramBucket[];
-  /** Bucket interval in milliseconds */
-  intervalMs: number;
   /** Callback when a bucket is clicked */
   onBucketClick?: (bucket: HistogramBucket) => void;
-  /** Callback when a time range is selected (drag) */
-  onRangeSelect?: (start: Date, end: Date) => void;
   /** Additional CSS classes */
   className?: string;
   /** Height of the histogram bars in pixels (default: 80) */
@@ -76,6 +73,10 @@ export interface TimelineHistogramProps {
   showTimeRangeHeader?: boolean;
   /** Whether to enable interactive draggers (default: false) */
   enableInteractiveDraggers?: boolean;
+  /** Entity start time (workflow/group/task start) - hard lower bound for panning */
+  entityStartTime?: Date;
+  /** Entity end time (completion timestamp) - undefined if still running */
+  entityEndTime?: Date;
 }
 
 export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h" | "custom";
@@ -149,13 +150,12 @@ function BucketTooltipContent({ bucket }: BucketTooltipProps) {
 interface StackedBarProps {
   bucket: HistogramBucket;
   maxTotal: number;
-  height: number;
   onClick?: () => void;
   /** Whether to dim this bar (outside effective range) */
   dimmed?: boolean;
 }
 
-function StackedBar({ bucket, maxTotal, height: _height, onClick, dimmed = false }: StackedBarProps) {
+function StackedBar({ bucket, maxTotal, onClick, dimmed = false }: StackedBarProps) {
   // Calculate the overall bar height as a percentage
   const heightPercentage = maxTotal > 0 ? (bucket.total / maxTotal) * 100 : 0;
 
@@ -350,9 +350,7 @@ function TimeRangeHeader({
 function TimelineHistogramInner({
   buckets,
   pendingBuckets,
-  intervalMs: _intervalMs,
   onBucketClick,
-  onRangeSelect: _onRangeSelect,
   className,
   height = DEFAULT_HEIGHT,
   showPresets = false,
@@ -369,6 +367,8 @@ function TimelineHistogramInner({
   onDisplayRangeChange,
   showTimeRangeHeader = false,
   enableInteractiveDraggers = false,
+  entityStartTime,
+  entityEndTime,
 }: TimelineHistogramProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const { announcer } = useServices();
@@ -444,6 +444,38 @@ function TimelineHistogramInner({
     return new Date(derivedDisplayStart.getTime() + currentEndPercent * displayRangeMs);
   }, [currentEndPercent, derivedDisplayStart, derivedDisplayEnd, endTime]);
 
+  // ============================================================================
+  // PAN BOUNDARIES: Calculate entity-based bounds for panning
+  // ============================================================================
+
+  // Calculate pan boundaries based on entity start/end times
+  // For still-running entities, we use derivedDisplayEnd as an approximation of "now"
+  // rather than calling Date.now() to maintain render purity
+  const panBoundaries = useMemo(() => {
+    // If no entity times provided, fall back to bucket data as boundaries
+    const startMs = entityStartTime?.getTime() ?? activeBuckets[0]?.timestamp.getTime();
+
+    if (!startMs) {
+      return null; // No boundaries available
+    }
+
+    let endMs: number;
+    if (entityEndTime) {
+      // Completed entity: add 7.5% padding beyond end time
+      const durationMs = entityEndTime.getTime() - startMs;
+      const paddingMs = Math.max(durationMs * 0.075, 30_000); // At least 30s padding
+      endMs = entityEndTime.getTime() + paddingMs;
+    } else {
+      // Still running: use display end as boundary (approximates "now")
+      endMs = derivedDisplayEnd.getTime();
+    }
+
+    return {
+      minTime: new Date(startMs),
+      maxTime: new Date(endMs),
+    };
+  }, [entityStartTime, entityEndTime, activeBuckets, derivedDisplayEnd]);
+
   // Calculate bar container transform for pan/zoom animation
   const barTransform = useMemo(() => {
     // If we have pendingBuckets, they're already the correct data for the display range
@@ -480,10 +512,68 @@ function TimelineHistogramInner({
   // CALLBACKS: User interactions
   // ============================================================================
 
-  // Pan/Zoom: Shift display range only (dragger percentages stay same)
+  // Pan/Zoom: Shift display range only (dragger percentages stay frozen)
+  // Both pan and zoom keep draggers at same pixel position
   const handlePendingDisplayChange = useCallback(
     (newDisplayStart: Date, newDisplayEnd: Date) => {
-      // Capture current dragger percentages if not already pending
+      // ENFORCE display constraints
+      if (panBoundaries) {
+        const currentEndMs = derivedDisplayEnd.getTime();
+        const newStartMs = newDisplayStart.getTime();
+        const newEndMs = newDisplayEnd.getTime();
+        const boundaryStartMs = panBoundaries.minTime.getTime();
+        const boundaryEndMs = panBoundaries.maxTime.getTime();
+        const displayRangeMs = newEndMs - newStartMs;
+
+        // CONSTRAINT: entity boundary must never be positioned to the right of effective start
+        // We need to calculate what effectiveStart WILL BE after this display change
+        if (displayRangeMs > 0) {
+          let newEffectiveStartMs: number;
+
+          if (currentStartPercent !== undefined) {
+            // Dragger is set: calculate where it will be after display change
+            newEffectiveStartMs = newStartMs + currentStartPercent * displayRangeMs;
+          } else {
+            // No dragger: use startTime or default to entity boundary
+            newEffectiveStartMs = startTime?.getTime() ?? boundaryStartMs;
+          }
+
+          // Check constraint: entity boundary position <= effective start position
+          // In pixel terms: (boundaryStartMs - displayStartMs) / displayRangeMs <= (effectiveStartMs - displayStartMs) / displayRangeMs
+          // Simplifies to: boundaryStartMs <= effectiveStartMs
+          if (boundaryStartMs > newEffectiveStartMs) {
+            // Violation! Need to clamp displayStart
+            // Where: newEffectiveStartMs = displayStartMs + currentStartPercent * displayRangeMs (if dragger set)
+            // So: boundaryStartMs <= displayStartMs + currentStartPercent * displayRangeMs
+            // Therefore: displayStartMs >= boundaryStartMs - currentStartPercent * displayRangeMs
+
+            let minDisplayStartMs: number;
+            if (currentStartPercent !== undefined) {
+              minDisplayStartMs = boundaryStartMs - currentStartPercent * displayRangeMs;
+            } else {
+              // No dragger: can't show invalid zone beyond effective start
+              minDisplayStartMs = newEffectiveStartMs;
+            }
+
+            // Check if we need to clamp (i.e., if the requested position violates constraint)
+            if (newStartMs < minDisplayStartMs) {
+              // Block the entire operation - don't clamp and proceed, just return
+              // This prevents unintended zoom when panning is blocked
+              return;
+            }
+          }
+        }
+
+        // Block right pan if already at/past right boundary and trying to go further right
+        const isPanningRight = newEndMs > currentEndMs;
+        const isAtRightBoundary = currentEndMs >= boundaryEndMs - 1000; // 1s threshold
+        if (isPanningRight && isAtRightBoundary) {
+          return; // Block the pan gesture
+        }
+      }
+
+      // Both pan and zoom: Draggers stay at same PIXEL POSITION (freeze percentages)
+      // The difference between pan and zoom is how the histogram bars render, not dragger behavior
       if (pendingStartPercent === undefined && currentStartPercent !== undefined) {
         setPendingStartPercent(currentStartPercent);
       }
@@ -497,11 +587,17 @@ function TimelineHistogramInner({
 
       // Notify parent to fetch new buckets for this display range
       onDisplayRangeChange?.(newDisplayStart, newDisplayEnd);
-
-      // Note: dragger percentages are now frozen, so draggers stay at same pixel position
-      // but now point to different times (derived from frozen percentages + new display range)
     },
-    [pendingStartPercent, pendingEndPercent, currentStartPercent, currentEndPercent, onDisplayRangeChange],
+    [
+      pendingStartPercent,
+      pendingEndPercent,
+      currentStartPercent,
+      currentEndPercent,
+      onDisplayRangeChange,
+      panBoundaries,
+      derivedDisplayEnd,
+      startTime,
+    ],
   );
 
   // Drag/Zoom: Update dragger percentages + auto-adjust display
@@ -528,6 +624,9 @@ function TimelineHistogramInner({
 
       const newDisplayStart = new Date(startMs - paddingMs);
       const newDisplayEnd = new Date(endMs + paddingMs);
+
+      // DO NOT clamp display range - allow it to extend beyond boundaries
+      // Invalid zones will be visible in these areas
 
       setPendingDisplayStart(newDisplayStart);
       setPendingDisplayEnd(newDisplayEnd);
@@ -622,6 +721,41 @@ function TimelineHistogramInner({
     onPendingRangeChange: handlePendingRangeChange,
     onPendingDisplayChange: handlePendingDisplayChange,
   });
+
+  // Compute invalid zone positions (areas beyond entity boundaries)
+  const invalidZonePositions = useMemo(() => {
+    if (!panBoundaries) return null;
+
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    if (displayRangeMs <= 0) return null;
+
+    const displayStartMs = derivedDisplayStart.getTime();
+    const displayEndMs = derivedDisplayEnd.getTime();
+    const boundaryStartMs = panBoundaries.minTime.getTime();
+    const boundaryEndMs = panBoundaries.maxTime.getTime();
+
+    // Left invalid zone: before entity start
+    let leftInvalidWidth = 0;
+    if (displayStartMs < boundaryStartMs) {
+      const invalidMs = Math.min(boundaryStartMs - displayStartMs, displayRangeMs);
+      leftInvalidWidth = (invalidMs / displayRangeMs) * 100;
+    }
+
+    // Right invalid zone: after entity end + padding
+    let rightInvalidStart = 100;
+    let rightInvalidWidth = 0;
+    if (displayEndMs > boundaryEndMs) {
+      const validEndPosition = ((boundaryEndMs - displayStartMs) / displayRangeMs) * 100;
+      rightInvalidStart = Math.max(0, Math.min(100, validEndPosition));
+      rightInvalidWidth = 100 - rightInvalidStart;
+    }
+
+    return {
+      leftInvalidWidth: Math.max(0, Math.min(100, leftInvalidWidth)),
+      rightInvalidStart: Math.max(0, Math.min(100, rightInvalidStart)),
+      rightInvalidWidth: Math.max(0, Math.min(100, rightInvalidWidth)),
+    };
+  }, [panBoundaries, derivedDisplayStart, derivedDisplayEnd]);
 
   // Compute overlay positions (as percentages)
   const overlayPositions = useMemo(() => {
@@ -808,12 +942,31 @@ function TimelineHistogramInner({
                     key={`${bucket.timestamp.getTime()}-${i}`}
                     bucket={bucket}
                     maxTotal={maxTotal}
-                    height={height}
                     onClick={onBucketClick ? () => onBucketClick(bucket) : undefined}
                     dimmed={shouldDimBucket(bucket)}
                   />
                 ))}
               </div>
+
+              {/* Invalid zone overlays - Below all other overlays */}
+              {invalidZonePositions && (
+                <>
+                  {invalidZonePositions.leftInvalidWidth > 0 && (
+                    <InvalidZoneOverlay
+                      leftPercent={0}
+                      widthPercent={invalidZonePositions.leftInvalidWidth}
+                      side="left"
+                    />
+                  )}
+                  {invalidZonePositions.rightInvalidWidth > 0 && (
+                    <InvalidZoneOverlay
+                      leftPercent={invalidZonePositions.rightInvalidStart}
+                      widthPercent={invalidZonePositions.rightInvalidWidth}
+                      side="right"
+                    />
+                  )}
+                </>
+              )}
 
               {/* Overlays layer - Fixed, doesn't transform */}
               {enableInteractiveDraggers && overlayPositions && (
