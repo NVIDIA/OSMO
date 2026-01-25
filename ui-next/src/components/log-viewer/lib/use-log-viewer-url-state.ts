@@ -69,7 +69,7 @@
 import { useMemo, useCallback } from "react";
 import { useQueryState, useQueryStates, parseAsArrayOf, parseAsString, parseAsIsoDateTime } from "nuqs";
 import type { SearchChip } from "@/components/filter-bar";
-import type { TimeRangePreset } from "../components/TimelineHistogram";
+import type { TimeRangePreset } from "../components/timeline";
 import { parseUrlChips } from "@/lib/url-utils";
 
 // =============================================================================

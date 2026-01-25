@@ -36,6 +36,15 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Keyboard nudge amount in milliseconds (5 minutes).
+ */
+const KEYBOARD_NUDGE_MS = 5 * 60 * 1000;
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -162,24 +171,22 @@ export function useDraggerGesture({
     setIsBlocked(false);
   }, [isDragging]);
 
-  // Keyboard handler - nudge ±5 minutes
+  // Keyboard handler - nudge ±5 minutes with Arrow keys
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const nudgeMs = 5 * 60 * 1000; // 5 minutes
-
       switch (e.key) {
         case "ArrowLeft":
           e.preventDefault();
-          onPendingTimeChange(new Date(currentTimeMs - nudgeMs));
+          onPendingTimeChange(new Date(currentTimeMs - KEYBOARD_NUDGE_MS));
           break;
         case "ArrowRight":
           e.preventDefault();
           // Check if blocked
-          if (side === "end" && isEndTimeNow && currentTimeMs + nudgeMs > new Date().getTime()) {
+          if (side === "end" && isEndTimeNow && currentTimeMs + KEYBOARD_NUDGE_MS > new Date().getTime()) {
             setIsBlocked(true);
             return;
           }
-          onPendingTimeChange(new Date(currentTimeMs + nudgeMs));
+          onPendingTimeChange(new Date(currentTimeMs + KEYBOARD_NUDGE_MS));
           break;
       }
     },
