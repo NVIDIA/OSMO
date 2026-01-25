@@ -206,11 +206,28 @@ export class LogGenerator {
         message = this.addAnsiCodes(message, level);
       }
 
-      // Optionally make it multiline
+      // Optionally make it multiline - format each line as a separate log entry
       if (scenario.features.multiLine && faker.number.float() < 0.1) {
-        message = this.generateMultilineContent(level);
+        const contentLines = this.generateMultilineContentLines(level);
+
+        // Format each line as a separate log entry with same timestamp
+        for (const lineMessage of contentLines) {
+          const formattedLine = this.formatLogLineV2(timestamp, taskCtx, ioType, lineMessage);
+
+          lines.push({
+            timestamp: this.formatTimestamp(timestamp),
+            level,
+            source: taskCtx.name,
+            ioType,
+            message: lineMessage,
+            retryAttempt: taskCtx.retryAttempt,
+            raw: formattedLine,
+          });
+        }
+        continue; // Skip the normal single-line push below
       }
 
+      // Normal single-line entry
       const line = this.formatLogLineV2(timestamp, taskCtx, ioType, message);
       lines.push({
         timestamp: this.formatTimestamp(timestamp),
@@ -285,10 +302,22 @@ export class LogGenerator {
         message = this.addAnsiCodes(message, level);
       }
 
+      // Optionally make it multiline - format each line as a separate log entry
       if (scenario.features.multiLine && faker.number.float() < 0.1) {
-        message = this.generateMultilineContent(level);
+        const contentLines = this.generateMultilineContentLines(level);
+
+        // Yield each line as a separate log entry with same timestamp
+        for (const lineMessage of contentLines) {
+          const formattedLine = this.formatLogLineV2(currentTime, taskCtx, ioType, lineMessage);
+          yield formattedLine + "\n";
+        }
+
+        // Add actual delay between yields
+        await new Promise((resolve) => setTimeout(resolve, streamDelayMs));
+        continue; // Skip the normal single-line yield below
       }
 
+      // Normal single-line entry
       const line = this.formatLogLineV2(currentTime, taskCtx, ioType, message);
       yield line + "\n";
 
@@ -430,6 +459,9 @@ export class LogGenerator {
   /**
    * Generate DUMP messages - raw output without timestamp/prefix.
    * Used for progress bars, tqdm output, etc.
+   *
+   * NOTE: Currently DISABLED in scenarios (dump: 0) until we have proper UI
+   * visualization for progress bars. This method is preserved for future use.
    */
   private generateDumpMessage(index: number, total: number): string {
     const progress = Math.floor((index / total) * 100);
@@ -577,11 +609,20 @@ export class LogGenerator {
     }
   }
 
-  private generateMultilineContent(level: LogLevel): string {
-    if (level === "error" || level === "fatal") {
-      return faker.helpers.arrayElement(STACK_TRACES);
-    }
-    return faker.helpers.arrayElement(JSON_BLOBS);
+  /**
+   * Generates multi-line content template as separate lines.
+   * Each line will be formatted as a separate log entry with timestamp/task prefix.
+   *
+   * @param level - Log level to determine content type
+   * @returns Array of lines (without log prefixes - caller adds them)
+   */
+  private generateMultilineContentLines(level: LogLevel): string[] {
+    const template =
+      level === "error" || level === "fatal"
+        ? faker.helpers.arrayElement(STACK_TRACES)
+        : faker.helpers.arrayElement(JSON_BLOBS);
+
+    return template.split("\n");
   }
 
   /**
