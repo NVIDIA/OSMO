@@ -59,9 +59,19 @@ import { useLogViewerUrlState } from "../lib/use-log-viewer-url-state";
 // Types
 // =============================================================================
 
+export interface WorkflowMetadata {
+  name: string;
+  status: string;
+  submitTime?: Date;
+  startTime?: Date;
+  endTime?: Date;
+}
+
 export interface LogViewerContainerProps {
   /** Workflow ID to fetch logs for */
   workflowId: string;
+  /** Optional workflow metadata for timeline bounds */
+  workflowMetadata?: WorkflowMetadata | null;
   /** Optional dev params (for playground scenarios) */
   devParams?: Record<string, string>;
   /** Dev params for live streaming (defaults to devParams if not specified) */
@@ -91,6 +101,7 @@ export interface LogViewerContainerProps {
  */
 export function LogViewerContainer({
   workflowId,
+  workflowMetadata,
   devParams,
   liveDevParams,
   scope = "workflow",
@@ -110,6 +121,7 @@ export function LogViewerContainer({
     <LogViewerContainerInner
       key={key}
       workflowId={workflowId}
+      workflowMetadata={workflowMetadata}
       devParams={devParams}
       liveDevParams={liveDevParams}
       scope={scope}
@@ -127,6 +139,7 @@ export function LogViewerContainer({
  */
 function LogViewerContainerInner({
   workflowId,
+  workflowMetadata,
   devParams,
   liveDevParams: liveDevParamsProp,
   scope,
@@ -219,15 +232,21 @@ function LogViewerContainerInner({
     // Fallback time (static, only used when no data available)
     const fallbackStart = new Date(2024, 0, 1);
 
-    // Determine data boundaries
-    // For start: use startTime, or first log timestamp, or fallback
-    const firstLogTime = combinedEntries[0]?.timestamp ?? fallbackStart;
-    const dataStart = startTime ?? firstLogTime;
+    // Determine entity boundaries from workflow metadata
+    // Use workflow start_time (or submit_time as fallback) as left bound
+    const entityStartTime = workflowMetadata?.startTime ?? workflowMetadata?.submitTime;
+    // Use workflow end_time as right bound (undefined if still running)
+    const entityEndTime = workflowMetadata?.endTime;
 
-    // For end: use endTime, or last log timestamp + 1 minute (approximates NOW)
+    // Determine data boundaries
+    // For start: use startTime, or entity start time, or first log timestamp, or fallback
+    const firstLogTime = combinedEntries[0]?.timestamp ?? fallbackStart;
+    const dataStart = startTime ?? entityStartTime ?? firstLogTime;
+
+    // For end: use endTime, or entity end time, or last log timestamp + 1 minute (approximates NOW)
     const lastLogTime = combinedEntries[combinedEntries.length - 1]?.timestamp ?? firstLogTime;
     const approximateNow = new Date(lastLogTime.getTime() + 60_000);
-    const dataEnd = endTime ?? approximateNow;
+    const dataEnd = endTime ?? entityEndTime ?? approximateNow;
 
     // Calculate padding (minimum 10 seconds to ensure invalid zone visibility)
     const rangeMs = dataEnd.getTime() - dataStart.getTime();
@@ -237,7 +256,7 @@ function LogViewerContainerInner({
       displayStart: new Date(dataStart.getTime() - paddingMs),
       displayEnd: new Date(dataEnd.getTime() + paddingMs),
     };
-  }, [startTime, endTime, combinedEntries]);
+  }, [startTime, endTime, combinedEntries, workflowMetadata]);
 
   // Recompute histogram from combined entries to stay in sync with visible log entries
   // This ensures:

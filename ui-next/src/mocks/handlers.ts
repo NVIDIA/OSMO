@@ -39,6 +39,7 @@ import {
   getLogScenario,
 } from "./generators";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay } from "./utils";
+import { getMockWorkflow } from "../app/(dashboard)/experimental/log-viewer/lib/mock-workflows";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -134,6 +135,13 @@ export const handlers = [
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
+
+    // Check for mock workflows first (for log-viewer experimental page)
+    const mockWorkflow = getMockWorkflow(name);
+    if (mockWorkflow) {
+      return HttpResponse.json(mockWorkflow);
+    }
+
     const workflow = workflowGenerator.getByName(name);
 
     if (!workflow) {
