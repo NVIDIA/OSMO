@@ -11,7 +11,7 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter";
-import { formatTime24 } from "@/lib/format-date";
+import { formatTime24UTC } from "@/lib/format-date";
 import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses } from "../lib/level-utils";
 
 // =============================================================================
@@ -35,7 +35,7 @@ export interface LogEntryRowProps {
 
 function LogEntryRowInner({ entry, wrapLines, showTask, style }: LogEntryRowProps) {
   const level = entry.labels.level;
-  const timestamp = formatTime24(entry.timestamp);
+  const timestamp = formatTime24UTC(entry.timestamp);
 
   return (
     <div

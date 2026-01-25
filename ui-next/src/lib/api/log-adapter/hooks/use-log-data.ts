@@ -131,6 +131,7 @@ const EMPTY_STATS = { totalCount: 0, filteredCount: 0 };
  */
 export function useLogData(params: UseLogDataParams): UseLogDataReturn {
   // Build stable query key
+  // Caller should memoize params object to prevent unnecessary regeneration
   const queryKey = useMemo(() => createLogDataQueryKey(params), [params]);
 
   // Create adapter with dev params if provided
@@ -144,7 +145,6 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
   );
 
   // Execute query
-  // Use keepPreviousData to prevent flash when filters change
   const query = useQuery({
     queryKey,
     queryFn: ({ signal }) =>
@@ -168,8 +168,9 @@ export function useLogData(params: UseLogDataParams): UseLogDataReturn {
       ),
     staleTime: params.staleTime ?? 30_000,
     enabled: params.enabled ?? true,
-    // Keep previous data visible while refetching to avoid flash/flicker
-    placeholderData: params.keepPrevious !== false ? keepPreviousData : undefined,
+    // keepPrevious: Show skeleton during refetch for data correctness
+    // Can be disabled per-call via params.keepPrevious if needed
+    placeholderData: params.keepPrevious ? keepPreviousData : undefined,
   });
 
   return {
