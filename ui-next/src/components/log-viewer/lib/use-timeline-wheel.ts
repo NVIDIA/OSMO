@@ -83,7 +83,7 @@ export interface UseTimelineWheelOptions {
   isEndTimeNow: boolean;
   /** Callback when pending range changes (zoom/dragger) */
   onPendingRangeChange: (start: Date | undefined, end: Date | undefined) => void;
-  /** Callback when pending display changes (pan) */
+  /** Callback when pending display changes (pan/zoom) */
   onPendingDisplayChange: (displayStart: Date, displayEnd: Date) => void;
 }
 
@@ -130,33 +130,25 @@ export function useTimelineWheel({
       const rangeMs = actualEndMs - actualStartMs;
 
       if (isZoom) {
-        // Zoom in/out
+        // Zoom in/out: Adjust display range centered on histogram middle
+        // Draggers stay at same pixel positions, bars change scale
         const isZoomIn = e.deltaY < 0;
         const factor = isZoomIn ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
 
-        // Calculate new range (centered zoom)
-        const newRangeMs = rangeMs * factor;
+        // Calculate new display range
+        const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
+        const newDisplayRangeMs = displayRangeMs * factor;
 
         // Respect minimum range
-        if (newRangeMs < MIN_RANGE_MS) return;
+        if (newDisplayRangeMs < MIN_RANGE_MS) return;
 
-        // Calculate new boundaries (centered)
-        const centerMs = (actualStartMs + actualEndMs) / 2;
-        let newStartMs = centerMs - newRangeMs / 2;
-        let newEndMs = centerMs + newRangeMs / 2;
+        // Use the center of the DISPLAY range as the zoom origin
+        const displayCenterMs = (displayStart.getTime() + displayEnd.getTime()) / 2;
+        const newDisplayStartMs = displayCenterMs - newDisplayRangeMs / 2;
+        const newDisplayEndMs = displayCenterMs + newDisplayRangeMs / 2;
 
-        // Constrain end to NOW if in live mode
-        if (isEndTimeNow && newEndMs > now) {
-          const overflow = newEndMs - now;
-          newEndMs = now;
-          newStartMs -= overflow; // Shift start to maintain range
-        }
-
-        // Apply pending range
-        onPendingRangeChange(
-          new Date(newStartMs),
-          endMs === undefined && newEndMs >= now ? undefined : new Date(newEndMs),
-        );
+        // Apply pending display change (draggers stay in place, histogram rescales)
+        onPendingDisplayChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
       } else {
         // Pan left/right (shifts display window only, effective range stays same)
         const isPanLeft = e.deltaY < 0;

@@ -230,6 +230,11 @@ export interface LogViewerProps {
     buckets: HistogramBucket[];
     intervalMs: number;
   };
+  /** Pending histogram data (for real-time pan/zoom feedback) */
+  pendingHistogram?: {
+    buckets: HistogramBucket[];
+    intervalMs: number;
+  };
   /** Callback to refetch data */
   onRefetch?: () => void;
   /** Current filter chips (controlled by parent) */
@@ -256,6 +261,10 @@ export interface LogViewerProps {
   onEndTimeChange?: (time: Date | undefined) => void;
   /** Callback to apply a time range preset */
   onPresetSelect?: (preset: TimeRangePreset) => void;
+  /** Callback when display range changes (for pending histogram) */
+  onDisplayRangeChange?: (start: Date, end: Date) => void;
+  /** Callback to clear pending display state */
+  onClearPendingDisplay?: () => void;
 }
 
 // =============================================================================
@@ -296,6 +305,7 @@ function LogViewerInner({
   isFetching = false,
   error = null,
   histogram,
+  pendingHistogram,
   onRefetch,
   filterChips,
   onFilterChipsChange,
@@ -311,6 +321,8 @@ function LogViewerInner({
   onStartTimeChange,
   onEndTimeChange,
   onPresetSelect,
+  onDisplayRangeChange,
+  onClearPendingDisplay,
 }: LogViewerProps) {
   const { clipboard, announcer } = useServices();
 
@@ -387,6 +399,23 @@ function LogViewerInner({
       announcer.announce(`Showing ${message}`, "polite");
     },
     [onPresetSelect, announcer],
+  );
+
+  // Wrap time change handlers to clear pending display
+  const handleStartTimeChangeWithClear = useCallback(
+    (time: Date | undefined) => {
+      onStartTimeChange?.(time);
+      onClearPendingDisplay?.();
+    },
+    [onStartTimeChange, onClearPendingDisplay],
+  );
+
+  const handleEndTimeChangeWithClear = useCallback(
+    (time: Date | undefined) => {
+      onEndTimeChange?.(time);
+      onClearPendingDisplay?.();
+    },
+    [onEndTimeChange, onClearPendingDisplay],
   );
 
   // Handle zoom in - halve the time range
@@ -512,6 +541,7 @@ function LogViewerInner({
         <div className="shrink-0 border-b px-3 py-2">
           <TimelineHistogram
             buckets={histogram.buckets}
+            pendingBuckets={pendingHistogram?.buckets}
             intervalMs={histogram.intervalMs}
             onBucketClick={handleBucketClick}
             height={80}
@@ -521,8 +551,9 @@ function LogViewerInner({
             endTime={endTime}
             displayStart={displayStart}
             displayEnd={displayEnd}
-            onStartTimeChange={onStartTimeChange}
-            onEndTimeChange={onEndTimeChange}
+            onStartTimeChange={handleStartTimeChangeWithClear}
+            onEndTimeChange={handleEndTimeChangeWithClear}
+            onDisplayRangeChange={onDisplayRangeChange}
             // Presets
             showPresets
             activePreset={activePreset}
