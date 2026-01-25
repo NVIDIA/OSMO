@@ -368,21 +368,131 @@ function TimelineHistogramInner({
   const { announcer } = useServices();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Pending state for dragger/wheel interactions
-  const [pendingStart, setPendingStart] = useState<Date | undefined>(undefined);
-  const [pendingEnd, setPendingEnd] = useState<Date | undefined>(undefined);
+  // ============================================================================
+  // STATE: Clean separation of concerns
+  // ============================================================================
+
+  // Pending display range (where histogram shows - shifts during pan)
   const [pendingDisplayStart, setPendingDisplayStart] = useState<Date | undefined>(undefined);
   const [pendingDisplayEnd, setPendingDisplayEnd] = useState<Date | undefined>(undefined);
 
-  // Check if there are pending changes
-  const hasPendingChanges = pendingStart !== undefined || pendingEnd !== undefined;
+  // Pending dragger positions as fractions (0-1) - stable during pan
+  const [pendingStartPercent, setPendingStartPercent] = useState<number | undefined>(undefined);
+  const [pendingEndPercent, setPendingEndPercent] = useState<number | undefined>(undefined);
 
-  // Helper to auto-adjust display range after gripper drag/wheel interaction
-  const autoAdjustDisplayRange = useCallback(
+  // Check if there are pending changes
+  const hasPendingChanges =
+    pendingDisplayStart !== undefined ||
+    pendingDisplayEnd !== undefined ||
+    pendingStartPercent !== undefined ||
+    pendingEndPercent !== undefined;
+
+  // ============================================================================
+  // DERIVED VALUES: Calculate from state
+  // ============================================================================
+
+  // Current display range (with pending or from props)
+  const derivedDisplayStart = useMemo(
+    () => pendingDisplayStart ?? displayStart ?? buckets[0]?.timestamp ?? new Date(),
+    [pendingDisplayStart, displayStart, buckets],
+  );
+  const derivedDisplayEnd = useMemo(
+    () => pendingDisplayEnd ?? displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? new Date(),
+    [pendingDisplayEnd, displayEnd, buckets],
+  );
+
+  // Calculate current dragger positions as percentages (0-1)
+  const currentStartPercent = useMemo(() => {
+    if (pendingStartPercent !== undefined) return pendingStartPercent;
+    if (!startTime) return undefined;
+
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    if (displayRangeMs <= 0) return undefined;
+
+    return (startTime.getTime() - derivedDisplayStart.getTime()) / displayRangeMs;
+  }, [pendingStartPercent, startTime, derivedDisplayStart, derivedDisplayEnd]);
+
+  const currentEndPercent = useMemo(() => {
+    if (pendingEndPercent !== undefined) return pendingEndPercent;
+    if (!endTime) return undefined;
+
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    if (displayRangeMs <= 0) return undefined;
+
+    return (endTime.getTime() - derivedDisplayStart.getTime()) / displayRangeMs;
+  }, [pendingEndPercent, endTime, derivedDisplayStart, derivedDisplayEnd]);
+
+  // Derive effective times from dragger positions + display range
+  const effectiveStartTime = useMemo(() => {
+    if (currentStartPercent === undefined) return startTime;
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    return new Date(derivedDisplayStart.getTime() + currentStartPercent * displayRangeMs);
+  }, [currentStartPercent, derivedDisplayStart, derivedDisplayEnd, startTime]);
+
+  const effectiveEndTime = useMemo(() => {
+    if (currentEndPercent === undefined) return endTime;
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    return new Date(derivedDisplayStart.getTime() + currentEndPercent * displayRangeMs);
+  }, [currentEndPercent, derivedDisplayStart, derivedDisplayEnd, endTime]);
+
+  // Calculate bar container transform for pan animation
+  const barTransform = useMemo(() => {
+    // Original display range (from props or first/last bucket)
+    const originalDisplayStart = displayStart ?? buckets[0]?.timestamp;
+    if (!originalDisplayStart) return "translateX(0)";
+
+    // Calculate how much the display has shifted
+    const shiftMs = derivedDisplayStart.getTime() - originalDisplayStart.getTime();
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    if (displayRangeMs <= 0) return "translateX(0)";
+
+    // Convert shift to percentage (negative because bars move opposite to display shift)
+    const shiftPercent = -(shiftMs / displayRangeMs) * 100;
+    return `translateX(${shiftPercent}%)`;
+  }, [displayStart, buckets, derivedDisplayStart, derivedDisplayEnd]);
+
+  // ============================================================================
+  // CALLBACKS: User interactions
+  // ============================================================================
+
+  // Pan: Shift display range only (dragger percentages stay same)
+  const handlePendingDisplayChange = useCallback(
+    (newDisplayStart: Date, newDisplayEnd: Date) => {
+      // Capture current dragger percentages if not already pending
+      if (pendingStartPercent === undefined && currentStartPercent !== undefined) {
+        setPendingStartPercent(currentStartPercent);
+      }
+      if (pendingEndPercent === undefined && currentEndPercent !== undefined) {
+        setPendingEndPercent(currentEndPercent);
+      }
+
+      // Shift display range
+      setPendingDisplayStart(newDisplayStart);
+      setPendingDisplayEnd(newDisplayEnd);
+
+      // Note: dragger percentages are now frozen, so draggers stay at same pixel position
+      // but now point to different times (derived from frozen percentages + new display range)
+    },
+    [pendingStartPercent, pendingEndPercent, currentStartPercent, currentEndPercent],
+  );
+
+  // Drag/Zoom: Update dragger percentages + auto-adjust display
+  const handlePendingRangeChange = useCallback(
     (newStart: Date | undefined, newEnd: Date | undefined) => {
       const PADDING_RATIO = 0.075;
 
-      // Determine actual boundaries
+      // Calculate new dragger percentages
+      const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+      if (displayRangeMs > 0) {
+        if (newStart !== undefined) {
+          setPendingStartPercent((newStart.getTime() - derivedDisplayStart.getTime()) / displayRangeMs);
+        }
+        if (newEnd !== undefined) {
+          setPendingEndPercent((newEnd.getTime() - derivedDisplayStart.getTime()) / displayRangeMs);
+        }
+      }
+
+      // Auto-adjust display range to keep draggers visible
       const startMs = newStart?.getTime() ?? buckets[0]?.timestamp.getTime() ?? Date.now() - 60 * 60 * 1000;
       const endMs = newEnd?.getTime() ?? Date.now();
       const rangeMs = endMs - startMs;
@@ -391,44 +501,31 @@ function TimelineHistogramInner({
       setPendingDisplayStart(new Date(startMs - paddingMs));
       setPendingDisplayEnd(new Date(endMs + paddingMs));
     },
-    [buckets],
+    [derivedDisplayStart, derivedDisplayEnd, buckets],
   );
 
-  // Handle pending range change from wheel/drag
-  const handlePendingRangeChange = useCallback(
-    (newStart: Date | undefined, newEnd: Date | undefined) => {
-      setPendingStart(newStart);
-      setPendingEnd(newEnd);
-      autoAdjustDisplayRange(newStart, newEnd);
-    },
-    [autoAdjustDisplayRange],
-  );
-
-  // Apply pending changes
+  // Apply: Commit effective times to parent
   const handleApply = useCallback(() => {
-    const newStart = pendingStart ?? startTime;
-    const newEnd = pendingEnd ?? endTime;
-
-    // Update effective range
-    onStartTimeChange?.(newStart);
-    onEndTimeChange?.(newEnd);
+    // Effective times are already calculated from dragger positions + display range
+    onStartTimeChange?.(effectiveStartTime);
+    onEndTimeChange?.(effectiveEndTime);
 
     // Clear pending state
-    setPendingStart(undefined);
-    setPendingEnd(undefined);
+    setPendingStartPercent(undefined);
+    setPendingEndPercent(undefined);
     setPendingDisplayStart(undefined);
     setPendingDisplayEnd(undefined);
 
     // Announce to screen reader
-    const startLabel = newStart ? formatTime24ShortUTC(newStart) : "beginning";
-    const endLabel = newEnd ? formatTime24ShortUTC(newEnd) : "NOW";
+    const startLabel = effectiveStartTime ? formatTime24ShortUTC(effectiveStartTime) : "beginning";
+    const endLabel = effectiveEndTime ? formatTime24ShortUTC(effectiveEndTime) : "NOW";
     announcer.announce(`Time range updated to ${startLabel} to ${endLabel}`, "polite");
-  }, [pendingStart, pendingEnd, startTime, endTime, onStartTimeChange, onEndTimeChange, announcer]);
+  }, [effectiveStartTime, effectiveEndTime, onStartTimeChange, onEndTimeChange, announcer]);
 
-  // Cancel pending changes
+  // Cancel: Revert all pending changes
   const handleCancel = useCallback(() => {
-    setPendingStart(undefined);
-    setPendingEnd(undefined);
+    setPendingStartPercent(undefined);
+    setPendingEndPercent(undefined);
     setPendingDisplayStart(undefined);
     setPendingDisplayEnd(undefined);
     announcer.announce("Time range changes cancelled", "polite");
@@ -442,37 +539,21 @@ function TimelineHistogramInner({
     return diffMs < 60000; // Within 1 minute
   }, [endTime]);
 
-  // Derive display range from props or buckets (use pending if available)
-  const derivedDisplayStart = useMemo(
-    () => pendingDisplayStart ?? displayStart ?? buckets[0]?.timestamp ?? new Date(),
-    [pendingDisplayStart, displayStart, buckets],
-  );
-  const derivedDisplayEnd = useMemo(
-    () => pendingDisplayEnd ?? displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? new Date(),
-    [pendingDisplayEnd, displayEnd, buckets],
-  );
-
-  // Get effective range (use pending if available)
-  const effectiveStartTime = pendingStart ?? startTime;
-  const effectiveEndTime = pendingEnd ?? endTime;
-
   // Dragger gestures (only if interactive mode enabled)
   const handleDraggerStartChange = useCallback(
     (time: Date | undefined) => {
-      // Auto-adjust display range after drag
-      const newEnd = pendingEnd ?? endTime;
-      handlePendingRangeChange(time, newEnd);
+      // Drag updates both start and end (for display range adjustment)
+      handlePendingRangeChange(time, effectiveEndTime);
     },
-    [pendingEnd, endTime, handlePendingRangeChange],
+    [effectiveEndTime, handlePendingRangeChange],
   );
 
   const handleDraggerEndChange = useCallback(
     (time: Date | undefined) => {
-      // Auto-adjust display range after drag
-      const newStart = pendingStart ?? startTime;
-      handlePendingRangeChange(newStart, time);
+      // Drag updates both start and end (for display range adjustment)
+      handlePendingRangeChange(effectiveStartTime, time);
     },
-    [pendingStart, startTime, handlePendingRangeChange],
+    [effectiveStartTime, handlePendingRangeChange],
   );
 
   const startDragger = useDraggerGesture({
@@ -499,10 +580,13 @@ function TimelineHistogramInner({
   useTimelineWheel({
     containerRef,
     enabled: enableInteractiveDraggers,
+    displayStart: derivedDisplayStart,
+    displayEnd: derivedDisplayEnd,
     effectiveStart: effectiveStartTime,
     effectiveEnd: effectiveEndTime,
     isEndTimeNow,
     onPendingRangeChange: handlePendingRangeChange,
+    onPendingDisplayChange: handlePendingDisplayChange,
   });
 
   // Compute overlay positions (as percentages)
@@ -528,19 +612,19 @@ function TimelineHistogramInner({
     };
   }, [enableInteractiveDraggers, derivedDisplayStart, derivedDisplayEnd, effectiveStartTime, effectiveEndTime]);
 
-  // Get the terminal timestamp label (right edge)
+  // Get the terminal timestamp label (right edge) - use effective (pending) values
   const terminalLabel = useMemo(() => {
     if (isEndTimeNow) return "NOW";
-    if (endTime) return formatTime24ShortUTC(endTime);
+    if (effectiveEndTime) return formatTime24ShortUTC(effectiveEndTime);
     return null;
-  }, [isEndTimeNow, endTime]);
+  }, [isEndTimeNow, effectiveEndTime]);
 
-  // Get the start timestamp label (left edge)
+  // Get the start timestamp label (left edge) - use effective (pending) values
   const startLabel = useMemo(() => {
-    if (startTime) return formatTime24ShortUTC(startTime);
+    if (effectiveStartTime) return formatTime24ShortUTC(effectiveStartTime);
     if (buckets.length > 0) return formatTime24ShortUTC(buckets[0].timestamp);
     return null;
-  }, [startTime, buckets]);
+  }, [effectiveStartTime, buckets]);
 
   // Find max total for scaling
   const maxTotal = useMemo(() => {
@@ -550,6 +634,32 @@ function TimelineHistogramInner({
     }
     return max;
   }, [buckets]);
+
+  // Calculate which buckets should be dimmed based on effective range (includes pending)
+  const shouldDimBucket = useCallback(
+    (bucket: HistogramBucket): boolean => {
+      // If not in interactive mode, use the bucket's own property
+      if (!enableInteractiveDraggers) {
+        return bucket.isInEffectiveRange === false;
+      }
+
+      // Otherwise, calculate based on current effective range (pending or committed)
+      const bucketTime = bucket.timestamp.getTime();
+      const effectiveStartMs = effectiveStartTime?.getTime();
+      const effectiveEndMs = effectiveEndTime?.getTime();
+
+      // Check if bucket is outside effective range
+      if (effectiveStartMs !== undefined && bucketTime < effectiveStartMs) {
+        return true;
+      }
+      if (effectiveEndMs !== undefined && bucketTime > effectiveEndMs) {
+        return true;
+      }
+
+      return false;
+    },
+    [enableInteractiveDraggers, effectiveStartTime, effectiveEndTime],
+  );
 
   // Empty state
   if (buckets.length === 0) {
@@ -645,24 +755,33 @@ function TimelineHistogramInner({
         }}
       >
         <div className="space-y-2 pt-4">
+          {/* Timeline Window - Fixed layer with overlays and draggers */}
           <div className="relative">
             <div
               ref={containerRef}
-              className="relative flex items-end gap-px"
+              className="relative"
               style={{ height: `${height}px` }}
             >
-              {buckets.map((bucket, i) => (
-                <StackedBar
-                  key={`${bucket.timestamp.getTime()}-${i}`}
-                  bucket={bucket}
-                  maxTotal={maxTotal}
-                  height={height}
-                  onClick={onBucketClick ? () => onBucketClick(bucket) : undefined}
-                  dimmed={bucket.isInEffectiveRange === false}
-                />
-              ))}
+              {/* Bars layer - Transforms during pan */}
+              <div
+                className="absolute inset-0 flex items-end gap-px transition-transform duration-200 ease-out"
+                style={{
+                  transform: barTransform,
+                }}
+              >
+                {buckets.map((bucket, i) => (
+                  <StackedBar
+                    key={`${bucket.timestamp.getTime()}-${i}`}
+                    bucket={bucket}
+                    maxTotal={maxTotal}
+                    height={height}
+                    onClick={onBucketClick ? () => onBucketClick(bucket) : undefined}
+                    dimmed={shouldDimBucket(bucket)}
+                  />
+                ))}
+              </div>
 
-              {/* Overlays for padding zones (only in interactive mode) */}
+              {/* Overlays layer - Fixed, doesn't transform */}
               {enableInteractiveDraggers && overlayPositions && (
                 <>
                   {overlayPositions.leftWidth > 0 && (
@@ -682,7 +801,7 @@ function TimelineHistogramInner({
                 </>
               )}
 
-              {/* Draggers (only in interactive mode) */}
+              {/* Draggers layer - Fixed, doesn't transform */}
               {enableInteractiveDraggers && (
                 <>
                   <div
