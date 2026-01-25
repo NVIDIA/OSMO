@@ -46,7 +46,7 @@
  * ```
  */
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
 import { LogViewer } from "./LogViewer";
@@ -147,6 +147,10 @@ function LogViewerContainerInner({
     setPreset,
     isLiveMode,
   } = useLogViewerUrlState();
+
+  // Pending display range state (for real-time pan/zoom without committing)
+  const [pendingDisplayStart, setPendingDisplayStart] = useState<Date | undefined>(undefined);
+  const [pendingDisplayEnd, setPendingDisplayEnd] = useState<Date | undefined>(undefined);
 
   // Convert filter chips to query params
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
@@ -251,6 +255,31 @@ function LogViewerContainerInner({
     });
   }, [combinedEntries, displayStart, displayEnd, startTime, endTime]);
 
+  // Pending histogram (computed with pending display range for real-time pan/zoom feedback)
+  const pendingHistogram = useMemo(() => {
+    if (!pendingDisplayStart || !pendingDisplayEnd) return undefined;
+
+    return computeHistogram(combinedEntries, {
+      numBuckets: 50,
+      displayStart: pendingDisplayStart,
+      displayEnd: pendingDisplayEnd,
+      effectiveStart: startTime,
+      effectiveEnd: endTime,
+    });
+  }, [combinedEntries, pendingDisplayStart, pendingDisplayEnd, startTime, endTime]);
+
+  // Handle display range change from pan/zoom (before Apply)
+  const handleDisplayRangeChange = useCallback((newDisplayStart: Date, newDisplayEnd: Date) => {
+    setPendingDisplayStart(newDisplayStart);
+    setPendingDisplayEnd(newDisplayEnd);
+  }, []);
+
+  // Clear pending state (called by LogViewer on Apply or Cancel)
+  const handleClearPendingDisplay = useCallback(() => {
+    setPendingDisplayStart(undefined);
+    setPendingDisplayEnd(undefined);
+  }, []);
+
   // Show skeleton during initial load and when refetching without data
   // User preference: show skeleton instead of stale data for correctness
   const showSkeleton = isLoading && combinedEntries.length === 0;
@@ -272,6 +301,7 @@ function LogViewerContainerInner({
         isFetching={isFetching}
         error={error}
         histogram={histogram}
+        pendingHistogram={pendingHistogram}
         onRefetch={refetch}
         filterChips={filterChips}
         onFilterChipsChange={setFilterChips}
@@ -285,6 +315,8 @@ function LogViewerContainerInner({
         onStartTimeChange={setStartTime}
         onEndTimeChange={setEndTime}
         onPresetSelect={setPreset}
+        onDisplayRangeChange={handleDisplayRangeChange}
+        onClearPendingDisplay={handleClearPendingDisplay}
       />
     </div>
   );
