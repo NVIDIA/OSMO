@@ -118,21 +118,26 @@ export interface TimelineBounds {
  */
 export interface PanConstraintResult {
   blocked: boolean;
-  reason?: "left-boundary" | "right-boundary" | "effective-start-violation";
+  reason?: "left-boundary" | "right-boundary" | "left-invalid-zone-boundary";
 }
 
 /**
  * Validate pan constraint against boundaries and effective times.
  *
+ * ## 2-Layer Model Constraints
+ *
+ * Layer 1 (pannable): [invalidZoneLeft] [bars] [invalidZoneRight]
+ * Layer 2 (fixed): [left overlay] | viewport | [right overlay]
+ *
  * This enforces:
- * 1. Cannot pan past right boundary (unless zooming)
- * 2. Entity boundary must not be positioned right of effective start (unless zooming)
+ * 1. Right boundary: Cannot pan past entity end boundary (unless zooming)
+ * 2. Left boundary: Invalid zone left's right edge cannot pass window's left overlay right edge (unless zooming)
  *
  * @param newDisplayStart - New display start
  * @param newDisplayEnd - New display end
  * @param currentDisplayStart - Current display start
  * @param currentDisplayEnd - Current display end
- * @param bounds - Entity boundaries
+ * @param bounds - Entity boundaries (minTime = entityStart, maxTime = entityEnd + padding)
  * @param currentStartPercent - Current start dragger position as fraction (0-1), undefined if not set
  * @param effectiveStartTime - Effective start time, undefined if not set
  * @returns Constraint validation result
@@ -160,12 +165,14 @@ export function validatePanConstraint(
     return { blocked: true, reason: "right-boundary" };
   }
 
-  // Check effective start constraint
+  // Check left invalid zone boundary constraint
+  // This prevents the invalid zone's right edge (entityStart) from passing
+  // the window's left overlay right edge (effectiveStart position)
   if (currentStartPercent !== undefined && effectiveStartTime && displayRangeMs > 0) {
     const newEffectiveStartMs = newStartMs + currentStartPercent * displayRangeMs;
 
     if (boundaryStartMs > newEffectiveStartMs && !isZoomGesture(displayRangeMs, currentRangeMs)) {
-      return { blocked: true, reason: "effective-start-violation" };
+      return { blocked: true, reason: "left-invalid-zone-boundary" };
     }
   }
 
