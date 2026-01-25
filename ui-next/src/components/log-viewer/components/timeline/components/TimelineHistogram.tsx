@@ -45,7 +45,6 @@ import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
-import type { TimelineBounds } from "../lib/timeline-utils";
 
 // =============================================================================
 // Types
@@ -62,16 +61,16 @@ export interface TimelineHistogramProps {
   displayEnd?: Date;
   /** Current display range (including pending changes) */
   currentDisplay: { start: Date; end: Date };
-  /** Pan boundaries (entity start/end) */
-  panBoundaries: TimelineBounds | null;
   /** Current effective range (for dimming bars) */
   currentEffective: { start: Date | undefined; end: Date | undefined };
   /** Whether interactive draggers are enabled (affects dimming logic) */
   enableInteractiveDraggers: boolean;
-  /** Entity start time */
+  /** Entity start time (workflow start) - left boundary of valid zone */
   entityStartTime?: Date;
-  /** Entity end time */
+  /** Entity end time (workflow end) - right boundary of valid zone, undefined if still running */
   entityEndTime?: Date;
+  /** Synchronized "NOW" timestamp (for running workflows) */
+  now?: number;
   /** Callback when bucket is clicked */
   onBucketClick?: (bucket: HistogramBucket) => void;
 }
@@ -225,25 +224,20 @@ function TimelineHistogramInner({
   displayStart,
   displayEnd,
   currentDisplay,
-  panBoundaries,
   currentEffective,
   enableInteractiveDraggers,
-  entityStartTime: _entityStartTime,
-  entityEndTime: _entityEndTime,
+  entityStartTime,
+  entityEndTime,
+  now,
   onBucketClick,
 }: TimelineHistogramProps) {
   // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
-  // ============================================================================
-  // INVALID ZONE POSITIONS (Layer 1: based on original display range)
-  // ============================================================================
-
+  // Invalid zone positions (part of Layer 1 - transforms with bars)
   const invalidZonePositions = useMemo(() => {
-    if (!panBoundaries) return null;
+    if (!entityStartTime) return null;
 
-    // Use original (committed) display range, not current (which includes pending pans)
-    // This ensures invalid zones transform together with bars as a single pannable layer
     const originalStart = displayStart ?? buckets[0]?.timestamp;
     const originalEnd = displayEnd ?? buckets[buckets.length - 1]?.timestamp;
     if (!originalStart || !originalEnd) return null;
@@ -253,29 +247,30 @@ function TimelineHistogramInner({
     const displayRangeMs = displayEndMs - displayStartMs;
     if (displayRangeMs <= 0) return null;
 
-    const boundaryStartMs = panBoundaries.minTime.getTime();
-    const boundaryEndMs = panBoundaries.maxTime.getTime();
+    const toPercent = (ms: number): number => (ms / displayRangeMs) * 100;
+    const entityStartMs = entityStartTime.getTime();
 
-    let leftInvalidWidth = 0;
-    if (displayStartMs < boundaryStartMs) {
-      const invalidMs = Math.min(boundaryStartMs - displayStartMs, displayRangeMs);
-      leftInvalidWidth = (invalidMs / displayRangeMs) * 100;
-    }
+    // Left zone: from displayStart to entityStartTime
+    const leftEndMs = Math.min(entityStartMs, displayEndMs);
+    const leftWidthPercent = displayStartMs < entityStartMs ? toPercent(leftEndMs - displayStartMs) : 0;
 
-    let rightInvalidStart = 100;
-    let rightInvalidWidth = 0;
-    if (displayEndMs > boundaryEndMs) {
-      const validEndPosition = ((boundaryEndMs - displayStartMs) / displayRangeMs) * 100;
-      rightInvalidStart = Math.max(0, Math.min(100, validEndPosition));
-      rightInvalidWidth = 100 - rightInvalidStart;
+    // Right zone: from (entityEndTime OR NOW) to displayEnd
+    const rightBoundaryMs = entityEndTime?.getTime() ?? now;
+    let rightStartPercent = 100;
+    let rightWidthPercent = 0;
+
+    if (rightBoundaryMs !== undefined && displayEndMs > rightBoundaryMs) {
+      const zoneStartMs = Math.max(rightBoundaryMs, displayStartMs);
+      rightStartPercent = toPercent(zoneStartMs - displayStartMs);
+      rightWidthPercent = toPercent(displayEndMs - zoneStartMs);
     }
 
     return {
-      leftInvalidWidth: Math.max(0, Math.min(100, leftInvalidWidth)),
-      rightInvalidStart: Math.max(0, Math.min(100, rightInvalidStart)),
-      rightInvalidWidth: Math.max(0, Math.min(100, rightInvalidWidth)),
+      leftInvalidWidth: leftWidthPercent,
+      rightInvalidStart: rightStartPercent,
+      rightInvalidWidth: rightWidthPercent,
     };
-  }, [panBoundaries, displayStart, displayEnd, buckets]);
+  }, [entityStartTime, entityEndTime, now, displayStart, displayEnd, buckets]);
 
   // ============================================================================
   // TRANSFORM CALCULATION
