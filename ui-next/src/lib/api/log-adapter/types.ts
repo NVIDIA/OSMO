@@ -210,6 +210,8 @@ export interface HistogramBucket {
   counts: Partial<Record<LogLevel, number>>;
   /** Total count for this bucket */
   total: number;
+  /** Whether this bucket is in the effective (queried) range (not padding) */
+  isInEffectiveRange?: boolean;
 }
 
 /**

@@ -8,9 +8,9 @@
 
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { formatTime24Short } from "@/lib/format-date";
+import { formatDateTimeFullUTC, formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -22,6 +22,12 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/shadcn/button";
 import { ChevronUp, ChevronDown, Check } from "lucide-react";
+import { TimelineOverlay } from "./TimelineOverlay";
+import { TimelineDragger } from "./TimelineDragger";
+import { TimelineControls } from "./TimelineControls";
+import { useDraggerGesture } from "../lib/use-dragger-gesture";
+import { useTimelineWheel } from "../lib/use-timeline-wheel";
+import { useServices } from "@/contexts/service-context";
 
 // =============================================================================
 // Types
@@ -50,16 +56,22 @@ export interface TimelineHistogramProps {
   customControls?: React.ReactNode;
   /** Whether the histogram starts collapsed */
   defaultCollapsed?: boolean;
-  /** Start time for the time range selector */
+  /** Start time for the time range selector (effective range) */
   startTime?: Date;
-  /** End time for the time range selector */
+  /** End time for the time range selector (effective range) */
   endTime?: Date;
+  /** Display range start (with padding) */
+  displayStart?: Date;
+  /** Display range end (with padding) */
+  displayEnd?: Date;
   /** Callback when start time changes */
-  onStartTimeChange?: (date: Date) => void;
+  onStartTimeChange?: (date: Date | undefined) => void;
   /** Callback when end time changes */
-  onEndTimeChange?: (date: Date) => void;
+  onEndTimeChange?: (date: Date | undefined) => void;
   /** Whether to show the time range header (default: false) */
   showTimeRangeHeader?: boolean;
+  /** Whether to enable interactive draggers (default: false) */
+  enableInteractiveDraggers?: boolean;
 }
 
 export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h" | "custom";
@@ -99,8 +111,8 @@ interface BucketTooltipProps {
 function BucketTooltipContent({ bucket }: BucketTooltipProps) {
   return (
     <div className="space-y-1">
-      {/* Timestamp header */}
-      <div className="font-medium tabular-nums">{formatTime24Short(bucket.timestamp)}</div>
+      {/* Timestamp header with full date and time for debugging */}
+      <div className="text-xs font-medium tabular-nums">{formatDateTimeFullUTC(bucket.timestamp)}</div>
 
       {/* Level breakdown */}
       <div className="space-y-0.5">
@@ -135,9 +147,11 @@ interface StackedBarProps {
   maxTotal: number;
   height: number;
   onClick?: () => void;
+  /** Whether to dim this bar (outside effective range) */
+  dimmed?: boolean;
 }
 
-function StackedBar({ bucket, maxTotal, height: _height, onClick }: StackedBarProps) {
+function StackedBar({ bucket, maxTotal, height: _height, onClick, dimmed = false }: StackedBarProps) {
   // Calculate the overall bar height as a percentage
   const heightPercentage = maxTotal > 0 ? (bucket.total / maxTotal) * 100 : 0;
 
@@ -164,7 +178,13 @@ function StackedBar({ bucket, maxTotal, height: _height, onClick }: StackedBarPr
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className="relative flex-1 cursor-pointer opacity-85 transition-opacity duration-75 hover:opacity-100"
+          className={cn(
+            "relative flex-1 cursor-pointer transition-opacity duration-75",
+            // Normal state: 85% opacity, hover to 100%
+            !dimmed && "opacity-85 hover:opacity-100",
+            // Dimmed state: 50% opacity (padding zone)
+            dimmed && "opacity-50",
+          )}
           style={{ height: `${heightPercentage}%` }}
           onClick={onClick}
         >
@@ -337,31 +357,188 @@ function TimelineHistogramInner({
   defaultCollapsed = false,
   startTime,
   endTime,
+  displayStart,
+  displayEnd,
   onStartTimeChange,
   onEndTimeChange,
   showTimeRangeHeader = false,
+  enableInteractiveDraggers = false,
 }: TimelineHistogramProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  const { announcer } = useServices();
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Determine if end time is "now" (within 1 minute threshold)
+  // Pending state for dragger/wheel interactions
+  const [pendingStart, setPendingStart] = useState<Date | undefined>(undefined);
+  const [pendingEnd, setPendingEnd] = useState<Date | undefined>(undefined);
+  const [pendingDisplayStart, setPendingDisplayStart] = useState<Date | undefined>(undefined);
+  const [pendingDisplayEnd, setPendingDisplayEnd] = useState<Date | undefined>(undefined);
+
+  // Check if there are pending changes
+  const hasPendingChanges = pendingStart !== undefined || pendingEnd !== undefined;
+
+  // Helper to auto-adjust display range after gripper drag/wheel interaction
+  const autoAdjustDisplayRange = useCallback(
+    (newStart: Date | undefined, newEnd: Date | undefined) => {
+      const PADDING_RATIO = 0.075;
+
+      // Determine actual boundaries
+      const startMs = newStart?.getTime() ?? buckets[0]?.timestamp.getTime() ?? Date.now() - 60 * 60 * 1000;
+      const endMs = newEnd?.getTime() ?? Date.now();
+      const rangeMs = endMs - startMs;
+      const paddingMs = Math.max(rangeMs * PADDING_RATIO, 60_000 * PADDING_RATIO);
+
+      setPendingDisplayStart(new Date(startMs - paddingMs));
+      setPendingDisplayEnd(new Date(endMs + paddingMs));
+    },
+    [buckets],
+  );
+
+  // Handle pending range change from wheel/drag
+  const handlePendingRangeChange = useCallback(
+    (newStart: Date | undefined, newEnd: Date | undefined) => {
+      setPendingStart(newStart);
+      setPendingEnd(newEnd);
+      autoAdjustDisplayRange(newStart, newEnd);
+    },
+    [autoAdjustDisplayRange],
+  );
+
+  // Apply pending changes
+  const handleApply = useCallback(() => {
+    const newStart = pendingStart ?? startTime;
+    const newEnd = pendingEnd ?? endTime;
+
+    // Update effective range
+    onStartTimeChange?.(newStart);
+    onEndTimeChange?.(newEnd);
+
+    // Clear pending state
+    setPendingStart(undefined);
+    setPendingEnd(undefined);
+    setPendingDisplayStart(undefined);
+    setPendingDisplayEnd(undefined);
+
+    // Announce to screen reader
+    const startLabel = newStart ? formatTime24ShortUTC(newStart) : "beginning";
+    const endLabel = newEnd ? formatTime24ShortUTC(newEnd) : "NOW";
+    announcer.announce(`Time range updated to ${startLabel} to ${endLabel}`, "polite");
+  }, [pendingStart, pendingEnd, startTime, endTime, onStartTimeChange, onEndTimeChange, announcer]);
+
+  // Cancel pending changes
+  const handleCancel = useCallback(() => {
+    setPendingStart(undefined);
+    setPendingEnd(undefined);
+    setPendingDisplayStart(undefined);
+    setPendingDisplayEnd(undefined);
+    announcer.announce("Time range changes cancelled", "polite");
+  }, [announcer]);
+
+  // Determine if end time is "now" (within 1 minute threshold or undefined)
   const isEndTimeNow = useMemo(() => {
-    if (!endTime) return false;
+    if (!endTime) return true; // undefined means NOW
     const now = new Date();
     const diffMs = Math.abs(now.getTime() - endTime.getTime());
     return diffMs < 60000; // Within 1 minute
   }, [endTime]);
 
+  // Derive display range from props or buckets (use pending if available)
+  const derivedDisplayStart = useMemo(
+    () => pendingDisplayStart ?? displayStart ?? buckets[0]?.timestamp ?? new Date(),
+    [pendingDisplayStart, displayStart, buckets],
+  );
+  const derivedDisplayEnd = useMemo(
+    () => pendingDisplayEnd ?? displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? new Date(),
+    [pendingDisplayEnd, displayEnd, buckets],
+  );
+
+  // Get effective range (use pending if available)
+  const effectiveStartTime = pendingStart ?? startTime;
+  const effectiveEndTime = pendingEnd ?? endTime;
+
+  // Dragger gestures (only if interactive mode enabled)
+  const handleDraggerStartChange = useCallback(
+    (time: Date | undefined) => {
+      // Auto-adjust display range after drag
+      const newEnd = pendingEnd ?? endTime;
+      handlePendingRangeChange(time, newEnd);
+    },
+    [pendingEnd, endTime, handlePendingRangeChange],
+  );
+
+  const handleDraggerEndChange = useCallback(
+    (time: Date | undefined) => {
+      // Auto-adjust display range after drag
+      const newStart = pendingStart ?? startTime;
+      handlePendingRangeChange(newStart, time);
+    },
+    [pendingStart, startTime, handlePendingRangeChange],
+  );
+
+  const startDragger = useDraggerGesture({
+    side: "start",
+    displayStart: derivedDisplayStart,
+    displayEnd: derivedDisplayEnd,
+    effectiveTime: effectiveStartTime,
+    isEndTimeNow: false, // Start dragger never blocked
+    onPendingTimeChange: handleDraggerStartChange,
+    containerRef,
+  });
+
+  const endDragger = useDraggerGesture({
+    side: "end",
+    displayStart: derivedDisplayStart,
+    displayEnd: derivedDisplayEnd,
+    effectiveTime: effectiveEndTime,
+    isEndTimeNow,
+    onPendingTimeChange: handleDraggerEndChange,
+    containerRef,
+  });
+
+  // Mouse wheel interactions (pan and zoom)
+  useTimelineWheel({
+    containerRef,
+    enabled: enableInteractiveDraggers,
+    effectiveStart: effectiveStartTime,
+    effectiveEnd: effectiveEndTime,
+    isEndTimeNow,
+    onPendingRangeChange: handlePendingRangeChange,
+  });
+
+  // Compute overlay positions (as percentages)
+  const overlayPositions = useMemo(() => {
+    if (!enableInteractiveDraggers) return null;
+
+    const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
+    if (displayRangeMs <= 0) return null;
+
+    // Left overlay: from display start to effective start
+    const effectiveStartMs = effectiveStartTime?.getTime() ?? derivedDisplayStart.getTime();
+    const leftWidth = ((effectiveStartMs - derivedDisplayStart.getTime()) / displayRangeMs) * 100;
+
+    // Right overlay: from effective end to display end
+    const effectiveEndMs = effectiveEndTime?.getTime() ?? derivedDisplayEnd.getTime();
+    const rightStart = ((effectiveEndMs - derivedDisplayStart.getTime()) / displayRangeMs) * 100;
+    const rightWidth = 100 - rightStart;
+
+    return {
+      leftWidth: Math.max(0, leftWidth),
+      rightStart: Math.max(0, Math.min(100, rightStart)),
+      rightWidth: Math.max(0, rightWidth),
+    };
+  }, [enableInteractiveDraggers, derivedDisplayStart, derivedDisplayEnd, effectiveStartTime, effectiveEndTime]);
+
   // Get the terminal timestamp label (right edge)
   const terminalLabel = useMemo(() => {
     if (isEndTimeNow) return "NOW";
-    if (endTime) return formatTime24Short(endTime);
+    if (endTime) return formatTime24ShortUTC(endTime);
     return null;
   }, [isEndTimeNow, endTime]);
 
   // Get the start timestamp label (left edge)
   const startLabel = useMemo(() => {
-    if (startTime) return formatTime24Short(startTime);
-    if (buckets.length > 0) return formatTime24Short(buckets[0].timestamp);
+    if (startTime) return formatTime24ShortUTC(startTime);
+    if (buckets.length > 0) return formatTime24ShortUTC(buckets[0].timestamp);
     return null;
   }, [startTime, buckets]);
 
@@ -426,9 +603,23 @@ function TimelineHistogramInner({
             onPresetSelect={onPresetSelect}
           />
         )}
+
+        {/* Apply/Cancel controls - show when pending changes */}
+        {enableInteractiveDraggers && (
+          <TimelineControls
+            hasPendingChanges={hasPendingChanges}
+            onApply={handleApply}
+            onCancel={handleCancel}
+            className="ml-auto"
+          />
+        )}
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-muted-foreground hover:text-foreground ml-auto flex items-center gap-1 text-xs transition-colors"
+          className={cn(
+            "text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors",
+            !hasPendingChanges && "ml-auto",
+          )}
           aria-label={isCollapsed ? "Expand histogram" : "Collapse histogram"}
         >
           {isCollapsed ? (
@@ -456,6 +647,7 @@ function TimelineHistogramInner({
         <div className="space-y-2 pt-4">
           <div className="relative">
             <div
+              ref={containerRef}
               className="relative flex items-end gap-px"
               style={{ height: `${height}px` }}
             >
@@ -466,8 +658,59 @@ function TimelineHistogramInner({
                   maxTotal={maxTotal}
                   height={height}
                   onClick={onBucketClick ? () => onBucketClick(bucket) : undefined}
+                  dimmed={bucket.isInEffectiveRange === false}
                 />
               ))}
+
+              {/* Overlays for padding zones (only in interactive mode) */}
+              {enableInteractiveDraggers && overlayPositions && (
+                <>
+                  {overlayPositions.leftWidth > 0 && (
+                    <TimelineOverlay
+                      leftPercent={0}
+                      widthPercent={overlayPositions.leftWidth}
+                      side="left"
+                    />
+                  )}
+                  {overlayPositions.rightWidth > 0 && (
+                    <TimelineOverlay
+                      leftPercent={overlayPositions.rightStart}
+                      widthPercent={overlayPositions.rightWidth}
+                      side="right"
+                    />
+                  )}
+                </>
+              )}
+
+              {/* Draggers (only in interactive mode) */}
+              {enableInteractiveDraggers && (
+                <>
+                  <div
+                    onMouseDown={startDragger.onMouseDown}
+                    onKeyDown={startDragger.onKeyDown}
+                  >
+                    <TimelineDragger
+                      leftPercent={startDragger.positionPercent}
+                      side="start"
+                      isDragging={startDragger.isDragging}
+                      isBlocked={startDragger.isBlocked}
+                      innerRef={startDragger.draggerRef}
+                    />
+                  </div>
+                  <div
+                    onMouseDown={endDragger.onMouseDown}
+                    onKeyDown={endDragger.onKeyDown}
+                  >
+                    <TimelineDragger
+                      leftPercent={endDragger.positionPercent}
+                      side="end"
+                      isDragging={endDragger.isDragging}
+                      isBlocked={endDragger.isBlocked}
+                      innerRef={endDragger.draggerRef}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Custom controls overlay (e.g., zoom controls) */}
@@ -476,7 +719,7 @@ function TimelineHistogramInner({
 
           {/* Time Axis */}
           <div className="text-muted-foreground flex justify-between pb-2 text-[10px] tabular-nums">
-            <span>{startLabel || (buckets[0] && formatTime24Short(buckets[0].timestamp))}</span>
+            <span>{startLabel || (buckets[0] && formatTime24ShortUTC(buckets[0].timestamp))}</span>
             <span>{terminalLabel || "NOW"}</span>
           </div>
         </div>
