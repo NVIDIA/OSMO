@@ -56,25 +56,22 @@ export function getLevelBadgeClasses(level: LogLevel | undefined): string {
   return LEVEL_BADGE_CLASSES.get(level) ?? LEVEL_BADGE_CLASSES.get(undefined)!;
 }
 
+/** Uppercase labels for log levels - used in log viewer badges */
+const UPPERCASE_LEVEL_LABELS: Record<LogLevel, string> = {
+  debug: "DEBUG",
+  info: "INFO",
+  warn: "WARN",
+  error: "ERROR",
+  fatal: "FATAL",
+} as const;
+
 /**
  * Get the label for a log level.
  * Returns uppercase abbreviation for display (e.g., "DEBUG", "INFO", "WARN").
  */
 export function getLevelLabel(level: LogLevel | undefined): string {
-  switch (level) {
-    case "debug":
-      return "DEBUG";
-    case "info":
-      return "INFO";
-    case "warn":
-      return "WARN";
-    case "error":
-      return "ERROR";
-    case "fatal":
-      return "FATAL";
-    default:
-      return "???";
-  }
+  if (!level) return "???";
+  return UPPERCASE_LEVEL_LABELS[level] ?? "???";
 }
 
 // =============================================================================
