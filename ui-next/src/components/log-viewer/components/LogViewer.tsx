@@ -240,10 +240,14 @@ export interface LogViewerProps {
   scope?: "workflow" | "group" | "task";
   /** Additional CSS classes */
   className?: string;
-  /** Start time for log query (undefined = from beginning) */
+  /** Start time for log query (effective range - undefined = from beginning) */
   startTime?: Date;
-  /** End time for log query (undefined = to now/latest) */
+  /** End time for log query (effective range - undefined = to now/latest) */
   endTime?: Date;
+  /** Display range start (with padding) */
+  displayStart?: Date;
+  /** Display range end (with padding) */
+  displayEnd?: Date;
   /** Active time range preset */
   activePreset?: TimeRangePreset;
   /** Callback to set start time */
@@ -301,6 +305,8 @@ function LogViewerInner({
   className,
   startTime,
   endTime,
+  displayStart,
+  displayEnd,
   activePreset,
   onStartTimeChange,
   onEndTimeChange,
@@ -513,6 +519,8 @@ function LogViewerInner({
             showTimeRangeHeader
             startTime={startTime}
             endTime={endTime}
+            displayStart={displayStart}
+            displayEnd={displayEnd}
             onStartTimeChange={onStartTimeChange}
             onEndTimeChange={onEndTimeChange}
             // Presets
@@ -521,6 +529,8 @@ function LogViewerInner({
             onPresetSelect={handlePresetSelect}
             // Collapsed state
             defaultCollapsed={timelineCollapsed}
+            // Enable interactive draggers
+            enableInteractiveDraggers
             // Zoom controls overlay
             customControls={
               <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">

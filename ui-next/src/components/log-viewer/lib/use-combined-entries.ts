@@ -56,7 +56,7 @@ export function useCombinedEntries(
 ): LogEntry[] {
   // Compute the combined entries based on both inputs
   // This is a pure computation - no refs, no side effects during render
-  return useMemo(() => {
+  const combined = useMemo(() => {
     // If no live entries, just return query entries
     if (liveEntries.length === 0) {
       return queryEntries;
@@ -95,4 +95,26 @@ export function useCombinedEntries(
     // Combine query entries with filtered live entries
     return [...queryEntries, ...newLiveEntries];
   }, [queryEntries, liveEntries, filterParams]);
+
+  // DEBUG: Check ordering of combined entries
+  if (process.env.NODE_ENV === "development" && combined.length > 1) {
+    let outOfOrder = 0;
+    for (let i = 1; i < Math.min(combined.length, 10); i++) {
+      if (combined[i].timestamp < combined[i - 1].timestamp) {
+        outOfOrder++;
+      }
+    }
+    if (outOfOrder > 0) {
+      console.warn(
+        `[useCombinedEntries] Combined entries have ${outOfOrder} out-of-order in first 10. ` +
+          `Query: ${queryEntries.length}, Live: ${liveEntries.length}. ` +
+          `First 3 dates: ${combined
+            .slice(0, 3)
+            .map((e) => e.timestamp.toISOString().split("T")[0])
+            .join(", ")}`,
+      );
+    }
+  }
+
+  return combined;
 }

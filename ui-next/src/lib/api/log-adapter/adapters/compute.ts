@@ -151,32 +151,114 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
 const DEFAULT_BUCKET_MS = 60_000;
 
 /**
+ * Nice bucket intervals to snap to (in milliseconds).
+ * These align with intuitive time units and make histograms more stable.
+ */
+const NICE_INTERVALS_MS: readonly number[] = [
+  1_000, // 1 second
+  5_000, // 5 seconds
+  10_000, // 10 seconds
+  30_000, // 30 seconds
+  60_000, // 1 minute
+  5 * 60_000, // 5 minutes
+  15 * 60_000, // 15 minutes
+  30 * 60_000, // 30 minutes
+  60 * 60_000, // 1 hour
+  6 * 60 * 60_000, // 6 hours
+  12 * 60 * 60_000, // 12 hours
+  24 * 60 * 60_000, // 24 hours
+];
+
+/**
+ * Rounds an interval to the nearest "nice" time unit.
+ * This makes histograms more stable as data streams in.
+ *
+ * @param rawInterval - Raw calculated interval in ms
+ * @returns Rounded interval that's a nice time unit
+ */
+function roundToNiceInterval(rawInterval: number): number {
+  // Find the closest nice interval
+  let closest = NICE_INTERVALS_MS[0];
+  let minDiff = Math.abs(rawInterval - closest);
+
+  for (const niceInterval of NICE_INTERVALS_MS) {
+    const diff = Math.abs(rawInterval - niceInterval);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = niceInterval;
+    }
+  }
+
+  return closest;
+}
+
+/**
+ * Options for computing histogram.
+ */
+export interface ComputeHistogramOptions {
+  /** Target number of buckets (default: 50) */
+  numBuckets?: number;
+  /** Display range start (with padding) */
+  displayStart?: Date;
+  /** Display range end (with padding) */
+  displayEnd?: Date;
+  /** Effective range start (queried data) */
+  effectiveStart?: Date;
+  /** Effective range end (queried data) */
+  effectiveEnd?: Date;
+}
+
+/**
  * Computes histogram data for timeline visualization.
  *
  * Buckets entries by time and counts entries per log level within each bucket.
+ * Supports padding zones (outside effective range) that are visually dimmed.
  *
  * @param entries - Array of log entries
- * @param numBuckets - Target number of buckets (default: 50)
+ * @param optionsOrNumBuckets - Histogram options object, or number of buckets for backwards compatibility
  * @returns Histogram result with time-ordered buckets
  */
-export function computeHistogram(entries: LogEntry[], numBuckets = 50): HistogramResult {
-  if (entries.length === 0) {
+export function computeHistogram(
+  entries: LogEntry[],
+  optionsOrNumBuckets: ComputeHistogramOptions | number = {},
+): HistogramResult {
+  // Handle backwards compatibility: allow number as second parameter
+  const options = typeof optionsOrNumBuckets === "number" ? { numBuckets: optionsOrNumBuckets } : optionsOrNumBuckets;
+
+  const { numBuckets = 50, displayStart, displayEnd, effectiveStart, effectiveEnd } = options;
+
+  if (entries.length === 0 && !displayStart && !displayEnd) {
     return { buckets: [], intervalMs: DEFAULT_BUCKET_MS };
   }
 
   // Find time range
-  let minTime = entries[0].timestamp.getTime();
-  let maxTime = minTime;
+  let minTime: number;
+  let maxTime: number;
 
-  for (const entry of entries) {
-    const t = entry.timestamp.getTime();
-    if (t < minTime) minTime = t;
-    if (t > maxTime) maxTime = t;
+  if (displayStart && displayEnd) {
+    // Use provided display range
+    minTime = displayStart.getTime();
+    maxTime = displayEnd.getTime();
+  } else {
+    // Derive from entries
+    minTime = entries[0]?.timestamp.getTime() ?? Date.now();
+    maxTime = minTime;
+
+    for (const entry of entries) {
+      const t = entry.timestamp.getTime();
+      if (t < minTime) minTime = t;
+      if (t > maxTime) maxTime = t;
+    }
   }
 
   // Calculate bucket interval
   const timeRange = maxTime - minTime;
-  const intervalMs = timeRange > 0 ? Math.max(DEFAULT_BUCKET_MS, Math.ceil(timeRange / numBuckets)) : DEFAULT_BUCKET_MS;
+  const rawInterval =
+    timeRange > 0 ? Math.max(DEFAULT_BUCKET_MS, Math.ceil(timeRange / numBuckets)) : DEFAULT_BUCKET_MS;
+
+  // Round to a "nice" interval to make histograms stable as data streams in
+  // This prevents bucket boundaries from shifting when new entries arrive
+  const intervalMs = roundToNiceInterval(rawInterval);
 
   // Build bucket map: bucketKey -> level -> count
   const bucketMap = new Map<number, Map<LogLevel, number>>();
@@ -199,6 +281,10 @@ export function computeHistogram(entries: LogEntry[], numBuckets = 50): Histogra
   const maxBucketKey = Math.floor(maxTime / intervalMs);
   const buckets: HistogramBucket[] = [];
 
+  // Determine effective range boundaries for marking buckets
+  const effectiveStartMs = effectiveStart?.getTime();
+  const effectiveEndMs = effectiveEnd?.getTime();
+
   for (let bucketKey = minBucketKey; bucketKey <= maxBucketKey; bucketKey++) {
     const levelCounts = bucketMap.get(bucketKey);
     const counts: Partial<Record<LogLevel, number>> = {};
@@ -214,10 +300,23 @@ export function computeHistogram(entries: LogEntry[], numBuckets = 50): Histogra
       }
     }
 
+    const bucketTimestamp = new Date(bucketKey * intervalMs);
+    const bucketMs = bucketTimestamp.getTime();
+
+    // Determine if bucket is in effective range
+    let isInEffectiveRange = true;
+    if (effectiveStartMs !== undefined && bucketMs < effectiveStartMs) {
+      isInEffectiveRange = false;
+    }
+    if (effectiveEndMs !== undefined && bucketMs > effectiveEndMs) {
+      isInEffectiveRange = false;
+    }
+
     buckets.push({
-      timestamp: new Date(bucketKey * intervalMs),
+      timestamp: bucketTimestamp,
       counts,
       total,
+      isInEffectiveRange,
     });
   }
 
