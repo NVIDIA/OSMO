@@ -45,7 +45,7 @@ import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
-import type { TimelineBounds } from "./timeline-utils";
+import type { TimelineBounds } from "../lib/timeline-utils";
 
 // =============================================================================
 // Types
