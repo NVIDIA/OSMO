@@ -12,14 +12,14 @@ import { memo, useCallback, useEffect, startTransition, useDeferredValue } from 
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
-import { formatLogLine } from "@/lib/api/log-adapter";
+import { formatLogLine, LOG_LEVEL_STYLES, type LogLevel } from "@/lib/api/log-adapter";
 import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 import { FilterBar } from "@/components/filter-bar";
-import { TimelineHistogram, type TimeRangePreset } from "./TimelineHistogram";
+import { TimelineHistogram, type TimeRangePreset } from "./timeline";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
@@ -29,14 +29,14 @@ import { useLogViewerStore } from "../store/log-viewer-store";
 // Helpers
 // =============================================================================
 
-// Level styles matching the log body chips exactly
-const LEVEL_STYLES = {
-  error: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
-  warn: "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30",
-  info: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30",
-  debug: "text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-950/30",
-  fatal: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30",
-} as const;
+/**
+ * Get combined Tailwind classes for level preset styling.
+ * Uses LOG_LEVEL_STYLES from log-adapter as single source of truth.
+ */
+function getLevelPresetClasses(level: LogLevel): string {
+  const style = LOG_LEVEL_STYLES[level];
+  return cn(style.text, style.bg);
+}
 
 // Field definitions for SearchBar/FilterBar
 const LOG_FILTER_FIELDS: readonly SearchField<LogEntry>[] = [
@@ -106,7 +106,9 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active ? "bg-red-600 text-white dark:bg-red-500" : cn(LEVEL_STYLES.error, "opacity-80 hover:opacity-90"),
+              active
+                ? "bg-red-600 text-white dark:bg-red-500"
+                : cn(getLevelPresetClasses("error"), "opacity-80 hover:opacity-90"),
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
@@ -123,7 +125,7 @@ const LOG_FILTER_PRESETS: {
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
               active
                 ? "bg-yellow-600 text-white dark:bg-yellow-500"
-                : cn(LEVEL_STYLES.warn, "opacity-80 hover:opacity-90"),
+                : cn(getLevelPresetClasses("warn"), "opacity-80 hover:opacity-90"),
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
@@ -138,7 +140,9 @@ const LOG_FILTER_PRESETS: {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active ? "bg-blue-600 text-white dark:bg-blue-500" : cn(LEVEL_STYLES.info, "opacity-80 hover:opacity-90"),
+              active
+                ? "bg-blue-600 text-white dark:bg-blue-500"
+                : cn(getLevelPresetClasses("info"), "opacity-80 hover:opacity-90"),
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >
@@ -155,7 +159,7 @@ const LOG_FILTER_PRESETS: {
               "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
               active
                 ? "bg-gray-600 text-white dark:bg-gray-500"
-                : cn(LEVEL_STYLES.debug, "opacity-80 hover:opacity-90"),
+                : cn(getLevelPresetClasses("debug"), "opacity-80 hover:opacity-90"),
               "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
             )}
           >

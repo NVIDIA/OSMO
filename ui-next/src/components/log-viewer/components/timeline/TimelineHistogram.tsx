@@ -26,8 +26,8 @@ import { TimelineOverlay } from "./TimelineOverlay";
 import { InvalidZoneOverlay } from "./InvalidZoneOverlay";
 import { TimelineDragger } from "./TimelineDragger";
 import { TimelineControls } from "./TimelineControls";
-import { useDraggerGesture } from "../lib/use-dragger-gesture";
-import { useTimelineWheel } from "../lib/use-timeline-wheel";
+import { useDraggerGesture } from "./use-dragger-gesture";
+import { useTimelineWheel } from "./use-timeline-wheel";
 import { useServices } from "@/contexts/service-context";
 
 // =============================================================================
@@ -85,12 +85,26 @@ export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h" | "cust
 // Constants
 // =============================================================================
 
-// Levels to show in stacked bars (in order from bottom to top)
-// Uses LOG_LEVELS from log-adapter as the single source of truth
-const STACKED_LEVELS = LOG_LEVELS;
-
 // Default height for histogram bars
 const DEFAULT_HEIGHT = 80;
+
+// Padding ratio for display range (7.5% on each side)
+const DISPLAY_PADDING_RATIO = 0.075;
+
+// Minimum padding in milliseconds (30 seconds)
+const MIN_PADDING_MS = 30_000;
+
+// Default fallback duration when no data (1 hour in milliseconds)
+const DEFAULT_DURATION_MS = 60 * 60 * 1000;
+
+// Threshold for considering a boundary reached (1 second in milliseconds)
+const BOUNDARY_THRESHOLD_MS = 1000;
+
+// Threshold for considering end time as "now" (1 minute in milliseconds)
+const NOW_THRESHOLD_MS = 60_000;
+
+// Minimum range for dragger adjustment (1 minute in milliseconds)
+const MIN_EFFECTIVE_RANGE_MS = 60_000;
 
 // Time range presets configuration
 const PRESET_LABELS: Record<TimeRangePreset, string> = {
@@ -121,7 +135,7 @@ function BucketTooltipContent({ bucket }: BucketTooltipProps) {
 
       {/* Level breakdown */}
       <div className="space-y-0.5">
-        {STACKED_LEVELS.map((level) => {
+        {LOG_LEVELS.map((level) => {
           const count = bucket.counts[level] ?? 0;
           if (count === 0) return null;
           return (
@@ -163,7 +177,7 @@ function StackedBar({ bucket, maxTotal, onClick, dimmed = false }: StackedBarPro
   const levelSegments = useMemo(() => {
     if (bucket.total === 0) return [];
 
-    return STACKED_LEVELS.map((level) => {
+    return LOG_LEVELS.map((level) => {
       const count = bucket.counts[level] ?? 0;
       const percentage = (count / bucket.total) * 100;
       return {
@@ -461,9 +475,9 @@ function TimelineHistogramInner({
 
     let endMs: number;
     if (entityEndTime) {
-      // Completed entity: add 7.5% padding beyond end time
+      // Completed entity: add padding beyond end time
       const durationMs = entityEndTime.getTime() - startMs;
-      const paddingMs = Math.max(durationMs * 0.075, 30_000); // At least 30s padding
+      const paddingMs = Math.max(durationMs * DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
       endMs = entityEndTime.getTime() + paddingMs;
     } else {
       // Still running: use display end as boundary (approximates "now")
@@ -566,7 +580,7 @@ function TimelineHistogramInner({
 
         // Block right pan if already at/past right boundary and trying to go further right
         const isPanningRight = newEndMs > currentEndMs;
-        const isAtRightBoundary = currentEndMs >= boundaryEndMs - 1000; // 1s threshold
+        const isAtRightBoundary = currentEndMs >= boundaryEndMs - BOUNDARY_THRESHOLD_MS;
         if (isPanningRight && isAtRightBoundary) {
           return; // Block the pan gesture
         }
@@ -603,8 +617,6 @@ function TimelineHistogramInner({
   // Drag/Zoom: Update dragger percentages + auto-adjust display
   const handlePendingRangeChange = useCallback(
     (newStart: Date | undefined, newEnd: Date | undefined) => {
-      const PADDING_RATIO = 0.075;
-
       // Calculate new dragger percentages
       const displayRangeMs = derivedDisplayEnd.getTime() - derivedDisplayStart.getTime();
       if (displayRangeMs > 0) {
@@ -617,10 +629,10 @@ function TimelineHistogramInner({
       }
 
       // Auto-adjust display range to keep draggers visible
-      const startMs = newStart?.getTime() ?? activeBuckets[0]?.timestamp.getTime() ?? Date.now() - 60 * 60 * 1000;
+      const startMs = newStart?.getTime() ?? activeBuckets[0]?.timestamp.getTime() ?? Date.now() - DEFAULT_DURATION_MS;
       const endMs = newEnd?.getTime() ?? Date.now();
       const rangeMs = endMs - startMs;
-      const paddingMs = Math.max(rangeMs * PADDING_RATIO, 60_000 * PADDING_RATIO);
+      const paddingMs = Math.max(rangeMs * DISPLAY_PADDING_RATIO, MIN_EFFECTIVE_RANGE_MS * DISPLAY_PADDING_RATIO);
 
       const newDisplayStart = new Date(startMs - paddingMs);
       const newDisplayEnd = new Date(endMs + paddingMs);
@@ -664,12 +676,12 @@ function TimelineHistogramInner({
     announcer.announce("Time range changes cancelled", "polite");
   }, [announcer]);
 
-  // Determine if end time is "now" (within 1 minute threshold or undefined)
+  // Determine if end time is "now" (within threshold or undefined)
   const isEndTimeNow = useMemo(() => {
     if (!endTime) return true; // undefined means NOW
     const now = new Date();
     const diffMs = Math.abs(now.getTime() - endTime.getTime());
-    return diffMs < 60000; // Within 1 minute
+    return diffMs < NOW_THRESHOLD_MS;
   }, [endTime]);
 
   // Dragger gestures (only if interactive mode enabled)
@@ -717,7 +729,6 @@ function TimelineHistogramInner({
     displayEnd: derivedDisplayEnd,
     effectiveStart: effectiveStartTime,
     effectiveEnd: effectiveEndTime,
-    isEndTimeNow,
     onPendingRangeChange: handlePendingRangeChange,
     onPendingDisplayChange: handlePendingDisplayChange,
   });

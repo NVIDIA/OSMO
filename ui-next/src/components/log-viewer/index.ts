@@ -46,6 +46,13 @@ export { LogViewerSkeleton } from "./components/LogViewerSkeleton";
 export type { LogViewerSkeletonProps } from "./components/LogViewerSkeleton";
 
 // =============================================================================
+// Timeline Module (colocated components and hooks)
+// =============================================================================
+
+export { TimelineHistogram } from "./components/timeline";
+export type { TimelineHistogramProps, TimeRangePreset } from "./components/timeline";
+
+// =============================================================================
 // Store
 // =============================================================================
 

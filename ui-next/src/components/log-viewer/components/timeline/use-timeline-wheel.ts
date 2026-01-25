@@ -79,8 +79,6 @@ export interface UseTimelineWheelOptions {
   effectiveStart: Date | undefined;
   /** Current effective end time */
   effectiveEnd: Date | undefined;
-  /** Whether end time is NOW (blocks extending past NOW) */
-  isEndTimeNow: boolean;
   /** Callback when pending range changes (zoom/dragger) */
   onPendingRangeChange: (start: Date | undefined, end: Date | undefined) => void;
   /** Callback when pending display changes (pan/zoom) */
