@@ -71,14 +71,20 @@ export interface UseTimelineWheelOptions {
   containerRef: React.RefObject<HTMLElement | null>;
   /** Whether wheel interactions are enabled */
   enabled?: boolean;
+  /** Display range start */
+  displayStart: Date;
+  /** Display range end */
+  displayEnd: Date;
   /** Current effective start time */
   effectiveStart: Date | undefined;
   /** Current effective end time */
   effectiveEnd: Date | undefined;
   /** Whether end time is NOW (blocks extending past NOW) */
   isEndTimeNow: boolean;
-  /** Callback when pending range changes */
+  /** Callback when pending range changes (zoom/dragger) */
   onPendingRangeChange: (start: Date | undefined, end: Date | undefined) => void;
+  /** Callback when pending display changes (pan) */
+  onPendingDisplayChange: (displayStart: Date, displayEnd: Date) => void;
 }
 
 // =============================================================================
@@ -91,10 +97,13 @@ export interface UseTimelineWheelOptions {
 export function useTimelineWheel({
   containerRef,
   enabled = true,
+  displayStart,
+  displayEnd,
   effectiveStart,
   effectiveEnd,
   isEndTimeNow,
   onPendingRangeChange,
+  onPendingDisplayChange,
 }: UseTimelineWheelOptions): void {
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -149,36 +158,23 @@ export function useTimelineWheel({
           endMs === undefined && newEndMs >= now ? undefined : new Date(newEndMs),
         );
       } else {
-        // Pan left/right
+        // Pan left/right (shifts display window only, effective range stays same)
         const isPanLeft = e.deltaY < 0;
-        const panAmountMs = rangeMs * PAN_FACTOR;
+        const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
+        const panAmountMs = displayRangeMs * PAN_FACTOR;
         const deltaMs = isPanLeft ? -panAmountMs : panAmountMs;
 
-        let newStartMs = actualStartMs + deltaMs;
-        let newEndMs = actualEndMs + deltaMs;
+        const newDisplayStartMs = displayStart.getTime() + deltaMs;
+        const newDisplayEndMs = displayEnd.getTime() + deltaMs;
 
-        // Constrain end to NOW if in live mode
-        if (isEndTimeNow && newEndMs > now) {
-          const overflow = newEndMs - now;
-          newEndMs = now;
-          newStartMs -= overflow; // Shift start to avoid extending range
-        }
-
-        // Constrain start to earliest log (can't pan before first log)
         // For now, we allow panning freely - backend will clamp to available data
-        if (newStartMs < 0) {
-          newStartMs = 0;
-          newEndMs = newStartMs + rangeMs;
-        }
+        // In the future, we could constrain based on bucket boundaries
 
-        // Apply pending range
-        onPendingRangeChange(
-          new Date(newStartMs),
-          endMs === undefined && newEndMs >= now ? undefined : new Date(newEndMs),
-        );
+        // Apply pending display change (histogram slides, draggers stay in place)
+        onPendingDisplayChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
       }
     },
-    [enabled, effectiveStart, effectiveEnd, isEndTimeNow, onPendingRangeChange],
+    [enabled, displayStart, displayEnd, effectiveStart, effectiveEnd, isEndTimeNow, onPendingRangeChange, onPendingDisplayChange],
   );
 
   // Attach wheel event listener
