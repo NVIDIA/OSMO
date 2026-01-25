@@ -37,20 +37,8 @@
 
 import { useState, useMemo } from "react";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
-import { calculateDisplayRangeWithPadding } from "./timeline-utils";
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Padding ratio for display range (7.5% on each side) */
-const DISPLAY_PADDING_RATIO = 0.075;
-
-/** Minimum padding in milliseconds (30 seconds) */
-const MIN_PADDING_MS = 30_000;
-
-/** Default fallback duration when no data (1 hour in milliseconds) */
-const DEFAULT_DURATION_MS = 60 * 60 * 1000;
+import { calculateDisplayRangeWithPadding } from "../lib/timeline-utils";
+import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS, DEFAULT_DURATION_MS } from "../lib/timeline-constants";
 
 // =============================================================================
 // Types

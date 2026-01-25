@@ -208,3 +208,96 @@ export function calculateDisplayRangeWithPadding(
     displayEnd: new Date(endMs + paddingMs),
   };
 }
+
+// =============================================================================
+// Overlay Position Calculations
+// =============================================================================
+
+/**
+ * Result of overlay position calculation.
+ */
+export interface OverlayPositions {
+  /** Width of left overlay as percentage (0-100) */
+  leftWidth: number;
+  /** Start position of right overlay as percentage (0-100) */
+  rightStart: number;
+  /** Width of right overlay as percentage (0-100) */
+  rightWidth: number;
+}
+
+/**
+ * Calculate overlay positions for the timeline window.
+ *
+ * The overlays dim areas outside the effective range within the display range.
+ *
+ * @param displayStartMs - Display range start in milliseconds
+ * @param displayEndMs - Display range end in milliseconds
+ * @param effectiveStartMs - Effective range start in milliseconds (or display start if undefined)
+ * @param effectiveEndMs - Effective range end in milliseconds (or display end if undefined)
+ * @returns Overlay positions as percentages, or null if display range is invalid
+ */
+export function calculateOverlayPositions(
+  displayStartMs: number,
+  displayEndMs: number,
+  effectiveStartMs: number,
+  effectiveEndMs: number,
+): OverlayPositions | null {
+  const displayRangeMs = displayEndMs - displayStartMs;
+  if (displayRangeMs <= 0) return null;
+
+  const leftWidth = ((effectiveStartMs - displayStartMs) / displayRangeMs) * 100;
+  const rightStart = ((effectiveEndMs - displayStartMs) / displayRangeMs) * 100;
+  const rightWidth = 100 - rightStart;
+
+  return {
+    leftWidth: Math.max(0, leftWidth),
+    rightStart: Math.max(0, Math.min(100, rightStart)),
+    rightWidth: Math.max(0, rightWidth),
+  };
+}
+
+/**
+ * Check if end time is considered "NOW".
+ *
+ * @param endTime - End time to check (undefined means NOW)
+ * @param thresholdMs - Threshold for considering as NOW (default: 60000ms = 1 minute)
+ * @returns True if end time is undefined or within threshold of current time
+ */
+export function isEndTimeNow(endTime: Date | undefined, thresholdMs: number = 60_000): boolean {
+  if (!endTime) return true;
+  const nowTime = Date.now();
+  const diffMs = Math.abs(nowTime - endTime.getTime());
+  return diffMs < thresholdMs;
+}
+
+/**
+ * Calculate pan boundaries from entity times.
+ *
+ * @param entityStartMs - Entity start time in milliseconds
+ * @param entityEndMs - Entity end time in milliseconds (undefined if running)
+ * @param now - Current timestamp (for running entities)
+ * @param paddingRatio - Padding ratio for completed entities (default: 0.075)
+ * @param minPaddingMs - Minimum padding in milliseconds (default: 30000)
+ * @returns Timeline bounds for pan constraints
+ */
+export function calculatePanBoundaries(
+  entityStartMs: number,
+  entityEndMs: number | undefined,
+  now: number,
+  paddingRatio: number = 0.075,
+  minPaddingMs: number = 30_000,
+): TimelineBounds {
+  let endMs: number;
+  if (entityEndMs !== undefined) {
+    const durationMs = entityEndMs - entityStartMs;
+    const paddingMs = Math.max(durationMs * paddingRatio, minPaddingMs);
+    endMs = entityEndMs + paddingMs;
+  } else {
+    endMs = now + 60_000;
+  }
+
+  return {
+    minTime: new Date(entityStartMs),
+    maxTime: new Date(endMs),
+  };
+}
