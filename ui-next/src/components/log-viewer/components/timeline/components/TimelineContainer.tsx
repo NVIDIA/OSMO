@@ -44,12 +44,12 @@ import { formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { TimelineHistogram } from "./TimelineHistogram";
-import { TimelineWindow } from "./TimelineWindow";
-import { TimelineControls } from "./TimelineControls";
+// import { TimelineWindow } from "./TimelineWindow";
+// import { TimelineControls } from "./TimelineControls";
 import { TimeRangePresets } from "./TimeRangePresets";
 import { TimeRangeHeader } from "./TimeRangeHeader";
 import { useTimelineState } from "../hooks/use-timeline-state";
-import { useTimelineWheelGesture, useTimelineDraggerGesture } from "../hooks/use-timeline-gestures";
+import { useTimelineWheelGesture } from "../hooks/use-timeline-gestures";
 import { useServices } from "@/contexts/service-context";
 import {
   calculateOverlayPositions,
@@ -138,6 +138,7 @@ function usePanBoundaries(entityStartTime: Date | undefined, entityEndTime: Date
 /**
  * Hook to compute overlay positions for the timeline window.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function useOverlayPositions(
   enabled: boolean,
   currentDisplay: { start: Date; end: Date },
@@ -292,7 +293,7 @@ function TimelineContainerInner({
   onEndTimeChange,
   onDisplayRangeChange,
   showTimeRangeHeader = false,
-  enableInteractiveDraggers = false,
+  // enableInteractiveDraggers = false, // Currently unused - kept for future use
   entityStartTime,
   entityEndTime,
   now,
@@ -358,7 +359,7 @@ function TimelineContainerInner({
   // CALLBACKS
   // ============================================================================
 
-  const handleApply = useCallback(() => {
+  const _handleApply = useCallback(() => {
     onStartTimeChange?.(currentEffective.start);
     onEndTimeChange?.(currentEffective.end);
     actions.commitPending();
@@ -368,7 +369,7 @@ function TimelineContainerInner({
     announcer.announce(`Time range updated to ${startLabelText} to ${endLabelText}`, "polite");
   }, [currentEffective, onStartTimeChange, onEndTimeChange, actions, announcer]);
 
-  const handleCancel = useCallback(() => {
+  const _handleCancel = useCallback(() => {
     actions.cancelPending();
     announcer.announce("Time range changes cancelled", "polite");
   }, [actions, announcer]);
@@ -467,8 +468,6 @@ function TimelineContainerInner({
                 displayStart={displayStart}
                 displayEnd={displayEnd}
                 currentDisplay={currentDisplay}
-                currentEffective={currentEffective}
-                enableInteractiveDraggers={enableInteractiveDraggers}
                 entityStartTime={entityStartTime}
                 entityEndTime={entityEndTime}
                 now={now}
