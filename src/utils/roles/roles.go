@@ -181,3 +181,29 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 
 	return result, nil
 }
+
+// GetAllRoleNames retrieves all role names from the database
+func GetAllRoleNames(ctx context.Context, client *postgres.PostgresClient) ([]string, error) {
+	query := `SELECT name FROM roles ORDER BY name`
+
+	rows, err := client.Pool().Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query role names: %w", err)
+	}
+	defer rows.Close()
+
+	var roleNames []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("failed to scan role name: %w", err)
+		}
+		roleNames = append(roleNames, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating role names: %w", err)
+	}
+
+	return roleNames, nil
+}

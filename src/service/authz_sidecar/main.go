@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -37,6 +38,69 @@ import (
 	"go.corp.nvidia.com/osmo/utils/postgres"
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
+
+// RoleStore holds all roles converted to semantic format at startup
+type RoleStore struct {
+	mu    sync.RWMutex
+	roles map[string]*roles.Role
+}
+
+// NewRoleStore creates a new role store
+func NewRoleStore() *RoleStore {
+	return &RoleStore{
+		roles: make(map[string]*roles.Role),
+	}
+}
+
+// LoadAndConvertRoles loads all roles from the database and converts them to semantic format
+func (rs *RoleStore) LoadAndConvertRoles(ctx context.Context, pgClient *postgres.PostgresClient, logger *slog.Logger) error {
+	// Get all role names from the database
+	allRoleNames, err := roles.GetAllRoleNames(ctx, pgClient)
+	if err != nil {
+		return fmt.Errorf("failed to get all role names: %w", err)
+	}
+
+	if len(allRoleNames) == 0 {
+		logger.Warn("no roles found in database")
+		return nil
+	}
+
+	// Fetch all roles
+	allRoles, err := roles.GetRoles(ctx, pgClient, allRoleNames, logger)
+	if err != nil {
+		return fmt.Errorf("failed to get roles: %w", err)
+	}
+
+	// Convert all roles to semantic format
+	convertedRoles := roles.ConvertRolesToSemantic(allRoles)
+
+	// Store converted roles
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	for _, role := range convertedRoles {
+		rs.roles[role.Name] = role
+	}
+
+	logger.Info("loaded and converted roles",
+		slog.Int("total_roles", len(convertedRoles)),
+	)
+
+	return nil
+}
+
+// Get retrieves roles by name from the store
+func (rs *RoleStore) Get(roleNames []string) []*roles.Role {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	var result []*roles.Role
+	for _, name := range roleNames {
+		if role, exists := rs.roles[name]; exists {
+			result = append(result, role)
+		}
+	}
+	return result
+}
 
 const (
 	defaultGRPCPort  = 50052
@@ -127,9 +191,17 @@ func main() {
 		slog.Int("max_size", *cacheMaxSize),
 	)
 
-	// Create role fetcher using the postgres client
+	// Load and convert all roles at startup
+	roleStore := NewRoleStore()
+	if err := roleStore.LoadAndConvertRoles(ctx, pgClient, logger); err != nil {
+		logger.Error("failed to load and convert roles", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	// Create role fetcher that uses the pre-converted role store
+	// Roles are already converted to semantic format at startup
 	roleFetcher := func(ctx context.Context, roleNames []string) ([]*roles.Role, error) {
-		return roles.GetRoles(ctx, pgClient, roleNames, logger)
+		return roleStore.Get(roleNames), nil
 	}
 
 	authzServer := server.NewAuthzServer(pgClient, roleFetcher, roleCache, logger)

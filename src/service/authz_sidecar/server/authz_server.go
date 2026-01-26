@@ -160,19 +160,19 @@ func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, role
 	// Try cache first
 	fetchedRoles, found := s.roleCache.Get(roleNames)
 	if !found {
-		// Query PostgreSQL
+		// Query PostgreSQL - roles are converted to semantic format by the roleFetcher
 		var err error
 		fetchedRoles, err = s.roleFetcher(ctx, roleNames)
 		if err != nil {
 			return false, err
 		}
 
-		// Update cache
+		// Update cache with roles (already converted to semantic by roleFetcher)
 		s.roleCache.Set(roleNames, fetchedRoles)
 	}
 
 	// Use the unified policy access check from the roles package
-	// This handles both semantic actions and legacy path-based actions
+	// All roles are semantic-only (converted by roleFetcher at load time)
 	result := roles.CheckRolesAccess(fetchedRoles, path, method)
 
 	// Log the result based on action type
@@ -183,35 +183,16 @@ func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, role
 
 // logAccessResult logs the result of an access check with appropriate details
 func (s *AuthzServer) logAccessResult(result roles.AccessResult, path, method string) {
-	switch result.ActionType {
-	case roles.ActionTypeSemantic:
-		if result.Allowed {
-			s.logger.Debug("access granted by semantic action",
-				slog.String("role", result.RoleName),
-				slog.String("action", result.MatchedAction),
-				slog.String("resource", result.MatchedResource),
-				slog.String("path", path),
-				slog.String("method", method),
-			)
-		}
-	case roles.ActionTypeLegacy:
-		if result.IsDeny {
-			s.logger.Debug("access denied by legacy pattern",
-				slog.String("role", result.RoleName),
-				slog.String("deny_pattern", result.MatchedAction),
-				slog.String("path", path),
-			)
-		} else if result.Allowed {
-			s.logger.Debug("access granted by legacy pattern",
-				slog.String("role", result.RoleName),
-				slog.String("allow_pattern", result.MatchedAction),
-				slog.String("path", path),
-				slog.String("method", method),
-			)
-		}
-	case roles.ActionTypeNone:
-		// No match, nothing to log at debug level
+	if result.ActionType == roles.ActionTypeSemantic && result.Allowed {
+		s.logger.Debug("access granted by semantic action",
+			slog.String("role", result.RoleName),
+			slog.String("action", result.MatchedAction),
+			slog.String("resource", result.MatchedResource),
+			slog.String("path", path),
+			slog.String("method", method),
+		)
 	}
+	// ActionTypeNone means no match, nothing to log at debug level
 }
 
 // allowResponse creates a successful authorization response
