@@ -495,7 +495,7 @@ def update_resource_in_database(node_send_queue: helpers.EnqueueCallback,
         event_send_queue)
     resource_message = backend_messages.MessageBody(
         type=backend_messages.MessageType.RESOURCE,
-        body=backend_messages.ResourceBody(hostname=hostname,
+        body=backend_messages.UpdateNodeBody(hostname=hostname,
                                            available=node_available,
                                            conditions=conditions,
                                            allocatable_fields=allocatable_fields,
@@ -628,7 +628,7 @@ def update_resource_usage(node_send_queue: helpers.EnqueueCallback,
 
     resource_message = backend_messages.MessageBody(
         type=backend_messages.MessageType.RESOURCE_USAGE,
-        body=backend_messages.ResourceUsageBody(
+        body=backend_messages.UpdateNodeUsageBody(
             hostname=node_name,
             usage_fields=resource_usage,
             non_workflow_usage_fields=non_wf_resource_usage
