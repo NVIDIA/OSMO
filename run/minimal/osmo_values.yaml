@@ -96,6 +96,11 @@ services:
     - name: AWS_DEFAULT_REGION
       value: us-east-1
 
+  messageWorker:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
 sidecars:
   envoy:
     enabled: false
