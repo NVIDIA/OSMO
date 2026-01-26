@@ -845,4 +845,4 @@ the PodGroup and other CRDs are created and interpreted correctly by KAI schedul
 
 ## Open Questions
 
-- [ ] TBD
+- [ ] How can we visualize the racks/spines/zones in the UI to help users better understand why workflows aren't scheduling.

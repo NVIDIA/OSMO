@@ -231,3 +231,4 @@ resources can be compared against the expected output to confirm the code is wor
 ## Open Questions
 
 - [ ] How can we add task group level resource validation (Ie, validate that a task group has a certain number of tasks)?
+- [ ] How can we verify NVLink is working properly and has the expected performance for workflows that use it?
