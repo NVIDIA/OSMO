@@ -213,35 +213,21 @@ an empty set of group templates, and an empty list of `common_group_templates` f
 
 ### Performance
 
-_What are the performance implications? Will this impact latency, throughput, resource usage, etc.?_
-
-### Operations
-
-_How does this affect operations, deployment, monitoring, or maintenance?_
+This should add a negligible amount of new work to the osmo worker as it need to substitute hte group templates to generate the new kubernetes
+resource specs. There will also be additional latency in the workflow creation phase for all new kubernetes resources that are created as part of a
+task group.
 
 ### Security
 
-_Are there any security considerations or implications?_
-
-### Documentation
-
-_What documentation needs to be created or updated?_
+We must restrict the user from setting the `metadata.namespace` property group templates, or ignore them. All created objects should be in the
+pre-configured workflow namespace.
 
 ### Testing
 
-_What unit, integration, or end-to-end tests need to be created or updated? How will these tests be integrated in automation? What test metrics will be tracked and what are KPIs?_
-
-### Dependencies
-
-_Which other projects or components impact this work? Which other projects or components are impacted by this work?_
-
-## Implementation Plan
-
-_[Optional] For large projects, break the project into smaller pieces._
+Unit testing can be done by creating a pool config that adds group templates, and
+running a test workflow spec through the code under test to generate a list of kubernetes resources for OSMO to create. Those
+resources can be compared against the expected output to confirm the code is working correctly.
 
 ## Open Questions
 
-_List any unresolved questions or decisions that need to be made._
-
-- [ ] Question 1?
-- [ ] Question 2?
+- [ ] How can we add task group level resource validation (Ie, validate that a task group has a certain number of tasks)?

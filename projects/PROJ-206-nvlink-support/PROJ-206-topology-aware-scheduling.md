@@ -466,11 +466,15 @@ _Provide the detailed technical design. This is the core of the document._
 
 ### Changes to Pool Config
 
-A `topology_keys` parameter (list of strings) is added to the pool config to allow an admin to specify topology keys.
+A `topology_keys` parameter (list of objects) is added to the pool config to allow an admin to specify topology keys.
 If the list is empty (the default value), then topology aware scheduling is not enabled.
 
+Each entry in `topology_keys` has two fields:
+- `key`: A user-friendly name that users will reference in their workflow specs
+- `label`: The actual Kubernetes node label that will be used in the Topology CRD and PodGroup
+
 Keys that appear higher in the list are "smaller" groups of nodes and are subsets of the keys below them.
-In the example below: One or more `rack`s appears in a given `spine` and one or more `spine`s appear in a given `zone`.
+In the example below: One or more `rack`s appear in a given `spine` and one or more `spine`s appear in a given `zone`.
 
 The `topology_keys` parameter is only allowed to be non-empty for pools that are part of a backend using KAI scheduler.
 
@@ -482,9 +486,9 @@ The `topology_keys` parameter is only allowed to be non-empty for pools that are
     # Topology keys that appear first are the finest grain
     # (Ie multiple racks belong in the same spine)
     "topology_keys": [
-        "topology.kubernetes.io/rack",
-        "topology.kubernetes.io/spine",
-        "topology.kubernetes.io/zone",
+        {"key": "rack", "label": "topology.kubernetes.io/rack"},
+        {"key": "spine", "label": "topology.kubernetes.io/spine"},
+        {"key": "zone", "label": "topology.kubernetes.io/zone"},
     ],
     ...
 }
@@ -494,7 +498,7 @@ The `topology_keys` parameter is only allowed to be non-empty for pools that are
 
 The `resources` portion of a task spec will have a new optional key: `topology`.
 
-The following pydantic data types demonstrate the schema
+The following pydantic data types demonstrate the schema:
 
 ```python
 
@@ -505,7 +509,7 @@ class TopologyRequirementType(enum.Enum):
     PREFERRED = 'preferred'
 
 class TopologyRequirement(pydantic.BaseModel):
-    key: str
+    key: str  # References the "key" field from the pool's topology_keys config
     group: str = 'default'
     requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED
 
@@ -519,8 +523,19 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
 ```
 
-
 ### Workflow Examples
+
+For the below examples, assume the pool has the following `topology_keys` configured in the pool config
+```yaml
+{
+  "topology_keys": [
+    {"key": "gpu-clique", "label": "nvidia.com/gpu-clique"},
+    {"key": "rack", "label": "nvidia.com/rack"},
+    {"key": "spine", "label": "nvidia.com/spine"},
+    {"key": "zone", "label": "nvidia.com/zone"},
+  ]
+}
+```
 
 #### Single NVL72 Rack
 
@@ -543,7 +558,7 @@ workflow:
 resources:
   default:
     topology:
-    - key: nvidia.com/gpu-clique
+    - key: gpu-clique
 ```
 
 #### Multiple NVL72 Racks
@@ -585,11 +600,11 @@ workflow:
 resources:
   model-1:
     topology:
-    - key: nvidia.com/gpu-clique
+    - key: gpu-clique
       group: model-1-group
   model-2:
     topology:
-    - key: nvidia.com/gpu-clique
+    - key: gpu-clique
       group: model-2-group
 ```
 
@@ -632,15 +647,15 @@ workflow:
 resources:
   model-1:
     topology:
-    - key: nvidia.com/gpu-clique
+    - key: gpu-clique
       group: model-1-group
-    - key: topology.kubernetes.io/zone
+    - key: zone
       group: workflow-group
   model-2:
     topology:
-    - key: nvidia.com/gpu-clique
+    - key: gpu-clique
       group: model-2-group
-    - key: topology.kubernetes.io/zone
+    - key: zone
       group: workflow-group
 ```
 
@@ -683,18 +698,18 @@ workflow:
 resources:
   model-1:
     topology:
-    - key: topology.kubernetes.io/rack
+    - key: rack
       group: model-1-group
       requirementType: preferred
-    - key: topology.kubernetes.io/spine
+    - key: spine
       group: workflow-group
       requirementType: preferred
   model-2:
     topology:
-    - key: topology.kubernetes.io/rack
+    - key: rack
       group: model-2-group
       requirementType: preferred
-    - key: topology.kubernetes.io/spine
+    - key: spine
       group: workflow-group
       requirementType: preferred
 ```
@@ -705,6 +720,8 @@ resources:
 Topology aware scheduling will be implemented using KAI's topology aware scheduling feature.
 
 When the `topology_keys` field of a pool is updated, a new KAI scheduler cluster topology CRD will be created or modified in the cluster for the pool using the `BackendSynchronizeQueues` backend job (which synchronizes queue and other scheduler-related CRDs for a backend).
+
+The Topology CRD will use the `label` values from the pool's `topology_keys` configuration:
 
 ```yaml
 apiVersion: kai.scheduler/v1
@@ -722,20 +739,22 @@ When a workflow is submitted on a pool that uses topology, the KAI scheduler Pod
 
 **Algorithm for creating PodGroup with topology constraints:**
 
-1. **Top-level topology constraint**: If the coarsest (largest scope) topology requirement is shared by all pods in the workflow, add it to the `topologyConstraint` field of the PodGroup spec.
+1. **Translate topology keys**: For each topology requirement in the workflow, translate the user-friendly `key` (e.g., "rack", "zone") to the corresponding Kubernetes node `label` (e.g., "topology.kubernetes.io/rack") using the pool's `topology_keys` configuration.
 
-2. **Create subgroups**: For each unique set of topology requirements:
+2. **Top-level topology constraint**: If the coarsest (largest scope) topology requirement is shared by all pods in the workflow, add it to the `topologyConstraint` field of the PodGroup spec using the translated label.
+
+3. **Create subgroups**: For each unique set of topology requirements:
    - Create a subgroup in the `subgroups` section
    - Set `minMember` equal to the number of tasks that share those topology requirements
-   - Set the `topologyConstraint` to reference the finest-grained (smallest scope) topology level for that subgroup
+   - Set the `topologyConstraint` to reference the finest-grained (smallest scope) topology level for that subgroup using the translated label
    - Reference the pool's Topology CRD name in the `topology` field
 
-3. **Hierarchical relationships**: For workflows with multiple levels of topology requirements (e.g., both rack and zone):
+4. **Hierarchical relationships**: For workflows with multiple levels of topology requirements (e.g., both rack and zone):
    - Create parent subgroups for coarser topology levels
    - Set the `parent` field on child subgroups to reference their parent subgroup
    - This creates a hierarchy where finer-grained requirements are nested within coarser ones
 
-4. **Pod annotations and labels**: Each pod in the workflow receives:
+5. **Pod annotations and labels**: Each pod in the workflow receives:
    - Annotation: `pod-group-name: <group-uuid>`
    - Label: `kai.scheduler/subgroup-name: <subgroup-name>`
 
@@ -814,33 +833,16 @@ to their workflows (Because there are not valid keys), so PodGroup subgroups wil
 There will be a minimal impact on workflow submission time as the extra code that runs to figure out topology is not very extensive.
 Not new kubernetes CRDs are created when a workflow is created in the backend, we only modify the existing CRDs (PodGroups and Pods).
 
-### Operations
-
-_How does this affect operations, deployment, monitoring, or maintenance?_
-
-### Security
-
-_Are there any security considerations or implications?_
-
-### Documentation
-
-_What documentation needs to be created or updated?_
-
 ### Testing
 
-_What unit, integration, or end-to-end tests need to be created or updated? How will these tests be integrated in automation? What test metrics will be tracked and what are KPIs?_
+**Phase 1: Unit Tests**
+Unit testing can be done by creating workflow specs that demonstrate various topology scenarios and
+running those workflows through the code under test to generate a list of kubernetes objects for OSMO to create. We can inspect
+the created PodGroup specs to see if they match expectation
 
-### Dependencies
-
-_Which other projects or components impact this work? Which other projects or components are impacted by this work?_
-
-## Implementation Plan
-
-_[Optional] For large projects, break the project into smaller pieces._
+**Phase 2: Integration tests** Running the above workflow specs in a cluster (Perhaps a local KIND cluster), allows us to verify that
+the PodGroup and other CRDs are created and interpreted correctly by KAI scheduler to schedule the workflows correctly.
 
 ## Open Questions
 
-_List any unresolved questions or decisions that need to be made._
-
-- [ ] Question 1?
-- [ ] Question 2?
+- [ ] TBD
