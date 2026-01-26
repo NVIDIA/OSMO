@@ -265,7 +265,7 @@ function TimelineHistogramInner({
   const activeBuckets = pendingBuckets ?? buckets;
 
   // Invalid zone positions (part of Layer 1 - transforms with bars)
-  // CRITICAL: Must use same coordinate space as bars (depends on pendingBuckets)
+  // CRITICAL: ALWAYS use currentDisplay to ensure invalid zones match actual viewport
   const invalidZonePositions = useMemo(() => {
     if (!entityStartTime) return null;
 
@@ -273,28 +273,21 @@ function TimelineHistogramInner({
     const bucketTimestamps = activeBuckets.map((b) => b.timestamp);
     const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
 
-    // Determine coordinate space based on whether transform will be applied
-    // If pending buckets exist, bars are positioned for currentDisplay (no transform)
-    // If no pending buckets, bars are positioned for original range (with transform)
-    let displayStartMs: number;
-    let displayEndMs: number;
-
-    if (pendingBuckets) {
-      // No transform - use current display range
-      displayStartMs = currentDisplay.start.getTime();
-      displayEndMs = currentDisplay.end.getTime();
-    } else {
-      // Transform applied - use original display range
-      const originalStart = displayStart ?? buckets[0]?.timestamp;
-      const originalEnd = displayEnd ?? buckets[buckets.length - 1]?.timestamp;
-      if (!originalStart || !originalEnd) return null;
-      displayStartMs = originalStart.getTime();
-      displayEndMs = originalEnd.getTime();
-    }
+    // ALWAYS use currentDisplay - this is the actual viewport position
+    // Invalid zones must match the viewport, not the original range
+    // This ensures consistent invalid zone visibility across pan/zoom and committed states
+    const displayStartMs = currentDisplay.start.getTime();
+    const displayEndMs = currentDisplay.end.getTime();
 
     // Use pure tested function to calculate positions
-    // NOTE: now should always be provided for running workflows; fallback is for type safety only
+    // CRITICAL: NOW must be provided for running workflows to ensure correct right boundary
+    // Using 0 as fallback for type safety (should never happen - TimelineContainer always provides it)
     const nowMs = now ?? 0;
+    if (process.env.NODE_ENV !== "production" && !now && !entityEndTime) {
+      console.warn(
+        "[TimelineHistogram] NOW timestamp not provided for running workflow - right invalid zone may be incorrect",
+      );
+    }
     return calculateInvalidZonePositions(
       entityStartTime.getTime(),
       entityEndTime?.getTime(),
@@ -303,17 +296,7 @@ function TimelineHistogramInner({
       displayEndMs,
       bucketWidthMs,
     );
-  }, [
-    entityStartTime,
-    entityEndTime,
-    now,
-    displayStart,
-    displayEnd,
-    buckets,
-    pendingBuckets,
-    currentDisplay,
-    activeBuckets,
-  ]);
+  }, [entityStartTime, entityEndTime, now, currentDisplay, activeBuckets]);
 
   // ============================================================================
   // TRANSFORM CALCULATION
