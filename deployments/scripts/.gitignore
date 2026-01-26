@@ -1,0 +1,11 @@
+# Auto-generated files - do not commit
+values/
+*.env
+.azure_outputs.env
+.aws_outputs.env
+
+# Terraform state (if accidentally placed here)
+*.tfstate
+*.tfstate.*
+.terraform/
+
