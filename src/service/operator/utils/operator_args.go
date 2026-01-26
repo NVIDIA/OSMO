@@ -22,6 +22,8 @@ import (
 	"flag"
 	"os"
 	"strconv"
+
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 // OperatorArgs holds configuration for the operator service
@@ -39,12 +41,7 @@ type OperatorArgs struct {
 	RedisPassword string
 	RedisDB       int
 
-	// PostgreSQL configuration
-	PostgresHost   string
-	PostgresPort   int
-	PostgresUser   string
-	PostgresPass   string
-	PostgresDBName string
+	Postgres postgres.PostgresConfig
 }
 
 // OperatorParse parses command line arguments and environment variables
@@ -81,21 +78,7 @@ func OperatorParse() OperatorArgs {
 		"Redis database number to connect to. Default value is 0")
 
 	// PostgreSQL configuration
-	postgresHost := flag.String("postgres-host",
-		getEnv("OSMO_POSTGRES_HOST", "localhost"),
-		"PostgreSQL host")
-	postgresPort := flag.Int("postgres-port",
-		getEnvInt("OSMO_POSTGRES_PORT", 5432),
-		"PostgreSQL port")
-	postgresUser := flag.String("postgres-user",
-		getEnv("OSMO_POSTGRES_USER", "postgres"),
-		"PostgreSQL user")
-	postgresPass := flag.String("postgres-password",
-		getEnv("OSMO_POSTGRES_PASSWORD", ""),
-		"PostgreSQL password")
-	postgresDBName := flag.String("postgres-database",
-		getEnv("OSMO_POSTGRES_DATABASE_NAME", "osmo_db"),
-		"PostgreSQL database name")
+	postgresFlagPtrs := postgres.RegisterPostgresFlags()
 
 	flag.Parse()
 
@@ -109,11 +92,7 @@ func OperatorParse() OperatorArgs {
 		RedisPort:                    *redisPort,
 		RedisPassword:                *redisPassword,
 		RedisDB:                      *redisDB,
-		PostgresHost:                 *postgresHost,
-		PostgresPort:                 *postgresPort,
-		PostgresUser:                 *postgresUser,
-		PostgresPass:                 *postgresPass,
-		PostgresDBName:               *postgresDBName,
+		Postgres:                     postgresFlagPtrs.ToPostgresConfig(),
 	}
 }
 

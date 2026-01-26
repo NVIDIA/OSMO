@@ -28,7 +28,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -77,26 +76,14 @@ func main() {
 		slog.Int("db", args.RedisDB))
 	defer redisClient.Close()
 
-	// Initialize PostgreSQL connection pool
-	postgresURL := fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s",
-		args.PostgresUser,
-		args.PostgresPass,
-		args.PostgresHost,
-		args.PostgresPort,
-		args.PostgresDBName,
-	)
-	pgPool, err := pgxpool.New(context.Background(), postgresURL)
+	// Initialize PostgreSQL client
+	pgClient, err := args.Postgres.CreateClient(logger)
 	if err != nil {
-		logger.Error("Failed to create PostgreSQL connection pool",
+		logger.Error("Failed to create PostgreSQL client",
 			slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	logger.Info("PostgreSQL connection pool configured",
-		slog.String("host", args.PostgresHost),
-		slog.Int("port", args.PostgresPort),
-		slog.String("database", args.PostgresDBName))
-	defer pgPool.Close()
+	defer pgClient.Close()
 
 	// Create gRPC server options
 	opts := []grpc.ServerOption{
@@ -118,7 +105,7 @@ func main() {
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// Register operator services with Redis client and PostgreSQL pool
-	listenerService := listener_service.NewListenerService(logger, redisClient, pgPool, &args)
+	listenerService := listener_service.NewListenerService(logger, redisClient, pgClient.Pool(), &args)
 	listener_service.RegisterServices(grpcServer, listenerService)
 
 	// Start gRPC server
