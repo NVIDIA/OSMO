@@ -20,8 +20,16 @@ package postgres
 
 import (
 	"context"
+<<<<<<< HEAD
 	"fmt"
 	"log/slog"
+=======
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
+	"strconv"
+>>>>>>> origin/main
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,6 +54,7 @@ type PostgresClient struct {
 	logger *slog.Logger
 }
 
+<<<<<<< HEAD
 // NewPostgresClientFromParams creates a new PostgreSQL client with the given connection parameters.
 // This is a convenience function that constructs a PostgresConfig and calls NewPostgresClient.
 func CreatePostgresClient(
@@ -87,6 +96,8 @@ func CreatePostgresClient(
 	return client, nil
 }
 
+=======
+>>>>>>> origin/main
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
 func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
 	// Build connection URL
@@ -126,7 +137,15 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
+<<<<<<< HEAD
 	logger.Info("postgres client connected successfully")
+=======
+	logger.Info("postgres client connected successfully",
+		slog.String("host", config.Host),
+		slog.Int("port", config.Port),
+		slog.String("database", config.Database),
+	)
+>>>>>>> origin/main
 
 	return &PostgresClient{
 		pool:   pool,
@@ -149,3 +168,91 @@ func (c *PostgresClient) Pool() *pgxpool.Pool {
 func (c *PostgresClient) Ping(ctx context.Context) error {
 	return c.pool.Ping(ctx)
 }
+<<<<<<< HEAD
+=======
+
+// CreateClient creates a PostgreSQL client from PostgresConfig
+func (config *PostgresConfig) CreateClient(logger *slog.Logger) (*PostgresClient, error) {
+	return NewPostgresClient(context.Background(), *config, logger)
+}
+
+// PostgresFlagPointers holds pointers to flag values for PostgreSQL configuration
+type PostgresFlagPointers struct {
+	host               *string
+	port               *int
+	user               *string
+	password           *string
+	database           *string
+	maxConns           *int
+	minConns           *int
+	maxConnLifetimeMin *int
+	sslMode            *string
+}
+
+// RegisterPostgresFlags registers PostgreSQL-related command-line flags
+// Returns a PostgresFlagPointers that should be converted to PostgresArgs
+// after flag.Parse() is called
+func RegisterPostgresFlags() *PostgresFlagPointers {
+	return &PostgresFlagPointers{
+		host: flag.String("postgres-host",
+			getEnv("OSMO_POSTGRES_HOST", "localhost"),
+			"PostgreSQL host"),
+		port: flag.Int("postgres-port",
+			getEnvInt("OSMO_POSTGRES_PORT", 5432),
+			"PostgreSQL port"),
+		user: flag.String("postgres-user",
+			getEnv("OSMO_POSTGRES_USER", "postgres"),
+			"PostgreSQL user"),
+		password: flag.String("postgres-password",
+			getEnv("OSMO_POSTGRES_PASSWORD", ""),
+			"PostgreSQL password"),
+		database: flag.String("postgres-database",
+			getEnv("OSMO_POSTGRES_DATABASE_NAME", "osmo_db"),
+			"PostgreSQL database name"),
+		maxConns: flag.Int("postgres-max-conns",
+			getEnvInt("OSMO_POSTGRES_MAX_CONNS", 10),
+			"PostgreSQL maximum connections in pool"),
+		minConns: flag.Int("postgres-min-conns",
+			getEnvInt("OSMO_POSTGRES_MIN_CONNS", 2),
+			"PostgreSQL minimum connections in pool"),
+		maxConnLifetimeMin: flag.Int("postgres-max-conn-lifetime",
+			getEnvInt("OSMO_POSTGRES_MAX_CONN_LIFETIME", 5),
+			"PostgreSQL maximum connection lifetime in minutes"),
+		sslMode: flag.String("postgres-ssl-mode",
+			getEnv("OSMO_POSTGRES_SSL_MODE", "disable"),
+			"PostgreSQL SSL mode (disable, require, verify-ca, verify-full)"),
+	}
+}
+
+// ToPostgresConfig converts flag pointers to PostgresConfig
+// This should be called after flag.Parse()
+func (p *PostgresFlagPointers) ToPostgresConfig() PostgresConfig {
+	return PostgresConfig{
+		Host:            *p.host,
+		Port:            *p.port,
+		Database:        *p.database,
+		User:            *p.user,
+		Password:        *p.password,
+		MaxConns:        int32(*p.maxConns),
+		MinConns:        int32(*p.minConns),
+		MaxConnLifetime: time.Duration(*p.maxConnLifetimeMin) * time.Minute,
+		SSLMode:         *p.sslMode,
+	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
+}
+>>>>>>> origin/main

@@ -684,9 +684,12 @@
                 "message": "User container failed"
               }
             }
+<<<<<<< HEAD
           },
           {
             "name": "osmo-ctrl"
+=======
+>>>>>>> origin/main
           }
         ]
       },
@@ -815,3 +818,7 @@
     }
   ]
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main

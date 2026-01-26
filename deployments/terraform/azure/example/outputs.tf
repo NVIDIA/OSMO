@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -134,39 +134,39 @@ output "postgres_admin_username" {
 
 # Redis Outputs
 output "redis_cache_id" {
-  description = "The ID of the Redis Enterprise Cluster"
-  value       = azurerm_redis_enterprise_cluster.main.id
+  description = "The ID of the Redis Cache"
+  value       = azurerm_redis_cache.main.id
 }
 
 output "redis_cache_name" {
-  description = "The name of the Redis Enterprise Cluster"
-  value       = azurerm_redis_enterprise_cluster.main.name
+  description = "The name of the Redis Cache"
+  value       = azurerm_redis_cache.main.name
 }
 
 output "redis_cache_hostname" {
-  description = "The hostname of the Redis Enterprise Cluster"
-  value       = azurerm_redis_enterprise_cluster.main.hostname
+  description = "The hostname of the Redis Cache"
+  value       = azurerm_redis_cache.main.hostname
 }
 
 output "redis_cache_ssl_port" {
-  description = "The port of the Redis Enterprise Database"
-  value       = azurerm_redis_enterprise_database.main.port
+  description = "The SSL port of the Redis Cache"
+  value       = azurerm_redis_cache.main.ssl_port
 }
 
 output "redis_cache_port" {
-  description = "The port of the Redis Enterprise Database (encrypted by default)"
-  value       = azurerm_redis_enterprise_database.main.port
+  description = "The non-SSL port of the Redis Cache"
+  value       = azurerm_redis_cache.main.port
 }
 
 output "redis_cache_primary_access_key" {
-  description = "The primary access key for the Redis Enterprise Database"
-  value       = azurerm_redis_enterprise_database.main.primary_access_key
+  description = "The primary access key for the Redis Cache"
+  value       = azurerm_redis_cache.main.primary_access_key
   sensitive   = true
 }
 
 output "redis_cache_secondary_access_key" {
-  description = "The secondary access key for the Redis Enterprise Database"
-  value       = azurerm_redis_enterprise_database.main.secondary_access_key
+  description = "The secondary access key for the Redis Cache"
+  value       = azurerm_redis_cache.main.secondary_access_key
   sensitive   = true
 }
 
