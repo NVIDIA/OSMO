@@ -184,7 +184,7 @@ export interface InvalidZoneValidation {
   /** Whether the display range violates invalid zone limits */
   blocked: boolean;
   /** Reason for blocking (if blocked) */
-  reason?: "left-invalid-zone-limit" | "right-invalid-zone-limit";
+  reason?: "left-invalid-zone-limit" | "right-invalid-zone-limit" | "combined-invalid-zone-limit";
   /** Left invalid zone in bucket count */
   leftInvalidBuckets: number;
   /** Right invalid zone in bucket count */
@@ -196,6 +196,23 @@ export interface InvalidZoneValidation {
  *
  * This prevents panning/zooming too far such that most of the viewport
  * is just invalid zones (striped areas where no logs exist).
+ *
+ * ## Three-Constraint System (Triangle of Valid States)
+ *
+ * All THREE constraints must pass:
+ * 1. left ≤ 10% (per-side limit)
+ * 2. right ≤ 10% (per-side limit)
+ * 3. left + right ≤ 10% (combined limit)
+ *
+ * Valid states form a triangle:
+ *   [10%][data][0%]  ✓ At left boundary
+ *   [5%][data][5%]   ✓ Balanced
+ *   [0%][data][10%]  ✓ At right boundary
+ *   [7%][data][3%]   ✓ Within triangle
+ *   [6%][data][6%]   ✗ 12% combined exceeds
+ *   [11%][data][0%]  ✗ Left exceeds per-side
+ *
+ * This creates natural "give" during panning while respecting limits.
  *
  * Uses bucket-aligned calculation to ensure invalid zone boundaries snap to bar edges.
  *
@@ -256,11 +273,14 @@ export function validateInvalidZoneLimits(
   const rightInvalidBuckets = rightInvalidMs / bucketWidthMs;
 
   // Calculate total buckets visible and max allowed invalid buckets
-  // Always allow minimum 1 bucket to ensure consistent visual feedback when zoomed in
+  // Minimum 2 buckets to ensure consistent visual feedback when zoomed in
   const totalBucketsVisible = displayRangeMs / bucketWidthMs;
-  const maxInvalidBuckets = Math.max(1, Math.floor(totalBucketsVisible * (maxInvalidPercent / 100)));
+  const maxInvalidBuckets = Math.max(2, Math.floor(totalBucketsVisible * (maxInvalidPercent / 100)));
 
-  // Check if left invalid zone exceeds limit (bucket-aligned)
+  // THREE-CONSTRAINT VALIDATION (all must pass)
+  // This creates a "triangle" of valid states allowing natural pan "give"
+
+  // Constraint 1: Left per-side limit
   if (leftInvalidBuckets > maxInvalidBuckets) {
     return {
       blocked: true,
@@ -270,11 +290,23 @@ export function validateInvalidZoneLimits(
     };
   }
 
-  // Check if right invalid zone exceeds limit (bucket-aligned)
+  // Constraint 2: Right per-side limit
   if (rightInvalidBuckets > maxInvalidBuckets) {
     return {
       blocked: true,
       reason: "right-invalid-zone-limit",
+      leftInvalidBuckets,
+      rightInvalidBuckets,
+    };
+  }
+
+  // Constraint 3: Combined limit (both sides together)
+  // This is the key constraint that creates the triangle of valid states
+  const combinedInvalidBuckets = leftInvalidBuckets + rightInvalidBuckets;
+  if (combinedInvalidBuckets > maxInvalidBuckets) {
+    return {
+      blocked: true,
+      reason: "combined-invalid-zone-limit",
       leftInvalidBuckets,
       rightInvalidBuckets,
     };
