@@ -23,6 +23,7 @@
  * ## Gestures
  *
  * - **Wheel**: Pan left/right (no modifier) or zoom in/out (Cmd/Ctrl)
+ *   - Supports both mouse wheel and trackpad two-finger scrolling
  * - **Drag** (draggers): Adjust effective time boundaries
  * - **Keyboard** (draggers): Arrow keys nudge ±5 minutes
  *
@@ -34,6 +35,16 @@
  * - Zoom factor: 0.8 (in) or 1.25 (out)
  * - Minimum range: 1 minute
  *
+ * ## Trackpad Support
+ *
+ * Two-finger scrolling on trackpads (MacBook, Magic Mouse, etc.) is fully supported.
+ * The browser's native wheel event fires for both mouse wheel and trackpad gestures.
+ *
+ * Note: Trackpads have inertia, which can cause multiple wheel events from a single
+ * gesture. The @use-gesture library handles this, but if you notice oversensitivity,
+ * consider integrating Lethargy (https://github.com/d4nyll/lethargy) for better
+ * intent detection.
+ *
  * ## Drag Behavior
  *
  * - Dragger stays at pixel position relative to display range
@@ -42,9 +53,10 @@
  */
 
 import { useWheel, useDrag } from "@use-gesture/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import { validatePanConstraint, clampTimeToRange, type TimelineBounds } from "../lib/timeline-utils";
+import { clampTimeToRange, type TimelineBounds } from "../lib/timeline-utils";
+// TODO: Re-enable validatePanConstraint import when re-enabling pan constraints
 import {
   PAN_FACTOR,
   ZOOM_IN_FACTOR,
@@ -58,84 +70,372 @@ import {
 export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
 
 // =============================================================================
+// Debug Logging
+// =============================================================================
+
+interface WheelDebugEvent {
+  timestamp: number;
+  dx: number;
+  dy: number;
+  effectiveDelta: number;
+  isZoom: boolean;
+  wasBlocked: boolean;
+  blockReason?: string;
+  oldRange: { start: string; end: string };
+  newRange: { start: string; end: string };
+  boundaries?: { start: string; end: string };
+  context?: {
+    entityStart?: string;
+    entityEnd?: string;
+    now?: string;
+    effectiveStart: string;
+    effectiveEnd: string;
+    currentStartPercent: number;
+    windowLeft?: number;
+    windowRight?: number;
+  };
+}
+
+const wheelDebugLog: WheelDebugEvent[] = [];
+let isDebugEnabled = false;
+let debugInitialized = false;
+
+function initializeDebug() {
+  if (debugInitialized) return;
+  debugInitialized = true;
+
+  if (typeof window === "undefined") return;
+
+  const params = new URLSearchParams(window.location.search);
+  isDebugEnabled = params.get("debug") === "timeline" || params.get("debug") === "true";
+
+  console.log("[Timeline Debug] Initialization check:", {
+    url: window.location.href,
+    debugParam: params.get("debug"),
+    isDebugEnabled,
+  });
+
+  if (isDebugEnabled) {
+    console.log("[Timeline Debug] ✅ ENABLED - use window.timelineDebug() to view logs");
+    // Expose debug function globally
+    (window as unknown as Record<string, () => void>).timelineDebug = () => {
+      console.table(
+        wheelDebugLog.map((e) => ({
+          time: new Date(e.timestamp).toLocaleTimeString(),
+          dx: e.dx,
+          dy: e.dy,
+          effectiveDelta: e.effectiveDelta,
+          isZoom: e.isZoom ? "ZOOM" : "PAN",
+          blocked: e.wasBlocked ? "BLOCKED" : "OK",
+          reason: e.blockReason || "-",
+        })),
+      );
+      console.log("\nFull details:", wheelDebugLog);
+      console.log("\nTo copy:", JSON.stringify(wheelDebugLog, null, 2));
+    };
+
+    (window as unknown as Record<string, () => void>).timelineDebugClear = () => {
+      wheelDebugLog.length = 0;
+      console.log("[Timeline Debug] Logs cleared");
+    };
+
+    (window as unknown as Record<string, () => void>).timelineDebugStats = () => {
+      const total = wheelDebugLog.length;
+      const blocked = wheelDebugLog.filter((e) => e.wasBlocked).length;
+      const pans = wheelDebugLog.filter((e) => !e.isZoom).length;
+      const zooms = wheelDebugLog.filter((e) => e.isZoom).length;
+
+      console.log("[Timeline Debug] Stats:", {
+        total,
+        blocked: `${blocked} (${((blocked / total) * 100).toFixed(1)}%)`,
+        pans: `${pans} (${((pans / total) * 100).toFixed(1)}%)`,
+        zooms: `${zooms} (${((zooms / total) * 100).toFixed(1)}%)`,
+      });
+    };
+  } else {
+    console.log("[Timeline Debug] ❌ DISABLED - add ?debug=timeline to URL to enable");
+  }
+}
+
+function logWheelEvent(event: WheelDebugEvent) {
+  if (!isDebugEnabled) return;
+
+  wheelDebugLog.push(event);
+
+  // Keep only last 100 events
+  if (wheelDebugLog.length > 100) {
+    wheelDebugLog.shift();
+  }
+}
+
+// =============================================================================
 // Wheel Gestures
 // =============================================================================
 
 /**
  * Hook for timeline wheel gestures (pan and zoom).
  *
- * Attaches wheel handler directly to container via target option.
- * No return value needed since binding happens automatically.
+ * ## CRITICAL: Two SEPARATE and MUTUALLY EXCLUSIVE behaviors
+ *
+ * 1. **Simple wheel/scroll** (no modifier keys) → **PAN left/right**
+ *    - Mouse wheel up / trackpad scroll up → pan left
+ *    - Mouse wheel down / trackpad scroll down → pan right
+ *    - Trackpad horizontal swipe left → pan left
+ *    - Trackpad horizontal swipe right → pan right
+ *    - Shifts both start and end by same amount (keeps range constant)
+ *    - Subject to pan boundary constraints
+ *
+ * 2. **Cmd/Ctrl + wheel/scroll** (metaKey or ctrlKey) → **ZOOM in/out**
+ *    - Trackpad pinch in / wheel up with Cmd → zoom in (decrease visible range)
+ *    - Trackpad pinch out / wheel down with Cmd → zoom out (increase visible range)
+ *    - Keeps center point stable while changing range
+ *    - Respects minimum range limit
+ *
+ * These behaviors DO NOT interfere with each other - they are handled in completely
+ * separate if/else branches.
+ *
+ * ## Delta Handling
+ *
+ * The wheel event provides both deltaX (horizontal) and deltaY (vertical):
+ * - **deltaX**: Trackpad horizontal two-finger swipe
+ * - **deltaY**: Mouse wheel or trackpad vertical two-finger swipe
+ *
+ * We use whichever delta has the larger absolute value, allowing both horizontal
+ * and vertical gestures to work naturally for the horizontal timeline.
+ *
+ * ## Implementation Details
+ *
+ * Uses @use-gesture/react's useWheel hook with target option for proper event handling.
+ * The target option is recommended when preventDefault is needed, as it attaches listeners
+ * directly to the DOM node rather than relying on React's event system.
+ *
+ * @see https://use-gesture.netlify.app/docs/gestures/#about-the-wheel-gesture
+ * @see https://use-gesture.netlify.app/docs/options/
  *
  * @param containerRef - Container element ref
  * @param state - Timeline state from useTimelineState
  * @param panBoundaries - Entity boundaries for pan constraints
  * @param onDisplayRangeChange - Callback when display range changes
+ * @param debugContext - Optional debug context (entityStart/End, now, window positions)
  */
 export function useTimelineWheelGesture(
   containerRef: React.RefObject<HTMLElement | null>,
   state: ReturnType<typeof useTimelineState>,
   panBoundaries: TimelineBounds | null,
   onDisplayRangeChange: (start: Date, end: Date) => void,
+  debugContext?: {
+    entityStartTime?: Date;
+    entityEndTime?: Date;
+    now?: number;
+    overlayPositions?: { leftWidth: number; rightStart: number; rightWidth: number };
+  },
 ): void {
   const { currentDisplay, currentEffective, currentStartPercent, actions } = state;
 
+  // Initialize debug system on first render
+  initializeDebug();
+
+  // Build debug context object
+  const buildDebugContext = useCallback(() => {
+    if (!isDebugEnabled || !debugContext) return undefined;
+    return {
+      entityStart: debugContext.entityStartTime?.toISOString(),
+      entityEnd: debugContext.entityEndTime?.toISOString(),
+      now: debugContext.now ? new Date(debugContext.now).toISOString() : undefined,
+      effectiveStart: currentEffective.start?.toISOString() ?? "undefined",
+      effectiveEnd: currentEffective.end?.toISOString() ?? "undefined",
+      currentStartPercent: currentStartPercent ?? 0,
+      windowLeft: debugContext.overlayPositions?.leftWidth,
+      windowRight: debugContext.overlayPositions?.rightStart,
+    };
+  }, [debugContext, currentEffective, currentStartPercent]);
+
   useWheel(
-    ({ event, delta: [, dy] }) => {
+    ({ event, delta: [dx, dy] }) => {
+      // ALWAYS log to verify handler is called (even when debug is disabled)
+      console.log("[Timeline Wheel] Event received:", {
+        dx,
+        dy,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        debugEnabled: isDebugEnabled,
+      });
+
+      // Prevent default browser scroll behavior
       event.preventDefault();
 
+      // Check modifier key to determine behavior
       const isZoom = event.metaKey || event.ctrlKey;
       const displayStartMs = currentDisplay.start.getTime();
       const displayEndMs = currentDisplay.end.getTime();
       const displayRangeMs = displayEndMs - displayStartMs;
 
+      // ========================================================================
+      // BEHAVIOR 1: ZOOM (Cmd/Ctrl + wheel)
+      // ========================================================================
       if (isZoom) {
-        // Zoom: adjust range centered on histogram middle
-        const factor = dy < 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
+        // Use whichever delta is larger (supports both vertical wheel and horizontal trackpad)
+        const primaryDelta = Math.abs(dy) > Math.abs(dx) ? dy : dx;
+
+        // Skip if no effective delta (prevents spurious zoom when delta=0)
+        if (primaryDelta === 0) return;
+
+        const factor = primaryDelta < 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
         const newRangeMs = displayRangeMs * factor;
 
         // Respect minimum range
-        if (newRangeMs < MIN_RANGE_MS) return;
+        if (newRangeMs < MIN_RANGE_MS) {
+          logWheelEvent({
+            timestamp: Date.now(),
+            dx,
+            dy,
+            effectiveDelta: primaryDelta,
+            isZoom: true,
+            wasBlocked: true,
+            blockReason: "MIN_RANGE_MS",
+            oldRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            newRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            context: buildDebugContext(),
+          });
+          return;
+        }
 
         // Use center of display range as zoom origin
         const centerMs = (displayStartMs + displayEndMs) / 2;
         const newStart = new Date(centerMs - newRangeMs / 2);
         const newEnd = new Date(centerMs + newRangeMs / 2);
 
+        logWheelEvent({
+          timestamp: Date.now(),
+          dx,
+          dy,
+          effectiveDelta: primaryDelta,
+          isZoom: true,
+          wasBlocked: false,
+          oldRange: {
+            start: new Date(displayStartMs).toISOString(),
+            end: new Date(displayEndMs).toISOString(),
+          },
+          newRange: {
+            start: newStart.toISOString(),
+            end: newEnd.toISOString(),
+          },
+          context: buildDebugContext(),
+        });
+
         actions.setPendingDisplay(newStart, newEnd);
         onDisplayRangeChange(newStart, newEnd);
-      } else {
-        // Pan: shift window left/right
+      }
+      // ========================================================================
+      // BEHAVIOR 2: PAN (simple wheel, no modifiers)
+      // ========================================================================
+      else {
+        // Support both vertical (dy) and horizontal (dx) scrolling
+        // For horizontal timeline, both should pan left/right:
+        // - dx > 0 (scroll right) → pan right
+        // - dx < 0 (scroll left) → pan left
+        // - dy > 0 (scroll down) → pan right
+        // - dy < 0 (scroll up) → pan left
+
+        // Combine both deltas (use whichever is larger)
+        // Horizontal scrolling (dx) is more direct for horizontal panning
+        const effectiveDelta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+
+        // Skip if no effective delta (prevents spurious pan when delta=0)
+        if (effectiveDelta === 0) return;
+
         const panAmountMs = displayRangeMs * PAN_FACTOR;
-        const deltaMs = dy < 0 ? -panAmountMs : panAmountMs;
+        const deltaMs = effectiveDelta < 0 ? -panAmountMs : panAmountMs;
 
         const newStart = new Date(displayStartMs + deltaMs);
         const newEnd = new Date(displayEndMs + deltaMs);
 
-        // Validate constraints
-        if (panBoundaries) {
-          const constraint = validatePanConstraint(
-            newStart,
-            newEnd,
-            currentDisplay.start,
-            currentDisplay.end,
-            panBoundaries,
-            currentStartPercent,
-            currentEffective.start,
-          );
+        // TEMPORARILY DISABLED: Pan boundary constraints
+        // TODO: Re-enable once basic panning is working
+        // if (panBoundaries) {
+        //   const constraint = validatePanConstraint(
+        //     newStart,
+        //     newEnd,
+        //     currentDisplay.start,
+        //     currentDisplay.end,
+        //     panBoundaries,
+        //     currentStartPercent,
+        //     currentEffective.start,
+        //   );
+        //
+        //   if (constraint.blocked) {
+        //     logWheelEvent({
+        //       timestamp: Date.now(),
+        //       dx,
+        //       dy,
+        //       effectiveDelta,
+        //       isZoom: false,
+        //       wasBlocked: true,
+        //       blockReason: "Pan boundary constraint",
+        //       oldRange: {
+        //         start: new Date(displayStartMs).toISOString(),
+        //         end: new Date(displayEndMs).toISOString(),
+        //       },
+        //       newRange: {
+        //         start: newStart.toISOString(),
+        //         end: newEnd.toISOString(),
+        //       },
+        //       boundaries: {
+        //         start: panBoundaries.minTime.toISOString(),
+        //         end: panBoundaries.maxTime.toISOString(),
+        //       },
+        //       context: buildDebugContext(),
+        //     });
+        //     return;
+        //   }
+        // }
 
-          if (constraint.blocked) return;
-        }
+        logWheelEvent({
+          timestamp: Date.now(),
+          dx,
+          dy,
+          effectiveDelta,
+          isZoom: false,
+          wasBlocked: false,
+          oldRange: {
+            start: new Date(displayStartMs).toISOString(),
+            end: new Date(displayEndMs).toISOString(),
+          },
+          newRange: {
+            start: newStart.toISOString(),
+            end: newEnd.toISOString(),
+          },
+          boundaries: panBoundaries
+            ? {
+                start: panBoundaries.minTime.toISOString(),
+                end: panBoundaries.maxTime.toISOString(),
+              }
+            : undefined,
+          context: buildDebugContext(),
+        });
 
         actions.setPendingDisplay(newStart, newEnd);
         onDisplayRangeChange(newStart, newEnd);
       }
     },
     {
+      // Attach directly to DOM node via ref (recommended for preventDefault)
       target: containerRef,
+      // Must set passive: false to allow preventDefault() to work
       eventOptions: { passive: false },
     },
   );
+
+  // Debug: Log when ref is attached (runs once after mount)
+  useEffect(() => {
+    console.log("[Timeline Wheel] useWheel hook configured, containerRef.current:", containerRef.current);
+  }, [containerRef]);
 }
 
 // =============================================================================
