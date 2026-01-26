@@ -178,23 +178,25 @@ function FilterBarInner<T>({
             setIsOpen(false);
             inputRef.current?.focus();
           }
-        } else if (parsedInput.hasPrefix && parsedInput.field && !parsedInput.query.trim()) {
-          // User typed a prefix but no value (e.g., "platform:" or "name:")
-          // This is incomplete - show helpful message
-          e.preventDefault();
-          e.stopPropagation();
-          setValidationError(`Enter a value after "${parsedInput.field.prefix}"`);
         } else if (!isOpen) {
           // No field:value pattern and dropdown closed - just open it
           e.preventDefault();
           setIsOpen(true);
+        } else if (isOpen && selectables.length > 0) {
+          // Dropdown is open with suggestions - let cmdk handle selection
+          // Don't preventDefault - cmdk needs the event to trigger onSelect
+        } else if (parsedInput.hasPrefix && parsedInput.field && !parsedInput.query.trim()) {
+          // User typed a prefix but no value (e.g., "platform:" or "name:")
+          // AND no suggestions available - show helpful message
+          e.preventDefault();
+          e.stopPropagation();
+          setValidationError(`Enter a value after "${parsedInput.field.prefix}"`);
         } else if (inputValue.trim() && selectables.length === 0) {
           // User typed something that doesn't match any filter type and no suggestions
           e.preventDefault();
           e.stopPropagation();
           setValidationError(`Use a filter prefix like "pool:" or "platform:" to create filters`);
         }
-        // Otherwise: dropdown is open with suggestions - let cmdk handle selection
       } else if (e.key === "Tab" && !e.shiftKey && inputValue.trim()) {
         // Tab autocomplete: select single matching suggestion
         const valueItems = selectables.filter((s) => s.type === "value");
