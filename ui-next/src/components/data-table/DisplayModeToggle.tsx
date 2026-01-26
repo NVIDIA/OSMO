@@ -39,8 +39,7 @@ export const DisplayModeToggle = memo(function DisplayModeToggle() {
       onClick={toggleDisplayMode}
       currentStateIcon={displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
       nextStateIcon={displayMode === "free" ? <MonitorX className="size-4" /> : <MonitorCheck className="size-4" />}
-      currentStateLabel={displayMode === "free" ? "Showing Available" : "Showing Used"}
-      nextStateLabel={displayMode === "free" ? "Show Used" : "Show Available"}
+      label={displayMode === "free" ? "Show Used" : "Show Available"}
       aria-label={displayMode === "free" ? "Currently showing available" : "Currently showing used"}
     />
   );
