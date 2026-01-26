@@ -89,14 +89,6 @@ func NewListenerService(
 	}
 }
 
-// listenerStream is an interface for bidirectional gRPC streams that handle ListenerMessages.
-// Both WorkflowListenerStream and ResourceListenerStream implement this interface.
-type listenerStream interface {
-	Context() context.Context
-	Recv() (*pb.ListenerMessage, error)
-	Send(*pb.AckMessage) error
-}
-
 // pushMessageToRedis pushes the received message to Redis Stream
 func (ls *ListenerService) pushMessageToRedis(
 	ctx context.Context,
@@ -134,12 +126,11 @@ func (ls *ListenerService) pushMessageToRedis(
 }
 
 // handleListenerStream processes messages from a bidirectional gRPC stream.
-// It handles the common logic for both WorkflowListenerStream and ResourceListenerStream:
-// - Extracting backend name from metadata
-// - Receiving messages and pushing to Redis
-// - Sending ACK responses
-// - Reporting progress
-func (ls *ListenerService) handleListenerStream(stream listenerStream, streamType string) error {
+// It handles receiving messages, pushing to Redis, sending ACK responses, and reporting progress.
+func (ls *ListenerService) handleListenerStream(
+	stream pb.ListenerService_ListenerStreamServer,
+	streamType string,
+) error {
 	ctx := stream.Context()
 
 	// Extract backend name from gRPC metadata (required)
