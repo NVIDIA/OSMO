@@ -47,6 +47,32 @@ export const NOW_THRESHOLD_MS = 60_000;
 /** Minimum range in milliseconds (1 minute) */
 export const MIN_RANGE_MS = 60_000;
 
+/** Maximum range in milliseconds (1 day) - prevents zooming out too far */
+export const MAX_RANGE_MS = 24 * 60 * 60 * 1000;
+
+// =============================================================================
+// Bucket Count Constraints
+// =============================================================================
+
+/** Minimum bucket count (prevents zooming in past meaningful resolution) */
+export const MIN_BUCKET_COUNT = 20;
+
+/** Maximum bucket count (prevents zooming out to too many bars) */
+export const MAX_BUCKET_COUNT = 100;
+
+// =============================================================================
+// Invalid Zone Constraints
+// =============================================================================
+
+/** Minimum invalid zone buckets per side (minimum 2 for visual feedback) */
+export const MIN_INVALID_ZONE_BUCKETS = 2;
+
+/** Maximum invalid zone percentage per side (10% of viewport) */
+export const MAX_INVALID_ZONE_PERCENT_PER_SIDE = 10;
+
+/** Maximum combined invalid zone percentage (10% total for both sides) */
+export const MAX_INVALID_ZONE_PERCENT_COMBINED = 10;
+
 // =============================================================================
 // Gesture Configuration
 // =============================================================================
