@@ -70,8 +70,8 @@ export const MIN_INVALID_ZONE_BUCKETS = 2;
 /** Maximum invalid zone percentage per side (10% of viewport) */
 export const MAX_INVALID_ZONE_PERCENT_PER_SIDE = 10;
 
-/** Maximum combined invalid zone percentage (10% total for both sides) */
-export const MAX_INVALID_ZONE_PERCENT_COMBINED = 10;
+/** Maximum combined invalid zone percentage (20% total - allows both sides at 10% each) */
+export const MAX_INVALID_ZONE_PERCENT_COMBINED = 20;
 
 /** Gap width as multiple of bucket width (1.0 = one full bar width buffer) */
 export const GAP_BUCKET_MULTIPLIER = 1.0;
