@@ -329,24 +329,30 @@ function TimelineContainerInner({
   // ============================================================================
 
   const panBoundaries = usePanBoundaries(entityStartTime, entityEndTime, now);
-  const overlayPositions = useOverlayPositions(
-    enableInteractiveDraggers,
-    currentDisplay,
-    currentEffective,
-    entityStartTime,
-    entityEndTime,
-  );
+  // TEMPORARILY DISABLED: Overlay positions (window layer disabled)
+  // const overlayPositions = useOverlayPositions(
+  //   enableInteractiveDraggers,
+  //   currentDisplay,
+  //   currentEffective,
+  //   entityStartTime,
+  //   entityEndTime,
+  // );
   const { startLabel, endLabel } = useTimeLabels(currentEffective, activeBuckets, entityStartTime, isEndTimeNow);
 
   // ============================================================================
   // GESTURES
   // ============================================================================
 
-  useTimelineWheelGesture(containerRef, timelineState, panBoundaries, onDisplayRangeChange ?? (() => {}));
+  useTimelineWheelGesture(containerRef, timelineState, panBoundaries, onDisplayRangeChange ?? (() => {}), {
+    entityStartTime,
+    entityEndTime,
+    now,
+    overlayPositions: undefined, // Disabled during simplification
+  });
 
-  const startDragger = useTimelineDraggerGesture("start", containerRef, timelineState, currentEffective.start, false);
-
-  const endDragger = useTimelineDraggerGesture("end", containerRef, timelineState, currentEffective.end, isEndTimeNow);
+  // TEMPORARILY DISABLED: Dragger gestures (window layer disabled)
+  // const startDragger = useTimelineDraggerGesture("start", containerRef, timelineState, currentEffective.start, false);
+  // const endDragger = useTimelineDraggerGesture("end", containerRef, timelineState, currentEffective.end, isEndTimeNow);
 
   // ============================================================================
   // CALLBACKS
@@ -422,14 +428,15 @@ function TimelineContainerInner({
           />
         )}
 
-        {enableInteractiveDraggers && (
+        {/* TEMPORARILY DISABLED: Controls for debugging basic pan */}
+        {/* {enableInteractiveDraggers && (
           <TimelineControls
             hasPendingChanges={hasPendingChanges}
             onApply={handleApply}
             onCancel={handleCancel}
             className="ml-auto"
           />
-        )}
+        )} */}
 
         <CollapseButton
           isCollapsed={isCollapsed}
@@ -469,7 +476,9 @@ function TimelineContainerInner({
               />
 
               {/* Layer 2: Fixed window (overlays + draggers) */}
-              {enableInteractiveDraggers && overlayPositions && (
+              {/* TEMPORARILY DISABLED: Window layer for debugging basic pan */}
+              {/* TODO: Re-enable once basic panning works */}
+              {/* {enableInteractiveDraggers && overlayPositions && (
                 <TimelineWindow
                   leftPanelStart={0}
                   leftPanelWidth={overlayPositions.leftWidth}
@@ -478,7 +487,7 @@ function TimelineContainerInner({
                   startDragger={startDragger}
                   endDragger={endDragger}
                 />
-              )}
+              )} */}
             </div>
 
             {customControls && <div className="absolute bottom-1 left-1">{customControls}</div>}

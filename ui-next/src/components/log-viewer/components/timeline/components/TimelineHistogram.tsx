@@ -45,6 +45,7 @@ import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
+import { calculateBucketWidth, calculateInvalidZonePositions } from "../lib/invalid-zones";
 
 // =============================================================================
 // Types
@@ -101,7 +102,7 @@ function InvalidZone({ leftPercent, widthPercent, side }: InvalidZoneProps) {
     <div
       className={cn(
         "pointer-events-none absolute top-0 h-full",
-        "transition-all duration-200 ease-out",
+        // NO transition - moves instantly with parent transform
         // Striped pattern using CSS background
         "[background:repeating-linear-gradient(45deg,rgb(0_0_0/0.04),rgb(0_0_0/0.04)_8px,rgb(0_0_0/0.10)_8px,rgb(0_0_0/0.10)_16px)]",
         "dark:[background:repeating-linear-gradient(45deg,rgb(255_255_255/0.03),rgb(255_255_255/0.03)_8px,rgb(255_255_255/0.08)_8px,rgb(255_255_255/0.08)_16px)]",
@@ -235,42 +236,55 @@ function TimelineHistogramInner({
   const activeBuckets = pendingBuckets ?? buckets;
 
   // Invalid zone positions (part of Layer 1 - transforms with bars)
+  // CRITICAL: Must use same coordinate space as bars (depends on pendingBuckets)
   const invalidZonePositions = useMemo(() => {
     if (!entityStartTime) return null;
 
-    const originalStart = displayStart ?? buckets[0]?.timestamp;
-    const originalEnd = displayEnd ?? buckets[buckets.length - 1]?.timestamp;
-    if (!originalStart || !originalEnd) return null;
+    // Calculate bucket width using pure function
+    const bucketTimestamps = activeBuckets.map((b) => b.timestamp);
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
 
-    const displayStartMs = originalStart.getTime();
-    const displayEndMs = originalEnd.getTime();
-    const displayRangeMs = displayEndMs - displayStartMs;
-    if (displayRangeMs <= 0) return null;
+    // Determine coordinate space based on whether transform will be applied
+    // If pending buckets exist, bars are positioned for currentDisplay (no transform)
+    // If no pending buckets, bars are positioned for original range (with transform)
+    let displayStartMs: number;
+    let displayEndMs: number;
 
-    const toPercent = (ms: number): number => (ms / displayRangeMs) * 100;
-    const entityStartMs = entityStartTime.getTime();
-
-    // Left zone: from displayStart to entityStartTime
-    const leftEndMs = Math.min(entityStartMs, displayEndMs);
-    const leftWidthPercent = displayStartMs < entityStartMs ? toPercent(leftEndMs - displayStartMs) : 0;
-
-    // Right zone: from (entityEndTime OR NOW) to displayEnd
-    const rightBoundaryMs = entityEndTime?.getTime() ?? now;
-    let rightStartPercent = 100;
-    let rightWidthPercent = 0;
-
-    if (rightBoundaryMs !== undefined && displayEndMs > rightBoundaryMs) {
-      const zoneStartMs = Math.max(rightBoundaryMs, displayStartMs);
-      rightStartPercent = toPercent(zoneStartMs - displayStartMs);
-      rightWidthPercent = toPercent(displayEndMs - zoneStartMs);
+    if (pendingBuckets) {
+      // No transform - use current display range
+      displayStartMs = currentDisplay.start.getTime();
+      displayEndMs = currentDisplay.end.getTime();
+    } else {
+      // Transform applied - use original display range
+      const originalStart = displayStart ?? buckets[0]?.timestamp;
+      const originalEnd = displayEnd ?? buckets[buckets.length - 1]?.timestamp;
+      if (!originalStart || !originalEnd) return null;
+      displayStartMs = originalStart.getTime();
+      displayEndMs = originalEnd.getTime();
     }
 
-    return {
-      leftInvalidWidth: leftWidthPercent,
-      rightInvalidStart: rightStartPercent,
-      rightInvalidWidth: rightWidthPercent,
-    };
-  }, [entityStartTime, entityEndTime, now, displayStart, displayEnd, buckets]);
+    // Use pure tested function to calculate positions
+    // NOTE: now should always be provided for running workflows; fallback is for type safety only
+    const nowMs = now ?? 0;
+    return calculateInvalidZonePositions(
+      entityStartTime.getTime(),
+      entityEndTime?.getTime(),
+      nowMs,
+      displayStartMs,
+      displayEndMs,
+      bucketWidthMs,
+    );
+  }, [
+    entityStartTime,
+    entityEndTime,
+    now,
+    displayStart,
+    displayEnd,
+    buckets,
+    pendingBuckets,
+    currentDisplay,
+    activeBuckets,
+  ]);
 
   // ============================================================================
   // TRANSFORM CALCULATION
@@ -330,7 +344,7 @@ function TimelineHistogramInner({
 
   return (
     <div
-      className="absolute inset-0 transition-transform duration-200 ease-out"
+      className="absolute inset-0"
       style={barTransform ? { transform: barTransform } : undefined}
       data-layer="pannable"
     >
