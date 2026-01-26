@@ -457,8 +457,8 @@ def start_service_bazel():
     check_required_tools(['bazel', 'docker', 'npm', 'aws'])
 
     try:
-        # _start_redis()
-        # _start_postgres()
+        _start_redis()
+        _start_postgres()
         _start_localstack_s3()
         _create_localstack_buckets()
 

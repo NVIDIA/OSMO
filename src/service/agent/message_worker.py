@@ -44,8 +44,8 @@ MESSAGE_CLAIM_IDLE_TIME_MS = 300000
 
 
 class MessageWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
-                         connectors.PostgresConfig, src.lib.utils.logging.LoggingConfig,
-                         metrics.MetricsCreatorConfig):
+                          connectors.PostgresConfig, src.lib.utils.logging.LoggingConfig,
+                          metrics.MetricsCreatorConfig):
     """Configuration for the message worker."""
     progress_file: str = pydantic.Field(
         command_line='progress_file',
