@@ -231,6 +231,28 @@ const { pools, isLoading, error } = usePools();
 <button onClick={handleClick}>Action</button>
 ```
 
+```tsx
+// ❌ FORBIDDEN: Buttons that show only the action (not current state)
+<Tooltip>
+  <TooltipTrigger asChild>
+    <Button onClick={toggleCompactMode}>
+      <Rows4 className="size-4" /> {/* Always shows compact icon */}
+    </Button>
+  </TooltipTrigger>
+  <TooltipContent>Switch to compact</TooltipContent>
+</Tooltip>
+
+// ✅ REQUIRED: SemiStatefulButton for state-aware toggles
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
+<SemiStatefulButton
+  onClick={toggleCompactMode}
+  currentStateIcon={compactMode ? <Rows4 /> : <Rows3 />}
+  nextStateIcon={compactMode ? <Rows3 /> : <Rows4 />}
+  currentStateLabel={compactMode ? "Compact View" : "Comfortable View"}
+  nextStateLabel={compactMode ? "Switch to Comfortable" : "Switch to Compact"}
+/>
+```
+
 ```typescript
 // ❌ FORBIDDEN: Defining your own enum-like types
 type Priority = "HIGH" | "NORMAL" | "LOW";
@@ -346,6 +368,45 @@ npx shadcn@latest add dialog   # Add from shadcn/ui
 ```
 
 Components are added to `src/components/shadcn/`. For custom components, add to `src/components/[feature]/`.
+
+### Semi-Stateful Button Pattern
+
+**Design Philosophy:** For buttons that toggle between two states (e.g., "My Workflows" ↔ "All Workflows"), use the **semi-stateful** pattern where the button shows the **current state** by default, then transitions to show the **next state** on hover/focus.
+
+**Why:** This provides clear visual feedback about what state the user is in, while previewing what will happen if they click.
+
+**When to use:**
+- View filters (My Workflows ↔ All Workflows)
+- Display mode toggles (Available ↔ Used)
+- Layout toggles (Compact ↔ Comfortable)
+- Any button that switches between two mutually exclusive states
+
+**Implementation:**
+
+```tsx
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
+import { User, Users } from "lucide-react";
+
+// Example: User filter toggle
+<SemiStatefulButton
+  onClick={toggleShowAllUsers}
+  currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
+  nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
+  currentStateLabel={showAllUsers ? "All Users' Workflows" : "My Workflows"}
+  nextStateLabel={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
+  aria-label={showAllUsers ? "Currently showing all users' workflows" : "Currently showing my workflows"}
+/>
+```
+
+**Behavior:**
+1. **Default (not hovering):** Shows current state icon + current state label in tooltip
+2. **Hover/Focus:** Transitions to next state icon + action label in tooltip
+3. **Click:** Executes the action, committing to the new state
+
+**Examples in codebase:**
+- `UserToggle` in `workflows-toolbar.tsx` - My Workflows ↔ All Workflows
+- `DisplayModeToggle` in `DisplayModeToggle.tsx` - Available ↔ Used
+- Compact/Comfortable toggle in `TableToolbar.tsx`
 
 ### Check Existing Components First
 
