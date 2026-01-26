@@ -45,12 +45,11 @@ export function calculateBucketWidth(buckets: Date[]): number {
  * Calculate invalid zone positions.
  *
  * CONTRACTS:
- * 1. Left zone ends at entityStart - 1.5 bucket widths (symmetric with right)
- * 2. Right zone starts at (entityEnd OR now) + 1.5 bucket widths
- * 3. Gap is ALWAYS exactly 1.5 bucket widths in milliseconds on BOTH sides
- * 4. Gaps are symmetric (same millisecond value on left and right)
- * 5. Positions are percentages relative to displayRange
- * 6. When displayRange changes (pan/zoom), positions transform linearly
+ * 1. Left zone ends at entityStart - 1.0 bucket width (one bar's worth of buffer)
+ * 2. Right zone starts at (entityEnd OR now) + 1.0 bucket width (one bar's worth of buffer)
+ * 3. Gap is exactly one bucket width (visually aligns with histogram bars)
+ * 4. Positions are percentages relative to displayRange
+ * 5. When displayRange changes (pan/zoom), gap scales proportionally with bars
  *
  * @param entityStartMs - Entity start time in milliseconds (workflow start)
  * @param entityEndMs - Entity end time in milliseconds (undefined if running, use now)
@@ -85,11 +84,11 @@ export function calculateInvalidZonePositions(
   // LEFT ZONE: Before entity start
   // ============================================================================
 
-  // Gap = 1.5 bucket widths (same as right side for consistency)
-  const gapMs = bucketWidthMs * 1.5;
+  // Left gap = 1.0 bucket width (one bar's worth of empty space as visual buffer)
+  const leftGapMs = bucketWidthMs * 1.0;
 
-  // Left zone ends 1.5 bucket widths BEFORE entity start (gives bars breathing room)
-  const leftZoneEndMs = entityStartMs - gapMs;
+  // Left zone ends 1.0 bucket width BEFORE entity start
+  const leftZoneEndMs = entityStartMs - leftGapMs;
 
   let leftWidthPercent = 0;
   if (displayStartMs < leftZoneEndMs && leftZoneEndMs > displayStartMs) {
@@ -104,8 +103,11 @@ export function calculateInvalidZonePositions(
   // Use entityEnd if available, otherwise NOW
   const rightBoundaryMs = entityEndMs ?? nowMs;
 
-  // Zone starts 1.5 bucket widths after the boundary
-  const zoneStartMs = rightBoundaryMs + gapMs;
+  // Right gap = 1.0 bucket width (one bar's worth of empty space as visual buffer)
+  const rightGapMs = bucketWidthMs * 1.0;
+
+  // Zone starts 1.0 bucket width after the boundary
+  const zoneStartMs = rightBoundaryMs + rightGapMs;
 
   let rightStartPercent = 100;
   let rightWidthPercent = 0;
