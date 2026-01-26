@@ -114,6 +114,45 @@ function InvalidZone({ leftPercent, widthPercent, side }: InvalidZoneProps) {
 }
 
 // =============================================================================
+// Gap Component (explicit buffer between invalid zone and histogram bars)
+// =============================================================================
+
+/**
+ * Gap - explicit buffer space between invalid zones and histogram bars.
+ * Part of Layer 1 (pannable content) - pans together with bars.
+ *
+ * Renders as a one-bucket-width empty space that:
+ * - Maintains constant visual width during pan (same zoom level)
+ * - Scales naturally during zoom (tied to bucket width)
+ * - Prevents "resizing gap" visual bug by being explicit rather than implicit
+ */
+interface GapProps {
+  /** Position from left edge as percentage (0-100) */
+  leftPercent: number;
+  /** Width as percentage (0-100) */
+  widthPercent: number;
+  /** Side: left (buffer before entity start) or right (buffer after entity end/now) */
+  side: "left" | "right";
+}
+
+function Gap({ leftPercent, widthPercent, side }: GapProps) {
+  if (widthPercent <= 0) return null;
+
+  return (
+    <div
+      className="pointer-events-none absolute top-0 h-full"
+      style={{
+        left: `${leftPercent}%`,
+        width: `${widthPercent}%`,
+      }}
+      aria-hidden="true"
+      data-gap-side={side}
+      title={`Gap (${side}): buffer space between invalid zone and data`}
+    />
+  );
+}
+
+// =============================================================================
 // Tooltip Content
 // =============================================================================
 
@@ -321,9 +360,12 @@ function TimelineHistogramInner({
       style={barTransform ? { transform: barTransform } : undefined}
       data-layer="pannable"
     >
-      {/* Invalid zones - part of pannable layer */}
+      {/* Invalid zones and gaps - part of pannable layer */}
+      {/* Structure: [Invalid Zone][Gap][Bars][Gap][Invalid Zone] */}
+      {/* All elements transform together to prevent visual "jumping" */}
       {invalidZonePositions && (
         <>
+          {/* Left invalid zone (before entity start minus gap) */}
           {invalidZonePositions.leftInvalidWidth > 0 && (
             <InvalidZone
               leftPercent={0}
@@ -331,6 +373,23 @@ function TimelineHistogramInner({
               side="left"
             />
           )}
+          {/* Left gap (1.0 bucket width buffer between invalid zone and first bar) */}
+          {invalidZonePositions.leftGapWidth > 0 && (
+            <Gap
+              leftPercent={invalidZonePositions.leftGapStart}
+              widthPercent={invalidZonePositions.leftGapWidth}
+              side="left"
+            />
+          )}
+          {/* Right gap (1.0 bucket width buffer between last bar and invalid zone) */}
+          {invalidZonePositions.rightGapWidth > 0 && (
+            <Gap
+              leftPercent={invalidZonePositions.rightGapStart}
+              widthPercent={invalidZonePositions.rightGapWidth}
+              side="right"
+            />
+          )}
+          {/* Right invalid zone (after entity end/now plus gap) */}
           {invalidZonePositions.rightInvalidWidth > 0 && (
             <InvalidZone
               leftPercent={invalidZonePositions.rightInvalidStart}
