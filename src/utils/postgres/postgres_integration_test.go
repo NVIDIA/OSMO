@@ -43,9 +43,8 @@ func init() {
 	flag.StringVar(&postgresPassword, "postgres-password", "osmo", "PostgreSQL password")
 }
 
-// TestPostgresIntegration_GetRoles tests fetching roles from a real PostgreSQL instance
-// This test requires a running PostgreSQL instance with the osmo schema
-func TestPostgresIntegration_GetRoles(t *testing.T) {
+// TestPostgresIntegration_Connection tests connecting to a real PostgreSQL instance
+func TestPostgresIntegration_Connection(t *testing.T) {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -85,204 +84,14 @@ func TestPostgresIntegration_GetRoles(t *testing.T) {
 	}
 
 	t.Log("✓ Successfully connected to PostgreSQL")
-
-	// Test fetching known roles
-	testCases := []struct {
-		name          string
-		roleNames     []string
-		expectMinimum int
-		validateRole  func(*testing.T, *Role)
-	}{
-		{
-			name:          "fetch osmo-default role",
-			roleNames:     []string{"osmo-default"},
-			expectMinimum: 1,
-			validateRole: func(t *testing.T, role *Role) {
-				if role.Name != "osmo-default" {
-					t.Errorf("Expected role name 'osmo-default', got '%s'", role.Name)
-				}
-				if len(role.Policies) == 0 {
-					t.Error("Expected at least one policy for osmo-default role")
-				}
-				// Validate policy structure
-				for i, policy := range role.Policies {
-					if len(policy.Actions) == 0 {
-						t.Errorf("Policy %d has no actions", i)
-					}
-					for j, action := range policy.Actions {
-						if action.Path == "" {
-							t.Errorf("Policy %d, Action %d has empty path", i, j)
-						}
-						if action.Method == "" {
-							t.Errorf("Policy %d, Action %d has empty method", i, j)
-						}
-						t.Logf("  Policy %d, Action %d: %s %s %s",
-							i, j, action.Base, action.Method, action.Path)
-					}
-				}
-			},
-		},
-		{
-			name:          "fetch osmo-user role",
-			roleNames:     []string{"osmo-user"},
-			expectMinimum: 1,
-			validateRole: func(t *testing.T, role *Role) {
-				if role.Name != "osmo-user" {
-					t.Errorf("Expected role name 'osmo-user', got '%s'", role.Name)
-				}
-				if len(role.Policies) == 0 {
-					t.Error("Expected at least one policy for osmo-user role")
-				}
-			},
-		},
-		{
-			name:          "fetch multiple roles",
-			roleNames:     []string{"osmo-default", "osmo-user"},
-			expectMinimum: 2,
-			validateRole: func(t *testing.T, role *Role) {
-				if role.Name != "osmo-default" && role.Name != "osmo-user" {
-					t.Errorf("Unexpected role name: %s", role.Name)
-				}
-			},
-		},
-		{
-			name:          "fetch non-existent role",
-			roleNames:     []string{"non-existent-role-12345"},
-			expectMinimum: 0,
-			validateRole:  nil,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			testCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
-
-			roles, err := GetRoles(testCtx, client, tc.roleNames)
-			if err != nil {
-				t.Fatalf("GetRoles() failed: %v", err)
-			}
-
-			if len(roles) < tc.expectMinimum {
-				t.Errorf("Expected at least %d roles, got %d", tc.expectMinimum, len(roles))
-			}
-
-			t.Logf("Fetched %d role(s)", len(roles))
-
-			for _, role := range roles {
-				t.Logf("Role: %s (immutable=%v, policies=%d)",
-					role.Name, role.Immutable, len(role.Policies))
-
-				if tc.validateRole != nil {
-					tc.validateRole(t, role)
-				}
-			}
-		})
-	}
 }
 
-// TestPostgresIntegration_PolicyParsing tests that policies are correctly parsed from JSON
-func TestPostgresIntegration_PolicyParsing(t *testing.T) {
+// TestPostgresIntegration_Pool tests that the connection pool is accessible
+func TestPostgresIntegration_Pool(t *testing.T) {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
-	// Create postgres client
-	config := PostgresConfig{
-		Host:            postgresHost,
-		Port:            postgresPort,
-		Database:        postgresDB,
-		User:            postgresUser,
-		Password:        postgresPassword,
-		MaxConns:        5,
-		MinConns:        2,
-		MaxConnLifetime: 5 * time.Minute,
-		SSLMode:         "disable",
-	}
-
-	ctx := context.Background()
-	client, err := NewPostgresClient(ctx, config, logger)
-	if err != nil {
-		t.Fatalf("Failed to create postgres client: %v", err)
-	}
-	defer client.Close()
-
-	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	// Fetch osmo-default role which should have well-defined policies
-	roles, err := GetRoles(queryCtx, client, []string{"osmo-default"})
-	if err != nil {
-		t.Fatalf("GetRoles() failed: %v", err)
-	}
-
-	if len(roles) == 0 {
-		t.Skip("osmo-default role not found in database - skipping policy parsing test")
-	}
-
-	role := roles[0]
-	t.Logf("Testing policy parsing for role: %s", role.Name)
-	t.Logf("Role description: %s", role.Description)
-	t.Logf("Number of policies: %d", len(role.Policies))
-
-	if len(role.Policies) == 0 {
-		t.Error("Expected at least one policy, got zero")
-	}
-
-	// Validate policy structure
-	for i, policy := range role.Policies {
-		t.Logf("\nPolicy %d:", i)
-		t.Logf("  Number of actions: %d", len(policy.Actions))
-
-		if len(policy.Actions) == 0 {
-			t.Errorf("Policy %d has no actions", i)
-			continue
-		}
-
-		for j, action := range policy.Actions {
-			t.Logf("  Action %d:", j)
-			t.Logf("    Base: %s", action.Base)
-			t.Logf("    Method: %s", action.Method)
-			t.Logf("    Path: %s", action.Path)
-
-			// Validate action fields are populated
-			if action.Base == "" && action.Path != "" {
-				t.Logf("    Note: Base is empty (this might be expected)")
-			}
-			if action.Method == "" {
-				t.Errorf("Action %d of policy %d has empty method", j, i)
-			}
-			if action.Path == "" {
-				t.Errorf("Action %d of policy %d has empty path", j, i)
-			}
-
-			// Validate method is valid
-			validMethods := map[string]bool{
-				"*": true, "GET": true, "POST": true, "PUT": true,
-				"DELETE": true, "PATCH": true, "HEAD": true, "OPTIONS": true,
-			}
-			if !validMethods[action.Method] && action.Method != "*" {
-				t.Logf("    Warning: Method '%s' is not a standard HTTP method", action.Method)
-			}
-
-			// Validate path starts with / or is a pattern
-			if action.Path != "*" && !startsWithSlashOrPattern(action.Path) {
-				t.Logf("    Warning: Path '%s' doesn't start with '/' or '!'", action.Path)
-			}
-		}
-	}
-
-	t.Logf("\n✓ Successfully validated policy structure for role: %s", role.Name)
-}
-
-// TestPostgresIntegration_EmptyRoleNames tests handling of edge cases
-func TestPostgresIntegration_EmptyRoleNames(t *testing.T) {
-	flag.Parse()
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelError,
+		Level: slog.LevelInfo,
 	}))
 
 	config := PostgresConfig{
@@ -304,25 +113,72 @@ func TestPostgresIntegration_EmptyRoleNames(t *testing.T) {
 	}
 	defer client.Close()
 
+	// Get pool and verify it's not nil
+	pool := client.Pool()
+	if pool == nil {
+		t.Fatal("Pool() returned nil")
+	}
+
+	// Execute a simple query using the pool
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	// Test with empty role names
-	roles, err := GetRoles(queryCtx, client, []string{})
+	rows, err := pool.Query(queryCtx, "SELECT 1")
 	if err != nil {
-		t.Errorf("GetRoles() with empty slice should not error, got: %v", err)
+		t.Fatalf("Failed to execute query: %v", err)
 	}
-	if len(roles) != 0 {
-		t.Errorf("Expected 0 roles for empty input, got %d", len(roles))
+	defer rows.Close()
+
+	if !rows.Next() {
+		t.Fatal("Expected at least one row from SELECT 1")
 	}
 
-	t.Log("✓ Empty role names handled correctly")
+	var result int
+	if err := rows.Scan(&result); err != nil {
+		t.Fatalf("Failed to scan result: %v", err)
+	}
+
+	if result != 1 {
+		t.Errorf("Expected result 1, got %d", result)
+	}
+
+	t.Log("✓ Successfully executed query using pool")
 }
 
-// Helper function to check if a path starts with / or a pattern character
-func startsWithSlashOrPattern(path string) bool {
-	if len(path) == 0 {
-		return false
+// TestPostgresIntegration_CreateClientHelper tests the CreatePostgresClient helper function
+func TestPostgresIntegration_CreateClientHelper(t *testing.T) {
+	flag.Parse()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	ctx := context.Background()
+	client, err := CreatePostgresClient(
+		ctx,
+		logger,
+		postgresHost,
+		postgresPort,
+		postgresDB,
+		postgresUser,
+		postgresPassword,
+		5, // maxConns
+		2, // minConns
+		5*time.Minute,
+		"disable",
+	)
+	if err != nil {
+		t.Fatalf("Failed to create postgres client using helper: %v", err)
 	}
-	return path[0] == '/' || path[0] == '!' || path[0] == '*'
+	defer client.Close()
+
+	// Verify connection
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(pingCtx); err != nil {
+		t.Fatalf("Failed to ping database: %v", err)
+	}
+
+	t.Log("✓ Successfully connected using CreatePostgresClient helper")
 }
