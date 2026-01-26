@@ -34,10 +34,11 @@ import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/chrome";
 import { useUrlChips, useResultsCount, useViewTransition } from "@/hooks";
 import { useCallback } from "react";
+import { useQueryState, parseAsBoolean } from "nuqs";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
 import { WorkflowsToolbar } from "./components/workflows-toolbar";
 import { useWorkflowsData } from "./hooks/use-workflows-data";
-import { useWorkflowsPreferencesStore, useWorkflowsTableStore } from "./stores/workflows-table-store";
+import { useWorkflowsTableStore } from "./stores/workflows-table-store";
 
 // =============================================================================
 // Client Component
@@ -49,7 +50,7 @@ export function WorkflowsPageContent() {
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
-  // URL: /workflows?f=status:running&f=user:alice
+  // URL: /workflows?f=status:running&f=user:alice&all=true
   // ==========================================================================
 
   // Filter chips - URL-synced via shared hook
@@ -62,8 +63,22 @@ export function WorkflowsPageContent() {
     [setSearchChips, startTransition],
   );
 
-  // Show all users toggle from preferences store
-  const showAllUsers = useWorkflowsPreferencesStore((s) => s.showAllUsers);
+  // Show all users toggle - URL-synced (default: false = my workflows only)
+  // URL param: ?all=true (shows all users), omitted/false (shows my workflows)
+  const [showAllUsers, setShowAllUsers] = useQueryState(
+    "all",
+    parseAsBoolean.withDefault(false).withOptions({
+      shallow: true,
+      history: "replace", // Don't pollute history with toggle changes
+      clearOnDefault: true, // Remove param when false (cleaner URLs)
+    }),
+  );
+
+  const handleToggleShowAllUsers = useCallback(() => {
+    startTransition(() => {
+      void setShowAllUsers((prev) => !prev);
+    });
+  }, [setShowAllUsers, startTransition]);
 
   // Sort direction from table store (only submit_time is sortable server-side)
   const sortState = useWorkflowsTableStore((s) => s.sort);
@@ -112,6 +127,8 @@ export function WorkflowsPageContent() {
             searchChips={searchChips}
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
+            showAllUsers={showAllUsers}
+            onToggleShowAllUsers={handleToggleShowAllUsers}
           />
         </InlineErrorBoundary>
       </div>

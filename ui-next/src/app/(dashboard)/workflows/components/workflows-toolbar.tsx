@@ -23,7 +23,7 @@ import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { SearchChip } from "@/stores";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar";
 import { TableToolbar } from "@/components/data-table";
-import { useWorkflowsTableStore, useWorkflowsPreferencesStore } from "../stores/workflows-table-store";
+import { useWorkflowsTableStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
 import {
   WORKFLOW_SEARCH_FIELDS,
@@ -48,6 +48,10 @@ export interface WorkflowsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
+  /** Show all users' workflows (true) or only current user's (false) */
+  showAllUsers: boolean;
+  /** Callback when show all users toggle is clicked */
+  onToggleShowAllUsers: () => void;
 }
 
 const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
@@ -81,12 +85,11 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   searchChips,
   onSearchChipsChange,
   resultsCount,
+  showAllUsers,
+  onToggleShowAllUsers,
 }: WorkflowsToolbarProps) {
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useWorkflowsTableStore((s) => s.toggleColumn);
-
-  const showAllUsers = useWorkflowsPreferencesStore((s) => s.showAllUsers);
-  const toggleShowAllUsers = useWorkflowsPreferencesStore((s) => s.toggleShowAllUsers);
 
   // Create status presets that expand to multiple chips
   const statusPresets = useMemo(
@@ -137,7 +140,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
     >
       <UserToggle
         showAllUsers={showAllUsers}
-        onToggle={toggleShowAllUsers}
+        onToggle={onToggleShowAllUsers}
       />
     </TableToolbar>
   );
