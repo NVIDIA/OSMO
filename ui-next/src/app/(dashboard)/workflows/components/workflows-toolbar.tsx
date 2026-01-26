@@ -50,6 +50,8 @@ export interface WorkflowsToolbarProps {
   resultsCount?: ResultsCount;
   /** Show all users' workflows (true) or only current user's (false) */
   showAllUsers: boolean;
+  /** Whether the show all users toggle is pending (async URL update) */
+  showAllUsersPending: boolean;
   /** Callback when show all users toggle is clicked */
   onToggleShowAllUsers: () => void;
 }
@@ -63,10 +65,11 @@ const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
 
 interface UserToggleProps {
   showAllUsers: boolean;
+  isTransitioning: boolean;
   onToggle: () => void;
 }
 
-const UserToggle = memo(function UserToggle({ showAllUsers, onToggle }: UserToggleProps) {
+const UserToggle = memo(function UserToggle({ showAllUsers, isTransitioning, onToggle }: UserToggleProps) {
   return (
     <SemiStatefulButton
       onClick={onToggle}
@@ -75,6 +78,7 @@ const UserToggle = memo(function UserToggle({ showAllUsers, onToggle }: UserTogg
       label={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
       aria-label={showAllUsers ? "Currently showing all users' workflows" : "Currently showing my workflows"}
       tooltipSide="top"
+      isTransitioning={isTransitioning}
     />
   );
 });
@@ -85,6 +89,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   onSearchChipsChange,
   resultsCount,
   showAllUsers,
+  showAllUsersPending,
   onToggleShowAllUsers,
 }: WorkflowsToolbarProps) {
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
@@ -139,6 +144,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
     >
       <UserToggle
         showAllUsers={showAllUsers}
+        isTransitioning={showAllUsersPending}
         onToggle={onToggleShowAllUsers}
       />
     </TableToolbar>

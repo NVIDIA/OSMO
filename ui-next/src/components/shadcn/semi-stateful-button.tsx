@@ -17,7 +17,7 @@
 "use client";
 
 import * as React from "react";
-import { memo, useState } from "react";
+import { memo, useState, useCallback } from "react";
 import { Button, buttonVariants } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { VariantProps } from "class-variance-authority";
@@ -62,6 +62,12 @@ export interface SemiStatefulButtonProps
   label: string;
   /** Tooltip side positioning */
   tooltipSide?: "top" | "right" | "bottom" | "left";
+  /**
+   * Optional: Explicitly control transition state for async operations.
+   * When true, hover state is ignored to prevent flip-flopping during async updates.
+   * Use this for toggles that update async state (nuqs, API calls, etc).
+   */
+  isTransitioning?: boolean;
 }
 
 export const SemiStatefulButton = memo(function SemiStatefulButton({
@@ -73,21 +79,72 @@ export const SemiStatefulButton = memo(function SemiStatefulButton({
   variant = "outline",
   className,
   onClick,
+  isTransitioning: externalIsTransitioning,
   ...buttonProps
 }: SemiStatefulButtonProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  // Show next state when hovering or focused, otherwise show current state
-  const showNextState = isHovering || isFocused;
+  // Store the icon value when user clicks to track transition completion
+  // When currentStateIcon changes from this value, the transition is complete
+  const [transitionStartIcon, setTransitionStartIcon] = useState<React.ReactNode>(null);
+
+  // Derive whether we're in a click transition period
+  // We're in transition if we stored an icon AND it still matches the current icon
+  // Once currentStateIcon changes, the parent state has updated and transition is complete
+  const internalIsTransitioning = transitionStartIcon !== null && transitionStartIcon === currentStateIcon;
+
+  // Use external transition state if provided (for async operations), otherwise use internal detection
+  const isClickTransition = externalIsTransitioning ?? internalIsTransitioning;
+
+  // Show next state only if hovering/focused AND not in click transition
+  const showNextState = (isHovering || isFocused) && !isClickTransition;
   const displayIcon = showNextState ? nextStateIcon : currentStateIcon;
 
-  // Handle click: reset hover state to show new current state immediately
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      // Store current icon to track when it changes (indicating parent state updated)
+      // Only do this if not using external transition control
+      if (externalIsTransitioning === undefined) {
+        setTransitionStartIcon(currentStateIcon);
+      }
+      // Reset local state
+      setIsHovering(false);
+      setIsFocused(false);
+      onClick?.(e);
+    },
+    [currentStateIcon, onClick, externalIsTransitioning],
+  );
+
+  const handleMouseEnter = useCallback(() => {
+    // Only update hover if not in click transition
+    if (!isClickTransition) {
+      setIsHovering(true);
+    }
+  }, [isClickTransition]);
+
+  const handleMouseLeave = useCallback(() => {
     setIsHovering(false);
+    // Mouse left - safe to end transition by clearing the stored icon
+    // Only if not using external transition control
+    if (externalIsTransitioning === undefined) {
+      setTransitionStartIcon(null);
+    }
+  }, [externalIsTransitioning]);
+
+  const handleFocus = useCallback(() => {
+    if (!isClickTransition) {
+      setIsFocused(true);
+    }
+  }, [isClickTransition]);
+
+  const handleBlur = useCallback(() => {
     setIsFocused(false);
-    onClick?.(e);
-  };
+    // Only clear internal transition state if not using external control
+    if (externalIsTransitioning === undefined) {
+      setTransitionStartIcon(null);
+    }
+  }, [externalIsTransitioning]);
 
   return (
     <Tooltip>
@@ -96,10 +153,10 @@ export const SemiStatefulButton = memo(function SemiStatefulButton({
           size={size}
           variant={variant}
           className={className}
-          onMouseEnter={() => setIsHovering(true)}
-          onMouseLeave={() => setIsHovering(false)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onClick={handleClick}
           {...buttonProps}
         >
