@@ -132,11 +132,9 @@ class AgentWorker:
                 message_type = backend_messages.MessageType.UPDATE_POD
                 body_data = protobuf_msg['update_pod']
             elif 'resource' in protobuf_msg:
-                print('Received Resource message')
                 message_type = backend_messages.MessageType.RESOURCE
                 body_data = protobuf_msg['resource']
             elif 'resource_usage' in protobuf_msg:
-                print('Received Resource usage message')
                 message_type = backend_messages.MessageType.RESOURCE_USAGE
                 body_data = protobuf_msg['resource_usage']
             else:

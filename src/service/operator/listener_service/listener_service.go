@@ -205,7 +205,6 @@ func (ls *ListenerService) handleListenerStream(stream listenerStream, streamTyp
 
 // ListenerStream handles bidirectional streaming for backend communication.
 // It receives all types of messages (update_pod, logging, resource, resource_usage) and sends ACK responses.
-// The stream is used by both workflow listeners and resource listeners.
 func (ls *ListenerService) ListenerStream(
 	stream pb.ListenerService_ListenerStreamServer) error {
 	return ls.handleListenerStream(stream, "listener")
