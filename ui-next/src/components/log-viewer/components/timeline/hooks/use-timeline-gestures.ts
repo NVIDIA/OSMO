@@ -53,7 +53,7 @@
  */
 
 import { useWheel, useDrag } from "@use-gesture/react";
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { useTimelineState } from "./use-timeline-state";
 import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
 import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
@@ -63,9 +63,8 @@ import {
   ZOOM_OUT_FACTOR,
   KEYBOARD_NUDGE_MS,
   NOW_THRESHOLD_MS,
-  MAX_INVALID_ZONE_PERCENT_PER_SIDE,
 } from "../lib/timeline-constants";
-import { calculateBucketWidth } from "../lib/invalid-zones";
+import { calculateBucketWidth, calculateInvalidZonePositions } from "../lib/invalid-zones";
 
 // Re-export zoom factors for external use
 export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
@@ -93,6 +92,12 @@ interface WheelDebugEvent {
     currentStartPercent: number;
     windowLeft?: number;
     windowRight?: number;
+    // Invalid zone debug info
+    leftInvalidWidth?: number;
+    rightInvalidWidth?: number;
+    leftInvalidBuckets?: number;
+    rightInvalidBuckets?: number;
+    combinedInvalidBuckets?: number;
   };
 }
 
@@ -110,7 +115,13 @@ function initializeDebug() {
   isDebugEnabled = params.get("debug") === "timeline" || params.get("debug") === "true";
 
   if (isDebugEnabled) {
-    console.log("[Timeline Debug] ✅ ENABLED - use window.timelineDebug() to view logs");
+    console.log(
+      "[Timeline Debug] ✅ ENABLED\n" +
+        "  • window.timelineDebug() - view all events table\n" +
+        "  • window.timelineDebugCurrent() - show current state & invalid zones\n" +
+        "  • window.timelineDebugStats() - show statistics\n" +
+        "  • window.timelineDebugClear() - clear logs",
+    );
     // Expose debug function globally
     (window as unknown as Record<string, () => void>).timelineDebug = () => {
       console.table(
@@ -122,6 +133,9 @@ function initializeDebug() {
           isZoom: e.isZoom ? "ZOOM" : "PAN",
           blocked: e.wasBlocked ? "BLOCKED" : "OK",
           reason: e.blockReason || "-",
+          leftInvalid: e.context?.leftInvalidWidth?.toFixed(1) + "%" || "-",
+          rightInvalid: e.context?.rightInvalidWidth?.toFixed(1) + "%" || "-",
+          totalInvalid: e.context?.combinedInvalidBuckets?.toFixed(1) + " buckets" || "-",
         })),
       );
       console.log("\nFull details:", wheelDebugLog);
@@ -144,6 +158,45 @@ function initializeDebug() {
         blocked: `${blocked} (${((blocked / total) * 100).toFixed(1)}%)`,
         pans: `${pans} (${((pans / total) * 100).toFixed(1)}%)`,
         zooms: `${zooms} (${((zooms / total) * 100).toFixed(1)}%)`,
+      });
+    };
+
+    (window as unknown as Record<string, () => void>).timelineDebugCurrent = () => {
+      const latest = wheelDebugLog[wheelDebugLog.length - 1];
+      if (!latest || !latest.context) {
+        console.log("[Timeline Debug] No events logged yet");
+        return;
+      }
+
+      // Calculate limits based on current state
+      const displayRangeMs = new Date(latest.newRange.end).getTime() - new Date(latest.newRange.start).getTime();
+      const leftInvalidMs = ((latest.context.leftInvalidWidth ?? 0) / 100) * displayRangeMs;
+      const rightInvalidMs = ((latest.context.rightInvalidWidth ?? 0) / 100) * displayRangeMs;
+      const totalInvalidMs = leftInvalidMs + rightInvalidMs;
+
+      // Estimate bucket width from invalid zone data
+      const bucketWidthMs =
+        totalInvalidMs > 0 && (latest.context.combinedInvalidBuckets ?? 0) > 0
+          ? totalInvalidMs / (latest.context.combinedInvalidBuckets ?? 1)
+          : 60000; // fallback to 1 minute
+
+      const totalBucketsVisible = displayRangeMs / bucketWidthMs;
+      const maxPerSideBuckets = Math.max(2, Math.floor(totalBucketsVisible * 0.1));
+      const maxCombinedBuckets = Math.max(2, Math.floor(totalBucketsVisible * 0.2));
+
+      console.log("[Timeline Debug] Current State:", {
+        displayRange: `${latest.newRange.start} → ${latest.newRange.end}`,
+        entityBounds: `${latest.context.entityStart} → ${latest.context.entityEnd}`,
+        invalidZones: {
+          left: `${latest.context.leftInvalidWidth?.toFixed(1)}% (${latest.context.leftInvalidBuckets?.toFixed(1)} buckets)`,
+          right: `${latest.context.rightInvalidWidth?.toFixed(1)}% (${latest.context.rightInvalidBuckets?.toFixed(1)} buckets)`,
+          combined: `${latest.context.combinedInvalidBuckets?.toFixed(1)} buckets`,
+        },
+        limits: {
+          perSide: `${maxPerSideBuckets} buckets (10% of ${totalBucketsVisible.toFixed(1)} visible)`,
+          combined: `${maxCombinedBuckets} buckets (20% of ${totalBucketsVisible.toFixed(1)} visible)`,
+        },
+        bucketWidth: `${(bucketWidthMs / 1000).toFixed(1)}s`,
       });
     };
   } else {
@@ -189,11 +242,23 @@ interface AsymmetricZoomResult {
  *
  * 1. Try symmetric expansion from center
  * 2. Validate against ALL THREE constraints (left, right, combined)
- * 3. If blocked by per-side limit on ONE side: try shifting deficit to other side
- * 4. If blocked by combined limit: BLOCK (can't shift)
- * 5. Validate shifted version against all three constraints
+ * 3. If blocked by per-side limit on ONE side: pin that edge and expand the other side
+ * 4. If blocked by combined limit: BLOCK (both sides contributing to overflow)
+ * 5. Validate pinned version against all three constraints
  * 6. If still blocked: BLOCK entirely (all-or-nothing, NO partial zooms)
  * 7. If valid: return asymmetric zoom
+ *
+ * ## Pinning Strategy (NEW)
+ *
+ * When one invalid zone is at its 10% limit and we zoom out:
+ * - **Pin that edge** (don't move it)
+ * - **Expand the opposite direction** by the full zoom amount
+ * - This naturally **decreases** the pinned invalid zone percentage (10% → 8%)
+ * - Allows continuous zoom out until the other side hits its limit
+ *
+ * Example: At right boundary showing 10% invalid zone, zoom out by 1.25x:
+ *   Before: [0%][━━━ 100min ━━━][10% = 10min invalid]
+ *   After:  [8%][━━━━ 125min ━━━━][8% = 10min invalid] (same absolute size, lower %)
  *
  * ## Three-Constraint System
  *
@@ -201,9 +266,10 @@ interface AsymmetricZoomResult {
  *   [10%][data][0%]  ✓ At left boundary
  *   [5%][data][5%]   ✓ Balanced
  *   [0%][data][10%]  ✓ At right boundary
+ *   [10%][data][10%] ✓ Both at limit (combined 20%)
  *   [7%][data][3%]   ✓ Within triangle
- *   [6%][data][6%]   ✗ 12% combined exceeds
  *   [11%][data][0%]  ✗ Left exceeds per-side
+ *   [10%][data][11%] ✗ Right exceeds per-side
  *
  * @param displayStartMs - Current display start in milliseconds
  * @param displayEndMs - Current display end in milliseconds
@@ -254,34 +320,24 @@ function calculateAsymmetricZoom(
   // Step 2: Determine which constraint was violated
   const { reason } = symmetricValidation;
 
-  // Step 3: If combined limit violated, cannot shift - BLOCK
+  // Step 3: If combined limit violated, cannot pin - BLOCK
   if (reason === "combined-invalid-zone-limit") {
     return {
       blocked: true,
-      reason: "combined-invalid-zone-limit: cannot shift when both sides contribute to overflow",
+      reason: "combined-invalid-zone-limit: cannot pin when both sides contribute to overflow",
     };
   }
 
-  // Step 4: Try shifting the deficit to the other side
-  const entityStartMs = entityStartTime?.getTime() ?? -Infinity;
-  const entityEndMs = entityEndTime?.getTime() ?? now ?? Date.now();
-  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-
-  // Calculate how much we're overflowing on the blocked side
-  // and try to shift that amount to the other side
+  // Step 4: Pin the edge at its limit and expand the other direction
   if (reason === "left-invalid-zone-limit") {
-    // Left side is overflowing - shift expansion to the right
-    // Calculate the minimum left edge that keeps invalid zone ≤ 10% of new range
-    const invalidZoneEndMs = entityStartMs - bucketWidthMs; // Where invalid zone ends (gap start)
-    const maxInvalidZoneMs = newRangeMs * (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100);
-    const minLeftEdgeMs = invalidZoneEndMs - maxInvalidZoneMs; // Allow up to MAX_INVALID_ZONE_PERCENT_PER_SIDE
-    const constrainedStart = Math.max(symmetricStart, minLeftEdgeMs);
-    const deficitMs = constrainedStart - symmetricStart;
-    const shiftedEnd = symmetricEnd + deficitMs;
+    // Left side is at its limit - pin left edge and expand only to the right
+    // This naturally decreases the left invalid zone percentage (e.g., 10% → 8%)
+    const pinnedStart = displayStartMs; // Keep left edge where it is
+    const shiftedEnd = pinnedStart + newRangeMs; // Expand right by full zoom amount
 
     // Validate the shifted version
     const shiftedValidation = validateFn(
-      constrainedStart,
+      pinnedStart,
       shiftedEnd,
       entityStartTime,
       entityEndTime,
@@ -292,7 +348,7 @@ function calculateAsymmetricZoom(
     if (!shiftedValidation.blocked) {
       return {
         blocked: false,
-        newStartMs: constrainedStart,
+        newStartMs: pinnedStart,
         newEndMs: shiftedEnd,
         wasAsymmetric: true,
       };
@@ -301,24 +357,20 @@ function calculateAsymmetricZoom(
     // Shifted version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-shift-failed: shifted left→right but ${shiftedValidation.reason}`,
+      reason: `asymmetric-shift-failed: pinned left, expanded right but ${shiftedValidation.reason}`,
     };
   }
 
   if (reason === "right-invalid-zone-limit") {
-    // Right side is overflowing - shift expansion to the left
-    // Calculate the maximum right edge that keeps invalid zone ≤ 10% of new range
-    const invalidZoneStartMs = entityEndMs + bucketWidthMs; // Where invalid zone starts (gap end)
-    const maxInvalidZoneMs = newRangeMs * (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100);
-    const maxRightEdgeMs = invalidZoneStartMs + maxInvalidZoneMs; // Allow up to MAX_INVALID_ZONE_PERCENT_PER_SIDE
-    const constrainedEnd = Math.min(symmetricEnd, maxRightEdgeMs);
-    const deficitMs = symmetricEnd - constrainedEnd;
-    const shiftedStart = symmetricStart - deficitMs;
+    // Right side is at its limit - pin right edge and expand only to the left
+    // This naturally decreases the right invalid zone percentage (e.g., 10% → 8%)
+    const pinnedEnd = displayEndMs; // Keep right edge where it is
+    const shiftedStart = pinnedEnd - newRangeMs; // Expand left by full zoom amount
 
     // Validate the shifted version
     const shiftedValidation = validateFn(
       shiftedStart,
-      constrainedEnd,
+      pinnedEnd,
       entityStartTime,
       entityEndTime,
       now,
@@ -329,7 +381,7 @@ function calculateAsymmetricZoom(
       return {
         blocked: false,
         newStartMs: shiftedStart,
-        newEndMs: constrainedEnd,
+        newEndMs: pinnedEnd,
         wasAsymmetric: true,
       };
     }
@@ -337,7 +389,7 @@ function calculateAsymmetricZoom(
     // Shifted version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-shift-failed: shifted right→left but ${shiftedValidation.reason}`,
+      reason: `asymmetric-shift-failed: pinned right, expanded left but ${shiftedValidation.reason}`,
     };
   }
 
@@ -424,6 +476,30 @@ export function useTimelineWheelGesture(
   // Build debug context object
   const buildDebugContext = useCallback(() => {
     if (!isDebugEnabled || !debugContext) return undefined;
+
+    // Calculate invalid zone positions for debug output
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+    const invalidZones =
+      debugContext.entityStartTime && bucketWidthMs > 0
+        ? calculateInvalidZonePositions(
+            debugContext.entityStartTime.getTime(),
+            debugContext.entityEndTime?.getTime(),
+            debugContext.now ?? Date.now(),
+            currentDisplay.start.getTime(),
+            currentDisplay.end.getTime(),
+            bucketWidthMs,
+          )
+        : null;
+
+    // Calculate bucket counts for invalid zones
+    const displayRangeMs = currentDisplay.end.getTime() - currentDisplay.start.getTime();
+    const leftInvalidBuckets = invalidZones
+      ? ((invalidZones.leftInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
+      : 0;
+    const rightInvalidBuckets = invalidZones
+      ? ((invalidZones.rightInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
+      : 0;
+
     return {
       entityStart: debugContext.entityStartTime?.toISOString(),
       entityEnd: debugContext.entityEndTime?.toISOString(),
@@ -433,22 +509,17 @@ export function useTimelineWheelGesture(
       currentStartPercent: currentStartPercent ?? 0,
       windowLeft: debugContext.overlayPositions?.leftWidth,
       windowRight: debugContext.overlayPositions?.rightStart,
+      // Invalid zone debug info
+      leftInvalidWidth: invalidZones?.leftInvalidWidth,
+      rightInvalidWidth: invalidZones?.rightInvalidWidth,
+      leftInvalidBuckets,
+      rightInvalidBuckets,
+      combinedInvalidBuckets: leftInvalidBuckets + rightInvalidBuckets,
     };
-  }, [debugContext, currentEffective, currentStartPercent]);
+  }, [debugContext, currentEffective, currentStartPercent, currentDisplay, bucketTimestamps]);
 
   useWheel(
     ({ event, delta: [dx, dy] }) => {
-      // Log only in debug mode to avoid production performance overhead
-      if (isDebugEnabled) {
-        console.log("[Timeline Wheel] Event received:", {
-          dx,
-          dy,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          debugEnabled: isDebugEnabled,
-        });
-      }
-
       // Prevent default browser scroll behavior
       event.preventDefault();
 
@@ -739,13 +810,6 @@ export function useTimelineWheelGesture(
       eventOptions: { passive: false },
     },
   );
-
-  // Debug: Log when ref is attached (runs once after mount)
-  useEffect(() => {
-    if (isDebugEnabled) {
-      console.log("[Timeline Wheel] useWheel hook configured, containerRef.current:", containerRef.current);
-    }
-  }, [containerRef]);
 }
 
 // =============================================================================
