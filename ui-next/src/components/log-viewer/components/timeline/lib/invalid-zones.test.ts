@@ -38,9 +38,10 @@ describe("calculateInvalidZonePositions", () => {
   const ENTITY_END = 50000; // Entity ends at 50s
   const NOW = 60000; // Current time is 60s
   const BUCKET_WIDTH = 1000; // 1 second buckets
-  const GAP = BUCKET_WIDTH * 1.5; // 1.5s = 1500ms
+  const LEFT_GAP = BUCKET_WIDTH * 1.0; // 1.0s = 1000ms (left gap)
+  const RIGHT_GAP = BUCKET_WIDTH * 1.0; // 1.0s = 1000ms (right gap)
 
-  describe("CONTRACT 1: Left zone ends at entityStart - 1.5 bucket widths", () => {
+  describe("CONTRACT 1: Left zone ends at entityStart - 1.0 bucket width", () => {
     it("should show left zone with gap before entity start", () => {
       const result = calculateInvalidZonePositions(
         ENTITY_START, // 10s
@@ -51,10 +52,10 @@ describe("calculateInvalidZonePositions", () => {
         BUCKET_WIDTH,
       );
 
-      // Left zone should span from 0 to (entityStart - 1.5s)
-      // entityStart (10s) - gap (1.5s) = 8.5s
-      // That's 8.5s out of 20s range = 42.5%
-      expect(result.leftInvalidWidth).toBe(42.5);
+      // Left zone should span from 0 to (entityStart - 1.0s)
+      // entityStart (10s) - gap (1.0s) = 9.0s
+      // That's 9.0s out of 20s range = 45%
+      expect(result.leftInvalidWidth).toBe(45);
     });
 
     it("should show NO left zone when display starts after gap", () => {
@@ -62,7 +63,7 @@ describe("calculateInvalidZonePositions", () => {
         ENTITY_START, // 10s
         ENTITY_END,
         NOW,
-        10000, // Display starts at or after (entityStart - gap) = 8.5s, so starting at 10s means no left zone
+        10000, // Display starts at or after (entityStart - gap) = 9.0s, so starting at 10s means no left zone
         20000,
         BUCKET_WIDTH,
       );
@@ -75,21 +76,21 @@ describe("calculateInvalidZonePositions", () => {
         ENTITY_START, // 10s
         ENTITY_END,
         NOW,
-        7000, // Display starts at 7s, zone ends at 8.5s (entityStart - 1.5s)
+        7000, // Display starts at 7s, zone ends at 9.0s (entityStart - 1.0s)
         20000,
         BUCKET_WIDTH,
       );
 
-      // Zone spans from 7s to 8.5s = 1.5s
+      // Zone spans from 7s to 9.0s = 2.0s
       // Display range is 13s (7s to 20s)
-      // (1.5s / 13s) * 100 ≈ 11.54%
-      const expectedPercent = ((8500 - 7000) / (20000 - 7000)) * 100;
+      // (2.0s / 13s) * 100 ≈ 15.38%
+      const expectedPercent = ((9000 - 7000) / (20000 - 7000)) * 100;
       expect(result.leftInvalidWidth).toBeCloseTo(expectedPercent, 2);
     });
   });
 
-  describe("CONTRACT 2: Right zone starts at entityEnd + 1.5 bucket widths", () => {
-    it("should position right zone at entityEnd + 1.5 buckets", () => {
+  describe("CONTRACT 2: Right zone starts at entityEnd + 1.0 bucket width", () => {
+    it("should position right zone at entityEnd + 1.0 bucket", () => {
       const displayStart = 40000;
       const displayEnd = 60000;
       const displayRange = displayEnd - displayStart; // 20s
@@ -103,10 +104,10 @@ describe("calculateInvalidZonePositions", () => {
         BUCKET_WIDTH,
       );
 
-      // Zone should start at: entityEnd (50s) + gap (1.5s) = 51.5s
-      // Relative to displayStart (40s): 51.5s - 40s = 11.5s
-      // As percentage: (11.5s / 20s) * 100 = 57.5%
-      const expectedZoneStartMs = ENTITY_END + GAP; // 51500
+      // Zone should start at: entityEnd (50s) + gap (1.0s) = 51.0s
+      // Relative to displayStart (40s): 51.0s - 40s = 11.0s
+      // As percentage: (11.0s / 20s) * 100 = 55%
+      const expectedZoneStartMs = ENTITY_END + RIGHT_GAP; // 51000
       const expectedPercent = ((expectedZoneStartMs - displayStart) / displayRange) * 100;
       expect(result.rightInvalidStart).toBeCloseTo(expectedPercent, 2);
     });
@@ -125,24 +126,24 @@ describe("calculateInvalidZonePositions", () => {
         BUCKET_WIDTH,
       );
 
-      // Zone should start at: NOW (60s) + gap (1.5s) = 61.5s
-      // Relative to displayStart (50s): 61.5s - 50s = 11.5s
-      // As percentage: (11.5s / 20s) * 100 = 57.5%
-      const expectedZoneStartMs = NOW + GAP; // 61500
+      // Zone should start at: NOW (60s) + gap (1.0s) = 61.0s
+      // Relative to displayStart (50s): 61.0s - 50s = 11.0s
+      // As percentage: (11.0s / 20s) * 100 = 55%
+      const expectedZoneStartMs = NOW + RIGHT_GAP; // 61000
       const expectedPercent = ((expectedZoneStartMs - displayStart) / displayRange) * 100;
       expect(result.rightInvalidStart).toBeCloseTo(expectedPercent, 2);
     });
   });
 
   describe("CONTRACT 3: Gap remains constant in MILLISECONDS during pan/zoom", () => {
-    it("CRITICAL: Gap in pixels should remain constant when panning (same zoom level)", () => {
+    it("CRITICAL: Right gap in pixels should remain constant when panning (same zoom level)", () => {
       // Scenario: User pans right by 10 seconds
-      // Gap in MILLISECONDS must stay 1.5 bucket widths
+      // Right gap in MILLISECONDS must stay 1.0 bucket width
       // Gap in PERCENTAGES will change because displayRange is the same but we shifted
 
       const displayRange = 20000; // 20s window
       const bucketWidth = 1000; // 1s buckets
-      const expectedGapMs = bucketWidth * 1.5; // 1.5s
+      const expectedGapMs = bucketWidth * 1.0; // 1.0s (right gap)
 
       // Before pan: display 40s-60s
       const before = calculateInvalidZonePositions(
@@ -183,9 +184,9 @@ describe("calculateInvalidZonePositions", () => {
       expect(afterAbsoluteZoneStart - ENTITY_END).toBeCloseTo(expectedGapMs, 1);
     });
 
-    it("CRITICAL: Gap in milliseconds should remain constant when zooming", () => {
+    it("CRITICAL: Right gap in milliseconds should remain constant when zooming", () => {
       const bucketWidth = 1000;
-      const expectedGapMs = bucketWidth * 1.5; // 1.5s = 1500ms
+      const expectedGapMs = bucketWidth * 1.0; // 1.0s = 1000ms (right gap)
 
       // Before zoom: 20s window (40s-60s)
       const before = calculateInvalidZonePositions(
@@ -211,7 +212,7 @@ describe("calculateInvalidZonePositions", () => {
       const beforeAbsoluteZoneStart = 40000 + (before.rightInvalidStart / 100) * 20000;
       const afterAbsoluteZoneStart = 45000 + (after.rightInvalidStart / 100) * 10000;
 
-      // Gap should be EXACTLY 1.5s in both cases
+      // Gap should be EXACTLY 1.0s in both cases
       expect(beforeAbsoluteZoneStart - ENTITY_END).toBeCloseTo(expectedGapMs, 1);
       expect(afterAbsoluteZoneStart - ENTITY_END).toBeCloseTo(expectedGapMs, 1);
     });
@@ -228,14 +229,14 @@ describe("calculateInvalidZonePositions", () => {
         BUCKET_WIDTH,
       );
 
-      // Zone starts at 51.5s, but display ends at 50s
+      // Zone starts at 51.0s, but display ends at 50s
       // So NO right zone should be visible
       expect(result.rightInvalidWidth).toBe(0);
     });
 
     it("should show partial right zone when display partially includes gap", () => {
       const displayStart = 40000;
-      const displayEnd = 52000; // Ends after gap starts (51.5s) but before full gap
+      const displayEnd = 52000; // Ends after gap starts (51.0s) but before full gap
       const displayRange = displayEnd - displayStart;
 
       const result = calculateInvalidZonePositions(
@@ -247,8 +248,8 @@ describe("calculateInvalidZonePositions", () => {
         BUCKET_WIDTH,
       );
 
-      // Zone starts at 51.5s
-      const zoneStartMs = ENTITY_END + GAP; // 51500
+      // Zone starts at 51.0s
+      const zoneStartMs = ENTITY_END + RIGHT_GAP; // 51000
       const expectedStart = ((zoneStartMs - displayStart) / displayRange) * 100;
       const expectedWidth = ((displayEnd - zoneStartMs) / displayRange) * 100;
 
@@ -257,10 +258,11 @@ describe("calculateInvalidZonePositions", () => {
     });
   });
 
-  describe("CONTRACT 5: Left and right gaps are symmetric", () => {
-    it("should use same gap size on both sides", () => {
+  describe("CONTRACT 5: Left and right gaps prevent bar clipping", () => {
+    it("should use one bucket width gap on each side", () => {
       const bucketWidth = 1000;
-      const expectedGapMs = bucketWidth * 1.5;
+      const expectedLeftGapMs = bucketWidth * 1.0; // Left gap is one bucket width
+      const expectedRightGapMs = bucketWidth * 1.0; // Right gap is one bucket width
 
       const result = calculateInvalidZonePositions(
         ENTITY_START, // 10s
@@ -271,13 +273,13 @@ describe("calculateInvalidZonePositions", () => {
         bucketWidth,
       );
 
-      // Left zone should end at: entityStart - gap = 10s - 1.5s = 8.5s
+      // Left zone should end at: entityStart - gap = 10s - 1.0s = 9.0s
       const leftZoneEndMs = 0 + (result.leftInvalidWidth / 100) * 70000;
-      expect(ENTITY_START - leftZoneEndMs).toBeCloseTo(expectedGapMs, 1);
+      expect(ENTITY_START - leftZoneEndMs).toBeCloseTo(expectedLeftGapMs, 1);
 
-      // Right zone should start at: entityEnd + gap = 50s + 1.5s = 51.5s
+      // Right zone should start at: entityEnd + gap = 50s + 1.0s = 51.0s
       const rightZoneStartMs = 0 + (result.rightInvalidStart / 100) * 70000;
-      expect(rightZoneStartMs - ENTITY_END).toBeCloseTo(expectedGapMs, 1);
+      expect(rightZoneStartMs - ENTITY_END).toBeCloseTo(expectedRightGapMs, 1);
     });
   });
 
@@ -285,7 +287,7 @@ describe("calculateInvalidZonePositions", () => {
     it("should handle zero bucket width gracefully", () => {
       const result = calculateInvalidZonePositions(ENTITY_START, ENTITY_END, NOW, 0, 60000, 0);
 
-      // With 0 bucket width, gap = 0, so zone starts exactly at entityEnd
+      // With 0 bucket width, gap = 0 (0 * 1.0), so zone starts exactly at entityEnd
       expect(result.rightInvalidStart).toBeCloseTo((ENTITY_END / 60000) * 100, 2);
     });
 
