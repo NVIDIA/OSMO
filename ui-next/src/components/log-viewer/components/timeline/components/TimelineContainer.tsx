@@ -51,6 +51,7 @@ import { TimeRangeHeader } from "./TimeRangeHeader";
 import { useTimelineState } from "../hooks/use-timeline-state";
 import { useTimelineWheelGesture } from "../hooks/use-timeline-gestures";
 import { useServices } from "@/contexts/service-context";
+import { useTick, useTickController } from "@/hooks/use-tick";
 import { calculateOverlayPositions, isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
 import { DEFAULT_HEIGHT, type TimeRangePreset } from "../lib/timeline-constants";
 
@@ -104,7 +105,11 @@ export interface TimelineContainerProps {
   entityStartTime?: Date;
   /** Entity end time (completion timestamp) - undefined if still running */
   entityEndTime?: Date;
-  /** Synchronized "NOW" timestamp from useTick (for running workflows) */
+  /**
+   * Synchronized "NOW" timestamp (milliseconds since epoch).
+   * Optional - if not provided, will auto-synchronize using useTick() when workflow is running.
+   * Useful when parent component already uses useTick() to avoid duplicate tick subscriptions.
+   */
   now?: number;
 }
 
@@ -282,6 +287,20 @@ function TimelineContainerInner({
   const { announcer } = useServices();
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ============================================================================
+  // SYNCHRONIZED NOW TIMESTAMP
+  // ============================================================================
+
+  // Enable synchronized ticking when workflow is running (no entityEndTime)
+  // This ensures right invalid zone calculation uses fresh NOW
+  useTickController(entityEndTime === undefined);
+
+  // Get synchronized "NOW" timestamp
+  // - If `now` prop is provided (from parent like LogViewer): use it
+  // - Otherwise: use useTick() for standalone usage
+  const tickNow = useTick();
+  const synchronizedNow = now ?? tickNow;
+
   // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
@@ -300,7 +319,7 @@ function TimelineContainerInner({
     entityStartTime,
     entityEndTime,
     buckets: activeBuckets,
-    now,
+    now: synchronizedNow,
   });
 
   const { currentDisplay, currentEffective, hasPendingChanges, actions } = timelineState;
@@ -329,7 +348,7 @@ function TimelineContainerInner({
   useTimelineWheelGesture(containerRef, timelineState, bucketTimestamps, onDisplayRangeChange ?? (() => {}), {
     entityStartTime,
     entityEndTime,
-    now,
+    now: synchronizedNow,
     overlayPositions: undefined, // Disabled during simplification
   });
 
@@ -452,7 +471,7 @@ function TimelineContainerInner({
                 currentDisplay={currentDisplay}
                 entityStartTime={entityStartTime}
                 entityEndTime={entityEndTime}
-                now={now}
+                now={synchronizedNow}
                 onBucketClick={onBucketClick}
               />
 
