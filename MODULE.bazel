@@ -223,10 +223,7 @@ use_repo(
     "com_github_google_shlex",
     "com_github_gorilla_websocket",
     "com_github_jackc_pgx_v5",
-<<<<<<< HEAD
     "com_github_hashicorp_golang_lru_v2",
-=======
->>>>>>> origin/main
     "in_gopkg_yaml_v3",
 
     # Dependencies for building rsync for CLI distribution

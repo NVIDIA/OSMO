@@ -20,16 +20,11 @@ package postgres
 
 import (
 	"context"
-<<<<<<< HEAD
-	"fmt"
-	"log/slog"
-=======
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
->>>>>>> origin/main
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -54,50 +49,6 @@ type PostgresClient struct {
 	logger *slog.Logger
 }
 
-<<<<<<< HEAD
-// NewPostgresClientFromParams creates a new PostgreSQL client with the given connection parameters.
-// This is a convenience function that constructs a PostgresConfig and calls NewPostgresClient.
-func CreatePostgresClient(
-	ctx context.Context,
-	logger *slog.Logger,
-	host string,
-	port int,
-	database string,
-	user string,
-	password string,
-	maxConns int32,
-	minConns int32,
-	maxConnLifetime time.Duration,
-	sslMode string,
-) (*PostgresClient, error) {
-	config := PostgresConfig{
-		Host:            host,
-		Port:            port,
-		Database:        database,
-		User:            user,
-		Password:        password,
-		MaxConns:        maxConns,
-		MinConns:        minConns,
-		MaxConnLifetime: maxConnLifetime,
-		SSLMode:         sslMode,
-	}
-
-	client, err := NewPostgresClient(ctx, config, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("postgres client initialized",
-		slog.String("host", host),
-		slog.Int("port", port),
-		slog.String("database", database),
-	)
-
-	return client, nil
-}
-
-=======
->>>>>>> origin/main
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
 func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
 	// Build connection URL
@@ -137,15 +88,11 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-<<<<<<< HEAD
-	logger.Info("postgres client connected successfully")
-=======
 	logger.Info("postgres client connected successfully",
 		slog.String("host", config.Host),
 		slog.Int("port", config.Port),
 		slog.String("database", config.Database),
 	)
->>>>>>> origin/main
 
 	return &PostgresClient{
 		pool:   pool,
@@ -168,8 +115,6 @@ func (c *PostgresClient) Pool() *pgxpool.Pool {
 func (c *PostgresClient) Ping(ctx context.Context) error {
 	return c.pool.Ping(ctx)
 }
-<<<<<<< HEAD
-=======
 
 // CreateClient creates a PostgreSQL client from PostgresConfig
 func (config *PostgresConfig) CreateClient(logger *slog.Logger) (*PostgresClient, error) {
@@ -255,4 +200,3 @@ func getEnvInt(key string, defaultValue int) int {
 	}
 	return defaultValue
 }
->>>>>>> origin/main
