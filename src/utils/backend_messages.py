@@ -118,7 +118,7 @@ class UpdatePodBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     conditions: List[ConditionMessage] = []
 
 
-class ResourceBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class UpdateNodeBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """ Represents the resource body. """
     hostname: str
     available: bool
@@ -127,9 +127,10 @@ class ResourceBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     allocatable_fields: Dict
     label_fields: Dict
     taints: List[Dict] = []
+    delete: bool = False
 
 
-class ResourceUsageBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class UpdateNodeUsageBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """ Represents the resource usage body. """
     hostname: str
     usage_fields: Dict
@@ -213,9 +214,9 @@ class MessageOptions(pydantic.BaseModel):
         description='Message for events')
     monitor_pod: Optional[MonitorPodBody] = pydantic.Field(
         description='Message for monitoring pod')
-    resource: Optional[ResourceBody] = pydantic.Field(
+    resource: Optional[UpdateNodeBody] = pydantic.Field(
         description='Message for resource change')
-    resource_usage: Optional[ResourceUsageBody] = pydantic.Field(
+    resource_usage: Optional[UpdateNodeUsageBody] = pydantic.Field(
         description='Message for resource usage change')
     delete_resource: Optional[DeleteResourceBody] = pydantic.Field(
         description='Message for resource change')

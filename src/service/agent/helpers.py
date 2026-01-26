@@ -203,7 +203,11 @@ def queue_update_group_job(postgres: connectors.PostgresConnector,
 
 
 def update_resource(postgres: connectors.PostgresConnector,
-                    backend: str, message: backend_messages.ResourceBody):
+                    backend: str, message: backend_messages.UpdateNodeBody):
+    # If delete flag is set, delegate to delete_resource and ignore all other fields
+    if message.delete:
+        delete_resource(postgres, backend, message)
+        return
 
     commit_cmd = '''
         INSERT INTO resources
@@ -264,7 +268,7 @@ def update_resource(postgres: connectors.PostgresConnector,
 
 
 def update_resource_usage(postgres: connectors.PostgresConnector,
-                          backend: str, message: backend_messages.ResourceUsageBody):
+                          backend: str, message: backend_messages.UpdateNodeUsageBody):
     commit_cmd = '''
         INSERT INTO resources
         (name, backend, usage_fields, non_workflow_usage_fields)
@@ -287,9 +291,9 @@ def update_resource_usage(postgres: connectors.PostgresConnector,
 
 
 def delete_resource(postgres: connectors.PostgresConnector, backend: str,
-                    message: backend_messages.DeleteResourceBody):
+                    message: backend_messages.UpdateNodeBody):
     commit_cmd = 'DELETE FROM resources WHERE name = %s and backend = %s'
-    postgres.execute_commit_command(commit_cmd, (message.resource, backend))
+    postgres.execute_commit_command(commit_cmd, (message.hostname, backend))
 
     # Mark tasks on that node to be FAILED
     fetch_cmd = '''
@@ -300,7 +304,7 @@ def delete_resource(postgres: connectors.PostgresConnector, backend: str,
         AND tasks.status in %s
         '''
     tasks = postgres.execute_fetch_command(fetch_cmd,
-                                           (backend, message.resource,
+                                           (backend, message.hostname,
                                             tuple(task.TaskGroupStatus.backend_states())),
                                            True)
     for task_info in tasks:
@@ -604,8 +608,6 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     update_resource(postgres, name, message_body.resource)
                 elif message_body.resource_usage:
                     update_resource_usage(postgres, name, message_body.resource_usage)
-                elif message_body.delete_resource:
-                    delete_resource(postgres, name, message_body.delete_resource)
                 elif message_body.node_hash:
                     clean_resources(postgres, name, message_body.node_hash)
                 elif message_body.task_list:

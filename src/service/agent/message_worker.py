@@ -30,6 +30,7 @@ import redis  # type: ignore
 from src.lib.utils import common, osmo_errors
 import src.lib.utils.logging
 from src.service.agent import helpers
+from src.service.core.workflow import objects
 from src.utils import connectors, backend_messages, static_config
 from src.utils.metrics import metrics
 from src.utils.progress_check import progress
@@ -69,11 +70,13 @@ class MessageWorker:
     """
     def __init__(self, config: MessageWorkerConfig):
         self.config = config
-        self.postgres = connectors.PostgresConnector(self.config)
+        self.postgres = connectors.PostgresConnector(self.config).get_instance()
         self.redis_client = connectors.RedisConnector.get_instance().client
         self.metric_creator = metrics.MetricCreator.get_meter_instance()
         # Get workflow config once during initialization
         self.workflow_config = self.postgres.get_workflow_configs()
+        objects.WorkflowServiceContext.set(
+            objects.WorkflowServiceContext(config=config, database=self.postgres))
 
         # Redis Stream configuration
         self.stream_name = OPERATOR_STREAM_NAME
@@ -107,13 +110,14 @@ class MessageWorker:
             else:
                 raise
 
-    def process_message(self, message_id: str, message_json: str):
+    def process_message(self, message_id: str, message_json: str, backend_name: str):
         """
         Process a message from the operator stream.
 
         Args:
             message_id: The Redis Stream message ID
             message_json: The message JSON string from the backend
+            backend_name: The name of the backend that sent this message
         """
         try:
             # Parse the protobuf JSON message
@@ -127,6 +131,12 @@ class MessageWorker:
             if 'update_pod' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_POD
                 body_data = protobuf_msg['update_pod']
+            elif 'resource' in protobuf_msg:
+                message_type = backend_messages.MessageType.RESOURCE
+                body_data = protobuf_msg['resource']
+            elif 'resource_usage' in protobuf_msg:
+                message_type = backend_messages.MessageType.RESOURCE_USAGE
+                body_data = protobuf_msg['resource_usage']
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack invalid message to prevent infinite retries
@@ -151,6 +161,11 @@ class MessageWorker:
 
             if message_body.update_pod:
                 helpers.queue_update_group_job(self.postgres, message_body.update_pod)
+            elif message_body.resource:
+                helpers.update_resource(self.postgres, backend_name, message_body.resource)
+            elif message_body.resource_usage:
+                helpers.update_resource_usage(
+                    self.postgres, backend_name, message_body.resource_usage)
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)
@@ -221,9 +236,10 @@ class MessageWorker:
 
                 # Process claimed messages
                 for message_id, message_data in claimed_messages:
-                    if b'message' in message_data:
+                    if b'message' in message_data and b'backend' in message_data:
                         message_json = message_data[b'message'].decode('utf-8')
-                        self.process_message(message_id.decode('utf-8'), message_json)
+                        backend_name = message_data[b'backend'].decode('utf-8')
+                        self.process_message(message_id.decode('utf-8'), message_json, backend_name)
 
                 # Report progress after claiming and processing abandoned messages
                 if claimed_messages:
@@ -265,11 +281,13 @@ class MessageWorker:
                 # Process each message
                 for _, stream_messages in messages:
                     for message_id, message_data in stream_messages:
-                        if b'message' in message_data:
+                        if b'message' in message_data and b'backend' in message_data:
                             message_json = message_data[b'message'].decode('utf-8')
+                            backend_name = message_data[b'backend'].decode('utf-8')
                             self.process_message(
                                 message_id.decode('utf-8'),
-                                message_json
+                                message_json,
+                                backend_name
                             )
 
             except KeyboardInterrupt:

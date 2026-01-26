@@ -47,6 +47,8 @@ message ListenerMessage {
   oneof body {
     UpdatePodBody update_pod = 3;
     LoggingBody logging = 4;
+    UpdateNodeBody resource = 5;
+    UpdateNodeUsageBody resource_usage = 6;
   }
 }
 
@@ -87,4 +89,31 @@ message InitBody {
   string name = 3;
   string version = 4;
   string node_condition_prefix = 5;
+}
+
+// Taint represents a Kubernetes node taint
+message Taint {
+  string key = 1;
+  string value = 2;
+  string effect = 3;
+  string time_added = 4;  // ISO 8601 timestamp, may be empty
+}
+
+// UpdateNodeBody represents a node resource message (for node add/update/delete events)
+message UpdateNodeBody {
+  string hostname = 1;
+  bool available = 2;
+  repeated string conditions = 3;
+  map<string, string> processed_fields = 4;
+  map<string, string> allocatable_fields = 5;
+  map<string, string> label_fields = 6;
+  repeated Taint taints = 7;
+  bool delete = 8;  // When true, indicates the node has been deleted
+}
+
+// UpdateNodeUsageBody represents aggregated resource usage on a node
+message UpdateNodeUsageBody {
+  string hostname = 1;
+  map<string, string> usage_fields = 2;
+  map<string, string> non_workflow_usage_fields = 3;
 }

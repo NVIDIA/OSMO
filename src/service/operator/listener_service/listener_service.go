@@ -93,6 +93,7 @@ func NewListenerService(
 func (ls *ListenerService) pushMessageToRedis(
 	ctx context.Context,
 	msg *pb.ListenerMessage,
+	backendName string,
 ) error {
 	// Convert the protobuf message to JSON
 	// UseProtoNames ensures field names match the .proto file (snake_case)
@@ -105,11 +106,12 @@ func (ls *ListenerService) pushMessageToRedis(
 		return fmt.Errorf("failed to marshal message to JSON: %w", err)
 	}
 
-	// Add message to Redis Stream
+	// Add message to Redis Stream with backend name
 	err = ls.redisClient.XAdd(ctx, &redis.XAddArgs{
 		Stream: operatorMessagesStream,
 		Values: map[string]interface{}{
 			"message": string(messageJSON),
+			"backend": backendName,
 		},
 	}).Err()
 	if err != nil {
@@ -123,14 +125,11 @@ func (ls *ListenerService) pushMessageToRedis(
 	return nil
 }
 
-// WorkflowListenerStream handles bidirectional streaming for workflow backend communication
-//
-// Protocol flow:
-// 1. Backend connects and sends backend-name via gRPC metadata (required)
-// 2. Server receives messages and sends ACK responses
-// 3. Continues until stream is closed
-func (ls *ListenerService) WorkflowListenerStream(
-	stream pb.ListenerService_WorkflowListenerStreamServer) error {
+// handleListenerStream processes messages from a bidirectional gRPC stream.
+// It handles receiving messages, pushing to Redis, sending ACK responses, and reporting progress.
+func (ls *ListenerService) handleListenerStream(
+	stream pb.ListenerService_ListenerStreamServer,
+) error {
 	ctx := stream.Context()
 
 	// Extract backend name from gRPC metadata (required)
@@ -144,9 +143,9 @@ func (ls *ListenerService) WorkflowListenerStream(
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	ls.logger.InfoContext(ctx, "workflow listener stream opened",
+	ls.logger.InfoContext(ctx, "listener stream opened",
 		slog.String("backend_name", backendName))
-	defer ls.logger.InfoContext(ctx, "workflow listener stream closed",
+	defer ls.logger.InfoContext(ctx, "listener stream closed",
 		slog.String("backend_name", backendName))
 
 	lastProgressReport := time.Now()
@@ -165,7 +164,7 @@ func (ls *ListenerService) WorkflowListenerStream(
 		}
 
 		// Push message to Redis Stream before sending ACK
-		if err := ls.pushMessageToRedis(ctx, msg); err != nil {
+		if err := ls.pushMessageToRedis(ctx, msg, backendName); err != nil {
 			ls.logger.ErrorContext(ctx, "failed to push message to Redis stream",
 				slog.String("error", err.Error()),
 				slog.String("uuid", msg.Uuid))
@@ -192,6 +191,13 @@ func (ls *ListenerService) WorkflowListenerStream(
 			lastProgressReport = now
 		}
 	}
+}
+
+// ListenerStream handles bidirectional streaming for backend communication.
+// It receives all types of messages (update_pod, logging, resource, resource_usage) and sends ACK responses.
+func (ls *ListenerService) ListenerStream(
+	stream pb.ListenerService_ListenerStreamServer) error {
+	return ls.handleListenerStream(stream)
 }
 
 // InitBackend handles backend initialization requests
