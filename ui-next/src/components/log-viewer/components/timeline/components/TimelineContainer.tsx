@@ -44,15 +44,12 @@ import { formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { TimelineHistogram } from "./TimelineHistogram";
-// import { TimelineWindow } from "./TimelineWindow";
-// import { TimelineControls } from "./TimelineControls";
 import { TimeRangePresets } from "./TimeRangePresets";
 import { TimeRangeHeader } from "./TimeRangeHeader";
 import { useTimelineState } from "../hooks/use-timeline-state";
 import { useTimelineWheelGesture } from "../hooks/use-timeline-gestures";
-import { useServices } from "@/contexts/service-context";
 import { useTick, useTickController } from "@/hooks/use-tick";
-import { calculateOverlayPositions, isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
+import { isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
 import { DEFAULT_HEIGHT, type TimeRangePreset } from "../lib/timeline-constants";
 
 // =============================================================================
@@ -119,29 +116,6 @@ export type { TimeRangePreset };
 // =============================================================================
 // Hooks
 // =============================================================================
-
-/**
- * Hook to compute overlay positions for the timeline window.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function useOverlayPositions(
-  enabled: boolean,
-  currentDisplay: { start: Date; end: Date },
-  currentEffective: { start: Date | undefined; end: Date | undefined },
-  entityStartTime: Date | undefined,
-  entityEndTime: Date | undefined,
-) {
-  return useMemo(() => {
-    if (!enabled) return null;
-
-    const displayStartMs = currentDisplay.start.getTime();
-    const displayEndMs = currentDisplay.end.getTime();
-    const effectiveStartMs = currentEffective.start?.getTime() ?? entityStartTime?.getTime() ?? displayStartMs;
-    const effectiveEndMs = currentEffective.end?.getTime() ?? entityEndTime?.getTime() ?? displayEndMs;
-
-    return calculateOverlayPositions(displayStartMs, displayEndMs, effectiveStartMs, effectiveEndMs);
-  }, [enabled, currentDisplay, currentEffective, entityStartTime, entityEndTime]);
-}
 
 /**
  * Hook to compute time axis labels.
@@ -278,13 +252,11 @@ function TimelineContainerInner({
   onEndTimeChange,
   onDisplayRangeChange,
   showTimeRangeHeader = false,
-  // enableInteractiveDraggers = false, // Currently unused - kept for future use
   entityStartTime,
   entityEndTime,
   now,
 }: TimelineContainerProps): React.ReactNode {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
-  const { announcer } = useServices();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ============================================================================
@@ -322,20 +294,12 @@ function TimelineContainerInner({
     now: synchronizedNow,
   });
 
-  const { currentDisplay, currentEffective, hasPendingChanges, actions } = timelineState;
+  const { currentDisplay, currentEffective, hasPendingChanges } = timelineState;
 
   // ============================================================================
   // DERIVED VALUES
   // ============================================================================
 
-  // TEMPORARILY DISABLED: Overlay positions (window layer disabled)
-  // const overlayPositions = useOverlayPositions(
-  //   enableInteractiveDraggers,
-  //   currentDisplay,
-  //   currentEffective,
-  //   entityStartTime,
-  //   entityEndTime,
-  // );
   const { startLabel, endLabel } = useTimeLabels(currentEffective, activeBuckets, entityStartTime, isEndTimeNow);
 
   // ============================================================================
@@ -352,28 +316,9 @@ function TimelineContainerInner({
     overlayPositions: undefined, // Disabled during simplification
   });
 
-  // TEMPORARILY DISABLED: Dragger gestures (window layer disabled)
-  // const startDragger = useTimelineDraggerGesture("start", containerRef, timelineState, currentEffective.start, false);
-  // const endDragger = useTimelineDraggerGesture("end", containerRef, timelineState, currentEffective.end, isEndTimeNow);
-
   // ============================================================================
   // CALLBACKS
   // ============================================================================
-
-  const _handleApply = useCallback(() => {
-    onStartTimeChange?.(currentEffective.start);
-    onEndTimeChange?.(currentEffective.end);
-    actions.commitPending();
-
-    const startLabelText = currentEffective.start ? formatTime24ShortUTC(currentEffective.start) : "beginning";
-    const endLabelText = currentEffective.end ? formatTime24ShortUTC(currentEffective.end) : "NOW";
-    announcer.announce(`Time range updated to ${startLabelText} to ${endLabelText}`, "polite");
-  }, [currentEffective, onStartTimeChange, onEndTimeChange, actions, announcer]);
-
-  const _handleCancel = useCallback(() => {
-    actions.cancelPending();
-    announcer.announce("Time range changes cancelled", "polite");
-  }, [actions, announcer]);
 
   const handleToggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => !prev);
@@ -430,16 +375,6 @@ function TimelineContainerInner({
           />
         )}
 
-        {/* TEMPORARILY DISABLED: Controls for debugging basic pan */}
-        {/* {enableInteractiveDraggers && (
-          <TimelineControls
-            hasPendingChanges={hasPendingChanges}
-            onApply={handleApply}
-            onCancel={handleCancel}
-            className="ml-auto"
-          />
-        )} */}
-
         <CollapseButton
           isCollapsed={isCollapsed}
           onToggle={handleToggleCollapse}
@@ -474,20 +409,6 @@ function TimelineContainerInner({
                 now={synchronizedNow}
                 onBucketClick={onBucketClick}
               />
-
-              {/* Layer 2: Fixed window (overlays + draggers) */}
-              {/* TEMPORARILY DISABLED: Window layer for debugging basic pan */}
-              {/* TODO: Re-enable once basic panning works */}
-              {/* {enableInteractiveDraggers && overlayPositions && (
-                <TimelineWindow
-                  leftPanelStart={0}
-                  leftPanelWidth={overlayPositions.leftWidth}
-                  rightPanelStart={overlayPositions.rightStart}
-                  rightPanelWidth={overlayPositions.rightWidth}
-                  startDragger={startDragger}
-                  endDragger={endDragger}
-                />
-              )} */}
             </div>
 
             {customControls && <div className="absolute bottom-1 left-1">{customControls}</div>}

@@ -73,6 +73,9 @@ export const MAX_INVALID_ZONE_PERCENT_PER_SIDE = 10;
 /** Maximum combined invalid zone percentage (10% total for both sides) */
 export const MAX_INVALID_ZONE_PERCENT_COMBINED = 10;
 
+/** Gap width as multiple of bucket width (1.0 = one full bar width buffer) */
+export const GAP_BUCKET_MULTIPLIER = 1.0;
+
 // =============================================================================
 // Gesture Configuration
 // =============================================================================
