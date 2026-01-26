@@ -140,6 +140,7 @@ bazel run @osmo_workspace//src/service/agent:message_worker_push_x86_64         
 bazel run @osmo_workspace//src/service/core:service_push_x86_64                            # Image name: service
 bazel run @osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_push_x86_64 # Image name: delayed-job-monitor
 bazel run @osmo_workspace//src/service/logger:logger_push_x86_64                           # Image name: logger
+bazel run @osmo_workspace//src/service/operator:operator_service_push_x86_64               # Image name: operator-service
 bazel run @osmo_workspace//src/service/router:router_push_x86_64                           # Image name: router
 bazel run @osmo_workspace//src/service/worker:worker_push_x86_64                           # Image name: worker
 # OSMO Backend Operators
@@ -162,6 +163,7 @@ bazel run @osmo_workspace//src/service/agent:message_worker_push_arm64          
 bazel run @osmo_workspace//src/service/core:service_push_arm64                            # Image name: service
 bazel run @osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_push_arm64 # Image name: delayed-job-monitor
 bazel run @osmo_workspace//src/service/logger:logger_push_arm64                           # Image name: logger
+bazel run @osmo_workspace//src/service/operator:operator_service_push_arm64               # Image name: operator-service
 bazel run @osmo_workspace//src/service/router:router_push_arm64                           # Image name: router
 bazel run @osmo_workspace//src/service/worker:worker_push_arm64                           # Image name: worker
 # OSMO Backend Operators
@@ -197,6 +199,7 @@ bazel run @osmo_workspace//run:push_multiarch_manifests -- \
         service \
         delayed-job-monitor \
         logger \
+        operator-service \
         router \
         worker \
         backend-listener \

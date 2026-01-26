@@ -452,6 +452,30 @@ def _start_message_worker():
     logger.info('✅ Message worker service appears to be ready (process running for 5+ seconds)')
 
 
+def _start_operator_service():
+    """Start OSMO operator service."""
+    logger.info('⚙️  Starting OSMO operator service...')
+
+    host_ip = get_host_ip()
+    cmd = [
+        'bazel', 'run', '@osmo_workspace//src/service/operator:operator_service_x86_64',
+        '--',
+        '--host', f'http://{host_ip}:8002',
+    ]
+
+    process = run_command_with_logging(
+        cmd,
+        'Starting OSMO operator service',
+        async_mode=True,
+        name='operator',
+        env=_get_env())
+    time.sleep(5)
+    if process.has_failed():
+        logger.error('❌ Operator service process failed during startup')
+        raise RuntimeError('Operator service failed to become ready')
+    logger.info('✅ Operator service appears to be ready (process running for 5+ seconds)')
+
+
 def start_service_bazel():
     """Start the OSMO service using bazel."""
     check_required_tools(['bazel', 'docker', 'npm', 'aws'])
@@ -465,6 +489,7 @@ def start_service_bazel():
         _start_core_service()
         _start_service_worker()
         _start_message_worker()
+        _start_operator_service()
         _start_ui_service()
         _start_delayed_job_monitor()
         _start_router_service()
@@ -474,6 +499,7 @@ def start_service_bazel():
         host_ip = get_host_ip()
         logger.info('📊 Core API: http://%s:8000/api/docs', host_ip)
         logger.info('🌐 UI: http://%s:3000', host_ip)
+        logger.info('⚙️  Operator: http://%s:8002', host_ip)
         logger.info('🔀 Router: http://%s:8001/api/router/docs\n', host_ip)
         logger.info('💡 Press Ctrl+C to stop all services\n')
 

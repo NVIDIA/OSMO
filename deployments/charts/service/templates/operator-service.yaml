@@ -95,8 +95,7 @@ spec:
         - {{ .Values.services.redis.port | quote }}
         - --redis-db-number
         - {{ .Values.services.redis.dbNumber | quote }}
-        - --redis-tls-enable
-        - {{ .Values.services.redis.tlsEnabled | quote }}
+        - --redis-tls-enable={{ .Values.services.redis.tlsEnabled }}
         - --postgres-host
         - {{ .Values.services.postgres.serviceName }}
         - --postgres-port

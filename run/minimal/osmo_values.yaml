@@ -101,6 +101,11 @@ services:
       minReplicas: 1
       maxReplicas: 1
 
+  operator:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
 sidecars:
   envoy:
     enabled: false

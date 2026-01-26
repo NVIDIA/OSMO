@@ -164,8 +164,8 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 			getEnvInt("OSMO_POSTGRES_MAX_CONN_LIFETIME", 5),
 			"PostgreSQL maximum connection lifetime in minutes"),
 		sslMode: flag.String("postgres-ssl-mode",
-			getEnv("OSMO_POSTGRES_SSL_MODE", "disable"),
-			"PostgreSQL SSL mode (disable, require, verify-ca, verify-full)"),
+			getEnv("OSMO_POSTGRES_SSL_MODE", "prefer"),
+			"PostgreSQL SSL mode (disable, prefer, require, verify-ca, verify-full)"),
 	}
 }
 
