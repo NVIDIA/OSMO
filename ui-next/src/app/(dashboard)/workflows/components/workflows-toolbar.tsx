@@ -72,8 +72,7 @@ const UserToggle = memo(function UserToggle({ showAllUsers, onToggle }: UserTogg
       onClick={onToggle}
       currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
       nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
-      currentStateLabel={showAllUsers ? "All Users' Workflows" : "My Workflows"}
-      nextStateLabel={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
+      label={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
       aria-label={showAllUsers ? "Currently showing all users' workflows" : "Currently showing my workflows"}
       tooltipSide="top"
     />
