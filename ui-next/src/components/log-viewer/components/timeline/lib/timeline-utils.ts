@@ -202,15 +202,17 @@ export interface InvalidZoneValidation {
  * All THREE constraints must pass:
  * 1. left ≤ 10% (per-side limit)
  * 2. right ≤ 10% (per-side limit)
- * 3. left + right ≤ 10% (combined limit)
+ * 3. left + right ≤ 20% (combined limit - allows both sides at 10% each)
  *
  * Valid states form a triangle:
- *   [10%][data][0%]  ✓ At left boundary
- *   [5%][data][5%]   ✓ Balanced
- *   [0%][data][10%]  ✓ At right boundary
- *   [7%][data][3%]   ✓ Within triangle
- *   [6%][data][6%]   ✗ 12% combined exceeds
- *   [11%][data][0%]  ✗ Left exceeds per-side
+ *   [10%][data][0%]   ✓ At left boundary
+ *   [5%][data][5%]    ✓ Balanced
+ *   [0%][data][10%]   ✓ At right boundary
+ *   [10%][data][10%]  ✓ Both at limit
+ *   [7%][data][3%]    ✓ Within triangle
+ *   [11%][data][0%]   ✗ Left exceeds per-side
+ *   [10%][data][11%]  ✗ Right exceeds per-side
+ *   [11%][data][11%]  ✗ Combined exceeds (22% > 20%)
  *
  * This creates natural "give" during panning while respecting limits.
  *
@@ -222,7 +224,8 @@ export interface InvalidZoneValidation {
  * @param entityEndTime - Entity end time (undefined if running)
  * @param now - Current "NOW" timestamp
  * @param bucketTimestamps - Array of bucket timestamps to calculate bucket width
- * @param maxInvalidPercent - Maximum allowed invalid zone percentage (default: 10)
+ * @param maxPerSidePercent - Maximum allowed invalid zone percentage per side (default: 10)
+ * @param maxCombinedPercent - Maximum allowed combined invalid zone percentage (default: 20)
  * @returns Validation result
  */
 export function validateInvalidZoneLimits(
@@ -232,7 +235,8 @@ export function validateInvalidZoneLimits(
   entityEndTime: Date | undefined,
   now: number | undefined,
   bucketTimestamps: Date[],
-  maxInvalidPercent: number = 10,
+  maxPerSidePercent: number = 10,
+  maxCombinedPercent: number = 20,
 ): InvalidZoneValidation {
   // If no entity start, no invalid zones exist
   if (!entityStartTime) {
@@ -275,13 +279,14 @@ export function validateInvalidZoneLimits(
   // Calculate total buckets visible and max allowed invalid buckets
   // Minimum 2 buckets to ensure consistent visual feedback when zoomed in
   const totalBucketsVisible = displayRangeMs / bucketWidthMs;
-  const maxInvalidBuckets = Math.max(2, Math.floor(totalBucketsVisible * (maxInvalidPercent / 100)));
+  const maxInvalidBucketsPerSide = Math.max(2, Math.floor(totalBucketsVisible * (maxPerSidePercent / 100)));
+  const maxInvalidBucketsCombined = Math.max(2, Math.floor(totalBucketsVisible * (maxCombinedPercent / 100)));
 
   // THREE-CONSTRAINT VALIDATION (all must pass)
   // This creates a "triangle" of valid states allowing natural pan "give"
 
   // Constraint 1: Left per-side limit
-  if (leftInvalidBuckets > maxInvalidBuckets) {
+  if (leftInvalidBuckets > maxInvalidBucketsPerSide) {
     return {
       blocked: true,
       reason: "left-invalid-zone-limit",
@@ -291,7 +296,7 @@ export function validateInvalidZoneLimits(
   }
 
   // Constraint 2: Right per-side limit
-  if (rightInvalidBuckets > maxInvalidBuckets) {
+  if (rightInvalidBuckets > maxInvalidBucketsPerSide) {
     return {
       blocked: true,
       reason: "right-invalid-zone-limit",
@@ -302,8 +307,9 @@ export function validateInvalidZoneLimits(
 
   // Constraint 3: Combined limit (both sides together)
   // This is the key constraint that creates the triangle of valid states
+  // Combined limit is HIGHER than per-side limit to allow asymmetric zoom
   const combinedInvalidBuckets = leftInvalidBuckets + rightInvalidBuckets;
-  if (combinedInvalidBuckets > maxInvalidBuckets) {
+  if (combinedInvalidBuckets > maxInvalidBucketsCombined) {
     return {
       blocked: true,
       reason: "combined-invalid-zone-limit",
