@@ -20,13 +20,9 @@ import {
   calculateTimeFromPercent,
   clampTimeToRange,
   isZoomGesture,
-  shouldBlockPan,
-  validatePanConstraint,
   calculateDisplayRangeWithPadding,
   calculateOverlayPositions,
   isEndTimeNow,
-  calculatePanBoundaries,
-  type TimelineBounds,
 } from "./timeline-utils";
 
 describe("calculatePositionPercent", () => {
@@ -140,156 +136,6 @@ describe("isZoomGesture", () => {
   it("should respect custom tolerance", () => {
     expect(isZoomGesture(1005, 1000, 10)).toBe(false);
     expect(isZoomGesture(1015, 1000, 10)).toBe(true);
-  });
-});
-
-describe("shouldBlockPan", () => {
-  it("should block right pan at boundary", () => {
-    const result = shouldBlockPan(
-      2001, // newEndMs (panning right)
-      2000, // currentEndMs
-      2000, // boundaryEndMs
-      1000, // newRangeMs
-      1000, // currentRangeMs (same = pan, not zoom)
-    );
-    expect(result).toBe(true);
-  });
-
-  it("should not block left pan at boundary", () => {
-    const result = shouldBlockPan(
-      1999, // newEndMs (panning left)
-      2000, // currentEndMs
-      2000, // boundaryEndMs
-      1000, // newRangeMs
-      1000, // currentRangeMs
-    );
-    expect(result).toBe(false);
-  });
-
-  it("should not block zoom at boundary", () => {
-    const result = shouldBlockPan(
-      2001, // newEndMs
-      2000, // currentEndMs
-      2000, // boundaryEndMs
-      800, // newRangeMs (zoom in)
-      1000, // currentRangeMs
-    );
-    expect(result).toBe(false);
-  });
-
-  it("should not block pan when not at boundary", () => {
-    const result = shouldBlockPan(
-      901, // newEndMs (panning right)
-      900, // currentEndMs (1100ms away from boundary)
-      2000, // boundaryEndMs
-      1000, // newRangeMs
-      1000, // currentRangeMs
-    );
-    expect(result).toBe(false);
-  });
-
-  it("should respect boundary threshold", () => {
-    const result = shouldBlockPan(
-      2001, // newEndMs
-      1995, // currentEndMs (within 5ms of boundary)
-      2000, // boundaryEndMs
-      1000, // newRangeMs
-      1000, // currentRangeMs
-      10, // thresholdMs = 10
-    );
-    expect(result).toBe(true);
-  });
-});
-
-describe("validatePanConstraint", () => {
-  const bounds: TimelineBounds = {
-    minTime: new Date(1000),
-    maxTime: new Date(10000),
-  };
-
-  it("should allow pan within boundaries", () => {
-    const result = validatePanConstraint(
-      new Date(2000), // newDisplayStart
-      new Date(3000), // newDisplayEnd (range = 1000)
-      new Date(1900), // currentDisplayStart
-      new Date(2900), // currentDisplayEnd (range = 1000)
-      bounds,
-      undefined,
-      undefined,
-    );
-    expect(result.blocked).toBe(false);
-  });
-
-  it("should block right pan at boundary", () => {
-    const result = validatePanConstraint(
-      new Date(9100), // newDisplayStart
-      new Date(10100), // newDisplayEnd (past boundary, range = 1000)
-      new Date(9000), // currentDisplayStart
-      new Date(10000), // currentDisplayEnd (at boundary, range = 1000)
-      bounds,
-      undefined,
-      undefined,
-    );
-    expect(result.blocked).toBe(true);
-    expect(result.reason).toBe("right-boundary");
-  });
-
-  it("should allow zoom at boundary", () => {
-    const result = validatePanConstraint(
-      new Date(9500), // newDisplayStart
-      new Date(10500), // newDisplayEnd (past boundary, range = 1000)
-      new Date(9500), // currentDisplayStart
-      new Date(10000), // currentDisplayEnd (at boundary, range = 500)
-      bounds,
-      undefined,
-      undefined,
-    );
-    // Range changed from 500 to 1000, so it's a zoom
-    expect(result.blocked).toBe(false);
-  });
-
-  it("should block pan violating effective start constraint", () => {
-    const result = validatePanConstraint(
-      new Date(400), // newDisplayStart (would put boundary past effective start)
-      new Date(1400), // newDisplayEnd (range = 1000)
-      new Date(2000), // currentDisplayStart
-      new Date(3000), // currentDisplayEnd (range = 1000)
-      bounds,
-      0.5, // currentStartPercent (dragger at 50% = window's left overlay right edge)
-      new Date(1800), // effectiveStartTime
-    );
-    // New effective start position would be: 400 + 0.5 * 1000 = 900
-    // But boundary start is 1000, so boundary > effective start position
-    // This means invalidZoneLeft's right edge would pass window's left overlay right edge
-    expect(result.blocked).toBe(true);
-    expect(result.reason).toBe("left-invalid-zone-boundary");
-  });
-
-  it("should allow zoom violating effective start constraint", () => {
-    const result = validatePanConstraint(
-      new Date(500), // newDisplayStart
-      new Date(2500), // newDisplayEnd (range = 2000, zoom)
-      new Date(500), // currentDisplayStart
-      new Date(2000), // currentDisplayEnd (range = 1500)
-      bounds,
-      0.5,
-      new Date(1800),
-    );
-    // This is a zoom operation (range changed from 1500 to 2000), so allow it
-    expect(result.blocked).toBe(false);
-  });
-
-  it("should allow pan when no effective start set", () => {
-    const result = validatePanConstraint(
-      new Date(500), // newDisplayStart (before boundary)
-      new Date(1500), // newDisplayEnd (range = 1000)
-      new Date(2000), // currentDisplayStart
-      new Date(3000), // currentDisplayEnd (range = 1000)
-      bounds,
-      undefined, // No dragger set
-      undefined, // No effective start
-    );
-    expect(result.blocked).toBe(false);
   });
 });
 
@@ -449,46 +295,5 @@ describe("isEndTimeNow", () => {
     const time = new Date(Date.now() - 5000); // 5 seconds ago
     expect(isEndTimeNow(time, 3000)).toBe(false); // 3s threshold
     expect(isEndTimeNow(time, 10000)).toBe(true); // 10s threshold
-  });
-});
-
-describe("calculatePanBoundaries", () => {
-  it("should calculate boundaries for completed entity", () => {
-    const result = calculatePanBoundaries(
-      1000, // entityStartMs
-      2000, // entityEndMs
-      3000, // now (ignored for completed)
-      0.1, // 10% padding
-      0, // no min padding
-    );
-
-    // Duration = 1000ms, padding = 100ms
-    expect(result.minTime.getTime()).toBe(1000);
-    expect(result.maxTime.getTime()).toBe(2100); // 2000 + 100
-  });
-
-  it("should use minimum padding for completed entity", () => {
-    const result = calculatePanBoundaries(
-      1000,
-      1100, // Short 100ms duration
-      3000,
-      0.1, // 10% = 10ms
-      50, // Min 50ms
-    );
-
-    expect(result.minTime.getTime()).toBe(1000);
-    expect(result.maxTime.getTime()).toBe(1150); // 1100 + 50
-  });
-
-  it("should extend to NOW + 1min for running entity", () => {
-    const now = 5000;
-    const result = calculatePanBoundaries(
-      1000,
-      undefined, // Running
-      now,
-    );
-
-    expect(result.minTime.getTime()).toBe(1000);
-    expect(result.maxTime.getTime()).toBe(5000 + 60_000); // now + 1 minute
   });
 });
