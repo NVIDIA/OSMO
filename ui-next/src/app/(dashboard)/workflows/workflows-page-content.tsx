@@ -33,7 +33,7 @@
 import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/chrome";
 import { useUrlChips, useResultsCount, useViewTransition } from "@/hooks";
-import { useCallback } from "react";
+import { useCallback, useTransition } from "react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
 import { WorkflowsToolbar } from "./components/workflows-toolbar";
@@ -46,7 +46,10 @@ import { useWorkflowsTableStore } from "./stores/workflows-table-store";
 
 export function WorkflowsPageContent() {
   usePage({ title: "Workflows" });
-  const { startTransition } = useViewTransition();
+  const { startTransition: startViewTransition } = useViewTransition();
+
+  // Track pending state for show all users toggle
+  const [showAllUsersPending, startShowAllUsersTransition] = useTransition();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
@@ -58,9 +61,9 @@ export function WorkflowsPageContent() {
 
   const handleSearchChipsChange = useCallback(
     (chips: Parameters<typeof setSearchChips>[0]) => {
-      startTransition(() => setSearchChips(chips));
+      startViewTransition(() => setSearchChips(chips));
     },
-    [setSearchChips, startTransition],
+    [setSearchChips, startViewTransition],
   );
 
   // Show all users toggle - URL-synced (default: false = my workflows only)
@@ -75,10 +78,10 @@ export function WorkflowsPageContent() {
   );
 
   const handleToggleShowAllUsers = useCallback(() => {
-    startTransition(() => {
+    startShowAllUsersTransition(() => {
       void setShowAllUsers((prev) => !prev);
     });
-  }, [setShowAllUsers, startTransition]);
+  }, [setShowAllUsers]);
 
   // Sort direction from table store (only submit_time is sortable server-side)
   const sortState = useWorkflowsTableStore((s) => s.sort);
@@ -128,6 +131,7 @@ export function WorkflowsPageContent() {
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
             showAllUsers={showAllUsers}
+            showAllUsersPending={showAllUsersPending}
             onToggleShowAllUsers={handleToggleShowAllUsers}
           />
         </InlineErrorBoundary>
