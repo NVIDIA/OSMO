@@ -466,6 +466,49 @@ service:
       - name: AWS_DEFAULT_REGION
         value: us-east-1
 
+    ## Message worker service configuration for processing backend messages
+    ##
+    messageWorker:
+      ## Kubernetes image pull policy for the message worker service
+      ##
+      imagePullPolicy: IfNotPresent
+      ## Horizontal Pod Autoscaler (HPA) configuration for the message worker service
+      ##
+      scaling:
+        ## Minimum number of message worker replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of message worker replicas
+        ##
+        maxReplicas: 1
+      ## Init containers for message worker service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+
     ## Delayed job monitor service configuration
     ##
     delayedJobMonitor:
@@ -834,4 +877,3 @@ backend-operator:
       ## Enable OTEL collector sidecar for metrics and tracing
       ##
       enabled: false
-

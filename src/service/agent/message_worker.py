@@ -37,20 +37,20 @@ from src.utils.progress_check import progress
 
 # Redis Stream name for operator messages from backends
 OPERATOR_STREAM_NAME = '{osmo}:{message-queue}:operator_messages'
-# Consumer group name for agent workers
-CONSUMER_GROUP_NAME = 'agent_workers'
+# Consumer group name for message workers
+CONSUMER_GROUP_NAME = 'message_workers'
 # Time in milliseconds before a pending message is considered abandoned (5 minutes)
 MESSAGE_CLAIM_IDLE_TIME_MS = 300000
 
 
-class AgentWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
-                        connectors.PostgresConfig, src.lib.utils.logging.LoggingConfig,
-                        metrics.MetricsCreatorConfig):
-    """Configuration for the agent worker."""
+class MessageWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
+                          connectors.PostgresConfig, src.lib.utils.logging.LoggingConfig,
+                          metrics.MetricsCreatorConfig):
+    """Configuration for the message worker."""
     progress_file: str = pydantic.Field(
         command_line='progress_file',
         env='OSMO_PROGRESS_FILE',
-        default='/tmp/osmo/service/last_progress_agent_worker',
+        default='/tmp/osmo/service/last_progress_message_worker',
         description='The file to write progress timestamps to (For liveness/startup probes)')
     progress_iter_frequency: str = pydantic.Field(
         command_line='progress_iter_frequency',
@@ -62,12 +62,12 @@ class AgentWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
                     'm (minutes).')
 
 
-class AgentWorker:
+class MessageWorker:
     """
-    An Agent Worker subscribes to the operator Redis Stream and processes messages
+    A Message Worker subscribes to the operator Redis Stream and processes messages
     from all backend agents using consumer groups for reliability.
     """
-    def __init__(self, config: AgentWorkerConfig):
+    def __init__(self, config: MessageWorkerConfig):
         self.config = config
         self.postgres = connectors.PostgresConnector(self.config)
         self.redis_client = connectors.RedisConnector.get_instance().client
@@ -86,7 +86,7 @@ class AgentWorker:
         # Create consumer group if it doesn't exist
         self._ensure_consumer_group()
 
-        logging.info('Agent worker initialized: stream=%s, group=%s, consumer=%s',
+        logging.info('Message worker initialized: stream=%s, group=%s, consumer=%s',
                     self.stream_name, self.group_name, self.consumer_name)
 
     def _ensure_consumer_group(self):
@@ -237,7 +237,7 @@ class AgentWorker:
         Main loop to consume messages from Redis Stream.
         Uses consumer groups for reliability and load balancing across workers.
         """
-        logging.info('Agent worker starting, listening on stream: %s', self.stream_name)
+        logging.info('Message worker starting, listening on stream: %s', self.stream_name)
 
         iteration = 0
         while True:
@@ -260,8 +260,6 @@ class AgentWorker:
                 )
 
                 if not messages:
-                    # Report progress even when idle to show worker is alive
-                    self._progress_writer.report_progress()
                     continue
 
                 # Process each message
@@ -284,25 +282,28 @@ class AgentWorker:
                 logging.error('Error in worker main loop: %s\n%s',
                             error, traceback.format_exc())
                 time.sleep(1)  # Brief pause before retrying
+            finally:
+                # Always report progress to show worker is alive
+                self._progress_writer.report_progress()
 
-        logging.info('Agent worker stopped')
+        logging.info('Message worker stopped')
 
 
 def main():
-    config = AgentWorkerConfig.load()
-    src.lib.utils.logging.init_logger('agent_worker', config)
+    config = MessageWorkerConfig.load()
+    src.lib.utils.logging.init_logger('message_worker', config)
 
-    # Initialize connectors (except Postgres, which AgentWorker will create)
+    # Initialize connectors (except Postgres, which MessageWorker will create)
     connectors.RedisConnector(config)
     metrics.MetricCreator(config=config)
 
-    logging.info('Starting operator agent worker...')
+    logging.info('Starting operator message worker...')
 
     try:
-        worker = AgentWorker(config)
+        worker = MessageWorker(config)
         worker.run()
     except KeyboardInterrupt:
-        logging.info('Operator agent worker shutting down...')
+        logging.info('Operator message worker shutting down...')
         sys.exit(0)
 
 
