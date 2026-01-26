@@ -21,6 +21,8 @@
  * These functions are unit-tested and handle all constraint logic.
  */
 
+import { calculateInvalidZonePositions, calculateBucketWidth } from "./invalid-zones";
+
 // =============================================================================
 // Pure Calculation Functions
 // =============================================================================
@@ -299,5 +301,93 @@ export function calculatePanBoundaries(
   return {
     minTime: new Date(entityStartMs),
     maxTime: new Date(endMs),
+  };
+}
+
+// =============================================================================
+// Invalid Zone Constraints
+// =============================================================================
+
+/**
+ * Result of invalid zone validation.
+ */
+export interface InvalidZoneValidation {
+  /** Whether the display range violates invalid zone limits */
+  blocked: boolean;
+  /** Reason for blocking (if blocked) */
+  reason?: "left-invalid-zone-limit" | "right-invalid-zone-limit";
+  /** Left invalid zone percentage */
+  leftInvalidPercent: number;
+  /** Right invalid zone percentage */
+  rightInvalidPercent: number;
+}
+
+/**
+ * Validate that invalid zones don't exceed maximum percentage of viewport.
+ *
+ * This prevents panning/zooming too far such that most of the viewport
+ * is just invalid zones (striped areas where no logs exist).
+ *
+ * @param newDisplayStartMs - New display start in milliseconds
+ * @param newDisplayEndMs - New display end in milliseconds
+ * @param entityStartTime - Entity start time (workflow start)
+ * @param entityEndTime - Entity end time (undefined if running)
+ * @param now - Current "NOW" timestamp
+ * @param bucketTimestamps - Array of bucket timestamps to calculate bucket width
+ * @param maxInvalidPercent - Maximum allowed invalid zone percentage (default: 10)
+ * @returns Validation result
+ */
+export function validateInvalidZoneLimits(
+  newDisplayStartMs: number,
+  newDisplayEndMs: number,
+  entityStartTime: Date | undefined,
+  entityEndTime: Date | undefined,
+  now: number | undefined,
+  bucketTimestamps: Date[],
+  maxInvalidPercent: number = 10,
+): InvalidZoneValidation {
+  // If no entity start, no invalid zones exist
+  if (!entityStartTime) {
+    return {
+      blocked: false,
+      leftInvalidPercent: 0,
+      rightInvalidPercent: 0,
+    };
+  }
+
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+  const zones = calculateInvalidZonePositions(
+    entityStartTime.getTime(),
+    entityEndTime?.getTime(),
+    now ?? Date.now(),
+    newDisplayStartMs,
+    newDisplayEndMs,
+    bucketWidthMs,
+  );
+
+  // Check if left invalid zone exceeds limit
+  if (zones.leftInvalidWidth > maxInvalidPercent) {
+    return {
+      blocked: true,
+      reason: "left-invalid-zone-limit",
+      leftInvalidPercent: zones.leftInvalidWidth,
+      rightInvalidPercent: zones.rightInvalidWidth,
+    };
+  }
+
+  // Check if right invalid zone exceeds limit
+  if (zones.rightInvalidWidth > maxInvalidPercent) {
+    return {
+      blocked: true,
+      reason: "right-invalid-zone-limit",
+      leftInvalidPercent: zones.leftInvalidWidth,
+      rightInvalidPercent: zones.rightInvalidWidth,
+    };
+  }
+
+  return {
+    blocked: false,
+    leftInvalidPercent: zones.leftInvalidWidth,
+    rightInvalidPercent: zones.rightInvalidWidth,
   };
 }

@@ -55,8 +55,7 @@
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState, useEffect } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import { clampTimeToRange, type TimelineBounds } from "../lib/timeline-utils";
-// TODO: Re-enable validatePanConstraint import when re-enabling pan constraints
+import { clampTimeToRange, validateInvalidZoneLimits, type TimelineBounds } from "../lib/timeline-utils";
 import {
   PAN_FACTOR,
   ZOOM_IN_FACTOR,
@@ -183,16 +182,22 @@ function logWheelEvent(event: WheelDebugEvent) {
  *    - Trackpad horizontal swipe left → pan left
  *    - Trackpad horizontal swipe right → pan right
  *    - Shifts both start and end by same amount (keeps range constant)
- *    - Subject to pan boundary constraints
+ *    - Subject to invalid zone limits (max 10% of viewport)
  *
  * 2. **Cmd/Ctrl + wheel/scroll** (metaKey or ctrlKey) → **ZOOM in/out**
  *    - Trackpad pinch in / wheel up with Cmd → zoom in (decrease visible range)
  *    - Trackpad pinch out / wheel down with Cmd → zoom out (increase visible range)
  *    - Keeps center point stable while changing range
- *    - Respects minimum range limit
+ *    - Respects minimum range limit and invalid zone limits (max 10% of viewport)
  *
  * These behaviors DO NOT interfere with each other - they are handled in completely
  * separate if/else branches.
+ *
+ * ## Invalid Zone Limits
+ *
+ * Pan and zoom operations are limited to ensure invalid zones (striped areas before
+ * workflow start or after completion) don't exceed 10% of the viewport. This prevents
+ * users from panning/zooming so far that most of the screen is just invalid zones.
  *
  * ## Delta Handling
  *
@@ -215,6 +220,7 @@ function logWheelEvent(event: WheelDebugEvent) {
  * @param containerRef - Container element ref
  * @param state - Timeline state from useTimelineState
  * @param panBoundaries - Entity boundaries for pan constraints
+ * @param bucketTimestamps - Bucket timestamps for calculating bucket width
  * @param onDisplayRangeChange - Callback when display range changes
  * @param debugContext - Optional debug context (entityStart/End, now, window positions)
  */
@@ -222,6 +228,7 @@ export function useTimelineWheelGesture(
   containerRef: React.RefObject<HTMLElement | null>,
   state: ReturnType<typeof useTimelineState>,
   panBoundaries: TimelineBounds | null,
+  bucketTimestamps: Date[],
   onDisplayRangeChange: (start: Date, end: Date) => void,
   debugContext?: {
     entityStartTime?: Date;
@@ -311,6 +318,38 @@ export function useTimelineWheelGesture(
         const newStart = new Date(centerMs - newRangeMs / 2);
         const newEnd = new Date(centerMs + newRangeMs / 2);
 
+        // Validate invalid zone limits
+        const validation = validateInvalidZoneLimits(
+          newStart.getTime(),
+          newEnd.getTime(),
+          debugContext?.entityStartTime,
+          debugContext?.entityEndTime,
+          debugContext?.now,
+          bucketTimestamps,
+        );
+
+        if (validation.blocked) {
+          logWheelEvent({
+            timestamp: Date.now(),
+            dx,
+            dy,
+            effectiveDelta: primaryDelta,
+            isZoom: true,
+            wasBlocked: true,
+            blockReason: validation.reason,
+            oldRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            newRange: {
+              start: newStart.toISOString(),
+              end: newEnd.toISOString(),
+            },
+            context: buildDebugContext(),
+          });
+          return;
+        }
+
         logWheelEvent({
           timestamp: Date.now(),
           dx,
@@ -356,45 +395,43 @@ export function useTimelineWheelGesture(
         const newStart = new Date(displayStartMs + deltaMs);
         const newEnd = new Date(displayEndMs + deltaMs);
 
-        // TEMPORARILY DISABLED: Pan boundary constraints
-        // TODO: Re-enable once basic panning is working
-        // if (panBoundaries) {
-        //   const constraint = validatePanConstraint(
-        //     newStart,
-        //     newEnd,
-        //     currentDisplay.start,
-        //     currentDisplay.end,
-        //     panBoundaries,
-        //     currentStartPercent,
-        //     currentEffective.start,
-        //   );
-        //
-        //   if (constraint.blocked) {
-        //     logWheelEvent({
-        //       timestamp: Date.now(),
-        //       dx,
-        //       dy,
-        //       effectiveDelta,
-        //       isZoom: false,
-        //       wasBlocked: true,
-        //       blockReason: "Pan boundary constraint",
-        //       oldRange: {
-        //         start: new Date(displayStartMs).toISOString(),
-        //         end: new Date(displayEndMs).toISOString(),
-        //       },
-        //       newRange: {
-        //         start: newStart.toISOString(),
-        //         end: newEnd.toISOString(),
-        //       },
-        //       boundaries: {
-        //         start: panBoundaries.minTime.toISOString(),
-        //         end: panBoundaries.maxTime.toISOString(),
-        //       },
-        //       context: buildDebugContext(),
-        //     });
-        //     return;
-        //   }
-        // }
+        // Validate invalid zone limits
+        const validation = validateInvalidZoneLimits(
+          newStart.getTime(),
+          newEnd.getTime(),
+          debugContext?.entityStartTime,
+          debugContext?.entityEndTime,
+          debugContext?.now,
+          bucketTimestamps,
+        );
+
+        if (validation.blocked) {
+          logWheelEvent({
+            timestamp: Date.now(),
+            dx,
+            dy,
+            effectiveDelta,
+            isZoom: false,
+            wasBlocked: true,
+            blockReason: validation.reason,
+            oldRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            newRange: {
+              start: newStart.toISOString(),
+              end: newEnd.toISOString(),
+            },
+            boundaries: panBoundaries
+              ? {
+                  start: panBoundaries.minTime.toISOString(),
+                  end: panBoundaries.maxTime.toISOString(),
+                }
+              : undefined,
+            context: buildDebugContext(),
+          });
+          return;
+        }
 
         logWheelEvent({
           timestamp: Date.now(),

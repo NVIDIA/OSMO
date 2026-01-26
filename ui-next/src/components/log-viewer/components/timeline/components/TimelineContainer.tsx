@@ -344,12 +344,22 @@ function TimelineContainerInner({
   // GESTURES
   // ============================================================================
 
-  useTimelineWheelGesture(containerRef, timelineState, panBoundaries, onDisplayRangeChange ?? (() => {}), {
-    entityStartTime,
-    entityEndTime,
-    now,
-    overlayPositions: undefined, // Disabled during simplification
-  });
+  // Extract bucket timestamps for invalid zone validation
+  const bucketTimestamps = useMemo(() => activeBuckets.map((b) => b.timestamp), [activeBuckets]);
+
+  useTimelineWheelGesture(
+    containerRef,
+    timelineState,
+    panBoundaries,
+    bucketTimestamps,
+    onDisplayRangeChange ?? (() => {}),
+    {
+      entityStartTime,
+      entityEndTime,
+      now,
+      overlayPositions: undefined, // Disabled during simplification
+    },
+  );
 
   // TEMPORARILY DISABLED: Dragger gestures (window layer disabled)
   // const startDragger = useTimelineDraggerGesture("start", containerRef, timelineState, currentEffective.start, false);
