@@ -129,7 +129,6 @@ func (ls *ListenerService) pushMessageToRedis(
 // It handles receiving messages, pushing to Redis, sending ACK responses, and reporting progress.
 func (ls *ListenerService) handleListenerStream(
 	stream pb.ListenerService_ListenerStreamServer,
-	streamType string,
 ) error {
 	ctx := stream.Context()
 
@@ -144,9 +143,9 @@ func (ls *ListenerService) handleListenerStream(
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	ls.logger.InfoContext(ctx, streamType+" listener stream opened",
+	ls.logger.InfoContext(ctx, "listener stream opened",
 		slog.String("backend_name", backendName))
-	defer ls.logger.InfoContext(ctx, streamType+" listener stream closed",
+	defer ls.logger.InfoContext(ctx, "listener stream closed",
 		slog.String("backend_name", backendName))
 
 	lastProgressReport := time.Now()
@@ -198,7 +197,7 @@ func (ls *ListenerService) handleListenerStream(
 // It receives all types of messages (update_pod, logging, resource, resource_usage) and sends ACK responses.
 func (ls *ListenerService) ListenerStream(
 	stream pb.ListenerService_ListenerStreamServer) error {
-	return ls.handleListenerStream(stream, "listener")
+	return ls.handleListenerStream(stream)
 }
 
 // InitBackend handles backend initialization requests
