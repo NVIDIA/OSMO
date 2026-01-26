@@ -257,9 +257,9 @@ export const PanelContent = memo(function PanelContent({
           </section>
         )}
 
-        {/* Links */}
+        {/* Related */}
         <section>
-          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Links</h3>
+          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Related</h3>
 
           <Card className="gap-0 py-0">
             <CardContent className="divide-border divide-y p-0">
