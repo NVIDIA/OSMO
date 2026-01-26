@@ -28,6 +28,14 @@ export interface InvalidZonePositions {
   rightInvalidStart: number;
   /** Right zone width as percentage (0-100) */
   rightInvalidWidth: number;
+  /** Left gap start position as percentage (0-100) - where left invalid zone ends */
+  leftGapStart: number;
+  /** Left gap width as percentage (0-100) - always 1.0 bucket width */
+  leftGapWidth: number;
+  /** Right gap start position as percentage (0-100) - where entity/now ends */
+  rightGapStart: number;
+  /** Right gap width as percentage (0-100) - always 1.0 bucket width */
+  rightGapWidth: number;
 }
 
 /**
@@ -75,6 +83,10 @@ export function calculateInvalidZonePositions(
       leftInvalidWidth: 0,
       rightInvalidStart: 100,
       rightInvalidWidth: 0,
+      leftGapStart: 0,
+      leftGapWidth: 0,
+      rightGapStart: 100,
+      rightGapWidth: 0,
     };
   }
 
@@ -88,12 +100,26 @@ export function calculateInvalidZonePositions(
   const leftGapMs = bucketWidthMs * 1.0;
 
   // Left zone ends 1.0 bucket width BEFORE entity start
+  // Gap goes from (entityStart - 1.0 bucket) to entityStart
   const leftZoneEndMs = entityStartMs - leftGapMs;
+  const leftGapStartMs = leftZoneEndMs;
+  const leftGapEndMs = entityStartMs;
 
   let leftWidthPercent = 0;
+  let leftGapStartPercent = 0;
+  let leftGapWidthPercent = 0;
+
   if (displayStartMs < leftZoneEndMs && leftZoneEndMs > displayStartMs) {
     const clampedEndMs = Math.min(leftZoneEndMs, displayEndMs);
     leftWidthPercent = toPercent(clampedEndMs - displayStartMs);
+  }
+
+  // Calculate left gap position (between invalid zone and entity start)
+  if (displayEndMs > leftGapStartMs && displayStartMs < leftGapEndMs) {
+    const clampedGapStartMs = Math.max(leftGapStartMs, displayStartMs);
+    const clampedGapEndMs = Math.min(leftGapEndMs, displayEndMs);
+    leftGapStartPercent = toPercent(clampedGapStartMs - displayStartMs);
+    leftGapWidthPercent = toPercent(clampedGapEndMs - clampedGapStartMs);
   }
 
   // ============================================================================
@@ -106,11 +132,16 @@ export function calculateInvalidZonePositions(
   // Right gap = 1.0 bucket width (one bar's worth of empty space as visual buffer)
   const rightGapMs = bucketWidthMs * 1.0;
 
+  // Gap goes from rightBoundary to (rightBoundary + 1.0 bucket)
   // Zone starts 1.0 bucket width after the boundary
-  const zoneStartMs = rightBoundaryMs + rightGapMs;
+  const rightGapStartMs = rightBoundaryMs;
+  const rightGapEndMs = rightBoundaryMs + rightGapMs;
+  const zoneStartMs = rightGapEndMs;
 
   let rightStartPercent = 100;
   let rightWidthPercent = 0;
+  let rightGapStartPercent = 100;
+  let rightGapWidthPercent = 0;
 
   if (displayEndMs > zoneStartMs) {
     const clampedZoneStartMs = Math.max(zoneStartMs, displayStartMs);
@@ -118,9 +149,21 @@ export function calculateInvalidZonePositions(
     rightWidthPercent = toPercent(displayEndMs - clampedZoneStartMs);
   }
 
+  // Calculate right gap position (between entity end/now and invalid zone)
+  if (displayEndMs > rightGapStartMs && displayStartMs < rightGapEndMs) {
+    const clampedGapStartMs = Math.max(rightGapStartMs, displayStartMs);
+    const clampedGapEndMs = Math.min(rightGapEndMs, displayEndMs);
+    rightGapStartPercent = toPercent(clampedGapStartMs - displayStartMs);
+    rightGapWidthPercent = toPercent(clampedGapEndMs - clampedGapStartMs);
+  }
+
   return {
     leftInvalidWidth: leftWidthPercent,
     rightInvalidStart: rightStartPercent,
     rightInvalidWidth: rightWidthPercent,
+    leftGapStart: leftGapStartPercent,
+    leftGapWidth: leftGapWidthPercent,
+    rightGapStart: rightGapStartPercent,
+    rightGapWidth: rightGapWidthPercent,
   };
 }

@@ -61,9 +61,13 @@ import {
   ZOOM_IN_FACTOR,
   ZOOM_OUT_FACTOR,
   MIN_RANGE_MS,
+  MAX_RANGE_MS,
+  MIN_BUCKET_COUNT,
+  MAX_BUCKET_COUNT,
   KEYBOARD_NUDGE_MS,
   NOW_THRESHOLD_MS,
 } from "../lib/timeline-constants";
+import { calculateBucketWidth } from "../lib/invalid-zones";
 
 // Re-export zoom factors for external use
 export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
@@ -164,6 +168,188 @@ function logWheelEvent(event: WheelDebugEvent) {
   if (wheelDebugLog.length > 100) {
     wheelDebugLog.shift();
   }
+}
+
+// =============================================================================
+// Asymmetric Zoom Calculation
+// =============================================================================
+
+/**
+ * Result of asymmetric zoom calculation.
+ */
+interface AsymmetricZoomResult {
+  /** Whether the zoom was blocked entirely */
+  blocked: boolean;
+  /** Reason for blocking (if blocked) */
+  reason?: string;
+  /** New display start in milliseconds (if not blocked) */
+  newStartMs?: number;
+  /** New display end in milliseconds (if not blocked) */
+  newEndMs?: number;
+  /** Whether the zoom was shifted asymmetrically */
+  wasAsymmetric?: boolean;
+}
+
+/**
+ * Calculate asymmetric zoom when symmetric zoom would violate constraints.
+ *
+ * ## Algorithm
+ *
+ * 1. Try symmetric expansion from center
+ * 2. Validate against ALL THREE constraints (left, right, combined)
+ * 3. If blocked by per-side limit on ONE side: try shifting deficit to other side
+ * 4. If blocked by combined limit: BLOCK (can't shift)
+ * 5. Validate shifted version against all three constraints
+ * 6. If still blocked: BLOCK entirely (all-or-nothing, NO partial zooms)
+ * 7. If valid: return asymmetric zoom
+ *
+ * ## Three-Constraint System
+ *
+ * Valid states form a triangle:
+ *   [10%][data][0%]  ✓ At left boundary
+ *   [5%][data][5%]   ✓ Balanced
+ *   [0%][data][10%]  ✓ At right boundary
+ *   [7%][data][3%]   ✓ Within triangle
+ *   [6%][data][6%]   ✗ 12% combined exceeds
+ *   [11%][data][0%]  ✗ Left exceeds per-side
+ *
+ * @param displayStartMs - Current display start in milliseconds
+ * @param displayEndMs - Current display end in milliseconds
+ * @param newRangeMs - Desired new range in milliseconds
+ * @param entityStartTime - Entity start time (workflow start)
+ * @param entityEndTime - Entity end time (undefined if running)
+ * @param now - Current "NOW" timestamp
+ * @param bucketTimestamps - Bucket timestamps for calculating bucket width
+ * @param validateFn - Function to validate invalid zone limits
+ * @returns Asymmetric zoom result
+ */
+function calculateAsymmetricZoom(
+  displayStartMs: number,
+  displayEndMs: number,
+  newRangeMs: number,
+  entityStartTime: Date | undefined,
+  entityEndTime: Date | undefined,
+  now: number | undefined,
+  bucketTimestamps: Date[],
+  validateFn: typeof validateInvalidZoneLimits,
+): AsymmetricZoomResult {
+  const centerMs = (displayStartMs + displayEndMs) / 2;
+  const halfRange = newRangeMs / 2;
+
+  // Step 1: Try symmetric expansion
+  const symmetricStart = centerMs - halfRange;
+  const symmetricEnd = centerMs + halfRange;
+
+  const symmetricValidation = validateFn(
+    symmetricStart,
+    symmetricEnd,
+    entityStartTime,
+    entityEndTime,
+    now,
+    bucketTimestamps,
+  );
+
+  // If symmetric works, use it
+  if (!symmetricValidation.blocked) {
+    return {
+      blocked: false,
+      newStartMs: symmetricStart,
+      newEndMs: symmetricEnd,
+      wasAsymmetric: false,
+    };
+  }
+
+  // Step 2: Determine which constraint was violated
+  const { reason } = symmetricValidation;
+
+  // Step 3: If combined limit violated, cannot shift - BLOCK
+  if (reason === "combined-invalid-zone-limit") {
+    return {
+      blocked: true,
+      reason: "combined-invalid-zone-limit: cannot shift when both sides contribute to overflow",
+    };
+  }
+
+  // Step 4: Try shifting the deficit to the other side
+  const entityStartMs = entityStartTime?.getTime() ?? -Infinity;
+  const entityEndMs = entityEndTime?.getTime() ?? now ?? Date.now();
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+  // Calculate how much we're overflowing on the blocked side
+  // and try to shift that amount to the other side
+  if (reason === "left-invalid-zone-limit") {
+    // Left side is overflowing - shift expansion to the right
+    // Keep the left edge closer to entity start (with gap buffer)
+    const minLeftEdgeMs = entityStartMs - bucketWidthMs; // One bucket gap
+    const constrainedStart = Math.max(symmetricStart, minLeftEdgeMs);
+    const deficitMs = constrainedStart - symmetricStart;
+    const shiftedEnd = symmetricEnd + deficitMs;
+
+    // Validate the shifted version
+    const shiftedValidation = validateFn(
+      constrainedStart,
+      shiftedEnd,
+      entityStartTime,
+      entityEndTime,
+      now,
+      bucketTimestamps,
+    );
+
+    if (!shiftedValidation.blocked) {
+      return {
+        blocked: false,
+        newStartMs: constrainedStart,
+        newEndMs: shiftedEnd,
+        wasAsymmetric: true,
+      };
+    }
+
+    // Shifted version also failed - BLOCK entirely
+    return {
+      blocked: true,
+      reason: `asymmetric-shift-failed: shifted left→right but ${shiftedValidation.reason}`,
+    };
+  }
+
+  if (reason === "right-invalid-zone-limit") {
+    // Right side is overflowing - shift expansion to the left
+    // Keep the right edge closer to entity end/now (with gap buffer)
+    const maxRightEdgeMs = entityEndMs + bucketWidthMs; // One bucket gap
+    const constrainedEnd = Math.min(symmetricEnd, maxRightEdgeMs);
+    const deficitMs = symmetricEnd - constrainedEnd;
+    const shiftedStart = symmetricStart - deficitMs;
+
+    // Validate the shifted version
+    const shiftedValidation = validateFn(
+      shiftedStart,
+      constrainedEnd,
+      entityStartTime,
+      entityEndTime,
+      now,
+      bucketTimestamps,
+    );
+
+    if (!shiftedValidation.blocked) {
+      return {
+        blocked: false,
+        newStartMs: shiftedStart,
+        newEndMs: constrainedEnd,
+        wasAsymmetric: true,
+      };
+    }
+
+    // Shifted version also failed - BLOCK entirely
+    return {
+      blocked: true,
+      reason: `asymmetric-shift-failed: shifted right→left but ${shiftedValidation.reason}`,
+    };
+  }
+
+  // Unknown reason - should not happen, but block to be safe
+  return {
+    blocked: true,
+    reason: `unknown-validation-reason: ${reason}`,
+  };
 }
 
 // =============================================================================
@@ -284,56 +470,76 @@ export function useTimelineWheelGesture(
         // Skip if no effective delta (prevents spurious zoom when delta=0)
         if (primaryDelta === 0) return;
 
-        const factor = primaryDelta < 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
+        const isZoomingIn = primaryDelta < 0;
+        const factor = isZoomingIn ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
         const newRangeMs = displayRangeMs * factor;
 
-        // Respect minimum range
-        if (newRangeMs < MIN_RANGE_MS) {
+        // Calculate bucket width for bucket count constraints
+        const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+        const newBucketCount = bucketWidthMs > 0 ? newRangeMs / bucketWidthMs : 0;
+
+        // ====================================================================
+        // ZOOM IN constraints
+        // ====================================================================
+        if (isZoomingIn) {
+          // Check MIN_RANGE_MS (1 minute minimum)
+          if (newRangeMs < MIN_RANGE_MS) {
+            logWheelEvent({
+              timestamp: Date.now(),
+              dx,
+              dy,
+              effectiveDelta: primaryDelta,
+              isZoom: true,
+              wasBlocked: true,
+              blockReason: "MIN_RANGE_MS",
+              oldRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              newRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              context: buildDebugContext(),
+            });
+            return;
+          }
+
+          // Check MIN_BUCKET_COUNT (prevents zooming in past 20 bars)
+          if (newBucketCount < MIN_BUCKET_COUNT && bucketWidthMs > 0) {
+            logWheelEvent({
+              timestamp: Date.now(),
+              dx,
+              dy,
+              effectiveDelta: primaryDelta,
+              isZoom: true,
+              wasBlocked: true,
+              blockReason: `MIN_BUCKET_COUNT: ${newBucketCount.toFixed(1)} < ${MIN_BUCKET_COUNT}`,
+              oldRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              newRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              context: buildDebugContext(),
+            });
+            return;
+          }
+
+          // For zoom in, use simple symmetric zoom (no asymmetric needed - zooming in doesn't expand invalid zones)
+          const centerMs = (displayStartMs + displayEndMs) / 2;
+          const newStart = new Date(centerMs - newRangeMs / 2);
+          const newEnd = new Date(centerMs + newRangeMs / 2);
+
           logWheelEvent({
             timestamp: Date.now(),
             dx,
             dy,
             effectiveDelta: primaryDelta,
             isZoom: true,
-            wasBlocked: true,
-            blockReason: "MIN_RANGE_MS",
-            oldRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            newRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            context: buildDebugContext(),
-          });
-          return;
-        }
-
-        // Use center of display range as zoom origin
-        const centerMs = (displayStartMs + displayEndMs) / 2;
-        const newStart = new Date(centerMs - newRangeMs / 2);
-        const newEnd = new Date(centerMs + newRangeMs / 2);
-
-        // Validate invalid zone limits
-        const validation = validateInvalidZoneLimits(
-          newStart.getTime(),
-          newEnd.getTime(),
-          debugContext?.entityStartTime,
-          debugContext?.entityEndTime,
-          debugContext?.now,
-          bucketTimestamps,
-        );
-
-        if (validation.blocked) {
-          logWheelEvent({
-            timestamp: Date.now(),
-            dx,
-            dy,
-            effectiveDelta: primaryDelta,
-            isZoom: true,
-            wasBlocked: true,
-            blockReason: validation.reason,
+            wasBlocked: false,
             oldRange: {
               start: new Date(displayStartMs).toISOString(),
               end: new Date(displayEndMs).toISOString(),
@@ -344,8 +550,99 @@ export function useTimelineWheelGesture(
             },
             context: buildDebugContext(),
           });
+
+          actions.setPendingDisplay(newStart, newEnd);
+          onDisplayRangeChange(newStart, newEnd);
           return;
         }
+
+        // ====================================================================
+        // ZOOM OUT constraints
+        // ====================================================================
+
+        // Check MAX_RANGE_MS (1 day maximum)
+        if (newRangeMs > MAX_RANGE_MS) {
+          logWheelEvent({
+            timestamp: Date.now(),
+            dx,
+            dy,
+            effectiveDelta: primaryDelta,
+            isZoom: true,
+            wasBlocked: true,
+            blockReason: "MAX_RANGE_MS",
+            oldRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            newRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            context: buildDebugContext(),
+          });
+          return;
+        }
+
+        // Check MAX_BUCKET_COUNT (prevents zooming out past 100 bars)
+        if (newBucketCount > MAX_BUCKET_COUNT && bucketWidthMs > 0) {
+          logWheelEvent({
+            timestamp: Date.now(),
+            dx,
+            dy,
+            effectiveDelta: primaryDelta,
+            isZoom: true,
+            wasBlocked: true,
+            blockReason: `MAX_BUCKET_COUNT: ${newBucketCount.toFixed(1)} > ${MAX_BUCKET_COUNT}`,
+            oldRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            newRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            context: buildDebugContext(),
+          });
+          return;
+        }
+
+        // For zoom out, use asymmetric zoom calculation
+        // This tries symmetric first, then shifts to one side if needed
+        const asymmetricResult = calculateAsymmetricZoom(
+          displayStartMs,
+          displayEndMs,
+          newRangeMs,
+          debugContext?.entityStartTime,
+          debugContext?.entityEndTime,
+          debugContext?.now,
+          bucketTimestamps,
+          validateInvalidZoneLimits,
+        );
+
+        if (asymmetricResult.blocked) {
+          logWheelEvent({
+            timestamp: Date.now(),
+            dx,
+            dy,
+            effectiveDelta: primaryDelta,
+            isZoom: true,
+            wasBlocked: true,
+            blockReason: asymmetricResult.reason,
+            oldRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            newRange: {
+              start: new Date(displayStartMs).toISOString(),
+              end: new Date(displayEndMs).toISOString(),
+            },
+            context: buildDebugContext(),
+          });
+          return;
+        }
+
+        const newStart = new Date(asymmetricResult.newStartMs!);
+        const newEnd = new Date(asymmetricResult.newEndMs!);
 
         logWheelEvent({
           timestamp: Date.now(),
@@ -354,6 +651,7 @@ export function useTimelineWheelGesture(
           effectiveDelta: primaryDelta,
           isZoom: true,
           wasBlocked: false,
+          blockReason: asymmetricResult.wasAsymmetric ? "asymmetric-zoom-applied" : undefined,
           oldRange: {
             start: new Date(displayStartMs).toISOString(),
             end: new Date(displayEndMs).toISOString(),
