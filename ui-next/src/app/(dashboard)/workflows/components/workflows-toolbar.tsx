@@ -19,8 +19,7 @@
 import { memo, useMemo } from "react";
 import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Toggle } from "@/components/shadcn/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { SearchChip } from "@/stores";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar";
 import { TableToolbar } from "@/components/data-table";
@@ -65,19 +64,15 @@ interface UserToggleProps {
 
 const UserToggle = memo(function UserToggle({ showAllUsers, onToggle }: UserToggleProps) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Toggle
-          size="sm"
-          pressed={showAllUsers}
-          onPressedChange={onToggle}
-          aria-label={showAllUsers ? "Show my workflows only" : "Show all users' workflows"}
-        >
-          {showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
-        </Toggle>
-      </TooltipTrigger>
-      <TooltipContent side="top">{showAllUsers ? "All Users' Workflows" : "My Workflows"}</TooltipContent>
-    </Tooltip>
+    <SemiStatefulButton
+      onClick={onToggle}
+      currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
+      nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
+      currentStateLabel={showAllUsers ? "All Users' Workflows" : "My Workflows"}
+      nextStateLabel={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
+      aria-label={showAllUsers ? "Currently showing all users' workflows" : "Currently showing my workflows"}
+      tooltipSide="top"
+    />
   );
 });
 
