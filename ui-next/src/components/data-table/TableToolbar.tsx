@@ -26,7 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { Toggle } from "@/components/shadcn/toggle";
+import { Button } from "@/components/shadcn/button";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useSharedPreferences, type SearchChip } from "@/stores";
 import { FilterBar, type SearchField, type SearchPreset, type ResultsCount } from "@/components/filter-bar";
@@ -102,30 +103,26 @@ function TableToolbarInner<T>({
       <div className="flex items-center gap-1">
         {children}
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Toggle
-              size="sm"
-              pressed={compactMode}
-              onPressedChange={toggleCompactMode}
-              aria-label={compactMode ? "Compact view" : "Comfortable view"}
-            >
-              {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
-            </Toggle>
-          </TooltipTrigger>
-          <TooltipContent>{compactMode ? "Compact view" : "Comfortable view"}</TooltipContent>
-        </Tooltip>
+        <SemiStatefulButton
+          onClick={toggleCompactMode}
+          currentStateIcon={compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
+          nextStateIcon={compactMode ? <Rows3 className="size-4" /> : <Rows4 className="size-4" />}
+          currentStateLabel={compactMode ? "Compact View" : "Comfortable View"}
+          nextStateLabel={compactMode ? "Switch to Comfortable" : "Switch to Compact"}
+          aria-label={compactMode ? "Currently in compact view" : "Currently in comfortable view"}
+        />
 
         <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Toggle
+                <Button
                   size="sm"
+                  variant="outline"
                   aria-label="Toggle columns"
                 >
                   <Columns className="size-4" />
-                </Toggle>
+                </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent>Toggle columns</TooltipContent>
