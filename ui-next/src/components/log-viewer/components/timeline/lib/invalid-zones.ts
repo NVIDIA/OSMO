@@ -21,6 +21,8 @@
  * Invalid zones indicate areas where logs cannot exist (before workflow start or after completion).
  */
 
+import { GAP_BUCKET_MULTIPLIER } from "./timeline-constants";
+
 export interface InvalidZonePositions {
   /** Left zone width as percentage (0-100) */
   leftInvalidWidth: number;
@@ -96,8 +98,8 @@ export function calculateInvalidZonePositions(
   // LEFT ZONE: Before entity start
   // ============================================================================
 
-  // Left gap = 1.0 bucket width (one bar's worth of empty space as visual buffer)
-  const leftGapMs = bucketWidthMs * 1.0;
+  // Left gap = GAP_BUCKET_MULTIPLIER bucket widths (one bar's worth of empty space as visual buffer)
+  const leftGapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
 
   // Left zone ends 1.0 bucket width BEFORE entity start
   // Gap goes from (entityStart - 1.0 bucket) to entityStart
@@ -129,8 +131,8 @@ export function calculateInvalidZonePositions(
   // Use entityEnd if available, otherwise NOW
   const rightBoundaryMs = entityEndMs ?? nowMs;
 
-  // Right gap = 1.0 bucket width (one bar's worth of empty space as visual buffer)
-  const rightGapMs = bucketWidthMs * 1.0;
+  // Right gap = GAP_BUCKET_MULTIPLIER bucket widths (one bar's worth of empty space as visual buffer)
+  const rightGapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
 
   // Gap goes from rightBoundary to (rightBoundary + 1.0 bucket)
   // Zone starts 1.0 bucket width after the boundary

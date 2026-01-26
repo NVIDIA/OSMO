@@ -56,16 +56,14 @@ import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState, useEffect } from "react";
 import type { useTimelineState } from "./use-timeline-state";
 import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
+import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
 import {
   PAN_FACTOR,
   ZOOM_IN_FACTOR,
   ZOOM_OUT_FACTOR,
-  MIN_RANGE_MS,
-  MAX_RANGE_MS,
-  MIN_BUCKET_COUNT,
-  MAX_BUCKET_COUNT,
   KEYBOARD_NUDGE_MS,
   NOW_THRESHOLD_MS,
+  MAX_INVALID_ZONE_PERCENT_PER_SIDE,
 } from "../lib/timeline-constants";
 import { calculateBucketWidth } from "../lib/invalid-zones";
 
@@ -110,12 +108,6 @@ function initializeDebug() {
 
   const params = new URLSearchParams(window.location.search);
   isDebugEnabled = params.get("debug") === "timeline" || params.get("debug") === "true";
-
-  console.log("[Timeline Debug] Initialization check:", {
-    url: window.location.href,
-    debugParam: params.get("debug"),
-    isDebugEnabled,
-  });
 
   if (isDebugEnabled) {
     console.log("[Timeline Debug] ✅ ENABLED - use window.timelineDebug() to view logs");
@@ -279,8 +271,10 @@ function calculateAsymmetricZoom(
   // and try to shift that amount to the other side
   if (reason === "left-invalid-zone-limit") {
     // Left side is overflowing - shift expansion to the right
-    // Keep the left edge closer to entity start (with gap buffer)
-    const minLeftEdgeMs = entityStartMs - bucketWidthMs; // One bucket gap
+    // Calculate the minimum left edge that keeps invalid zone ≤ 10% of new range
+    const invalidZoneEndMs = entityStartMs - bucketWidthMs; // Where invalid zone ends (gap start)
+    const maxInvalidZoneMs = newRangeMs * (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100);
+    const minLeftEdgeMs = invalidZoneEndMs - maxInvalidZoneMs; // Allow up to MAX_INVALID_ZONE_PERCENT_PER_SIDE
     const constrainedStart = Math.max(symmetricStart, minLeftEdgeMs);
     const deficitMs = constrainedStart - symmetricStart;
     const shiftedEnd = symmetricEnd + deficitMs;
@@ -313,8 +307,10 @@ function calculateAsymmetricZoom(
 
   if (reason === "right-invalid-zone-limit") {
     // Right side is overflowing - shift expansion to the left
-    // Keep the right edge closer to entity end/now (with gap buffer)
-    const maxRightEdgeMs = entityEndMs + bucketWidthMs; // One bucket gap
+    // Calculate the maximum right edge that keeps invalid zone ≤ 10% of new range
+    const invalidZoneStartMs = entityEndMs + bucketWidthMs; // Where invalid zone starts (gap end)
+    const maxInvalidZoneMs = newRangeMs * (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100);
+    const maxRightEdgeMs = invalidZoneStartMs + maxInvalidZoneMs; // Allow up to MAX_INVALID_ZONE_PERCENT_PER_SIDE
     const constrainedEnd = Math.min(symmetricEnd, maxRightEdgeMs);
     const deficitMs = symmetricEnd - constrainedEnd;
     const shiftedStart = symmetricStart - deficitMs;
@@ -442,14 +438,16 @@ export function useTimelineWheelGesture(
 
   useWheel(
     ({ event, delta: [dx, dy] }) => {
-      // ALWAYS log to verify handler is called (even when debug is disabled)
-      console.log("[Timeline Wheel] Event received:", {
-        dx,
-        dy,
-        metaKey: event.metaKey,
-        ctrlKey: event.ctrlKey,
-        debugEnabled: isDebugEnabled,
-      });
+      // Log only in debug mode to avoid production performance overhead
+      if (isDebugEnabled) {
+        console.log("[Timeline Wheel] Event received:", {
+          dx,
+          dy,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          debugEnabled: isDebugEnabled,
+        });
+      }
 
       // Prevent default browser scroll behavior
       event.preventDefault();
@@ -476,14 +474,14 @@ export function useTimelineWheelGesture(
 
         // Calculate bucket width for bucket count constraints
         const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-        const newBucketCount = bucketWidthMs > 0 ? newRangeMs / bucketWidthMs : 0;
 
         // ====================================================================
         // ZOOM IN constraints
         // ====================================================================
         if (isZoomingIn) {
-          // Check MIN_RANGE_MS (1 minute minimum)
-          if (newRangeMs < MIN_RANGE_MS) {
+          // Validate zoom in constraints (MIN_RANGE_MS, MIN_BUCKET_COUNT)
+          const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
+          if (zoomInValidation.blocked) {
             logWheelEvent({
               timestamp: Date.now(),
               dx,
@@ -491,7 +489,7 @@ export function useTimelineWheelGesture(
               effectiveDelta: primaryDelta,
               isZoom: true,
               wasBlocked: true,
-              blockReason: "MIN_RANGE_MS",
+              blockReason: zoomInValidation.reason,
               oldRange: {
                 start: new Date(displayStartMs).toISOString(),
                 end: new Date(displayEndMs).toISOString(),
@@ -505,8 +503,22 @@ export function useTimelineWheelGesture(
             return;
           }
 
-          // Check MIN_BUCKET_COUNT (prevents zooming in past 20 bars)
-          if (newBucketCount < MIN_BUCKET_COUNT && bucketWidthMs > 0) {
+          // Calculate symmetric zoom using pure function
+          const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
+
+          // CRITICAL: Validate invalid zone constraints for zoom in
+          // When zooming in near invalid zones, the percentage of invalid zone
+          // INCREASES (relative to the smaller viewport), potentially violating limits
+          const validation = validateInvalidZoneLimits(
+            newStartMs,
+            newEndMs,
+            debugContext?.entityStartTime,
+            debugContext?.entityEndTime,
+            debugContext?.now,
+            bucketTimestamps,
+          );
+
+          if (validation.blocked) {
             logWheelEvent({
               timestamp: Date.now(),
               dx,
@@ -514,24 +526,22 @@ export function useTimelineWheelGesture(
               effectiveDelta: primaryDelta,
               isZoom: true,
               wasBlocked: true,
-              blockReason: `MIN_BUCKET_COUNT: ${newBucketCount.toFixed(1)} < ${MIN_BUCKET_COUNT}`,
+              blockReason: validation.reason,
               oldRange: {
                 start: new Date(displayStartMs).toISOString(),
                 end: new Date(displayEndMs).toISOString(),
               },
               newRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
+                start: new Date(newStartMs).toISOString(),
+                end: new Date(newEndMs).toISOString(),
               },
               context: buildDebugContext(),
             });
             return;
           }
 
-          // For zoom in, use simple symmetric zoom (no asymmetric needed - zooming in doesn't expand invalid zones)
-          const centerMs = (displayStartMs + displayEndMs) / 2;
-          const newStart = new Date(centerMs - newRangeMs / 2);
-          const newEnd = new Date(centerMs + newRangeMs / 2);
+          const newStart = new Date(newStartMs);
+          const newEnd = new Date(newEndMs);
 
           logWheelEvent({
             timestamp: Date.now(),
@@ -560,8 +570,9 @@ export function useTimelineWheelGesture(
         // ZOOM OUT constraints
         // ====================================================================
 
-        // Check MAX_RANGE_MS (1 day maximum)
-        if (newRangeMs > MAX_RANGE_MS) {
+        // Validate zoom out constraints (MAX_RANGE_MS, MAX_BUCKET_COUNT)
+        const zoomOutValidation = validateZoomOutConstraints(newRangeMs, bucketWidthMs);
+        if (zoomOutValidation.blocked) {
           logWheelEvent({
             timestamp: Date.now(),
             dx,
@@ -569,30 +580,7 @@ export function useTimelineWheelGesture(
             effectiveDelta: primaryDelta,
             isZoom: true,
             wasBlocked: true,
-            blockReason: "MAX_RANGE_MS",
-            oldRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            newRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            context: buildDebugContext(),
-          });
-          return;
-        }
-
-        // Check MAX_BUCKET_COUNT (prevents zooming out past 100 bars)
-        if (newBucketCount > MAX_BUCKET_COUNT && bucketWidthMs > 0) {
-          logWheelEvent({
-            timestamp: Date.now(),
-            dx,
-            dy,
-            effectiveDelta: primaryDelta,
-            isZoom: true,
-            wasBlocked: true,
-            blockReason: `MAX_BUCKET_COUNT: ${newBucketCount.toFixed(1)} > ${MAX_BUCKET_COUNT}`,
+            blockReason: zoomOutValidation.reason,
             oldRange: {
               start: new Date(displayStartMs).toISOString(),
               end: new Date(displayEndMs).toISOString(),
@@ -754,7 +742,9 @@ export function useTimelineWheelGesture(
 
   // Debug: Log when ref is attached (runs once after mount)
   useEffect(() => {
-    console.log("[Timeline Wheel] useWheel hook configured, containerRef.current:", containerRef.current);
+    if (isDebugEnabled) {
+      console.log("[Timeline Wheel] useWheel hook configured, containerRef.current:", containerRef.current);
+    }
   }, [containerRef]);
 }
 
