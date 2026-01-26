@@ -1,0 +1,815 @@
+{
+  "version": "1.0",
+  "description": "Test cases for calculate_pod_status function - shared between Python and Go implementations",
+  "constants": {
+    "exit_code_offsets": {
+      "INIT": 255,
+      "PREFLIGHT": 1000,
+      "CTRL": 2000
+    },
+    "waiting_reason_error_codes": {
+      "ImagePullBackOff": 301,
+      "ErrImagePull": 302,
+      "CreateContainerConfigError": 303,
+      "CrashLoopBackOff": 304
+    },
+    "exit_codes": {
+      "FAILED_PREEMPTED": 3006,
+      "FAILED_EVICTED": 3004,
+      "FAILED_START_ERROR": 3003,
+      "FAILED_BACKEND_ERROR": 3001,
+      "FAILED_UNKNOWN": 4000
+    }
+  },
+  "test_cases": [
+    {
+      "name": "test_preempted_pod",
+      "description": "Pod preempted by scheduler",
+      "input": {
+        "phase": "Running",
+        "pod_name": "test-pod",
+        "reason": null,
+        "message": null,
+        "conditions": [
+          {
+            "type": "PreemptionByScheduler",
+            "status": "True",
+            "reason": "PreemptionByScheduler",
+            "message": "Pod preempted",
+            "last_transition_time": "now"
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_PREEMPTED",
+        "message_contains": ["preempt"],
+        "exit_code": 3006
+      }
+    },
+    {
+      "name": "test_pending_pod",
+      "description": "Pod in Pending state",
+      "input": {
+        "phase": "Pending"
+      },
+      "expected": {
+        "status": "SCHEDULING",
+        "exit_code": null
+      }
+    },
+    {
+      "name": "test_running_pod",
+      "description": "Pod in Running state",
+      "input": {
+        "phase": "Running",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "running": {}
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "RUNNING",
+        "exit_code": null
+      }
+    },
+    {
+      "name": "test_succeeded_pod",
+      "description": "Pod completed successfully",
+      "input": {
+        "phase": "Succeeded"
+      },
+      "expected": {
+        "status": "COMPLETED",
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "test_failed_pod",
+      "description": "Pod failed",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": "Container failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "message_contains": ["Exit code"],
+        "exit_code": 1
+      }
+    },
+    {
+      "name": "test_initializing_pod",
+      "description": "Pod initializing with init containers",
+      "input": {
+        "phase": "Pending",
+        "init_container_statuses": [
+          {
+            "name": "init-container",
+            "state": {
+              "waiting": {
+                "reason": "ContainerCreating",
+                "message": "Creating container"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "INITIALIZING",
+        "exit_code": null
+      }
+    },
+    {
+      "name": "test_pod_initializing_with_pod_initializing_reason",
+      "description": "Pod initializing with PodInitializing reason",
+      "input": {
+        "phase": "Pending",
+        "init_container_statuses": [
+          {
+            "name": "init-container",
+            "state": {
+              "waiting": {
+                "reason": "PodInitializing",
+                "message": "Pod initializing"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "INITIALIZING",
+        "exit_code": null
+      }
+    },
+    {
+      "name": "test_running_pod_with_terminated_osmo_ctrl",
+      "description": "Running pod with terminated osmo-ctrl container",
+      "input": {
+        "phase": "Running",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": null
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 2001,
+        "exit_code_calculation": "CTRL_OFFSET + 1"
+      }
+    },
+    {
+      "name": "test_running_pod_with_start_error",
+      "description": "Running pod with StartError in container",
+      "input": {
+        "phase": "Running",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "terminated": {
+                "reason": "StartError",
+                "exit_code": 125,
+                "message": "Failed to start"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 125
+      }
+    },
+    {
+      "name": "test_failed_pod_with_oomkilled",
+      "description": "Failed pod with OOMKilled reason",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "terminated": {
+                "reason": "OOMKilled",
+                "exit_code": 137,
+                "message": "Out of memory"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_EVICTED",
+        "exit_code": 3004
+      }
+    },
+    {
+      "name": "test_failed_pod_with_pod_message",
+      "description": "Failed pod with pod-level error message",
+      "input": {
+        "phase": "Failed",
+        "pod_name": "test-pod",
+        "message": "Pod level error",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": "Container error"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "message_contains": ["test-pod", "Pod level error"],
+        "exit_code": 1
+      }
+    },
+    {
+      "name": "test_failed_pod_with_unknown_exit_code",
+      "description": "Failed pod without exit code information",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": []
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 4000
+      }
+    },
+    {
+      "name": "test_image_pull_error",
+      "description": "Pod with ImagePullBackOff error",
+      "input": {
+        "phase": "Pending",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "ImagePullBackOff",
+                "message": "Failed to pull image"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_IMAGE_PULL",
+        "message_contains": ["ImagePullBackOff"],
+        "exit_code": 301
+      }
+    },
+    {
+      "name": "test_err_image_pull",
+      "description": "Pod with ErrImagePull error",
+      "input": {
+        "phase": "Pending",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "ErrImagePull",
+                "message": "Error pulling image"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_IMAGE_PULL",
+        "exit_code": 302
+      }
+    },
+    {
+      "name": "test_create_container_config_error_recent",
+      "description": "Pod with CreateContainerConfigError (recent)",
+      "input": {
+        "phase": "Pending",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "CreateContainerConfigError",
+                "message": "Config error"
+              }
+            }
+          }
+        ],
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "False",
+            "reason": "ContainersNotReady",
+            "message": "containers not ready",
+            "last_transition_time": "now-5m"
+          }
+        ]
+      },
+      "expected": {
+        "status": "SCHEDULING",
+        "exit_code": null
+      }
+    },
+    {
+      "name": "test_create_container_config_error_timeout",
+      "description": "Pod with CreateContainerConfigError (timeout after 10 minutes)",
+      "input": {
+        "phase": "Pending",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "CreateContainerConfigError",
+                "message": "Config error"
+              }
+            }
+          }
+        ],
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "False",
+            "reason": "ContainersNotReady",
+            "message": "containers not ready",
+            "last_transition_time": "now-15m"
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
+      "name": "test_generic_waiting_error",
+      "description": "Pod with generic waiting error",
+      "input": {
+        "phase": "Pending",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "CrashLoopBackOff",
+                "message": "Container crashed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 304
+      }
+    },
+    {
+      "name": "test_evicted_pod",
+      "description": "Pod with Evicted reason",
+      "input": {
+        "phase": "Failed",
+        "reason": "Evicted"
+      },
+      "expected": {
+        "status": "FAILED_EVICTED",
+        "exit_code": 3004
+      }
+    },
+    {
+      "name": "test_start_error_pod",
+      "description": "Pod with StartError reason",
+      "input": {
+        "phase": "Failed",
+        "reason": "StartError"
+      },
+      "expected": {
+        "status": "FAILED_START_ERROR",
+        "exit_code": 3003
+      }
+    },
+    {
+      "name": "test_unexpected_admission_error",
+      "description": "Pod with UnexpectedAdmissionError reason (e.g., GPU drops)",
+      "input": {
+        "phase": "Failed",
+        "reason": "UnexpectedAdmissionError"
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
+      "name": "test_disruption_target_condition",
+      "description": "Pod with DisruptionTarget condition",
+      "input": {
+        "phase": "Running",
+        "conditions": [
+          {
+            "type": "DisruptionTarget",
+            "status": "True",
+            "reason": "EvictionByEvictionAPI",
+            "message": "Pod evicted",
+            "last_transition_time": "now"
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_BACKEND_ERROR",
+        "exit_code": 3001
+      }
+    },
+    {
+      "name": "test_osmo_init_exit_code_offset",
+      "description": "osmo-init container exit code with offset",
+      "input": {
+        "phase": "Failed",
+        "init_container_statuses": [
+          {
+            "name": "osmo-init",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": "Init failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 256,
+        "exit_code_calculation": "INIT_OFFSET + 1"
+      }
+    },
+    {
+      "name": "test_preflight_test_exit_code_offset",
+      "description": "preflight-test container exit code with offset",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "preflight-test",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 2,
+                "message": "Preflight failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 1002,
+        "exit_code_calculation": "PREFLIGHT_OFFSET + 2"
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_with_json_message",
+      "description": "osmo-ctrl container with JSON error message",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": "{\"code\": 2500, \"error\": \"Control error\"}"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 4500,
+        "exit_code_calculation": "CTRL_OFFSET + 2500"
+      }
+    },
+    {
+      "name": "test_multiple_container_failures",
+      "description": "Multiple containers failed, should return max exit code",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "test-container-1",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": "Container 1 failed"
+              }
+            }
+          },
+          {
+            "name": "test-container-2",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 5,
+                "message": "Container 2 failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 5,
+        "message_contains": ["test-container-1", "test-container-2"]
+      }
+    },
+    {
+      "name": "test_waiting_on_error_overrides_completed",
+      "description": "Waiting on error should override completed status",
+      "input": {
+        "phase": "Succeeded",
+        "container_statuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "ImagePullBackOff",
+                "message": "Failed to pull"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_IMAGE_PULL",
+        "exit_code": 301
+      }
+    },
+    {
+      "name": "test_pod_reason_overrides_conditions",
+      "description": "Pod reason (Evicted) should override other conditions",
+      "input": {
+        "phase": "Failed",
+        "reason": "Evicted",
+        "conditions": [
+          {
+            "type": "DisruptionTarget",
+            "status": "True",
+            "reason": "EvictionByEvictionAPI",
+            "message": "Pod evicted",
+            "last_transition_time": "now"
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED_EVICTED",
+        "exit_code": 3004
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_with_invalid_json_message",
+      "description": "osmo-ctrl container with invalid JSON message should fallback to exit_code",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 5,
+                "message": "invalid json {not a valid json"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 2005,
+        "exit_code_calculation": "CTRL_OFFSET + 5"
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_with_no_message",
+      "description": "osmo-ctrl container with no message should use exit_code",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 3,
+                "message": null
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 2003,
+        "exit_code_calculation": "CTRL_OFFSET + 3"
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_completed_in_running_phase",
+      "description": "osmo-ctrl with Completed reason in Running phase should trigger cleanup but not count as error",
+      "input": {
+        "phase": "Running",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Completed",
+                "exit_code": 0,
+                "message": null
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "RUNNING",
+        "exit_code": null,
+        "note": "Completed containers are skipped in get_container_failure_message"
+      }
+    },
+    {
+      "name": "test_user_container_terminated_in_running_without_start_error",
+      "description": "User container terminated in Running phase without StartError should NOT trigger cleanup",
+      "input": {
+        "phase": "Running",
+        "container_statuses": [
+          {
+            "name": "user-container",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 1,
+                "message": "User container failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "RUNNING",
+        "exit_code": null,
+        "note": "Only osmo-ctrl or StartError reason triggers cleanup in Running phase"
+      }
+    },
+    {
+      "name": "test_user_container_completed_in_running",
+      "description": "User container with Completed reason should be skipped",
+      "input": {
+        "phase": "Running",
+        "container_statuses": [
+          {
+            "name": "user-container",
+            "state": {
+              "terminated": {
+                "reason": "Completed",
+                "exit_code": 0,
+                "message": null
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "RUNNING",
+        "exit_code": null
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_and_user_container_both_failed",
+      "description": "Both osmo-ctrl and user container failed, should return max exit code",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 10,
+                "message": null
+              }
+            }
+          },
+          {
+            "name": "user-container",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 50,
+                "message": "User failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 2010,
+        "exit_code_calculation": "max(CTRL_OFFSET + 10, 50) = 2010",
+        "message_contains": ["OSMO Control", "user-container"]
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_completed_and_user_container_failed",
+      "description": "osmo-ctrl Completed and user container failed, only user container counts",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Completed",
+                "exit_code": 0,
+                "message": null
+              }
+            }
+          },
+          {
+            "name": "user-container",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 7,
+                "message": "User failed"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 7,
+        "message_contains": ["user-container"],
+        "note": "Completed containers are skipped"
+      }
+    },
+    {
+      "name": "test_osmo_ctrl_in_failed_phase",
+      "description": "osmo-ctrl failure in Failed phase (not Running)",
+      "input": {
+        "phase": "Failed",
+        "container_statuses": [
+          {
+            "name": "osmo-ctrl",
+            "state": {
+              "terminated": {
+                "reason": "Error",
+                "exit_code": 15,
+                "message": "{\"code\": 100, \"error\": \"Control error\"}"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "exit_code": 2100,
+        "exit_code_calculation": "CTRL_OFFSET + 100 (from JSON)"
+      }
+    }
+  ]
+}
+
