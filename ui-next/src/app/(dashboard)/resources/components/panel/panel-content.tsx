@@ -18,16 +18,21 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button } from "@/components/shadcn/button";
 import { CapacityBar } from "@/components/capacity-bar";
 import { ApiError } from "@/components/error";
 import { CopyableValue, CopyableBlock } from "@/components/copyable-value";
 import { ItemSelector } from "@/components/item-selector";
 import { BooleanIndicator } from "@/components/boolean-indicator";
+import { PlaceholderSection } from "@/components/placeholder-section";
 import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
+import { useViewTransition } from "@/hooks";
 
 interface ResourcePanelContentProps {
   resource: Resource;
@@ -42,6 +47,9 @@ export function ResourcePanelContent({
   selectedPool: initialSelectedPool,
   onPoolSelect,
 }: ResourcePanelContentProps) {
+  const router = useRouter();
+  const { startTransition } = useViewTransition();
+
   const { pools, initialPool, taskConfigByPool, isLoadingPools, error, refetch } = useResourceDetail(
     resource,
     initialSelectedPool ?? undefined,
@@ -55,6 +63,14 @@ export function ResourcePanelContent({
     setSelectedPool(pool);
     onPoolSelect?.(pool);
   };
+
+  // Navigate to pool details page with selected pool pre-opened
+  const handleViewPoolDetails = useCallback(() => {
+    if (!selectedPool) return;
+    startTransition(() => {
+      router.push(`/pools?view=${encodeURIComponent(selectedPool)}`);
+    });
+  }, [selectedPool, router, startTransition]);
 
   // Get task config for selected pool
   const taskConfig = selectedPool ? (taskConfigByPool[selectedPool] ?? null) : null;
@@ -141,13 +157,24 @@ export function ResourcePanelContent({
           ) : (
             <Card className="gap-0 py-0">
               {/* Pool Selector Header */}
-              <div className="border-border bg-muted/30 border-b px-4 py-2.5">
+              <div className="border-border bg-muted/30 flex items-center justify-between border-b px-4 py-2.5">
                 <ItemSelector
                   items={pools}
                   selectedItem={selectedPool}
                   onSelect={handlePoolSelect}
                   aria-label="Select pool"
                 />
+                {selectedPool && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleViewPoolDetails}
+                    className="text-muted-foreground hover:text-foreground -mr-2 gap-1 text-xs"
+                  >
+                    View Pool Details
+                    <ArrowUpRight className="size-3" />
+                  </Button>
+                )}
               </div>
 
               {/* Task Config Content */}
@@ -160,6 +187,15 @@ export function ResourcePanelContent({
               </CardContent>
             </Card>
           )}
+        </section>
+
+        {/* Placeholder: Active Tasks */}
+        <section>
+          <PlaceholderSection
+            title="Active Tasks"
+            description="Tasks currently running on this resource will appear here"
+            note="Coming soon: Cross-reference with task monitoring"
+          />
         </section>
       </div>
     </div>
