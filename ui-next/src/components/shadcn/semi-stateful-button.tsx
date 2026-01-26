@@ -27,12 +27,12 @@ import type { VariantProps } from "class-variance-authority";
  * to next state on hover/focus before committing on click.
  *
  * Design Philosophy:
- * - **Default**: Shows the current state (icon + tooltip)
- * - **Hover/Focus**: Transitions to next state (icon + tooltip)
+ * - **Default**: Shows the current state icon (no tooltip)
+ * - **Hover/Focus**: Transitions to next state icon + shows tooltip with action label
  * - **Click**: Commits the transition
  *
  * Example: Currently showing "My Workflows" (User icon)
- * - Default: Shows User icon + "My Workflows" tooltip
+ * - Default: Shows User icon (no tooltip)
  * - Hover: Shows Users icon + "Show All Workflows" tooltip
  * - Click: Switches to "All Workflows" state
  *
@@ -47,8 +47,7 @@ import type { VariantProps } from "class-variance-authority";
  *   onClick={toggleShowAllUsers}
  *   currentStateIcon={<User className="size-4" />}
  *   nextStateIcon={<Users className="size-4" />}
- *   currentStateLabel="My Workflows"
- *   nextStateLabel="Show All Workflows"
+ *   label="Show All Workflows"
  *   aria-label="Toggle user filter"
  * />
  * ```
@@ -59,10 +58,8 @@ export interface SemiStatefulButtonProps
   currentStateIcon: React.ReactNode;
   /** Icon to show when hovering/focusing (preview of next state) */
   nextStateIcon: React.ReactNode;
-  /** Tooltip label describing the current state */
-  currentStateLabel: string;
-  /** Tooltip label describing the action that will be taken (next state) */
-  nextStateLabel: string;
+  /** Tooltip label describing the action that will be taken (shown on hover only) */
+  label: string;
   /** Tooltip side positioning */
   tooltipSide?: "top" | "right" | "bottom" | "left";
 }
@@ -70,8 +67,7 @@ export interface SemiStatefulButtonProps
 export const SemiStatefulButton = memo(function SemiStatefulButton({
   currentStateIcon,
   nextStateIcon,
-  currentStateLabel,
-  nextStateLabel,
+  label,
   tooltipSide = "top",
   size = "sm",
   variant = "outline",
@@ -85,7 +81,6 @@ export const SemiStatefulButton = memo(function SemiStatefulButton({
   // Show next state when hovering or focused, otherwise show current state
   const showNextState = isHovering || isFocused;
   const displayIcon = showNextState ? nextStateIcon : currentStateIcon;
-  const displayLabel = showNextState ? nextStateLabel : currentStateLabel;
 
   // Handle click: reset hover state to show new current state immediately
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -111,7 +106,7 @@ export const SemiStatefulButton = memo(function SemiStatefulButton({
           {displayIcon}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side={tooltipSide}>{displayLabel}</TooltipContent>
+      <TooltipContent side={tooltipSide}>{label}</TooltipContent>
     </Tooltip>
   );
 });

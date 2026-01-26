@@ -371,7 +371,7 @@ Components are added to `src/components/shadcn/`. For custom components, add to 
 
 ### Semi-Stateful Button Pattern
 
-**Design Philosophy:** For buttons that toggle between two states (e.g., "My Workflows" ↔ "All Workflows"), use the **semi-stateful** pattern where the button shows the **current state** by default, then transitions to show the **next state** on hover/focus.
+**Design Philosophy:** For buttons that toggle between two states (e.g., "My Workflows" ↔ "All Workflows"), use the **semi-stateful** pattern where the button shows the **current state icon** by default, then transitions to show the **next state icon** on hover/focus.
 
 **Why:** This provides clear visual feedback about what state the user is in, while previewing what will happen if they click.
 
@@ -392,15 +392,14 @@ import { User, Users } from "lucide-react";
   onClick={toggleShowAllUsers}
   currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
   nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
-  currentStateLabel={showAllUsers ? "All Users' Workflows" : "My Workflows"}
-  nextStateLabel={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
+  label={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
   aria-label={showAllUsers ? "Currently showing all users' workflows" : "Currently showing my workflows"}
 />
 ```
 
 **Behavior:**
-1. **Default (not hovering):** Shows current state icon + current state label in tooltip
-2. **Hover/Focus:** Transitions to next state icon + action label in tooltip
+1. **Default (not hovering):** Shows current state icon (no tooltip)
+2. **Hover/Focus:** Transitions to next state icon + shows tooltip with action label
 3. **Click:** Executes the action, committing to the new state
 
 **Examples in codebase:**

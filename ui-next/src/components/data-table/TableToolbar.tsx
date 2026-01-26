@@ -107,8 +107,7 @@ function TableToolbarInner<T>({
           onClick={toggleCompactMode}
           currentStateIcon={compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
           nextStateIcon={compactMode ? <Rows3 className="size-4" /> : <Rows4 className="size-4" />}
-          currentStateLabel={compactMode ? "Compact View" : "Comfortable View"}
-          nextStateLabel={compactMode ? "Switch to Comfortable" : "Switch to Compact"}
+          label={compactMode ? "Switch to Comfortable" : "Switch to Compact"}
           aria-label={compactMode ? "Currently in compact view" : "Currently in comfortable view"}
         />
 
