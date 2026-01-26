@@ -55,7 +55,7 @@
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState, useEffect } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import { clampTimeToRange, validateInvalidZoneLimits, type TimelineBounds } from "../lib/timeline-utils";
+import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
 import {
   PAN_FACTOR,
   ZOOM_IN_FACTOR,
@@ -82,7 +82,6 @@ interface WheelDebugEvent {
   blockReason?: string;
   oldRange: { start: string; end: string };
   newRange: { start: string; end: string };
-  boundaries?: { start: string; end: string };
   context?: {
     entityStart?: string;
     entityEnd?: string;
@@ -219,7 +218,6 @@ function logWheelEvent(event: WheelDebugEvent) {
  *
  * @param containerRef - Container element ref
  * @param state - Timeline state from useTimelineState
- * @param panBoundaries - Entity boundaries for pan constraints
  * @param bucketTimestamps - Bucket timestamps for calculating bucket width
  * @param onDisplayRangeChange - Callback when display range changes
  * @param debugContext - Optional debug context (entityStart/End, now, window positions)
@@ -227,7 +225,6 @@ function logWheelEvent(event: WheelDebugEvent) {
 export function useTimelineWheelGesture(
   containerRef: React.RefObject<HTMLElement | null>,
   state: ReturnType<typeof useTimelineState>,
-  panBoundaries: TimelineBounds | null,
   bucketTimestamps: Date[],
   onDisplayRangeChange: (start: Date, end: Date) => void,
   debugContext?: {
@@ -422,12 +419,6 @@ export function useTimelineWheelGesture(
               start: newStart.toISOString(),
               end: newEnd.toISOString(),
             },
-            boundaries: panBoundaries
-              ? {
-                  start: panBoundaries.minTime.toISOString(),
-                  end: panBoundaries.maxTime.toISOString(),
-                }
-              : undefined,
             context: buildDebugContext(),
           });
           return;
@@ -448,12 +439,6 @@ export function useTimelineWheelGesture(
             start: newStart.toISOString(),
             end: newEnd.toISOString(),
           },
-          boundaries: panBoundaries
-            ? {
-                start: panBoundaries.minTime.toISOString(),
-                end: panBoundaries.maxTime.toISOString(),
-              }
-            : undefined,
           context: buildDebugContext(),
         });
 

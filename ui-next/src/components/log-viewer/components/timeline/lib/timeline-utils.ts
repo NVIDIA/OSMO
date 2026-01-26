@@ -78,108 +78,9 @@ export function isZoomGesture(newRangeMs: number, currentRangeMs: number, tolera
   return Math.abs(newRangeMs - currentRangeMs) > tolerance;
 }
 
-/**
- * Check if a pan gesture should be blocked at right boundary.
- *
- * @param newEndMs - New end time in milliseconds
- * @param currentEndMs - Current end time in milliseconds
- * @param boundaryEndMs - Boundary end time in milliseconds
- * @param newRangeMs - New range in milliseconds
- * @param currentRangeMs - Current range in milliseconds
- * @param thresholdMs - Threshold for boundary detection (default: 1000ms)
- * @returns True if pan should be blocked
- */
-export function shouldBlockPan(
-  newEndMs: number,
-  currentEndMs: number,
-  boundaryEndMs: number,
-  newRangeMs: number,
-  currentRangeMs: number,
-  thresholdMs: number = 1000,
-): boolean {
-  const isPanningRight = newEndMs > currentEndMs;
-  const isAtBoundary = currentEndMs >= boundaryEndMs - thresholdMs;
-  const isZoom = isZoomGesture(newRangeMs, currentRangeMs);
-  return isPanningRight && isAtBoundary && !isZoom;
-}
-
 // =============================================================================
 // Constraint Validation
 // =============================================================================
-
-/**
- * Timeline boundaries (entity start/end times).
- */
-export interface TimelineBounds {
-  minTime: Date;
-  maxTime: Date;
-}
-
-/**
- * Result of pan constraint validation.
- */
-export interface PanConstraintResult {
-  blocked: boolean;
-  reason?: "left-boundary" | "right-boundary" | "left-invalid-zone-boundary";
-}
-
-/**
- * Validate pan constraint against boundaries and effective times.
- *
- * ## 2-Layer Model Constraints
- *
- * Layer 1 (pannable): [invalidZoneLeft] [bars] [invalidZoneRight]
- * Layer 2 (fixed): [left overlay] | viewport | [right overlay]
- *
- * This enforces:
- * 1. Right boundary: Cannot pan past entity end boundary (unless zooming)
- * 2. Left boundary: Invalid zone left's right edge cannot pass window's left overlay right edge (unless zooming)
- *
- * @param newDisplayStart - New display start
- * @param newDisplayEnd - New display end
- * @param currentDisplayStart - Current display start
- * @param currentDisplayEnd - Current display end
- * @param bounds - Entity boundaries (minTime = entityStart, maxTime = entityEnd + padding)
- * @param currentStartPercent - Current start dragger position as fraction (0-1), undefined if not set
- * @param effectiveStartTime - Effective start time, undefined if not set
- * @returns Constraint validation result
- */
-export function validatePanConstraint(
-  newDisplayStart: Date,
-  newDisplayEnd: Date,
-  currentDisplayStart: Date,
-  currentDisplayEnd: Date,
-  bounds: TimelineBounds,
-  currentStartPercent: number | undefined,
-  effectiveStartTime: Date | undefined,
-): PanConstraintResult {
-  const newStartMs = newDisplayStart.getTime();
-  const newEndMs = newDisplayEnd.getTime();
-  const currentStartMs = currentDisplayStart.getTime();
-  const currentEndMs = currentDisplayEnd.getTime();
-  const boundaryEndMs = bounds.maxTime.getTime();
-  const boundaryStartMs = bounds.minTime.getTime();
-  const displayRangeMs = newEndMs - newStartMs;
-  const currentRangeMs = currentEndMs - currentStartMs;
-
-  // Check right boundary pan block
-  if (shouldBlockPan(newEndMs, currentEndMs, boundaryEndMs, displayRangeMs, currentRangeMs)) {
-    return { blocked: true, reason: "right-boundary" };
-  }
-
-  // Check left invalid zone boundary constraint
-  // This prevents the invalid zone's right edge (entityStart) from passing
-  // the window's left overlay right edge (effectiveStart position)
-  if (currentStartPercent !== undefined && effectiveStartTime && displayRangeMs > 0) {
-    const newEffectiveStartMs = newStartMs + currentStartPercent * displayRangeMs;
-
-    if (boundaryStartMs > newEffectiveStartMs && !isZoomGesture(displayRangeMs, currentRangeMs)) {
-      return { blocked: true, reason: "left-invalid-zone-boundary" };
-    }
-  }
-
-  return { blocked: false };
-}
 
 /**
  * Calculate display range with padding around effective range.
@@ -272,38 +173,6 @@ export function isEndTimeNow(endTime: Date | undefined, thresholdMs: number = 60
   return diffMs < thresholdMs;
 }
 
-/**
- * Calculate pan boundaries from entity times.
- *
- * @param entityStartMs - Entity start time in milliseconds
- * @param entityEndMs - Entity end time in milliseconds (undefined if running)
- * @param now - Current timestamp (for running entities)
- * @param paddingRatio - Padding ratio for completed entities (default: 0.075)
- * @param minPaddingMs - Minimum padding in milliseconds (default: 30000)
- * @returns Timeline bounds for pan constraints
- */
-export function calculatePanBoundaries(
-  entityStartMs: number,
-  entityEndMs: number | undefined,
-  now: number,
-  paddingRatio: number = 0.075,
-  minPaddingMs: number = 30_000,
-): TimelineBounds {
-  let endMs: number;
-  if (entityEndMs !== undefined) {
-    const durationMs = entityEndMs - entityStartMs;
-    const paddingMs = Math.max(durationMs * paddingRatio, minPaddingMs);
-    endMs = entityEndMs + paddingMs;
-  } else {
-    endMs = now + 60_000;
-  }
-
-  return {
-    minTime: new Date(entityStartMs),
-    maxTime: new Date(endMs),
-  };
-}
-
 // =============================================================================
 // Invalid Zone Constraints
 // =============================================================================
@@ -316,10 +185,10 @@ export interface InvalidZoneValidation {
   blocked: boolean;
   /** Reason for blocking (if blocked) */
   reason?: "left-invalid-zone-limit" | "right-invalid-zone-limit";
-  /** Left invalid zone percentage */
-  leftInvalidPercent: number;
-  /** Right invalid zone percentage */
-  rightInvalidPercent: number;
+  /** Left invalid zone in bucket count */
+  leftInvalidBuckets: number;
+  /** Right invalid zone in bucket count */
+  rightInvalidBuckets: number;
 }
 
 /**
@@ -327,6 +196,8 @@ export interface InvalidZoneValidation {
  *
  * This prevents panning/zooming too far such that most of the viewport
  * is just invalid zones (striped areas where no logs exist).
+ *
+ * Uses bucket-aligned calculation to ensure invalid zone boundaries snap to bar edges.
  *
  * @param newDisplayStartMs - New display start in milliseconds
  * @param newDisplayEndMs - New display end in milliseconds
@@ -350,12 +221,23 @@ export function validateInvalidZoneLimits(
   if (!entityStartTime) {
     return {
       blocked: false,
-      leftInvalidPercent: 0,
-      rightInvalidPercent: 0,
+      leftInvalidBuckets: 0,
+      rightInvalidBuckets: 0,
     };
   }
 
   const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+  // Guard against zero bucket width
+  if (bucketWidthMs === 0) {
+    return {
+      blocked: false,
+      leftInvalidBuckets: 0,
+      rightInvalidBuckets: 0,
+    };
+  }
+
+  const displayRangeMs = newDisplayEndMs - newDisplayStartMs;
   const zones = calculateInvalidZonePositions(
     entityStartTime.getTime(),
     entityEndTime?.getTime(),
@@ -365,29 +247,42 @@ export function validateInvalidZoneLimits(
     bucketWidthMs,
   );
 
-  // Check if left invalid zone exceeds limit
-  if (zones.leftInvalidWidth > maxInvalidPercent) {
+  // Convert percentage-based zone widths to milliseconds
+  const leftInvalidMs = (zones.leftInvalidWidth / 100) * displayRangeMs;
+  const rightInvalidMs = (zones.rightInvalidWidth / 100) * displayRangeMs;
+
+  // Calculate bucket counts (how many bars worth of invalid zone)
+  const leftInvalidBuckets = leftInvalidMs / bucketWidthMs;
+  const rightInvalidBuckets = rightInvalidMs / bucketWidthMs;
+
+  // Calculate total buckets visible and max allowed invalid buckets
+  // Always allow minimum 1 bucket to ensure consistent visual feedback when zoomed in
+  const totalBucketsVisible = displayRangeMs / bucketWidthMs;
+  const maxInvalidBuckets = Math.max(1, Math.floor(totalBucketsVisible * (maxInvalidPercent / 100)));
+
+  // Check if left invalid zone exceeds limit (bucket-aligned)
+  if (leftInvalidBuckets > maxInvalidBuckets) {
     return {
       blocked: true,
       reason: "left-invalid-zone-limit",
-      leftInvalidPercent: zones.leftInvalidWidth,
-      rightInvalidPercent: zones.rightInvalidWidth,
+      leftInvalidBuckets,
+      rightInvalidBuckets,
     };
   }
 
-  // Check if right invalid zone exceeds limit
-  if (zones.rightInvalidWidth > maxInvalidPercent) {
+  // Check if right invalid zone exceeds limit (bucket-aligned)
+  if (rightInvalidBuckets > maxInvalidBuckets) {
     return {
       blocked: true,
       reason: "right-invalid-zone-limit",
-      leftInvalidPercent: zones.leftInvalidWidth,
-      rightInvalidPercent: zones.rightInvalidWidth,
+      leftInvalidBuckets,
+      rightInvalidBuckets,
     };
   }
 
   return {
     blocked: false,
-    leftInvalidPercent: zones.leftInvalidWidth,
-    rightInvalidPercent: zones.rightInvalidWidth,
+    leftInvalidBuckets,
+    rightInvalidBuckets,
   };
 }
