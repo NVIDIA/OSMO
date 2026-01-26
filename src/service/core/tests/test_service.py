@@ -247,7 +247,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             },
         }
         agent_helpers.update_resource(
-            database, 'test_backend', backend_messages.ResourceBody(**resource_spec))
+            database, 'test_backend', backend_messages.UpdateNodeBody(**resource_spec))
         pod_template = {
             'spec': {
                 'nodeSelector': {

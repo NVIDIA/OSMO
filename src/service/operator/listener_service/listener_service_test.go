@@ -719,19 +719,19 @@ func TestListenerStream_WithEmptyBackendName(t *testing.T) {
 // ListenerStream Tests
 // ============================================================================
 
-func TestListenerStream_HappyPath_ResourceBody(t *testing.T) {
+func TestListenerStream_HappyPath_UpdateNodeBody(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
 
 	stream := newMockStream()
 
-	// Add test messages with ResourceBody
+	// Add test messages with UpdateNodeBody
 	msg1 := &pb.ListenerMessage{
 		Uuid:      "resource-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.ResourceBody{
+			Resource: &pb.UpdateNodeBody{
 				Hostname:   "node-1",
 				Available:  true,
 				Conditions: []string{"Ready"},
@@ -749,7 +749,7 @@ func TestListenerStream_HappyPath_ResourceBody(t *testing.T) {
 		Uuid:      "resource-uuid-2",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.ResourceBody{
+			Resource: &pb.UpdateNodeBody{
 				Hostname:   "node-2",
 				Available:  false,
 				Conditions: []string{"Ready", "DiskPressure"},
@@ -794,19 +794,19 @@ func TestListenerStream_HappyPath_ResourceBody(t *testing.T) {
 	}
 }
 
-func TestListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
+func TestListenerStream_HappyPath_UpdateNodeUsageBody(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
 
 	stream := newMockStream()
 
-	// Add test message with ResourceUsageBody
+	// Add test message with UpdateNodeUsageBody
 	msg := &pb.ListenerMessage{
 		Uuid:      "usage-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_ResourceUsage{
-			ResourceUsage: &pb.ResourceUsageBody{
+			ResourceUsage: &pb.UpdateNodeUsageBody{
 				Hostname: "node-1",
 				UsageFields: map[string]string{
 					"cpu":    "2000m",
@@ -856,12 +856,12 @@ func TestListenerStream_HappyPath_DeleteResource(t *testing.T) {
 
 	stream := newMockStream()
 
-	// Add test message with ResourceBody and delete=true
+	// Add test message with UpdateNodeBody and delete=true
 	msg := &pb.ListenerMessage{
 		Uuid:      "delete-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.ResourceBody{
+			Resource: &pb.UpdateNodeBody{
 				Hostname: "node-to-delete",
 				Delete:   true,
 			},
@@ -909,7 +909,7 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 		Uuid:      "resource-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.ResourceBody{
+			Resource: &pb.UpdateNodeBody{
 				Hostname:  "node-1",
 				Available: true,
 			},
@@ -919,7 +919,7 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 		Uuid:      "usage-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_ResourceUsage{
-			ResourceUsage: &pb.ResourceUsageBody{
+			ResourceUsage: &pb.UpdateNodeUsageBody{
 				Hostname: "node-1",
 				UsageFields: map[string]string{
 					"cpu": "2000m",
@@ -931,7 +931,7 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 		Uuid:      "delete-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.ResourceBody{
+			Resource: &pb.UpdateNodeBody{
 				Hostname: "node-2",
 				Delete:   true,
 			},
