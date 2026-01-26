@@ -29,7 +29,6 @@
  * - All elements transform together as a single unit
  * - Transform is calculated by parent (TimelineContainer)
  * - Invalid zones show areas beyond entity boundaries
- * - Bars are dimmed when outside effective range (controlled by draggers)
  *
  * ## Usage
  *
@@ -62,10 +61,6 @@ export interface TimelineHistogramProps {
   displayEnd?: Date;
   /** Current display range (including pending changes) */
   currentDisplay: { start: Date; end: Date };
-  /** Current effective range (for dimming bars) */
-  currentEffective: { start: Date | undefined; end: Date | undefined };
-  /** Whether interactive draggers are enabled (affects dimming logic) */
-  enableInteractiveDraggers: boolean;
   /** Entity start time (workflow start) - left boundary of valid zone */
   entityStartTime?: Date;
   /** Entity end time (workflow end) - right boundary of valid zone, undefined if still running */
@@ -161,10 +156,9 @@ interface StackedBarProps {
   bucket: HistogramBucket;
   maxTotal: number;
   onClick?: () => void;
-  dimmed?: boolean;
 }
 
-function StackedBar({ bucket, maxTotal, onClick, dimmed = false }: StackedBarProps) {
+function StackedBar({ bucket, maxTotal, onClick }: StackedBarProps) {
   const heightPercentage = maxTotal > 0 ? (bucket.total / maxTotal) * 100 : 0;
 
   const levelSegments = useMemo(() => {
@@ -189,9 +183,7 @@ function StackedBar({ bucket, maxTotal, onClick, dimmed = false }: StackedBarPro
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={`relative flex-1 cursor-pointer transition-opacity duration-75 ${
-            !dimmed ? "opacity-85 hover:opacity-100" : "opacity-50"
-          }`}
+          className="relative flex-1 cursor-pointer opacity-85 transition-opacity duration-75 hover:opacity-100"
           style={{ height: `${heightPercentage}%` }}
           onClick={onClick}
         >
@@ -225,8 +217,6 @@ function TimelineHistogramInner({
   displayStart,
   displayEnd,
   currentDisplay,
-  currentEffective,
-  enableInteractiveDraggers,
   entityStartTime,
   entityEndTime,
   now,
@@ -310,7 +300,7 @@ function TimelineHistogramInner({
   }, [pendingBuckets, displayStart, displayEnd, buckets, currentDisplay]);
 
   // ============================================================================
-  // DIMMING LOGIC
+  // MAX TOTAL (for bar height scaling)
   // ============================================================================
 
   const maxTotal = useMemo(() => {
@@ -320,23 +310,6 @@ function TimelineHistogramInner({
     }
     return max;
   }, [activeBuckets]);
-
-  const shouldDimBucket = useMemo(() => {
-    // Return a function that checks if a bucket should be dimmed
-    return (bucket: HistogramBucket): boolean => {
-      // Without draggers, rely on bucket's own property
-      if (!enableInteractiveDraggers) {
-        return bucket.isInEffectiveRange === false;
-      }
-
-      // With draggers, check if bucket is outside effective range
-      const bucketMs = bucket.timestamp.getTime();
-      const startMs = currentEffective.start?.getTime();
-      const endMs = currentEffective.end?.getTime();
-
-      return (startMs !== undefined && bucketMs < startMs) || (endMs !== undefined && bucketMs > endMs);
-    };
-  }, [enableInteractiveDraggers, currentEffective.start, currentEffective.end]);
 
   // ============================================================================
   // RENDER
@@ -376,7 +349,6 @@ function TimelineHistogramInner({
             bucket={bucket}
             maxTotal={maxTotal}
             onClick={onBucketClick ? () => onBucketClick(bucket) : undefined}
-            dimmed={shouldDimBucket(bucket)}
           />
         ))}
       </div>
