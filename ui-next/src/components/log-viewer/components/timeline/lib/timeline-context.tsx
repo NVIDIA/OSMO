@@ -39,7 +39,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
 import type { useTimelineState } from "../hooks/use-timeline-state";
-import type { TimelineBounds } from "./timeline-utils";
 
 // =============================================================================
 // Types
@@ -71,8 +70,6 @@ export interface TimelineData {
   displayStart?: Date;
   /** Original display end (for transform calculation) */
   displayEnd?: Date;
-  /** Pan boundaries */
-  panBoundaries: TimelineBounds | null;
 }
 
 /**

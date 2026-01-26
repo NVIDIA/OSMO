@@ -51,12 +51,8 @@ import { TimeRangeHeader } from "./TimeRangeHeader";
 import { useTimelineState } from "../hooks/use-timeline-state";
 import { useTimelineWheelGesture } from "../hooks/use-timeline-gestures";
 import { useServices } from "@/contexts/service-context";
-import {
-  calculateOverlayPositions,
-  calculatePanBoundaries,
-  isEndTimeNow as checkIsEndTimeNow,
-} from "../lib/timeline-utils";
-import { DEFAULT_HEIGHT, DISPLAY_PADDING_RATIO, MIN_PADDING_MS, type TimeRangePreset } from "../lib/timeline-constants";
+import { calculateOverlayPositions, isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
+import { DEFAULT_HEIGHT, type TimeRangePreset } from "../lib/timeline-constants";
 
 // =============================================================================
 // Types
@@ -118,22 +114,6 @@ export type { TimeRangePreset };
 // =============================================================================
 // Hooks
 // =============================================================================
-
-/**
- * Hook to compute pan boundaries from entity times.
- * Returns null if entityStartTime is not available (graceful degradation - no invalid zones shown).
- */
-function usePanBoundaries(entityStartTime: Date | undefined, entityEndTime: Date | undefined, now: number | undefined) {
-  return useMemo(() => {
-    // Only use entityStartTime - do not fall back to first log timestamp
-    // This ensures invalid zones accurately reflect workflow boundaries
-    const startMs = entityStartTime?.getTime();
-    if (!startMs) return null;
-
-    const currentNow = now ?? startMs + 7 * 24 * 60 * 60 * 1000;
-    return calculatePanBoundaries(startMs, entityEndTime?.getTime(), currentNow, DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
-  }, [entityStartTime, entityEndTime, now]);
-}
 
 /**
  * Hook to compute overlay positions for the timeline window.
@@ -329,7 +309,6 @@ function TimelineContainerInner({
   // DERIVED VALUES
   // ============================================================================
 
-  const panBoundaries = usePanBoundaries(entityStartTime, entityEndTime, now);
   // TEMPORARILY DISABLED: Overlay positions (window layer disabled)
   // const overlayPositions = useOverlayPositions(
   //   enableInteractiveDraggers,
@@ -347,19 +326,12 @@ function TimelineContainerInner({
   // Extract bucket timestamps for invalid zone validation
   const bucketTimestamps = useMemo(() => activeBuckets.map((b) => b.timestamp), [activeBuckets]);
 
-  useTimelineWheelGesture(
-    containerRef,
-    timelineState,
-    panBoundaries,
-    bucketTimestamps,
-    onDisplayRangeChange ?? (() => {}),
-    {
-      entityStartTime,
-      entityEndTime,
-      now,
-      overlayPositions: undefined, // Disabled during simplification
-    },
-  );
+  useTimelineWheelGesture(containerRef, timelineState, bucketTimestamps, onDisplayRangeChange ?? (() => {}), {
+    entityStartTime,
+    entityEndTime,
+    now,
+    overlayPositions: undefined, // Disabled during simplification
+  });
 
   // TEMPORARILY DISABLED: Dragger gestures (window layer disabled)
   // const startDragger = useTimelineDraggerGesture("start", containerRef, timelineState, currentEffective.start, false);

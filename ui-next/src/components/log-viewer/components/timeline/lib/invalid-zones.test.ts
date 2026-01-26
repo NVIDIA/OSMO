@@ -38,7 +38,6 @@ describe("calculateInvalidZonePositions", () => {
   const ENTITY_END = 50000; // Entity ends at 50s
   const NOW = 60000; // Current time is 60s
   const BUCKET_WIDTH = 1000; // 1 second buckets
-  const LEFT_GAP = BUCKET_WIDTH * 1.0; // 1.0s = 1000ms (left gap)
   const RIGHT_GAP = BUCKET_WIDTH * 1.0; // 1.0s = 1000ms (right gap)
 
   describe("CONTRACT 1: Left zone ends at entityStart - 1.0 bucket width", () => {
