@@ -27,6 +27,7 @@ go_library(
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
+<<<<<<< HEAD
 
 go_test(
     name = "postgres_test",
@@ -66,3 +67,5 @@ go_test(
     tags = ["manual", "service"],  # Requires running PostgreSQL instance
     local = True,  # Run locally without sandboxing to access external database
 )
+=======
+>>>>>>> origin/main

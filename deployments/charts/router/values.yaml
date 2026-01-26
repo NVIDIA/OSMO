@@ -51,6 +51,23 @@ global:
     ##
     k8sLogLevel: WARNING
 
+## Service account configuration for router service
+##
+serviceAccount:
+  ## Create the chart-managed ServiceAccount. Set to false to re-use
+  ## an existing ServiceAccount that already has workload identity bindings.
+  ##
+  create: true
+
+  ## ServiceAccount name override. When empty, uses 'router'.
+  ##
+  name: ""
+
+  ## Extra ServiceAccount annotations such as
+  ## `azure.workload.identity/client-id` for AKS workload identity.
+  ##
+  annotations: {}
+
 ## Configuration for individual Osmo services
 ##
 services:

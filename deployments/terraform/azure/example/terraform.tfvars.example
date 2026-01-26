@@ -41,8 +41,10 @@ postgres_backup_retention_days        = 7
 postgres_geo_redundant_backup_enabled = false  # Set to true for production
 postgres_extensions                   = ["hstore", "uuid-ossp", "pg_stat_statements"]  # Extensions to enable
 
-# Redis Enterprise Configuration
-redis_sku_name = "Enterprise_E10-2"  # Enterprise E10 with 2GB capacity for Redis 7
+# Redis Cache Configuration
+redis_sku_name = "Standard"  # Basic, Standard, or Premium
+redis_family   = "C"         # C for Basic/Standard, P for Premium
+redis_capacity = 1           # 0-6 for C family, 1-5 for P family
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"  # Standard pricing tier

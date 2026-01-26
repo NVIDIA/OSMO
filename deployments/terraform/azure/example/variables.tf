@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ variable "aks_dns_service_ip" {
   default     = "192.168.0.10"
 
   validation {
-    condition = can(regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$", var.aks_dns_service_ip))
+    condition     = can(regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$", var.aks_dns_service_ip))
     error_message = "The DNS service IP must be a valid IPv4 address."
   }
 }
@@ -174,7 +174,7 @@ variable "postgres_sku_name" {
 variable "postgres_storage_mb" {
   description = "PostgreSQL storage in MB"
   type        = number
-  default     = 32768  # 32 GB
+  default     = 32768 # 32 GB
 }
 
 variable "postgres_db_name" {
@@ -214,11 +214,23 @@ variable "postgres_extensions" {
   default     = ["hstore", "uuid-ossp", "pg_stat_statements"]
 }
 
-# Redis Enterprise Variables
+# Redis Cache Variables
 variable "redis_sku_name" {
-  description = "Redis Enterprise SKU name with capacity (e.g., Enterprise_E10-2, Enterprise_E20-4)"
+  description = "Redis SKU name (Basic, Standard, Premium)"
   type        = string
-  default     = "Enterprise_E10-2"
+  default     = "Standard"
+}
+
+variable "redis_family" {
+  description = "Redis family (C for Basic/Standard, P for Premium)"
+  type        = string
+  default     = "C"
+}
+
+variable "redis_capacity" {
+  description = "Redis cache capacity (0-6 for Basic/Standard C family, 1-5 for Premium P family)"
+  type        = number
+  default     = 1
 }
 
 # Log Analytics Variables
