@@ -282,12 +282,104 @@ describe("calculateInvalidZonePositions", () => {
     });
   });
 
+  describe("CONTRACT 6: Explicit gap positions for rendering", () => {
+    it("should calculate left gap position between invalid zone and entity start", () => {
+      const displayStart = 0;
+      const displayEnd = 20000;
+      const displayRange = displayEnd - displayStart;
+
+      const result = calculateInvalidZonePositions(
+        ENTITY_START, // 10s
+        ENTITY_END,
+        NOW,
+        displayStart,
+        displayEnd,
+        BUCKET_WIDTH,
+      );
+
+      // Left gap starts at entityStart - 1.0s = 9s
+      // Left gap ends at entityStart = 10s
+      // Gap width = 1s = 1 bucket
+      const expectedGapStart = ((9000 - displayStart) / displayRange) * 100; // 45%
+      const expectedGapWidth = (1000 / displayRange) * 100; // 5%
+
+      expect(result.leftGapStart).toBeCloseTo(expectedGapStart, 2);
+      expect(result.leftGapWidth).toBeCloseTo(expectedGapWidth, 2);
+    });
+
+    it("should calculate right gap position between entity end and invalid zone", () => {
+      const displayStart = 40000;
+      const displayEnd = 60000;
+      const displayRange = displayEnd - displayStart;
+
+      const result = calculateInvalidZonePositions(
+        ENTITY_START,
+        ENTITY_END, // 50s
+        NOW,
+        displayStart,
+        displayEnd,
+        BUCKET_WIDTH,
+      );
+
+      // Right gap starts at entityEnd = 50s
+      // Right gap ends at entityEnd + 1.0s = 51s
+      // Gap width = 1s = 1 bucket
+      const expectedGapStart = ((50000 - displayStart) / displayRange) * 100; // 50%
+      const expectedGapWidth = (1000 / displayRange) * 100; // 5%
+
+      expect(result.rightGapStart).toBeCloseTo(expectedGapStart, 2);
+      expect(result.rightGapWidth).toBeCloseTo(expectedGapWidth, 2);
+    });
+
+    it("should have zero gap width when gap is outside display range", () => {
+      const result = calculateInvalidZonePositions(
+        ENTITY_START, // 10s
+        ENTITY_END, // 50s
+        NOW,
+        15000, // Display starts after entity start + gap
+        45000, // Display ends before entity end
+        BUCKET_WIDTH,
+      );
+
+      // Left gap (9s-10s) is outside display (15s-45s)
+      expect(result.leftGapWidth).toBe(0);
+      // Right gap (50s-51s) is outside display (15s-45s)
+      expect(result.rightGapWidth).toBe(0);
+    });
+
+    it("should calculate partial gap when only part is visible", () => {
+      const displayStart = 9500; // Starts in middle of left gap (9s-10s)
+      const displayEnd = 20000;
+      const displayRange = displayEnd - displayStart;
+
+      const result = calculateInvalidZonePositions(
+        ENTITY_START, // 10s
+        ENTITY_END,
+        NOW,
+        displayStart,
+        displayEnd,
+        BUCKET_WIDTH,
+      );
+
+      // Left gap is 9s-10s, but display starts at 9.5s
+      // Visible gap is 9.5s-10s = 0.5s
+      const expectedGapStart = 0; // Starts at display start
+      const expectedGapWidth = (500 / displayRange) * 100;
+
+      expect(result.leftGapStart).toBeCloseTo(expectedGapStart, 2);
+      expect(result.leftGapWidth).toBeCloseTo(expectedGapWidth, 2);
+    });
+  });
+
   describe("Edge cases", () => {
     it("should handle zero bucket width gracefully", () => {
       const result = calculateInvalidZonePositions(ENTITY_START, ENTITY_END, NOW, 0, 60000, 0);
 
       // With 0 bucket width, gap = 0 (0 * 1.0), so zone starts exactly at entityEnd
       expect(result.rightInvalidStart).toBeCloseTo((ENTITY_END / 60000) * 100, 2);
+      // Gaps should have zero width
+      expect(result.leftGapWidth).toBe(0);
+      expect(result.rightGapWidth).toBe(0);
     });
 
     it("should handle invalid display range (start >= end)", () => {
@@ -297,6 +389,8 @@ describe("calculateInvalidZonePositions", () => {
       expect(result.leftInvalidWidth).toBe(0);
       expect(result.rightInvalidStart).toBe(100);
       expect(result.rightInvalidWidth).toBe(0);
+      expect(result.leftGapWidth).toBe(0);
+      expect(result.rightGapWidth).toBe(0);
     });
   });
 });
