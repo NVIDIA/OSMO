@@ -19,19 +19,16 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "server",
     srcs = [
-        "action_registry.go",
         "authz_interface.go",
         "authz_server.go",
-        "role_cache.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/service/authz_sidecar/server",
     visibility = ["//src/service/authz_sidecar:__subpackages__"],
     deps = [
-        "//src/utils/postgres:postgres",
+        "//src/utils/roles",
         "@com_github_envoyproxy_go_control_plane//envoy/config/core/v3:go_default_library",
         "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:go_default_library",
         "@com_github_envoyproxy_go_control_plane//envoy/type/v3:go_default_library",
-        "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
         "@org_golang_google_genproto_googleapis_rpc//status:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
@@ -41,17 +38,14 @@ go_library(
 go_test(
     name = "server_test",
     srcs = [
-        "action_registry_test.go",
         "authz_server_test.go",
         "integration_test.go",
-        "role_cache_test.go",
     ],
     embed = [":server"],
     deps = [
-        "//src/utils/postgres:postgres",
+        "//src/utils/roles",
         "@com_github_envoyproxy_go_control_plane//envoy/config/core/v3:go_default_library",
         "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
     ],
 )
-

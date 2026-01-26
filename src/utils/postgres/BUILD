@@ -20,7 +20,6 @@ go_library(
     name = "postgres",
     srcs = [
         "postgres_client.go",
-        "roles.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/utils/postgres",
     visibility = ["//visibility:public"],
@@ -70,4 +69,3 @@ go_test(
     tags = ["manual", "service"],  # Requires running PostgreSQL instance
     local = True,  # Run locally without sandboxing to access external database
 )
-

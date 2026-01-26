@@ -16,15 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package server
+package roles
 
 import (
 	"log/slog"
 	"os"
 	"testing"
 	"time"
-
-	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 func TestRoleCache_GetSet(t *testing.T) {
@@ -37,7 +35,7 @@ func TestRoleCache_GetSet(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user", "osmo-default"}
-	roles := []*postgres.Role{
+	testRoles := []*Role{
 		{Name: "osmo-user"},
 		{Name: "osmo-default"},
 	}
@@ -49,7 +47,7 @@ func TestRoleCache_GetSet(t *testing.T) {
 	}
 
 	// Set cache
-	cache.Set(roleNames, roles)
+	cache.Set(roleNames, testRoles)
 
 	// Test cache hit
 	cached, found := cache.Get(roleNames)
@@ -57,13 +55,13 @@ func TestRoleCache_GetSet(t *testing.T) {
 		t.Error("expected cache hit, got miss")
 	}
 
-	if len(cached) != len(roles) {
-		t.Errorf("expected %d roles, got %d", len(roles), len(cached))
+	if len(cached) != len(testRoles) {
+		t.Errorf("expected %d roles, got %d", len(testRoles), len(cached))
 	}
 
 	for i, role := range cached {
-		if role.Name != roles[i].Name {
-			t.Errorf("expected role %s, got %s", roles[i].Name, role.Name)
+		if role.Name != testRoles[i].Name {
+			t.Errorf("expected role %s, got %s", testRoles[i].Name, role.Name)
 		}
 	}
 }
@@ -77,13 +75,13 @@ func TestRoleCache_CacheKeyOrdering(t *testing.T) {
 	}
 	cache := NewRoleCache(config, logger)
 
-	roles := []*postgres.Role{
+	testRoles := []*Role{
 		{Name: "role1"},
 		{Name: "role2"},
 	}
 
 	// Set with one order
-	cache.Set([]string{"role2", "role1"}, roles)
+	cache.Set([]string{"role2", "role1"}, testRoles)
 
 	// Get with different order - should still hit cache
 	cached, found := cache.Get([]string{"role1", "role2"})
@@ -91,8 +89,8 @@ func TestRoleCache_CacheKeyOrdering(t *testing.T) {
 		t.Error("expected cache hit with different role order")
 	}
 
-	if len(cached) != len(roles) {
-		t.Errorf("expected %d roles, got %d", len(roles), len(cached))
+	if len(cached) != len(testRoles) {
+		t.Errorf("expected %d roles, got %d", len(testRoles), len(cached))
 	}
 }
 
@@ -106,10 +104,10 @@ func TestRoleCache_Expiration(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*postgres.Role{{Name: "osmo-user"}}
+	testRoles := []*Role{{Name: "osmo-user"}}
 
 	// Set cache
-	cache.Set(roleNames, roles)
+	cache.Set(roleNames, testRoles)
 
 	// Should hit immediately
 	_, found := cache.Get(roleNames)
@@ -137,10 +135,10 @@ func TestRoleCache_Disabled(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*postgres.Role{{Name: "osmo-user"}}
+	testRoles := []*Role{{Name: "osmo-user"}}
 
 	// Set cache (should do nothing)
-	cache.Set(roleNames, roles)
+	cache.Set(roleNames, testRoles)
 
 	// Should always miss when disabled
 	_, found := cache.Get(roleNames)
@@ -161,8 +159,8 @@ func TestRoleCache_MaxSize(t *testing.T) {
 	// Add 4 entries (exceeds max size of 3)
 	for i := 0; i < 4; i++ {
 		roleNames := []string{string(rune('a' + i))}
-		roles := []*postgres.Role{{Name: string(rune('a' + i))}}
-		cache.Set(roleNames, roles)
+		testRoles := []*Role{{Name: string(rune('a' + i))}}
+		cache.Set(roleNames, testRoles)
 		time.Sleep(10 * time.Millisecond) // Ensure different timestamps
 	}
 
@@ -189,13 +187,13 @@ func TestRoleCache_Stats(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*postgres.Role{{Name: "osmo-user"}}
+	testRoles := []*Role{{Name: "osmo-user"}}
 
 	// Cause a miss
 	cache.Get(roleNames)
 
 	// Set and cause a hit
-	cache.Set(roleNames, roles)
+	cache.Set(roleNames, testRoles)
 	cache.Get(roleNames)
 
 	stats := cache.Stats()
@@ -229,10 +227,10 @@ func TestRoleCache_Clear(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*postgres.Role{{Name: "osmo-user"}}
+	testRoles := []*Role{{Name: "osmo-user"}}
 
 	// Set cache
-	cache.Set(roleNames, roles)
+	cache.Set(roleNames, testRoles)
 
 	// Should hit
 	_, found := cache.Get(roleNames)
