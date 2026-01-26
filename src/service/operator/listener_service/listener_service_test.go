@@ -37,7 +37,7 @@ import (
 	"go.corp.nvidia.com/osmo/service/operator/utils"
 )
 
-// mockStream implements pb.ListenerService_WorkflowListenerStreamServer for testing
+// mockStream implements pb.ListenerService_ListenerStreamServer for testing
 type mockStream struct {
 	grpc.ServerStream
 	recvMessages []*pb.ListenerMessage
@@ -157,7 +157,7 @@ func TestNewListenerService(t *testing.T) {
 	})
 }
 
-func TestWorkflowListenerStream_HappyPath(t *testing.T) {
+func TestListenerStream_HappyPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -200,7 +200,7 @@ func TestWorkflowListenerStream_HappyPath(t *testing.T) {
 	// Start a goroutine to handle the stream
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.WorkflowListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion or timeout
@@ -231,7 +231,7 @@ func TestWorkflowListenerStream_HappyPath(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_EOFClose(t *testing.T) {
+func TestListenerStream_EOFClose(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -239,13 +239,13 @@ func TestWorkflowListenerStream_EOFClose(t *testing.T) {
 	stream := newMockStream()
 	stream.recvError = io.EOF
 
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err != nil {
 		t.Fatalf("expected nil error for EOF, got: %v", err)
 	}
 }
 
-func TestWorkflowListenerStream_ContextCanceled(t *testing.T) {
+func TestListenerStream_ContextCanceled(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -253,13 +253,13 @@ func TestWorkflowListenerStream_ContextCanceled(t *testing.T) {
 	stream := newMockStream()
 	stream.recvError = context.Canceled
 
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err != nil {
 		t.Fatalf("expected nil error for context.Canceled, got: %v", err)
 	}
 }
 
-func TestWorkflowListenerStream_CanceledStatusCode(t *testing.T) {
+func TestListenerStream_CanceledStatusCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -267,13 +267,13 @@ func TestWorkflowListenerStream_CanceledStatusCode(t *testing.T) {
 	stream := newMockStream()
 	stream.recvError = status.Error(codes.Canceled, "canceled")
 
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err != nil {
 		t.Fatalf("expected nil error for status.Canceled, got: %v", err)
 	}
 }
 
-func TestWorkflowListenerStream_RecvError(t *testing.T) {
+func TestListenerStream_RecvError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -282,7 +282,7 @@ func TestWorkflowListenerStream_RecvError(t *testing.T) {
 	expectedErr := errors.New("recv error")
 	stream.recvError = expectedErr
 
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -291,7 +291,7 @@ func TestWorkflowListenerStream_RecvError(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_SendError(t *testing.T) {
+func TestListenerStream_SendError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -319,7 +319,7 @@ func TestWorkflowListenerStream_SendError(t *testing.T) {
 	expectedErr := errors.New("send error")
 	stream.sendError = expectedErr
 
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -328,7 +328,7 @@ func TestWorkflowListenerStream_SendError(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
+func TestListenerStream_LatencyCalculation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -356,7 +356,7 @@ func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
 	// Start stream handling in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.WorkflowListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion
@@ -380,7 +380,7 @@ func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_MultipleMessages(t *testing.T) {
+func TestListenerStream_MultipleMessages(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -410,7 +410,7 @@ func TestWorkflowListenerStream_MultipleMessages(t *testing.T) {
 	// Start stream handling in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.WorkflowListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion
@@ -492,7 +492,7 @@ func TestIsExpectedClose(t *testing.T) {
 		},
 	}
 
-	// Test that WorkflowListenerStream properly handles expected close errors
+	// Test that ListenerStream properly handles expected close errors
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -502,7 +502,7 @@ func TestIsExpectedClose(t *testing.T) {
 			stream := newMockStream()
 			stream.recvError = tt.err
 
-			err := service.WorkflowListenerStream(stream)
+			err := service.ListenerStream(stream)
 
 			if tt.expected {
 				// Expected close errors should return nil
@@ -521,7 +521,7 @@ func TestIsExpectedClose(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_WithCanceledContext(t *testing.T) {
+func TestListenerStream_WithCanceledContext(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -557,13 +557,13 @@ func TestWorkflowListenerStream_WithCanceledContext(t *testing.T) {
 	cancel()
 	stream.recvError = context.Canceled
 
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err != nil {
 		t.Fatalf("expected nil error for canceled context, got: %v", err)
 	}
 }
 
-func TestWorkflowListenerStream_EmptyData(t *testing.T) {
+func TestListenerStream_EmptyData(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -590,7 +590,7 @@ func TestWorkflowListenerStream_EmptyData(t *testing.T) {
 	// Start stream handling in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.WorkflowListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion
@@ -614,7 +614,7 @@ func TestWorkflowListenerStream_EmptyData(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_WithBackendNameMetadata(t *testing.T) {
+func TestListenerStream_WithBackendNameMetadata(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -644,7 +644,7 @@ func TestWorkflowListenerStream_WithBackendNameMetadata(t *testing.T) {
 	// Start stream handling in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.WorkflowListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion
@@ -663,7 +663,7 @@ func TestWorkflowListenerStream_WithBackendNameMetadata(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_WithoutBackendNameMetadata(t *testing.T) {
+func TestListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -677,7 +677,7 @@ func TestWorkflowListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 	}
 
 	// Try to establish stream - should fail immediately
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err == nil {
 		t.Fatal("expected error for missing backend-name metadata, got nil")
 	}
@@ -688,7 +688,7 @@ func TestWorkflowListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 	}
 }
 
-func TestWorkflowListenerStream_WithEmptyBackendName(t *testing.T) {
+func TestListenerStream_WithEmptyBackendName(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -704,7 +704,7 @@ func TestWorkflowListenerStream_WithEmptyBackendName(t *testing.T) {
 	}
 
 	// Try to establish stream - should fail immediately
-	err := service.WorkflowListenerStream(stream)
+	err := service.ListenerStream(stream)
 	if err == nil {
 		t.Fatal("expected error for empty backend-name metadata, got nil")
 	}
@@ -716,10 +716,10 @@ func TestWorkflowListenerStream_WithEmptyBackendName(t *testing.T) {
 }
 
 // ============================================================================
-// ResourceListenerStream Tests
+// ListenerStream Tests
 // ============================================================================
 
-func TestResourceListenerStream_HappyPath_ResourceBody(t *testing.T) {
+func TestListenerStream_HappyPath_ResourceBody(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -763,7 +763,7 @@ func TestResourceListenerStream_HappyPath_ResourceBody(t *testing.T) {
 	// Start a goroutine to handle the stream
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.ResourceListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion or timeout
@@ -794,7 +794,7 @@ func TestResourceListenerStream_HappyPath_ResourceBody(t *testing.T) {
 	}
 }
 
-func TestResourceListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
+func TestListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -825,7 +825,7 @@ func TestResourceListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
 	// Start a goroutine to handle the stream
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.ResourceListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion or timeout
@@ -849,7 +849,7 @@ func TestResourceListenerStream_HappyPath_ResourceUsageBody(t *testing.T) {
 	}
 }
 
-func TestResourceListenerStream_HappyPath_DeleteResource(t *testing.T) {
+func TestListenerStream_HappyPath_DeleteResource(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -873,7 +873,7 @@ func TestResourceListenerStream_HappyPath_DeleteResource(t *testing.T) {
 	// Start a goroutine to handle the stream
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.ResourceListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion or timeout
@@ -897,138 +897,7 @@ func TestResourceListenerStream_HappyPath_DeleteResource(t *testing.T) {
 	}
 }
 
-func TestResourceListenerStream_EOFClose(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
-
-	stream := newMockStream()
-	stream.recvError = io.EOF
-
-	err := service.ResourceListenerStream(stream)
-	if err != nil {
-		t.Fatalf("expected nil error for EOF, got: %v", err)
-	}
-}
-
-func TestResourceListenerStream_ContextCanceled(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
-
-	stream := newMockStream()
-	stream.recvError = context.Canceled
-
-	err := service.ResourceListenerStream(stream)
-	if err != nil {
-		t.Fatalf("expected nil error for context.Canceled, got: %v", err)
-	}
-}
-
-func TestResourceListenerStream_RecvError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
-
-	stream := newMockStream()
-	expectedErr := errors.New("recv error")
-	stream.recvError = expectedErr
-
-	err := service.ResourceListenerStream(stream)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if err != expectedErr {
-		t.Fatalf("expected error %v, got %v", expectedErr, err)
-	}
-}
-
-func TestResourceListenerStream_SendError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
-
-	stream := newMockStream()
-
-	// Add a message to receive
-	msg := &pb.ListenerMessage{
-		Uuid:      "resource-uuid",
-		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.ResourceBody{
-				Hostname:  "node-1",
-				Available: true,
-			},
-		},
-	}
-	stream.addRecvMessage(msg)
-
-	// Set send error
-	expectedErr := errors.New("send error")
-	stream.sendError = expectedErr
-
-	err := service.ResourceListenerStream(stream)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if err != expectedErr {
-		t.Fatalf("expected error %v, got %v", expectedErr, err)
-	}
-}
-
-func TestResourceListenerStream_WithoutBackendNameMetadata(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
-
-	// Create stream without metadata (should be rejected)
-	stream := &mockStream{
-		recvMessages: []*pb.ListenerMessage{},
-		sentMessages: []*pb.AckMessage{},
-		recvIndex:    0,
-		ctx:          context.Background(), // No metadata
-	}
-
-	// Try to establish stream - should fail immediately
-	err := service.ResourceListenerStream(stream)
-	if err == nil {
-		t.Fatal("expected error for missing backend-name metadata, got nil")
-	}
-
-	// Verify no messages were processed
-	if len(stream.sentMessages) != 0 {
-		t.Fatalf("expected 0 messages sent when connection is rejected, got %d", len(stream.sentMessages))
-	}
-}
-
-func TestResourceListenerStream_WithEmptyBackendName(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
-
-	// Create stream with empty backend name (should be rejected)
-	ctx := context.Background()
-	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("backend-name", ""))
-	stream := &mockStream{
-		recvMessages: []*pb.ListenerMessage{},
-		sentMessages: []*pb.AckMessage{},
-		recvIndex:    0,
-		ctx:          ctx,
-	}
-
-	// Try to establish stream - should fail immediately
-	err := service.ResourceListenerStream(stream)
-	if err == nil {
-		t.Fatal("expected error for empty backend-name metadata, got nil")
-	}
-
-	// Verify no messages were processed
-	if len(stream.sentMessages) != 0 {
-		t.Fatalf("expected 0 messages sent when connection is rejected, got %d", len(stream.sentMessages))
-	}
-}
-
-func TestResourceListenerStream_MixedMessageTypes(t *testing.T) {
+func TestListenerStream_MixedMessageTypes(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
 	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
@@ -1076,7 +945,7 @@ func TestResourceListenerStream_MixedMessageTypes(t *testing.T) {
 	// Start a goroutine to handle the stream
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- service.ResourceListenerStream(stream)
+		errChan <- service.ListenerStream(stream)
 	}()
 
 	// Wait for completion or timeout

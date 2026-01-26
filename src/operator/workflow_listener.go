@@ -38,7 +38,7 @@ import (
 type WorkflowListener struct {
 	*utils.BaseListener
 	args      utils.ListenerArgs
-	stream    pb.ListenerService_WorkflowListenerStreamClient
+	stream    pb.ListenerService_ListenerStreamClient
 	closeOnce sync.Once
 }
 
@@ -59,7 +59,7 @@ func (wl *WorkflowListener) Connect(ctx context.Context) error {
 
 	// Establish the bidirectional stream
 	var err error
-	wl.stream, err = wl.GetClient().WorkflowListenerStream(ctx)
+	wl.stream, err = wl.GetClient().ListenerStream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}

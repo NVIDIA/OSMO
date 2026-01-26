@@ -49,7 +49,7 @@ type ResourceListenerArgs struct {
 type ResourceListener struct {
 	*utils.BaseListener
 	args       ResourceListenerArgs
-	stream     pb.ListenerService_ResourceListenerStreamClient
+	stream     pb.ListenerService_ListenerStreamClient
 	closeOnce  sync.Once
 	aggregator *ResourceUsageAggregator
 }
@@ -72,7 +72,7 @@ func (rl *ResourceListener) Connect(ctx context.Context) error {
 
 	// Establish the bidirectional stream
 	var err error
-	rl.stream, err = rl.GetClient().ResourceListenerStream(ctx)
+	rl.stream, err = rl.GetClient().ListenerStream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}

@@ -203,18 +203,12 @@ func (ls *ListenerService) handleListenerStream(stream listenerStream, streamTyp
 	}
 }
 
-// WorkflowListenerStream handles bidirectional streaming for workflow backend communication.
-// It receives workflow-related messages (update_pod, logging) and sends ACK responses.
-func (ls *ListenerService) WorkflowListenerStream(
-	stream pb.ListenerService_WorkflowListenerStreamServer) error {
-	return ls.handleListenerStream(stream, "workflow")
-}
-
-// ResourceListenerStream handles bidirectional streaming for resource listener communication.
-// It receives resource-related messages (resource, resource_usage, delete_resource) and sends ACK responses.
-func (ls *ListenerService) ResourceListenerStream(
-	stream pb.ListenerService_ResourceListenerStreamServer) error {
-	return ls.handleListenerStream(stream, "resource")
+// ListenerStream handles bidirectional streaming for backend communication.
+// It receives all types of messages (update_pod, logging, resource, resource_usage) and sends ACK responses.
+// The stream is used by both workflow listeners and resource listeners.
+func (ls *ListenerService) ListenerStream(
+	stream pb.ListenerService_ListenerStreamServer) error {
+	return ls.handleListenerStream(stream, "listener")
 }
 
 // InitBackend handles backend initialization requests
