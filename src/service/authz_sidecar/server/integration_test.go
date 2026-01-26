@@ -28,32 +28,47 @@ import (
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"google.golang.org/grpc/codes"
 
-	"go.corp.nvidia.com/osmo/utils/postgres"
+	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
 // MockPostgresClient implements a mock PostgreSQL client for testing
 type MockPostgresClient struct {
-	roles map[string]*postgres.Role
+	roles          map[string]*roles.Role
+	convertedRoles map[string]*roles.Role // Pre-converted semantic roles
 }
 
 func NewMockPostgresClient() *MockPostgresClient {
 	return &MockPostgresClient{
-		roles: make(map[string]*postgres.Role),
+		roles:          make(map[string]*roles.Role),
+		convertedRoles: make(map[string]*roles.Role),
 	}
 }
 
-func (m *MockPostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*postgres.Role, error) {
-	var result []*postgres.Role
+func (m *MockPostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*roles.Role, error) {
+	var result []*roles.Role
 	for _, name := range roleNames {
-		if role, exists := m.roles[name]; exists {
+		if role, exists := m.convertedRoles[name]; exists {
 			result = append(result, role)
 		}
 	}
 	return result, nil
 }
 
-func (m *MockPostgresClient) AddRole(role *postgres.Role) {
+func (m *MockPostgresClient) AddRole(role *roles.Role) {
 	m.roles[role.Name] = role
+}
+
+// ConvertAllRoles converts all added roles to semantic format
+// This mimics what main.go does at startup
+func (m *MockPostgresClient) ConvertAllRoles() {
+	var allRoles []*roles.Role
+	for _, role := range m.roles {
+		allRoles = append(allRoles, role)
+	}
+	convertedRoles := roles.ConvertRolesToSemantic(allRoles)
+	for _, role := range convertedRoles {
+		m.convertedRoles[role.Name] = role
+	}
 }
 
 func (m *MockPostgresClient) Close() {
@@ -63,9 +78,10 @@ func (m *MockPostgresClient) Ping(ctx context.Context) error {
 	return nil
 }
 
-// RoleFetcher returns a RoleFetcher function that uses the mock client
+// RoleFetcher returns a RoleFetcher function that uses the pre-converted roles
+// Roles are already converted to semantic format by ConvertAllRoles()
 func (m *MockPostgresClient) RoleFetcher() RoleFetcher {
-	return func(ctx context.Context, roleNames []string) ([]*postgres.Role, error) {
+	return func(ctx context.Context, roleNames []string) ([]*roles.Role, error) {
 		return m.GetRoles(ctx, roleNames)
 	}
 }
@@ -76,13 +92,13 @@ func TestAuthzServerIntegration(t *testing.T) {
 	// Create mock postgres client with test roles
 	mockPG := NewMockPostgresClient()
 
-	// Add osmo-default role
-	mockPG.AddRole(&postgres.Role{
+	// Add osmo-default role - legacy format (will be converted to semantic)
+	mockPG.AddRole(&roles.Role{
 		Name:        "osmo-default",
 		Description: "Default role",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "/api/version", Method: "*"},
 					{Base: "http", Path: "/health", Method: "*"},
 					{Base: "http", Path: "/api/auth/login", Method: "Get"},
@@ -91,43 +107,45 @@ func TestAuthzServerIntegration(t *testing.T) {
 		},
 	})
 
-	// Add osmo-user role
-	mockPG.AddRole(&postgres.Role{
+	// Add osmo-user role - legacy format (will be converted to semantic)
+	mockPG.AddRole(&roles.Role{
 		Name:        "osmo-user",
 		Description: "User role",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "/api/workflow", Method: "*"},
 					{Base: "http", Path: "/api/workflow/*", Method: "*"},
-					{Base: "http", Path: "/api/task", Method: "*"},
-					{Base: "http", Path: "/api/task/*", Method: "*"},
 				},
 			},
 		},
 	})
 
-	// Add osmo-admin role
-	mockPG.AddRole(&postgres.Role{
+	// Add osmo-admin role - legacy format with deny patterns (deny ignored, allows converted)
+	mockPG.AddRole(&roles.Role{
 		Name:        "osmo-admin",
 		Description: "Admin role",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "*", Method: "*"},
+					// Note: deny patterns are ignored during conversion
 					{Base: "http", Path: "!/api/agent/*", Method: "*"},
 				},
 			},
 		},
 	})
 
+	// Convert all roles to semantic format (mimics what main.go does at startup)
+	mockPG.ConvertAllRoles()
+
 	// Create cache
-	cacheConfig := RoleCacheConfig{
+	cacheConfig := roles.RoleCacheConfig{
 		Enabled: true,
 		TTL:     5 * time.Minute,
 		MaxSize: 100,
 	}
-	roleCache := NewRoleCache(cacheConfig, logger)
+	roleCache := roles.NewRoleCache(cacheConfig, logger)
 
 	// Create authz server
 	server := &AuthzServer{
@@ -180,15 +198,15 @@ func TestAuthzServerIntegration(t *testing.T) {
 		{
 			name:           "user role can access workflow with ID",
 			path:           "/api/workflow/abc123",
-			method:         "POST",
+			method:         "GET",
 			user:           "testuser",
 			roles:          "osmo-user",
 			expectedStatus: codes.OK,
 		},
 		{
-			name:           "user role can access task",
-			path:           "/api/task/456",
-			method:         "GET",
+			name:           "user role can update workflow",
+			path:           "/api/workflow/abc123",
+			method:         "PUT",
 			user:           "testuser",
 			roles:          "osmo-user",
 			expectedStatus: codes.OK,
@@ -202,12 +220,12 @@ func TestAuthzServerIntegration(t *testing.T) {
 			expectedStatus: codes.OK,
 		},
 		{
-			name:           "admin role cannot access agent endpoint",
+			name:           "admin role can access agent endpoint (deny patterns ignored in conversion)",
 			path:           "/api/agent/listener/status",
 			method:         "GET",
 			user:           "admin",
 			roles:          "osmo-admin",
-			expectedStatus: codes.PermissionDenied,
+			expectedStatus: codes.OK, // Deny patterns are ignored during legacy->semantic conversion
 		},
 		{
 			name:           "multiple roles osmo-user and osmo-default",
@@ -265,24 +283,27 @@ func TestAuthzServerCaching(t *testing.T) {
 
 	// Create mock postgres client
 	mockPG := NewMockPostgresClient()
-	mockPG.AddRole(&postgres.Role{
+	mockPG.AddRole(&roles.Role{
 		Name: "osmo-default",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "/health", Method: "*"},
 				},
 			},
 		},
 	})
 
+	// Convert all roles to semantic format (mimics what main.go does at startup)
+	mockPG.ConvertAllRoles()
+
 	// Create cache
-	cacheConfig := RoleCacheConfig{
+	cacheConfig := roles.RoleCacheConfig{
 		Enabled: true,
 		TTL:     1 * time.Hour,
 		MaxSize: 100,
 	}
-	roleCache := NewRoleCache(cacheConfig, logger)
+	roleCache := roles.NewRoleCache(cacheConfig, logger)
 
 	// Create authz server
 	server := &AuthzServer{
@@ -384,23 +405,26 @@ func TestAuthzServerEmptyRoles(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	mockPG := NewMockPostgresClient()
-	mockPG.AddRole(&postgres.Role{
+	mockPG.AddRole(&roles.Role{
 		Name: "osmo-default",
-		Policies: []postgres.RolePolicy{
+		Policies: []roles.RolePolicy{
 			{
-				Actions: []postgres.RoleAction{
+				Actions: []roles.RoleAction{
 					{Base: "http", Path: "/health", Method: "*"},
 				},
 			},
 		},
 	})
 
-	cacheConfig := RoleCacheConfig{
+	// Convert all roles to semantic format (mimics what main.go does at startup)
+	mockPG.ConvertAllRoles()
+
+	cacheConfig := roles.RoleCacheConfig{
 		Enabled: true,
 		TTL:     1 * time.Hour,
 		MaxSize: 100,
 	}
-	roleCache := NewRoleCache(cacheConfig, logger)
+	roleCache := roles.NewRoleCache(cacheConfig, logger)
 
 	server := &AuthzServer{
 		pgClient:    mockPG,

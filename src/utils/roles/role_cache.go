@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package server
+package roles
 
 import (
 	"log/slog"
@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
-	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 // RoleCacheConfig holds configuration for the role cache
@@ -38,7 +37,7 @@ type RoleCacheConfig struct {
 
 // RoleCache provides thread-safe caching of role policies
 type RoleCache struct {
-	cache  *expirable.LRU[string, []*postgres.Role]
+	cache  *expirable.LRU[string, []*Role]
 	config RoleCacheConfig
 	logger *slog.Logger
 	hits   atomic.Int64
@@ -47,9 +46,9 @@ type RoleCache struct {
 
 // NewRoleCache creates a new role cache
 func NewRoleCache(config RoleCacheConfig, logger *slog.Logger) *RoleCache {
-	var cache *expirable.LRU[string, []*postgres.Role]
+	var cache *expirable.LRU[string, []*Role]
 	if config.Enabled {
-		cache = expirable.NewLRU[string, []*postgres.Role](config.MaxSize, nil, config.TTL)
+		cache = expirable.NewLRU[string, []*Role](config.MaxSize, nil, config.TTL)
 	}
 
 	return &RoleCache{
@@ -61,13 +60,13 @@ func NewRoleCache(config RoleCacheConfig, logger *slog.Logger) *RoleCache {
 
 // Get retrieves roles from cache by role names
 // Returns the roles and a boolean indicating if found and not expired
-func (c *RoleCache) Get(roleNames []string) ([]*postgres.Role, bool) {
+func (c *RoleCache) Get(roleNames []string) ([]*Role, bool) {
 	if !c.config.Enabled || c.cache == nil {
 		return nil, false
 	}
 
 	key := c.cacheKey(roleNames)
-	roles, found := c.cache.Get(key)
+	cachedRoles, found := c.cache.Get(key)
 
 	if !found {
 		misses := c.misses.Add(1)
@@ -84,21 +83,21 @@ func (c *RoleCache) Get(roleNames []string) ([]*postgres.Role, bool) {
 		slog.Int64("total_hits", hits),
 	)
 
-	return roles, true
+	return cachedRoles, true
 }
 
 // Set stores roles in cache with the configured TTL
-func (c *RoleCache) Set(roleNames []string, roles []*postgres.Role) {
+func (c *RoleCache) Set(roleNames []string, r []*Role) {
 	if !c.config.Enabled || c.cache == nil {
 		return
 	}
 
 	key := c.cacheKey(roleNames)
-	c.cache.Add(key, roles)
+	c.cache.Add(key, r)
 
 	c.logger.Debug("cache set",
 		slog.String("key", key),
-		slog.Int("roles_count", len(roles)),
+		slog.Int("roles_count", len(r)),
 	)
 }
 
