@@ -203,7 +203,7 @@ def queue_update_group_job(postgres: connectors.PostgresConnector,
 
 
 def update_resource(postgres: connectors.PostgresConnector,
-                    backend: str, message: backend_messages.ResourceBody):
+                    backend: str, message: backend_messages.UpdateNodeBody):
     # If delete flag is set, delegate to delete_resource and ignore all other fields
     if message.delete:
         delete_resource(postgres, backend, message)
@@ -268,7 +268,7 @@ def update_resource(postgres: connectors.PostgresConnector,
 
 
 def update_resource_usage(postgres: connectors.PostgresConnector,
-                          backend: str, message: backend_messages.ResourceUsageBody):
+                          backend: str, message: backend_messages.UpdateNodeUsageBody):
     commit_cmd = '''
         INSERT INTO resources
         (name, backend, usage_fields, non_workflow_usage_fields)
@@ -291,7 +291,7 @@ def update_resource_usage(postgres: connectors.PostgresConnector,
 
 
 def delete_resource(postgres: connectors.PostgresConnector, backend: str,
-                    message: backend_messages.ResourceBody):
+                    message: backend_messages.UpdateNodeBody):
     commit_cmd = 'DELETE FROM resources WHERE name = %s and backend = %s'
     postgres.execute_commit_command(commit_cmd, (message.hostname, backend))
 
