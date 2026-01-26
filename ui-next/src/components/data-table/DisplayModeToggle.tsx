@@ -18,8 +18,7 @@
 
 import { memo } from "react";
 import { MonitorCheck, MonitorX } from "lucide-react";
-import { Toggle } from "@/components/shadcn/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import { useSharedPreferences, useDisplayMode } from "@/stores";
 
 /**
@@ -36,18 +35,13 @@ export const DisplayModeToggle = memo(function DisplayModeToggle() {
   const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Toggle
-          size="sm"
-          pressed={displayMode === "free"}
-          onPressedChange={toggleDisplayMode}
-          aria-label={displayMode === "free" ? "Showing used" : "Showing available"}
-        >
-          {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
-        </Toggle>
-      </TooltipTrigger>
-      <TooltipContent>{displayMode === "free" ? "Showing available" : "Showing used"}</TooltipContent>
-    </Tooltip>
+    <SemiStatefulButton
+      onClick={toggleDisplayMode}
+      currentStateIcon={displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
+      nextStateIcon={displayMode === "free" ? <MonitorX className="size-4" /> : <MonitorCheck className="size-4" />}
+      currentStateLabel={displayMode === "free" ? "Showing Available" : "Showing Used"}
+      nextStateLabel={displayMode === "free" ? "Show Used" : "Show Available"}
+      aria-label={displayMode === "free" ? "Currently showing available" : "Currently showing used"}
+    />
   );
 });
