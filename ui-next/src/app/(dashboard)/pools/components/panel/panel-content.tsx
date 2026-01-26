@@ -19,11 +19,11 @@
 "use client";
 
 import React, { memo, useMemo, useCallback } from "react";
-import { CirclePile, Clock, AlertCircle } from "lucide-react";
+import { CirclePile, Clock, AlertCircle, Server, Workflow, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
 import { Card, CardContent } from "@/components/shadcn/card";
+import { Link } from "@/components/link";
 import { CapacityBar } from "@/components/capacity-bar";
-import { PlaceholderSection } from "@/components/placeholder-section";
 import type { Pool } from "@/lib/api/adapter";
 import { getSharingInfo } from "@/lib/api/adapter";
 import { PlatformSelector } from "./platform-selector";
@@ -257,19 +257,40 @@ export const PanelContent = memo(function PanelContent({
           </section>
         )}
 
-        {/* Placeholder: Active Resources */}
-        <PlaceholderSection
-          title="Active Resources"
-          description="Jobs and resources running on this pool will appear here"
-          note="Coming soon: Cross-reference with Resources page"
-        />
+        {/* Links */}
+        <section>
+          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Links</h3>
 
-        {/* Placeholder: Recent Workflows */}
-        <PlaceholderSection
-          title="Recent Workflows"
-          description="Workflows that have used this pool will appear here"
-          note="Coming soon: Cross-reference with Workflows page"
-        />
+          <Card className="gap-0 py-0">
+            <CardContent className="divide-border divide-y p-0">
+              {/* Resources Link */}
+              <Link
+                href={`/resources?f=pool:${encodeURIComponent(pool.name)}`}
+                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
+              >
+                <Server className="text-muted-foreground size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">Resources</div>
+                  <div className="text-muted-foreground text-xs">View compute resources in this pool</div>
+                </div>
+                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
+              </Link>
+
+              {/* Workflows Link */}
+              <Link
+                href={`/workflows?f=pool:${encodeURIComponent(pool.name)}&all=true`}
+                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
+              >
+                <Workflow className="text-muted-foreground size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">Workflows</div>
+                  <div className="text-muted-foreground text-xs">View workflows that ran on this pool</div>
+                </div>
+                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
+              </Link>
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </div>
   );
