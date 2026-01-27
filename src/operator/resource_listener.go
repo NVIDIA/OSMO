@@ -20,16 +20,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -42,7 +39,7 @@ type ResourceListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
 	closeOnce  sync.Once
-	aggregator *ResourceUsageAggregator
+	aggregator *utils.ResourceUsageAggregator
 }
 
 // NewResourceListener creates a new resource listener instance
@@ -50,7 +47,7 @@ func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
 	return &ResourceListener{
 		BaseListener: utils.NewBaseListener(args, "last_progress_resource_listener"),
 		args:         args,
-		aggregator:   NewResourceUsageAggregator(args.Namespace),
+		aggregator:   utils.NewResourceUsageAggregator(args.Namespace),
 	}
 }
 
@@ -235,7 +232,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 	log.Println("Starting node resource watcher")
 
 	// State tracker for node deduplication
-	nodeStateTracker := NewNodeStateTracker(time.Duration(rl.args.StateCacheTTLMin) * time.Minute)
+	nodeStateTracker := utils.NewNodeStateTracker(time.Duration(rl.args.StateCacheTTLMin) * time.Minute)
 
 	// Create informer factory for nodes (cluster-scoped)
 	// Disable informer resync - rely on watch + manual ReconcileIntervalMin instead
@@ -258,7 +255,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 			}
 		}
 		if isDelete {
-			nodeStateTracker.Remove(getNodeHostname(node))
+			nodeStateTracker.Remove(utils.GetNodeHostname(node))
 		}
 	}
 
@@ -461,7 +458,7 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 // rebuildNodesFromStore rebuilds node state from informer cache
 func (rl *ResourceListener) rebuildNodesFromStore(
 	nodeInformer cache.SharedIndexInformer,
-	nodeStateTracker *NodeStateTracker,
+	nodeStateTracker *utils.NodeStateTracker,
 	resourceChan chan<- *pb.ListenerMessage,
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
@@ -533,13 +530,13 @@ func (rl *ResourceListener) flushDirtyNodes(resourceChan chan<- *pb.ListenerMess
 // buildResourceMessage creates a ResourceBody message from a node
 func (rl *ResourceListener) buildResourceMessage(
 	node *corev1.Node,
-	tracker *NodeStateTracker,
+	tracker *utils.NodeStateTracker,
 	isDelete bool,
 ) *pb.ListenerMessage {
-	hostname := getNodeHostname(node)
+	hostname := utils.GetNodeHostname(node)
 
 	// Build resource body
-	body := buildResourceBody(node, isDelete)
+	body := utils.BuildResourceBody(node, isDelete)
 
 	// Check if we should send (deduplication)
 	if !isDelete && !tracker.HasChanged(hostname, body) {
@@ -574,10 +571,10 @@ func (rl *ResourceListener) buildResourceMessage(
 // buildResourceMessageForced creates a ResourceBody message bypassing deduplication
 func (rl *ResourceListener) buildResourceMessageForced(
 	node *corev1.Node,
-	tracker *NodeStateTracker,
+	tracker *utils.NodeStateTracker,
 ) *pb.ListenerMessage {
-	hostname := getNodeHostname(node)
-	body := buildResourceBody(node, false)
+	hostname := utils.GetNodeHostname(node)
+	body := utils.BuildResourceBody(node, false)
 
 	// Update tracker
 	tracker.Update(hostname, body)
@@ -612,7 +609,7 @@ func (rl *ResourceListener) buildResourceUsageMessage(hostname string) *pb.Liste
 		Uuid:      messageUUID,
 		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
 		Body: &pb.ListenerMessage_ResourceUsage{
-			ResourceUsage: &pb.ResourceUsageBody{
+			ResourceUsage: &pb.UpdateNodeUsageBody{
 				Hostname:               hostname,
 				UsageFields:            usageFields,
 				NonWorkflowUsageFields: nonWorkflowFields,
@@ -621,440 +618,4 @@ func (rl *ResourceListener) buildResourceUsageMessage(hostname string) *pb.Liste
 	}
 
 	return msg
-}
-
-// NodeStateTracker tracks the last sent state for each node to avoid duplicate messages
-type NodeStateTracker struct {
-	mu     sync.RWMutex
-	states map[string]nodeStateEntry
-	ttl    time.Duration
-}
-
-type nodeStateEntry struct {
-	body      *pb.ResourceBody
-	timestamp time.Time
-}
-
-// NewNodeStateTracker creates a new node state tracker
-func NewNodeStateTracker(ttl time.Duration) *NodeStateTracker {
-	return &NodeStateTracker{
-		states: make(map[string]nodeStateEntry),
-		ttl:    ttl,
-	}
-}
-
-// HasChanged checks if the node's state has changed since last sent
-func (nst *NodeStateTracker) HasChanged(hostname string, body *pb.ResourceBody) bool {
-	nst.mu.RLock()
-	entry, exists := nst.states[hostname]
-	nst.mu.RUnlock()
-
-	if !exists {
-		return true
-	}
-
-	// Check TTL
-	if time.Since(entry.timestamp) > nst.ttl {
-		return true
-	}
-
-	// Compare resource bodies
-	return !resourceBodiesEqual(entry.body, body)
-}
-
-// Update updates the tracker with the new state
-func (nst *NodeStateTracker) Update(hostname string, body *pb.ResourceBody) {
-	nst.mu.Lock()
-	defer nst.mu.Unlock()
-	nst.states[hostname] = nodeStateEntry{
-		body:      body,
-		timestamp: time.Now(),
-	}
-}
-
-// Remove removes a node from the tracker
-func (nst *NodeStateTracker) Remove(hostname string) {
-	nst.mu.Lock()
-	defer nst.mu.Unlock()
-	delete(nst.states, hostname)
-}
-
-// resourceBodiesEqual compares two ResourceBody messages for equality
-func resourceBodiesEqual(a, b *pb.ResourceBody) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	if a.Hostname != b.Hostname || a.Available != b.Available || a.Delete != b.Delete {
-		return false
-	}
-	if len(a.Conditions) != len(b.Conditions) {
-		return false
-	}
-	// Simple comparison - could be more sophisticated
-	for i, c := range a.Conditions {
-		if i >= len(b.Conditions) || c != b.Conditions[i] {
-			return false
-		}
-	}
-	if !mapsEqual(a.AllocatableFields, b.AllocatableFields) {
-		return false
-	}
-	if !mapsEqual(a.LabelFields, b.LabelFields) {
-		return false
-	}
-	if len(a.Taints) != len(b.Taints) {
-		return false
-	}
-	return true
-}
-
-func mapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
-}
-
-// ResourceUsageAggregator tracks per-node resource usage from pods
-type ResourceUsageAggregator struct {
-	mu sync.RWMutex
-
-	// Workflow namespace for distinguishing workflow vs non-workflow pods
-	workflowNamespace string
-
-	// Pod contributions by UID
-	podContributions map[types.UID]*podContribution
-
-	// Per-node totals
-	nodeTotals map[string]*resourceTotals
-
-	// Per-node non-workflow totals
-	nodeNonWorkflowTotals map[string]*resourceTotals
-
-	// Set of dirty nodes (modified since last flush)
-	dirtyNodes map[string]struct{}
-
-	// Last sent totals for deduplication
-	lastSentTotals map[string]*resourceTotals
-}
-
-type resourceTotals struct {
-	cpu     int64 // millicores
-	memory  int64 // Ki
-	storage int64 // Ki
-	gpu     int64
-}
-
-type podContribution struct {
-	resourceTotals // embedded struct
-	nodeName       string
-	namespace      string
-}
-
-// NewResourceUsageAggregator creates a new resource usage aggregator
-func NewResourceUsageAggregator(workflowNamespace string) *ResourceUsageAggregator {
-	return &ResourceUsageAggregator{
-		workflowNamespace:     workflowNamespace,
-		podContributions:      make(map[types.UID]*podContribution),
-		nodeTotals:            make(map[string]*resourceTotals),
-		nodeNonWorkflowTotals: make(map[string]*resourceTotals),
-		dirtyNodes:            make(map[string]struct{}),
-		lastSentTotals:        make(map[string]*resourceTotals),
-	}
-}
-
-// Reset clears all aggregator state
-func (rua *ResourceUsageAggregator) Reset() {
-	rua.mu.Lock()
-	defer rua.mu.Unlock()
-
-	rua.podContributions = make(map[types.UID]*podContribution)
-	rua.nodeTotals = make(map[string]*resourceTotals)
-	rua.nodeNonWorkflowTotals = make(map[string]*resourceTotals)
-	rua.dirtyNodes = make(map[string]struct{})
-}
-
-// UpdatePod updates the aggregator with a pod's resource requests
-func (rua *ResourceUsageAggregator) UpdatePod(pod *corev1.Pod) {
-	rua.mu.Lock()
-	defer rua.mu.Unlock()
-
-	uid := pod.UID
-	nodeName := pod.Spec.NodeName
-	namespace := pod.Namespace
-
-	// Calculate new contribution
-	newContrib := calculatePodContribution(pod)
-	newContrib.nodeName = nodeName
-	newContrib.namespace = namespace
-
-	// Get old contribution if exists
-	oldContrib := rua.podContributions[uid]
-
-	// If pod moved nodes, handle node migration
-	if oldContrib != nil && oldContrib.nodeName != nodeName {
-		// Subtract from old node
-		rua.subtractContribution(oldContrib.nodeName, oldContrib)
-		rua.dirtyNodes[oldContrib.nodeName] = struct{}{}
-	}
-
-	// Subtract old contribution from current node (if same node)
-	if oldContrib != nil && oldContrib.nodeName == nodeName {
-		rua.subtractContribution(nodeName, oldContrib)
-	}
-
-	// Add new contribution
-	rua.addContribution(nodeName, newContrib)
-	rua.dirtyNodes[nodeName] = struct{}{}
-
-	// Update stored contribution
-	rua.podContributions[uid] = newContrib
-}
-
-// DeletePod removes a pod's contribution from the aggregator
-func (rua *ResourceUsageAggregator) DeletePod(pod *corev1.Pod) {
-	rua.mu.Lock()
-	defer rua.mu.Unlock()
-
-	uid := pod.UID
-	oldContrib := rua.podContributions[uid]
-	if oldContrib == nil {
-		return
-	}
-
-	// Subtract contribution
-	rua.subtractContribution(oldContrib.nodeName, oldContrib)
-	rua.dirtyNodes[oldContrib.nodeName] = struct{}{}
-
-	// Remove from tracking
-	delete(rua.podContributions, uid)
-}
-
-// MarkDirty marks a node as dirty for the next flush
-func (rua *ResourceUsageAggregator) MarkDirty(hostname string) {
-	rua.mu.Lock()
-	defer rua.mu.Unlock()
-	rua.dirtyNodes[hostname] = struct{}{}
-}
-
-// GetAndClearDirtyNodes returns and clears the set of dirty nodes
-func (rua *ResourceUsageAggregator) GetAndClearDirtyNodes() []string {
-	rua.mu.Lock()
-	defer rua.mu.Unlock()
-
-	nodes := make([]string, 0, len(rua.dirtyNodes))
-	for node := range rua.dirtyNodes {
-		nodes = append(nodes, node)
-	}
-	rua.dirtyNodes = make(map[string]struct{})
-	return nodes
-}
-
-// GetNodeUsage returns the resource usage for a node
-func (rua *ResourceUsageAggregator) GetNodeUsage(hostname string) (map[string]string, map[string]string) {
-	rua.mu.RLock()
-	defer rua.mu.RUnlock()
-
-	totals := rua.nodeTotals[hostname]
-	if totals == nil {
-		totals = &resourceTotals{}
-	}
-
-	nonWfTotals := rua.nodeNonWorkflowTotals[hostname]
-	if nonWfTotals == nil {
-		nonWfTotals = &resourceTotals{}
-	}
-
-	usageFields := formatResourceUsage(totals)
-	nonWorkflowFields := formatResourceUsage(nonWfTotals)
-
-	return usageFields, nonWorkflowFields
-}
-
-func (rua *ResourceUsageAggregator) addContribution(nodeName string, contrib *podContribution) {
-	// Initialize totals if needed
-	if rua.nodeTotals[nodeName] == nil {
-		rua.nodeTotals[nodeName] = &resourceTotals{}
-	}
-	if rua.nodeNonWorkflowTotals[nodeName] == nil {
-		rua.nodeNonWorkflowTotals[nodeName] = &resourceTotals{}
-	}
-
-	// Add to totals
-	rua.nodeTotals[nodeName].cpu += contrib.cpu
-	rua.nodeTotals[nodeName].memory += contrib.memory
-	rua.nodeTotals[nodeName].storage += contrib.storage
-	rua.nodeTotals[nodeName].gpu += contrib.gpu
-
-	// Add to non-workflow totals if not in workflow namespace
-	if contrib.namespace != rua.workflowNamespace {
-		rua.nodeNonWorkflowTotals[nodeName].cpu += contrib.cpu
-		rua.nodeNonWorkflowTotals[nodeName].memory += contrib.memory
-		rua.nodeNonWorkflowTotals[nodeName].storage += contrib.storage
-		rua.nodeNonWorkflowTotals[nodeName].gpu += contrib.gpu
-	}
-}
-
-func (rua *ResourceUsageAggregator) subtractContribution(nodeName string, contrib *podContribution) {
-	if rua.nodeTotals[nodeName] == nil {
-		return
-	}
-
-	// Subtract from totals
-	rua.nodeTotals[nodeName].cpu -= contrib.cpu
-	rua.nodeTotals[nodeName].memory -= contrib.memory
-	rua.nodeTotals[nodeName].storage -= contrib.storage
-	rua.nodeTotals[nodeName].gpu -= contrib.gpu
-
-	// Subtract from non-workflow totals if not in workflow namespace
-	if contrib.namespace != rua.workflowNamespace && rua.nodeNonWorkflowTotals[nodeName] != nil {
-		rua.nodeNonWorkflowTotals[nodeName].cpu -= contrib.cpu
-		rua.nodeNonWorkflowTotals[nodeName].memory -= contrib.memory
-		rua.nodeNonWorkflowTotals[nodeName].storage -= contrib.storage
-		rua.nodeNonWorkflowTotals[nodeName].gpu -= contrib.gpu
-	}
-}
-
-// calculatePodContribution calculates resource requests for a pod
-func calculatePodContribution(pod *corev1.Pod) *podContribution {
-	contrib := &podContribution{}
-
-	for _, container := range pod.Spec.Containers {
-		if container.Resources.Requests == nil {
-			continue
-		}
-
-		requests := container.Resources.Requests
-
-		// CPU in millicores
-		if cpu, ok := requests[corev1.ResourceCPU]; ok {
-			contrib.cpu += cpu.MilliValue()
-		}
-
-		// Memory in Ki
-		if mem, ok := requests[corev1.ResourceMemory]; ok {
-			contrib.memory += toKi(mem)
-		}
-
-		// Ephemeral storage in Ki
-		if storage, ok := requests[corev1.ResourceEphemeralStorage]; ok {
-			contrib.storage += toKi(storage)
-		}
-
-		// GPU
-		gpuResource := corev1.ResourceName("nvidia.com/gpu")
-		if gpu, ok := requests[gpuResource]; ok {
-			contrib.gpu += gpu.Value()
-		}
-	}
-
-	return contrib
-}
-
-// toKi converts a resource.Quantity to Ki (kibibytes)
-func toKi(q resource.Quantity) int64 {
-	// Get value in bytes and convert to Ki
-	bytes := q.Value()
-	return int64(math.Ceil(float64(bytes) / 1024))
-}
-
-// formatResourceUsage formats resource totals as a map for the proto message
-func formatResourceUsage(totals *resourceTotals) map[string]string {
-	return map[string]string{
-		"cpu":               fmt.Sprintf("%d", int64(math.Ceil(float64(totals.cpu)))),
-		"memory":            fmt.Sprintf("%dKi", int64(math.Ceil(float64(totals.memory)))),
-		"ephemeral-storage": fmt.Sprintf("%dKi", int64(math.Ceil(float64(totals.storage)))),
-		"nvidia.com/gpu":    fmt.Sprintf("%d", totals.gpu),
-	}
-}
-
-// getNodeHostname extracts the hostname from a node
-func getNodeHostname(node *corev1.Node) string {
-	if hostname, ok := node.Labels["kubernetes.io/hostname"]; ok {
-		return hostname
-	}
-	return "-"
-}
-
-// buildResourceBody creates a ResourceBody from a node
-func buildResourceBody(node *corev1.Node, isDelete bool) *pb.ResourceBody {
-	hostname := getNodeHostname(node)
-
-	// Build conditions list (types with status True)
-	var conditions []string
-	for _, cond := range node.Status.Conditions {
-		if cond.Status == corev1.ConditionTrue {
-			conditions = append(conditions, string(cond.Type))
-		}
-	}
-
-	// Calculate availability: Ready==True && !Unschedulable
-	available := isNodeAvailable(node)
-
-	// Build allocatable fields
-	allocatableFields := make(map[string]string)
-	for name, qty := range node.Status.Allocatable {
-		switch name {
-		case corev1.ResourceCPU:
-			// CPU in millicores
-			allocatableFields[string(name)] = fmt.Sprintf("%d", qty.MilliValue())
-		case corev1.ResourceMemory, corev1.ResourceEphemeralStorage:
-			// Memory/Storage in Ki
-			allocatableFields[string(name)] = fmt.Sprintf("%dKi", toKi(qty))
-		default:
-			allocatableFields[string(name)] = qty.String()
-		}
-	}
-
-	// Build label fields (filter out feature.node.kubernetes.io prefixed keys)
-	labelFields := make(map[string]string)
-	for key, value := range node.Labels {
-		if !strings.HasPrefix(key, "feature.node.kubernetes.io") {
-			labelFields[key] = value
-		}
-	}
-
-	// Build taints
-	var taints []*pb.Taint
-	for _, taint := range node.Spec.Taints {
-		t := &pb.Taint{
-			Key:    taint.Key,
-			Value:  taint.Value,
-			Effect: string(taint.Effect),
-		}
-		if taint.TimeAdded != nil {
-			t.TimeAdded = taint.TimeAdded.UTC().Format("2006-01-02T15:04:05.999999")
-		}
-		taints = append(taints, t)
-	}
-
-	return &pb.ResourceBody{
-		Hostname:          hostname,
-		Available:         available,
-		Conditions:        conditions,
-		AllocatableFields: allocatableFields,
-		LabelFields:       labelFields,
-		Taints:            taints,
-		Delete:            isDelete,
-	}
-}
-
-// isNodeAvailable checks if a node is available (Ready==True && !Unschedulable)
-func isNodeAvailable(node *corev1.Node) bool {
-	if node.Spec.Unschedulable {
-		return false
-	}
-
-	for _, cond := range node.Status.Conditions {
-		if cond.Type == corev1.NodeReady {
-			return cond.Status == corev1.ConditionTrue
-		}
-	}
-
-	return false
 }

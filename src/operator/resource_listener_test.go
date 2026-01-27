@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -55,7 +56,7 @@ func TestBuildResourceBody_Basic(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	if body.Hostname != "worker-node-1" {
 		t.Errorf("Hostname = %s, expected worker-node-1", body.Hostname)
@@ -100,7 +101,7 @@ func TestBuildResourceBody_Unschedulable(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	if body.Available {
 		t.Error("Expected unschedulable node to be unavailable")
@@ -127,7 +128,7 @@ func TestBuildResourceBody_NotReady(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	if body.Available {
 		t.Error("Expected not-ready node to be unavailable")
@@ -159,7 +160,7 @@ func TestBuildResourceBody_Conditions(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	// Only conditions with Status=True should be included
 	expectedConditions := map[string]bool{
@@ -199,7 +200,7 @@ func TestBuildResourceBody_LabelFiltering(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	// feature.node.kubernetes.io prefixed labels should be filtered out
 	if _, ok := body.LabelFields["feature.node.kubernetes.io/cpu-cpuid"]; ok {
@@ -254,7 +255,7 @@ func TestBuildResourceBody_Taints(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	if len(body.Taints) != 2 {
 		t.Errorf("Expected 2 taints, got %d", len(body.Taints))
@@ -305,7 +306,7 @@ func TestBuildResourceBody_AllocatableFields(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	// CPU should be in millicores
 	if body.AllocatableFields["cpu"] != "16000" {
@@ -347,7 +348,7 @@ func TestBuildResourceBody_Delete(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, true)
+	body := utils.BuildResourceBody(node, true)
 
 	if !body.Delete {
 		t.Error("Expected Delete to be true")
@@ -370,7 +371,7 @@ func TestBuildResourceBody_MissingHostnameLabel(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	// Should fallback to "-" when hostname label is missing
 	if body.Hostname != "-" {
@@ -408,9 +409,9 @@ func TestGetNodeHostname(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getNodeHostname(tt.node)
+			result := utils.GetNodeHostname(tt.node)
 			if result != tt.expected {
-				t.Errorf("getNodeHostname() = %s, expected %s", result, tt.expected)
+				t.Errorf("GetNodeHostname() = %s, expected %s", result, tt.expected)
 			}
 		})
 	}
@@ -489,16 +490,16 @@ func TestIsNodeAvailable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isNodeAvailable(tt.node)
+			result := utils.IsNodeAvailable(tt.node)
 			if result != tt.expected {
-				t.Errorf("isNodeAvailable() = %v, expected %v", result, tt.expected)
+				t.Errorf("IsNodeAvailable() = %v, expected %v", result, tt.expected)
 			}
 		})
 	}
 }
 
 func TestResourceBodiesEqual(t *testing.T) {
-	body1 := &pb.ResourceBody{
+	body1 := &pb.UpdateNodeBody{
 		Hostname:  "node-1",
 		Available: true,
 		Conditions: []string{"Ready"},
@@ -511,7 +512,7 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	body2 := &pb.ResourceBody{
+	body2 := &pb.UpdateNodeBody{
 		Hostname:  "node-1",
 		Available: true,
 		Conditions: []string{"Ready"},
@@ -524,7 +525,7 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	body3 := &pb.ResourceBody{
+	body3 := &pb.UpdateNodeBody{
 		Hostname:  "node-1",
 		Available: false, // Different
 		Conditions: []string{"Ready"},
@@ -537,18 +538,18 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	if !resourceBodiesEqual(body1, body2) {
+	if !utils.ResourceBodiesEqual(body1, body2) {
 		t.Error("Expected identical bodies to be equal")
 	}
 
-	if resourceBodiesEqual(body1, body3) {
+	if utils.ResourceBodiesEqual(body1, body3) {
 		t.Error("Expected different bodies to be unequal")
 	}
 }
 
 // Test ResourceUsageAggregator
 func TestResourceUsageAggregator_UpdatePod(t *testing.T) {
-	agg := NewResourceUsageAggregator("osmo")
+	agg := utils.NewResourceUsageAggregator("osmo")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -587,7 +588,7 @@ func TestResourceUsageAggregator_UpdatePod(t *testing.T) {
 }
 
 func TestResourceUsageAggregator_DeletePod(t *testing.T) {
-	agg := NewResourceUsageAggregator("osmo")
+	agg := utils.NewResourceUsageAggregator("osmo")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -625,7 +626,7 @@ func TestResourceUsageAggregator_DeletePod(t *testing.T) {
 }
 
 func TestResourceUsageAggregator_NodeMigration(t *testing.T) {
-	agg := NewResourceUsageAggregator("osmo")
+	agg := utils.NewResourceUsageAggregator("osmo")
 
 	// Create pod on node-1
 	pod := &corev1.Pod{
@@ -666,7 +667,7 @@ func TestResourceUsageAggregator_NodeMigration(t *testing.T) {
 }
 
 func TestResourceUsageAggregator_NonWorkflowNamespace(t *testing.T) {
-	agg := NewResourceUsageAggregator("osmo")
+	agg := utils.NewResourceUsageAggregator("osmo")
 
 	// Pod in workflow namespace
 	workflowPod := &corev1.Pod{
@@ -724,7 +725,7 @@ func TestResourceUsageAggregator_NonWorkflowNamespace(t *testing.T) {
 }
 
 func TestNodeStateTracker(t *testing.T) {
-	tracker := NewNodeStateTracker(1 * time.Minute)
+	tracker := utils.NewNodeStateTracker(1 * time.Minute)
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -742,7 +743,7 @@ func TestNodeStateTracker(t *testing.T) {
 		},
 	}
 
-	body := buildResourceBody(node, false)
+	body := utils.BuildResourceBody(node, false)
 
 	// First time should indicate change
 	if !tracker.HasChanged("test-node", body) {
@@ -759,7 +760,7 @@ func TestNodeStateTracker(t *testing.T) {
 
 	// Change availability
 	node.Spec.Unschedulable = true
-	body2 := buildResourceBody(node, false)
+	body2 := utils.BuildResourceBody(node, false)
 
 	// Should indicate change
 	if !tracker.HasChanged("test-node", body2) {
@@ -845,12 +846,12 @@ func BenchmarkBuildResourceBody(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		buildResourceBody(node, false)
+		utils.BuildResourceBody(node, false)
 	}
 }
 
 func BenchmarkResourceUsageAggregator_UpdatePod(b *testing.B) {
-	agg := NewResourceUsageAggregator("osmo")
+	agg := utils.NewResourceUsageAggregator("osmo")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
