@@ -60,7 +60,7 @@
 
 // Public API - Main component
 export { TimelineContainer } from "./components/TimelineContainer";
-export type { TimelineContainerProps, TimeRangePreset } from "./components/TimelineContainer";
+export type { TimelineContainerProps, TimelineContainerHandle, TimeRangePreset } from "./components/TimelineContainer";
 
 // Note: All internal components, hooks, and utilities are NOT exported.
 // They are implementation details of TimelineContainer.
