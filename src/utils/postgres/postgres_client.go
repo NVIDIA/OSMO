@@ -88,7 +88,7 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Info("postgres client connected successfully",
+	logger.Info("Postgres client connected successfully",
 		slog.String("host", config.Host),
 		slog.Int("port", config.Port),
 		slog.String("database", config.Database),

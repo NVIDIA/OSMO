@@ -71,7 +71,7 @@ func NewRedisClient(ctx context.Context, config RedisConfig, logger *slog.Logger
 		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
-	logger.Info("redis client connected successfully",
+	logger.Info("Redis client connected successfully",
 		slog.String("address", fmt.Sprintf("%s:%d", config.Host, config.Port)),
 		slog.Int("db", config.DB),
 		slog.Bool("tls", config.TLSEnabled),
