@@ -92,10 +92,6 @@ export const WorkflowsFilters = ({
   }, [userType]);
 
   useEffect(() => {
-    setLocalUsers(selectedUsers);
-  }, [selectedUsers]);
-
-  useEffect(() => {
     setLocalStatusFilterType(statusFilterType);
 
     if (statusFilterType === StatusFilterType.CUSTOM) {
