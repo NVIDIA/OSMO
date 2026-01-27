@@ -412,6 +412,23 @@ data:
                         request_handle:headers():replace('x-osmo-roles', roles_list)
                       end
 
+              {{- if .Values.sidecars.authz.enabled }}
+              - name: envoy.filters.http.ext_authz
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                  transport_api_version: V3
+                  with_request_body:
+                    max_request_bytes: 8192
+                    allow_partial_message: true
+                  failure_mode_allow: false
+                  grpc_service:
+                    envoy_grpc:
+                      cluster_name: authz-sidecar
+                    timeout: 0.5s
+                  metadata_context_namespaces:
+                    - envoy.filters.http.jwt_authn
+              {{- end }}
+
               - name: envoy.filters.http.ratelimit
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
@@ -498,6 +515,27 @@ data:
                     address: 127.0.0.1
                     port_value: {{ .Values.sidecars.rateLimit.grpcPort }}
         {{- end }}
+
+      {{- if .Values.sidecars.authz.enabled }}
+      - name: authz-sidecar
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+        connect_timeout: 0.25s
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: authz-sidecar
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: 127.0.0.1
+                    port_value: {{ .Values.sidecars.authz.grpcPort }}
+      {{- end }}
 
       - name: oauth
         connect_timeout: 3s

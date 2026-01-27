@@ -396,3 +396,49 @@ Rate limit volumes
       path: config.yaml
 {{- end }}
 {{- end }}
+
+{{/*
+Authorization sidecar container
+*/}}
+{{- define "osmo.authz-sidecar-container" -}}
+{{- if .Values.sidecars.authz.enabled }}
+- name: authz-sidecar
+  securityContext:
+    {{- toYaml .Values.sidecars.authz.securityContext | nindent 4 }}
+  image: "{{ .Values.sidecars.authz.image }}"
+  imagePullPolicy: {{ .Values.sidecars.authz.imagePullPolicy }}
+  args:
+    - "--grpc-port={{ .Values.sidecars.authz.grpcPort }}"
+    - "--postgres-host={{ .Values.services.postgres.serviceName }}"
+    - "--postgres-port={{ .Values.services.postgres.port }}"
+    - "--postgres-database={{ .Values.services.postgres.db }}"
+    - "--postgres-user={{ .Values.services.postgres.user }}"
+    - "--postgres-ssl-mode={{ .Values.sidecars.authz.postgres.sslMode }}"
+    - "--postgres-max-conns={{ .Values.sidecars.authz.postgres.maxConns }}"
+    - "--postgres-min-conns={{ .Values.sidecars.authz.postgres.minConns }}"
+    - "--postgres-max-conn-lifetime={{ .Values.sidecars.authz.postgres.maxConnLifetimeMin }}"
+    - "--cache-enabled={{ .Values.sidecars.authz.cache.enabled }}"
+    - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
+    - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
+  env:
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.services.postgres.passwordSecretName }}
+          key: {{ .Values.services.postgres.passwordSecretKey }}
+  ports:
+    - containerPort: {{ .Values.sidecars.authz.grpcPort }}
+      name: authz-grpc
+      protocol: TCP
+  {{- with .Values.sidecars.authz.livenessProbe }}
+  livenessProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.sidecars.authz.readinessProbe }}
+  readinessProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  resources:
+    {{- toYaml .Values.sidecars.authz.resources | nindent 4 }}
+{{- end }}
+{{- end }}
