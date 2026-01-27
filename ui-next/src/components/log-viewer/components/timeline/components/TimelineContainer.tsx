@@ -121,10 +121,7 @@ export type { TimeRangePreset };
  * Hook to compute time axis labels.
  * CRITICAL: Use currentDisplay (viewport) not currentEffective (data range)
  */
-function useTimeLabels(
-  currentDisplay: { start: Date; end: Date },
-  isEndTimeNow: boolean,
-) {
+function useTimeLabels(currentDisplay: { start: Date; end: Date }, isEndTimeNow: boolean) {
   const startLabel = useMemo(() => {
     return formatTime24ShortUTC(currentDisplay.start);
   }, [currentDisplay.start]);

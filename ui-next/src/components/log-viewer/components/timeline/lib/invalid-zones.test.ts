@@ -49,6 +49,7 @@ describe("calculateInvalidZonePositions", () => {
         0, // Display starts at 0
         20000, // Display ends at 20s
         BUCKET_WIDTH,
+        20,
       );
 
       // Left zone should span from 0 to (entityStart - 1.0s)
@@ -65,6 +66,7 @@ describe("calculateInvalidZonePositions", () => {
         10000, // Display starts at or after (entityStart - gap) = 9.0s, so starting at 10s means no left zone
         20000,
         BUCKET_WIDTH,
+        20,
       );
 
       expect(result.leftInvalidWidth).toBe(0);
@@ -78,6 +80,7 @@ describe("calculateInvalidZonePositions", () => {
         7000, // Display starts at 7s, zone ends at 9.0s (entityStart - 1.0s)
         20000,
         BUCKET_WIDTH,
+        20,
       );
 
       // Zone spans from 7s to 9.0s = 2.0s
@@ -101,6 +104,7 @@ describe("calculateInvalidZonePositions", () => {
         displayStart,
         displayEnd,
         BUCKET_WIDTH,
+        20,
       );
 
       // Zone should start at: entityEnd (50s) + gap (1.0s) = 51.0s
@@ -123,6 +127,7 @@ describe("calculateInvalidZonePositions", () => {
         displayStart,
         displayEnd,
         BUCKET_WIDTH,
+        20,
       );
 
       // Zone should start at: NOW (60s) + gap (1.0s) = 61.0s
@@ -152,6 +157,7 @@ describe("calculateInvalidZonePositions", () => {
         40000,
         60000,
         bucketWidth,
+        20,
       );
 
       // After pan: display 50s-70s (panned right by 10s)
@@ -162,6 +168,7 @@ describe("calculateInvalidZonePositions", () => {
         50000,
         70000,
         bucketWidth,
+        20,
       );
 
       // Convert percentages back to milliseconds
@@ -195,6 +202,7 @@ describe("calculateInvalidZonePositions", () => {
         40000,
         60000,
         bucketWidth,
+        20,
       );
 
       // After zoom in: 10s window (45s-55s) - zoomed in 2x
@@ -205,6 +213,7 @@ describe("calculateInvalidZonePositions", () => {
         45000,
         55000,
         bucketWidth,
+        20,
       );
 
       // Convert back to absolute milliseconds
@@ -226,6 +235,7 @@ describe("calculateInvalidZonePositions", () => {
         40000,
         50000, // Display ends exactly at entityEnd (before gap)
         BUCKET_WIDTH,
+        20,
       );
 
       // Zone starts at 51.0s, but display ends at 50s
@@ -245,6 +255,7 @@ describe("calculateInvalidZonePositions", () => {
         displayStart,
         displayEnd,
         BUCKET_WIDTH,
+        20,
       );
 
       // Zone starts at 51.0s
@@ -270,6 +281,7 @@ describe("calculateInvalidZonePositions", () => {
         0, // Display: 0-70s
         70000,
         bucketWidth,
+        20,
       );
 
       // Left zone should end at: entityStart - gap = 10s - 1.0s = 9.0s
@@ -295,6 +307,7 @@ describe("calculateInvalidZonePositions", () => {
         displayStart,
         displayEnd,
         BUCKET_WIDTH,
+        20,
       );
 
       // Left gap starts at entityStart - 1.0s = 9s
@@ -319,6 +332,7 @@ describe("calculateInvalidZonePositions", () => {
         displayStart,
         displayEnd,
         BUCKET_WIDTH,
+        20,
       );
 
       // Right gap starts at entityEnd = 50s
@@ -339,6 +353,7 @@ describe("calculateInvalidZonePositions", () => {
         15000, // Display starts after entity start + gap
         45000, // Display ends before entity end
         BUCKET_WIDTH,
+        20,
       );
 
       // Left gap (9s-10s) is outside display (15s-45s)
@@ -359,6 +374,7 @@ describe("calculateInvalidZonePositions", () => {
         displayStart,
         displayEnd,
         BUCKET_WIDTH,
+        20,
       );
 
       // Left gap is 9s-10s, but display starts at 9.5s
@@ -373,7 +389,7 @@ describe("calculateInvalidZonePositions", () => {
 
   describe("Edge cases", () => {
     it("should handle zero bucket width gracefully", () => {
-      const result = calculateInvalidZonePositions(ENTITY_START, ENTITY_END, NOW, 0, 60000, 0);
+      const result = calculateInvalidZonePositions(ENTITY_START, ENTITY_END, NOW, 0, 60000, 0, 60);
 
       // With 0 bucket width, gap = 0 (0 * 1.0), so zone starts exactly at entityEnd
       expect(result.rightInvalidStart).toBeCloseTo((ENTITY_END / 60000) * 100, 2);
@@ -383,7 +399,7 @@ describe("calculateInvalidZonePositions", () => {
     });
 
     it("should handle invalid display range (start >= end)", () => {
-      const result = calculateInvalidZonePositions(ENTITY_START, ENTITY_END, NOW, 50000, 40000, BUCKET_WIDTH);
+      const result = calculateInvalidZonePositions(ENTITY_START, ENTITY_END, NOW, 50000, 40000, BUCKET_WIDTH, 0);
 
       // Should return safe defaults
       expect(result.leftInvalidWidth).toBe(0);
