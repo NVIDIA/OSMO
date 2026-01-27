@@ -38,7 +38,7 @@
 
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
@@ -264,6 +264,27 @@ function TimelineHistogramInner({
   // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
+  // Ref to measure container pixel width for accurate gap calculation
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+  // Measure container width on mount and resize
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+
+    updateWidth();
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(containerRef.current);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Invalid zone positions (part of Layer 1 - transforms with bars)
   // CRITICAL: ALWAYS use currentDisplay to ensure invalid zones match actual viewport
   const invalidZonePositions = useMemo(() => {
@@ -288,15 +309,34 @@ function TimelineHistogramInner({
         "[TimelineHistogram] NOW timestamp not provided for running workflow - right invalid zone may be incorrect",
       );
     }
-    return calculateInvalidZonePositions(
+    const positions = calculateInvalidZonePositions(
       entityStartTime.getTime(),
       entityEndTime?.getTime(),
       nowMs,
       displayStartMs,
       displayEndMs,
       bucketWidthMs,
+      activeBuckets.length, // Total buckets visible - used to match flexbox bar width
     );
-  }, [entityStartTime, entityEndTime, now, currentDisplay, activeBuckets]);
+
+    // CRITICAL: Adjust gap widths to account for inter-bar spacing (gap-px = 1px)
+    // The bars use flexbox with 1px gaps between them, so actual bar width is:
+    // (containerWidth - (n-1)*1px) / n
+    // We need to scale the gap percentage by this factor to match visual bar width
+    if (containerWidth && activeBuckets.length > 0) {
+      const n = activeBuckets.length;
+      const interBarGapsPx = (n - 1) * 1; // 1px gap between each bar
+      const correctionFactor = (containerWidth - interBarGapsPx) / containerWidth;
+
+      return {
+        ...positions,
+        leftGapWidth: positions.leftGapWidth * correctionFactor,
+        rightGapWidth: positions.rightGapWidth * correctionFactor,
+      };
+    }
+
+    return positions;
+  }, [entityStartTime, entityEndTime, now, currentDisplay, activeBuckets, containerWidth]);
 
   // ============================================================================
   // TRANSFORM CALCULATION
@@ -339,6 +379,7 @@ function TimelineHistogramInner({
 
   return (
     <div
+      ref={containerRef}
       className="absolute inset-0"
       style={barTransform ? { transform: barTransform } : undefined}
       data-layer="pannable"
@@ -384,7 +425,19 @@ function TimelineHistogramInner({
       )}
 
       {/* Histogram bars */}
-      <div className="absolute inset-0 flex items-end gap-px">
+      {/* CRITICAL: Bars must NOT use inset-0 (100% width) as that covers the gaps */}
+      {/* Instead, position bars between gaps using their calculated positions */}
+      <div
+        className="absolute top-0 bottom-0 flex items-end gap-px"
+        style={{
+          left: invalidZonePositions
+            ? `${invalidZonePositions.leftGapStart + invalidZonePositions.leftGapWidth}%`
+            : "0%",
+          width: invalidZonePositions
+            ? `${invalidZonePositions.rightGapStart - (invalidZonePositions.leftGapStart + invalidZonePositions.leftGapWidth)}%`
+            : "100%",
+        }}
+      >
         {activeBuckets.map((bucket, i) => (
           <StackedBar
             key={`${bucket.timestamp.getTime()}-${i}`}

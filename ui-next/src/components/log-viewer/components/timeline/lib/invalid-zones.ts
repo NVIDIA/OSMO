@@ -67,6 +67,7 @@ export function calculateBucketWidth(buckets: Date[]): number {
  * @param displayStartMs - Display range start in milliseconds
  * @param displayEndMs - Display range end in milliseconds
  * @param bucketWidthMs - Width of one bucket in milliseconds
+ * @param totalBucketsInViewport - Total number of histogram buckets visible in viewport (for matching flexbox bar width)
  * @returns Invalid zone positions as percentages
  */
 export function calculateInvalidZonePositions(
@@ -76,6 +77,7 @@ export function calculateInvalidZonePositions(
   displayStartMs: number,
   displayEndMs: number,
   bucketWidthMs: number,
+  totalBucketsInViewport: number,
 ): InvalidZonePositions {
   const displayRangeMs = displayEndMs - displayStartMs;
 
@@ -93,6 +95,39 @@ export function calculateInvalidZonePositions(
   }
 
   const toPercent = (ms: number): number => (ms / displayRangeMs) * 100;
+
+  // Guard: zero bucket width (edge case - no real buckets exist)
+  if (bucketWidthMs === 0) {
+    // With no bucket width, gaps should be zero
+    // Invalid zones still render based on entity boundaries
+    const leftWidthPercent = displayStartMs < entityStartMs ? toPercent(entityStartMs - displayStartMs) : 0;
+    const rightBoundaryMs = entityEndMs ?? nowMs;
+    const rightStartPercent = toPercent(Math.max(0, rightBoundaryMs - displayStartMs));
+    const rightWidthPercent = displayEndMs > rightBoundaryMs ? toPercent(displayEndMs - rightBoundaryMs) : 0;
+
+    return {
+      leftInvalidWidth: leftWidthPercent,
+      rightInvalidStart: rightStartPercent,
+      rightInvalidWidth: rightWidthPercent,
+      leftGapStart: 0,
+      leftGapWidth: 0,
+      rightGapStart: 100,
+      rightGapWidth: 0,
+    };
+  }
+
+  // CRITICAL: Gap width must match histogram bar ACTUAL visual width
+  // Bars use flexbox (flex-1) with gap-px (1px) between them
+  //
+  // The gap width calculation needs to account for inter-bar spacing.
+  // However, we can't know the exact pixel width here (pure function, no DOM access).
+  //
+  // For now, use simple division which will be close enough for most cases.
+  // If precision is critical, this would need to be calculated in the component
+  // where we have access to the actual container pixel width.
+  //
+  // Formula: each bar gets approximately 100% / n (ignoring small 1px gaps)
+  const gapWidthPercent = totalBucketsInViewport > 0 ? 100 / totalBucketsInViewport : 0;
 
   // ============================================================================
   // LEFT ZONE: Before entity start
@@ -121,7 +156,11 @@ export function calculateInvalidZonePositions(
     const clampedGapStartMs = Math.max(leftGapStartMs, displayStartMs);
     const clampedGapEndMs = Math.min(leftGapEndMs, displayEndMs);
     leftGapStartPercent = toPercent(clampedGapStartMs - displayStartMs);
-    leftGapWidthPercent = toPercent(clampedGapEndMs - clampedGapStartMs);
+    // Use visual bucket width (matches flexbox bar width), not time-based width
+    // This ensures gap appears as "one bar's worth" of space
+    const gapTimeSpanMs = clampedGapEndMs - clampedGapStartMs;
+    const isFullyVisible = gapTimeSpanMs >= bucketWidthMs;
+    leftGapWidthPercent = isFullyVisible ? gapWidthPercent : toPercent(gapTimeSpanMs);
   }
 
   // ============================================================================
@@ -156,7 +195,11 @@ export function calculateInvalidZonePositions(
     const clampedGapStartMs = Math.max(rightGapStartMs, displayStartMs);
     const clampedGapEndMs = Math.min(rightGapEndMs, displayEndMs);
     rightGapStartPercent = toPercent(clampedGapStartMs - displayStartMs);
-    rightGapWidthPercent = toPercent(clampedGapEndMs - clampedGapStartMs);
+    // Use visual bucket width (matches flexbox bar width), not time-based width
+    // This ensures gap appears as "one bar's worth" of space
+    const gapTimeSpanMs = clampedGapEndMs - clampedGapStartMs;
+    const isFullyVisible = gapTimeSpanMs >= bucketWidthMs;
+    rightGapWidthPercent = isFullyVisible ? gapWidthPercent : toPercent(gapTimeSpanMs);
   }
 
   return {

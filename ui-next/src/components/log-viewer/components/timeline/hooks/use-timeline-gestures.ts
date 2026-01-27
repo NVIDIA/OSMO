@@ -55,11 +55,7 @@
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import {
-  clampTimeToRange,
-  validateInvalidZoneLimits,
-  calculateMaxInvalidZoneBuckets,
-} from "../lib/timeline-utils";
+import { clampTimeToRange, validateInvalidZoneLimits, calculateMaxInvalidZoneBuckets } from "../lib/timeline-utils";
 import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
 import {
   PAN_FACTOR,
@@ -244,38 +240,41 @@ interface AsymmetricZoomResult {
 /**
  * Calculate asymmetric zoom when symmetric zoom would violate constraints.
  *
- * ## Algorithm (Center-Anchored with Deficit Transfer)
+ * ## Algorithm (Center-Anchored with Monotonic Decrease)
  *
  * 1. Try symmetric expansion from center
  * 2. Validate against ALL THREE constraints (left, right, combined)
  * 3. If blocked by per-side limit on ONE side:
- *    a. Calculate where constrained edge should be to maintain max allowed percentage
- *    b. Calculate deficit (difference from symmetric position)
- *    c. Transfer deficit to opposite side
+ *    a. Calculate ideal edge position for new bucket-quantized limit
+ *    b. Constrain to ensure monotonic decrease (can only move toward entity or stay)
+ *    c. Transfer deficit from constrained expansion to opposite side
  *    d. Validate asymmetric result
  * 4. If blocked by combined limit: BLOCK (both sides contributing)
  * 5. If asymmetric validation fails: BLOCK entirely (all-or-nothing)
  * 6. If valid: return asymmetric zoom
  *
- * ## Center-Anchored Strategy (Bucket-Quantized)
+ * ## Monotonic Decrease Strategy (Zoom OUT only shrinks invalid zones)
  *
- * When one invalid zone would exceed its limit during zoom out:
- * - **Calculate bucket-quantized limit** using SAME logic as validation
- *   - 10% heuristic → floor(totalBuckets * 0.1) → quantized bucket limit
- *   - This ensures perfect alignment with validation thresholds
- * - **Calculate ideal constrained edge position** from quantized bucket limit
- * - **Never move edges INWARD** during zoom out - use current position if it's further out
- * - **Calculate deficit** from symmetric expansion
- * - **Transfer deficit** to opposite side
- * - Result: Invalid zone either shrinks to bucket-quantized limit or stays pinned
+ * **CRITICAL CONSTRAINT**: During zoom OUT, invalid zone absolute width is **monotonically non-increasing**:
+ * - Can **decrease** (edge moves toward entity boundary, "pulling in")
+ * - Can **stay same** (edge pinned at current position)
+ * - Can **NEVER increase** (prevents exceeding limits on subsequent operations)
  *
- * Example: 60s buckets, 100min viewport → 125min zoom (25 buckets total)
- *   - Bucket limit: floor(25 * 0.1) = 2 buckets = 120s
- *   - If left at 1.5 buckets (90s):
- *     Symmetric would create 2.5 buckets → BLOCKED
- *     Asymmetric: constrain to 2 buckets (120s), transfer deficit to right
- *   - If left at 2.5 buckets (150s):
- *     Already above limit → pin at current position, all expansion goes right
+ * During zoom IN: No constraint needed (viewport edges naturally move toward center,
+ * which pushes invalid zones outward - never violates limits)
+ *
+ * **Implementation**:
+ * - Left edge: `Math.max(idealPosition, currentPosition)` → only moves RIGHT (toward entity) or stays
+ * - Right edge: `Math.min(idealPosition, currentPosition)` → only moves LEFT (toward entity) or stays
+ *
+ * **Example**: 60s buckets, zooming from 25 buckets (1500s) → 30 buckets (1800s)
+ *   - Currently: 2 buckets (120s) left invalid zone at limit
+ *   - New limit: 3 buckets (180s) allowed
+ *   - Ideal position: entityStart - 180s
+ *   - Current position: entityStart - 120s
+ *   - **Constrained: Math.max(ideal, current) = keep current (stay at 120s, don't grow to 180s)**
+ *   - Result: 120s / 1800s = 6.7% (well under limit ✓)
+ *   - Zoom back in: 120s is still under limit ✓ (monotonic decrease prevented over-limit state!)
  *
  * ## Three-Constraint System
  *
@@ -356,26 +355,28 @@ function calculateAsymmetricZoom(
   }
 
   // CRITICAL: Use single source of truth for max invalid zone calculation
-  // This ensures asymmetric zoom aligns perfectly with validation thresholds
   const limits = calculateMaxInvalidZoneBuckets(newRangeMs, bucketWidthMs);
   const maxInvalidZoneMs = limits.maxInvalidZoneMsPerSide; // Quantized to bucket boundaries
 
   // Step 4: Calculate asymmetric zoom with deficit transfer
-  // CRITICAL: During zoom OUT, edges should only move OUTWARD, never inward
-  // If user is already showing > limit invalid zone, don't pull the edge back in
+  // CRITICAL CONSTRAINT: Monotonically decreasing invalid zones during zoom OUT
+  // Invalid zone can only: stay same (pinned) or decrease (pulled toward entity)
+  // This ensures we never exceed limits on subsequent zoom operations
   if (reason === "left-invalid-zone-limit") {
-    // Left invalid zone would exceed limit
-    // Calculate where left edge should be to keep invalid zone AT quantized limit
+    // Left invalid zone would exceed limit if we expanded symmetrically
+    // Calculate ideal position for max allowed invalid zone
     const entityStartMs = entityStartTime.getTime();
     const idealConstrainedStart = entityStartMs - maxInvalidZoneMs;
 
-    // Never move edge INWARD during zoom out - use whichever is further left
-    const constrainedStart = Math.min(idealConstrainedStart, displayStartMs);
+    // Enforce monotonic decrease: left edge can only move RIGHT (toward entity) or stay
+    // Math.max ensures we pick the position CLOSER to entity (larger timestamp)
+    const constrainedStart = Math.max(idealConstrainedStart, displayStartMs);
 
-    // Calculate deficit from symmetric expansion
-    const symmetricLeftMove = displayStartMs - symmetricStart; // How much symmetric wanted to move left
-    const constrainedLeftMove = displayStartMs - constrainedStart; // How much we can actually move left
-    const leftDeficit = symmetricLeftMove - constrainedLeftMove; // Deficit to transfer
+    // Calculate how much we wanted to expand left
+    const symmetricLeftMove = displayStartMs - symmetricStart;
+    // How much we actually moved left (may be 0 if pinned)
+    const constrainedLeftMove = displayStartMs - constrainedStart;
+    const leftDeficit = symmetricLeftMove - constrainedLeftMove;
 
     // Transfer deficit to right side
     const constrainedEnd = symmetricEnd + leftDeficit;
@@ -402,23 +403,25 @@ function calculateAsymmetricZoom(
     // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-failed: left constrained, transferred deficit to right but ${asymmetricValidation.reason}`,
+      reason: `asymmetric-failed: left constrained to monotonic decrease, transferred deficit to right but ${asymmetricValidation.reason}`,
     };
   }
 
   if (reason === "right-invalid-zone-limit") {
-    // Right invalid zone would exceed limit
-    // Calculate where right edge should be to keep invalid zone AT quantized limit
+    // Right invalid zone would exceed limit if we expanded symmetrically
+    // Calculate ideal position for max allowed invalid zone
     const rightBoundaryMs = entityEndTime?.getTime() ?? now ?? Date.now();
     const idealConstrainedEnd = rightBoundaryMs + maxInvalidZoneMs;
 
-    // Never move edge INWARD during zoom out - use whichever is further right
-    const constrainedEnd = Math.max(idealConstrainedEnd, displayEndMs);
+    // Enforce monotonic decrease: right edge can only move LEFT (toward entity) or stay
+    // Math.min ensures we pick the position CLOSER to entity (smaller timestamp)
+    const constrainedEnd = Math.min(idealConstrainedEnd, displayEndMs);
 
-    // Calculate deficit from symmetric expansion
-    const symmetricRightMove = symmetricEnd - displayEndMs; // How much symmetric wanted to move right
-    const constrainedRightMove = constrainedEnd - displayEndMs; // How much we can actually move right
-    const rightDeficit = symmetricRightMove - constrainedRightMove; // Deficit to transfer
+    // Calculate how much we wanted to expand right
+    const symmetricRightMove = symmetricEnd - displayEndMs;
+    // How much we actually moved right (may be 0 if pinned)
+    const constrainedRightMove = constrainedEnd - displayEndMs;
+    const rightDeficit = symmetricRightMove - constrainedRightMove;
 
     // Transfer deficit to left side
     const constrainedStart = symmetricStart - rightDeficit;
@@ -445,7 +448,7 @@ function calculateAsymmetricZoom(
     // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-failed: right constrained, transferred deficit to left but ${asymmetricValidation.reason}`,
+      reason: `asymmetric-failed: right constrained to monotonic decrease, transferred deficit to left but ${asymmetricValidation.reason}`,
     };
   }
 
@@ -530,49 +533,57 @@ export function useTimelineWheelGesture(
   initializeDebug();
 
   // Build debug context object
-  const buildDebugContext = useCallback(() => {
-    if (!isDebugEnabled || !debugContext) return undefined;
+  // Accepts optional custom display range for post-operation logging
+  const buildDebugContext = useCallback(
+    (customDisplayStart?: number, customDisplayEnd?: number) => {
+      if (!isDebugEnabled || !debugContext) return undefined;
 
-    // Calculate invalid zone positions for debug output
-    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-    const invalidZones =
-      debugContext.entityStartTime && bucketWidthMs > 0
-        ? calculateInvalidZonePositions(
-            debugContext.entityStartTime.getTime(),
-            debugContext.entityEndTime?.getTime(),
-            debugContext.now ?? Date.now(),
-            currentDisplay.start.getTime(),
-            currentDisplay.end.getTime(),
-            bucketWidthMs,
-          )
-        : null;
+      // Calculate invalid zone positions for debug output
+      const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+      const displayStartMs = customDisplayStart ?? currentDisplay.start.getTime();
+      const displayEndMs = customDisplayEnd ?? currentDisplay.end.getTime();
+      const displayRangeMs = displayEndMs - displayStartMs;
 
-    // Calculate bucket counts for invalid zones
-    const displayRangeMs = currentDisplay.end.getTime() - currentDisplay.start.getTime();
-    const leftInvalidBuckets = invalidZones
-      ? ((invalidZones.leftInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
-      : 0;
-    const rightInvalidBuckets = invalidZones
-      ? ((invalidZones.rightInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
-      : 0;
+      const invalidZones =
+        debugContext.entityStartTime && bucketWidthMs > 0
+          ? calculateInvalidZonePositions(
+              debugContext.entityStartTime.getTime(),
+              debugContext.entityEndTime?.getTime(),
+              debugContext.now ?? Date.now(),
+              displayStartMs,
+              displayEndMs,
+              bucketWidthMs,
+              bucketTimestamps.length,
+            )
+          : null;
 
-    return {
-      entityStart: debugContext.entityStartTime?.toISOString(),
-      entityEnd: debugContext.entityEndTime?.toISOString(),
-      now: debugContext.now ? new Date(debugContext.now).toISOString() : undefined,
-      effectiveStart: currentEffective.start?.toISOString() ?? "undefined",
-      effectiveEnd: currentEffective.end?.toISOString() ?? "undefined",
-      currentStartPercent: currentStartPercent ?? 0,
-      windowLeft: debugContext.overlayPositions?.leftWidth,
-      windowRight: debugContext.overlayPositions?.rightStart,
-      // Invalid zone debug info
-      leftInvalidWidth: invalidZones?.leftInvalidWidth,
-      rightInvalidWidth: invalidZones?.rightInvalidWidth,
-      leftInvalidBuckets,
-      rightInvalidBuckets,
-      combinedInvalidBuckets: leftInvalidBuckets + rightInvalidBuckets,
-    };
-  }, [debugContext, currentEffective, currentStartPercent, currentDisplay, bucketTimestamps]);
+      // Calculate bucket counts for invalid zones
+      const leftInvalidBuckets = invalidZones
+        ? ((invalidZones.leftInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
+        : 0;
+      const rightInvalidBuckets = invalidZones
+        ? ((invalidZones.rightInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
+        : 0;
+
+      return {
+        entityStart: debugContext.entityStartTime?.toISOString(),
+        entityEnd: debugContext.entityEndTime?.toISOString(),
+        now: debugContext.now ? new Date(debugContext.now).toISOString() : undefined,
+        effectiveStart: currentEffective.start?.toISOString() ?? "undefined",
+        effectiveEnd: currentEffective.end?.toISOString() ?? "undefined",
+        currentStartPercent: currentStartPercent ?? 0,
+        windowLeft: debugContext.overlayPositions?.leftWidth,
+        windowRight: debugContext.overlayPositions?.rightStart,
+        // Invalid zone debug info
+        leftInvalidWidth: invalidZones?.leftInvalidWidth,
+        rightInvalidWidth: invalidZones?.rightInvalidWidth,
+        leftInvalidBuckets,
+        rightInvalidBuckets,
+        combinedInvalidBuckets: leftInvalidBuckets + rightInvalidBuckets,
+      };
+    },
+    [debugContext, currentEffective, currentStartPercent, currentDisplay, bucketTimestamps],
+  );
 
   useWheel(
     ({ event, delta: [dx, dy] }) => {
@@ -662,7 +673,7 @@ export function useTimelineWheelGesture(
                 start: new Date(newStartMs).toISOString(),
                 end: new Date(newEndMs).toISOString(),
               },
-              context: buildDebugContext(),
+              context: buildDebugContext(newStartMs, newEndMs),
             });
             return;
           }
@@ -685,7 +696,7 @@ export function useTimelineWheelGesture(
               start: newStart.toISOString(),
               end: newEnd.toISOString(),
             },
-            context: buildDebugContext(),
+            context: buildDebugContext(newStartMs, newEndMs),
           });
 
           actions.setPendingDisplay(newStart, newEnd);
@@ -775,7 +786,7 @@ export function useTimelineWheelGesture(
             start: newStart.toISOString(),
             end: newEnd.toISOString(),
           },
-          context: buildDebugContext(),
+          context: buildDebugContext(asymmetricResult.newStartMs, asymmetricResult.newEndMs),
         });
 
         actions.setPendingDisplay(newStart, newEnd);
@@ -843,7 +854,7 @@ export function useTimelineWheelGesture(
                 start: newStart.toISOString(),
                 end: newEnd.toISOString(),
               },
-              context: buildDebugContext(),
+              context: buildDebugContext(newStart.getTime(), newEnd.getTime()),
             });
             return;
           }
@@ -856,6 +867,7 @@ export function useTimelineWheelGesture(
             displayStartMs,
             displayEndMs,
             bucketWidthMs,
+            bucketTimestamps.length,
           );
 
           const displayRangeMs = displayEndMs - displayStartMs;
@@ -898,7 +910,7 @@ export function useTimelineWheelGesture(
                 start: newStart.toISOString(),
                 end: newEnd.toISOString(),
               },
-              context: buildDebugContext(),
+              context: buildDebugContext(newStart.getTime(), newEnd.getTime()),
             });
             return;
           }
@@ -948,7 +960,7 @@ export function useTimelineWheelGesture(
             start: newStart.toISOString(),
             end: newEnd.toISOString(),
           },
-          context: buildDebugContext(),
+          context: buildDebugContext(newStart.getTime(), newEnd.getTime()),
         });
 
         actions.setPendingDisplay(newStart, newEnd);
