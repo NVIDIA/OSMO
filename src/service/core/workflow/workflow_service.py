@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -494,18 +495,11 @@ def restart_workflow(pool_name: str,
 def cancel_workflow(name: str,
                     message: str | None = None,
                     force: bool = False,
-                    user_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-                    roles_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+                    user: str = fastapi.Depends(connectors.parse_username)) -> \
         objects.CancelResponse:
     """ Cancels the workflow. """
 
-    user = connectors.parse_username(user_header)
     workflow_response = get_workflow(name)
-    roles = login.construct_roles_list(roles_header)
-
-    check_action_permissions(name, ActionType.CANCEL, user, roles, workflow_response)
 
     if workflow_response.status.finished() and not force:
         raise osmo_errors.OSMOUserError(
@@ -966,57 +960,6 @@ def delete_users_credential(cred_name: str,
         raise osmo_errors.OSMOUserError(err.message.split(':', 1)[1])
 
 
-def check_action_permissions(
-        workflow_id: str, action: ActionType, user: str, roles: List[str],
-        cached_workflow_response: objects.WorkflowQueryResponse | None = None):
-    """ Check if the action is allowed for the workflow. """
-    context = objects.WorkflowServiceContext.get()
-
-    # Skip permission checks in dev mode
-    if context.config.method == 'dev':
-        return
-
-    # Admin can bypass permission checks
-    if 'osmo-admin' in roles:
-        return
-
-    workflow_response = cached_workflow_response or get_workflow(workflow_id)
-    if not workflow_response.pool:
-        raise osmo_errors.OSMOUserError(f'Workflow {workflow_id} has no pool!')
-    pool_obj = connectors.Pool.fetch_from_db(context.database, workflow_response.pool)
-
-    permission = connectors.PermissionLevel.PUBLIC
-    if action == ActionType.EXEC:
-        permission = pool_obj.action_permissions.execute
-    elif action == ActionType.PORTFORWARD:
-        permission = pool_obj.action_permissions.portforward
-    elif action == ActionType.CANCEL:
-        permission = pool_obj.action_permissions.cancel
-    elif action == ActionType.RSYNC:
-        permission = pool_obj.action_permissions.rsync
-    else:
-        raise osmo_errors.OSMOServerError(f'Invalid action: {action}!')
-
-    if permission == connectors.PermissionLevel.PRIVATE:
-        if workflow_response.submitted_by != user:
-            raise osmo_errors.OSMOUserError(
-                f'User does not have permission for action {action.value} for '
-                f'private workflow {workflow_id}!')
-    elif permission == connectors.PermissionLevel.POOL:
-        pool_name = workflow_response.pool
-        match = False
-        for role in roles:
-            if role.startswith('osmo-'):
-                pool_role = role.removeprefix('osmo-')
-                if pool_name.startswith(pool_role):
-                    match = True
-                    break
-        if not match:
-            raise osmo_errors.OSMOUserError(
-                f'User does not have permission for action {action.value} for '
-                f'pool {pool_obj.name}!\nRoles: {roles}')
-
-
 def action_request_helper(action_type: ActionType, payload: Dict[str, Any], name: str,
                           task_name: str | None = None, group_name: str | None = None,
                           cached_workflow_response: objects.WorkflowQueryResponse | None = None) \
@@ -1092,34 +1035,20 @@ def action_request_helper(action_type: ActionType, payload: Dict[str, Any], name
 
 
 @router.post('/api/workflow/{name}/exec/group/{group_name}')
-def exec_into_group(name: str, group_name: str, entry_command: str,
-                    user_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-                    roles_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+def exec_into_group(name: str, group_name: str, entry_command: str) -> \
         Dict[str, objects.RouterResponse]:
     """ Send command to all tasks in a group. """
-    user = connectors.parse_username(user_header)
-    roles = login.construct_roles_list(roles_header)
     workflow_response = get_workflow(name)
-    check_action_permissions(name, ActionType.EXEC, user, roles, workflow_response)
     payload = {'entry_command': entry_command}
     return action_request_helper(ActionType.EXEC, payload, name, group_name=group_name,
                                  cached_workflow_response=workflow_response)
 
 
 @router.post('/api/workflow/{name}/exec/task/{task_name}')
-def exec_into_task(name: str, task_name: str, entry_command: str,
-                   user_header: Optional[str] =
-                     fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-                   roles_header: Optional[str] =
-                     fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+def exec_into_task(name: str, task_name: str, entry_command: str) -> \
         objects.RouterResponse:
     """ Exec into a task container. """
-    user = connectors.parse_username(user_header)
-    roles = login.construct_roles_list(roles_header)
     workflow_response = get_workflow(name)
-    check_action_permissions(name, ActionType.EXEC, user, roles, workflow_response)
     payload = {'entry_command': entry_command}
     return action_request_helper(ActionType.EXEC, payload, name, task_name=task_name,
                                  cached_workflow_response=workflow_response)[task_name]
@@ -1128,17 +1057,10 @@ def exec_into_task(name: str, task_name: str, entry_command: str,
 @router.post('/api/workflow/{name}/portforward/{task_name}')
 def port_forward_task(name: str, task_name: str,
                       task_ports: List[int] | None = fastapi.Query(default=None),
-                      use_udp: bool = False,
-                      user_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-                      roles_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+                      use_udp: bool = False) -> \
         List[objects.RouterResponse] | objects.RouterResponse:
     """ Portforward into a task container. """
-    user = connectors.parse_username(user_header)
-    roles = login.construct_roles_list(roles_header)
     workflow_response = get_workflow(name)
-    check_action_permissions(name, ActionType.PORTFORWARD, user, roles, workflow_response)
 
     if not task_ports:
         raise osmo_errors.OSMOUserError('No port is provided!')
@@ -1162,17 +1084,10 @@ def port_forward_task(name: str, task_name: str,
 
 
 @router.post('/api/workflow/{name}/webserver/{task_name}')
-def port_forward_webserver(name: str, task_name: str, task_port: int,
-                          user_header: Optional[str] =
-                            fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-                          roles_header: Optional[str] =
-                            fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+def port_forward_webserver(name: str, task_name: str, task_port: int) -> \
         objects.RouterResponse:
     """ Hold a webserver connection to a task container. """
-    user = connectors.parse_username(user_header)
-    roles = login.construct_roles_list(roles_header)
     workflow_response = get_workflow(name)
-    check_action_permissions(name, ActionType.PORTFORWARD, user, roles, workflow_response)
     payload = {'task_port': task_port}
     return action_request_helper(
         ActionType.WEBSERVER, payload, name, task_name=task_name,
@@ -1180,17 +1095,10 @@ def port_forward_webserver(name: str, task_name: str, task_port: int,
 
 
 @router.post('/api/workflow/{name}/rsync/task/{task_name}')
-def rsync_task(name: str, task_name: str,
-               user_header: Optional[str] =
-                 fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-               roles_header: Optional[str] =
-                 fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+def rsync_task(name: str, task_name: str) -> \
         objects.RouterResponse:
     """ Rsync into a task container. """
-    user = connectors.parse_username(user_header)
-    roles = login.construct_roles_list(roles_header)
     workflow_response = get_workflow(name)
-    check_action_permissions(name, ActionType.RSYNC, user, roles, workflow_response)
 
     if not workflow_response.plugins.rsync:
         raise osmo_errors.OSMOUserError(

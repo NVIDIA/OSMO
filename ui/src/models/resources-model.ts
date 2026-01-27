@@ -1,4 +1,5 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+//All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -85,12 +86,7 @@ export const PlatformSchema = z.object({
   allowed_mounts: z.array(z.string()).default([]),
 });
 
-export const ExitActionSchema = z.object({
-  "execute": z.string(),
-  "portforward": z.string(),
-  "cancel": z.string(),
-  "rsync": z.string(),
-});
+export const ExitActionSchema = z.record(z.string(), z.string());
 
 export const PoolResourcesSchema = z.object({
   "guarantee": z.number().nullish(),
@@ -118,8 +114,7 @@ export const PoolSchema = z.object({
   default_queue_timeout: z.string().default(""),
   max_exec_timeout: z.string().default(""),
   max_queue_timeout: z.string().default(""),
-  action_permissions: ExitActionSchema,
-  default_exit_actions: z.record(z.string(),z.string()),
+  default_exit_actions: ExitActionSchema,
   resources: z.record(z.string(),PoolResourcesSchema.nullable().optional()),
   resource_usage: PoolResourceUsageSchema.nullable().optional(),
 });
