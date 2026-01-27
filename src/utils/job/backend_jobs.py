@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,22 +19,22 @@ SPDX-License-Identifier: Apache-2.0
 
 import abc
 import datetime
-import os
-import time
 import json
 import logging
-import pydantic
-import yaml
+import os
+import time
 from typing import Any, Dict, List, Set, Type
 
 import kubernetes.client as kb_client  # type: ignore
 import kubernetes.client.exceptions as kb_exceptions  # type: ignore
 import kubernetes.utils as kb_utils  # type: ignore
+import pydantic
 import urllib3  # type: ignore
+import yaml
 
-from src.lib.utils import common, osmo_errors, jinja_sandbox
-from src.utils import connectors, backend_messages
-from src.utils.job import jobs_base, backend_job_defs, kb_methods
+from src.lib.utils import common, jinja_sandbox, osmo_errors
+from src.utils import backend_messages, connectors
+from src.utils.job import backend_job_defs, jobs_base, kb_methods
 from src.utils.job.jobs_base import JobResult, JobStatus  # pylint: disable=unused-import
 from src.utils.progress_check import progress
 
@@ -471,8 +472,10 @@ class LabelNode(BackendWorkflowJob):
         return JobResult()
 
 
+
 class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, BackendJob):
-    """Configures the k8s queues in the backend to match the given spec"""
+    """Synchronizes scheduler K8s objects (queues, topologies, etc.)
+    in the backend to match configuration"""
 
     @classmethod
     def _get_allowed_job_type(cls):
@@ -490,91 +493,104 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
         """
         if 'modify-queues' not in value:
             raise osmo_errors.OSMOServerError(
-                f'SynchronizeQueues job_id should contain \"modify-queues\": {value}.')
+                f'SynchronizeQueues job_id should contain "modify-queues": {value}.')
         return value
 
-    def _get_queues(self, context: BackendJobExecutionContext) -> List[Dict]:
-        """Gets the queues from the backend"""
+    def _get_objects(self, context: BackendJobExecutionContext,
+                     cleanup_spec: backend_job_defs.BackendCleanupSpec) -> List[Dict]:
+        """Gets the K8s objects from the backend for the given cleanup spec"""
         api = context.get_kb_client()
         custom_api = kb_client.CustomObjectsApi(api)
-        if self.cleanup_spec.custom_api is None:
-            raise osmo_errors.OSMOError('Custom API not provided for queue')
+        if cleanup_spec.custom_api is None:
+            raise osmo_errors.OSMOError(f'Custom API not provided for {cleanup_spec.resource_type}')
         return custom_api.list_cluster_custom_object(
-            self.cleanup_spec.custom_api.api_major,
-            self.cleanup_spec.custom_api.api_minor,
-            self.cleanup_spec.custom_api.path,
-            label_selector=self.cleanup_spec.k8s_selector)['items']
+            cleanup_spec.custom_api.api_major,
+            cleanup_spec.custom_api.api_minor,
+            cleanup_spec.custom_api.path,
+            label_selector=cleanup_spec.k8s_selector)['items']
 
-    def _apply_queue(self, context: BackendJobExecutionContext, queue: Dict,
-            resource_version: str | None = None):
-        """Creates or updates a queue in the backend"""
+    def _apply_object(self, context: BackendJobExecutionContext,
+                      cleanup_spec: backend_job_defs.BackendCleanupSpec,
+                      obj: Dict, resource_version: str | None = None):
+        """Creates or updates a K8s object in the backend"""
         client = context.get_kb_client()
         custom_api = kb_client.CustomObjectsApi(client)
-        if self.cleanup_spec.custom_api is None:
-            raise osmo_errors.OSMOError('Custom API not provided for queue')
+        if cleanup_spec.custom_api is None:
+            raise osmo_errors.OSMOError(f'Custom API not provided for {cleanup_spec.resource_type}')
         if resource_version is None:
             custom_api.create_cluster_custom_object(
-                self.cleanup_spec.custom_api.api_major,
-                self.cleanup_spec.custom_api.api_minor,
-                self.cleanup_spec.custom_api.path,
-                queue)
+                cleanup_spec.custom_api.api_major,
+                cleanup_spec.custom_api.api_minor,
+                cleanup_spec.custom_api.path,
+                obj)
         else:
-            queue['metadata']['resourceVersion'] = resource_version
+            obj['metadata']['resourceVersion'] = resource_version
             custom_api.replace_cluster_custom_object(
-                self.cleanup_spec.custom_api.api_major,
-                self.cleanup_spec.custom_api.api_minor,
-                self.cleanup_spec.custom_api.path,
-                queue['metadata']['name'],
-                queue)
+                cleanup_spec.custom_api.api_major,
+                cleanup_spec.custom_api.api_minor,
+                cleanup_spec.custom_api.path,
+                obj['metadata']['name'],
+                obj)
 
-    def _delete_queue(self, context: BackendJobExecutionContext, name: str):
-        """Deletes a queue in the backend"""
+    def _delete_object(self, context: BackendJobExecutionContext,
+                       cleanup_spec: backend_job_defs.BackendCleanupSpec, name: str):
+        """Deletes a K8s object in the backend"""
         client = context.get_kb_client()
         custom_api = kb_client.CustomObjectsApi(client)
-        if self.cleanup_spec.custom_api is None:
-            raise osmo_errors.OSMOError('Custom API not provided for queue')
+        if cleanup_spec.custom_api is None:
+            raise osmo_errors.OSMOError(f'Custom API not provided for {cleanup_spec.resource_type}')
         custom_api.delete_cluster_custom_object(
-            self.cleanup_spec.custom_api.api_major,
-            self.cleanup_spec.custom_api.api_minor,
-            self.cleanup_spec.custom_api.path,
+            cleanup_spec.custom_api.api_major,
+            cleanup_spec.custom_api.api_minor,
+            cleanup_spec.custom_api.path,
             name)
+
+    def _sync_objects_for_spec(self, context: BackendJobExecutionContext,
+                               cleanup_spec: backend_job_defs.BackendCleanupSpec):
+        """Synchronizes K8s objects for a specific cleanup spec"""
+        # Get existing objects
+        objects = self._get_objects(context, cleanup_spec)
+        all_objects: Dict[str, Dict] = {obj['metadata']['name']: obj for obj in objects}
+
+        # Filter k8s_resources to only those matching this cleanup spec
+        target_objects = [
+            obj for obj in self.k8s_resources
+            if obj['kind'] == cleanup_spec.resource_type
+        ]
+
+        # Create/Update objects
+        for obj in target_objects:
+            resource_version = None
+            if obj['metadata']['name'] in all_objects:
+                original = all_objects[obj['metadata']['name']]
+                resource_version = original['metadata']['resourceVersion']
+            self._apply_object(context, cleanup_spec, obj, resource_version)
+
+        # Delete orphaned objects
+        target_names: Set[str] = {obj['metadata']['name'] for obj in target_objects}
+        for object_name in all_objects:
+            if object_name not in target_names:
+                self._delete_object(context, cleanup_spec, object_name)
 
     def execute(self, context: BackendJobExecutionContext,
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
         """
-        Executes the job. Returns info on whether the job completed successfully.
+        Executes the job. Synchronizes all scheduler K8s objects.
         """
         try:
-            # Get the current queues
-            queues = self._get_queues(context)
-            all_queues: Dict[str, Dict] = {queue['metadata']['name']: queue for queue in queues}
-
-            # Create/Update all queues specified in the job
-            for queue in self.k8s_resources:
-                resource_version = None
-                if queue['metadata']['name'] in all_queues:
-                    original_queue = all_queues[queue['metadata']['name']]
-                    resource_version = original_queue['metadata']['resourceVersion']
-                    queue['metadata']['resourceVersion'] = resource_version
-                self._apply_queue(context, queue, resource_version)
-
-            # Delete all extra queues that exist in the backend but not in the job
-            target_queues: Set[str] = {queue['metadata']['name'] for queue in self.k8s_resources}
-            for queue_name in all_queues:
-                if queue_name not in target_queues:
-                    self._delete_queue(context, queue_name)
+            # Handle each cleanup spec (for queues, topologies, etc.)
+            for cleanup_spec in self.cleanup_specs:
+                self._sync_objects_for_spec(context, cleanup_spec)
 
         except urllib3.exceptions.MaxRetryError as error:
-            err_message = f'Listing resource type {self.cleanup_spec.resource_type} failed ' + \
-                        f'during cleanup. Error: {error}'
+            err_message = f'Synchronizing scheduler objects failed. Error: {error}'
             logging.error(err_message)
             return JobResult(status=JobStatus.FAILED_RETRY, message=err_message)
 
         except kb_exceptions.ApiException as api_exception:
-            err_message = f'Listing resource type {self.cleanup_spec.resource_type} ' + \
-                            f'ApiException: {api_exception}'
+            err_message = f'Synchronizing scheduler objects ApiException: {api_exception}'
             logging.error(err_message)
             return JobResult(status=JobStatus.FAILED_RETRY, message=err_message)
 

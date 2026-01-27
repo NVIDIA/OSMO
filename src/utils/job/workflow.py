@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,9 +21,9 @@ import copy
 import datetime
 import enum
 import hashlib
-from itertools import chain
 import logging
 import re
+from itertools import chain
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse
 
@@ -32,8 +33,8 @@ import requests  # type: ignore
 from src.lib.data import storage
 from src.lib.utils import (common, jinja_sandbox, osmo_errors, priority as wf_priority,
                         workflow as workflow_utils)
-from src.utils.job import common as task_common, kb_objects, task
 from src.utils import connectors, notify
+from src.utils.job import common as task_common, kb_objects, task
 
 
 INSERT_RETRY_COUNT = 5
@@ -352,6 +353,17 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                     raise osmo_errors.OSMOResourceError(
                         f'Resource {name} does not have a platform!')
                 resource.platform = pool_info.default_platform
+
+        # Validate topology requirements
+        available_keys = {tk.key for tk in pool_info.topology_keys}
+        for resource_name, resource_spec in self.resources.items():
+            for topo_req in resource_spec.topology:
+                if topo_req.key not in available_keys:
+                    raise osmo_errors.OSMOSubmissionError(
+                        f'Topology key "{topo_req.key}" in resource "{resource_name}" '
+                        f'is not available in pool "{self.pool}". '
+                        f'Available topology keys: {sorted(available_keys)}'
+                    )
 
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)

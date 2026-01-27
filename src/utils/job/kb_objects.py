@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +26,8 @@ from typing import Any, Dict, List
 import pydantic
 
 from src.lib.utils import common as common_utils, priority as wf_priority, osmo_errors
-from src.utils.job import common, backend_job_defs
 from src.utils import connectors
+from src.utils.job import backend_job_defs, common, topology
 
 DATA_LOCATION = '/osmo/data'
 
@@ -69,9 +70,12 @@ class K8sObjectFactory:
             'type': secret_type
         }
 
-    def create_group_k8s_resources(self, group_uuid: str, pods: List[Dict],
-                                   labels: Dict[str, str], pool_name: str,
-                                   priority: wf_priority.WorkflowPriority) -> List[Dict[str, Any]]:
+    def create_group_k8s_resources(
+            self, group_uuid: str, pods: List[Dict],
+            labels: Dict[str, str], pool_name: str,
+            priority: wf_priority.WorkflowPriority,
+            topology_constraints: topology.GroupTopologyConstraints
+    ) -> List[Dict[str, Any]]:
         """
         Given the target pod specs, this returns the k8s resources needed to create tme as a gang
         scheduled group.
@@ -80,6 +84,7 @@ class K8sObjectFactory:
             group_uuid (str): The group uuid.
             pods (List[Dict]): The list of pod specs to create in the backend.
             labels (Dict[str, str]): OSMO labels.
+            topology_constraints: Topology constraints for the PodGroup
 
         Returns:
             List[Dict]: A list of k8s objects to create in the cluster.
@@ -299,19 +304,21 @@ class K8sObjectFactory:
             }
         }
 
-    def list_queues_spec(self, backend: connectors.Backend) \
-        -> backend_job_defs.BackendCleanupSpec | None:
+    def list_scheduler_resources_spec(self, backend: connectors.Backend) \
+        -> List[backend_job_defs.BackendCleanupSpec]:
         """
-        Return an object to list queues for a backend or None if queues aren't used by this backend
+        Return cleanup specs for listing scheduler resources (queues, topologies, etc.)
+        for a backend. Returns empty list if no scheduler resources are used.
         """
         # pylint: disable=unused-argument
-        return None
+        return []
 
-    def get_queue_spec(self, backend: connectors.Backend, pools: List[connectors.Pool]) \
-        -> List[Dict] | None:
+    def get_scheduler_resources_spec(
+            self, backend: connectors.Backend,
+            pools: List[connectors.Pool]) -> List[Dict] | None:
         """
-        Gets a list of queues that belong on the backend. Returns None if queues aren't supported
-        by this backend.
+        Gets a list of scheduler resources (queues, topologies, etc.) that belong on the backend.
+        Returns None if scheduler resources aren't supported by this backend.
         """
         # pylint: disable=unused-argument
         return None
@@ -330,7 +337,8 @@ class KaiK8sObjectFactory(K8sObjectFactory):
 
     def create_group_k8s_resources(self, group_uuid: str,
         pods: List[Dict], labels: Dict[str, str], pool_name: str,
-        priority: wf_priority.WorkflowPriority) -> List[Dict]:
+        priority: wf_priority.WorkflowPriority,
+        topology_constraints: topology.GroupTopologyConstraints) -> List[Dict]:
         """
         Given the target pod specs, this returns the k8s resources needed to create tme as a gang
         scheduled group.
@@ -339,13 +347,106 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             group_uuid (str): The group uuid.
             pods (List[Dict]): The list of pod specs to create in the backend.
             labels (Dict[str, str]): OSMO labels.
+            topology_constraints: Topology constraints for the PodGroup
 
         Returns:
             List[Dict]: A list of k8s objects to create in the cluster.
         """
         queue = f'osmo-pool-{self._namespace}-{pool_name}'
         priority_class = f'osmo-{priority.value.lower()}'
+        topology_name = f'osmo-pool-{self._namespace}-{pool_name}-topology'
 
+        # Convert topology constraints to PodGroup spec format
+        top_level_constraint = None
+        subgroups = []
+        pod_subgroups = {}
+
+        if topology_constraints.task_topology_constraints:
+            # Group tasks by their constraint sets (label, subgroup, required)
+            # Key: (sorted tuple of (label, subgroup, required))
+            # Value: list of (task_name, constraints)
+            constraint_groups: Dict[tuple, List[tuple]] = {}
+
+            for task_name, task_constraints in \
+                    topology_constraints.task_topology_constraints.items():
+                if not task_constraints.constraints:
+                    continue
+
+                # Create hashable key from constraints
+                constraint_key = tuple(sorted(
+                    (c.label, c.subgroup, c.required)
+                    for c in task_constraints.constraints
+                ))
+
+                if constraint_key not in constraint_groups:
+                    constraint_groups[constraint_key] = []
+                constraint_groups[constraint_key].append((task_name, task_constraints))
+
+            # Find coarsest shared constraint across all tasks
+            if constraint_groups:
+                all_constraints = list(topology_constraints.task_topology_constraints.values())
+                if all_constraints and all_constraints[0].constraints:
+                    # Get the last (coarsest) constraint from the first task
+                    coarsest_constraint = all_constraints[0].constraints[-1]
+
+                    # Check if all tasks share this constraint
+                    all_share_coarsest = all(
+                        any(
+                            c.label == coarsest_constraint.label and
+                            c.subgroup == coarsest_constraint.subgroup
+                            for c in tc.constraints
+                        )
+                        for tc in all_constraints if tc.constraints
+                    )
+
+                    if all_share_coarsest:
+                        if coarsest_constraint.required:
+                            top_level_constraint = {
+                                'topology': topology_name,
+                                'requiredTopologyLevel': coarsest_constraint.label
+                            }
+                        else:  # preferred
+                            top_level_constraint = {
+                                'topology': topology_name,
+                                'requiredTopologyLevel': coarsest_constraint.label,
+                                'preferredTopologyLevel': coarsest_constraint.label
+                            }
+
+            # Create subgroups for each unique constraint set
+            for idx, (constraint_key, group_tasks) in enumerate(constraint_groups.items()):
+                if not group_tasks:
+                    continue
+
+                # Get the first (finest-grained) constraint
+                _, first_task_constraints = group_tasks[0]
+                if not first_task_constraints.constraints:
+                    continue
+
+                finest_constraint = first_task_constraints.constraints[0]
+                subgroup_name = f'{finest_constraint.subgroup}-subgroup-{idx}'
+
+                # Create subgroup
+                subgroup = {
+                    'name': subgroup_name,
+                    'minMember': len(group_tasks),
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'requiredTopologyLevel': finest_constraint.label
+                    }
+                }
+                subgroups.append(subgroup)
+
+                # Map tasks to subgroups - we need to map pod names to subgroups
+                for task_name, _ in group_tasks:
+                    # Find the pod with this task name
+                    for pod in pods:
+                        # Task name is stored in pod metadata labels
+                        if pod['metadata']['labels'].get('osmo.task') == task_name:
+                            pod_name = pod['metadata']['name']
+                            pod_subgroups[pod_name] = subgroup_name
+                            break
+
+        # Apply pod-level configuration
         for pod in pods:
             if 'annotations' not in pod['metadata']:
                 pod['metadata']['annotations'] = {}
@@ -355,12 +456,29 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             # Backwards compatibility for Kai Scheduler before v0.6.0
             pod['metadata']['labels']['runai/queue'] = queue
 
+            # Add subgroup label if topology is used
+            pod_name = pod['metadata']['name']
+            if pod_name in pod_subgroups:
+                pod['metadata']['labels']['kai.scheduler/subgroup-name'] = pod_subgroups[pod_name]
+
         pod_group_labels = {
             'kai.scheduler/queue': queue,
             # Backwards compatibility for Kai Scheduler before v0.6.0
             'runai/queue': queue,
         }
         pod_group_labels.update(labels)
+
+        pod_group_spec = {
+            'minMember': len(pods),
+            'queue': queue,
+            'priorityClassName': priority_class,
+        }
+
+        # Add topology constraints if present
+        if top_level_constraint:
+            pod_group_spec['topologyConstraint'] = top_level_constraint
+        if subgroups:
+            pod_group_spec['subgroups'] = subgroups
 
         return [{
             'apiVersion': 'scheduling.run.ai/v2alpha2',
@@ -369,11 +487,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                 'name': group_uuid,
                 'labels': pod_group_labels
             },
-            'spec': {
-                'minMember': len(pods),
-                'queue': queue,
-                'priorityClassName': priority_class,
-            }
+            'spec': pod_group_spec
         }] + pods
 
     def update_pod_k8s_resource(self, pod: Dict, group_uuid: str, pool_name: str,
@@ -405,20 +519,51 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                         api_minor='v2alpha2',
                         path='podgroups'))]
 
-    def list_queues_spec(self, backend: connectors.Backend) \
-        -> backend_job_defs.BackendCleanupSpec | None:
-        return backend_job_defs.BackendCleanupSpec(
-            resource_type='Queue',
-            labels={'osmo.namespace': backend.k8s_namespace},
-            custom_api=backend_job_defs.BackendCustomApi(
-                api_major='scheduling.run.ai',
-                api_minor='v2',
-                path='queues'
-            ))
+    def list_scheduler_resources_spec(self, backend: connectors.Backend) \
+        -> List[backend_job_defs.BackendCleanupSpec]:
+        """Returns cleanup specs for queues and topology CRDs"""
+        specs = [
+            # Queue cleanup spec
+            backend_job_defs.BackendCleanupSpec(
+                resource_type='Queue',
+                labels={'osmo.namespace': backend.k8s_namespace},
+                custom_api=backend_job_defs.BackendCustomApi(
+                    api_major='scheduling.run.ai',
+                    api_minor='v2',
+                    path='queues'
+                )),
+            # Topology cleanup spec
+            backend_job_defs.BackendCleanupSpec(
+                resource_type='Topology',
+                labels={'osmo.namespace': backend.k8s_namespace},
+                custom_api=backend_job_defs.BackendCustomApi(
+                    api_major='kai.scheduler',
+                    api_minor='v1',
+                    path='topologies'
+                ))
+        ]
+        return specs
 
-    def get_queue_spec(self, backend: connectors.Backend, pools: List[connectors.Pool]) \
-        -> List[Dict] | None:
+    def get_scheduler_resources_spec(
+            self, backend: connectors.Backend,
+            pools: List[connectors.Pool]) -> List[Dict] | None:
+        """
+        Gets queue and topology CRD specs for all pools in the backend.
+        Returns list containing both Queue and Topology CRDs.
+        """
+        resources = []
 
+        # Create queue specs
+        resources.extend(self._create_queue_specs(backend, pools))
+
+        # Create topology CRD specs
+        resources.extend(self._create_topology_specs(backend, pools))
+
+        return resources
+
+    def _create_queue_specs(self, backend: connectors.Backend, pools: List[connectors.Pool]) \
+        -> List[Dict]:
+        """Creates queue specs (existing logic from get_queue_spec)"""
         # Define a no-op quota that will never block pods from being scheduled.
         default_quota = {
             'quota': -1,
@@ -472,6 +617,31 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                 }
             })
         return specs
+
+    def _create_topology_specs(self, backend: connectors.Backend, pools: List[connectors.Pool]) \
+        -> List[Dict]:
+        """Creates Topology CRD specs for pools with topology_keys configured"""
+        topology_crds = []
+        for pool in pools:
+            if pool.topology_keys:
+                topology_crds.append({
+                    'apiVersion': 'kai.scheduler/v1',
+                    'kind': 'Topology',
+                    'metadata': {
+                        'name': f'osmo-pool-{backend.k8s_namespace}-{pool.name}-topology',
+                        'labels': {
+                            'osmo.namespace': backend.k8s_namespace,
+                            'osmo.pool': pool.name
+                        }
+                    },
+                    'spec': {
+                        'levels': [
+                            {'nodeLabel': topology_key.label}
+                            for topology_key in pool.topology_keys
+                        ]
+                    }
+                })
+        return topology_crds
 
     def priority_supported(self) -> bool:
         """Whether this scheduler supports priority"""

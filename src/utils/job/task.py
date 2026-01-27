@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,8 +38,8 @@ from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (cache, common, credentials, jinja_sandbox, osmo_errors,
                         priority as wf_priority)
-from src.utils.job import common as task_common, kb_objects
 from src.utils import auth, connectors
+from src.utils.job import common as task_common, kb_objects
 from src.utils.progress_check import progress
 
 
@@ -1965,8 +1966,28 @@ class TaskGroup(pydantic.BaseModel):
             progress_iter_freq,
 
         )
-        group_objects = k8s_factory.create_group_k8s_resources(group_uid, pods, labels, pool,
-                                                               priority)
+
+        # Build topology constraints if pool has topology enabled
+        # pylint: disable=import-outside-toplevel
+        from src.utils.job import topology as topology_module
+        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+
+        builder = topology_module.TopologyConstraintBuilder(pool_obj)
+
+        # Validate all tasks' topology requirements
+        for task_obj in self.spec.tasks:
+            builder.validate_topology_requirements(task_obj.resources)
+
+        # Build constraints (always returns a valid object, never None)
+        topology_constraints = builder.build_constraints(
+            self.spec.tasks,
+            pods,
+            pool,
+            backend_config.k8s_namespace
+        )
+
+        group_objects = k8s_factory.create_group_k8s_resources(
+            group_uid, pods, labels, pool, priority, topology_constraints)
 
         pod_specs = dict(zip(task_names, pods))
 

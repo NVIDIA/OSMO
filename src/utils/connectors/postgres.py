@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1630,6 +1631,19 @@ class OsmoImageConfig(ExtraArgBaseModel):
         registry='', username='', auth='')
 
 
+class TopologyRequirementType(str, enum.Enum):
+    """Specifies whether requirement blocks scheduling or is best-effort"""
+    REQUIRED = 'required'
+    PREFERRED = 'preferred'
+
+
+class TopologyRequirement(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    """Single topology requirement for a resource"""
+    key: str  # References pool's topology_keys[].key
+    group: str = 'default'  # Logical grouping of tasks
+    requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED  # pylint: disable=invalid-name
+
+
 class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """ Represents the resource spec in an OSMO2 workflow. """
     cpu: int | None = None
@@ -1637,7 +1651,8 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     memory: str | None = None
     gpu: int | None = None
     platform: str | None = None
-    nodesExcluded: List[str] = [] # pylint: disable=invalid-name
+    nodesExcluded: List[str] = []  # pylint: disable=invalid-name
+    topology: List[TopologyRequirement] = []
 
     def update(self, other: 'ResourceSpec') -> 'ResourceSpec':
         """ Apply all fields from the other resource spec to this one """
@@ -3078,6 +3093,12 @@ class PoolResources(pydantic.BaseModel):
     gpu: PoolResourceCountable | None = None
 
 
+class TopologyKey(pydantic.BaseModel):
+    """Defines a topology key for pool configuration"""
+    key: str  # User-friendly name (e.g., "rack", "zone", "gpu-clique")
+    label: str  # Kubernetes node label (e.g., "topology.kubernetes.io/rack")
+
+
 class PoolBase(pydantic.BaseModel):
     """ Pool schema to expose through API endpoint. """
     name: str = ''
@@ -3094,6 +3115,7 @@ class PoolBase(pydantic.BaseModel):
     default_exit_actions: Dict[str, str] = {}
     action_permissions: ActionPermissions = ActionPermissions()
     resources: PoolResources = PoolResources()
+    topology_keys: List[TopologyKey] = []
 
 class PoolMinimal(PoolBase):
     platforms: Dict[str, PlatformMinimal] = {}

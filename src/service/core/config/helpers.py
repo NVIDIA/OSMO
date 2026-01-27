@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,36 +36,55 @@ from src.utils import connectors
 def update_backend_queues(current_backend: connectors.Backend,
     prev_backend: connectors.Backend | None = None):
     """
-    Update the k8s queues in the backend
+    Update the k8s scheduler objects (queues, topologies, etc.) in the backend
 
     Args:
-        current_backend: The current configuration of the backend to update queues for
-        prev_backend: The previous configuration of the backend to delete queues for
+        current_backend: The current configuration of the backend to update objects for
+        prev_backend: The previous configuration of the backend to delete objects for
     """
-    # If we are switching scheduler types, we need to delete all queues for the old scheduler type
-    if prev_backend is not None and prev_backend.scheduler_settings.scheduler_type != \
-            current_backend.scheduler_settings.scheduler_type:
-        kb_factory = kb_objects.get_k8s_object_factory(prev_backend)
-        list_spec = kb_factory.list_queues_spec(prev_backend)
-        if list_spec is not None:
-            job = backend_jobs.BackendSynchronizeQueues(
-                backend=prev_backend.name, k8s_resources=[], cleanup_spec=list_spec
-            )
-            job.send_job_to_queue()
-
     # Lookup all pools for the backend
     postgres = connectors.PostgresConnector.get_instance()
     pool_rows = connectors.Pool.fetch_rows_from_db(postgres, backend=current_backend.name)
     pools = [connectors.Pool(**row) for row in pool_rows]
 
-    # Update queues for the backend
+    # Get all scheduler objects (queues, topologies, etc.) for the backend
     kb_factory = kb_objects.get_k8s_object_factory(current_backend)
-    list_spec = kb_factory.list_queues_spec(current_backend)
-    queues = kb_factory.get_queue_spec(current_backend, pools)
-    if not list_spec or not queues:
+    cleanup_specs = kb_factory.list_scheduler_resources_spec(current_backend)
+    objects_list = kb_factory.get_scheduler_resources_spec(current_backend, pools)
+
+    # If we are switching scheduler types, also include cleanup specs from old scheduler
+    # so those objects get deleted
+    if (prev_backend is not None and
+        prev_backend.scheduler_settings.scheduler_type !=
+            current_backend.scheduler_settings.scheduler_type):
+        prev_kb_factory = kb_objects.get_k8s_object_factory(prev_backend)
+        prev_cleanup_specs = prev_kb_factory.list_scheduler_resources_spec(prev_backend)
+        if prev_cleanup_specs:
+            # Deduplicate cleanup_specs to avoid processing the same resource type twice
+            # if both old and new schedulers use the same resource types with same labels
+            seen_specs = set()
+            deduped_specs = []
+            for spec in cleanup_specs + prev_cleanup_specs:
+                # Create a hashable key from the spec's key fields
+                key = (
+                    spec.resource_type,
+                    tuple(sorted(spec.labels.items())),
+                    (spec.custom_api.api_major, spec.custom_api.api_minor,
+                     spec.custom_api.path) if spec.custom_api else None
+                )
+                if key not in seen_specs:
+                    seen_specs.add(key)
+                    deduped_specs.append(spec)
+            cleanup_specs = deduped_specs
+
+    if not cleanup_specs or not objects_list:
         return
+
     job = backend_jobs.BackendSynchronizeQueues(
-        backend=current_backend.name, k8s_resources=queues, cleanup_spec=list_spec
+        backend=current_backend.name,
+        k8s_resources=objects_list,  # Contains both Queue and Topology CRDs
+        # Specs for both object types (including old scheduler if switching)
+        cleanup_specs=cleanup_specs
     )
     job.send_job_to_queue()
 
