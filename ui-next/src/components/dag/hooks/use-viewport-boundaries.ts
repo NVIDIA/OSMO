@@ -89,7 +89,6 @@ import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { clamp } from "@/lib/utils";
 import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
 import type { LayoutDirection } from "../types";
-import { dagDebug } from "../lib/dag-debug";
 
 // ============================================================================
 // Types
@@ -262,7 +261,6 @@ export function useViewportBoundaries({
     // CASE 1: GROW - Update immediately (synchronous, before paint)
     // Prevents visual flash/clipping when panel expands
     if (shouldUpdateBoundariesImmediately(targetDims, effectiveDims)) {
-      dagDebug.log("DOM_RESIZE", { targetDims, effectiveDims, reason: "grow" });
       setEffectiveDims(targetDims);
       return; // No cleanup needed
     }
@@ -271,7 +269,6 @@ export function useViewportBoundaries({
     // Delays boundary tightening until AFTER animation completes (200ms)
     // This prevents viewport clamping mid-animation (the "settling" bug fix)
     if (targetDims.width !== effectiveDims.width || targetDims.height !== effectiveDims.height) {
-      dagDebug.log("DOM_RESIZE", { targetDims, effectiveDims, reason: "shrink_scheduled" });
       const timer = setTimeout(() => {
         setEffectiveDims(targetDims);
       }, ANIMATION.PANEL_TRANSITION + 50); // 250ms = 200ms animation + 50ms buffer
@@ -325,13 +322,11 @@ export function useViewportBoundaries({
     targetZoomRef.current = zoom;
     isCenteringRef.current = true;
 
-    dagDebug.log("VIEWPORT_ANIMATION_START", { nodeId, zoom, duration, reason: "centering", targetDims });
     const targetVp = calculateCenteringViewport(node, nodeBounds, targetDims, zoom);
 
     reactFlowInstance.setViewport(targetVp, { duration }).then(() => {
       // Skip cleanup if animation was cancelled
       if (signal.aborted) {
-        dagDebug.log("VIEWPORT_ANIMATION_CANCELLED", { nodeId });
         return;
       }
 
@@ -348,7 +343,6 @@ export function useViewportBoundaries({
         }
 
         isCenteringRef.current = false;
-        dagDebug.log("VIEWPORT_ANIMATION_END", { nodeId });
       });
     });
   });
@@ -369,28 +363,7 @@ export function useViewportBoundaries({
     const positionChanged = Math.abs(vp.x - clampedVp.x) > 0.5 || Math.abs(vp.y - clampedVp.y) > 0.5;
 
     if (positionChanged) {
-      dagDebug.log("VIEWPORT_ANIMATION_START", {
-        duration,
-        reason: "clamping",
-        zoom: targetZoom,
-        drift: vp.zoom - targetZoom,
-        dims: dimsForClamping,
-        useTargetDimensions,
-      });
-
-      reactFlowInstance.setViewport({ ...clampedVp, zoom: targetZoom }, { duration }).then(() => {
-        dagDebug.log("VIEWPORT_ANIMATION_END");
-      });
-    } else {
-      // No position change needed, but log why
-      dagDebug.log("CLAMPING_SKIPPED", {
-        reason: "already_within_bounds",
-        currentVp: vp,
-        clampedVp,
-        delta: { x: Math.abs(vp.x - clampedVp.x), y: Math.abs(vp.y - clampedVp.y) },
-        dims: dimsForClamping,
-        useTargetDimensions,
-      });
+      reactFlowInstance.setViewport({ ...clampedVp, zoom: targetZoom }, { duration });
     }
   });
 
@@ -399,18 +372,6 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
 
   const isReady = !isLayouting && nodes.length > 0 && containerWidth > 100 && containerHeight > 100;
-
-  useEffect(() => {
-    if (isReady) {
-      dagDebug.log("READINESS_SIGNAL", {
-        message: "Viewport ready barrier met",
-        isLayouting,
-        nodeCount: nodes.length,
-        containerWidth,
-        containerHeight,
-      });
-    }
-  }, [isReady, isLayouting, nodes.length, containerWidth, containerHeight]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -425,13 +386,11 @@ export function useViewportBoundaries({
             : null;
 
       if (targetId) {
-        dagDebug.log("CENTERING_START", { targetId, reason: "initial_load" });
         performCentering(targetId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION);
         lastCenteringTimestampRef.current = Date.now();
         if (targetId === initialSelectedNodeId) hasHandledInitialSelectionRef.current = true;
         hasInitializedRef.current = true;
         prevLayoutDirectionRef.current = layoutDirection;
-        dagDebug.log("CENTERING_END", { targetId });
       }
       return;
     }
@@ -440,10 +399,8 @@ export function useViewportBoundaries({
     if (prevLayoutDirectionRef.current !== layoutDirection) {
       prevLayoutDirectionRef.current = layoutDirection;
       if (rootNodeIds.length > 0) {
-        dagDebug.log("CENTERING_START", { targetId: rootNodeIds[0], reason: "layout_change" });
         performCentering(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION);
         lastCenteringTimestampRef.current = Date.now();
-        dagDebug.log("CENTERING_END", { targetId: rootNodeIds[0] });
       }
       return;
     }
@@ -462,19 +419,15 @@ export function useViewportBoundaries({
         // Debounce centering operations to prevent zoom drift during rapid panel toggling
         debounceTimerRef.current = setTimeout(() => {
           debounceTimerRef.current = null;
-          dagDebug.log("AUTOPAN_START", { selectedNodeId, reason: "recenter_trigger" });
           // Use current viewport zoom to preserve user's zoom level when clicking nodes
           const currentZoom = reactFlowInstance.getViewport().zoom;
           performCentering(selectedNodeId, currentZoom, ANIMATION.PANEL_TRANSITION);
           lastCenteringTimestampRef.current = Date.now();
-          dagDebug.log("AUTOPAN_END", { selectedNodeId });
         }, 100); // 100ms debounce window
       } else {
         // No debounce for clamping - we want immediate response to keep viewport in bounds
         // Use targetDims for responsive clamping during CSS transitions
-        dagDebug.log("AUTOPAN_START", { reason: "clamping_trigger" });
         performClamping(ANIMATION.PANEL_TRANSITION, true);
-        dagDebug.log("AUTOPAN_END");
       }
 
       return;
@@ -489,21 +442,13 @@ export function useViewportBoundaries({
       if (selectedNodeId) {
         // If a node is selected, center on it (consistent with CASE 3)
         // Use current viewport zoom to preserve user's zoom level
-        dagDebug.log("AUTOPAN_START", { selectedNodeId, reason: "dimension_change" });
         const currentZoom = reactFlowInstance.getViewport().zoom;
         performCentering(selectedNodeId, currentZoom, ANIMATION.BOUNDARY_ENFORCE);
         lastCenteringTimestampRef.current = Date.now();
-        dagDebug.log("AUTOPAN_END", { selectedNodeId });
       } else {
         // No node selected, just clamp viewport to keep it in bounds
         performClamping(ANIMATION.BOUNDARY_ENFORCE);
       }
-    } else if (isWithinCenteringAnimationWindow) {
-      dagDebug.log("DIMENSION_CHANGE_SKIPPED", {
-        reason: "within_centering_animation_window",
-        timeSinceLastCentering,
-        threshold: ANIMATION.PANEL_TRANSITION + 50,
-      });
     }
   }, [
     isReady,

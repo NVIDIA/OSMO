@@ -20,7 +20,6 @@ import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback, usePrevious } 
 import { useEventCallback } from "usehooks-ts";
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
 import type { ColumnSizeConfig } from "../types";
-import { logColumnSizingDebug, createDebugSnapshot, flushDebugBuffer } from "../utils/debug";
 import {
   measureColumnContentWidth,
   measureMultipleColumns,
@@ -317,26 +316,6 @@ export function useColumnSizing({
       contentWidthsRef.current,
     );
 
-    // Debug logging - use appropriate event type based on context
-    // animate: true = container resize, false = initial sizing
-    const debugEventType = animate ? "CONTAINER_RESIZE" : "INIT";
-    logColumnSizingDebug(() =>
-      createDebugSnapshot(
-        debugEventType,
-        {
-          columnIds,
-          containerRef,
-          columnSizing: newSizing,
-          preferences: sizingPreferencesRef.current,
-          minSizes: minSizesRef.current,
-          configuredSizes: configuredSizesRef.current,
-          isResizing: isResizingRef.current,
-          isInitialized,
-        },
-        { animate, containerWidth },
-      ),
-    );
-
     // Handle animation class
     if (animate && container) {
       if (transitionTimeoutRef.current) {
@@ -427,34 +406,6 @@ export function useColumnSizing({
   }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef]);
 
   // =========================================================================
-  // Debug Helper
-  // =========================================================================
-  const getDebugState = useCallback(
-    () => ({
-      columnIds,
-      containerRef,
-      columnSizing: sizing,
-      preferences: sizingPreferencesRef.current,
-      minSizes: minSizesRef.current,
-      configuredSizes: configuredSizesRef.current,
-      contentWidths: contentWidthsRef.current,
-      isResizing,
-      isInitialized,
-    }),
-    [
-      columnIds,
-      containerRef,
-      sizing,
-      isResizing,
-      isInitialized,
-      sizingPreferencesRef,
-      minSizesRef,
-      configuredSizesRef,
-      contentWidthsRef,
-    ],
-  );
-
-  // =========================================================================
   // Resize Control API
   // =========================================================================
 
@@ -481,11 +432,9 @@ export function useColumnSizing({
         columnSizingStart: [[columnId, startWidth]],
       });
 
-      logColumnSizingDebug(() => createDebugSnapshot("RESIZE_START", getDebugState(), { columnId, startWidth }));
-
       return startWidth;
     },
-    [sizingRef, getDebugState],
+    [sizingRef],
   );
 
   const updateResize = useCallback(
@@ -552,11 +501,6 @@ export function useColumnSizing({
       setContentWidths((prev) => ({ ...prev, ...newlyMeasuredWidths }));
     }
 
-    logColumnSizingDebug(() =>
-      createDebugSnapshot("RESIZE_END", getDebugState(), { changes, beforeResize, finalSizing }),
-    );
-    flushDebugBuffer();
-
     // Persist preferences asynchronously
     const persistPreferences = () => {
       for (const pref of preferencesToPersist) {
@@ -569,15 +513,7 @@ export function useColumnSizing({
     } else {
       setTimeout(persistPreferences, 0);
     }
-  }, [
-    cancelColumnUpdate,
-    sizingRef,
-    containerRef,
-    configuredSizesRef,
-    contentWidthsRef,
-    onPreferenceChangeRef,
-    getDebugState,
-  ]);
+  }, [cancelColumnUpdate, sizingRef, containerRef, configuredSizesRef, contentWidthsRef, onPreferenceChangeRef]);
 
   // =========================================================================
   // Other Actions
@@ -611,7 +547,6 @@ export function useColumnSizing({
       if (isResizingRef.current) return;
 
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
-      const configuredWidth = configuredSizesRef.current?.[columnId] ?? 150;
       const clampedSize = Math.max(measuredWidth, minWidth);
 
       lastAutoFitRef.current = Date.now();
@@ -627,16 +562,6 @@ export function useColumnSizing({
         table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
       }
 
-      logColumnSizingDebug(() =>
-        createDebugSnapshot("AUTO_FIT", getDebugState(), {
-          columnId,
-          measuredWidth,
-          clampedSize,
-          minWidth,
-          configuredWidth,
-        }),
-      );
-
       setContentWidths((prev) => {
         if (prev[columnId] === clampedSize) return prev;
         return { ...prev, [columnId]: clampedSize };
@@ -647,15 +572,7 @@ export function useColumnSizing({
         width: clampedSize,
       });
     },
-    [
-      isResizingRef,
-      minSizesRef,
-      configuredSizesRef,
-      cancelColumnUpdate,
-      tableRef,
-      onPreferenceChangeRef,
-      getDebugState,
-    ],
+    [isResizingRef, minSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef],
   );
 
   const recalculate = useEventCallback(() => {
