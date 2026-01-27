@@ -26,6 +26,16 @@ go_library(
     deps = [
         "//src/utils",
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+        "@in_gopkg_yaml_v3//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "postgres_test",
+    srcs = ["postgres_client_test.go"],
+    embed = [":postgres"],
+    deps = [
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
 

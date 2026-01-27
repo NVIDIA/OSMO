@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.corp.nvidia.com/osmo/utils"
 )
 
 // TestURLEscaping verifies that passwords with special characters are properly escaped
@@ -151,7 +150,7 @@ func TestGetEnv(t *testing.T) {
 				defer os.Unsetenv(tc.envKey)
 			}
 
-			result := utils.GetEnv(tc.envKey, tc.defaultValue)
+			result := getEnv(tc.envKey, tc.defaultValue)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -213,7 +212,7 @@ func TestGetEnvInt(t *testing.T) {
 				defer os.Unsetenv(tc.envKey)
 			}
 
-			result := utils.GetEnvInt(tc.envKey, tc.defaultValue)
+			result := getEnvInt(tc.envKey, tc.defaultValue)
 			if result != tc.expected {
 				t.Errorf("Expected %d, got %d", tc.expected, result)
 			}
@@ -311,7 +310,7 @@ other_value: "test"`
 				defer os.Unsetenv("OSMO_CONFIG_FILE")
 			}
 
-			result := utils.GetEnvOrConfig(tc.envKey, tc.configKey, tc.defaultValue)
+			result := getEnvOrConfig(tc.envKey, tc.configKey, tc.defaultValue)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -332,7 +331,7 @@ func TestGetEnvOrConfigWithInvalidYAML(t *testing.T) {
 	os.Setenv("OSMO_CONFIG_FILE", configPath)
 	defer os.Unsetenv("OSMO_CONFIG_FILE")
 
-	result := utils.GetEnvOrConfig("TEST_KEY", "postgres_password", "default")
+	result := getEnvOrConfig("TEST_KEY", "postgres_password", "default")
 	if result != "default" {
 		t.Errorf("Expected default value for invalid YAML, got %s", result)
 	}
@@ -350,7 +349,6 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 	minConns := 5
 	maxConnLifetime := 10
 	sslMode := "require"
-	schemaVersion := "public"
 
 	flagPtrs := &PostgresFlagPointers{
 		host:               &host,
@@ -362,7 +360,6 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 		minConns:           &minConns,
 		maxConnLifetimeMin: &maxConnLifetime,
 		sslMode:            &sslMode,
-		schemaVersion:      &schemaVersion,
 	}
 
 	config := flagPtrs.ToPostgresConfig()
@@ -395,9 +392,6 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 	}
 	if config.SSLMode != sslMode {
 		t.Errorf("Expected sslMode %s, got %s", sslMode, config.SSLMode)
-	}
-	if config.SchemaVersion != schemaVersion {
-		t.Errorf("Expected schemaVersion %s, got %s", schemaVersion, config.SchemaVersion)
 	}
 }
 
