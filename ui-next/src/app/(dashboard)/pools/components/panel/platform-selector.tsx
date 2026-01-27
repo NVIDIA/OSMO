@@ -111,7 +111,7 @@ export function PlatformSelector({
   // 2-5 platforms: Simple dropdown
   if (platforms.length < SEARCH_THRESHOLD) {
     return (
-      <DropdownMenu>
+      <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <button
             className="flex items-center gap-2 rounded-md py-0.5 pr-1 text-zinc-900 transition-colors hover:bg-zinc-200/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50"
