@@ -19,14 +19,7 @@ const config = {
   content: ["./src/**/*.{js,ts,jsx,tsx}"],
   darkMode: "class",
   theme: {
-    extend: {
-      padding: {
-        "global": "var(--spacing-global)",
-      },
-      gap: {
-        "global": "var(--spacing-global)",
-      },
-    },
+    extend: {},
   },
   plugins: [],
 };

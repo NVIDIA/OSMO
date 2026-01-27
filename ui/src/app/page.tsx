@@ -13,14 +13,18 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { type PropsWithChildren } from "react";
+import { Container } from "~/components/Container";
+import { HomepageCards } from "~/components/HomepageCards";
+import { HomepageHero } from "~/components/HomepageHero";
+import { Layout } from "~/components/Layout";
 
-import { env } from "~/env.mjs";
-
-export const metadata = {
-  title: `${env.NEXT_PUBLIC_APP_NAME} Tutorials`,
-};
-
-export default function TutorialsLayout({ children }: PropsWithChildren) {
-  return children;
+export default function Dashboard() {
+  return (
+    <Layout>
+      <Container>
+        <HomepageHero />
+        <HomepageCards />
+      </Container>
+    </Layout>
+  );
 }

@@ -27,10 +27,8 @@ import {
   getBestDateRange,
   getDateFromValues,
 } from "~/components/DateRangePicker";
-import { FilterButton } from "~/components/FilterButton";
 import FullPageModal from "~/components/FullPageModal";
-import { IconButton } from "~/components/IconButton";
-import PageHeader from "~/components/PageHeader";
+import { FilledIcon } from "~/components/Icon";
 import { SlideOut } from "~/components/SlideOut";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
@@ -50,6 +48,7 @@ export interface SelectedDatasets {
 export default function Datasets() {
   const { username } = useAuth();
   const [showFilters, setShowFilters] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
   const [filterCount, setFilterCount] = useState(0);
   const [name, setName] = useState<string | undefined>(undefined);
   const [bucketFilter, setBucketFilter] = useState<string | undefined>(undefined);
@@ -168,8 +167,19 @@ export default function Datasets() {
   }, [isSelectAllUsersChecked, userFilter, username]);
 
   const validateFilters = useCallback(
-    ({ selectedBuckets, dateRange, createdAfter, createdBefore }: DatasetsFilterDataProps): string[] => {
+    ({
+      userType,
+      selectedUsers,
+      selectedBuckets,
+      dateRange,
+      createdAfter,
+      createdBefore,
+    }: DatasetsFilterDataProps): string[] => {
       const errors: string[] = [];
+
+      if (selectedUsers.length === 0 && userType !== UserFilterType.ALL) {
+        errors.push("Please select at least one user");
+      }
       if (selectedBuckets.length === 0) {
         errors.push("Please select at least one bucket");
       }
@@ -219,40 +229,43 @@ export default function Datasets() {
 
   return (
     <>
-      <PageHeader>
-        <IconButton
-          icon="add"
-          text="Create Collection"
-          className="btn btn-primary"
-          // Disable button if selected rows are from multiple buckets
-          aria-disabled={!selectedRows.datasets.length || !selectedRows.bucket}
-          onClick={() => {
-            if (selectedRows.datasets.length && selectedRows.bucket) {
-              setShowCreateCollectionModal(true);
-            }
-          }}
-          title={
-            !selectedRows.datasets.length
-              ? "Please select at least one dataset"
-              : !selectedRows.bucket
-                ? "Selected datasets must be from the same bucket"
-                : undefined
-          }
-        />
-        <FilterButton
-          showFilters={showFilters}
-          setShowFilters={setShowFilters}
-          filterCount={filterCount}
-          aria-controls="datasets-filters"
-        />
-      </PageHeader>
-      <div className="h-full w-full overflow-x-auto relative">
+      <div
+        className="page-header mb-3"
+        ref={headerRef}
+      >
+        <h1>Datasets</h1>
+        <div className="flex flex-row gap-3">
+          {selectedRows.datasets.length > 0 && (
+            <button
+              className="btn btn-primary"
+              // Disable button if selected rows are from multiple buckets
+              disabled={!selectedRows.bucket}
+              onClick={() => {
+                setShowCreateCollectionModal(true);
+              }}
+              title={!selectedRows.bucket ? "Selected datasets must be from the same bucket" : undefined}
+            >
+              Create Collection
+            </button>
+          )}
+          <button
+            className={`btn ${showFilters ? "btn-primary" : ""}`}
+            onClick={() => {
+              setShowFilters(!showFilters);
+            }}
+          >
+            <FilledIcon name="filter_list" />
+            Filters {filterCount > 0 ? `(${filterCount})` : ""}
+          </button>
+        </div>
         <SlideOut
           id="workflows-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
           className="w-100 border-t-0"
-          aria-label="Datasets Filter"
+          containerRef={headerRef}
+          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          dimBackground={false}
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}
           {showFilters && bucketFilter !== undefined && (
@@ -271,26 +284,27 @@ export default function Datasets() {
             />
           )}
         </SlideOut>
+      </div>
+      <div className="h-full w-full px-3">
         <DatasetsTable
           processResources={processResources}
           isLoading={isLoading}
           onRowSelectionChange={handleRowSelectionChange}
         />
-        <FullPageModal
-          open={showCreateCollectionModal}
-          onClose={() => setShowCreateCollectionModal(false)}
-          headerChildren={<h2 id="create-collection-header">Create Collection</h2>}
-          aria-labelledby="create-collection-header"
-          size="md"
-        >
-          {selectedRows.bucket && showCreateCollectionModal && (
-            <CreateCollection
-              bucket={selectedRows.bucket}
-              datasetsInfo={selectedRows.datasets}
-            />
-          )}
-        </FullPageModal>
       </div>
+      <FullPageModal
+        open={showCreateCollectionModal}
+        onClose={() => setShowCreateCollectionModal(false)}
+        headerChildren={<h2>Create Collection</h2>}
+        size="md"
+      >
+        {selectedRows.bucket && showCreateCollectionModal && (
+          <CreateCollection
+            bucket={selectedRows.bucket}
+            datasetsInfo={selectedRows.datasets}
+          />
+        )}
+      </FullPageModal>
     </>
   );
 }

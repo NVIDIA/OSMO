@@ -48,7 +48,7 @@ const TablePageRange = ({
   });
 
   return (
-    <div className="flex items-center gap-global">
+    <div className="flex items-center gap-2">
       <button
         className="btn btn-tertiary"
         onClick={() => setCurrentPage(1)}
@@ -64,7 +64,7 @@ const TablePageRange = ({
       >
         &lt;
       </button>
-      <div className="flex items-center gap-global">
+      <div className="flex items-center gap-2">
         {range.map((page) => (
           <button
             key={page}

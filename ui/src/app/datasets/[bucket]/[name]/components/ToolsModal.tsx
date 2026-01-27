@@ -31,29 +31,22 @@ export interface OnSaveResponse {
   message: string;
 }
 
-interface ToolsModalProps extends React.HTMLAttributes<HTMLDivElement> {
+interface ToolsModalProps {
   tool?: ToolType;
   dataset: DataInfoResponse<DatasetTypesSchema.Dataset | DatasetTypesSchema.Collection>;
   selectedVersionData?: DataInfoDatasetEntry;
   refetch: () => void;
 }
 
-export const ToolsModal = ({ tool, selectedVersionData, dataset, refetch, ...props }: ToolsModalProps) => {
+export const ToolsModal = ({ tool, selectedVersionData, dataset, refetch }: ToolsModalProps) => {
   const toolParamUpdater = useToolParamUpdater();
 
   const header = useMemo(() => {
     if (tool === ToolType.Delete) {
-      return <h2 id="delete-collection-header">Delete Collection</h2>;
+      return <h2>Delete Collection</h2>;
     }
 
-    return (
-      <h2
-        className="capitalize"
-        id="delete-collection-header"
-      >
-        {tool}
-      </h2>
-    );
+    return <h2 className="capitalize">{tool}</h2>;
   }, [tool]);
 
   return (
@@ -63,11 +56,15 @@ export const ToolsModal = ({ tool, selectedVersionData, dataset, refetch, ...pro
         toolParamUpdater({ tool: null });
       }}
       headerChildren={header}
-      size={tool === ToolType.Delete || tool === ToolType.Rename ? "none" : tool === ToolType.Metadata ? "lg" : "md"}
-      {...props}
-      aria-labelledby="delete-collection-header"
+      size={
+        tool === ToolType.Delete || tool === ToolType.Rename
+          ? "none"
+          : tool === ToolType.Tags || tool === ToolType.Labels
+            ? "sm"
+            : "md"
+      }
     >
-      <div className="flex flex-col gap-global h-full w-full">
+      <div className="flex flex-col gap-3 h-full w-full">
         {tool === ToolType.Metadata ? (
           <MetadataEditor
             dataset={dataset}

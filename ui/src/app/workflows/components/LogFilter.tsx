@@ -120,6 +120,7 @@ const LogFilter = ({
       <Select
         id="log-select"
         aria-label="Logs"
+        className="rounded-sm"
         value={formatTaskID(
           task ?? WORKFLOW_KEY,
           retry_id,
@@ -144,15 +145,12 @@ const LogFilter = ({
       </Select>
       <button
         ref={buttonRef}
-        className="btn btn-dropdown"
+        className={`btn btn-dropdown ${open ? "border-b-2 border-b-brand" : ""}`}
         onClick={() => {
           if (!open) {
             setOpen(true);
           }
         }}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-controls="log-filter"
       >
         Lines
         <OutlinedIcon name="keyboard_arrow_down" />
@@ -162,13 +160,13 @@ const LogFilter = ({
         open={open}
         onClose={() => setOpen(false)}
         position="left"
-        top={(buttonRef.current?.getBoundingClientRect().bottom ?? 0) - 2}
-        left={buttonRef.current?.getBoundingClientRect().left ?? 0}
-        bodyClassName="p-global"
+        top={(buttonRef.current?.getBoundingClientRect().height ?? 0) + 8}
+        left={(buttonRef.current?.getBoundingClientRect().left ?? 20) - 20}
+        className="p-3 rounded-md"
         dimBackground={false}
       >
         <form onSubmit={onSubmit}>
-          <div className="flex flex-row gap-global">
+          <div className="flex flex-row gap-3">
             <div className="flex flex-row">
               <TextInput
                 id="lines"
@@ -193,7 +191,7 @@ const LogFilter = ({
             </div>
             <button
               type="submit"
-              className="btn btn-primary h-8 mt-5"
+              className="btn btn-primary h-8 mt-4"
             >
               <OutlinedIcon name="refresh" />
               Refresh

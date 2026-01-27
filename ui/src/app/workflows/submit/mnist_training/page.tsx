@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import PageHeader from "~/components/PageHeader";
+import { GenericHeader } from "~/components/Header";
 import { MNIST_TRAINING_WORKFLOW_FILE } from "~/models/workflows-model";
 
 import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
@@ -21,9 +21,10 @@ import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
 export default function WorkflowsSubmitPage() {
   return (
     <>
-      <PageHeader>
-        <h2 className="grow">MNIST Training</h2>
-      </PageHeader>
+      <GenericHeader
+        rootSegment="workflows"
+        tailSegment={["submit", "mnist_training"]}
+      />
       <WorkflowsSubmit placeholderFile={MNIST_TRAINING_WORKFLOW_FILE} />
     </>
   );

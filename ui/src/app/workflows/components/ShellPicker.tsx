@@ -62,9 +62,9 @@ export const ShellPicker = ({
 
   return (
     <div className="flex flex-col h-full w-full">
-      <InlineBanner status={error ? "error" : "none"}>{error}</InlineBanner>
+      {error && <InlineBanner status="error">{error}</InlineBanner>}
       <form onSubmit={handleSubmit}>
-        <div className="flex flex-row gap-global p-global">
+        <div className="flex flex-row gap-3 p-3">
           <Select
             id="task"
             value={task}
@@ -99,7 +99,7 @@ export const ShellPicker = ({
             errorText={cmdError}
           />
           <button
-            className="btn btn-primary mt-5 mb-5"
+            className="btn btn-primary mt-4 mb-5"
             type="submit"
           >
             Start

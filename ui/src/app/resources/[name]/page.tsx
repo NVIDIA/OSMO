@@ -18,8 +18,7 @@ import { useEffect } from "react";
 
 import Link from "next/link";
 
-import { FilledIcon } from "~/components/Icon";
-import PageHeader from "~/components/PageHeader";
+import { GenericHeader } from "~/components/Header";
 import { getTaskHistoryUrl } from "~/components/TaskHistoryBanner";
 import { env } from "~/env.mjs";
 
@@ -38,22 +37,20 @@ export default function ResourceOverviewPage({ params }: ResourcesSlugParams) {
 
   return (
     <>
-      <PageHeader>
-        <h2 className="grow">{params.name}</h2>
+      <GenericHeader
+        rootSegment="resources"
+        tailSegment={[params.name]}
+      >
         <Link
           href={getTaskHistoryUrl(params.name)}
           className="btn btn-secondary"
         >
-          <FilledIcon name="history" />
-          <span
-            className="hidden lg:block"
-            aria-label="List"
-          >
-            Task History
-          </span>
+          Task History
         </Link>
-      </PageHeader>
-      <ResourceDetails node={params.name} />
+      </GenericHeader>
+      <div>
+        <ResourceDetails node={params.name} />
+      </div>
     </>
   );
 }

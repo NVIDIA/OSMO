@@ -21,22 +21,17 @@ import Link from "next/link";
 
 import { useAuth } from "~/components/AuthProvider";
 import { allDateRange, customDateRange } from "~/components/DateRangePicker";
-import { FilterButton } from "~/components/FilterButton";
-import { FilledIcon } from "~/components/Icon";
-import { IconButton } from "~/components/IconButton";
+import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
-import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
-import { StatusFilterType } from "~/components/StatusFilter";
 import { TASK_PINNED_KEY, UrlTypes } from "~/components/StoreProvider";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { type TaskStatusType } from "~/models";
+import { type TaskSummaryStatusType, TaskSummaryStatusValues } from "~/models";
 import { type TaskSummaryListItem } from "~/models/tasks-model";
 import { api } from "~/trpc/react";
 
 import { TasksTable } from "./components/TasksTable";
-import { getTaskStatusArray } from "../tasks/components/StatusFilter";
 import { TasksFilters, type TasksFiltersDataProps } from "../tasks/components/TasksFilters";
 import { ToolsModal } from "../workflows/components/ToolsModal";
 import WorkflowDetails from "../workflows/components/WorkflowDetails";
@@ -47,7 +42,7 @@ export default function TasksSummary() {
   const { username } = useAuth();
   const defaultState = {
     status: "RUNNING",
-    statusFilterType: StatusFilterType.CURRENT,
+    allStatuses: "false",
     dateRange: allDateRange.toString(),
   };
   const {
@@ -70,11 +65,13 @@ export default function TasksSummary() {
     dateRangeDates,
     dateAfterFilter,
     dateBeforeFilter,
-    statusFilterType,
+    allStatuses,
     statusFilter,
     nodes,
     isSelectAllNodesChecked,
   } = useToolParamUpdater(UrlTypes.TasksSummary, username, defaultState);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const [taskPinned, setTaskPinned] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(tool);
@@ -101,10 +98,9 @@ export default function TasksSummary() {
       users: userType === UserFilterType.CUSTOM ? (userFilter?.split(",") ?? []) : [],
       all_pools: isSelectAllPoolsChecked,
       pools: isSelectAllPoolsChecked ? [] : poolFilter ? poolFilter.split(",") : [],
-      statuses:
-        statusFilterType === StatusFilterType.CUSTOM
-          ? (statusFilter?.split(",") as TaskStatusType[])
-          : getTaskStatusArray(statusFilterType),
+      statuses: allStatuses
+        ? Object.values(TaskSummaryStatusValues)
+        : (statusFilter?.split(",") as TaskSummaryStatusType[]),
       priority: priority,
       started_after: dateRangeDates?.fromDate?.toISOString(),
       started_before: dateRangeDates?.toDate?.toISOString(),
@@ -148,24 +144,29 @@ export default function TasksSummary() {
 
   const validateFilters = useCallback(
     ({
+      selectedUsers,
+      userType,
       isSelectAllPoolsChecked,
       selectedPools,
       dateRange,
       startedAfter,
       startedBefore,
-      statusFilterType,
+      allStatuses,
       statuses,
       nodes,
       isSelectAllNodesChecked,
     }: TasksFiltersDataProps): string[] => {
       const errors: string[] = [];
+      if (selectedUsers.length === 0 && userType !== UserFilterType.ALL) {
+        errors.push("Please select at least one user");
+      }
       if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
         errors.push("Please select at least one pool");
       }
       if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
         errors.push("Please select a date range");
       }
-      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
+      if (!allStatuses && statuses.length === 0) {
         errors.push("Please select at least one status");
       }
       if (!isSelectAllNodesChecked && nodes.length === 0) {
@@ -189,7 +190,7 @@ export default function TasksSummary() {
         workflowId: nameFilter ?? "",
         nodes: nodes ?? "",
         isSelectAllNodesChecked: isSelectAllNodesChecked ?? true,
-        statusFilterType,
+        allStatuses: allStatuses ?? true,
         statuses: statusFilter ?? "",
       }).length > 0
     ) {
@@ -209,7 +210,7 @@ export default function TasksSummary() {
     nodes,
     isSelectAllNodesChecked,
     updateUrl,
-    statusFilterType,
+    allStatuses,
     statusFilter,
   ]);
   const { setSafeTimeout } = useSafeTimeout();
@@ -265,46 +266,60 @@ export default function TasksSummary() {
 
   return (
     <>
-      <PageHeader>
-        <h2 className="grow capitalize">
-          {`${statusFilterType?.toString() ?? "Current"} Tasks
-          ${
-            userType === UserFilterType.ALL
-              ? " for All Users"
-              : userFilter && userFilter.split(",").length === 1
-                ? ` for ${userFilter}`
-                : ""
-          }`}
-        </h2>
-        <IconButton
-          className={`btn ${showTotalResources ? "btn-primary" : ""}`}
-          onClick={() => {
-            setShowTotalResources(!showTotalResources);
-          }}
-          icon="memory"
-          text="Total Resources"
-          aria-expanded={showTotalResources}
-          aria-haspopup="dialog"
-          aria-controls="total-resources"
-        />
-        <FilterButton
-          showFilters={showFilters}
-          setShowFilters={setShowFilters}
-          filterCount={filterCount}
-          aria-controls="tasks-filters"
-        />
-      </PageHeader>
-      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
+      <div
+        className="page-header mb-3"
+        ref={headerRef}
+      >
+        <h1>
+          {`${allStatuses ? "Current" : statusFilter}`} Tasks
+          {userType === UserFilterType.ALL
+            ? " for All Users"
+            : userFilter && userFilter.split(",").length === 1
+              ? ` for ${userFilter}`
+              : ""}
+        </h1>
+        <div className="flex flex-row gap-3">
+          <button
+            className={`btn ${showWF ? "btn-primary" : ""}`}
+            onClick={() => {
+              updateUrl({ showWF: !showWF });
+            }}
+          >
+            <OutlinedIcon name="work_outline" />
+            Workflows
+          </button>
+          <button
+            className={`btn ${showTotalResources ? "btn-primary" : ""}`}
+            onClick={() => {
+              setShowTotalResources(!showTotalResources);
+            }}
+          >
+            <OutlinedIcon name="memory" />
+            Total Resources
+          </button>
+          <button
+            className={`btn ${showFilters ? "btn-primary" : ""}`}
+            onClick={() => {
+              setShowFilters(!showFilters);
+            }}
+          >
+            <FilledIcon name="filter_list" />
+            Filters {filterCount > 0 ? `(${filterCount})` : ""}
+          </button>
+        </div>
         <SlideOut
           id="tasks-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
           className="w-100 border-t-0"
-          aria-label="Tasks Filter"
+          containerRef={headerRef}
+          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          dimBackground={false}
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}
           {showFilters && (
             <TasksFilters
+              statusValues={Object.values(TaskSummaryStatusValues)}
               selectedUsers={userFilter ?? ""}
               userType={userType}
               selectedPools={poolFilter}
@@ -315,8 +330,9 @@ export default function TasksSummary() {
               priority={priority}
               workflowId={nameFilter ?? ""}
               updateUrl={updateUrl}
+              defaults={defaultState}
               dateRange={dateRange}
-              statusFilterType={statusFilterType}
+              allStatuses={allStatuses ?? true}
               statuses={statusFilter ?? ""}
               nodes={nodes ?? ""}
               isSelectAllNodesChecked={isSelectAllNodesChecked ?? true}
@@ -324,18 +340,17 @@ export default function TasksSummary() {
           )}
         </SlideOut>
         <SlideOut
-          animate={true}
           id="total-resources"
           open={showTotalResources}
           onClose={() => setShowTotalResources(false)}
-          header="Total Resources"
-          className="mr-20 border-t-0"
+          containerRef={headerRef}
+          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          header={<h2>Total Resources</h2>}
+          dimBackground={false}
+          className="mr-30 border-t-0"
         >
-          <div className="h-full w-full p-global dag-details-body">
-            <dl
-              className="grid-cols-2"
-              aria-labelledby="total-resources-header"
-            >
+          <div className="h-full w-full p-3 dag-details-body">
+            <dl className="grid-cols-2">
               <dt>Storage</dt>
               <dd className="text-right">
                 {Intl.NumberFormat("en-US", { style: "decimal" }).format(totalResources.Storage)}
@@ -355,6 +370,11 @@ export default function TasksSummary() {
             </dl>
           </div>
         </SlideOut>
+      </div>
+      <div
+        ref={containerRef}
+        className={`${gridClass} h-full w-full overflow-x-auto relative px-3 gap-3`}
+      >
         {error ? (
           <div className="h-full w-full">
             <PageError
@@ -373,7 +393,6 @@ export default function TasksSummary() {
               showWF={showWF ?? false}
             />
             <SlideOut
-              animate={true}
               header={
                 <Link
                   id="workflow-details-header"
@@ -381,7 +400,7 @@ export default function TasksSummary() {
                   href={`/workflows/${selectedWorkflowName}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Workflow Details - Open in new tab"
+                  aria-label="Open in new tab"
                 >
                   <span className="font-semibold">Workflow Details</span>
                   <FilledIcon name="open_in_new" />
@@ -402,11 +421,14 @@ export default function TasksSummary() {
               className="workflow-details-slideout border-t-0"
               headerClassName="brand-header"
               bodyClassName="dag-details-body"
+              containerRef={containerRef}
+              heightOffset={10}
             >
               {selectedWorkflowError ? (
                 <PageError
                   title="Error loading workflow"
                   errorMessage={selectedWorkflowError.message}
+                  subText={selectedWorkflowName}
                   size="md"
                 />
               ) : selectedWorkflow ? (

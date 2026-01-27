@@ -39,22 +39,16 @@ export const PlatformDetails = ({
   children,
 }: PlatformDetailsProps) => {
   return (
-    <section
-      aria-labelledby="platform-details-title"
-      className="card w-full flex flex-col body-component xs:overflow-y-auto"
-    >
-      <h2
-        id="platform-details-title"
-        className="brand-header px-global flex flex-row justify-between items-center gap-global"
-      >
-        {name}
+    <div className="card w-full h-full flex flex-col body-component">
+      <div className="brand-header px-3 flex flex-row justify-between items-center gap-3">
+        <h3>{name}</h3>
         <Tag
           className="inline-block"
           color={Colors.platform}
         >
           Platform
         </Tag>
-      </h2>
+      </div>
       {showLoadError ? (
         <PageError
           title="Failed to Fetch Platform"
@@ -63,7 +57,7 @@ export const PlatformDetails = ({
       ) : (
         <div className="flex flex-col h-full">
           {children}
-          <div className="flex flex-row gap-global p-global justify-around">
+          <div className="body-header flex flex-row gap-3 p-3 justify-around mt-[-1px]">
             <p>
               <strong>Host Network Allowed:</strong> {hostNetwork ? "True" : "False"}
             </p>
@@ -71,10 +65,10 @@ export const PlatformDetails = ({
               <strong>Privileged Mode Allowed:</strong> {privileged ? "True" : "False"}
             </p>
           </div>
-          <div className={`grid sm:grid-cols-2 gap-global px-global pb-global sm:h-full ${className}`}>
+          <div className={`gap-3 grid sm:grid-cols-2 sm:h-full p-3 ${className}`}>
             <div className="card p-0 h-full">
               <h3
-                className="body-header text-base text-center px-global"
+                className="body-header text-base px-3"
                 id="default-mounts"
               >
                 Default Mounts
@@ -82,19 +76,19 @@ export const PlatformDetails = ({
               {defaultMounts?.length ? (
                 <ul
                   aria-labelledby="default-mounts"
-                  className="p-global"
+                  className="p-3"
                 >
                   {defaultMounts?.map((mount) => (
                     <li key={mount}>{mount}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="p-global">None</p>
+                <p className="p-3">None</p>
               )}
             </div>
             <div className="card p-0 h-full">
               <h3
-                className="body-header text-base text-center px-global"
+                className="body-header text-base px-3"
                 id="allowed-mounts"
               >
                 Allowed Mounts
@@ -102,19 +96,19 @@ export const PlatformDetails = ({
               {allowedMounts?.length ? (
                 <ul
                   aria-labelledby="allowed-mounts"
-                  className="p-global"
+                  className="p-3"
                 >
                   {allowedMounts?.map((mount) => (
                     <li key={mount}>{mount}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="p-global">None</p>
+                <p className="p-3">None</p>
               )}
             </div>
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 };

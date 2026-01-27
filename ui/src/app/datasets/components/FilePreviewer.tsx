@@ -22,7 +22,6 @@ import { useWindowSize } from "usehooks-ts";
 
 import { OutlinedIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
-import { useSafeTimeout } from "~/hooks/useSafeTimeout";
 
 const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
   // Tracking if iframe errors out when trying to render a file
@@ -34,8 +33,6 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const windowSize = useWindowSize();
   const [height, setHeight] = useState(0);
-  const { setSafeTimeout } = useSafeTimeout();
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (containerRef?.current) {
@@ -59,7 +56,7 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
       fileExtension !== "jpeg" &&
       fileExtension !== "gif"
     ) {
-      timerRef.current = setSafeTimeout(() => {
+      timerRef.current = setTimeout(() => {
         if (!iframeLoaded.current) {
           setIframeError(true);
         }
@@ -71,11 +68,7 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
         clearTimeout(timerRef.current);
       }
     };
-  }, [fileExtension, setSafeTimeout]);
-
-  useEffect(() => {
-    videoRef.current?.load();
-  }, [file.thumbnailUrl]);
+  }, [fileExtension]);
 
   const handleIframeError = () => {
     setIframeError(true);
@@ -96,7 +89,6 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
       case "mp4":
         return (
           <video
-            ref={videoRef}
             controls
             style={{ maxHeight: `${height}px` }}
             className="object-fit"

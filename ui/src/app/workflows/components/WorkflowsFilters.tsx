@@ -19,13 +19,12 @@ import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
-import { StatusFilterType } from "~/components/StatusFilter";
+import { StatusFilter } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
 import { UserFilter, UserFilterType } from "~/components/UserFilter";
 import { PoolsListResponseSchema, type PriorityType, WorkflowStatusValues, type WorkflowStatusType } from "~/models";
 import { api } from "~/trpc/react";
 
-import { getMapFromStatusArray, getWorkflowStatusArray, StatusFilter } from "./StatusFilter";
 import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
 export interface WorkflowsFiltersDataProps {
@@ -34,8 +33,8 @@ export interface WorkflowsFiltersDataProps {
   dateRange: number;
   submittedAfter?: string;
   submittedBefore?: string;
-  statusFilterType?: StatusFilterType;
-  statuses?: string;
+  allStatuses: boolean;
+  statuses: string;
   selectedPools: string;
   isSelectAllPoolsChecked: boolean;
   name: string;
@@ -55,7 +54,7 @@ export const WorkflowsFilters = ({
   dateRange,
   submittedAfter,
   submittedBefore,
-  statusFilterType,
+  allStatuses,
   statuses,
   selectedPools,
   isSelectAllPoolsChecked,
@@ -70,7 +69,7 @@ export const WorkflowsFilters = ({
   const [localDateRange, setLocalDateRange] = useState(dateRange);
   const [localSubmittedAfter, setLocalSubmittedAfter] = useState<string | undefined>(submittedAfter);
   const [localSubmittedBefore, setLocalSubmittedBefore] = useState<string | undefined>(submittedBefore);
-  const [localStatusFilterType, setLocalStatusFilterType] = useState<StatusFilterType | undefined>(statusFilterType);
+  const [localAllStatuses, setLocalAllStatuses] = useState(allStatuses);
   const [localStatusMap, setLocalStatusMap] = useState<Map<WorkflowStatusType, boolean>>(new Map());
   const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
   const [localUsers, setLocalUsers] = useState<string>(selectedUsers);
@@ -92,19 +91,12 @@ export const WorkflowsFilters = ({
   }, [userType]);
 
   useEffect(() => {
-    setLocalUsers(selectedUsers);
-  }, [selectedUsers]);
+    const statusArray = statuses.split(",");
 
-  useEffect(() => {
-    setLocalStatusFilterType(statusFilterType);
-
-    if (statusFilterType === StatusFilterType.CUSTOM) {
-      const statusArray = statuses?.split(",") ?? [];
-      setLocalStatusMap(getMapFromStatusArray(statusArray));
-    } else {
-      setLocalStatusMap(getMapFromStatusArray(getWorkflowStatusArray(statusFilterType)));
-    }
-  }, [statuses, statusFilterType]);
+    setLocalStatusMap(
+      new Map(WorkflowStatusValues.map((value) => [value, allStatuses || statusArray.includes(value.toString())])),
+    );
+  }, [statuses, allStatuses]);
 
   useEffect(() => {
     setLocalName(name);
@@ -132,7 +124,11 @@ export const WorkflowsFilters = ({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const statuses = getWorkflowStatusArray(localStatusFilterType, localStatusMap);
+    const statuses = localAllStatuses
+      ? []
+      : Array.from(localStatusMap.entries())
+          .filter(([_, enabled]) => enabled)
+          .map(([status]) => status);
 
     const pools = Array.from(localPools.entries())
       .filter(([_, enabled]) => enabled)
@@ -147,7 +143,7 @@ export const WorkflowsFilters = ({
       submittedAfter: localSubmittedAfter,
       submittedBefore: localSubmittedBefore,
       name: localName,
-      statusFilterType: localStatusFilterType,
+      allStatuses: localAllStatuses,
       statuses: statuses.join(","),
     });
 
@@ -162,8 +158,8 @@ export const WorkflowsFilters = ({
       dateRange: localDateRange,
       dateAfter: localDateRange === customDateRange ? localSubmittedAfter : null,
       dateBefore: localDateRange === customDateRange ? localSubmittedBefore : null,
-      statusFilterType: localStatusFilterType,
-      status: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : null,
+      allStatuses: localAllStatuses,
+      status: localAllStatuses ? undefined : statuses.join(","),
       allPools,
       pools: allPools ? null : pools,
       allUsers: localUserType === UserFilterType.ALL,
@@ -176,7 +172,7 @@ export const WorkflowsFilters = ({
 
   const handleReset = () => {
     setLocalName("");
-    setLocalStatusFilterType(StatusFilterType.ALL);
+    setLocalAllStatuses(true);
     setLocalStatusMap(new Map(WorkflowStatusValues.map((value) => [value, true])));
     setLocalUserType(UserFilterType.CURRENT);
     setLocalUsers(currentUserName);
@@ -187,8 +183,8 @@ export const WorkflowsFilters = ({
 
     updateUrl({
       filterName: null,
-      statusFilterType: StatusFilterType.ALL,
-      status: null,
+      status: undefined,
+      allStatuses: true,
       allPools: true,
       allUsers: false,
       users: [currentUserName],
@@ -203,7 +199,7 @@ export const WorkflowsFilters = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="body-component p-global flex flex-col gap-global">
+      <div className="body-component p-3 flex flex-col gap-3">
         <UserFilter
           userType={localUserType}
           setUserType={setLocalUserType}
@@ -240,7 +236,7 @@ export const WorkflowsFilters = ({
             <label className="flex items-center gap-1">
               <input
                 type="radio"
-                name="priority"
+                name="resourceType"
                 value={"HIGH"}
                 checked={priorityFilter === "HIGH"}
                 onChange={() => setPriorityFilter("HIGH")}
@@ -250,7 +246,7 @@ export const WorkflowsFilters = ({
             <label className="flex items-center gap-1">
               <input
                 type="radio"
-                name="priority"
+                name="resourceType"
                 value={"NORMAL"}
                 checked={priorityFilter === "NORMAL"}
                 onChange={() => setPriorityFilter("NORMAL")}
@@ -260,7 +256,7 @@ export const WorkflowsFilters = ({
             <label className="flex items-center gap-1">
               <input
                 type="radio"
-                name="priority"
+                name="resourceType"
                 value={"LOW"}
                 checked={priorityFilter === "LOW"}
                 onChange={() => setPriorityFilter("LOW")}
@@ -272,8 +268,8 @@ export const WorkflowsFilters = ({
         <StatusFilter
           statusMap={localStatusMap}
           setStatusMap={setLocalStatusMap}
-          statusFilterType={localStatusFilterType}
-          setStatusFilterType={setLocalStatusFilterType}
+          allStatuses={localAllStatuses}
+          setAllStatuses={setLocalAllStatuses}
         />
         <MultiselectWithAll
           id="pools"
@@ -293,11 +289,11 @@ export const WorkflowsFilters = ({
           setFromDate={setLocalSubmittedAfter}
           toDate={localSubmittedBefore}
           setToDate={setLocalSubmittedBefore}
-          className="flex flex-col gap-global mt-2"
+          className="flex flex-col gap-3 mt-2"
         />
         {errors.length > 0 && (
           <InlineBanner status="error">
-            <div className="flex flex-col gap-global">
+            <div className="flex flex-col gap-2">
               {errors.map((error, index) => (
                 <div key={index}>{error}</div>
               ))}
@@ -305,7 +301,7 @@ export const WorkflowsFilters = ({
           </InlineBanner>
         )}
       </div>
-      <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
+      <div className="flex flex-row gap-3 justify-between body-footer p-3 sticky bottom-0">
         <button
           type="button"
           className="btn"
