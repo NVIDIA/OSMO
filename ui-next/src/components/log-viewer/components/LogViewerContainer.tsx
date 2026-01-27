@@ -156,7 +156,7 @@ function LogViewerContainerInner({
   const now = useTick();
 
   // URL-synced state for filters and time range
-  // Pass entityStartTime for validation/backfill
+  // Pass entity boundaries and synchronized NOW for validation/backfill
   const {
     filterChips,
     setFilterChips,
@@ -168,7 +168,9 @@ function LogViewerContainerInner({
     setPreset,
     isLiveMode,
   } = useLogViewerUrlState({
-    entityStartTime: workflowMetadata?.startTime,
+    entityStartTime: workflowMetadata?.startTime, // REALITY: Hard lower bound
+    entityEndTime: workflowMetadata?.endTime, // REALITY: Hard upper bound (if completed)
+    now, // REFERENCE: Synchronized NOW from useTick()
   });
 
   // Pending display range state (for real-time pan/zoom without committing)
@@ -380,13 +382,13 @@ function LogViewerContainerInner({
         onFilterChipsChange={setFilterChips}
         scope={scope}
         className={viewerClassName}
-        startTime={startTime}
-        endTime={endTime}
+        filterStartTime={startTime}
+        filterEndTime={endTime}
         displayStart={displayStart}
         displayEnd={displayEnd}
         activePreset={activePreset}
-        onStartTimeChange={setStartTime}
-        onEndTimeChange={setEndTime}
+        onFilterStartTimeChange={setStartTime}
+        onFilterEndTimeChange={setEndTime}
         onPresetSelect={setPreset}
         onDisplayRangeChange={handleDisplayRangeChange}
         onClearPendingDisplay={handleClearPendingDisplay}
