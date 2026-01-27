@@ -60,6 +60,8 @@ import { createHydratedSelector } from "@/hooks/use-hydrated-store";
 
 export type DisplayMode = "free" | "used";
 
+export type WorkflowDetailsView = "dag" | "table";
+
 /** Default panel width percentage (matches PANEL.DEFAULT_WIDTH_PCT) */
 const DEFAULT_PANEL_WIDTH_PCT = 50;
 
@@ -76,6 +78,8 @@ interface SharedPreferencesState {
   sidebarOpen: boolean;
   /** Whether the workflow details panel (right side) is collapsed by default */
   detailsPanelCollapsed: boolean;
+  /** Workflow details view mode: "dag" shows DAG visualization, "table" shows table view */
+  workflowDetailsView: WorkflowDetailsView;
 }
 
 interface SharedPreferencesActions {
@@ -101,6 +105,10 @@ interface SharedPreferencesActions {
   toggleDetailsPanelCollapsed: () => void;
   /** Set details panel collapsed state explicitly */
   setDetailsPanelCollapsed: (collapsed: boolean) => void;
+  /** Toggle workflow details view between DAG and table */
+  toggleWorkflowDetailsView: () => void;
+  /** Set workflow details view explicitly */
+  setWorkflowDetailsView: (view: WorkflowDetailsView) => void;
   /** Reset to defaults */
   reset: () => void;
 }
@@ -124,6 +132,7 @@ export const initialState: SharedPreferencesState = {
   detailsExpanded: false,
   sidebarOpen: true,
   detailsPanelCollapsed: false,
+  workflowDetailsView: "dag",
 };
 
 // =============================================================================
@@ -235,6 +244,24 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
             "setDetailsPanelCollapsed",
           ),
 
+        toggleWorkflowDetailsView: () =>
+          set(
+            (state) => {
+              state.workflowDetailsView = state.workflowDetailsView === "dag" ? "table" : "dag";
+            },
+            false,
+            "toggleWorkflowDetailsView",
+          ),
+
+        setWorkflowDetailsView: (view) =>
+          set(
+            (state) => {
+              state.workflowDetailsView = view;
+            },
+            false,
+            "setWorkflowDetailsView",
+          ),
+
         reset: () => set(initialState, false, "reset"),
       })),
       {
@@ -319,4 +346,14 @@ export const usePanelWidthPct = createHydratedSelector(
   useSharedPreferences,
   (s) => s.panelWidthPct,
   initialState.panelWidthPct,
+);
+
+/**
+ * Hydration-safe workflow details view selector.
+ * Returns "dag" during SSR, then actual value after hydration.
+ */
+export const useWorkflowDetailsView = createHydratedSelector(
+  useSharedPreferences,
+  (s) => s.workflowDetailsView,
+  initialState.workflowDetailsView,
 );
