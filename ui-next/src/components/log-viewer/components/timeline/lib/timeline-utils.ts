@@ -324,6 +324,7 @@ export function validateInvalidZoneLimits(
     newDisplayStartMs,
     newDisplayEndMs,
     bucketWidthMs,
+    bucketTimestamps.length,
   );
 
   // Convert percentage-based zone widths to milliseconds
