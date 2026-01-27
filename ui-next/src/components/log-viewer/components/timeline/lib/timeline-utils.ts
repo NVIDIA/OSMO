@@ -166,13 +166,13 @@ export function calculateOverlayPositions(
  * Check if end time is considered "NOW".
  *
  * @param endTime - End time to check (undefined means NOW)
+ * @param now - Synchronized NOW timestamp from useTick()
  * @param thresholdMs - Threshold for considering as NOW (default: 60000ms = 1 minute)
  * @returns True if end time is undefined or within threshold of current time
  */
-export function isEndTimeNow(endTime: Date | undefined, thresholdMs: number = 60_000): boolean {
+export function isEndTimeNow(endTime: Date | undefined, now: number, thresholdMs: number = 60_000): boolean {
   if (!endTime) return true;
-  const nowTime = Date.now();
-  const diffMs = Math.abs(nowTime - endTime.getTime());
+  const diffMs = Math.abs(now - endTime.getTime());
   return diffMs < thresholdMs;
 }
 
@@ -236,12 +236,12 @@ export function validateInvalidZoneLimits(
   newDisplayEndMs: number,
   entityStartTime: Date,
   entityEndTime: Date | undefined,
-  now: number | undefined,
+  now: number,
   bucketTimestamps: Date[],
   maxPerSidePercent: number = 10,
   maxCombinedPercent: number = 20,
 ): InvalidZoneValidation {
-  // NOTE: entityStartTime is guaranteed to exist (log-viewer only loads when workflow started)
+  // NOTE: entityStartTime and now are guaranteed (enforced by type system)
 
   const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
 
@@ -258,7 +258,7 @@ export function validateInvalidZoneLimits(
   const zones = calculateInvalidZonePositions(
     entityStartTime.getTime(),
     entityEndTime?.getTime(),
-    now ?? Date.now(),
+    now,
     newDisplayStartMs,
     newDisplayEndMs,
     bucketWidthMs,

@@ -164,7 +164,7 @@ function calculateAsymmetricZoom(
   newRangeMs: number,
   entityStartTime: Date,
   entityEndTime: Date | undefined,
-  now: number | undefined,
+  now: number,
   bucketTimestamps: Date[],
   validateFn: typeof validateInvalidZoneLimits,
 ): AsymmetricZoomResult {
@@ -274,7 +274,7 @@ function calculateAsymmetricZoom(
     // Right invalid zone would exceed limit if we expanded symmetrically
     // Calculate ideal position using FRACTIONAL limit (not quantized)
     // This ensures we use all available headroom to maintain percentage
-    const rightBoundaryMs = entityEndTime?.getTime() ?? now ?? Date.now();
+    const rightBoundaryMs = entityEndTime?.getTime() ?? now;
     const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
     const idealConstrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
 
@@ -388,7 +388,7 @@ export function useTimelineWheelGesture(
   debugContext: {
     entityStartTime: Date;
     entityEndTime?: Date;
-    now?: number;
+    now: number;
     overlayPositions?: { leftWidth: number; rightStart: number; rightWidth: number };
   },
 ): void {
@@ -415,7 +415,7 @@ export function useTimelineWheelGesture(
           ? calculateInvalidZonePositions(
               debugContext.entityStartTime.getTime(),
               debugContext.entityEndTime?.getTime(),
-              debugContext.now ?? Date.now(),
+              debugContext.now,
               displayStartMs,
               displayEndMs,
               bucketWidthMs,
@@ -565,9 +565,9 @@ export function useTimelineWheelGesture(
           const validation = validateInvalidZoneLimits(
             newStartMs,
             newEndMs,
-            debugContext?.entityStartTime,
-            debugContext?.entityEndTime,
-            debugContext?.now,
+            debugContext.entityStartTime,
+            debugContext.entityEndTime,
+            debugContext.now,
             bucketTimestamps,
           );
 
@@ -752,9 +752,9 @@ export function useTimelineWheelGesture(
         const validation = validateInvalidZoneLimits(
           newStart.getTime(),
           newEnd.getTime(),
-          debugContext?.entityStartTime,
-          debugContext?.entityEndTime,
-          debugContext?.now,
+          debugContext.entityStartTime,
+          debugContext.entityEndTime,
+          debugContext.now,
           bucketTimestamps,
         );
 
@@ -789,7 +789,7 @@ export function useTimelineWheelGesture(
           const currentInvalidZones = calculateInvalidZonePositions(
             debugContext.entityStartTime.getTime(),
             debugContext.entityEndTime?.getTime(),
-            debugContext.now ?? Date.now(),
+            debugContext.now,
             displayStartMs,
             displayEndMs,
             bucketWidthMs,
@@ -938,6 +938,7 @@ export function useTimelineDraggerGesture(
   state: ReturnType<typeof useTimelineState>,
   effectiveTime: Date | undefined,
   isEndTimeNow: boolean,
+  now: number,
 ): DraggerGesture {
   const { currentDisplay, currentEffective, actions } = state;
 
@@ -991,8 +992,8 @@ export function useTimelineDraggerGesture(
       // Apply display range constraints
       const clampedTimeMs = clampTimeToRange(newTimeMs, displayStartMs, displayEndMs);
 
-      // Check NOW constraint for end dragger
-      if (side === "end" && isEndTimeNow && clampedTimeMs > Date.now() + NOW_THRESHOLD_MS) {
+      // Check NOW constraint for end dragger (use synchronized NOW)
+      if (side === "end" && isEndTimeNow && clampedTimeMs > now + NOW_THRESHOLD_MS) {
         setIsBlocked(true);
         return;
       }
@@ -1037,8 +1038,8 @@ export function useTimelineDraggerGesture(
       e.preventDefault();
       const newTimeMs = effectiveTime.getTime() + delta;
 
-      // Check NOW constraint for end dragger
-      if (side === "end" && isEndTimeNow && newTimeMs > Date.now() + NOW_THRESHOLD_MS) {
+      // Check NOW constraint for end dragger (use synchronized NOW)
+      if (side === "end" && isEndTimeNow && newTimeMs > now + NOW_THRESHOLD_MS) {
         setIsBlocked(true);
         return;
       }
@@ -1052,7 +1053,7 @@ export function useTimelineDraggerGesture(
         actions.setPendingEffective(currentEffective.start, newTime);
       }
     },
-    [effectiveTime, side, isEndTimeNow, actions, currentEffective],
+    [effectiveTime, side, isEndTimeNow, actions, currentEffective, now],
   );
 
   // Get gesture handlers
@@ -1108,7 +1109,7 @@ export function useTimelineZoomControls(
   debugContext: {
     entityStartTime: Date;
     entityEndTime?: Date;
-    now?: number;
+    now: number;
   },
 ): ZoomControls {
   const { currentDisplay, actions } = state;

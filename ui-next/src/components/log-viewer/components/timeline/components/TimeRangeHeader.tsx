@@ -30,23 +30,23 @@ import type { TimeRangePreset } from "../lib/timeline-constants";
 // =============================================================================
 
 export interface TimeRangeHeaderProps {
-  /** Start time for the range */
-  startTime?: Date;
-  /** End time for the range */
-  endTime?: Date;
-  /** Callback when start time changes */
-  onStartTimeChange?: (date: Date) => void;
-  /** Callback when end time changes */
-  onEndTimeChange?: (date: Date) => void;
+  /** USER INTENT: Filter start time */
+  filterStartTime?: Date;
+  /** USER INTENT: Filter end time */
+  filterEndTime?: Date;
+  /** Callback when filter start time changes */
+  onFilterStartTimeChange?: (date: Date) => void;
+  /** Callback when filter end time changes */
+  onFilterEndTimeChange?: (date: Date) => void;
   /** Whether to show preset selector */
   showPresets?: boolean;
   /** Currently active preset */
   activePreset?: TimeRangePreset;
   /** Callback when a preset is selected */
   onPresetSelect?: (preset: TimeRangePreset) => void;
-  /** Minimum allowed start time (entity start time) - UI constraint */
+  /** REALITY: Minimum allowed start time (entity start time) - UI constraint */
   minStartTime?: Date;
-  /** Maximum allowed end time (entity end time, if completed) - UI constraint */
+  /** REALITY: Maximum allowed end time (entity end time, if completed) - UI constraint */
   maxEndTime?: Date;
 }
 
@@ -72,10 +72,10 @@ function formatForInput(date?: Date): string {
 // =============================================================================
 
 export function TimeRangeHeader({
-  startTime,
-  endTime,
-  onStartTimeChange,
-  onEndTimeChange,
+  filterStartTime,
+  filterEndTime,
+  onFilterStartTimeChange,
+  onFilterEndTimeChange,
   showPresets,
   activePreset,
   onPresetSelect,
@@ -85,7 +85,7 @@ export function TimeRangeHeader({
   function handleStartChange(e: React.ChangeEvent<HTMLInputElement>): void {
     const date = new Date(e.target.value);
     if (!isNaN(date.getTime())) {
-      onStartTimeChange?.(date);
+      onFilterStartTimeChange?.(date);
       onPresetSelect?.("custom");
     }
   }
@@ -93,7 +93,7 @@ export function TimeRangeHeader({
   function handleEndChange(e: React.ChangeEvent<HTMLInputElement>): void {
     const date = new Date(e.target.value);
     if (!isNaN(date.getTime())) {
-      onEndTimeChange?.(date);
+      onFilterEndTimeChange?.(date);
       onPresetSelect?.("custom");
     }
   }
@@ -105,7 +105,7 @@ export function TimeRangeHeader({
         <div className="flex items-center gap-2">
           <input
             type="datetime-local"
-            value={formatForInput(startTime)}
+            value={formatForInput(filterStartTime)}
             onChange={handleStartChange}
             min={formatForInput(minStartTime)}
             max={formatForInput(maxEndTime)}
@@ -114,9 +114,9 @@ export function TimeRangeHeader({
           <span className="text-muted-foreground text-xs">to</span>
           <input
             type="datetime-local"
-            value={formatForInput(endTime)}
+            value={formatForInput(filterEndTime)}
             onChange={handleEndChange}
-            min={formatForInput(startTime ?? minStartTime)}
+            min={formatForInput(filterStartTime ?? minStartTime)}
             max={formatForInput(maxEndTime)}
             className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
           />

@@ -30,6 +30,14 @@
  * - **Layer 1 (pannable):** TimelineHistogram (bars + invalid zones) - transforms together
  * - **Layer 2 (fixed):** TimelineWindow (overlays + draggers) - stays in place
  *
+ * ## Time Semantics (5 Concepts)
+ *
+ * - **entityStartTime**: REALITY - When workflow actually started (GUARANTEED)
+ * - **entityEndTime**: REALITY - When workflow ended (undefined = running)
+ * - **filterStartTime**: USER INTENT - Show logs from this time (undefined = from beginning)
+ * - **filterEndTime**: USER INTENT - Show logs to this time (undefined = live mode/NOW)
+ * - **now**: REFERENCE - Synchronized timestamp for calculations
+ *
  * ## Public API
  *
  * This is the main component exported from the timeline module.
@@ -48,7 +56,6 @@ import { TimeRangePresets } from "./TimeRangePresets";
 import { TimeRangeHeader } from "./TimeRangeHeader";
 import { useTimelineState } from "../hooks/use-timeline-state";
 import { useTimelineWheelGesture, useTimelineZoomControls } from "../hooks/use-timeline-gestures";
-import { useTick, useTickController } from "@/hooks/use-tick";
 import { isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
 import { DEFAULT_HEIGHT, type TimeRangePreset } from "../lib/timeline-constants";
 
@@ -77,18 +84,18 @@ export interface TimelineContainerProps {
   customControls?: React.ReactNode;
   /** Whether the histogram starts collapsed */
   defaultCollapsed?: boolean;
-  /** Start time for the time range selector (effective range) */
-  startTime?: Date;
-  /** End time for the time range selector (effective range) */
-  endTime?: Date;
+  /** USER INTENT: Filter logs from this time (undefined = from beginning) */
+  filterStartTime?: Date;
+  /** USER INTENT: Filter logs to this time (undefined = live mode/NOW) */
+  filterEndTime?: Date;
   /** Display range start (with padding) */
   displayStart?: Date;
   /** Display range end (with padding) */
   displayEnd?: Date;
-  /** Callback when start time changes (on Apply) */
-  onStartTimeChange?: (date: Date | undefined) => void;
-  /** Callback when end time changes (on Apply) */
-  onEndTimeChange?: (date: Date | undefined) => void;
+  /** Callback when filter start time changes (on Apply) */
+  onFilterStartTimeChange?: (date: Date | undefined) => void;
+  /** Callback when filter end time changes (on Apply) */
+  onFilterEndTimeChange?: (date: Date | undefined) => void;
   /** Callback when display range changes (real-time during pan/zoom for bucket re-query) */
   onDisplayRangeChange?: (start: Date, end: Date) => void;
   /** Whether to show the time range header (default: false) */
@@ -96,18 +103,22 @@ export interface TimelineContainerProps {
   /** Whether to enable interactive draggers (default: false) */
   enableInteractiveDraggers?: boolean;
   /**
-   * Entity start time (workflow/group/task start) - hard lower bound for panning.
+   * REALITY: Entity start time (workflow/group/task start) - hard lower bound for panning.
    * GUARANTEED: log-viewer only loads when workflow has started (start_time exists).
    */
   entityStartTime: Date;
-  /** Entity end time (completion timestamp) - undefined if still running */
+  /**
+   * REALITY: Entity end time (completion timestamp) - undefined if still running.
+   */
   entityEndTime?: Date;
   /**
-   * Synchronized "NOW" timestamp (milliseconds since epoch).
-   * Optional - if not provided, will auto-synchronize using useTick() when workflow is running.
-   * Useful when parent component already uses useTick() to avoid duplicate tick subscriptions.
+   * REFERENCE: Synchronized "NOW" timestamp (milliseconds since epoch) from useTick().
+   * REQUIRED for time consistency across all timeline calculations.
+   *
+   * For running workflows: useTick() (updates every 1s)
+   * For terminated workflows: entityEndTime.getTime() (frozen at completion)
    */
-  now?: number;
+  now: number;
 }
 
 // Re-export TimeRangePreset for consumers
@@ -193,12 +204,12 @@ function TimelineContainerInner(
     activePreset,
     customControls,
     defaultCollapsed = false,
-    startTime,
-    endTime,
+    filterStartTime,
+    filterEndTime,
     displayStart,
     displayEnd,
-    onStartTimeChange,
-    onEndTimeChange,
+    onFilterStartTimeChange,
+    onFilterEndTimeChange,
     onDisplayRangeChange,
     showTimeRangeHeader = false,
     entityStartTime,
@@ -214,29 +225,23 @@ function TimelineContainerInner(
   // SYNCHRONIZED NOW TIMESTAMP
   // ============================================================================
 
-  // Enable synchronized ticking when workflow is running (no entityEndTime)
-  // This ensures right invalid zone calculation uses fresh NOW
-  useTickController(entityEndTime === undefined);
-
-  // Get synchronized "NOW" timestamp
-  // - If `now` prop is provided (from parent like LogViewer): use it
-  // - Otherwise: use useTick() for standalone usage
-  const tickNow = useTick();
-  const synchronizedNow = now ?? tickNow;
+  // GUARANTEED: Parent component provides synchronized NOW from useTick()
+  // This ensures single source of truth for all time calculations
+  const synchronizedNow = now;
 
   // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
-  // Check if end time is considered "NOW"
-  const isEndTimeNow = checkIsEndTimeNow(endTime);
+  // Check if filter end time is considered "NOW"
+  const isEndTimeNow = checkIsEndTimeNow(filterEndTime, synchronizedNow);
 
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
 
   const timelineState = useTimelineState({
-    startTime,
-    endTime,
+    filterStartTime,
+    filterEndTime,
     displayStart,
     displayEnd,
     entityStartTime,
@@ -303,10 +308,10 @@ function TimelineContainerInner(
       <div className="flex items-center justify-between gap-2">
         {showTimeRangeHeader && (
           <TimeRangeHeader
-            startTime={startTime}
-            endTime={endTime}
-            onStartTimeChange={onStartTimeChange}
-            onEndTimeChange={onEndTimeChange}
+            filterStartTime={filterStartTime}
+            filterEndTime={filterEndTime}
+            onFilterStartTimeChange={onFilterStartTimeChange}
+            onFilterEndTimeChange={onFilterEndTimeChange}
             showPresets={showPresets}
             activePreset={activePreset}
             onPresetSelect={onPresetSelect}

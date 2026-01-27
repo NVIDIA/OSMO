@@ -65,8 +65,8 @@ export interface TimelineHistogramProps {
   entityStartTime: Date;
   /** Entity end time (workflow end) - right boundary of valid zone, undefined if still running */
   entityEndTime?: Date;
-  /** Synchronized "NOW" timestamp (for running workflows) */
-  now?: number;
+  /** Synchronized "NOW" timestamp from useTick() - REQUIRED for consistency */
+  now: number;
   /** Callback when bucket is clicked */
   onBucketClick?: (bucket: HistogramBucket) => void;
 }
