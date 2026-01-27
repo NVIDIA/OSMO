@@ -26,7 +26,7 @@
  * <ShellTerminal
  *   workflowName="my-workflow"
  *   taskName="train-model"
- *   onConnected={() => console.log("Connected!")}
+ *   onConnected={handleConnected}
  * />
  * ```
  */

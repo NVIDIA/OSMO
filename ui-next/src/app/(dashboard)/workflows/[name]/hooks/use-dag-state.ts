@@ -64,7 +64,6 @@ import {
   type GroupNodeData,
   type LayoutResult,
 } from "../lib/dag-layout";
-import { dagDebug } from "@/components/dag/lib/dag-debug";
 
 // =============================================================================
 // Types
@@ -291,7 +290,6 @@ export function useDAGState({
           // hooks like useViewportBoundaries see 'isLayouting === false' only
           // when the new nodes are actually committed to state.
           startTransition(() => {
-            dagDebug.log("STATE_COMMIT", { nodeCount: result.nodes.length, edgeCount: result.edges.length });
             setNodesEvent(result.nodes);
             setEdgesEvent(result.edges);
             setIsLayouting(false);

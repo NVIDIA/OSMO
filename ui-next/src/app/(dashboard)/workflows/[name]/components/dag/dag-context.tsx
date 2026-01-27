@@ -40,8 +40,6 @@ interface WorkflowDAGContextValue {
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
   /** Called when expanding/collapsing a group in the DAG view */
   onToggleExpand: (groupId: string) => void;
-  /** Whether debug mode is enabled */
-  debug?: boolean;
 }
 
 const WorkflowDAGContext = createContext<WorkflowDAGContextValue | null>(null);
@@ -57,8 +55,6 @@ interface DAGProviderProps {
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
   /** Called when expanding/collapsing a group */
   onToggleExpand: (groupId: string) => void;
-  /** Whether debug mode is enabled */
-  debug?: boolean;
 }
 
 /**
@@ -74,7 +70,6 @@ export function DAGProvider({
   onSelectGroup,
   onSelectTask,
   onToggleExpand,
-  debug = false,
 }: DAGProviderProps) {
   // Stabilize callbacks to prevent context value from changing
   const stableOnSelectGroup = useEventCallback(onSelectGroup);
@@ -88,9 +83,8 @@ export function DAGProvider({
       onSelectGroup: stableOnSelectGroup,
       onSelectTask: stableOnSelectTask,
       onToggleExpand: stableOnToggleExpand,
-      debug,
     }),
-    [selectedNodeId, stableOnSelectGroup, stableOnSelectTask, stableOnToggleExpand, debug],
+    [selectedNodeId, stableOnSelectGroup, stableOnSelectTask, stableOnToggleExpand],
   );
 
   return <WorkflowDAGContext.Provider value={value}>{children}</WorkflowDAGContext.Provider>;
