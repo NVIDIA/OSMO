@@ -61,8 +61,8 @@ export interface TimelineHistogramProps {
   displayEnd?: Date;
   /** Current display range (including pending changes) */
   currentDisplay: { start: Date; end: Date };
-  /** Entity start time (workflow start) - left boundary of valid zone */
-  entityStartTime?: Date;
+  /** Entity start time (workflow start) - left boundary of valid zone - GUARANTEED */
+  entityStartTime: Date;
   /** Entity end time (workflow end) - right boundary of valid zone, undefined if still running */
   entityEndTime?: Date;
   /** Synchronized "NOW" timestamp (for running workflows) */
@@ -289,7 +289,7 @@ function TimelineHistogramInner({
   // Invalid zone positions (part of Layer 1 - transforms with bars)
   // CRITICAL: ALWAYS use currentDisplay to ensure invalid zones match actual viewport
   const invalidZonePositions = useMemo(() => {
-    if (!entityStartTime) return null;
+    // entityStartTime is guaranteed (log-viewer only loads when workflow started)
 
     // Calculate bucket width using pure function
     const bucketTimestamps = activeBuckets.map((b) => b.timestamp);
