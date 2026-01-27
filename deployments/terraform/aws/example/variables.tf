@@ -86,7 +86,7 @@ variable "single_nat_gateway" {
 variable "kubernetes_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.28"
+  default     = "1.30"
 }
 
 variable "node_instance_types" {
@@ -129,7 +129,7 @@ variable "rds_engine" {
 variable "rds_engine_version" {
   description = "RDS engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.15"
 }
 
 variable "rds_family" {

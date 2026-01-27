@@ -171,6 +171,26 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 | `services.agent.envoy` | Agent service Envoy configuration overrides | `{}` |
 
+#### Message Worker Service
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.messageWorker.scaling.minReplicas` | Minimum replicas | `1` |
+| `services.messageWorker.scaling.maxReplicas` | Maximum replicas | `3` |
+| `services.messageWorker.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.messageWorker.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.messageWorker.imageName` | Message worker image name | `message-worker` |
+| `services.messageWorker.serviceName` | Service name | `osmo-message-worker` |
+| `services.messageWorker.initContainers` | Init containers for message worker service | `[]` |
+| `services.messageWorker.progressFile` | Progress file path for liveness/startup probes | `/tmp/osmo/service/last_progress_message_worker` |
+| `services.messageWorker.progressIterFrequency` | Frequency for writing progress timestamps | `15s` |
+| `services.messageWorker.extraArgs` | Additional command line arguments | `[]` |
+| `services.messageWorker.hostAliases` | Host aliases for custom DNS resolution | `[]` |
+| `services.messageWorker.nodeSelector` | Node selector constraints | `{}` |
+| `services.messageWorker.tolerations` | Pod tolerations | `[]` |
+| `services.messageWorker.resources` | Resource limits and requests | `{}` |
+| `services.messageWorker.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+
 ### Ingress Settings
 
 | Parameter | Description | Default |
@@ -305,6 +325,7 @@ The osmo platform consists of:
 - **Worker Service**: Background job processing with queue-based scaling
 - **Logger Service**: Log collection and processing with connection-based scaling
 - **Agent Service**: Client communication and management
+- **Message Worker Service**: Processing of backend messages with progress-based health checks
 - **Delayed Job Monitor**: Monitoring and management of delayed background jobs
 
 ### Sidecar Components
@@ -315,7 +336,7 @@ The osmo platform consists of:
 
 ## Notes
 
-- The chart consists of multiple services: API, Worker, Logger, Agent, and Delayed Job Monitor
+- The chart consists of multiple services: API, Worker, Logger, Agent, Message Worker, and Delayed Job Monitor
 - Each service can be scaled independently using HPA
 - Authentication is handled through OAuth2 providers with JWT tokens
 - The service supports both external OAuth2 providers and internal JWT authentication

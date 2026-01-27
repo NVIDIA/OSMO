@@ -6,7 +6,7 @@ This Terraform configuration creates a complete Azure infrastructure using Azure
 - **Virtual Network (VNet)** with private and database subnets using Azure Verified Module
 - **AKS cluster** with auto-scaling node pools and Container Insights monitoring
 - **PostgreSQL Flexible Server** in private subnets with delegation
-- **Azure Redis Enterprise Cluster** in private subnets
+- **Azure Cache for Redis** (Standard tier)
 - **Log Analytics Workspace** with Container Insights solution for AKS monitoring
 
 All resources are deployed in the same VNet and properly networked together.
@@ -80,7 +80,9 @@ All resources are deployed in the same VNet and properly networked together.
 | `aks_dns_service_ip` | Kubernetes DNS service IP | `192.168.0.10` | Must be within service CIDR |
 | `node_instance_type` | AKS node VM size | `Standard_D2s_v3` | `Standard_D4s_v3+` |
 | `postgres_sku_name` | PostgreSQL SKU | `GP_Standard_D2s_v3` | `GP_Standard_D4s_v3+` |
-| `redis_sku_name` | Redis SKU | `Enterprise_E10-2` | Enterprise tier for VNet integration |
+| `redis_sku_name` | Redis SKU | `Standard` | Basic, Standard, or Premium |
+| `redis_family` | Redis family | `C` | C for Basic/Standard, P for Premium |
+| `redis_capacity` | Redis capacity | `1` | 0-6 for C family, 1-5 for P family |
 
 ### Security Considerations
 
@@ -126,11 +128,12 @@ psql -h $(terraform output -raw postgres_server_fqdn) -U postgres -d osmo
 
 Connection details:
 - **Hostname**: `terraform output redis_cache_hostname`
-- **SSL Port**: `terraform output redis_cache_ssl_port`
+- **SSL Port**: `terraform output redis_cache_ssl_port` (default: 6380)
+- **Primary Key**: `terraform output redis_cache_primary_access_key`
 
 Connect from within the VNet:
 ```bash
-redis-cli -h $(terraform output -raw redis_cache_hostname) -p $(terraform output -raw redis_cache_ssl_port) --tls
+redis-cli -h $(terraform output -raw redis_cache_hostname) -p $(terraform output -raw redis_cache_ssl_port) -a $(terraform output -raw redis_cache_primary_access_key) --tls
 ```
 
 ### Container Insights (Azure Monitor)
@@ -179,13 +182,13 @@ This configuration uses the following components:
 ### Development Environment
 - Use `Standard_D2s_v3` for AKS nodes
 - Use `GP_Standard_D2s_v3` for PostgreSQL
-- Use `Standard` Redis with capacity 1
+- Use `Standard` Redis with capacity 1 (C1)
 - Set `node_group_desired_size = 1`
 
 ### Production Environment
 - Use larger VM sizes (`Standard_D4s_v3+`, `GP_Standard_D4s_v3+`)
 - Enable geo-redundant backup for PostgreSQL
-- Use `Premium` Redis with clustering
+- Use `Premium` Redis (P family) with higher capacity
 - Scale node pools based on workload
 - Enable availability zones
 

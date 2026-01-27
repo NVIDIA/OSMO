@@ -429,6 +429,29 @@ def _start_router_service():
         raise RuntimeError('Router service failed to become ready')
 
 
+def _start_message_worker():
+    """Start OSMO message worker."""
+    logger.info('📬 Starting OSMO message worker...')
+
+    cmd = [
+        'bazel', 'run', '@osmo_workspace//src/service/agent:message_worker_binary',
+        '--',
+        '--method=dev',
+    ]
+
+    process = run_command_with_logging(
+        cmd,
+        'Starting OSMO message worker',
+        async_mode=True,
+        name='message-worker',
+        env=_get_env())
+    time.sleep(5)
+    if process.has_failed():
+        logger.error('❌ Message worker process failed during startup')
+        raise RuntimeError('Message worker service failed to become ready')
+    logger.info('✅ Message worker service appears to be ready (process running for 5+ seconds)')
+
+
 def start_service_bazel():
     """Start the OSMO service using bazel."""
     check_required_tools(['bazel', 'docker', 'npm', 'aws'])
@@ -441,6 +464,7 @@ def start_service_bazel():
 
         _start_core_service()
         _start_service_worker()
+        _start_message_worker()
         _start_ui_service()
         _start_delayed_job_monitor()
         _start_router_service()

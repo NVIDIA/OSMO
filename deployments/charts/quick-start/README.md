@@ -47,7 +47,7 @@ This chart installs and configures:
 1. **Ingress NGINX Controller** - For routing traffic to OSMO services
 2. **Data infrastructure** - PostgreSQL, Redis, Localstack S3
 3. **OSMO Core Services**:
-   - OSMO service (API server, worker, logger, agent)
+   - OSMO service (API server, worker, logger, agent, message worker)
    - Web UI service
    - Router service
 4. **Backend Operator** - For managing compute workloads
@@ -123,6 +123,10 @@ This chart installs and configures:
 | `service.services.agent.scaling.minReplicas`            | Minimum number of agent service replicas                         | `1`                                         |
 | `service.services.agent.scaling.maxReplicas`            | Maximum number of agent service replicas                         | `1`                                         |
 | `service.services.agent.initContainers`                 | Init containers for agent service                                | Wait for postgres, redis, and localstack-s3 |
+| `service.services.messageWorker.imagePullPolicy`        | Kubernetes image pull policy for the message worker service      | `IfNotPresent`                              |
+| `service.services.messageWorker.scaling.minReplicas`    | Minimum number of message worker replicas                        | `1`                                         |
+| `service.services.messageWorker.scaling.maxReplicas`    | Maximum number of message worker replicas                        | `1`                                         |
+| `service.services.messageWorker.initContainers`         | Init containers for message worker service                       | Wait for postgres and redis                 |
 | `service.services.delayedJobMonitor.imagePullPolicy`    | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent`                              |
 | `service.services.delayedJobMonitor.initContainers`     | Init containers for delayed job monitor service                  | Wait for postgres, redis, and localstack-s3 |
 | `service.sidecars.envoy.enabled`                        | Enable Envoy proxy sidecar container                             | `false`                                     |

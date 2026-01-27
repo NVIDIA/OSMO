@@ -136,6 +136,7 @@ The commands will build and push the images for the designated architecture.
 ```bash
 # OSMO Services
 bazel run @osmo_workspace//src/service/agent:agent_service_push_x86_64                     # Image name: agent
+bazel run @osmo_workspace//src/service/agent:message_worker_push_x86_64                    # Image name: message-worker
 bazel run @osmo_workspace//src/service/core:service_push_x86_64                            # Image name: service
 bazel run @osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_push_x86_64 # Image name: delayed-job-monitor
 bazel run @osmo_workspace//src/service/logger:logger_push_x86_64                           # Image name: logger
@@ -157,6 +158,7 @@ bazel run @osmo_workspace//src/cli:cli_push_x86_64                              
 ```bash
 # OSMO Services
 bazel run @osmo_workspace//src/service/agent:agent_service_push_arm64                     # Image name: agent
+bazel run @osmo_workspace//src/service/agent:message_worker_push_arm64                    # Image name: message-worker
 bazel run @osmo_workspace//src/service/core:service_push_arm64                            # Image name: service
 bazel run @osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_push_arm64 # Image name: delayed-job-monitor
 bazel run @osmo_workspace//src/service/logger:logger_push_arm64                           # Image name: logger
@@ -191,6 +193,7 @@ bazel run @osmo_workspace//run:push_multiarch_manifests -- \
     --tag "${IMAGE_TAG}" \
     --images \
         agent \
+        message-worker \
         service \
         delayed-job-monitor \
         logger \
