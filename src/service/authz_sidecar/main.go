@@ -112,16 +112,8 @@ const (
 var (
 	grpcPort = flag.Int("grpc-port", defaultGRPCPort, "gRPC server port")
 
-	// PostgreSQL flags
-	postgresHost            = flag.String("postgres-host", "postgres", "PostgreSQL host")
-	postgresPort            = flag.Int("postgres-port", 5432, "PostgreSQL port")
-	postgresDB              = flag.String("postgres-db", "osmo", "PostgreSQL database name")
-	postgresUser            = flag.String("postgres-user", "postgres", "PostgreSQL user")
-	postgresPassword        = flag.String("postgres-password", "", "PostgreSQL password")
-	postgresMaxConns        = flag.Int("postgres-max-conns", 10, "Max connections in pool")
-	postgresMinConns        = flag.Int("postgres-min-conns", 5, "Min connections in pool")
-	postgresMaxConnLifetime = flag.Duration("postgres-max-conn-lifetime", 5*time.Minute, "Connection max lifetime")
-	postgresSSLMode         = flag.String("postgres-sslmode", "disable", "PostgreSQL SSL mode")
+	// PostgreSQL flags - registered via postgres package
+	postgresFlagPtrs = postgres.RegisterPostgresFlags()
 
 	// Cache flags
 	cacheEnabled = flag.Bool("cache-enabled", true, "Enable role caching")
@@ -158,19 +150,8 @@ func main() {
 
 	// Create PostgreSQL client
 	ctx := context.Background()
-	pgClient, err := postgres.CreatePostgresClient(
-		ctx,
-		logger,
-		*postgresHost,
-		*postgresPort,
-		*postgresDB,
-		*postgresUser,
-		*postgresPassword,
-		int32(*postgresMaxConns),
-		int32(*postgresMinConns),
-		*postgresMaxConnLifetime,
-		*postgresSSLMode,
-	)
+	postgresConfig := postgresFlagPtrs.ToPostgresConfig()
+	pgClient, err := postgresConfig.CreateClient(logger)
 	if err != nil {
 		logger.Error("failed to create postgres client", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -234,7 +215,7 @@ func main() {
 
 	logger.Info("authz server configured",
 		slog.Int("port", *grpcPort),
-		slog.String("postgres_host", *postgresHost),
+		slog.String("postgres_host", postgresConfig.Host),
 	)
 
 	// Start gRPC server
