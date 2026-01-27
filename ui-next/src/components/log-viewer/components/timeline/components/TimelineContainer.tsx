@@ -119,22 +119,20 @@ export type { TimeRangePreset };
 
 /**
  * Hook to compute time axis labels.
+ * CRITICAL: Use currentDisplay (viewport) not currentEffective (data range)
  */
 function useTimeLabels(
-  currentEffective: { start: Date | undefined; end: Date | undefined },
-  buckets: HistogramBucket[],
-  entityStartTime: Date | undefined,
+  currentDisplay: { start: Date; end: Date },
   isEndTimeNow: boolean,
 ) {
   const startLabel = useMemo(() => {
-    const time = currentEffective.start ?? buckets[0]?.timestamp ?? entityStartTime;
-    return time ? formatTime24ShortUTC(time) : null;
-  }, [currentEffective.start, buckets, entityStartTime]);
+    return formatTime24ShortUTC(currentDisplay.start);
+  }, [currentDisplay.start]);
 
   const endLabel = useMemo(() => {
     if (isEndTimeNow) return "NOW";
-    return currentEffective.end ? formatTime24ShortUTC(currentEffective.end) : null;
-  }, [isEndTimeNow, currentEffective.end]);
+    return formatTime24ShortUTC(currentDisplay.end);
+  }, [isEndTimeNow, currentDisplay.end]);
 
   return { startLabel, endLabel };
 }
@@ -294,13 +292,13 @@ function TimelineContainerInner({
     now: synchronizedNow,
   });
 
-  const { currentDisplay, currentEffective, hasPendingChanges } = timelineState;
+  const { currentDisplay, currentEffective: _currentEffective, hasPendingChanges } = timelineState;
 
   // ============================================================================
   // DERIVED VALUES
   // ============================================================================
 
-  const { startLabel, endLabel } = useTimeLabels(currentEffective, activeBuckets, entityStartTime, isEndTimeNow);
+  const { startLabel, endLabel } = useTimeLabels(currentDisplay, isEndTimeNow);
 
   // ============================================================================
   // GESTURES
