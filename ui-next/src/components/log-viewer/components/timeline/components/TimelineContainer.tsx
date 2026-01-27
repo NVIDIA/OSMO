@@ -310,6 +310,8 @@ function TimelineContainerInner(
             showPresets={showPresets}
             activePreset={activePreset}
             onPresetSelect={onPresetSelect}
+            minStartTime={entityStartTime}
+            maxEndTime={entityEndTime}
           />
         )}
         {!showTimeRangeHeader && showPresets && (
