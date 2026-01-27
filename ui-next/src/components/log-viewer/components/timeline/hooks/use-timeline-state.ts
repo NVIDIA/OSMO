@@ -23,14 +23,20 @@
  * ## State Structure
  *
  * - **display**: What's visible on screen (includes padding)
- * - **effective**: Actual query bounds (what logs to fetch)
- * - **bounds**: Entity boundaries (workflow/task start/end times)
+ * - **effective**: Actual query bounds (what logs to fetch - USER INTENT)
+ * - **bounds**: Entity boundaries (workflow/task start/end times - REALITY)
  * - **pending**: Temporary changes before Apply button
  *
  * ## Derived Values
  *
  * - currentDisplay: display + pending (what user sees right now)
  * - currentEffective: effective + pending (what logs would be fetched)
+ *
+ * ## Time Semantics
+ *
+ * - filterStartTime/filterEndTime: USER INTENT (what to filter)
+ * - entityStartTime/entityEndTime: REALITY (workflow lifecycle)
+ * - now: REFERENCE (synchronized timestamp)
  *
  * All Date objects are immutable - updates create new Date instances.
  */
@@ -79,22 +85,22 @@ export interface TimelineState {
  * Props for initializing timeline state.
  */
 export interface UseTimelineStateProps {
-  /** Effective start time (query bound) */
-  startTime?: Date;
-  /** Effective end time (query bound) */
-  endTime?: Date;
+  /** USER INTENT: Filter start time (query bound) */
+  filterStartTime?: Date;
+  /** USER INTENT: Filter end time (query bound) */
+  filterEndTime?: Date;
   /** Display range start (with padding) */
   displayStart?: Date;
   /** Display range end (with padding) */
   displayEnd?: Date;
-  /** Entity start time (workflow start) - GUARANTEED to exist */
+  /** REALITY: Entity start time (workflow start) - GUARANTEED to exist */
   entityStartTime: Date;
-  /** Entity end time (workflow end) */
+  /** REALITY: Entity end time (workflow end) */
   entityEndTime?: Date;
   /** Histogram buckets for deriving ranges */
   buckets: HistogramBucket[];
-  /** Synchronized NOW timestamp (for running entities) */
-  now?: number;
+  /** REFERENCE: Synchronized NOW timestamp from useTick() - REQUIRED for consistency */
+  now: number;
 }
 
 // =============================================================================
@@ -105,13 +111,13 @@ export interface UseTimelineStateProps {
  * Derive initial state from props.
  */
 function deriveInitialState(props: UseTimelineStateProps): TimelineState {
-  const { startTime, endTime, displayStart, displayEnd, entityStartTime, entityEndTime, buckets, now } = props;
+  const { filterStartTime, filterEndTime, displayStart, displayEnd, entityStartTime, entityEndTime, buckets, now } =
+    props;
 
   // Derive display range with simplified fallbacks (entityStartTime is guaranteed)
   const derivedDisplayStart = displayStart ?? buckets[0]?.timestamp ?? entityStartTime;
 
-  const derivedDisplayEnd =
-    displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? entityEndTime ?? new Date(now ?? Date.now());
+  const derivedDisplayEnd = displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? entityEndTime ?? new Date(now);
 
   return {
     display: {
@@ -119,8 +125,8 @@ function deriveInitialState(props: UseTimelineStateProps): TimelineState {
       end: derivedDisplayEnd,
     },
     effective: {
-      start: startTime,
-      end: endTime,
+      start: filterStartTime,
+      end: filterEndTime,
     },
     bounds: {
       start: entityStartTime,
@@ -139,6 +145,9 @@ function deriveInitialState(props: UseTimelineStateProps): TimelineState {
  * @returns State, derived values, and actions
  */
 export function useTimelineState(props: UseTimelineStateProps) {
+  // Extract now from props for use in actions
+  const { now } = props;
+
   // Single state object
   const [state, setState] = useState<TimelineState>(() => deriveInitialState(props));
 
@@ -181,6 +190,7 @@ export function useTimelineState(props: UseTimelineStateProps) {
   const hasPendingChanges = state.pending !== null;
 
   // Actions (memoized to prevent unnecessary re-renders)
+  // NOTE: `now` is in dependency array to access synchronized timestamp for bounds fallbacks
   const actions = useMemo(
     () => ({
       /**
@@ -207,11 +217,12 @@ export function useTimelineState(props: UseTimelineStateProps) {
       setPendingEffective: (start: Date | undefined, end: Date | undefined) => {
         setState((s) => {
           // Calculate display range with padding around new effective range
+          // Use synchronized NOW for fallback bounds (guaranteed to exist from props)
           const { displayStart: newDisplayStart, displayEnd: newDisplayEnd } = calculateDisplayRangeWithPadding(
             start,
             end,
-            s.bounds.start ?? new Date(Date.now() - DEFAULT_DURATION_MS),
-            s.bounds.end ?? new Date(Date.now()),
+            s.bounds.start ?? new Date(now - DEFAULT_DURATION_MS),
+            s.bounds.end ?? new Date(now),
             DISPLAY_PADDING_RATIO,
             MIN_PADDING_MS,
           );
@@ -258,7 +269,7 @@ export function useTimelineState(props: UseTimelineStateProps) {
         setState((s) => ({ ...s, pending: null }));
       },
     }),
-    [], // Actions never change (use functional updates)
+    [now], // Include `now` for synchronized timestamp in bounds fallbacks
   );
 
   return {

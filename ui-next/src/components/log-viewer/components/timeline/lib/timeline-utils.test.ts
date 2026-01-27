@@ -278,22 +278,26 @@ describe("calculateOverlayPositions", () => {
 
 describe("isEndTimeNow", () => {
   it("should return true for undefined end time", () => {
-    expect(isEndTimeNow(undefined)).toBe(true);
+    const now = Date.now();
+    expect(isEndTimeNow(undefined, now)).toBe(true);
   });
 
   it("should return true for time within threshold", () => {
-    const recentTime = new Date(Date.now() - 30_000); // 30 seconds ago
-    expect(isEndTimeNow(recentTime)).toBe(true);
+    const now = Date.now();
+    const recentTime = new Date(now - 30_000); // 30 seconds ago
+    expect(isEndTimeNow(recentTime, now)).toBe(true);
   });
 
   it("should return false for time beyond threshold", () => {
-    const oldTime = new Date(Date.now() - 120_000); // 2 minutes ago
-    expect(isEndTimeNow(oldTime)).toBe(false);
+    const now = Date.now();
+    const oldTime = new Date(now - 120_000); // 2 minutes ago
+    expect(isEndTimeNow(oldTime, now)).toBe(false);
   });
 
   it("should respect custom threshold", () => {
-    const time = new Date(Date.now() - 5000); // 5 seconds ago
-    expect(isEndTimeNow(time, 3000)).toBe(false); // 3s threshold
-    expect(isEndTimeNow(time, 10000)).toBe(true); // 10s threshold
+    const now = Date.now();
+    const time = new Date(now - 5000); // 5 seconds ago
+    expect(isEndTimeNow(time, now, 3000)).toBe(false); // 3s threshold
+    expect(isEndTimeNow(time, now, 10000)).toBe(true); // 10s threshold
   });
 });
