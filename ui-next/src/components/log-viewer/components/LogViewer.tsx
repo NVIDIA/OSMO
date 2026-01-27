@@ -8,7 +8,7 @@
 
 "use client";
 
-import { memo, useCallback, useEffect, startTransition, useDeferredValue } from "react";
+import { memo, useRef, useCallback, useEffect, startTransition, useDeferredValue } from "react";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
@@ -19,8 +19,7 @@ import { withViewTransition } from "@/hooks";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 import { FilterBar } from "@/components/filter-bar";
-import { TimelineContainer, type TimeRangePreset } from "./timeline";
-import { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR } from "./timeline/hooks/use-timeline-gestures";
+import { TimelineContainer, type TimeRangePreset, type TimelineContainerHandle } from "./timeline";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
@@ -347,6 +346,9 @@ function LogViewerInner({
   const showTask = useLogViewerStore((s) => s.showTask);
   const toggleShowTaskRaw = useLogViewerStore((s) => s.toggleShowTask);
 
+  // Ref to timeline container for imperative zoom controls
+  const timelineRef = useRef<TimelineContainerHandle>(null);
+
   // Derive live mode from end time (endTime === undefined means "NOW" / live mode)
   const isLiveMode = endTime === undefined;
 
@@ -432,44 +434,31 @@ function LogViewerInner({
     [onEndTimeChange, onClearPendingDisplay],
   );
 
-  // Handle zoom in - matches cmd+wheel up behavior (narrow display by 20%)
+  // Handle zoom in - uses timeline's validated zoom logic (matches cmd+wheel up behavior)
   const handleZoomIn = useCallback(() => {
-    if (!onDisplayRangeChange || !displayStart || !displayEnd) return;
+    if (!timelineRef.current) return;
 
-    const MIN_RANGE_MS = 60_000; // 1 minute minimum
-
-    const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
-    const newDisplayRangeMs = displayRangeMs * ZOOM_IN_FACTOR;
-
-    if (newDisplayRangeMs < MIN_RANGE_MS) {
+    if (!timelineRef.current.canZoomIn) {
       announcer.announce("Cannot zoom in further", "polite");
       return;
     }
 
-    // Center on the middle of current display
-    const displayCenterMs = (displayStart.getTime() + displayEnd.getTime()) / 2;
-    const newDisplayStartMs = displayCenterMs - newDisplayRangeMs / 2;
-    const newDisplayEndMs = displayCenterMs + newDisplayRangeMs / 2;
-
-    onDisplayRangeChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
+    timelineRef.current.zoomIn();
     announcer.announce("Zoomed in", "polite");
-  }, [displayStart, displayEnd, onDisplayRangeChange, announcer]);
+  }, [announcer]);
 
-  // Handle zoom out - matches cmd+wheel down behavior (widen display by 25%)
+  // Handle zoom out - uses timeline's validated zoom logic (matches cmd+wheel down behavior)
   const handleZoomOut = useCallback(() => {
-    if (!onDisplayRangeChange || !displayStart || !displayEnd) return;
+    if (!timelineRef.current) return;
 
-    const displayRangeMs = displayEnd.getTime() - displayStart.getTime();
-    const newDisplayRangeMs = displayRangeMs * ZOOM_OUT_FACTOR;
+    if (!timelineRef.current.canZoomOut) {
+      announcer.announce("Cannot zoom out further", "polite");
+      return;
+    }
 
-    // Center on the middle of current display
-    const displayCenterMs = (displayStart.getTime() + displayEnd.getTime()) / 2;
-    const newDisplayStartMs = displayCenterMs - newDisplayRangeMs / 2;
-    const newDisplayEndMs = displayCenterMs + newDisplayRangeMs / 2;
-
-    onDisplayRangeChange(new Date(newDisplayStartMs), new Date(newDisplayEndMs));
+    timelineRef.current.zoomOut();
     announcer.announce("Zoomed out", "polite");
-  }, [displayStart, displayEnd, onDisplayRangeChange, announcer]);
+  }, [announcer]);
 
   // Handle copy
   const handleCopy = useCallback(
@@ -532,6 +521,7 @@ function LogViewerInner({
       {/* Section 2: Timeline Histogram - Always visible as a control element */}
       <div className="shrink-0 border-b px-3 py-2">
         <TimelineContainer
+          ref={timelineRef}
           buckets={histogram?.buckets ?? []}
           pendingBuckets={pendingHistogram?.buckets}
           onBucketClick={handleBucketClick}
