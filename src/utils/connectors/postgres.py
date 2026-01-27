@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -743,7 +744,6 @@ class PostgresConnector:
                 common_pod_template TEXT[],
                 parsed_pod_template JSONB,
                 enable_maintenance BOOLEAN,
-                action_permissions JSONB,
                 resources JSONB,
                 PRIMARY KEY (name)
             );
@@ -3039,23 +3039,6 @@ class Quota(pydantic.BaseModel):
     max_num_gpus: int = 100
 
 
-class PermissionLevel(enum.Enum):
-    """ Permission Level """
-    PUBLIC = 'PUBLIC'
-    POOL = 'POOL'
-    PRIVATE = 'PRIVATE'
-
-
-class ActionPermissions(pydantic.BaseModel):
-    """ Defines permissions for certain actionsfor a pool """
-    execute: PermissionLevel = PermissionLevel.PRIVATE
-    portforward: PermissionLevel = PermissionLevel.PRIVATE
-    cancel: PermissionLevel = PermissionLevel.PRIVATE
-    rsync: PermissionLevel = PermissionLevel.PRIVATE
-
-    class Config:
-        use_enum_values = True
-
 class PoolResourceCountable(pydantic.BaseModel):
     """
     Resources like GPU or CPU that have a discrete number. For guarantee and maximum, a value of -1
@@ -3084,7 +3067,6 @@ class PoolBase(pydantic.BaseModel):
     max_exec_timeout: str = ''
     max_queue_timeout: str = ''
     default_exit_actions: Dict[str, str] = {}
-    action_permissions: ActionPermissions = ActionPermissions()
     resources: PoolResources = PoolResources()
 
 class PoolMinimal(PoolBase):
@@ -3377,8 +3359,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              max_exec_timeout, max_queue_timeout, default_exit_actions,
              common_default_variables, common_resource_validations, parsed_resource_validations,
              common_pod_template, parsed_pod_template, enable_maintenance,
-             action_permissions, resources)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             resources)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
@@ -3397,7 +3379,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 common_pod_template = EXCLUDED.common_pod_template,
                 parsed_pod_template = EXCLUDED.parsed_pod_template,
                 enable_maintenance = EXCLUDED.enable_maintenance,
-                action_permissions = EXCLUDED.action_permissions,
                 resources = EXCLUDED.resources;
             '''
         database.execute_commit_command(
@@ -3413,7 +3394,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              self.common_resource_validations, json.dumps(self.parsed_resource_validations),
              self.common_pod_template, json.dumps(self.parsed_pod_template),
              self.enable_maintenance,
-             json.dumps(self.action_permissions, default=common.pydantic_encoder),
              json.dumps(self.resources, default=common.pydantic_encoder)))
 
 
