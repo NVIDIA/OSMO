@@ -38,7 +38,6 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
     """
 
     def test_get_default_pool(self):
-        database = connectors.postgres.PostgresConnector.get_instance()
         response = self.client.get('/api/configs/pool?verbose=true')
 
         pools = response.json()['pools']
@@ -62,7 +61,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             config_objects.DEFAULT_VARIABLES, pools['default']['common_default_variables'])
 
         # Patch the pool with new backend name
-        self.create_test_backend(database, backend_name='my_backend')
+        self.create_test_backend(backend_name='my_backend')
         config_service.patch_pool(
             name='default',
             request=config_objects.PatchPoolRequest(
@@ -230,10 +229,8 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         Test that the pool labels are updated when the pod spec with different
         node selector is updated.
         '''
-        database = connectors.postgres.PostgresConnector.get_instance()
-
         # Create test backend
-        self.create_test_backend(database)
+        self.create_test_backend()
 
         resource_spec = {
             'hostname': 'test_host',
@@ -247,7 +244,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             },
         }
         agent_helpers.update_resource(
-            database, 'test_backend', backend_messages.UpdateNodeBody(**resource_spec))
+            'test_backend', backend_messages.UpdateNodeBody(**resource_spec))
         pod_template = {
             'spec': {
                 'nodeSelector': {
@@ -302,8 +299,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         '''
         Simple test for patching the pool config.
         '''
-        database = connectors.postgres.PostgresConnector.get_instance()
-        self.create_test_backend(database, backend_name='test_backend')
+        self.create_test_backend(backend_name='test_backend')
 
         # Use the helper function to create the pool
         self.create_test_pool(pool_name='test_pool', backend='test_backend')
@@ -342,10 +338,9 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         Test that the tokens are substituted correctly in the pod spec.
         '''
         # Create a dummy TaskGroup object for testing token substitution
-        database = connectors.PostgresConnector.get_instance()
 
         # Setup backend
-        self.create_test_backend(database)
+        self.create_test_backend()
 
         # Setup workflow configs
         workflow_configs = connectors.WorkflowConfig(**{
@@ -418,7 +413,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         )
 
         # Create task group and convert to pod specs
-        task_group = self.create_task_group(database)
+        task_group = self.create_task_group()
         pods, _, _ = task_group.convert_all_pod_specs(
             common.generate_unique_id(),
             'test@nvidia.com',
