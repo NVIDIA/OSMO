@@ -16,6 +16,7 @@
 
 load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
 
 exports_files([
     "test_calculate_pod_status_cases.json",
@@ -48,5 +49,17 @@ py_test(
         requirement("kubernetes"),
         "//src/operator:backend_listener_lib",
         "//src/utils/job",
+    ],
+)
+
+go_test(
+    name = "node_helpers_test",
+    srcs = ["node_helpers_test.go"],
+    deps = [
+        "//src/operator/utils",
+        "//src/proto/operator:operator_go_proto",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource:resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )
