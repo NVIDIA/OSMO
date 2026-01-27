@@ -27,21 +27,7 @@ import (
 	"time"
 )
 
-var (
-	postgresHost     string
-	postgresPort     int
-	postgresDB       string
-	postgresUser     string
-	postgresPassword string
-)
-
-func init() {
-	flag.StringVar(&postgresHost, "postgres-host", "localhost", "PostgreSQL host")
-	flag.IntVar(&postgresPort, "postgres-port", 5432, "PostgreSQL port")
-	flag.StringVar(&postgresDB, "postgres-db", "osmo_db", "PostgreSQL database name")
-	flag.StringVar(&postgresUser, "postgres-user", "postgres", "PostgreSQL user")
-	flag.StringVar(&postgresPassword, "postgres-password", "osmo", "PostgreSQL password")
-}
+var postgresFlagPtrs = RegisterPostgresFlags()
 
 // TestPostgresIntegration_Connection tests connecting to a real PostgreSQL instance
 func TestPostgresIntegration_Connection(t *testing.T) {
@@ -51,18 +37,8 @@ func TestPostgresIntegration_Connection(t *testing.T) {
 		Level: slog.LevelInfo,
 	}))
 
-	// Create postgres client
-	config := PostgresConfig{
-		Host:            postgresHost,
-		Port:            postgresPort,
-		Database:        postgresDB,
-		User:            postgresUser,
-		Password:        postgresPassword,
-		MaxConns:        5,
-		MinConns:        2,
-		MaxConnLifetime: 5 * time.Minute,
-		SSLMode:         "disable",
-	}
+	// Create postgres client using flag pointers
+	config := postgresFlagPtrs.ToPostgresConfig()
 
 	ctx := context.Background()
 	client, err := NewPostgresClient(ctx, config, logger)
@@ -94,17 +70,8 @@ func TestPostgresIntegration_Pool(t *testing.T) {
 		Level: slog.LevelInfo,
 	}))
 
-	config := PostgresConfig{
-		Host:            postgresHost,
-		Port:            postgresPort,
-		Database:        postgresDB,
-		User:            postgresUser,
-		Password:        postgresPassword,
-		MaxConns:        5,
-		MinConns:        2,
-		MaxConnLifetime: 5 * time.Minute,
-		SSLMode:         "disable",
-	}
+	// Create postgres client using flag pointers
+	config := postgresFlagPtrs.ToPostgresConfig()
 
 	ctx := context.Background()
 	client, err := NewPostgresClient(ctx, config, logger)
@@ -145,34 +112,24 @@ func TestPostgresIntegration_Pool(t *testing.T) {
 	t.Log("✓ Successfully executed query using pool")
 }
 
-// TestPostgresIntegration_CreateClientHelper tests the CreatePostgresClient helper function
-func TestPostgresIntegration_CreateClientHelper(t *testing.T) {
+// TestPostgresIntegration_CreateClient tests the CreateClient method on PostgresConfig
+func TestPostgresIntegration_CreateClient(t *testing.T) {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 
-	ctx := context.Background()
-	client, err := CreatePostgresClient(
-		ctx,
-		logger,
-		postgresHost,
-		postgresPort,
-		postgresDB,
-		postgresUser,
-		postgresPassword,
-		5, // maxConns
-		2, // minConns
-		5*time.Minute,
-		"disable",
-	)
+	// Create postgres client using flag pointers and CreateClient method
+	config := postgresFlagPtrs.ToPostgresConfig()
+	client, err := config.CreateClient(logger)
 	if err != nil {
-		t.Fatalf("Failed to create postgres client using helper: %v", err)
+		t.Fatalf("Failed to create postgres client using CreateClient: %v", err)
 	}
 	defer client.Close()
 
 	// Verify connection
+	ctx := context.Background()
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -180,5 +137,5 @@ func TestPostgresIntegration_CreateClientHelper(t *testing.T) {
 		t.Fatalf("Failed to ping database: %v", err)
 	}
 
-	t.Log("✓ Successfully connected using CreatePostgresClient helper")
+	t.Log("✓ Successfully connected using CreateClient method")
 }
