@@ -101,41 +101,32 @@ interface AsymmetricZoomResult {
 /**
  * Calculate asymmetric zoom when symmetric zoom would violate constraints.
  *
- * ## Algorithm (Center-Anchored with Monotonic Non-Decrease)
+ * ## Algorithm (Center-Anchored with Fractional Positioning)
  *
  * 1. Try symmetric expansion from center
  * 2. Validate against ALL THREE constraints (left, right, combined)
  * 3. If blocked by per-side limit on ONE side:
- *    a. Calculate ideal edge position for new bucket-quantized limit
- *    b. Constrain to ensure monotonic non-decrease (can only move away from entity or stay)
- *    c. Transfer deficit from constrained expansion to opposite side
- *    d. Validate asymmetric result
+ *    a. Calculate ideal edge position using fractional limit (exactly 10% of new range)
+ *    b. Transfer deficit from constrained expansion to opposite side
+ *    c. Validate asymmetric result
  * 4. If blocked by combined limit: BLOCK (both sides contributing)
  * 5. If asymmetric validation fails: BLOCK entirely (all-or-nothing)
  * 6. If valid: return asymmetric zoom
  *
- * ## Monotonic Non-Decrease Strategy (Zoom OUT grows invalid zones to maintain percentage)
+ * ## Fractional Positioning
  *
- * **CRITICAL CONSTRAINT**: During zoom OUT, invalid zone absolute width is **monotonically non-decreasing**:
- * - Can **increase** (edge moves away from entity boundary, "pushing out")
- * - Can **stay same** (edge pinned at current position)
- * - Can **NEVER decrease** (maintains visual consistency, prevents surprise headroom)
+ * Uses **fractional percentage** (10.0% of viewport) instead of quantized bucket counts.
+ * This ensures invalid zones scale smoothly with viewport size:
+ * - Zoom OUT: 10% of larger range = more absolute pixels (zone grows naturally)
+ * - Zoom IN: 10% of smaller range = fewer absolute pixels (zone shrinks naturally)
+ * - No need for monotonic constraints - math guarantees correct behavior
  *
- * During zoom IN: No constraint needed (viewport edges naturally move toward center,
- * which pushes invalid zones outward - never violates limits)
- *
- * **Implementation**:
- * - Left edge: `Math.min(idealPosition, currentPosition)` → only moves LEFT (away from entity) or stays
- * - Right edge: `Math.max(idealPosition, currentPosition)` → only moves RIGHT (away from entity) or stays
- *
- * **Example**: 60s buckets, zooming from 25 buckets (1500s) → 30 buckets (1800s)
- *   - Currently: 2 buckets (120s) right invalid zone at 9% (near 10% limit)
- *   - New limit: 3 buckets (180s) allowed (10% of 1800s)
- *   - Ideal position: entityEnd + gap + 180s
- *   - Current position: entityEnd + gap + 120s
- *   - **Constrained: Math.max(ideal, current) = ideal (grow from 120s to 180s to maintain ~9-10%)**
- *   - Result: 180s / 1800s = 10% (at limit ✓)
- *   - UX: Invalid zone maintains constant visual size, no surprise headroom after zoom
+ * **Example**: Zooming from 1000ms → 1250ms viewport (1.25x zoom out)
+ *   - Currently: 80ms left invalid zone = 8% of 1000ms
+ *   - New limit: 125ms allowed (10% of 1250ms)
+ *   - Ideal position: entityStart - gap - 125ms
+ *   - Result: 125ms / 1250ms = 10% (at limit ✓)
+ *   - Zone grew from 80ms → 125ms (natural scaling with viewport)
  *
  * ## Three-Constraint System
  *
@@ -216,28 +207,20 @@ function calculateAsymmetricZoom(
   }
 
   // Calculate fractional limit for positioning (maintains percentage consistency)
-  // Use exactly 10% of new viewport for positioning to maintain visual consistency
+  // Use exactly 10% of new viewport - fractional positioning ensures zones scale naturally
   const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
 
   // Step 4: Calculate asymmetric zoom with deficit transfer
-  // CRITICAL CONSTRAINT: Monotonically non-decreasing invalid zones during zoom OUT
-  // Invalid zone can only: stay same (pinned) or increase (pushed away from entity)
-  // This maintains visual consistency and prevents surprise headroom after zoom
   if (reason === "left-invalid-zone-limit") {
     // Left invalid zone would exceed limit if we expanded symmetrically
-    // Calculate ideal position using FRACTIONAL limit (not quantized)
-    // This ensures we use all available headroom to maintain percentage
+    // Pin left edge at fractional limit (exactly 10% of new range)
     const entityStartMs = entityStartTime.getTime();
     const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
-    const idealConstrainedStart = entityStartMs - gapMs - fractionalLimitMs;
-
-    // Enforce monotonic non-decrease: left edge can only move LEFT (away from entity) or stay
-    // Math.min ensures we pick the position FARTHER from entity (smaller timestamp)
-    const constrainedStart = Math.min(idealConstrainedStart, displayStartMs);
+    const constrainedStart = entityStartMs - gapMs - fractionalLimitMs;
 
     // Calculate how much we wanted to expand left
     const symmetricLeftMove = displayStartMs - symmetricStart;
-    // How much we actually moved left (may be 0 if pinned)
+    // How much we actually moved left
     const constrainedLeftMove = displayStartMs - constrainedStart;
     const leftDeficit = symmetricLeftMove - constrainedLeftMove;
 
@@ -266,25 +249,20 @@ function calculateAsymmetricZoom(
     // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-failed: left constrained to monotonic non-decrease, transferred deficit to right but ${asymmetricValidation.reason}`,
+      reason: `asymmetric-failed: left pinned at limit, transferred deficit to right but ${asymmetricValidation.reason}`,
     };
   }
 
   if (reason === "right-invalid-zone-limit") {
     // Right invalid zone would exceed limit if we expanded symmetrically
-    // Calculate ideal position using FRACTIONAL limit (not quantized)
-    // This ensures we use all available headroom to maintain percentage
+    // Pin right edge at fractional limit (exactly 10% of new range)
     const rightBoundaryMs = entityEndTime?.getTime() ?? now;
     const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
-    const idealConstrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
-
-    // Enforce monotonic non-decrease: right edge can only move RIGHT (away from entity) or stay
-    // Math.max ensures we pick the position FARTHER from entity (larger timestamp)
-    const constrainedEnd = Math.max(idealConstrainedEnd, displayEndMs);
+    const constrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
 
     // Calculate how much we wanted to expand right
     const symmetricRightMove = symmetricEnd - displayEndMs;
-    // How much we actually moved right (may be 0 if pinned)
+    // How much we actually moved right
     const constrainedRightMove = constrainedEnd - displayEndMs;
     const rightDeficit = symmetricRightMove - constrainedRightMove;
 
@@ -313,7 +291,7 @@ function calculateAsymmetricZoom(
     // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-failed: right constrained to monotonic non-decrease, transferred deficit to left but ${asymmetricValidation.reason}`,
+      reason: `asymmetric-failed: right pinned at limit, transferred deficit to left but ${asymmetricValidation.reason}`,
     };
   }
 
