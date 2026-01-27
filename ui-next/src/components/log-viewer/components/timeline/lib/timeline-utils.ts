@@ -160,6 +160,64 @@ export function calculateOverlayPositions(
 }
 
 /**
+ * Result of max invalid zone bucket calculation.
+ */
+export interface MaxInvalidZoneBuckets {
+  /** Maximum invalid zone buckets per side (quantized) */
+  maxBucketsPerSide: number;
+  /** Maximum combined invalid zone buckets (quantized) */
+  maxBucketsCombined: number;
+  /** Maximum invalid zone milliseconds per side (bucket-aligned) */
+  maxInvalidZoneMsPerSide: number;
+  /** Maximum combined invalid zone milliseconds (bucket-aligned) */
+  maxInvalidZoneMsCombined: number;
+}
+
+/**
+ * Calculate maximum allowed invalid zone sizes (bucket-quantized).
+ *
+ * This is the SINGLE SOURCE OF TRUTH for invalid zone limit calculations.
+ * The percentage heuristics (10% per-side, 20% combined) are seeds that get
+ * quantized to bucket boundaries for consistent validation and positioning.
+ *
+ * ## Quantization
+ *
+ * - Percentages are floored to whole buckets: floor(25 * 0.1) = 2 buckets
+ * - Minimum of 2 buckets enforced for visual feedback when zoomed in
+ * - Milliseconds calculated from bucket counts (bucket-aligned)
+ *
+ * ## Usage
+ *
+ * Use this function in:
+ * - `validateInvalidZoneLimits()` - for constraint validation
+ * - `calculateAsymmetricZoom()` - for edge positioning
+ * - Any other code that needs invalid zone limits
+ *
+ * @param displayRangeMs - Display range in milliseconds
+ * @param bucketWidthMs - Width of one histogram bucket in milliseconds
+ * @param maxPerSidePercent - Maximum percentage per side (default: 10)
+ * @param maxCombinedPercent - Maximum combined percentage (default: 20)
+ * @returns Maximum invalid zone buckets and milliseconds (quantized)
+ */
+export function calculateMaxInvalidZoneBuckets(
+  displayRangeMs: number,
+  bucketWidthMs: number,
+  maxPerSidePercent: number = 10,
+  maxCombinedPercent: number = 20,
+): MaxInvalidZoneBuckets {
+  const totalBucketsVisible = displayRangeMs / bucketWidthMs;
+  const maxBucketsPerSide = Math.max(2, Math.floor(totalBucketsVisible * (maxPerSidePercent / 100)));
+  const maxBucketsCombined = Math.max(2, Math.floor(totalBucketsVisible * (maxCombinedPercent / 100)));
+
+  return {
+    maxBucketsPerSide,
+    maxBucketsCombined,
+    maxInvalidZoneMsPerSide: maxBucketsPerSide * bucketWidthMs,
+    maxInvalidZoneMsCombined: maxBucketsCombined * bucketWidthMs,
+  };
+}
+
+/**
  * Check if end time is considered "NOW".
  *
  * @param endTime - End time to check (undefined means NOW)
@@ -276,17 +334,14 @@ export function validateInvalidZoneLimits(
   const leftInvalidBuckets = leftInvalidMs / bucketWidthMs;
   const rightInvalidBuckets = rightInvalidMs / bucketWidthMs;
 
-  // Calculate total buckets visible and max allowed invalid buckets
-  // Minimum 2 buckets to ensure consistent visual feedback when zoomed in
-  const totalBucketsVisible = displayRangeMs / bucketWidthMs;
-  const maxInvalidBucketsPerSide = Math.max(2, Math.floor(totalBucketsVisible * (maxPerSidePercent / 100)));
-  const maxInvalidBucketsCombined = Math.max(2, Math.floor(totalBucketsVisible * (maxCombinedPercent / 100)));
+  // Calculate max allowed invalid buckets using single source of truth
+  const limits = calculateMaxInvalidZoneBuckets(displayRangeMs, bucketWidthMs, maxPerSidePercent, maxCombinedPercent);
 
   // THREE-CONSTRAINT VALIDATION (all must pass)
   // This creates a "triangle" of valid states allowing natural pan "give"
 
   // Constraint 1: Left per-side limit
-  if (leftInvalidBuckets > maxInvalidBucketsPerSide) {
+  if (leftInvalidBuckets > limits.maxBucketsPerSide) {
     return {
       blocked: true,
       reason: "left-invalid-zone-limit",
@@ -296,7 +351,7 @@ export function validateInvalidZoneLimits(
   }
 
   // Constraint 2: Right per-side limit
-  if (rightInvalidBuckets > maxInvalidBucketsPerSide) {
+  if (rightInvalidBuckets > limits.maxBucketsPerSide) {
     return {
       blocked: true,
       reason: "right-invalid-zone-limit",
@@ -309,7 +364,7 @@ export function validateInvalidZoneLimits(
   // This is the key constraint that creates the triangle of valid states
   // Combined limit is HIGHER than per-side limit to allow asymmetric zoom
   const combinedInvalidBuckets = leftInvalidBuckets + rightInvalidBuckets;
-  if (combinedInvalidBuckets > maxInvalidBucketsCombined) {
+  if (combinedInvalidBuckets > limits.maxBucketsCombined) {
     return {
       blocked: true,
       reason: "combined-invalid-zone-limit",

@@ -55,7 +55,11 @@
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
+import {
+  clampTimeToRange,
+  validateInvalidZoneLimits,
+  calculateMaxInvalidZoneBuckets,
+} from "../lib/timeline-utils";
 import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
 import {
   PAN_FACTOR,
@@ -81,6 +85,8 @@ interface WheelDebugEvent {
   isZoom: boolean;
   wasBlocked: boolean;
   blockReason?: string;
+  asymmetricApplied?: boolean;
+  wasConstrained?: boolean;
   oldRange: { start: string; end: string };
   newRange: { start: string; end: string };
   context?: {
@@ -180,9 +186,9 @@ function initializeDebug() {
           ? totalInvalidMs / (latest.context.combinedInvalidBuckets ?? 1)
           : 60000; // fallback to 1 minute
 
+      // Use single source of truth for limit calculations
+      const limits = calculateMaxInvalidZoneBuckets(displayRangeMs, bucketWidthMs);
       const totalBucketsVisible = displayRangeMs / bucketWidthMs;
-      const maxPerSideBuckets = Math.max(2, Math.floor(totalBucketsVisible * 0.1));
-      const maxCombinedBuckets = Math.max(2, Math.floor(totalBucketsVisible * 0.2));
 
       console.log("[Timeline Debug] Current State:", {
         displayRange: `${latest.newRange.start} → ${latest.newRange.end}`,
@@ -193,8 +199,8 @@ function initializeDebug() {
           combined: `${latest.context.combinedInvalidBuckets?.toFixed(1)} buckets`,
         },
         limits: {
-          perSide: `${maxPerSideBuckets} buckets (10% of ${totalBucketsVisible.toFixed(1)} visible)`,
-          combined: `${maxCombinedBuckets} buckets (20% of ${totalBucketsVisible.toFixed(1)} visible)`,
+          perSide: `${limits.maxBucketsPerSide} buckets (10% of ${totalBucketsVisible.toFixed(1)} visible)`,
+          combined: `${limits.maxBucketsCombined} buckets (20% of ${totalBucketsVisible.toFixed(1)} visible)`,
         },
         bucketWidth: `${(bucketWidthMs / 1000).toFixed(1)}s`,
       });
@@ -238,27 +244,38 @@ interface AsymmetricZoomResult {
 /**
  * Calculate asymmetric zoom when symmetric zoom would violate constraints.
  *
- * ## Algorithm
+ * ## Algorithm (Center-Anchored with Deficit Transfer)
  *
  * 1. Try symmetric expansion from center
  * 2. Validate against ALL THREE constraints (left, right, combined)
- * 3. If blocked by per-side limit on ONE side: pin that edge and expand the other side
- * 4. If blocked by combined limit: BLOCK (both sides contributing to overflow)
- * 5. Validate pinned version against all three constraints
- * 6. If still blocked: BLOCK entirely (all-or-nothing, NO partial zooms)
- * 7. If valid: return asymmetric zoom
+ * 3. If blocked by per-side limit on ONE side:
+ *    a. Calculate where constrained edge should be to maintain max allowed percentage
+ *    b. Calculate deficit (difference from symmetric position)
+ *    c. Transfer deficit to opposite side
+ *    d. Validate asymmetric result
+ * 4. If blocked by combined limit: BLOCK (both sides contributing)
+ * 5. If asymmetric validation fails: BLOCK entirely (all-or-nothing)
+ * 6. If valid: return asymmetric zoom
  *
- * ## Pinning Strategy (NEW)
+ * ## Center-Anchored Strategy (Bucket-Quantized)
  *
- * When one invalid zone is at its 10% limit and we zoom out:
- * - **Pin that edge** (don't move it)
- * - **Expand the opposite direction** by the full zoom amount
- * - This naturally **decreases** the pinned invalid zone percentage (10% → 8%)
- * - Allows continuous zoom out until the other side hits its limit
+ * When one invalid zone would exceed its limit during zoom out:
+ * - **Calculate bucket-quantized limit** using SAME logic as validation
+ *   - 10% heuristic → floor(totalBuckets * 0.1) → quantized bucket limit
+ *   - This ensures perfect alignment with validation thresholds
+ * - **Calculate ideal constrained edge position** from quantized bucket limit
+ * - **Never move edges INWARD** during zoom out - use current position if it's further out
+ * - **Calculate deficit** from symmetric expansion
+ * - **Transfer deficit** to opposite side
+ * - Result: Invalid zone either shrinks to bucket-quantized limit or stays pinned
  *
- * Example: At right boundary showing 10% invalid zone, zoom out by 1.25x:
- *   Before: [0%][━━━ 100min ━━━][10% = 10min invalid]
- *   After:  [8%][━━━━ 125min ━━━━][8% = 10min invalid] (same absolute size, lower %)
+ * Example: 60s buckets, 100min viewport → 125min zoom (25 buckets total)
+ *   - Bucket limit: floor(25 * 0.1) = 2 buckets = 120s
+ *   - If left at 1.5 buckets (90s):
+ *     Symmetric would create 2.5 buckets → BLOCKED
+ *     Asymmetric: constrain to 2 buckets (120s), transfer deficit to right
+ *   - If left at 2.5 buckets (150s):
+ *     Already above limit → pin at current position, all expansion goes right
  *
  * ## Three-Constraint System
  *
@@ -294,7 +311,7 @@ function calculateAsymmetricZoom(
   const centerMs = (displayStartMs + displayEndMs) / 2;
   const halfRange = newRangeMs / 2;
 
-  // Step 1: Try symmetric expansion
+  // Step 1: Try symmetric expansion from center
   const symmetricStart = centerMs - halfRange;
   const symmetricEnd = centerMs + halfRange;
 
@@ -320,76 +337,115 @@ function calculateAsymmetricZoom(
   // Step 2: Determine which constraint was violated
   const { reason } = symmetricValidation;
 
-  // Step 3: If combined limit violated, cannot pin - BLOCK
+  // Step 3: If combined limit violated, cannot compensate - BLOCK
   if (reason === "combined-invalid-zone-limit") {
     return {
       blocked: true,
-      reason: "combined-invalid-zone-limit: cannot pin when both sides contribute to overflow",
+      reason: "combined-invalid-zone-limit: both sides contribute to overflow, cannot compensate",
     };
   }
 
-  // Step 4: Pin the edge at its limit and expand the other direction
-  if (reason === "left-invalid-zone-limit") {
-    // Left side is at its limit - pin left edge and expand only to the right
-    // This naturally decreases the left invalid zone percentage (e.g., 10% → 8%)
-    const pinnedStart = displayStartMs; // Keep left edge where it is
-    const shiftedEnd = pinnedStart + newRangeMs; // Expand right by full zoom amount
+  // Calculate bucket width for positioning invalid zones at limit
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+  if (bucketWidthMs === 0 || !entityStartTime) {
+    // No buckets or entity - cannot calculate, block
+    return {
+      blocked: true,
+      reason: "no-buckets-or-entity: cannot calculate invalid zone positioning",
+    };
+  }
 
-    // Validate the shifted version
-    const shiftedValidation = validateFn(
-      pinnedStart,
-      shiftedEnd,
+  // CRITICAL: Use single source of truth for max invalid zone calculation
+  // This ensures asymmetric zoom aligns perfectly with validation thresholds
+  const limits = calculateMaxInvalidZoneBuckets(newRangeMs, bucketWidthMs);
+  const maxInvalidZoneMs = limits.maxInvalidZoneMsPerSide; // Quantized to bucket boundaries
+
+  // Step 4: Calculate asymmetric zoom with deficit transfer
+  // CRITICAL: During zoom OUT, edges should only move OUTWARD, never inward
+  // If user is already showing > limit invalid zone, don't pull the edge back in
+  if (reason === "left-invalid-zone-limit") {
+    // Left invalid zone would exceed limit
+    // Calculate where left edge should be to keep invalid zone AT quantized limit
+    const entityStartMs = entityStartTime.getTime();
+    const idealConstrainedStart = entityStartMs - maxInvalidZoneMs;
+
+    // Never move edge INWARD during zoom out - use whichever is further left
+    const constrainedStart = Math.min(idealConstrainedStart, displayStartMs);
+
+    // Calculate deficit from symmetric expansion
+    const symmetricLeftMove = displayStartMs - symmetricStart; // How much symmetric wanted to move left
+    const constrainedLeftMove = displayStartMs - constrainedStart; // How much we can actually move left
+    const leftDeficit = symmetricLeftMove - constrainedLeftMove; // Deficit to transfer
+
+    // Transfer deficit to right side
+    const constrainedEnd = symmetricEnd + leftDeficit;
+
+    // Validate asymmetric result
+    const asymmetricValidation = validateFn(
+      constrainedStart,
+      constrainedEnd,
       entityStartTime,
       entityEndTime,
       now,
       bucketTimestamps,
     );
 
-    if (!shiftedValidation.blocked) {
+    if (!asymmetricValidation.blocked) {
       return {
         blocked: false,
-        newStartMs: pinnedStart,
-        newEndMs: shiftedEnd,
+        newStartMs: constrainedStart,
+        newEndMs: constrainedEnd,
         wasAsymmetric: true,
       };
     }
 
-    // Shifted version also failed - BLOCK entirely
+    // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-shift-failed: pinned left, expanded right but ${shiftedValidation.reason}`,
+      reason: `asymmetric-failed: left constrained, transferred deficit to right but ${asymmetricValidation.reason}`,
     };
   }
 
   if (reason === "right-invalid-zone-limit") {
-    // Right side is at its limit - pin right edge and expand only to the left
-    // This naturally decreases the right invalid zone percentage (e.g., 10% → 8%)
-    const pinnedEnd = displayEndMs; // Keep right edge where it is
-    const shiftedStart = pinnedEnd - newRangeMs; // Expand left by full zoom amount
+    // Right invalid zone would exceed limit
+    // Calculate where right edge should be to keep invalid zone AT quantized limit
+    const rightBoundaryMs = entityEndTime?.getTime() ?? now ?? Date.now();
+    const idealConstrainedEnd = rightBoundaryMs + maxInvalidZoneMs;
 
-    // Validate the shifted version
-    const shiftedValidation = validateFn(
-      shiftedStart,
-      pinnedEnd,
+    // Never move edge INWARD during zoom out - use whichever is further right
+    const constrainedEnd = Math.max(idealConstrainedEnd, displayEndMs);
+
+    // Calculate deficit from symmetric expansion
+    const symmetricRightMove = symmetricEnd - displayEndMs; // How much symmetric wanted to move right
+    const constrainedRightMove = constrainedEnd - displayEndMs; // How much we can actually move right
+    const rightDeficit = symmetricRightMove - constrainedRightMove; // Deficit to transfer
+
+    // Transfer deficit to left side
+    const constrainedStart = symmetricStart - rightDeficit;
+
+    // Validate asymmetric result
+    const asymmetricValidation = validateFn(
+      constrainedStart,
+      constrainedEnd,
       entityStartTime,
       entityEndTime,
       now,
       bucketTimestamps,
     );
 
-    if (!shiftedValidation.blocked) {
+    if (!asymmetricValidation.blocked) {
       return {
         blocked: false,
-        newStartMs: shiftedStart,
-        newEndMs: pinnedEnd,
+        newStartMs: constrainedStart,
+        newEndMs: constrainedEnd,
         wasAsymmetric: true,
       };
     }
 
-    // Shifted version also failed - BLOCK entirely
+    // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-shift-failed: pinned right, expanded left but ${shiftedValidation.reason}`,
+      reason: `asymmetric-failed: right constrained, transferred deficit to left but ${asymmetricValidation.reason}`,
     };
   }
 
@@ -743,11 +799,18 @@ export function useTimelineWheelGesture(
         // Skip if no effective delta (prevents spurious pan when delta=0)
         if (effectiveDelta === 0) return;
 
-        const panAmountMs = displayRangeMs * PAN_FACTOR;
-        const deltaMs = effectiveDelta < 0 ? -panAmountMs : panAmountMs;
+        // Calculate pan amount proportional to bucket size
+        // Pan by 2 buckets per wheel event (or 10% of viewport, whichever is smaller)
+        const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+        const bucketsPerWheelEvent = 2;
+        const bucketBasedPanMs = bucketWidthMs * bucketsPerWheelEvent;
+        const percentageBasedPanMs = displayRangeMs * PAN_FACTOR;
+        const panAmountMs = Math.min(bucketBasedPanMs, percentageBasedPanMs);
 
-        const newStart = new Date(displayStartMs + deltaMs);
-        const newEnd = new Date(displayEndMs + deltaMs);
+        let deltaMs = effectiveDelta < 0 ? -panAmountMs : panAmountMs;
+
+        let newStart = new Date(displayStartMs + deltaMs);
+        let newEnd = new Date(displayEndMs + deltaMs);
 
         // Validate invalid zone limits
         const validation = validateInvalidZoneLimits(
@@ -759,26 +822,114 @@ export function useTimelineWheelGesture(
           bucketTimestamps,
         );
 
+        // If blocked, try to constrain pan to maximum allowed amount
+        let wasConstrained = false;
         if (validation.blocked) {
-          logWheelEvent({
-            timestamp: Date.now(),
-            dx,
-            dy,
-            effectiveDelta,
-            isZoom: false,
-            wasBlocked: true,
-            blockReason: validation.reason,
-            oldRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            newRange: {
-              start: newStart.toISOString(),
-              end: newEnd.toISOString(),
-            },
-            context: buildDebugContext(),
-          });
-          return;
+          const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+          if (bucketWidthMs === 0) {
+            logWheelEvent({
+              timestamp: Date.now(),
+              dx,
+              dy,
+              effectiveDelta,
+              isZoom: false,
+              wasBlocked: true,
+              blockReason: "zero-bucket-width",
+              oldRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              newRange: {
+                start: newStart.toISOString(),
+                end: newEnd.toISOString(),
+              },
+              context: buildDebugContext(),
+            });
+            return;
+          }
+
+          // Calculate CURRENT invalid zones (before pan)
+          const currentInvalidZones = calculateInvalidZonePositions(
+            debugContext?.entityStartTime?.getTime() ?? 0,
+            debugContext?.entityEndTime?.getTime(),
+            debugContext?.now ?? Date.now(),
+            displayStartMs,
+            displayEndMs,
+            bucketWidthMs,
+          );
+
+          const displayRangeMs = displayEndMs - displayStartMs;
+          const currentLeftInvalidMs = (currentInvalidZones.leftInvalidWidth / 100) * displayRangeMs;
+          const currentRightInvalidMs = (currentInvalidZones.rightInvalidWidth / 100) * displayRangeMs;
+          const currentLeftInvalidBuckets = currentLeftInvalidMs / bucketWidthMs;
+          const currentRightInvalidBuckets = currentRightInvalidMs / bucketWidthMs;
+
+          // Use single source of truth for max invalid zone calculation
+          const limits = calculateMaxInvalidZoneBuckets(displayRangeMs, bucketWidthMs);
+          const maxInvalidBucketsPerSide = limits.maxBucketsPerSide;
+
+          // Determine which side is being constrained and calculate headroom
+          let maxAllowedDeltaMs = 0;
+
+          if (validation.reason === "left-invalid-zone-limit") {
+            // Panning left - constrain by left invalid zone limit
+            // Available headroom = (maxBuckets - currentBuckets) * bucketWidth
+            const availableBuckets = Math.max(0, maxInvalidBucketsPerSide - currentLeftInvalidBuckets);
+            maxAllowedDeltaMs = -(availableBuckets * bucketWidthMs);
+          } else if (validation.reason === "right-invalid-zone-limit") {
+            // Panning right - constrain by right invalid zone limit
+            const availableBuckets = Math.max(0, maxInvalidBucketsPerSide - currentRightInvalidBuckets);
+            maxAllowedDeltaMs = availableBuckets * bucketWidthMs;
+          } else {
+            // Combined limit or unknown - block entirely
+            logWheelEvent({
+              timestamp: Date.now(),
+              dx,
+              dy,
+              effectiveDelta,
+              isZoom: false,
+              wasBlocked: true,
+              blockReason: validation.reason,
+              oldRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              newRange: {
+                start: newStart.toISOString(),
+                end: newEnd.toISOString(),
+              },
+              context: buildDebugContext(),
+            });
+            return;
+          }
+
+          // Apply constrained delta (may be zero if already at limit)
+          if (Math.abs(maxAllowedDeltaMs) < 1) {
+            logWheelEvent({
+              timestamp: Date.now(),
+              dx,
+              dy,
+              effectiveDelta,
+              isZoom: false,
+              wasBlocked: true,
+              blockReason: "at-limit: no headroom available",
+              oldRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              newRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              context: buildDebugContext(),
+            });
+            return;
+          }
+
+          deltaMs = maxAllowedDeltaMs;
+          newStart = new Date(displayStartMs + deltaMs);
+          newEnd = new Date(displayEndMs + deltaMs);
+          wasConstrained = true;
         }
 
         logWheelEvent({
@@ -788,6 +939,7 @@ export function useTimelineWheelGesture(
           effectiveDelta,
           isZoom: false,
           wasBlocked: false,
+          wasConstrained,
           oldRange: {
             start: new Date(displayStartMs).toISOString(),
             end: new Date(displayEndMs).toISOString(),
