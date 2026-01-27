@@ -495,10 +495,7 @@ def restart_workflow(pool_name: str,
 def cancel_workflow(name: str,
                     message: str | None = None,
                     force: bool = False,
-                    user_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-                    roles_header: Optional[str] =
-                        fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+                    user: str = fastapi.Depends(connectors.parse_username)) -> \
         objects.CancelResponse:
     """ Cancels the workflow. """
 
