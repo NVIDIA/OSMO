@@ -249,20 +249,20 @@ export interface LogViewerProps {
   scope?: "workflow" | "group" | "task";
   /** Additional CSS classes */
   className?: string;
-  /** Start time for log query (effective range - undefined = from beginning) */
-  startTime?: Date;
-  /** End time for log query (effective range - undefined = to now/latest) */
-  endTime?: Date;
+  /** USER INTENT: Filter start time (undefined = from beginning) */
+  filterStartTime?: Date;
+  /** USER INTENT: Filter end time (undefined = live mode/NOW) */
+  filterEndTime?: Date;
   /** Display range start (with padding) */
   displayStart?: Date;
   /** Display range end (with padding) */
   displayEnd?: Date;
   /** Active time range preset */
   activePreset?: TimeRangePreset;
-  /** Callback to set start time */
-  onStartTimeChange?: (time: Date | undefined) => void;
-  /** Callback to set end time */
-  onEndTimeChange?: (time: Date | undefined) => void;
+  /** Callback to set filter start time */
+  onFilterStartTimeChange?: (time: Date | undefined) => void;
+  /** Callback to set filter end time */
+  onFilterEndTimeChange?: (time: Date | undefined) => void;
   /** Callback to apply a time range preset */
   onPresetSelect?: (preset: TimeRangePreset) => void;
   /** Callback when display range changes (for pending histogram) */
@@ -273,8 +273,11 @@ export interface LogViewerProps {
   entityStartTime: Date;
   /** Entity end time (completion timestamp) - undefined if still running */
   entityEndTime?: Date;
-  /** Synchronized "NOW" timestamp from useTick (for running workflows) */
-  now?: number;
+  /**
+   * REFERENCE: Synchronized "NOW" timestamp (milliseconds since epoch) from useTick().
+   * REQUIRED for time consistency across all timeline calculations.
+   */
+  now: number;
 }
 
 // =============================================================================
@@ -323,13 +326,13 @@ function LogViewerInner({
   // Kept in the interface to maintain API stability.
   scope: _scope = "workflow",
   className,
-  startTime,
-  endTime,
+  filterStartTime,
+  filterEndTime,
   displayStart,
   displayEnd,
   activePreset,
-  onStartTimeChange,
-  onEndTimeChange,
+  onFilterStartTimeChange,
+  onFilterEndTimeChange,
   onPresetSelect,
   onDisplayRangeChange,
   onClearPendingDisplay,
@@ -349,8 +352,9 @@ function LogViewerInner({
   // Ref to timeline container for imperative zoom controls
   const timelineRef = useRef<TimelineContainerHandle>(null);
 
-  // Derive live mode from end time (endTime === undefined means "NOW" / live mode)
-  const isLiveMode = endTime === undefined;
+  // Derive live mode: requires BOTH filterEndTime undefined (user wants NOW)
+  // AND entityEndTime undefined (workflow still running)
+  const isLiveMode = filterEndTime === undefined && entityEndTime === undefined;
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
@@ -394,16 +398,16 @@ function LogViewerInner({
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
     (bucket: HistogramBucket) => {
-      if (!onStartTimeChange || !onEndTimeChange) return;
+      if (!onFilterStartTimeChange || !onFilterEndTimeChange) return;
       // Set time range around the clicked bucket
       // Show ±5 minutes around the bucket
       const bucketTime = bucket.timestamp.getTime();
       const fiveMinutes = 5 * 60 * 1000;
-      onStartTimeChange(new Date(bucketTime - fiveMinutes));
-      onEndTimeChange(new Date(bucketTime + fiveMinutes));
+      onFilterStartTimeChange(new Date(bucketTime - fiveMinutes));
+      onFilterEndTimeChange(new Date(bucketTime + fiveMinutes));
       announcer.announce("Time range updated", "polite");
     },
-    [onStartTimeChange, onEndTimeChange, announcer],
+    [onFilterStartTimeChange, onFilterEndTimeChange, announcer],
   );
 
   // Handle preset selection
@@ -420,18 +424,18 @@ function LogViewerInner({
   // Wrap time change handlers to clear pending display
   const handleStartTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onStartTimeChange?.(time);
+      onFilterStartTimeChange?.(time);
       onClearPendingDisplay?.();
     },
-    [onStartTimeChange, onClearPendingDisplay],
+    [onFilterStartTimeChange, onClearPendingDisplay],
   );
 
   const handleEndTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onEndTimeChange?.(time);
+      onFilterEndTimeChange?.(time);
       onClearPendingDisplay?.();
     },
-    [onEndTimeChange, onClearPendingDisplay],
+    [onFilterEndTimeChange, onClearPendingDisplay],
   );
 
   // Handle zoom in - uses timeline's validated zoom logic (matches cmd+wheel up behavior)
@@ -485,11 +489,11 @@ function LogViewerInner({
   // Handle scroll away from bottom - pauses live mode by setting end time to current time
   // User can re-enable by clicking "Jump to Now" or selecting NOW in time range
   const handleScrollAwayFromBottom = useCallback(() => {
-    if (isLiveMode && onEndTimeChange) {
-      onEndTimeChange(new Date());
+    if (isLiveMode && onFilterEndTimeChange) {
+      onFilterEndTimeChange(new Date());
       announcer.announce("Live mode paused", "polite");
     }
-  }, [isLiveMode, onEndTimeChange, announcer]);
+  }, [isLiveMode, onFilterEndTimeChange, announcer]);
 
   // Loading state
   if (isLoading && entries.length === 0) {
@@ -528,12 +532,12 @@ function LogViewerInner({
           height={80}
           // Time range header with controls
           showTimeRangeHeader
-          startTime={startTime}
-          endTime={endTime}
+          filterStartTime={filterStartTime}
+          filterEndTime={filterEndTime}
           displayStart={displayStart}
           displayEnd={displayEnd}
-          onStartTimeChange={handleStartTimeChangeWithClear}
-          onEndTimeChange={handleEndTimeChangeWithClear}
+          onFilterStartTimeChange={handleStartTimeChangeWithClear}
+          onFilterEndTimeChange={handleEndTimeChangeWithClear}
           onDisplayRangeChange={onDisplayRangeChange}
           // Presets
           showPresets
