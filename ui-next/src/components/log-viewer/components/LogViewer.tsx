@@ -269,8 +269,8 @@ export interface LogViewerProps {
   onDisplayRangeChange?: (start: Date, end: Date) => void;
   /** Callback to clear pending display state */
   onClearPendingDisplay?: () => void;
-  /** Entity start time (workflow/group/task start) */
-  entityStartTime?: Date;
+  /** Entity start time (workflow/group/task start) - GUARANTEED (parent must guard before rendering LogViewer) */
+  entityStartTime: Date;
   /** Entity end time (completion timestamp) - undefined if still running */
   entityEndTime?: Date;
   /** Synchronized "NOW" timestamp from useTick (for running workflows) */

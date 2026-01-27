@@ -234,21 +234,14 @@ export interface InvalidZoneValidation {
 export function validateInvalidZoneLimits(
   newDisplayStartMs: number,
   newDisplayEndMs: number,
-  entityStartTime: Date | undefined,
+  entityStartTime: Date,
   entityEndTime: Date | undefined,
   now: number | undefined,
   bucketTimestamps: Date[],
   maxPerSidePercent: number = 10,
   maxCombinedPercent: number = 20,
 ): InvalidZoneValidation {
-  // If no entity start, no invalid zones exist
-  if (!entityStartTime) {
-    return {
-      blocked: false,
-      leftInvalidBuckets: 0,
-      rightInvalidBuckets: 0,
-    };
-  }
+  // NOTE: entityStartTime is guaranteed to exist (log-viewer only loads when workflow started)
 
   const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
 
