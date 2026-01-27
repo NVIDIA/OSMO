@@ -24,18 +24,21 @@ import (
 	"strconv"
 )
 
-// ListenerArgs holds configuration for the workflow listener
+// ListenerArgs holds configuration for all listeners
 type ListenerArgs struct {
-	ServiceURL           string
-	Backend              string
-	Namespace            string
-	PodUpdateChanSize    int
-	ResyncPeriodSec      int
-	StateCacheTTLMin     int
-	MaxUnackedMessages   int
-	NodeConditionPrefix  string
-	ProgressDir          string
-	ProgressFrequencySec int
+	ServiceURL            string
+	Backend               string
+	Namespace             string
+	PodUpdateChanSize     int
+	ResyncPeriodSec       int
+	StateCacheTTLMin      int
+	MaxUnackedMessages    int
+	NodeConditionPrefix   string
+	ProgressDir           string
+	ProgressFrequencySec  int
+	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
+	ReconcileIntervalMin  int // Interval for full reconciliation (ResourceListener)
+	NodeEventQueueSize    int // Buffer size for node event queue (ResourceListener)
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -70,20 +73,32 @@ func ListenerParse() ListenerArgs {
 	progressFrequencySec := flag.Int("progressFrequencySec",
 		getEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
+	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
+		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
+		"Interval for flushing resource usage updates (ResourceListener)")
+	reconcileIntervalMin := flag.Int("reconcileIntervalMin",
+		getEnvInt("RECONCILE_INTERVAL_MIN", 5),
+		"Interval for full reconciliation in minutes (ResourceListener)")
+	nodeEventQueueSize := flag.Int("nodeEventQueueSize",
+		getEnvInt("NODE_EVENT_QUEUE_SIZE", 100),
+		"Buffer size for node event queue (ResourceListener)")
 
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL:           *serviceURL,
-		Backend:              *backend,
-		Namespace:            *namespace,
-		PodUpdateChanSize:    *podUpdateChanSize,
-		ResyncPeriodSec:      *resyncPeriodSec,
-		StateCacheTTLMin:     *stateCacheTTLMin,
-		MaxUnackedMessages:   *maxUnackedMessages,
-		NodeConditionPrefix:  *nodeConditionPrefix,
-		ProgressDir:          *progressDir,
-		ProgressFrequencySec: *progressFrequencySec,
+		ServiceURL:            *serviceURL,
+		Backend:               *backend,
+		Namespace:             *namespace,
+		PodUpdateChanSize:     *podUpdateChanSize,
+		ResyncPeriodSec:       *resyncPeriodSec,
+		StateCacheTTLMin:      *stateCacheTTLMin,
+		MaxUnackedMessages:    *maxUnackedMessages,
+		NodeConditionPrefix:   *nodeConditionPrefix,
+		ProgressDir:           *progressDir,
+		ProgressFrequencySec:  *progressFrequencySec,
+		UsageFlushIntervalSec: *usageFlushIntervalSec,
+		ReconcileIntervalMin:  *reconcileIntervalMin,
+		NodeEventQueueSize:    *nodeEventQueueSize,
 	}
 }
 

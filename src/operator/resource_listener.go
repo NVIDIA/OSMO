@@ -37,27 +37,19 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// ResourceListenerArgs holds configuration for the resource listener
-type ResourceListenerArgs struct {
-	utils.ListenerArgs
-	UsageFlushIntervalSec int // Interval for flushing resource usage updates
-	ReconcileIntervalMin  int // Interval for full reconciliation (safety net)
-	NodeEventQueueSize    int // Buffer size for node event queue (prevents informer blocking)
-}
-
 // ResourceListener manages the bidirectional gRPC stream for resource (node) events
 type ResourceListener struct {
 	*utils.BaseListener
-	args       ResourceListenerArgs
+	args       utils.ListenerArgs
 	stream     pb.ListenerService_ListenerStreamClient
 	closeOnce  sync.Once
 	aggregator *ResourceUsageAggregator
 }
 
 // NewResourceListener creates a new resource listener instance
-func NewResourceListener(args ResourceListenerArgs) *ResourceListener {
+func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
 	return &ResourceListener{
-		BaseListener: utils.NewBaseListener(args.ListenerArgs, "last_progress_resource_listener"),
+		BaseListener: utils.NewBaseListener(args, "last_progress_resource_listener"),
 		args:         args,
 		aggregator:   NewResourceUsageAggregator(args.Namespace),
 	}
@@ -1106,20 +1098,18 @@ func isNodeAvailable(node *corev1.Node) bool {
 }
 
 // DefaultResourceListenerArgs returns default configuration values
-func DefaultResourceListenerArgs() ResourceListenerArgs {
-	return ResourceListenerArgs{
-		ListenerArgs: utils.ListenerArgs{
-			ServiceURL:           "http://127.0.0.1:8001",
-			Backend:              "default",
-			Namespace:            "osmo",
-			PodUpdateChanSize:    500,
-			ResyncPeriodSec:      300,
-			StateCacheTTLMin:     15,
-			MaxUnackedMessages:   100,
-			NodeConditionPrefix:  "osmo.nvidia.com/",
-			ProgressDir:          "/tmp/osmo/operator/",
-			ProgressFrequencySec: 15,
-		},
+func DefaultResourceListenerArgs() utils.ListenerArgs {
+	return utils.ListenerArgs{
+		ServiceURL:            "http://127.0.0.1:8001",
+		Backend:               "default",
+		Namespace:             "osmo",
+		PodUpdateChanSize:     500,
+		ResyncPeriodSec:       300,
+		StateCacheTTLMin:      15,
+		MaxUnackedMessages:    100,
+		NodeConditionPrefix:   "osmo.nvidia.com/",
+		ProgressDir:           "/tmp/osmo/operator/",
+		ProgressFrequencySec:  15,
 		UsageFlushIntervalSec: 5,   // Flush every 5 seconds
 		ReconcileIntervalMin:  10,  // Full reconcile every 10 minutes (set to 0 to disable)
 		NodeEventQueueSize:    100, // Buffer for node events (prevents informer blocking)

@@ -62,12 +62,7 @@ func main() {
 
 	// Create both listeners
 	workflowListener := NewWorkflowListener(cmdArgs)
-	resourceListener := NewResourceListener(ResourceListenerArgs{
-		ListenerArgs:          cmdArgs,
-		UsageFlushIntervalSec: 60,
-		ReconcileIntervalMin:  5,
-		NodeEventQueueSize:    100,
-	})
+	resourceListener := NewResourceListener(cmdArgs)
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
