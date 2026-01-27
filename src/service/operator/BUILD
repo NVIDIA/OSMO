@@ -34,6 +34,7 @@ go_library(
     deps = [
         "//src/proto/operator:operator_go_proto",
         "//src/utils/postgres",
+        "//src/utils/redis",
         "@com_github_jackc_pgx_v5//pgxpool",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
@@ -95,7 +96,6 @@ go_library(
     deps = [
         ":listener_service",
         ":utils",
-        "@com_github_redis_go_redis_v9//:go-redis",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//health",
         "@org_golang_google_grpc//health/grpc_health_v1",
