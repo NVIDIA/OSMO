@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -29,7 +28,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -67,24 +65,12 @@ func main() {
 	}
 
 	// Initialize Redis client
-	redisOptions := &redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", args.RedisHost, args.RedisPort),
-		Password: args.RedisPassword,
-		DB:       args.RedisDB,
+	redisClient, err := args.Redis.CreateClient(logger)
+	if err != nil {
+		logger.Error("Failed to create Redis client",
+			slog.String("error", err.Error()))
+		os.Exit(1)
 	}
-
-	// Enable TLS if configured
-	if args.RedisTLSEnabled {
-		redisOptions.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		}
-	}
-
-	redisClient := redis.NewClient(redisOptions)
-	logger.Info("Redis client configured",
-		slog.String("address", fmt.Sprintf("%s:%d", args.RedisHost, args.RedisPort)),
-		slog.Int("db", args.RedisDB),
-		slog.Bool("tls", args.RedisTLSEnabled))
 	defer redisClient.Close()
 
 	// Initialize PostgreSQL client
@@ -116,7 +102,8 @@ func main() {
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// Register operator services with Redis client and PostgreSQL pool
-	listenerService := listener_service.NewListenerService(logger, redisClient, pgClient.Pool(), &args)
+	listenerService := listener_service.NewListenerService(
+		logger, redisClient.Client(), pgClient.Pool(), &args)
 	listener_service.RegisterServices(grpcServer, listenerService)
 
 	// Start gRPC server
