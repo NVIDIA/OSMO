@@ -23,11 +23,13 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"gopkg.in/yaml.v3"
 )
 
 // PostgresConfig holds PostgreSQL connection configuration
@@ -51,11 +53,11 @@ type PostgresClient struct {
 
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
 func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
-	// Build connection URL
+	// Build connection URL with properly escaped user and password
 	connURL := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		config.User,
-		config.Password,
+		url.PathEscape(config.User),
+		url.PathEscape(config.Password),
 		config.Host,
 		config.Port,
 		config.Database,
@@ -149,7 +151,7 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 			getEnv("OSMO_POSTGRES_USER", "postgres"),
 			"PostgreSQL user"),
 		password: flag.String("postgres-password",
-			getEnv("OSMO_POSTGRES_PASSWORD", ""),
+			getEnvOrConfig("OSMO_POSTGRES_PASSWORD", "postgres_password", ""),
 			"PostgreSQL password"),
 		database: flag.String("postgres-database",
 			getEnv("OSMO_POSTGRES_DATABASE_NAME", "osmo_db"),
@@ -164,8 +166,8 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 			getEnvInt("OSMO_POSTGRES_MAX_CONN_LIFETIME", 5),
 			"PostgreSQL maximum connection lifetime in minutes"),
 		sslMode: flag.String("postgres-ssl-mode",
-			getEnv("OSMO_POSTGRES_SSL_MODE", "disable"),
-			"PostgreSQL SSL mode (disable, require, verify-ca, verify-full)"),
+			getEnv("OSMO_POSTGRES_SSL_MODE", "prefer"),
+			"PostgreSQL SSL mode (disable, prefer, require, verify-ca, verify-full)"),
 	}
 }
 
@@ -198,5 +200,33 @@ func getEnvInt(key string, defaultValue int) int {
 			return intValue
 		}
 	}
+	return defaultValue
+}
+
+// getEnvOrConfig checks for value in environment variable first,
+// then falls back to reading from a config file (path from OSMO_CONFIG_FILE env var)
+// Priority: envKey > config file (configKey) > defaultValue
+func getEnvOrConfig(envKey, configKey, defaultValue string) string {
+	if value := os.Getenv(envKey); value != "" {
+		return value
+	}
+
+	if configPath := os.Getenv("OSMO_CONFIG_FILE"); configPath != "" {
+		if data, err := os.ReadFile(configPath); err == nil {
+			var config map[string]interface{}
+			if err := yaml.Unmarshal(data, &config); err == nil {
+				if value, exists := config[configKey]; exists {
+					if strValue, isString := value.(string); isString && strValue != "" {
+						return strValue
+					}
+				}
+			} else {
+				slog.Warn("Failed to parse config file",
+					slog.String("path", configPath),
+					slog.String("error", err.Error()))
+			}
+		}
+	}
+
 	return defaultValue
 }

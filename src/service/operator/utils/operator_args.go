@@ -36,10 +36,11 @@ type OperatorArgs struct {
 	OperatorProgressFrequencySec int
 
 	// Redis configuration
-	RedisHost     string
-	RedisPort     int
-	RedisPassword string
-	RedisDB       int
+	RedisHost       string
+	RedisPort       int
+	RedisPassword   string
+	RedisDB         int
+	RedisTLSEnabled bool
 
 	Postgres postgres.PostgresConfig
 }
@@ -76,6 +77,9 @@ func OperatorParse() OperatorArgs {
 	redisDB := flag.Int("redis-db-number",
 		getEnvInt("OSMO_REDIS_DB_NUMBER", 0),
 		"Redis database number to connect to. Default value is 0")
+	redisTLSEnabled := flag.Bool("redis-tls-enable",
+		getEnvBool("OSMO_REDIS_TLS_ENABLE", false),
+		"Enable TLS for Redis connection")
 
 	// PostgreSQL configuration
 	postgresFlagPtrs := postgres.RegisterPostgresFlags()
@@ -92,6 +96,7 @@ func OperatorParse() OperatorArgs {
 		RedisPort:                    *redisPort,
 		RedisPassword:                *redisPassword,
 		RedisDB:                      *redisDB,
+		RedisTLSEnabled:              *redisTLSEnabled,
 		Postgres:                     postgresFlagPtrs.ToPostgresConfig(),
 	}
 }
@@ -107,6 +112,15 @@ func getEnvInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
 		}
 	}
 	return defaultValue
