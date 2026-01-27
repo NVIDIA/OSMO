@@ -225,6 +225,7 @@ function StackedBar({ bucket, maxTotal, onClick }: StackedBarProps) {
           className="relative flex-1 cursor-pointer opacity-85 transition-opacity duration-75 hover:opacity-100"
           style={{ height: `${heightPercentage}%` }}
           onClick={onClick}
+          data-histogram-bar
         >
           <div className="flex h-full flex-col-reverse overflow-hidden rounded-[1px]">
             {levelSegments.map((segment) => (

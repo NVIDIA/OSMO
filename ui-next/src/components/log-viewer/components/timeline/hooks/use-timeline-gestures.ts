@@ -63,159 +63,20 @@ import {
   ZOOM_OUT_FACTOR,
   KEYBOARD_NUDGE_MS,
   NOW_THRESHOLD_MS,
+  GAP_BUCKET_MULTIPLIER,
+  MAX_INVALID_ZONE_PERCENT_PER_SIDE,
 } from "../lib/timeline-constants";
 import { calculateBucketWidth, calculateInvalidZonePositions } from "../lib/invalid-zones";
+import {
+  initTimelineDebug,
+  logTimelineEvent,
+  isTimelineDebugEnabled,
+  type DebugContext,
+  type WheelDebugEvent,
+} from "../lib/timeline-debug";
 
 // Re-export zoom factors for external use
 export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
-
-// =============================================================================
-// Debug Logging
-// =============================================================================
-
-interface WheelDebugEvent {
-  timestamp: number;
-  dx: number;
-  dy: number;
-  effectiveDelta: number;
-  isZoom: boolean;
-  wasBlocked: boolean;
-  blockReason?: string;
-  asymmetricApplied?: boolean;
-  wasConstrained?: boolean;
-  oldRange: { start: string; end: string };
-  newRange: { start: string; end: string };
-  context?: {
-    entityStart?: string;
-    entityEnd?: string;
-    now?: string;
-    effectiveStart: string;
-    effectiveEnd: string;
-    currentStartPercent: number;
-    windowLeft?: number;
-    windowRight?: number;
-    // Invalid zone debug info
-    leftInvalidWidth?: number;
-    rightInvalidWidth?: number;
-    leftInvalidBuckets?: number;
-    rightInvalidBuckets?: number;
-    combinedInvalidBuckets?: number;
-  };
-}
-
-const wheelDebugLog: WheelDebugEvent[] = [];
-let isDebugEnabled = false;
-let debugInitialized = false;
-
-function initializeDebug() {
-  if (debugInitialized) return;
-  debugInitialized = true;
-
-  if (typeof window === "undefined") return;
-
-  const params = new URLSearchParams(window.location.search);
-  isDebugEnabled = params.get("debug") === "timeline" || params.get("debug") === "true";
-
-  if (isDebugEnabled) {
-    console.log(
-      "[Timeline Debug] ✅ ENABLED\n" +
-        "  • window.timelineDebug() - view all events table\n" +
-        "  • window.timelineDebugCurrent() - show current state & invalid zones\n" +
-        "  • window.timelineDebugStats() - show statistics\n" +
-        "  • window.timelineDebugClear() - clear logs",
-    );
-    // Expose debug function globally
-    (window as unknown as Record<string, () => void>).timelineDebug = () => {
-      console.table(
-        wheelDebugLog.map((e) => ({
-          time: new Date(e.timestamp).toLocaleTimeString(),
-          dx: e.dx,
-          dy: e.dy,
-          effectiveDelta: e.effectiveDelta,
-          isZoom: e.isZoom ? "ZOOM" : "PAN",
-          blocked: e.wasBlocked ? "BLOCKED" : "OK",
-          reason: e.blockReason || "-",
-          leftInvalid: e.context?.leftInvalidWidth?.toFixed(1) + "%" || "-",
-          rightInvalid: e.context?.rightInvalidWidth?.toFixed(1) + "%" || "-",
-          totalInvalid: e.context?.combinedInvalidBuckets?.toFixed(1) + " buckets" || "-",
-        })),
-      );
-      console.log("\nFull details:", wheelDebugLog);
-      console.log("\nTo copy:", JSON.stringify(wheelDebugLog, null, 2));
-    };
-
-    (window as unknown as Record<string, () => void>).timelineDebugClear = () => {
-      wheelDebugLog.length = 0;
-      console.log("[Timeline Debug] Logs cleared");
-    };
-
-    (window as unknown as Record<string, () => void>).timelineDebugStats = () => {
-      const total = wheelDebugLog.length;
-      const blocked = wheelDebugLog.filter((e) => e.wasBlocked).length;
-      const pans = wheelDebugLog.filter((e) => !e.isZoom).length;
-      const zooms = wheelDebugLog.filter((e) => e.isZoom).length;
-
-      console.log("[Timeline Debug] Stats:", {
-        total,
-        blocked: `${blocked} (${((blocked / total) * 100).toFixed(1)}%)`,
-        pans: `${pans} (${((pans / total) * 100).toFixed(1)}%)`,
-        zooms: `${zooms} (${((zooms / total) * 100).toFixed(1)}%)`,
-      });
-    };
-
-    (window as unknown as Record<string, () => void>).timelineDebugCurrent = () => {
-      const latest = wheelDebugLog[wheelDebugLog.length - 1];
-      if (!latest || !latest.context) {
-        console.log("[Timeline Debug] No events logged yet");
-        return;
-      }
-
-      // Calculate limits based on current state
-      const displayRangeMs = new Date(latest.newRange.end).getTime() - new Date(latest.newRange.start).getTime();
-      const leftInvalidMs = ((latest.context.leftInvalidWidth ?? 0) / 100) * displayRangeMs;
-      const rightInvalidMs = ((latest.context.rightInvalidWidth ?? 0) / 100) * displayRangeMs;
-      const totalInvalidMs = leftInvalidMs + rightInvalidMs;
-
-      // Estimate bucket width from invalid zone data
-      const bucketWidthMs =
-        totalInvalidMs > 0 && (latest.context.combinedInvalidBuckets ?? 0) > 0
-          ? totalInvalidMs / (latest.context.combinedInvalidBuckets ?? 1)
-          : 60000; // fallback to 1 minute
-
-      // Use single source of truth for limit calculations
-      const limits = calculateMaxInvalidZoneBuckets(displayRangeMs, bucketWidthMs);
-      const totalBucketsVisible = displayRangeMs / bucketWidthMs;
-
-      console.log("[Timeline Debug] Current State:", {
-        displayRange: `${latest.newRange.start} → ${latest.newRange.end}`,
-        entityBounds: `${latest.context.entityStart} → ${latest.context.entityEnd}`,
-        invalidZones: {
-          left: `${latest.context.leftInvalidWidth?.toFixed(1)}% (${latest.context.leftInvalidBuckets?.toFixed(1)} buckets)`,
-          right: `${latest.context.rightInvalidWidth?.toFixed(1)}% (${latest.context.rightInvalidBuckets?.toFixed(1)} buckets)`,
-          combined: `${latest.context.combinedInvalidBuckets?.toFixed(1)} buckets`,
-        },
-        limits: {
-          perSide: `${limits.maxBucketsPerSide} buckets (10% of ${totalBucketsVisible.toFixed(1)} visible)`,
-          combined: `${limits.maxBucketsCombined} buckets (20% of ${totalBucketsVisible.toFixed(1)} visible)`,
-        },
-        bucketWidth: `${(bucketWidthMs / 1000).toFixed(1)}s`,
-      });
-    };
-  } else {
-    console.log("[Timeline Debug] ❌ DISABLED - add ?debug=timeline to URL to enable");
-  }
-}
-
-function logWheelEvent(event: WheelDebugEvent) {
-  if (!isDebugEnabled) return;
-
-  wheelDebugLog.push(event);
-
-  // Keep only last 100 events
-  if (wheelDebugLog.length > 100) {
-    wheelDebugLog.shift();
-  }
-}
 
 // =============================================================================
 // Asymmetric Zoom Calculation
@@ -240,41 +101,41 @@ interface AsymmetricZoomResult {
 /**
  * Calculate asymmetric zoom when symmetric zoom would violate constraints.
  *
- * ## Algorithm (Center-Anchored with Monotonic Decrease)
+ * ## Algorithm (Center-Anchored with Monotonic Non-Decrease)
  *
  * 1. Try symmetric expansion from center
  * 2. Validate against ALL THREE constraints (left, right, combined)
  * 3. If blocked by per-side limit on ONE side:
  *    a. Calculate ideal edge position for new bucket-quantized limit
- *    b. Constrain to ensure monotonic decrease (can only move toward entity or stay)
+ *    b. Constrain to ensure monotonic non-decrease (can only move away from entity or stay)
  *    c. Transfer deficit from constrained expansion to opposite side
  *    d. Validate asymmetric result
  * 4. If blocked by combined limit: BLOCK (both sides contributing)
  * 5. If asymmetric validation fails: BLOCK entirely (all-or-nothing)
  * 6. If valid: return asymmetric zoom
  *
- * ## Monotonic Decrease Strategy (Zoom OUT only shrinks invalid zones)
+ * ## Monotonic Non-Decrease Strategy (Zoom OUT grows invalid zones to maintain percentage)
  *
- * **CRITICAL CONSTRAINT**: During zoom OUT, invalid zone absolute width is **monotonically non-increasing**:
- * - Can **decrease** (edge moves toward entity boundary, "pulling in")
+ * **CRITICAL CONSTRAINT**: During zoom OUT, invalid zone absolute width is **monotonically non-decreasing**:
+ * - Can **increase** (edge moves away from entity boundary, "pushing out")
  * - Can **stay same** (edge pinned at current position)
- * - Can **NEVER increase** (prevents exceeding limits on subsequent operations)
+ * - Can **NEVER decrease** (maintains visual consistency, prevents surprise headroom)
  *
  * During zoom IN: No constraint needed (viewport edges naturally move toward center,
  * which pushes invalid zones outward - never violates limits)
  *
  * **Implementation**:
- * - Left edge: `Math.max(idealPosition, currentPosition)` → only moves RIGHT (toward entity) or stays
- * - Right edge: `Math.min(idealPosition, currentPosition)` → only moves LEFT (toward entity) or stays
+ * - Left edge: `Math.min(idealPosition, currentPosition)` → only moves LEFT (away from entity) or stays
+ * - Right edge: `Math.max(idealPosition, currentPosition)` → only moves RIGHT (away from entity) or stays
  *
  * **Example**: 60s buckets, zooming from 25 buckets (1500s) → 30 buckets (1800s)
- *   - Currently: 2 buckets (120s) left invalid zone at limit
- *   - New limit: 3 buckets (180s) allowed
- *   - Ideal position: entityStart - 180s
- *   - Current position: entityStart - 120s
- *   - **Constrained: Math.max(ideal, current) = keep current (stay at 120s, don't grow to 180s)**
- *   - Result: 120s / 1800s = 6.7% (well under limit ✓)
- *   - Zoom back in: 120s is still under limit ✓ (monotonic decrease prevented over-limit state!)
+ *   - Currently: 2 buckets (120s) right invalid zone at 9% (near 10% limit)
+ *   - New limit: 3 buckets (180s) allowed (10% of 1800s)
+ *   - Ideal position: entityEnd + gap + 180s
+ *   - Current position: entityEnd + gap + 120s
+ *   - **Constrained: Math.max(ideal, current) = ideal (grow from 120s to 180s to maintain ~9-10%)**
+ *   - Result: 180s / 1800s = 10% (at limit ✓)
+ *   - UX: Invalid zone maintains constant visual size, no surprise headroom after zoom
  *
  * ## Three-Constraint System
  *
@@ -356,21 +217,28 @@ function calculateAsymmetricZoom(
 
   // CRITICAL: Use single source of truth for max invalid zone calculation
   const limits = calculateMaxInvalidZoneBuckets(newRangeMs, bucketWidthMs);
-  const maxInvalidZoneMs = limits.maxInvalidZoneMsPerSide; // Quantized to bucket boundaries
+  const _maxInvalidZoneMs = limits.maxInvalidZoneMsPerSide; // Quantized to bucket boundaries (kept for reference)
+
+  // Calculate fractional limit for positioning (maintains percentage consistency)
+  // Use 10% of new viewport for positioning, even if quantized bucket limit is lower
+  // This ensures we utilize all available headroom to maintain visual percentage
+  const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
 
   // Step 4: Calculate asymmetric zoom with deficit transfer
-  // CRITICAL CONSTRAINT: Monotonically decreasing invalid zones during zoom OUT
-  // Invalid zone can only: stay same (pinned) or decrease (pulled toward entity)
-  // This ensures we never exceed limits on subsequent zoom operations
+  // CRITICAL CONSTRAINT: Monotonically non-decreasing invalid zones during zoom OUT
+  // Invalid zone can only: stay same (pinned) or increase (pushed away from entity)
+  // This maintains visual consistency and prevents surprise headroom after zoom
   if (reason === "left-invalid-zone-limit") {
     // Left invalid zone would exceed limit if we expanded symmetrically
-    // Calculate ideal position for max allowed invalid zone
+    // Calculate ideal position using FRACTIONAL limit (not quantized)
+    // This ensures we use all available headroom to maintain percentage
     const entityStartMs = entityStartTime.getTime();
-    const idealConstrainedStart = entityStartMs - maxInvalidZoneMs;
+    const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
+    const idealConstrainedStart = entityStartMs - gapMs - fractionalLimitMs;
 
-    // Enforce monotonic decrease: left edge can only move RIGHT (toward entity) or stay
-    // Math.max ensures we pick the position CLOSER to entity (larger timestamp)
-    const constrainedStart = Math.max(idealConstrainedStart, displayStartMs);
+    // Enforce monotonic non-decrease: left edge can only move LEFT (away from entity) or stay
+    // Math.min ensures we pick the position FARTHER from entity (smaller timestamp)
+    const constrainedStart = Math.min(idealConstrainedStart, displayStartMs);
 
     // Calculate how much we wanted to expand left
     const symmetricLeftMove = displayStartMs - symmetricStart;
@@ -403,19 +271,21 @@ function calculateAsymmetricZoom(
     // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-failed: left constrained to monotonic decrease, transferred deficit to right but ${asymmetricValidation.reason}`,
+      reason: `asymmetric-failed: left constrained to monotonic non-decrease, transferred deficit to right but ${asymmetricValidation.reason}`,
     };
   }
 
   if (reason === "right-invalid-zone-limit") {
     // Right invalid zone would exceed limit if we expanded symmetrically
-    // Calculate ideal position for max allowed invalid zone
+    // Calculate ideal position using FRACTIONAL limit (not quantized)
+    // This ensures we use all available headroom to maintain percentage
     const rightBoundaryMs = entityEndTime?.getTime() ?? now ?? Date.now();
-    const idealConstrainedEnd = rightBoundaryMs + maxInvalidZoneMs;
+    const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
+    const idealConstrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
 
-    // Enforce monotonic decrease: right edge can only move LEFT (toward entity) or stay
-    // Math.min ensures we pick the position CLOSER to entity (smaller timestamp)
-    const constrainedEnd = Math.min(idealConstrainedEnd, displayEndMs);
+    // Enforce monotonic non-decrease: right edge can only move RIGHT (away from entity) or stay
+    // Math.max ensures we pick the position FARTHER from entity (larger timestamp)
+    const constrainedEnd = Math.max(idealConstrainedEnd, displayEndMs);
 
     // Calculate how much we wanted to expand right
     const symmetricRightMove = symmetricEnd - displayEndMs;
@@ -448,7 +318,7 @@ function calculateAsymmetricZoom(
     // Asymmetric version also failed - BLOCK entirely
     return {
       blocked: true,
-      reason: `asymmetric-failed: right constrained to monotonic decrease, transferred deficit to left but ${asymmetricValidation.reason}`,
+      reason: `asymmetric-failed: right constrained to monotonic non-decrease, transferred deficit to left but ${asymmetricValidation.reason}`,
     };
   }
 
@@ -530,13 +400,14 @@ export function useTimelineWheelGesture(
   const { currentDisplay, currentEffective, currentStartPercent, actions } = state;
 
   // Initialize debug system on first render
-  initializeDebug();
+  initTimelineDebug();
 
   // Build debug context object
   // Accepts optional custom display range for post-operation logging
+  // skipDomMeasurements: set to true when building "before" context to avoid measuring old DOM state
   const buildDebugContext = useCallback(
-    (customDisplayStart?: number, customDisplayEnd?: number) => {
-      if (!isDebugEnabled || !debugContext) return undefined;
+    (customDisplayStart?: number, customDisplayEnd?: number, skipDomMeasurements?: boolean) => {
+      if (!isTimelineDebugEnabled() || !debugContext) return undefined;
 
       // Calculate invalid zone positions for debug output
       const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
@@ -565,6 +436,31 @@ export function useTimelineWheelGesture(
         ? ((invalidZones.rightInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
         : 0;
 
+      // Capture DOM measurements for debug (helps diagnose CSS vs calculation issues)
+      // Skip DOM measurements if requested (e.g., when building "before" context)
+      let domMeasurements: DebugContext["dom"];
+      if (!skipDomMeasurements && containerRef.current) {
+        const container = containerRef.current;
+        const containerWidth = container.clientWidth;
+
+        // Find first histogram bar to measure actual rendered width
+        const firstBar = container.querySelector("[data-histogram-bar]") as HTMLElement;
+        const barWidth = firstBar?.offsetWidth ?? 0;
+
+        // Find invalid zone elements to measure actual rendered widths
+        const leftInvalidZone = container.querySelector('[data-invalid-zone-side="left"]') as HTMLElement;
+        const rightInvalidZone = container.querySelector('[data-invalid-zone-side="right"]') as HTMLElement;
+        const leftInvalidWidthPx = leftInvalidZone?.offsetWidth ?? 0;
+        const rightInvalidWidthPx = rightInvalidZone?.offsetWidth ?? 0;
+
+        domMeasurements = {
+          containerWidth,
+          barWidth,
+          leftInvalidWidthPx,
+          rightInvalidWidthPx,
+        };
+      }
+
       return {
         entityStart: debugContext.entityStartTime?.toISOString(),
         entityEnd: debugContext.entityEndTime?.toISOString(),
@@ -574,15 +470,35 @@ export function useTimelineWheelGesture(
         currentStartPercent: currentStartPercent ?? 0,
         windowLeft: debugContext.overlayPositions?.leftWidth,
         windowRight: debugContext.overlayPositions?.rightStart,
-        // Invalid zone debug info
+        // Invalid zone debug info (calculated)
         leftInvalidWidth: invalidZones?.leftInvalidWidth,
         rightInvalidWidth: invalidZones?.rightInvalidWidth,
         leftInvalidBuckets,
         rightInvalidBuckets,
         combinedInvalidBuckets: leftInvalidBuckets + rightInvalidBuckets,
+        // DOM measurements (rendered)
+        dom: domMeasurements,
       };
     },
-    [debugContext, currentEffective, currentStartPercent, currentDisplay, bucketTimestamps],
+    [debugContext, currentEffective, currentStartPercent, currentDisplay, bucketTimestamps, containerRef],
+  );
+
+  // Helper to log wheel event after React re-renders and paints DOM updates
+  // Uses requestAnimationFrame to defer measurement until after browser paint
+  const logEventAfterRender = useCallback(
+    (event: Omit<WheelDebugEvent, "afterContext">, newStartMs: number, newEndMs: number) => {
+      if (!isTimelineDebugEnabled()) return;
+
+      // Defer measurement until after React re-renders and browser paints
+      requestAnimationFrame(() => {
+        const afterContext = buildDebugContext(newStartMs, newEndMs, false);
+        logTimelineEvent({
+          ...event,
+          afterContext,
+        });
+      });
+    },
+    [buildDebugContext],
   );
 
   useWheel(
@@ -595,6 +511,9 @@ export function useTimelineWheelGesture(
       const displayStartMs = currentDisplay.start.getTime();
       const displayEndMs = currentDisplay.end.getTime();
       const displayRangeMs = displayEndMs - displayStartMs;
+
+      // Capture "before" state for debug logging (skip DOM measurements - they'll be stale)
+      const beforeContext = buildDebugContext(undefined, undefined, true);
 
       // ========================================================================
       // BEHAVIOR 1: ZOOM (Cmd/Ctrl + wheel)
@@ -620,7 +539,7 @@ export function useTimelineWheelGesture(
           // Validate zoom in constraints (MIN_RANGE_MS, MIN_BUCKET_COUNT)
           const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
           if (zoomInValidation.blocked) {
-            logWheelEvent({
+            logTimelineEvent({
               timestamp: Date.now(),
               dx,
               dy,
@@ -636,7 +555,8 @@ export function useTimelineWheelGesture(
                 start: new Date(displayStartMs).toISOString(),
                 end: new Date(displayEndMs).toISOString(),
               },
-              context: buildDebugContext(),
+              beforeContext,
+              afterContext: beforeContext, // Blocked - no change
             });
             return;
           }
@@ -657,7 +577,7 @@ export function useTimelineWheelGesture(
           );
 
           if (validation.blocked) {
-            logWheelEvent({
+            logTimelineEvent({
               timestamp: Date.now(),
               dx,
               dy,
@@ -673,7 +593,8 @@ export function useTimelineWheelGesture(
                 start: new Date(newStartMs).toISOString(),
                 end: new Date(newEndMs).toISOString(),
               },
-              context: buildDebugContext(newStartMs, newEndMs),
+              beforeContext,
+              afterContext: buildDebugContext(newStartMs, newEndMs), // Show what it would have been
             });
             return;
           }
@@ -681,26 +602,32 @@ export function useTimelineWheelGesture(
           const newStart = new Date(newStartMs);
           const newEnd = new Date(newEndMs);
 
-          logWheelEvent({
-            timestamp: Date.now(),
-            dx,
-            dy,
-            effectiveDelta: primaryDelta,
-            isZoom: true,
-            wasBlocked: false,
-            oldRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            newRange: {
-              start: newStart.toISOString(),
-              end: newEnd.toISOString(),
-            },
-            context: buildDebugContext(newStartMs, newEndMs),
-          });
-
+          // Apply state changes first, then log after React re-renders
           actions.setPendingDisplay(newStart, newEnd);
           onDisplayRangeChange(newStart, newEnd);
+
+          // Log with deferred DOM measurement (after React paints)
+          logEventAfterRender(
+            {
+              timestamp: Date.now(),
+              dx,
+              dy,
+              effectiveDelta: primaryDelta,
+              isZoom: true,
+              wasBlocked: false,
+              oldRange: {
+                start: new Date(displayStartMs).toISOString(),
+                end: new Date(displayEndMs).toISOString(),
+              },
+              newRange: {
+                start: newStart.toISOString(),
+                end: newEnd.toISOString(),
+              },
+              beforeContext,
+            },
+            newStartMs,
+            newEndMs,
+          );
           return;
         }
 
@@ -711,7 +638,7 @@ export function useTimelineWheelGesture(
         // Validate zoom out constraints (MAX_RANGE_MS, MAX_BUCKET_COUNT)
         const zoomOutValidation = validateZoomOutConstraints(newRangeMs, bucketWidthMs);
         if (zoomOutValidation.blocked) {
-          logWheelEvent({
+          logTimelineEvent({
             timestamp: Date.now(),
             dx,
             dy,
@@ -727,7 +654,8 @@ export function useTimelineWheelGesture(
               start: new Date(displayStartMs).toISOString(),
               end: new Date(displayEndMs).toISOString(),
             },
-            context: buildDebugContext(),
+            beforeContext,
+            afterContext: beforeContext, // Blocked - no change
           });
           return;
         }
@@ -746,7 +674,7 @@ export function useTimelineWheelGesture(
         );
 
         if (asymmetricResult.blocked) {
-          logWheelEvent({
+          logTimelineEvent({
             timestamp: Date.now(),
             dx,
             dy,
@@ -762,7 +690,8 @@ export function useTimelineWheelGesture(
               start: new Date(displayStartMs).toISOString(),
               end: new Date(displayEndMs).toISOString(),
             },
-            context: buildDebugContext(),
+            beforeContext,
+            afterContext: beforeContext, // Blocked - no change
           });
           return;
         }
@@ -770,14 +699,14 @@ export function useTimelineWheelGesture(
         const newStart = new Date(asymmetricResult.newStartMs!);
         const newEnd = new Date(asymmetricResult.newEndMs!);
 
-        logWheelEvent({
+        logTimelineEvent({
           timestamp: Date.now(),
           dx,
           dy,
           effectiveDelta: primaryDelta,
           isZoom: true,
           wasBlocked: false,
-          blockReason: asymmetricResult.wasAsymmetric ? "asymmetric-zoom-applied" : undefined,
+          asymmetricApplied: asymmetricResult.wasAsymmetric,
           oldRange: {
             start: new Date(displayStartMs).toISOString(),
             end: new Date(displayEndMs).toISOString(),
@@ -786,7 +715,8 @@ export function useTimelineWheelGesture(
             start: newStart.toISOString(),
             end: newEnd.toISOString(),
           },
-          context: buildDebugContext(asymmetricResult.newStartMs, asymmetricResult.newEndMs),
+          beforeContext,
+          afterContext: buildDebugContext(asymmetricResult.newStartMs, asymmetricResult.newEndMs),
         });
 
         actions.setPendingDisplay(newStart, newEnd);
@@ -838,7 +768,7 @@ export function useTimelineWheelGesture(
         if (validation.blocked) {
           const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
           if (bucketWidthMs === 0) {
-            logWheelEvent({
+            logTimelineEvent({
               timestamp: Date.now(),
               dx,
               dy,
@@ -854,7 +784,8 @@ export function useTimelineWheelGesture(
                 start: newStart.toISOString(),
                 end: newEnd.toISOString(),
               },
-              context: buildDebugContext(newStart.getTime(), newEnd.getTime()),
+              beforeContext,
+              afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
             });
             return;
           }
@@ -894,7 +825,7 @@ export function useTimelineWheelGesture(
             maxAllowedDeltaMs = availableBuckets * bucketWidthMs;
           } else {
             // Combined limit or unknown - block entirely
-            logWheelEvent({
+            logTimelineEvent({
               timestamp: Date.now(),
               dx,
               dy,
@@ -910,14 +841,15 @@ export function useTimelineWheelGesture(
                 start: newStart.toISOString(),
                 end: newEnd.toISOString(),
               },
-              context: buildDebugContext(newStart.getTime(), newEnd.getTime()),
+              beforeContext,
+              afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
             });
             return;
           }
 
           // Apply constrained delta (may be zero if already at limit)
           if (Math.abs(maxAllowedDeltaMs) < 1) {
-            logWheelEvent({
+            logTimelineEvent({
               timestamp: Date.now(),
               dx,
               dy,
@@ -933,7 +865,8 @@ export function useTimelineWheelGesture(
                 start: new Date(displayStartMs).toISOString(),
                 end: new Date(displayEndMs).toISOString(),
               },
-              context: buildDebugContext(),
+              beforeContext,
+              afterContext: beforeContext, // Blocked - no change
             });
             return;
           }
@@ -944,7 +877,7 @@ export function useTimelineWheelGesture(
           wasConstrained = true;
         }
 
-        logWheelEvent({
+        logTimelineEvent({
           timestamp: Date.now(),
           dx,
           dy,
@@ -960,7 +893,8 @@ export function useTimelineWheelGesture(
             start: newStart.toISOString(),
             end: newEnd.toISOString(),
           },
-          context: buildDebugContext(newStart.getTime(), newEnd.getTime()),
+          beforeContext,
+          afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
         });
 
         actions.setPendingDisplay(newStart, newEnd);
