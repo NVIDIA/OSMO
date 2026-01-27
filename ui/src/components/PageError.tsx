@@ -36,24 +36,24 @@ export const PageError = ({
   className?: string;
 }) => {
   return (
-    <div
-      className="h-full w-full flex flex-col"
-      role="alert"
-    >
+    <div className="h-full w-full flex flex-col">
       {subText && (
         <InlineBanner status="error">
-          <div className="flex flex-col gap-global">
+          <div className="flex flex-col gap-2">
             {subTextTitle && <p>{subTextTitle}</p>}
             <p>{subText}</p>
           </div>
         </InlineBanner>
       )}
-      <div className={`grow flex flex-col justify-center items-center text-center gap-global p-4 ${className}`}>
+      <div
+        className={`grow flex flex-col justify-center items-center text-center gap-2 p-4 ${className}`}
+        aria-live="polite"
+      >
         <OutlinedIcon
           name={icon}
           className={`${size === "lg" ? "text-6xl!" : "text-4xl!"}`}
         />
-        <p className={`p-0 font-bold ${size === "lg" ? "text-2xl" : "text-xl"}`}>{title}</p>
+        <h2 className={`p-0 ${size === "lg" ? "text-2xl" : "text-xl"}`}>{title}</h2>
         <p>{errorMessage ?? "Unknown error occurred"}</p>
         {children}
       </div>

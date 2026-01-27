@@ -15,18 +15,17 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useWindowSize } from "usehooks-ts";
 
 import FileBrowser, { type FilePreviewModalProps } from "~/app/datasets/components/FileBrowser";
 import FullPageModal from "~/components/FullPageModal";
-import { OutlinedIcon } from "~/components/Icon";
-import { IconButton } from "~/components/IconButton";
+import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
-import PageHeader from "~/components/PageHeader";
-import { Colors, Tag } from "~/components/Tag";
+import { DatasetTag } from "~/components/Tag";
 import { type DataInfoDatasetEntry, type DataInfoResponse, type DatasetTypesSchema } from "~/models";
 import { api } from "~/trpc/react";
 
@@ -52,6 +51,10 @@ export default function DatasetOverview({
   const [tool, setTool] = useState<ToolType | undefined>(undefined);
   const [openFileData, setOpenFileData] = useState<FilePreviewModalProps | undefined>(undefined);
   const toolParamUpdater = useToolParamUpdater();
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+  const windowSize = useWindowSize();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const {
     data: selectedVersionData,
@@ -70,6 +73,12 @@ export default function DatasetOverview({
       select: (data) => (data?.versions.length ? (data.versions[0] as DataInfoDatasetEntry) : undefined),
     },
   );
+
+  useEffect(() => {
+    if (containerRef?.current) {
+      setHeight(windowSize.height - containerRef.current.getBoundingClientRect().top);
+    }
+  }, [windowSize.height, openFileData, selectedVersionData]);
 
   useEffect(() => {
     if (selectedVersion) {
@@ -92,8 +101,17 @@ export default function DatasetOverview({
 
   return (
     <>
-      <PageHeader>
-        <div className="flex flex-row gap-1 items-center justify-center grow">
+      <div
+        className="page-header flex items-center text-center gap-3"
+        ref={headerRef}
+      >
+        <DatasetTag
+          key="type"
+          isCollection={dataset.type === "COLLECTION"}
+        >
+          {dataset.type}
+        </DatasetTag>
+        <div className="flex flex-row gap-1 items-center">
           {previousVersion ? (
             <Link
               href={`/datasets/${dataset.bucket}/${dataset.name}?version=${previousVersion}`}
@@ -110,9 +128,9 @@ export default function DatasetOverview({
               className="text-lg! mx-1 opacity-50"
             />
           )}
-          <h2 className="whitespace-nowrap overflow-hidden text-ellipsis">
-            {dataset.bucket}/{dataset.name}
-          </h2>
+          <h1>
+            {dataset.bucket}/{dataset.name}: {selectedVersion ?? "latest"}
+          </h1>
           {nextVersion ? (
             <Link
               href={`/datasets/${dataset.bucket}/${dataset.name}?version=${nextVersion}`}
@@ -130,14 +148,15 @@ export default function DatasetOverview({
             />
           )}
         </div>
-        <Tag color={Colors.dataset}>Dataset</Tag>
-        <IconButton
-          className="btn btn-primary"
+        <button
+          className="btn btn-primary flex flex-row items-center gap-2"
           onClick={() => toolParamUpdater({ showVersions: true })}
-          icon="layers"
-          text="Versions"
-        />
-      </PageHeader>
+        >
+          <FilledIcon name="layers" />
+          Versions
+          <FilledIcon name="more_vert" />
+        </button>
+      </div>
       {errorSelectedVersionData && (
         <PageError
           title="Failed to fetch dataset"
@@ -146,9 +165,11 @@ export default function DatasetOverview({
       )}
       {selectedVersionData && (
         <div
-          className={`grid h-full w-full overflow-x-auto ${openFileData ? "grid-cols-[1fr_1fr]" : "grid-cols-[1fr_auto]"}`}
+          className={`grid h-full w-full gap-3 relative pl-3 ${
+            openFileData ? "grid-cols-[1fr_1fr]" : "grid-cols-[1fr_auto]"
+          }`}
         >
-          <div className="relative min-w-100 h-full border-t-1 border-border">
+          <div className="relative body-component my-3 min-w-100">
             <FileBrowser
               currentVersion={selectedVersionData}
               dataset={dataset}
@@ -174,12 +195,19 @@ export default function DatasetOverview({
               }}
             />
           ) : (
-            <div className="h-full flex flex-col justify-between overflow-y-auto w-[33vw] max-w-150">
-              <DatasetDetails dataset={dataset} />
-              <DatasetVersionDetails
-                datasetVersion={selectedVersionData}
-                bucket={dataset.bucket}
-              />
+            <div ref={containerRef}>
+              <div
+                className="h-full flex flex-col overflow-y-auto gap-3 w-[33vw] max-w-150 py-3 pr-3"
+                style={{
+                  height: `${height}px`,
+                }}
+              >
+                <DatasetDetails dataset={dataset} />
+                <DatasetVersionDetails
+                  datasetVersion={selectedVersionData}
+                  bucket={dataset.bucket}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -187,8 +215,7 @@ export default function DatasetOverview({
       <FullPageModal
         open={showVersions}
         onClose={() => toolParamUpdater({ showVersions: false })}
-        headerChildren={<h2 id="versions-header">Versions</h2>}
-        aria-labelledby="versions-header"
+        headerChildren={<h2>Versions</h2>}
       >
         <DatasetVersionsTable
           dataset={dataset}

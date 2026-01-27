@@ -28,7 +28,7 @@ const ProfileSettings = ({ profile }: ProfileSettingsProps) => {
   const auth = useAuth();
 
   return (
-    <dl className="grid-cols-2">
+    <dl>
       <dt>Name</dt>
       <dd>{auth.claims?.name}</dd>
       <dt>Email</dt>
@@ -36,7 +36,6 @@ const ProfileSettings = ({ profile }: ProfileSettingsProps) => {
       <dt>Email Notifications</dt>
       <dd>
         <Switch
-          id="email-notification"
           checked={profile.profile.email_notification}
           disabled
           size="small"
@@ -49,7 +48,6 @@ const ProfileSettings = ({ profile }: ProfileSettingsProps) => {
       <dt>Slack Notifications</dt>
       <dd>
         <Switch
-          id="slack-notification"
           checked={profile.profile.slack_notification}
           disabled
           size="small"

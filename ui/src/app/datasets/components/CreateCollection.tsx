@@ -68,10 +68,6 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
       return;
     }
 
-    if (mutation.isLoading || !localDatasetsInfo.length) {
-      return;
-    }
-
     setError(undefined);
     await mutation.mutateAsync(
       {
@@ -102,7 +98,7 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
         onSubmit={handleCreateCollection}
         className="w-full h-full"
       >
-        <div className="flex flex-col gap-global w-full h-full overflow-y-auto justify-between">
+        <div className="flex flex-col gap-3 w-full h-full overflow-y-auto justify-between">
           <table
             aria-label="Datasets"
             className="w-full border-separate border-spacing-y-0"
@@ -122,7 +118,7 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
                     colSpan={4}
                     className="border-none"
                   >
-                    <p role="alert">No datasets selected</p>
+                    <p aria-live="polite">No datasets selected</p>
                   </td>
                 </tr>
               ) : (
@@ -153,7 +149,7 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
                       )}
                     </td>
                     <td>
-                      <div className="flex flex-row gap-global">
+                      <div className="flex flex-row gap-3">
                         <button
                           className="btn btn-badge"
                           title={`Remove ${dataset.name}`}
@@ -180,19 +176,15 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
             </tbody>
           </table>
           <div className="sticky bottom-0 z-10">
-            <InlineBanner status={error ? "error" : showSuccess ? "success" : "none"}>
-              {error ? (
-                error
-              ) : showSuccess ? (
-                <>
-                  Collection created successfully.{" "}
-                  <Link href={`/datasets/${bucket}/${collectionName}`}>View Collection</Link>
-                </>
-              ) : (
-                ""
-              )}
-            </InlineBanner>
-            <div className="grid grid-cols-[1fr_auto] gap-global p-global body-footer">
+            {error ? (
+              <InlineBanner status="error">{error}</InlineBanner>
+            ) : showSuccess ? (
+              <InlineBanner status="success">
+                Collection created successfully.{" "}
+                <Link href={`/datasets/${bucket}/${collectionName}`}>View Collection</Link>
+              </InlineBanner>
+            ) : undefined}
+            <div className="grid grid-cols-[1fr_auto] gap-3 p-3 body-footer">
               <TextInput
                 id="collection-name"
                 aria-label="Collection name"
@@ -207,7 +199,7 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
               />
               <button
                 className="btn btn-primary"
-                aria-disabled={!collectionName || localDatasetsInfo.length === 0}
+                disabled={!collectionName || mutation.isLoading || localDatasetsInfo.length === 0}
                 type="submit"
               >
                 Create
@@ -219,16 +211,8 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
       <FullPageModal
         open={!!editingDataset}
         onClose={() => setEditingDataset(undefined)}
-        headerChildren={
-          <h3
-            className="text-base font-bold p-0 m-0"
-            id="edit-dataset-header"
-          >
-            {editingDataset?.name}
-          </h3>
-        }
+        headerChildren={<h3 className="text-base font-bold p-0 m-0">{editingDataset?.name}</h3>}
         size="none"
-        aria-labelledby="edit-dataset-header"
       >
         {editingDataset && (
           <DatasetPicker

@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import PageHeader from "~/components/PageHeader";
+import { GenericHeader } from "~/components/Header";
 import { env } from "~/env.mjs";
 
 import { WorkflowsSubmit } from "../components/WorkflowsSubmit";
@@ -25,7 +25,10 @@ export const metadata = {
 export default function WorkflowsSubmitPage() {
   return (
     <>
-      <PageHeader title="Workflow Submit" />
+      <GenericHeader
+        rootSegment="workflows"
+        tailSegment={["submit"]}
+      />
       <WorkflowsSubmit />
     </>
   );

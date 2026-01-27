@@ -21,13 +21,11 @@ import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
 import { Spinner } from "~/components/Spinner";
-import { StatusFilterType } from "~/components/StatusFilter";
+import { StatusFilter } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
 import { UserFilter, UserFilterType } from "~/components/UserFilter";
-import { PoolsListResponseSchema, type PriorityType, type ResourcesEntry, type TaskStatusType } from "~/models";
+import { PoolsListResponseSchema, type PriorityType, type ResourcesEntry } from "~/models";
 import { api } from "~/trpc/react";
-
-import { getMapFromStatusArray, getTaskStatusArray, StatusFilter } from "./StatusFilter";
 
 export interface TasksFiltersDataProps {
   userType: UserFilterType;
@@ -35,8 +33,8 @@ export interface TasksFiltersDataProps {
   dateRange: number;
   startedAfter?: string;
   startedBefore?: string;
-  statusFilterType?: StatusFilterType;
-  statuses?: string;
+  allStatuses: boolean;
+  statuses: string;
   selectedPools: string;
   isSelectAllPoolsChecked: boolean;
   priority?: PriorityType;
@@ -46,10 +44,12 @@ export interface TasksFiltersDataProps {
 }
 
 interface TasksFiltersProps extends TasksFiltersDataProps {
+  statusValues: string[];
   currentUserName: string;
   onRefresh: () => void;
   validateFilters: (props: TasksFiltersDataProps) => string[];
   updateUrl: (params: ToolParamUpdaterProps) => void;
+  defaults: Record<string, string | undefined>;
 }
 
 export const initNodes = (nodes: string, poolNodes: string[]) => {
@@ -82,12 +82,13 @@ export const resourcesToNodes = (resources: ResourcesEntry[]): PoolNodes[] => {
 };
 
 export const TasksFilters = ({
+  statusValues,
   userType,
   selectedUsers,
   dateRange,
   startedAfter,
   startedBefore,
-  statusFilterType,
+  allStatuses,
   statuses,
   selectedPools,
   isSelectAllPoolsChecked,
@@ -99,11 +100,12 @@ export const TasksFilters = ({
   updateUrl,
   nodes,
   isSelectAllNodesChecked,
+  defaults,
 }: TasksFiltersProps) => {
   const [localDateRange, setLocalDateRange] = useState(dateRange);
   const [localStartedAfter, setLocalStartedAfter] = useState<string | undefined>(undefined);
   const [localStartedBefore, setLocalStartedBefore] = useState<string | undefined>(undefined);
-  const [localStatusMap, setLocalStatusMap] = useState<Map<TaskStatusType, boolean>>(new Map());
+  const [localStatusMap, setLocalStatusMap] = useState<Map<string, boolean>>(new Map());
   const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
   const [localUsers, setLocalUsers] = useState<string>(selectedUsers);
   const [localUserType, setLocalUserType] = useState<UserFilterType>(userType);
@@ -113,7 +115,7 @@ export const TasksFilters = ({
   const [priorityFilter, setPriorityFilter] = useState<PriorityType | undefined>(priority);
   const [localNodes, setLocalNodes] = useState<Map<string, boolean>>(new Map());
   const [localAllNodes, setLocalAllNodes] = useState<boolean>(isSelectAllNodesChecked);
-  const [localStatusFilterType, setLocalStatusFilterType] = useState<StatusFilterType | undefined>(statusFilterType);
+  const [localAllStatuses, setLocalAllStatuses] = useState(allStatuses);
 
   const { data: availablePools, isLoading: isLoadingPools } = api.resources.getPools.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -141,17 +143,6 @@ export const TasksFilters = ({
     setLocalUserType(userType);
   }, [userType]);
 
-  useEffect(() => {
-    setLocalStatusFilterType(statusFilterType);
-
-    if (statusFilterType === StatusFilterType.CUSTOM) {
-      const statusArray = statuses?.split(",") ?? [];
-      setLocalStatusMap(getMapFromStatusArray(statusArray));
-    } else {
-      setLocalStatusMap(getMapFromStatusArray(getTaskStatusArray(statusFilterType)));
-    }
-  }, [statuses, statusFilterType]);
-
   const poolNodes = useMemo(() => {
     if (localAllPools) {
       return availableNodes?.flatMap(({ hostname }) => hostname);
@@ -170,7 +161,11 @@ export const TasksFilters = ({
     setLocalStartedAfter(startedAfter);
     setLocalStartedBefore(startedBefore);
     setLocalWorkflowId(workflowId);
-  }, [dateRange, startedAfter, startedBefore, workflowId]);
+
+    setLocalStatusMap(
+      new Map(statusValues.map((value: string) => [value, !statuses || statuses.split(",").includes(value)])),
+    );
+  }, [dateRange, startedAfter, startedBefore, statuses, workflowId, statusValues]);
 
   useEffect(() => {
     const parsedData = PoolsListResponseSchema.safeParse(availablePools);
@@ -197,7 +192,11 @@ export const TasksFilters = ({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const statuses = getTaskStatusArray(localStatusFilterType, localStatusMap);
+    const statuses = localAllStatuses
+      ? []
+      : Array.from(localStatusMap.entries())
+          .filter(([_, enabled]) => enabled)
+          .map(([status]) => status);
 
     const pools = Array.from(localPools.entries())
       .filter(([_, enabled]) => enabled)
@@ -220,8 +219,8 @@ export const TasksFilters = ({
       workflowId: localWorkflowId,
       nodes: nodes.join(","),
       isSelectAllNodesChecked: localAllNodes,
-      statusFilterType: localStatusFilterType,
-      statuses: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : undefined,
+      allStatuses: localAllStatuses,
+      statuses: statuses.join(","),
     });
 
     setErrors(formErrors);
@@ -234,8 +233,8 @@ export const TasksFilters = ({
       dateRange: localDateRange,
       dateAfter: localDateRange === customDateRange ? localStartedAfter : null,
       dateBefore: localDateRange === customDateRange ? localStartedBefore : null,
-      statusFilterType: localStatusFilterType,
-      status: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : null,
+      allStatuses: localAllStatuses,
+      status: statuses.length > 0 ? statuses.join(",") : undefined,
       allPools: localAllPools,
       pools: localAllPools ? null : pools,
       allUsers: localUserType === UserFilterType.ALL,
@@ -250,7 +249,15 @@ export const TasksFilters = ({
   };
 
   const handleReset = () => {
-    setLocalStatusFilterType(StatusFilterType.CURRENT);
+    setLocalAllStatuses(defaults.allStatuses ? defaults.allStatuses === "true" : true);
+
+    if (defaults.status) {
+      const statuses = defaults.status.split(",");
+      setLocalStatusMap(new Map(statusValues.map((value) => [value, statuses.includes(value)])));
+    } else {
+      setLocalStatusMap(new Map(statusValues.map((value) => [value, true])));
+    }
+
     setLocalUserType(UserFilterType.CURRENT);
     setLocalUsers(currentUserName);
     setLocalAllPools(true);
@@ -262,8 +269,8 @@ export const TasksFilters = ({
     setLocalAllNodes(true);
 
     updateUrl({
-      status: null,
-      statusFilterType: StatusFilterType.CURRENT,
+      status: undefined,
+      allStatuses: false,
       allPools: true,
       allUsers: false,
       users: [currentUserName],
@@ -281,7 +288,7 @@ export const TasksFilters = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="p-global flex flex-col gap-global">
+      <div className="body-component p-3 flex flex-col gap-3">
         <UserFilter
           userType={localUserType}
           setUserType={setLocalUserType}
@@ -291,7 +298,7 @@ export const TasksFilters = ({
         />
         <fieldset className="flex flex-col gap-1 mb-2">
           <legend>Priority</legend>
-          <div className="flex flex-row gap-radios">
+          <div className="flex flex-row gap-7">
             <label className="flex items-center gap-1">
               <input
                 type="radio"
@@ -342,10 +349,10 @@ export const TasksFilters = ({
           className="w-full"
         />
         <StatusFilter
-          statusFilterType={localStatusFilterType}
-          setStatusFilterType={setLocalStatusFilterType}
           statusMap={localStatusMap}
           setStatusMap={setLocalStatusMap}
+          allStatuses={localAllStatuses}
+          setAllStatuses={setLocalAllStatuses}
         />
         <MultiselectWithAll
           id="pools"
@@ -377,17 +384,19 @@ export const TasksFilters = ({
           setFromDate={setLocalStartedAfter}
           toDate={localStartedBefore}
           setToDate={setLocalStartedBefore}
-          className="flex flex-col gap-global mt-2"
+          className="flex flex-col gap-3 mt-2"
         />
+        {errors.length > 0 && (
+          <InlineBanner status="error">
+            <div className="flex flex-col gap-2">
+              {errors.map((error, index) => (
+                <div key={index}>{error}</div>
+              ))}
+            </div>
+          </InlineBanner>
+        )}
       </div>
-      <InlineBanner status={errors.length > 0 ? "error" : "none"}>
-        <div className="flex flex-col">
-          {errors.map((error, index) => (
-            <div key={index}>{error}</div>
-          ))}
-        </div>
-      </InlineBanner>
-      <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
+      <div className="flex flex-row gap-3 justify-between body-footer p-3 sticky bottom-0">
         <button
           type="button"
           className="btn"

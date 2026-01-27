@@ -49,12 +49,10 @@ export default function WorkflowActions({
     <div
       className={`dag-actions body-footer ${className}`}
       aria-label="Workflow Actions"
-      id="workflow-actions-list"
     >
       <div
         className="flex flex-col gap-1"
         role="list"
-        aria-labelledby="workflow-actions-list"
       >
         <button
           className="btn btn-action"
@@ -118,7 +116,6 @@ export default function WorkflowActions({
       <div
         className="flex flex-col gap-1"
         role="list"
-        aria-labelledby="workflow-actions-list"
       >
         {workflow.dashboard_url && (
           <Link

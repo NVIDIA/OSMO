@@ -39,9 +39,6 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
   const { sidebarData } = useStore();
 
   const handleDelete = async () => {
-    if (loading || mutation.isLoading) {
-      return;
-    }
     setLoading(true);
     setError(undefined);
     setShowSuccess(false);
@@ -68,10 +65,9 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
 
   return (
     <div className="flex flex-col justify-between">
-      <p className="px-global py-6">Are you sure you want to delete this collection?</p>
-      <InlineBanner status={error ? "error" : showSuccess ? "success" : "none"}>
-        {error ? error : showSuccess ? "Collection deleted successfully" : ""}
-      </InlineBanner>
+      <p className="px-3 py-6">Are you sure you want to delete this collection?</p>
+      {error && <InlineBanner status="error">{error}</InlineBanner>}
+      {showSuccess && <InlineBanner status="success">Collection deleted successfully</InlineBanner>}
       <div className="modal-footer">
         {!showSuccess && (
           <button
@@ -84,9 +80,9 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
         <button
           className="btn btn-primary h-8"
           onClick={handleDelete}
-          aria-disabled={loading || mutation.isLoading}
+          disabled={loading}
         >
-          {loading || mutation.isLoading ? (
+          {loading ? (
             <Spinner
               className="border-black"
               size="button"

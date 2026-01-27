@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import PageHeader from "~/components/PageHeader";
+import { GenericHeader } from "~/components/Header";
 import { ISAAC_SIM_SDG_WORKFLOW_FILE } from "~/models/workflows-model";
 
 import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
@@ -21,9 +21,11 @@ import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
 export default function WorkflowsSubmitPage() {
   return (
     <>
-      <PageHeader>
-        <h2 className="grow">Isaac Sim SDG</h2>
-      </PageHeader>
+      <GenericHeader
+        rootSegment="workflows"
+        tailSegment={["submit", "isaac_sim_sdg"]}
+      />
+
       <WorkflowsSubmit placeholderFile={ISAAC_SIM_SDG_WORKFLOW_FILE} />
     </>
   );

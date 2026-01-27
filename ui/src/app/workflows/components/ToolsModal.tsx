@@ -23,7 +23,6 @@ import { Spinner } from "~/components/Spinner";
 import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import { type Task } from "~/models";
 import { type WorkflowResponse } from "~/models/workflows-model";
-import { checkExhaustive } from "~/utils/common";
 
 import { CancelWorkflow } from "./CancelWorkflow";
 import FullPageModalHeading from "./FullPageModalHeading";
@@ -65,44 +64,11 @@ interface ToolsModalProps {
 }
 
 export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbose, updateUrl }: ToolsModalProps) => {
+  const [toolUrl, setToolUrl] = useState<string | undefined>(undefined);
   const [workflowSpec, setWorkflowSpec] = useState<string | undefined>(undefined);
   const ExecTerminal = lazy(() => import("../components/ExecTerminal"));
   const urlParams = useSearchParams();
   const entryCommand = urlParams.get(PARAM_KEYS.entry_command) ?? "/bin/bash";
-
-  const toolTitle = useMemo(() => {
-    if (!tool) {
-      return "";
-    }
-
-    switch (tool) {
-      case ToolType.TaskLogs:
-        return "Task Logs";
-      case ToolType.TaskErrorLogs:
-        return "Task Error Logs";
-      case ToolType.WorkflowLogs:
-        return "Workflow Logs";
-      case ToolType.WorkflowErrorLogs:
-        return "Workflow Error Logs";
-      case ToolType.Spec:
-        return "Workflow Spec";
-      case ToolType.Template:
-        return "Workflow Template Spec";
-      case ToolType.Outputs:
-        return "Workflow Outputs";
-      case ToolType.JSON:
-        return "Workflow JSON";
-      case ToolType.Nodes:
-        return "Node Details";
-      case ToolType.PortForwarding:
-        return "Port Forwarding";
-      case ToolType.Cancel:
-        return "Cancel Workflow";
-      default:
-        checkExhaustive(tool as never);
-        return "";
-    }
-  }, [tool]);
 
   // Load SyntaxHighlighter when the component mounts
   useEffect(() => {
@@ -127,7 +93,7 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
     ) : null;
     // ExecTerminal is not in the dependency array because it is a lazy import - adding it causes a re-render loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedTask, workflow?.name, entryCommand]);
+  }, [tool, selectedTask?.name, workflow?.name, entryCommand]);
 
   const logUrl = useMemo(() => {
     if (!workflow) {
@@ -188,18 +154,22 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
     lines,
   ]);
 
-  const toolUrl = useMemo(() => {
+  useEffect(() => {
     switch (tool) {
       case ToolType.Spec:
-        return workflow?.spec;
+        setToolUrl(workflow?.spec);
+        break;
       case ToolType.Template:
-        return workflow?.template_spec ?? undefined;
+        setToolUrl(workflow?.template_spec ?? undefined);
+        break;
       case ToolType.Outputs:
-        return workflow?.outputs ?? undefined;
+        setToolUrl(workflow?.outputs ?? undefined);
+        break;
       case ToolType.JSON:
-        return workflowSpec;
+        setToolUrl(workflowSpec);
+        break;
       default:
-        return logUrl;
+        setToolUrl(logUrl);
     }
   }, [tool, workflow, logUrl, workflowSpec]);
 
@@ -234,7 +204,6 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
           />
         </LogPopupHeader>
       }
-      aria-label={toolTitle}
     >
       {!!logUrl && (
         <SpecViewer
