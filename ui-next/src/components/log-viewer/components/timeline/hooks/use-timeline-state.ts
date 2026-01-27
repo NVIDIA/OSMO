@@ -87,8 +87,8 @@ export interface UseTimelineStateProps {
   displayStart?: Date;
   /** Display range end (with padding) */
   displayEnd?: Date;
-  /** Entity start time (workflow start) */
-  entityStartTime?: Date;
+  /** Entity start time (workflow start) - GUARANTEED to exist */
+  entityStartTime: Date;
   /** Entity end time (workflow end) */
   entityEndTime?: Date;
   /** Histogram buckets for deriving ranges */
@@ -107,12 +107,8 @@ export interface UseTimelineStateProps {
 function deriveInitialState(props: UseTimelineStateProps): TimelineState {
   const { startTime, endTime, displayStart, displayEnd, entityStartTime, entityEndTime, buckets, now } = props;
 
-  // Derive display range with fallbacks
-  const derivedDisplayStart =
-    displayStart ??
-    buckets[0]?.timestamp ??
-    entityStartTime ??
-    new Date(now ? now - DEFAULT_DURATION_MS : Date.now() - DEFAULT_DURATION_MS);
+  // Derive display range with simplified fallbacks (entityStartTime is guaranteed)
+  const derivedDisplayStart = displayStart ?? buckets[0]?.timestamp ?? entityStartTime;
 
   const derivedDisplayEnd =
     displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? entityEndTime ?? new Date(now ?? Date.now());

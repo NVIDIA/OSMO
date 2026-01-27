@@ -352,6 +352,18 @@ function LogViewerContainerInner({
     );
   }
 
+  // GUARD: Workflow must have started before rendering LogViewer
+  // entityStartTime is guaranteed for LogViewer to function properly
+  if (!workflowMetadata?.startTime) {
+    return (
+      <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
+        <div className="p-4 text-muted-foreground text-center text-sm">
+          Workflow has not started yet
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
       <LogViewer
@@ -377,8 +389,8 @@ function LogViewerContainerInner({
         onPresetSelect={setPreset}
         onDisplayRangeChange={handleDisplayRangeChange}
         onClearPendingDisplay={handleClearPendingDisplay}
-        entityStartTime={workflowMetadata?.startTime}
-        entityEndTime={workflowMetadata?.endTime}
+        entityStartTime={workflowMetadata.startTime}
+        entityEndTime={workflowMetadata.endTime}
         now={now}
       />
     </div>
