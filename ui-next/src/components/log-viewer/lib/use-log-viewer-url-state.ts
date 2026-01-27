@@ -98,6 +98,17 @@ export interface UseLogViewerUrlStateReturn {
   isLiveMode: boolean;
 }
 
+/**
+ * Options for URL state hook.
+ */
+export interface UseLogViewerUrlStateOptions {
+  /**
+   * Entity start time (workflow/group/task start) - hard lower bound.
+   * Used to validate and backfill URL params to prevent invalid ranges.
+   */
+  entityStartTime?: Date;
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -139,8 +150,11 @@ function deriveActivePreset(start: Date | null, end: Date | null): TimeRangePres
  *
  * Presets are resolved to actual start/end times in the URL.
  * For example, "last 5m" becomes: ?start=2026-01-24T19:11:00Z (with no end = live mode)
+ *
+ * @param options - Options including entityStartTime for validation
  */
-export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
+export function useLogViewerUrlState(options?: UseLogViewerUrlStateOptions): UseLogViewerUrlStateReturn {
+  const { entityStartTime } = options ?? {};
   // ───────────────────────────────────────────────────────────────────────────
   // Filter Chips (repeated param: ?f=level:error&f=task:train)
   // ───────────────────────────────────────────────────────────────────────────
@@ -194,8 +208,31 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
     },
   );
 
-  const startTime = timeRange.start;
+  let startTime = timeRange.start;
   const endTime = timeRange.end;
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Validation & Backfill (enforce entityStartTime boundary)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // REQUIREMENT 2: If no start param in URL, backfill with entityStartTime
+  // REQUIREMENT 3: If start param < entityStartTime, backfill with entityStartTime
+  if (entityStartTime) {
+    const entityStartMs = entityStartTime.getTime();
+
+    // Case 1: No start time in URL → backfill with entityStartTime
+    if (!startTime) {
+      startTime = entityStartTime;
+      // Update URL asynchronously (don't block render)
+      void setTimeRange({ start: entityStartTime });
+    }
+    // Case 2: Start time < entityStartTime → backfill with entityStartTime
+    else if (startTime.getTime() < entityStartMs) {
+      startTime = entityStartTime;
+      // Update URL asynchronously
+      void setTimeRange({ start: entityStartTime });
+    }
+  }
 
   // ───────────────────────────────────────────────────────────────────────────
   // Derived Preset (computed from start/end, not stored in URL)
@@ -260,11 +297,23 @@ export function useLogViewerUrlState(): UseLogViewerUrlStateReturn {
 
   // Wrap setters to convert undefined to null for nuqs
   // Use atomic updates to preserve other URL params
+  // VALIDATION: Enforce entityStartTime boundary
   const setStartTimeWrapped = useCallback(
     (time: Date | undefined) => {
-      setTimeRange({ start: time ?? null });
+      let validatedTime = time;
+
+      // If entityStartTime exists, enforce it as minimum
+      if (entityStartTime && time) {
+        const entityStartMs = entityStartTime.getTime();
+        if (time.getTime() < entityStartMs) {
+          // Clamp to entityStartTime (don't allow earlier)
+          validatedTime = entityStartTime;
+        }
+      }
+
+      setTimeRange({ start: validatedTime ?? null });
     },
-    [setTimeRange],
+    [setTimeRange, entityStartTime],
   );
 
   const setEndTimeWrapped = useCallback(

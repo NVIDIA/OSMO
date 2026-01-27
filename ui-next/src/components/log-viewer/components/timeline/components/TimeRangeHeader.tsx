@@ -44,6 +44,10 @@ export interface TimeRangeHeaderProps {
   activePreset?: TimeRangePreset;
   /** Callback when a preset is selected */
   onPresetSelect?: (preset: TimeRangePreset) => void;
+  /** Minimum allowed start time (entity start time) - UI constraint */
+  minStartTime?: Date;
+  /** Maximum allowed end time (entity end time, if completed) - UI constraint */
+  maxEndTime?: Date;
 }
 
 // =============================================================================
@@ -75,6 +79,8 @@ export function TimeRangeHeader({
   showPresets,
   activePreset,
   onPresetSelect,
+  minStartTime,
+  maxEndTime,
 }: TimeRangeHeaderProps): React.ReactNode {
   function handleStartChange(e: React.ChangeEvent<HTMLInputElement>): void {
     const date = new Date(e.target.value);
@@ -101,6 +107,8 @@ export function TimeRangeHeader({
             type="datetime-local"
             value={formatForInput(startTime)}
             onChange={handleStartChange}
+            min={formatForInput(minStartTime)}
+            max={formatForInput(maxEndTime)}
             className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
           />
           <span className="text-muted-foreground text-xs">to</span>
@@ -108,6 +116,8 @@ export function TimeRangeHeader({
             type="datetime-local"
             value={formatForInput(endTime)}
             onChange={handleEndChange}
+            min={formatForInput(startTime ?? minStartTime)}
+            max={formatForInput(maxEndTime)}
             className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>

@@ -156,6 +156,7 @@ function LogViewerContainerInner({
   const now = useTick();
 
   // URL-synced state for filters and time range
+  // Pass entityStartTime for validation/backfill
   const {
     filterChips,
     setFilterChips,
@@ -166,7 +167,9 @@ function LogViewerContainerInner({
     setEndTime,
     setPreset,
     isLiveMode,
-  } = useLogViewerUrlState();
+  } = useLogViewerUrlState({
+    entityStartTime: workflowMetadata?.startTime,
+  });
 
   // Pending display range state (for real-time pan/zoom without committing)
   const [pendingDisplayStart, setPendingDisplayStart] = useState<Date | undefined>(undefined);
@@ -357,9 +360,7 @@ function LogViewerContainerInner({
   if (!workflowMetadata?.startTime) {
     return (
       <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
-        <div className="p-4 text-muted-foreground text-center text-sm">
-          Workflow has not started yet
-        </div>
+        <div className="text-muted-foreground p-4 text-center text-sm">Workflow has not started yet</div>
       </div>
     );
   }
