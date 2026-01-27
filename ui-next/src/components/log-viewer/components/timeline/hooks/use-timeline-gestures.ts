@@ -162,7 +162,7 @@ function calculateAsymmetricZoom(
   displayStartMs: number,
   displayEndMs: number,
   newRangeMs: number,
-  entityStartTime: Date | undefined,
+  entityStartTime: Date,
   entityEndTime: Date | undefined,
   now: number | undefined,
   bucketTimestamps: Date[],
@@ -207,11 +207,11 @@ function calculateAsymmetricZoom(
 
   // Calculate bucket width for positioning invalid zones at limit
   const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-  if (bucketWidthMs === 0 || !entityStartTime) {
-    // No buckets or entity - cannot calculate, block
+  if (bucketWidthMs === 0) {
+    // No buckets - cannot calculate invalid zone positioning, block
     return {
       blocked: true,
-      reason: "no-buckets-or-entity: cannot calculate invalid zone positioning",
+      reason: "no-buckets: cannot calculate invalid zone positioning",
     };
   }
 
@@ -385,8 +385,8 @@ export function useTimelineWheelGesture(
   state: ReturnType<typeof useTimelineState>,
   bucketTimestamps: Date[],
   onDisplayRangeChange: (start: Date, end: Date) => void,
-  debugContext?: {
-    entityStartTime?: Date;
+  debugContext: {
+    entityStartTime: Date;
     entityEndTime?: Date;
     now?: number;
     overlayPositions?: { leftWidth: number; rightStart: number; rightWidth: number };
@@ -457,7 +457,7 @@ export function useTimelineWheelGesture(
       }
 
       return {
-        entityStart: debugContext.entityStartTime?.toISOString(),
+        entityStart: debugContext.entityStartTime.toISOString(),
         entityEnd: debugContext.entityEndTime?.toISOString(),
         now: debugContext.now ? new Date(debugContext.now).toISOString() : undefined,
         effectiveStart: currentEffective.start?.toISOString() ?? "undefined",
@@ -661,9 +661,9 @@ export function useTimelineWheelGesture(
           displayStartMs,
           displayEndMs,
           newRangeMs,
-          debugContext?.entityStartTime,
-          debugContext?.entityEndTime,
-          debugContext?.now,
+          debugContext.entityStartTime,
+          debugContext.entityEndTime,
+          debugContext.now,
           bucketTimestamps,
           validateInvalidZoneLimits,
         );
@@ -787,9 +787,9 @@ export function useTimelineWheelGesture(
 
           // Calculate CURRENT invalid zones (before pan)
           const currentInvalidZones = calculateInvalidZonePositions(
-            debugContext?.entityStartTime?.getTime() ?? 0,
-            debugContext?.entityEndTime?.getTime(),
-            debugContext?.now ?? Date.now(),
+            debugContext.entityStartTime.getTime(),
+            debugContext.entityEndTime?.getTime(),
+            debugContext.now ?? Date.now(),
             displayStartMs,
             displayEndMs,
             bucketWidthMs,
@@ -1105,8 +1105,8 @@ export function useTimelineZoomControls(
   state: ReturnType<typeof useTimelineState>,
   bucketTimestamps: Date[],
   onDisplayRangeChange: (start: Date, end: Date) => void,
-  debugContext?: {
-    entityStartTime?: Date;
+  debugContext: {
+    entityStartTime: Date;
     entityEndTime?: Date;
     now?: number;
   },
@@ -1175,9 +1175,9 @@ export function useTimelineZoomControls(
       displayStartMs,
       displayEndMs,
       newRangeMs,
-      debugContext?.entityStartTime,
-      debugContext?.entityEndTime,
-      debugContext?.now,
+      debugContext.entityStartTime,
+      debugContext.entityEndTime,
+      debugContext.now,
       bucketTimestamps,
       validateInvalidZoneLimits,
     );
@@ -1240,9 +1240,9 @@ export function useTimelineZoomControls(
       displayStartMs,
       displayEndMs,
       newRangeMs,
-      debugContext?.entityStartTime,
-      debugContext?.entityEndTime,
-      debugContext?.now,
+      debugContext.entityStartTime,
+      debugContext.entityEndTime,
+      debugContext.now,
       bucketTimestamps,
       validateInvalidZoneLimits,
     );

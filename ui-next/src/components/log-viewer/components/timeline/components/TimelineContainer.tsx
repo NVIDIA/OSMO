@@ -97,9 +97,9 @@ export interface TimelineContainerProps {
   enableInteractiveDraggers?: boolean;
   /**
    * Entity start time (workflow/group/task start) - hard lower bound for panning.
-   * Required for meaningful timeline functionality - undefined indicates workflow not started.
+   * GUARANTEED: log-viewer only loads when workflow has started (start_time exists).
    */
-  entityStartTime?: Date;
+  entityStartTime: Date;
   /** Entity end time (completion timestamp) - undefined if still running */
   entityEndTime?: Date;
   /**
@@ -174,61 +174,6 @@ function CollapseButton({ isCollapsed, onToggle, className }: CollapseButtonProp
         </>
       )}
     </button>
-  );
-}
-
-// =============================================================================
-// Empty State Component
-// =============================================================================
-
-interface TimelineEmptyStateProps {
-  height: number;
-  className?: string;
-  showTimeRangeHeader: boolean;
-  showPresets: boolean;
-  headerProps: {
-    startTime?: Date;
-    endTime?: Date;
-    onStartTimeChange?: (date: Date) => void;
-    onEndTimeChange?: (date: Date) => void;
-    activePreset?: TimeRangePreset;
-    onPresetSelect?: (preset: TimeRangePreset) => void;
-  };
-}
-
-function TimelineEmptyState({
-  height,
-  className,
-  showTimeRangeHeader,
-  showPresets,
-  headerProps,
-}: TimelineEmptyStateProps): React.ReactNode {
-  return (
-    <div className={cn("space-y-4", className)}>
-      {showTimeRangeHeader && (
-        <TimeRangeHeader
-          startTime={headerProps.startTime}
-          endTime={headerProps.endTime}
-          onStartTimeChange={headerProps.onStartTimeChange}
-          onEndTimeChange={headerProps.onEndTimeChange}
-          showPresets={showPresets}
-          activePreset={headerProps.activePreset}
-          onPresetSelect={headerProps.onPresetSelect}
-        />
-      )}
-      {!showTimeRangeHeader && showPresets && (
-        <TimeRangePresets
-          activePreset={headerProps.activePreset}
-          onPresetSelect={headerProps.onPresetSelect}
-        />
-      )}
-      <div
-        className="bg-muted text-muted-foreground flex items-center justify-center rounded text-xs"
-        style={{ height }}
-      >
-        No data for histogram
-      </div>
-    </div>
   );
 }
 
@@ -344,26 +289,9 @@ function TimelineContainerInner(
   // EMPTY STATE
   // ============================================================================
 
-  const showEmptyMessage = activeBuckets.length === 0 && !entityStartTime;
-
-  if (showEmptyMessage) {
-    return (
-      <TimelineEmptyState
-        height={height}
-        className={className}
-        showTimeRangeHeader={showTimeRangeHeader}
-        showPresets={showPresets}
-        headerProps={{
-          startTime,
-          endTime,
-          onStartTimeChange,
-          onEndTimeChange,
-          activePreset,
-          onPresetSelect,
-        }}
-      />
-    );
-  }
+  // NOTE: With guaranteed entityStartTime, we ALWAYS render the timeline.
+  // Even with zero buckets, we show invalid zones and valid time range.
+  // Empty state (TimelineEmptyState) is no longer used.
 
   // ============================================================================
   // RENDER
