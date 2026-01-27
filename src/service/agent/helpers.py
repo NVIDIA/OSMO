@@ -44,8 +44,10 @@ from src.utils.metrics import metrics
 DEFAULT_POD_TEMPLATE = '{}'
 
 
-def get_task_info(postgres: connectors.PostgresConnector, workflow_uuid: str, task_uuid: str,
+def get_task_info(workflow_uuid: str, task_uuid: str,
                   retry_id: int) -> Dict:
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     fetch_cmd = '''
         SELECT tasks.*, w.submitted_by FROM tasks
         INNER JOIN
@@ -62,9 +64,10 @@ def get_task_info(postgres: connectors.PostgresConnector, workflow_uuid: str, ta
     return task_rows[0]
 
 
-def create_backend(postgres: connectors.PostgresConnector,
-                   name: str,
+def create_backend(name: str,
                    message: backend_messages.InitBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     # Initialize router_address with hostname from config if available
     router_address = ''
     if postgres.config.service_hostname:
@@ -164,9 +167,10 @@ def create_backend(postgres: connectors.PostgresConnector,
             []
         )
 
-def queue_update_group_job(postgres: connectors.PostgresConnector,
-                           message: backend_messages.UpdatePodBody):
-    task_info = get_task_info(postgres, message.workflow_uuid, message.task_uuid,
+def queue_update_group_job(message: backend_messages.UpdatePodBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
+    task_info = get_task_info(message.workflow_uuid, message.task_uuid,
                               message.retry_id)
     if message.node and not task_info['node_name']:
         cmd = 'UPDATE tasks SET node_name = %s WHERE task_db_key = %s;'
@@ -202,11 +206,12 @@ def queue_update_group_job(postgres: connectors.PostgresConnector,
     update_task.send_job_to_queue()
 
 
-def update_resource(postgres: connectors.PostgresConnector,
-                    backend: str, message: backend_messages.UpdateNodeBody):
+def update_resource(backend: str, message: backend_messages.UpdateNodeBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     # If delete flag is set, delegate to delete_resource and ignore all other fields
     if message.delete:
-        delete_resource(postgres, backend, message)
+        delete_resource(backend, message)
         return
 
     commit_cmd = '''
@@ -267,8 +272,9 @@ def update_resource(postgres: connectors.PostgresConnector,
     config_helpers.update_node_pool_platform(resource_entry, backend, pool_config)
 
 
-def update_resource_usage(postgres: connectors.PostgresConnector,
-                          backend: str, message: backend_messages.UpdateNodeUsageBody):
+def update_resource_usage(backend: str, message: backend_messages.UpdateNodeUsageBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     commit_cmd = '''
         INSERT INTO resources
         (name, backend, usage_fields, non_workflow_usage_fields)
@@ -290,8 +296,10 @@ def update_resource_usage(postgres: connectors.PostgresConnector,
     postgres.execute_commit_command(commit_cmd, columns)
 
 
-def delete_resource(postgres: connectors.PostgresConnector, backend: str,
+def delete_resource(backend: str,
                     message: backend_messages.UpdateNodeBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     commit_cmd = 'DELETE FROM resources WHERE name = %s and backend = %s'
     postgres.execute_commit_command(commit_cmd, (message.hostname, backend))
 
@@ -322,8 +330,10 @@ def delete_resource(postgres: connectors.PostgresConnector, backend: str,
         update_job.send_job_to_queue()
 
 
-def clean_resources(postgres: connectors.PostgresConnector, backend: str,
+def clean_resources(backend: str,
                     message: backend_messages.NodeBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
 
     # Track all resources from resources table
     cmd = 'SELECT name FROM resources where backend = %s'
@@ -337,8 +347,10 @@ def clean_resources(postgres: connectors.PostgresConnector, backend: str,
         postgres.execute_commit_command(commit_cmd, (tuple(stale_nodes), backend))
 
 
-def clean_tasks(postgres: connectors.PostgresConnector, backend: str,
+def clean_tasks(backend: str,
                 message: backend_messages.TaskListBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
 
     # Track all tasks in the backend which are supposed to be in the backend but are not
     cmd = '''
@@ -390,9 +402,10 @@ def log(name: str, backend: str, config: utils_logging.LoggingConfig,
         message.type.value, message.text, extra={'workflow_uuid': message.workflow_uuid})
 
 
-def create_monitor_job(postgres: connectors.PostgresConnector,
-                       message: backend_messages.MonitorPodBody):
-    task_info = get_task_info(postgres, message.workflow_uuid, message.task_uuid,
+def create_monitor_job(message: backend_messages.MonitorPodBody):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
+    task_info = get_task_info(message.workflow_uuid, message.task_uuid,
                               message.retry_id)
 
     update_job = jobs.UpdateGroup(workflow_id=task_info['workflow_id'],
@@ -420,9 +433,10 @@ def keep_pod_conditions(message: backend_messages.ConditionMessage) -> bool:
     return True
 
 
-def send_pod_conditions(postgres: connectors.PostgresConnector,
-                        message: backend_messages.PodConditionsBody,
+def send_pod_conditions(message: backend_messages.PodConditionsBody,
                         max_event_log_lines: int):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     fetch_cmd = '''
         SELECT name FROM tasks
         WHERE task_uuid = %s AND retry_id = %s
@@ -475,9 +489,10 @@ def send_pod_conditions(postgres: connectors.PostgresConnector,
                 connectors.MAX_LOG_TTL, nx=True)
 
 
-def send_pod_event(postgres: connectors.PostgresConnector,
-                   message: backend_messages.PodEventBody,
+def send_pod_event(message: backend_messages.PodEventBody,
                    max_event_log_lines: int):
+    context = objects.WorkflowServiceContext.get()
+    postgres = context.database
     fetch_cmd = '''
         SELECT tasks.name, workflows.workflow_uuid FROM tasks
         JOIN workflows ON tasks.workflow_id = workflows.workflow_id
@@ -564,7 +579,7 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                 if message_body.logging:
                     log('backend_listener', name, config, message_body.logging)
                 elif message_body.init:
-                    create_backend(postgres, name, message_body.init)
+                    create_backend(name, message_body.init)
                     break
                 else:
                     raise osmo_errors.OSMOBackendError(f'Unexpected message: {message.type.value}')
@@ -601,17 +616,17 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                 if message_body.logging:
                     log('backend_listener', name, config, message_body.logging)
                 elif message_body.update_pod:
-                    queue_update_group_job(postgres, message_body.update_pod)
+                    queue_update_group_job(message_body.update_pod)
                 elif message_body.monitor_pod:
-                    create_monitor_job(postgres, message_body.monitor_pod)
+                    create_monitor_job(message_body.monitor_pod)
                 elif message_body.resource:
-                    update_resource(postgres, name, message_body.resource)
+                    update_resource(name, message_body.resource)
                 elif message_body.resource_usage:
-                    update_resource_usage(postgres, name, message_body.resource_usage)
+                    update_resource_usage(name, message_body.resource_usage)
                 elif message_body.node_hash:
-                    clean_resources(postgres, name, message_body.node_hash)
+                    clean_resources(name, message_body.node_hash)
                 elif message_body.task_list:
-                    clean_tasks(postgres, name, message_body.task_list)
+                    clean_tasks(name, message_body.task_list)
                 elif message_body.heartbeat:
                     config_helpers.update_backend_last_heartbeat(
                         name, message_body.heartbeat.time
@@ -620,11 +635,11 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     send_metrics(message_body.metrics, name)
                 elif message_body.pod_conditions:
                     send_pod_conditions(
-                        postgres, message_body.pod_conditions,
+                        message_body.pod_conditions,
                         workflow_config.max_event_log_lines)
                 elif message_body.pod_event:
                     send_pod_event(
-                        postgres, message_body.pod_event,
+                        message_body.pod_event,
                         workflow_config.max_event_log_lines)
                 else:
                     logging.error('Ignoring invalid backend listener message type %s',
@@ -752,7 +767,6 @@ async def backend_worker_impl(websocket: fastapi.WebSocket, name: str):
     heartbeat_thread = asyncio.create_task(send_heartbeat(websocket))
 
     try:
-        postgres = connectors.PostgresConnector.get_instance()
         context = objects.WorkflowServiceContext.get()
         config = context.config
         while True:
@@ -765,7 +779,7 @@ async def backend_worker_impl(websocket: fastapi.WebSocket, name: str):
             if message_body.logging:
                 log('backend_worker', name, config, message_body.logging)
             elif message_body.init:
-                create_backend(postgres, name, message_body.init)
+                create_backend(name, message_body.init)
                 break
             else:
                 raise osmo_errors.OSMOBackendError(f'Unexpected message: {message.type.value}')

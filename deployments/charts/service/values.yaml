@@ -1029,6 +1029,128 @@ services:
     ##
     serviceAccountName: ""
 
+  ## Operator service configuration for handling backend operations
+  ##
+  operator:
+    ## Horizontal Pod Autoscaler (HPA) configuration for the operator service
+    ##
+    scaling:
+      ## Minimum number of operator service replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of operator service replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target Memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+    ## Docker image name for the operator service
+    ##
+    imageName: operator-service
+
+    ## Kubernetes image pull policy for the operator service
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the operator service
+    ##
+    serviceName: osmo-operator
+
+    ## Init containers for operator service
+    ##
+    initContainers: []
+
+    ## Host aliases for custom DNS resolution within the operator pods
+    ##
+    hostAliases: []
+    # - ip: "192.168.1.100"
+    #   hostnames:
+    #   - "example.local"
+
+    ## Node selector constraints for operator service pod scheduling
+    ##
+    nodeSelector: {}
+    # kubernetes.io/os: linux
+    # node-type: cpu
+
+    ## Topology spread constraints to distribute operator service pods across zones
+    ##
+    topologySpreadConstraints:
+    ## Spread operator service pods across different availability zones
+    ##
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Progress directory for writing progress timestamps
+    ##
+    progressDir: /tmp/osmo/service/operator
+
+    ## Progress frequency in seconds for periodic progress reporting
+    ##
+    progressFrequencySec: 15
+
+    ## Resource limits and requests for the operator service container
+    ##
+    resources:
+      ## Resource requests (guaranteed allocation)
+      ##
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      ## Resource limits (maximum allocation)
+      ##
+      limits:
+        memory: "1Gi"
+
+    ## Tolerations for operator service pod scheduling on tainted nodes
+    ##
+    tolerations: []
+    # - key: "node-type"
+    #   operator: "Equal"
+    #   value: "cpu"
+    #   effect: "NoSchedule"
+
+    ## Extra pod annotations for the operator service
+    ##
+    extraPodAnnotations: {}
+
+    ## Extra environment variables for the operator service container
+    ##
+    extraEnv: []
+
+    ## Extra command line arguments for the operator service
+    ##
+    extraArgs: []
+
+    ## Extra volume mounts for the operator service container
+    ##
+    extraVolumeMounts: []
+
+    ## Extra volumes for the operator service pod
+    ##
+    extraVolumes: []
+
+    ## Extra sidecar containers for the operator service pod
+    ##
+    extraSidecars: []
+
+    ## Service account name for the operator service
+    ##
+    serviceAccountName: ""
+
+    ## Per-service Envoy proxy configuration overrides
+    ## These settings override the global sidecars.envoy configuration for this service only
+    ## Any field from sidecars.envoy can be specified here to override the global default
+    ##
+    envoy: {}
+
 ## Configuration for service sidecar containers
 ##
 sidecars:

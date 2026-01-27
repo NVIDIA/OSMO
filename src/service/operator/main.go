@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -66,14 +67,24 @@ func main() {
 	}
 
 	// Initialize Redis client
-	redisClient := redis.NewClient(&redis.Options{
+	redisOptions := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", args.RedisHost, args.RedisPort),
 		Password: args.RedisPassword,
 		DB:       args.RedisDB,
-	})
+	}
+
+	// Enable TLS if configured
+	if args.RedisTLSEnabled {
+		redisOptions.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+	}
+
+	redisClient := redis.NewClient(redisOptions)
 	logger.Info("Redis client configured",
 		slog.String("address", fmt.Sprintf("%s:%d", args.RedisHost, args.RedisPort)),
-		slog.Int("db", args.RedisDB))
+		slog.Int("db", args.RedisDB),
+		slog.Bool("tls", args.RedisTLSEnabled))
 	defer redisClient.Close()
 
 	// Initialize PostgreSQL client

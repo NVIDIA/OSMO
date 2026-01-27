@@ -509,6 +509,49 @@ service:
           done
           echo "Redis is ready"
 
+    ## Operator service configuration for handling backend operations
+    ##
+    operator:
+      ## Kubernetes image pull policy for the operator service
+      ##
+      imagePullPolicy: IfNotPresent
+      ## Horizontal Pod Autoscaler (HPA) configuration for the operator service
+      ##
+      scaling:
+        ## Minimum number of operator replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of operator replicas
+        ##
+        maxReplicas: 1
+      ## Init containers for operator service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+
     ## Delayed job monitor service configuration
     ##
     delayedJobMonitor:

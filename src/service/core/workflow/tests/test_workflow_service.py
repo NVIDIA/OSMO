@@ -83,7 +83,6 @@ class WorkflowServiceTestCase(
         cls.registry_container.create_image(cls.TEST_IMAGE_NAME)
 
     def create_backend(self, backend_name: str):
-        postgres_connector = postgres.PostgresConnector.get_instance()
         message = backend_messages.InitBody(
             k8s_uid='test_k8s_uid',
             k8s_namespace='test_k8s_namespace',
@@ -91,7 +90,6 @@ class WorkflowServiceTestCase(
             node_condition_prefix='test_prefix/',
         )
         agent_service_helpers.create_backend(
-            postgres_connector,
             backend_name,
             message,
         )
