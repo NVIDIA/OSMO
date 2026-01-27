@@ -331,18 +331,17 @@ export function validateInvalidZoneLimits(
   const leftInvalidMs = (zones.leftInvalidWidth / 100) * displayRangeMs;
   const rightInvalidMs = (zones.rightInvalidWidth / 100) * displayRangeMs;
 
-  // Calculate bucket counts (how many bars worth of invalid zone)
+  // Calculate bucket counts (how many bars worth of invalid zone) - for debug info
   const leftInvalidBuckets = leftInvalidMs / bucketWidthMs;
   const rightInvalidBuckets = rightInvalidMs / bucketWidthMs;
 
-  // Calculate max allowed invalid buckets using single source of truth
-  const limits = calculateMaxInvalidZoneBuckets(displayRangeMs, bucketWidthMs, maxPerSidePercent, maxCombinedPercent);
-
   // THREE-CONSTRAINT VALIDATION (all must pass)
-  // This creates a "triangle" of valid states allowing natural pan "give"
+  // CRITICAL: Validate against FRACTIONAL percentage limits, not quantized bucket counts
+  // This ensures consistency with asymmetric zoom positioning which uses fractional limits
+  // Using percentage directly avoids quantization mismatches
 
-  // Constraint 1: Left per-side limit
-  if (leftInvalidBuckets > limits.maxBucketsPerSide) {
+  // Constraint 1: Left per-side limit (percentage-based)
+  if (zones.leftInvalidWidth > maxPerSidePercent) {
     return {
       blocked: true,
       reason: "left-invalid-zone-limit",
@@ -351,8 +350,8 @@ export function validateInvalidZoneLimits(
     };
   }
 
-  // Constraint 2: Right per-side limit
-  if (rightInvalidBuckets > limits.maxBucketsPerSide) {
+  // Constraint 2: Right per-side limit (percentage-based)
+  if (zones.rightInvalidWidth > maxPerSidePercent) {
     return {
       blocked: true,
       reason: "right-invalid-zone-limit",
@@ -364,8 +363,8 @@ export function validateInvalidZoneLimits(
   // Constraint 3: Combined limit (both sides together)
   // This is the key constraint that creates the triangle of valid states
   // Combined limit is HIGHER than per-side limit to allow asymmetric zoom
-  const combinedInvalidBuckets = leftInvalidBuckets + rightInvalidBuckets;
-  if (combinedInvalidBuckets > limits.maxBucketsCombined) {
+  const combinedInvalidPercent = zones.leftInvalidWidth + zones.rightInvalidWidth;
+  if (combinedInvalidPercent > maxCombinedPercent) {
     return {
       blocked: true,
       reason: "combined-invalid-zone-limit",
