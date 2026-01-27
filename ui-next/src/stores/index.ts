@@ -64,6 +64,7 @@ export {
   initialState as sharedPreferencesInitialState,
   type SharedPreferencesStore,
   type DisplayMode,
+  type WorkflowDetailsView,
   // Hydration-safe selectors (use these for values in initial render)
   useDisplayMode,
   useCompactMode,
@@ -71,4 +72,5 @@ export {
   useDetailsExpanded,
   useDetailsPanelCollapsed,
   usePanelWidthPct,
+  useWorkflowDetailsView,
 } from "./shared-preferences-store";
