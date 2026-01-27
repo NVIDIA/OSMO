@@ -768,9 +768,21 @@ func TestNodeStateTracker(t *testing.T) {
 }
 
 func TestNewResourceListener(t *testing.T) {
-	args := DefaultResourceListenerArgs()
-	args.ServiceURL = "http://localhost:8000"
-	args.Backend = "test-backend"
+	args := utils.ListenerArgs{
+		ServiceURL:            "http://localhost:8000",
+		Backend:               "test-backend",
+		Namespace:             "osmo",
+		PodUpdateChanSize:     500,
+		ResyncPeriodSec:       300,
+		StateCacheTTLMin:      15,
+		MaxUnackedMessages:    100,
+		NodeConditionPrefix:   "osmo.nvidia.com/",
+		ProgressDir:           "/tmp/osmo/operator/",
+		ProgressFrequencySec:  15,
+		UsageFlushIntervalSec: 5,
+		ReconcileIntervalMin:  10,
+		NodeEventQueueSize:    100,
+	}
 
 	listener := NewResourceListener(args)
 

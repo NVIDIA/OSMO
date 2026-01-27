@@ -1097,21 +1097,3 @@ func isNodeAvailable(node *corev1.Node) bool {
 	return false
 }
 
-// DefaultResourceListenerArgs returns default configuration values
-func DefaultResourceListenerArgs() utils.ListenerArgs {
-	return utils.ListenerArgs{
-		ServiceURL:            "http://127.0.0.1:8001",
-		Backend:               "default",
-		Namespace:             "osmo",
-		PodUpdateChanSize:     500,
-		ResyncPeriodSec:       300,
-		StateCacheTTLMin:      15,
-		MaxUnackedMessages:    100,
-		NodeConditionPrefix:   "osmo.nvidia.com/",
-		ProgressDir:           "/tmp/osmo/operator/",
-		ProgressFrequencySec:  15,
-		UsageFlushIntervalSec: 5,   // Flush every 5 seconds
-		ReconcileIntervalMin:  10,  // Full reconcile every 10 minutes (set to 0 to disable)
-		NodeEventQueueSize:    100, // Buffer for node events (prevents informer blocking)
-	}
-}
