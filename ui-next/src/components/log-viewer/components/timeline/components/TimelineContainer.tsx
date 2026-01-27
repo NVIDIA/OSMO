@@ -38,7 +38,7 @@
 
 "use client";
 
-import { memo, useMemo, useState, useRef, useCallback } from "react";
+import { memo, useMemo, useState, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import { formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter";
@@ -47,7 +47,7 @@ import { TimelineHistogram } from "./TimelineHistogram";
 import { TimeRangePresets } from "./TimeRangePresets";
 import { TimeRangeHeader } from "./TimeRangeHeader";
 import { useTimelineState } from "../hooks/use-timeline-state";
-import { useTimelineWheelGesture } from "../hooks/use-timeline-gestures";
+import { useTimelineWheelGesture, useTimelineZoomControls } from "../hooks/use-timeline-gestures";
 import { useTick, useTickController } from "@/hooks/use-tick";
 import { isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
 import { DEFAULT_HEIGHT, type TimeRangePreset } from "../lib/timeline-constants";
@@ -112,6 +112,14 @@ export interface TimelineContainerProps {
 
 // Re-export TimeRangePreset for consumers
 export type { TimeRangePreset };
+
+// Imperative handle for zoom controls
+export interface TimelineContainerHandle {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  canZoomIn: boolean;
+  canZoomOut: boolean;
+}
 
 // =============================================================================
 // Hooks
@@ -228,29 +236,32 @@ function TimelineEmptyState({
 // Main Component
 // =============================================================================
 
-function TimelineContainerInner({
-  buckets,
-  pendingBuckets,
-  onBucketClick,
-  className,
-  height = DEFAULT_HEIGHT,
-  showPresets = false,
-  onPresetSelect,
-  activePreset,
-  customControls,
-  defaultCollapsed = false,
-  startTime,
-  endTime,
-  displayStart,
-  displayEnd,
-  onStartTimeChange,
-  onEndTimeChange,
-  onDisplayRangeChange,
-  showTimeRangeHeader = false,
-  entityStartTime,
-  entityEndTime,
-  now,
-}: TimelineContainerProps): React.ReactNode {
+function TimelineContainerInner(
+  {
+    buckets,
+    pendingBuckets,
+    onBucketClick,
+    className,
+    height = DEFAULT_HEIGHT,
+    showPresets = false,
+    onPresetSelect,
+    activePreset,
+    customControls,
+    defaultCollapsed = false,
+    startTime,
+    endTime,
+    displayStart,
+    displayEnd,
+    onStartTimeChange,
+    onEndTimeChange,
+    onDisplayRangeChange,
+    showTimeRangeHeader = false,
+    entityStartTime,
+    entityEndTime,
+    now,
+  }: TimelineContainerProps,
+  ref: React.Ref<TimelineContainerHandle>,
+): React.ReactNode {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -310,6 +321,16 @@ function TimelineContainerInner({
     now: synchronizedNow,
     overlayPositions: undefined, // Disabled during simplification
   });
+
+  // Get zoom controls for external buttons (uses same logic as wheel gestures)
+  const zoomControls = useTimelineZoomControls(timelineState, bucketTimestamps, onDisplayRangeChange ?? (() => {}), {
+    entityStartTime,
+    entityEndTime,
+    now: synchronizedNow,
+  });
+
+  // Expose zoom controls to parent via imperative handle
+  useImperativeHandle(ref, () => zoomControls, [zoomControls]);
 
   // ============================================================================
   // CALLBACKS
@@ -420,4 +441,6 @@ function TimelineContainerInner({
   );
 }
 
-export const TimelineContainer = memo(TimelineContainerInner);
+export const TimelineContainer = memo(
+  forwardRef<TimelineContainerHandle, TimelineContainerProps>(TimelineContainerInner),
+);
