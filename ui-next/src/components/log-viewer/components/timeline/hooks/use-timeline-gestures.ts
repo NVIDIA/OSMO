@@ -53,7 +53,7 @@
  */
 
 import { useWheel, useDrag } from "@use-gesture/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { useTimelineState } from "./use-timeline-state";
 import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
 import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
@@ -1068,5 +1068,192 @@ export function useTimelineDraggerGesture(
       dragHandlers.onPointerDown?.(e as never);
     },
     onKeyDown,
+  };
+}
+
+// =============================================================================
+// Programmatic Zoom Controls
+// =============================================================================
+
+/**
+ * Programmatic zoom controls return value.
+ */
+export interface ZoomControls {
+  /** Zoom in (same as Cmd+Wheel Up) */
+  zoomIn: () => void;
+  /** Zoom out (same as Cmd+Wheel Down) */
+  zoomOut: () => void;
+  /** Whether zoom in is currently blocked */
+  canZoomIn: boolean;
+  /** Whether zoom out is currently blocked */
+  canZoomOut: boolean;
+}
+
+/**
+ * Hook for programmatic zoom controls (buttons, keyboard shortcuts, etc.).
+ *
+ * Provides the same zoom behavior as Cmd+Wheel gestures, but callable programmatically.
+ * Uses the exact same zoom factors and validation logic as wheel events.
+ *
+ * @param state - Timeline state from useTimelineState
+ * @param bucketTimestamps - Bucket timestamps for calculating bucket width
+ * @param onDisplayRangeChange - Callback when display range changes
+ * @param debugContext - Optional debug context (entityStart/End, now, window positions)
+ * @returns Zoom control functions and state
+ */
+export function useTimelineZoomControls(
+  state: ReturnType<typeof useTimelineState>,
+  bucketTimestamps: Date[],
+  onDisplayRangeChange: (start: Date, end: Date) => void,
+  debugContext?: {
+    entityStartTime?: Date;
+    entityEndTime?: Date;
+    now?: number;
+  },
+): ZoomControls {
+  const { currentDisplay, actions } = state;
+
+  const zoomIn = useCallback(() => {
+    const displayStartMs = currentDisplay.start.getTime();
+    const displayEndMs = currentDisplay.end.getTime();
+    const displayRangeMs = displayEndMs - displayStartMs;
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+    // Calculate new range after zoom
+    const newRangeMs = displayRangeMs * ZOOM_IN_FACTOR;
+
+    // Validate basic zoom in constraints (min range, min bucket count)
+    const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
+    if (zoomInValidation.blocked) {
+      // Zoom in blocked (e.g., min bucket count reached)
+      return;
+    }
+
+    // Calculate symmetric zoom (center-anchored)
+    const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
+
+    // Validate invalid zone constraints
+    const validation = validateInvalidZoneLimits(
+      newStartMs,
+      newEndMs,
+      debugContext?.entityStartTime,
+      debugContext?.entityEndTime,
+      debugContext?.now,
+      bucketTimestamps,
+    );
+
+    if (validation.blocked) {
+      // Zoom in blocked by invalid zone limits
+      return;
+    }
+
+    // Apply zoom
+    const newStart = new Date(newStartMs);
+    const newEnd = new Date(newEndMs);
+    actions.setPendingDisplay(newStart, newEnd);
+    onDisplayRangeChange(newStart, newEnd);
+  }, [currentDisplay, bucketTimestamps, debugContext, actions, onDisplayRangeChange]);
+
+  const zoomOut = useCallback(() => {
+    const displayStartMs = currentDisplay.start.getTime();
+    const displayEndMs = currentDisplay.end.getTime();
+    const displayRangeMs = displayEndMs - displayStartMs;
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+    // Calculate new range after zoom
+    const newRangeMs = displayRangeMs * ZOOM_OUT_FACTOR;
+
+    // Validate basic zoom out constraints (max range, max bucket count)
+    const zoomOutValidation = validateZoomOutConstraints(newRangeMs, bucketWidthMs);
+    if (zoomOutValidation.blocked) {
+      // Zoom out blocked (e.g., max bucket count reached)
+      return;
+    }
+
+    // Use asymmetric zoom calculation which handles both symmetric and asymmetric internally
+    const asymmetricResult = calculateAsymmetricZoom(
+      displayStartMs,
+      displayEndMs,
+      newRangeMs,
+      debugContext?.entityStartTime,
+      debugContext?.entityEndTime,
+      debugContext?.now,
+      bucketTimestamps,
+      validateInvalidZoneLimits,
+    );
+
+    if (asymmetricResult.blocked) {
+      // Zoom out blocked by invalid zone limits
+      return;
+    }
+
+    // Apply zoom (may be symmetric or asymmetric)
+    const newStart = new Date(asymmetricResult.newStartMs!);
+    const newEnd = new Date(asymmetricResult.newEndMs!);
+    actions.setPendingDisplay(newStart, newEnd);
+    onDisplayRangeChange(newStart, newEnd);
+  }, [currentDisplay, bucketTimestamps, debugContext, actions, onDisplayRangeChange]);
+
+  // Calculate whether zoom operations are currently possible
+  const canZoomIn = useMemo(() => {
+    const displayStartMs = currentDisplay.start.getTime();
+    const displayEndMs = currentDisplay.end.getTime();
+    const displayRangeMs = displayEndMs - displayStartMs;
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+    // Calculate new range after zoom
+    const newRangeMs = displayRangeMs * ZOOM_IN_FACTOR;
+
+    // Check basic zoom in constraints
+    const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
+    if (zoomInValidation.blocked) return false;
+
+    // Check invalid zone constraints
+    const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
+    const validation = validateInvalidZoneLimits(
+      newStartMs,
+      newEndMs,
+      debugContext?.entityStartTime,
+      debugContext?.entityEndTime,
+      debugContext?.now,
+      bucketTimestamps,
+    );
+
+    return !validation.blocked;
+  }, [currentDisplay, bucketTimestamps, debugContext]);
+
+  const canZoomOut = useMemo(() => {
+    const displayStartMs = currentDisplay.start.getTime();
+    const displayEndMs = currentDisplay.end.getTime();
+    const displayRangeMs = displayEndMs - displayStartMs;
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+    // Calculate new range after zoom
+    const newRangeMs = displayRangeMs * ZOOM_OUT_FACTOR;
+
+    // Check basic zoom out constraints
+    const zoomOutValidation = validateZoomOutConstraints(newRangeMs, bucketWidthMs);
+    if (zoomOutValidation.blocked) return false;
+
+    // Check if asymmetric zoom would work (handles both symmetric and asymmetric)
+    const asymmetricResult = calculateAsymmetricZoom(
+      displayStartMs,
+      displayEndMs,
+      newRangeMs,
+      debugContext?.entityStartTime,
+      debugContext?.entityEndTime,
+      debugContext?.now,
+      bucketTimestamps,
+      validateInvalidZoneLimits,
+    );
+
+    return !asymmetricResult.blocked;
+  }, [currentDisplay, bucketTimestamps, debugContext]);
+
+  return {
+    zoomIn,
+    zoomOut,
+    canZoomIn,
+    canZoomOut,
   };
 }
