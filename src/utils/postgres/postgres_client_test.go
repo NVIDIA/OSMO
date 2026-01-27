@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.corp.nvidia.com/osmo/utils"
 )
 
 // TestURLEscaping verifies that passwords with special characters are properly escaped
@@ -150,7 +151,7 @@ func TestGetEnv(t *testing.T) {
 				defer os.Unsetenv(tc.envKey)
 			}
 
-			result := getEnv(tc.envKey, tc.defaultValue)
+			result := utils.GetEnv(tc.envKey, tc.defaultValue)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -212,7 +213,7 @@ func TestGetEnvInt(t *testing.T) {
 				defer os.Unsetenv(tc.envKey)
 			}
 
-			result := getEnvInt(tc.envKey, tc.defaultValue)
+			result := utils.GetEnvInt(tc.envKey, tc.defaultValue)
 			if result != tc.expected {
 				t.Errorf("Expected %d, got %d", tc.expected, result)
 			}
@@ -310,7 +311,7 @@ other_value: "test"`
 				defer os.Unsetenv("OSMO_CONFIG_FILE")
 			}
 
-			result := getEnvOrConfig(tc.envKey, tc.configKey, tc.defaultValue)
+			result := utils.GetEnvOrConfig(tc.envKey, tc.configKey, tc.defaultValue)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -331,7 +332,7 @@ func TestGetEnvOrConfigWithInvalidYAML(t *testing.T) {
 	os.Setenv("OSMO_CONFIG_FILE", configPath)
 	defer os.Unsetenv("OSMO_CONFIG_FILE")
 
-	result := getEnvOrConfig("TEST_KEY", "postgres_password", "default")
+	result := utils.GetEnvOrConfig("TEST_KEY", "postgres_password", "default")
 	if result != "default" {
 		t.Errorf("Expected default value for invalid YAML, got %s", result)
 	}
