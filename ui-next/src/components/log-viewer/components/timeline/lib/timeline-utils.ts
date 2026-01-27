@@ -162,61 +162,6 @@ export function calculateOverlayPositions(
 /**
  * Result of max invalid zone bucket calculation.
  */
-export interface MaxInvalidZoneBuckets {
-  /** Maximum invalid zone buckets per side (quantized) */
-  maxBucketsPerSide: number;
-  /** Maximum combined invalid zone buckets (quantized) */
-  maxBucketsCombined: number;
-  /** Maximum invalid zone milliseconds per side (bucket-aligned) */
-  maxInvalidZoneMsPerSide: number;
-  /** Maximum combined invalid zone milliseconds (bucket-aligned) */
-  maxInvalidZoneMsCombined: number;
-}
-
-/**
- * Calculate maximum allowed invalid zone sizes (bucket-quantized).
- *
- * This is the SINGLE SOURCE OF TRUTH for invalid zone limit calculations.
- * The percentage heuristics (10% per-side, 20% combined) are seeds that get
- * quantized to bucket boundaries for consistent validation and positioning.
- *
- * ## Quantization
- *
- * - Percentages are floored to whole buckets: floor(25 * 0.1) = 2 buckets
- * - Minimum of 2 buckets enforced for visual feedback when zoomed in
- * - Milliseconds calculated from bucket counts (bucket-aligned)
- *
- * ## Usage
- *
- * Use this function in:
- * - `validateInvalidZoneLimits()` - for constraint validation
- * - `calculateAsymmetricZoom()` - for edge positioning
- * - Any other code that needs invalid zone limits
- *
- * @param displayRangeMs - Display range in milliseconds
- * @param bucketWidthMs - Width of one histogram bucket in milliseconds
- * @param maxPerSidePercent - Maximum percentage per side (default: 10)
- * @param maxCombinedPercent - Maximum combined percentage (default: 20)
- * @returns Maximum invalid zone buckets and milliseconds (quantized)
- */
-export function calculateMaxInvalidZoneBuckets(
-  displayRangeMs: number,
-  bucketWidthMs: number,
-  maxPerSidePercent: number = 10,
-  maxCombinedPercent: number = 20,
-): MaxInvalidZoneBuckets {
-  const totalBucketsVisible = displayRangeMs / bucketWidthMs;
-  const maxBucketsPerSide = Math.max(2, Math.floor(totalBucketsVisible * (maxPerSidePercent / 100)));
-  const maxBucketsCombined = Math.max(2, Math.floor(totalBucketsVisible * (maxCombinedPercent / 100)));
-
-  return {
-    maxBucketsPerSide,
-    maxBucketsCombined,
-    maxInvalidZoneMsPerSide: maxBucketsPerSide * bucketWidthMs,
-    maxInvalidZoneMsCombined: maxBucketsCombined * bucketWidthMs,
-  };
-}
-
 /**
  * Check if end time is considered "NOW".
  *

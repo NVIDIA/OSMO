@@ -55,7 +55,7 @@
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useRef, useState } from "react";
 import type { useTimelineState } from "./use-timeline-state";
-import { clampTimeToRange, validateInvalidZoneLimits, calculateMaxInvalidZoneBuckets } from "../lib/timeline-utils";
+import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
 import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
 import {
   PAN_FACTOR,
@@ -215,13 +215,8 @@ function calculateAsymmetricZoom(
     };
   }
 
-  // CRITICAL: Use single source of truth for max invalid zone calculation
-  const limits = calculateMaxInvalidZoneBuckets(newRangeMs, bucketWidthMs);
-  const _maxInvalidZoneMs = limits.maxInvalidZoneMsPerSide; // Quantized to bucket boundaries (kept for reference)
-
   // Calculate fractional limit for positioning (maintains percentage consistency)
-  // Use 10% of new viewport for positioning, even if quantized bucket limit is lower
-  // This ensures we utilize all available headroom to maintain visual percentage
+  // Use exactly 10% of new viewport for positioning to maintain visual consistency
   const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
 
   // Step 4: Calculate asymmetric zoom with deficit transfer
@@ -804,25 +799,22 @@ export function useTimelineWheelGesture(
           const displayRangeMs = displayEndMs - displayStartMs;
           const currentLeftInvalidMs = (currentInvalidZones.leftInvalidWidth / 100) * displayRangeMs;
           const currentRightInvalidMs = (currentInvalidZones.rightInvalidWidth / 100) * displayRangeMs;
-          const currentLeftInvalidBuckets = currentLeftInvalidMs / bucketWidthMs;
-          const currentRightInvalidBuckets = currentRightInvalidMs / bucketWidthMs;
 
-          // Use single source of truth for max invalid zone calculation
-          const limits = calculateMaxInvalidZoneBuckets(displayRangeMs, bucketWidthMs);
-          const maxInvalidBucketsPerSide = limits.maxBucketsPerSide;
+          // Calculate maximum allowed invalid zone using fractional percentage
+          const maxInvalidZoneMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * displayRangeMs;
 
           // Determine which side is being constrained and calculate headroom
           let maxAllowedDeltaMs = 0;
 
           if (validation.reason === "left-invalid-zone-limit") {
             // Panning left - constrain by left invalid zone limit
-            // Available headroom = (maxBuckets - currentBuckets) * bucketWidth
-            const availableBuckets = Math.max(0, maxInvalidBucketsPerSide - currentLeftInvalidBuckets);
-            maxAllowedDeltaMs = -(availableBuckets * bucketWidthMs);
+            // Available headroom = maxMs - currentMs
+            const availableMs = Math.max(0, maxInvalidZoneMs - currentLeftInvalidMs);
+            maxAllowedDeltaMs = -availableMs;
           } else if (validation.reason === "right-invalid-zone-limit") {
             // Panning right - constrain by right invalid zone limit
-            const availableBuckets = Math.max(0, maxInvalidBucketsPerSide - currentRightInvalidBuckets);
-            maxAllowedDeltaMs = availableBuckets * bucketWidthMs;
+            const availableMs = Math.max(0, maxInvalidZoneMs - currentRightInvalidMs);
+            maxAllowedDeltaMs = availableMs;
           } else {
             // Combined limit or unknown - block entirely
             logTimelineEvent({
