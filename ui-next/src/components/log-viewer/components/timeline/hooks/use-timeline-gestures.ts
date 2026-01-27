@@ -196,109 +196,53 @@ function calculateAsymmetricZoom(
     };
   }
 
-  // Calculate bucket width for positioning invalid zones at limit
+  // Step 4: Calculate asymmetric zoom with deficit transfer
+  // Left and right cases follow identical logic - abstract to reduce duplication
   const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
   if (bucketWidthMs === 0) {
-    // No buckets - cannot calculate invalid zone positioning, block
-    return {
-      blocked: true,
-      reason: "no-buckets: cannot calculate invalid zone positioning",
-    };
+    return { blocked: true, reason: "no-buckets: cannot calculate invalid zone positioning" };
   }
 
-  // Calculate fractional limit for positioning (maintains percentage consistency)
-  // Use exactly 10% of new viewport - fractional positioning ensures zones scale naturally
+  // Calculate constrained edge positions using fractional limit (exactly 10% of new range)
   const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
+  const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
+  const entityStartMs = entityStartTime.getTime();
+  const rightBoundaryMs = entityEndTime?.getTime() ?? now;
 
-  // Step 4: Calculate asymmetric zoom with deficit transfer
+  // Determine which side is constrained and calculate bounds
+  let constrainedStart: number;
+  let constrainedEnd: number;
+
   if (reason === "left-invalid-zone-limit") {
-    // Left invalid zone would exceed limit if we expanded symmetrically
-    // Pin left edge at fractional limit (exactly 10% of new range)
-    const entityStartMs = entityStartTime.getTime();
-    const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
-    const constrainedStart = entityStartMs - gapMs - fractionalLimitMs;
-
-    // Calculate how much we wanted to expand left
-    const symmetricLeftMove = displayStartMs - symmetricStart;
-    // How much we actually moved left
-    const constrainedLeftMove = displayStartMs - constrainedStart;
-    const leftDeficit = symmetricLeftMove - constrainedLeftMove;
-
-    // Transfer deficit to right side
-    const constrainedEnd = symmetricEnd + leftDeficit;
-
-    // Validate asymmetric result
-    const asymmetricValidation = validateFn(
-      constrainedStart,
-      constrainedEnd,
-      entityStartTime,
-      entityEndTime,
-      now,
-      bucketTimestamps,
-    );
-
-    if (!asymmetricValidation.blocked) {
-      return {
-        blocked: false,
-        newStartMs: constrainedStart,
-        newEndMs: constrainedEnd,
-        wasAsymmetric: true,
-      };
-    }
-
-    // Asymmetric version also failed - BLOCK entirely
-    return {
-      blocked: true,
-      reason: `asymmetric-failed: left pinned at limit, transferred deficit to right but ${asymmetricValidation.reason}`,
-    };
+    // Pin left at limit, transfer deficit to right
+    constrainedStart = entityStartMs - gapMs - fractionalLimitMs;
+    constrainedEnd = symmetricEnd + (constrainedStart - symmetricStart);
+  } else if (reason === "right-invalid-zone-limit") {
+    // Pin right at limit, transfer deficit to left
+    constrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
+    constrainedStart = symmetricStart - (constrainedEnd - symmetricEnd);
+  } else {
+    return { blocked: true, reason: `unknown-validation-reason: ${reason}` };
   }
 
-  if (reason === "right-invalid-zone-limit") {
-    // Right invalid zone would exceed limit if we expanded symmetrically
-    // Pin right edge at fractional limit (exactly 10% of new range)
-    const rightBoundaryMs = entityEndTime?.getTime() ?? now;
-    const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
-    const constrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
+  // Validate asymmetric result
+  const asymmetricValidation = validateFn(
+    constrainedStart,
+    constrainedEnd,
+    entityStartTime,
+    entityEndTime,
+    now,
+    bucketTimestamps,
+  );
 
-    // Calculate how much we wanted to expand right
-    const symmetricRightMove = symmetricEnd - displayEndMs;
-    // How much we actually moved right
-    const constrainedRightMove = constrainedEnd - displayEndMs;
-    const rightDeficit = symmetricRightMove - constrainedRightMove;
-
-    // Transfer deficit to left side
-    const constrainedStart = symmetricStart - rightDeficit;
-
-    // Validate asymmetric result
-    const asymmetricValidation = validateFn(
-      constrainedStart,
-      constrainedEnd,
-      entityStartTime,
-      entityEndTime,
-      now,
-      bucketTimestamps,
-    );
-
-    if (!asymmetricValidation.blocked) {
-      return {
-        blocked: false,
-        newStartMs: constrainedStart,
-        newEndMs: constrainedEnd,
-        wasAsymmetric: true,
-      };
-    }
-
-    // Asymmetric version also failed - BLOCK entirely
-    return {
-      blocked: true,
-      reason: `asymmetric-failed: right pinned at limit, transferred deficit to left but ${asymmetricValidation.reason}`,
-    };
+  if (!asymmetricValidation.blocked) {
+    return { blocked: false, newStartMs: constrainedStart, newEndMs: constrainedEnd, wasAsymmetric: true };
   }
 
-  // Unknown reason - should not happen, but block to be safe
+  // Asymmetric compensation also failed - BLOCK entirely
   return {
     blocked: true,
-    reason: `unknown-validation-reason: ${reason}`,
+    reason: `asymmetric-failed: ${reason === "left-invalid-zone-limit" ? "left" : "right"} pinned at limit, but ${asymmetricValidation.reason}`,
   };
 }
 
