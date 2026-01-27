@@ -41,7 +41,6 @@ import (
 type ResourceListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
-	stream     pb.ListenerService_ListenerStreamClient
 	closeOnce  sync.Once
 	aggregator *ResourceUsageAggregator
 }
@@ -55,53 +54,15 @@ func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
 	}
 }
 
-// Connect establishes a gRPC connection and stream
-func (rl *ResourceListener) Connect(ctx context.Context) error {
-	// Initialize the base connection
-	if err := rl.BaseListener.InitConnection(ctx, rl.args.ServiceURL); err != nil {
-		return err
-	}
-
-	// Establish the bidirectional stream
-	var err error
-	rl.stream, err = rl.GetClient().ListenerStream(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create stream: %w", err)
-	}
-
-	// Context for coordinated shutdown of goroutines with error cause
-	rl.InitStreamContext(ctx)
-
-	log.Printf("Connected to operator service, resource stream established")
-	return nil
-}
-
 // Run manages the bidirectional streaming lifecycle
 func (rl *ResourceListener) Run(ctx context.Context) error {
-	if err := rl.Connect(ctx); err != nil {
-		return err
-	}
-	defer rl.Close()
-
-	// Resend all unacked messages from previous connection (if any)
-	if err := rl.GetUnackedMessages().ResendAll(rl.stream); err != nil {
-		return err
-	}
-
-	// Launch goroutines for send and receive
-	rl.AddToWaitGroup(2)
-	go func() {
-		defer rl.WaitGroupDone()
-		rl.BaseListener.ReceiveAcks(rl.stream, "resource")
-	}()
-
-	go func() {
-		defer rl.WaitGroupDone()
-		rl.sendMessages()
-	}()
-
-	// Wait for completion
-	return rl.WaitForCompletion(ctx, rl.closeStream)
+	return rl.BaseListener.Run(
+		ctx,
+		"Connected to operator service, resource stream established",
+		rl.sendMessages,
+		rl.closeStream,
+		"resource",
+	)
 }
 
 // receiveMessages handles receiving ACK messages from the server
@@ -218,7 +179,7 @@ func (rl *ResourceListener) sendResourceMessage(msg *pb.ListenerMessage) error {
 		return nil // Don't fail the stream
 	}
 
-	if err := rl.stream.Send(msg); err != nil {
+	if err := rl.GetStream().Send(msg); err != nil {
 		return err
 	}
 
@@ -246,8 +207,9 @@ func (rl *ResourceListener) drainChannel(resourceChan <-chan *pb.ListenerMessage
 // closeStream ensures stream is closed only once
 func (rl *ResourceListener) closeStream() {
 	rl.closeOnce.Do(func() {
-		if rl.stream != nil {
-			if err := rl.stream.CloseSend(); err != nil {
+		stream := rl.GetStream()
+		if stream != nil {
+			if err := stream.CloseSend(); err != nil {
 				log.Printf("Error closing resource stream: %v", err)
 			}
 		}
@@ -1096,4 +1058,3 @@ func isNodeAvailable(node *corev1.Node) bool {
 
 	return false
 }
-
