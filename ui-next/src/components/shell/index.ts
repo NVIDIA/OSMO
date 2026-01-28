@@ -1,97 +1,58 @@
-// Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
-//
-// NVIDIA CORPORATION and its licensors retain all intellectual property
-// and proprietary rights in and to this software, related documentation
-// and any modifications thereto. Any use, reproduction, disclosure or
-// distribution of this software and related documentation without an express
-// license agreement from NVIDIA CORPORATION is strictly prohibited.
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 
-/**
- * Shell Components
- *
- * Interactive shell for exec into running task containers.
- * Zero-chrome design with contextual overlays.
- *
- * Public API:
- * - ShellTerminal: Main terminal component (wraps xterm.js + WebSocket)
- * - ShellSessionIcon: Individual session icon with status
- * - StatusDot: Connection status indicator
- * - useShellSessions: React hook for session state
- * - Session cache utilities for managing connections
- *
- * Usage:
- * ```tsx
- * import { ShellTerminal } from "@/components/shell";
- *
- * <ShellTerminal
- *   taskId={task.task_uuid}
- *   workflowName="my-workflow"
- *   taskName="train-model"
- * />
- * ```
- */
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
 
-// =============================================================================
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
 // Components
-// =============================================================================
+export { ShellTerminal } from "./components/ShellTerminal";
+export { ShellSessionIcon } from "./components/ShellSessionIcon";
+export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from "./components/StatusDot";
 
-/**
- * Main terminal component - LAZY LOADED (~480KB code-split).
- * xterm.js only loads when the shell is actually rendered.
- */
-export { ShellTerminal } from "./ShellTerminal";
-
-/** Individual session icon with status indicator and context menu */
-export { ShellSessionIcon } from "./ShellSessionIcon";
-
-/** Connection status dot indicator */
-export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from "./StatusDot";
-
-// =============================================================================
 // Hooks
-// =============================================================================
+export { useShell, type UseShellOptions, type UseShellReturn } from "./hooks/use-shell";
 
-/** React hook for accessing shell session state */
-export { useShellSessions, useShellSession } from "./use-shell-sessions";
-
-// =============================================================================
-// Session Cache API
-// =============================================================================
-
+// Cache
 export {
-  // Intent management (Phase 1: what to render)
-  openShellIntent,
-  hasShellIntent,
-  getShellIntent,
-  // Connection management
-  disconnectSession,
-  disposeSession,
-  reconnectSession,
-  // Status queries
+  useShellSessions,
+  useShellSession,
+  getSession,
+  createSession,
+  updateState,
+  updateAddons,
+  updateContainer,
+  deleteSession,
+  getAllSessions,
   hasSession,
-  hasActiveConnection,
-  hadPreviousConnection,
-  getSessionStatus,
-  getSessionError,
-  // Status updates
-  updateSessionStatus,
-  // Reconnect handler registration
-  registerReconnectHandler,
-  unregisterReconnectHandler,
-} from "./shell-session-cache";
+  type CachedSession,
+} from "./lib/shell-cache";
 
-export type { ShellIntent } from "./shell-session-cache";
+// State Machine
+export {
+  transition,
+  canSendData,
+  isConnecting,
+  isReady,
+  hasTerminal,
+  hasWebSocket,
+  getDisplayStatus,
+  type ShellState,
+  type ShellEvent,
+  type TerminalAddons,
+} from "./lib/shell-state";
 
-// =============================================================================
 // Types
-// =============================================================================
+export type { ShellTerminalProps, ShellTerminalRef, ConnectionStatus } from "./lib/types";
 
-export type { ConnectionStatus as ConnectionStatusType, ShellTerminalProps, ShellTerminalRef } from "./types";
-
-export type { ShellSessionSnapshot } from "./shell-session-cache";
-
-// =============================================================================
 // Constants
-// =============================================================================
-
-export { SHELL_OPTIONS } from "./types";
+export { SHELL_OPTIONS, SHELL_CONFIG, SHELL_THEME, ANSI } from "./lib/types";
