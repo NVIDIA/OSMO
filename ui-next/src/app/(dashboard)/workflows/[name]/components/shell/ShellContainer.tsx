@@ -28,7 +28,7 @@ import { memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { TaskShell } from "../panel/task/TaskShell";
 import { useShellPortal } from "./ShellPortalContext";
-import { useShellSessions, updateSessionStatus, type ConnectionStatusType } from "@/components/shell";
+import { useShellSessions, type ConnectionStatus } from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -52,15 +52,15 @@ export const ShellContainer = memo(function ShellContainer({
   currentTaskId,
   isShellTabActive,
 }: ShellContainerProps) {
-  // Get shells from cache (unified snapshot of intents + sessions)
-  const { sessions: allShells } = useShellSessions();
+  // Get shells from cache
+  const allShells = useShellSessions();
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
 
-  // Handle status changes from TaskShell - update the session cache
-  const handleStatusChange = useCallback((taskId: string, status: ConnectionStatusType) => {
-    updateSessionStatus(taskId, status);
+  // Handle status changes from TaskShell (no-op now - status is in session state)
+  const handleStatusChange = useCallback((_taskId: string, _status: ConnectionStatus) => {
+    // Status is already tracked in session.state.phase
   }, []);
 
   // Filter shells to only include those from this workflow
@@ -75,7 +75,7 @@ export const ShellContainer = memo(function ShellContainer({
   // Determine which shell is visible (if any)
   // A shell is visible when: shell tab is active + portal target exists + shell matches current task
   const visibleShell =
-    isShellTabActive && portalTarget ? shells.find((shell) => shell.taskId === currentTaskId) : undefined;
+    isShellTabActive && portalTarget ? shells.find((shell) => shell.key === currentTaskId) : undefined;
 
   // All other shells are hidden but stay mounted to preserve terminal instances
   const hiddenShells = shells.filter((shell) => shell !== visibleShell);
@@ -88,12 +88,12 @@ export const ShellContainer = memo(function ShellContainer({
         createPortal(
           <div className="h-full w-full p-4">
             <TaskShell
-              taskId={visibleShell.taskId}
+              taskId={visibleShell.key}
               workflowName={workflowName}
               taskName={visibleShell.taskName}
               shell={visibleShell.shell}
               isVisible
-              onStatusChange={(status) => handleStatusChange(visibleShell.taskId, status)}
+              onStatusChange={(status) => handleStatusChange(visibleShell.key, status)}
             />
           </div>,
           portalTarget,
@@ -104,12 +104,12 @@ export const ShellContainer = memo(function ShellContainer({
         <div className="pointer-events-none invisible absolute -left-[9999px] size-0 overflow-hidden">
           {hiddenShells.map((shell) => (
             <TaskShell
-              key={shell.taskId}
-              taskId={shell.taskId}
+              key={shell.key}
+              taskId={shell.key}
               workflowName={workflowName}
               taskName={shell.taskName}
               shell={shell.shell}
-              onStatusChange={(status) => handleStatusChange(shell.taskId, status)}
+              onStatusChange={(status) => handleStatusChange(shell.key, status)}
             />
           ))}
         </div>
