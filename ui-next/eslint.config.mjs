@@ -53,6 +53,37 @@ const eslintConfig = defineConfig([
     },
   },
   // ============================================================================
+  // CRITICAL: Single-Use Session APIs
+  // ============================================================================
+  // Prevent direct use of generated exec/portforward hooks.
+  // These APIs generate SINGLE-USE session tokens that must never be cached.
+  // Always use adapter hooks that ensure unique mutation keys.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost",
+                "usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost",
+                "usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost",
+              ],
+              importNames: [
+                "useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost",
+                "usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost",
+                "usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost",
+              ],
+              message:
+                "CRITICAL: Do not use generated exec/portforward hooks directly. These APIs generate single-use session tokens that must never be cached. Import from '@/lib/api/adapter' instead: useExecIntoTask, usePortForwardTask, usePortForwardWebserver",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // ============================================================================
   // Feature Module Boundaries
   // ============================================================================
   // Enforce clean imports across feature boundaries.

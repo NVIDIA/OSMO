@@ -50,6 +50,11 @@ export {
   fetchResources,
   invalidateResourcesCache,
   getResourceFilterOptions,
+  // CRITICAL: Single-use session APIs (exec, portforward)
+  // These MUST be used instead of generated hooks to prevent caching
+  useExecIntoTask,
+  usePortForwardTask,
+  usePortForwardWebserver,
 } from "./hooks";
 
 // Pool filtering types (from shim - will be simplified when backend ready)
