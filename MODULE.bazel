@@ -18,6 +18,7 @@
 BASE_DISTROLESS_IMAGE_URL = "nvcr.io/nvidia/distroless/"
 
 BASE_IMAGE_URL = "nvcr.io/nvidia/osmo/"
+
 IMAGE_TAG = ""
 
 ################
@@ -224,7 +225,9 @@ use_repo(
     "com_github_gorilla_websocket",
     "com_github_jackc_pgx_v5",
     "com_github_hashicorp_golang_lru_v2",
+    "com_github_redis_go_redis_v9",
     "in_gopkg_yaml_v3",
+    "org_golang_google_protobuf",
 
     # Dependencies for building rsync for CLI distribution
     "com_github_burntsushi_toml",
@@ -235,8 +238,8 @@ use_repo(
     "org_golang_google_genproto_googleapis_rpc",
     "org_golang_google_grpc",
 
-    # For Envoy
-    "com_github_envoyproxy_go_control_plane",
+    # For Envoy (note: module is github.com/envoyproxy/go-control-plane/envoy)
+    "com_github_envoyproxy_go_control_plane_envoy",
 )
 
 ################

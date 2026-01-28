@@ -174,7 +174,7 @@ go_test(
     name = "authz_sidecar_integration_test",
     srcs = ["integration_test.go"],
     deps = [
-        "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:auth",
+        "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:auth",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//credentials/insecure:go_default_library",
         "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
@@ -202,7 +202,7 @@ go_test(
     name = "performance_comparison",
     srcs = ["performance_comparison_test.go"],
     deps = [
-        "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:auth",
+        "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:auth",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//credentials/insecure:go_default_library",
     ],
