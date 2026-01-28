@@ -14,7 +14,6 @@
 //
 //SPDX-License-Identifier: Apache-2.0
 "use client";
-import { type KeyboardEvent, useState } from "react";
 
 export interface PieSlice {
   id?: string;
@@ -80,23 +79,12 @@ export const PieChart = ({
   centerLabel,
   centerValue,
 }: PieChartProps) => {
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const normalizedSlices = slices.filter((slice) => slice.value > 0);
   const total = normalizedSlices.reduce((sum, slice) => sum + slice.value, 0);
   const radius = size / 2;
   const center = radius;
 
   let currentAngle = 0;
-
-  const handleSliceKeyDown = (event: KeyboardEvent<SVGGElement>, slice: PieSlice, index: number) => {
-    if (!onSliceSelect) {
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onSliceSelect(slice, index);
-    }
-  };
 
   return (
     <svg
@@ -110,13 +98,16 @@ export const PieChart = ({
     >
       <style>
         {`
-          .pie-slice {
-            outline: none;
-          }
           .pie-slice-path {
             transform-origin: 50% 50%;
             transform-box: view-box;
             transition: transform 120ms ease;
+          }
+          .pie-slice-path.is-clickable {
+            cursor: pointer;
+          }
+          .pie-slice-path.is-clickable:hover {
+            transform: scale(1.02);
           }
         `}
       </style>
@@ -129,84 +120,26 @@ export const PieChart = ({
         const path = describeArc(center, center, radius, startAngle, endAngle, innerRadius);
         const percent = (slice.value / total) * 100;
         const ariaSliceLabel = defaultAriaLabel(slice, percent);
-        const midAngle = (startAngle + endAngle) / 2;
-        const focusOffset = 4;
-        const midAngleRadians = ((midAngle - 90) * Math.PI) / 180;
-        const focusTranslateX = -Math.cos(midAngleRadians) * focusOffset;
-        const focusTranslateY = -Math.sin(midAngleRadians) * focusOffset;
-        const isFocused = focusedIndex === index;
-        const focusTransform = isFocused
-          ? `translate(${focusTranslateX}px, ${focusTranslateY}px) scale(1.08)`
-          : undefined;
 
         return (
           <g
             key={slice.id ?? `${slice.label}-${index}`}
-            className="pie-slice"
-            role="button"
-            tabIndex={0}
+            role="listitem"
             aria-label={ariaSliceLabel}
             onClick={() => onSliceSelect?.(slice, index)}
-            onKeyDown={(event) => handleSliceKeyDown(event, slice, index)}
-            onFocus={() => setFocusedIndex(index)}
-            onBlur={() => setFocusedIndex((prev) => (prev === index ? null : prev))}
           >
             <path
               d={path}
               fill={slice.color ?? "black"}
-              className="pie-slice-path"
+              className={`pie-slice-path${onSliceSelect ? " is-clickable" : ""}`}
               stroke="white"
               strokeWidth={1}
-              style={focusTransform ? { transform: focusTransform } : undefined}
             >
               <title>{ariaSliceLabel}</title>
             </path>
           </g>
         );
       })}
-      {focusedIndex !== null &&
-        normalizedSlices[focusedIndex] &&
-        (() => {
-          let angle = 0;
-          for (let i = 0; i < focusedIndex; i += 1) {
-            const sliceAtIndex = normalizedSlices[i];
-            if (!sliceAtIndex) {
-              continue;
-            }
-            angle += (sliceAtIndex.value / total) * 360;
-          }
-          const slice = normalizedSlices[focusedIndex];
-          const sliceAngle = (slice.value / total) * 360;
-          const startAngle = angle;
-          const endAngle = angle + sliceAngle;
-          const focusOffset = 4;
-          const focusInnerThickness = innerRadius / 10;
-          const focusOuterThickness = -innerRadius / 10;
-          const midAngle = (startAngle + endAngle) / 2;
-          const midAngleRadians = ((midAngle - 90) * Math.PI) / 180;
-          const focusTranslateX = -Math.cos(midAngleRadians) * focusOffset;
-          const focusTranslateY = -Math.sin(midAngleRadians) * focusOffset;
-          const focusedOuterRadius = radius + focusOuterThickness;
-          const focusedInnerRadius = Math.max(0, innerRadius - focusInnerThickness);
-          const path = describeArc(center, center, focusedOuterRadius, startAngle, endAngle, focusedInnerRadius);
-
-          return (
-            <g
-              className="pie-slice"
-              aria-hidden="true"
-              style={{ pointerEvents: "none" }}
-            >
-              <path
-                d={path}
-                fill={slice.color ?? "black"}
-                className="pie-slice-path"
-                stroke="white"
-                strokeWidth={1}
-                style={{ transform: `translate(${focusTranslateX}px, ${focusTranslateY}px) scale(1.08)` }}
-              />
-            </g>
-          );
-        })()}
       {innerRadius > 0 && (centerValue ?? centerLabel) && (
         <g aria-hidden="true">
           {centerValue !== undefined && centerValue !== null && (
