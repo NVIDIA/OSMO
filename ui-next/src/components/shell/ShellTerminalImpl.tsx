@@ -134,6 +134,11 @@ export const ShellTerminal = memo(
     // Track if we've written the disconnect message to avoid duplicates
     const hasWrittenDisconnectRef = useRef(false);
 
+    // Track if backend is ready (has sent first message)
+    const backendReadyRef = useRef(false);
+    // Buffer resize to send once backend is ready
+    const pendingResizeRef = useRef<{ rows: number; cols: number } | null>(null);
+
     // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
     const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
     const resizeRef = useRef<(rows: number, cols: number) => void>(() => {});
@@ -182,21 +187,44 @@ export const ShellTerminal = memo(
       onData: (data) => {
         // Write received data to shell
         write(data);
+
+        // First message from backend signals that copy_data tasks are running
+        // and it's safe to send buffered resize
+        if (!backendReadyRef.current) {
+          backendReadyRef.current = true;
+
+          // Send buffered resize if we have one
+          if (pendingResizeRef.current) {
+            const { rows, cols } = pendingResizeRef.current;
+            resize(rows, cols);
+            pendingResizeRef.current = null;
+          }
+        }
       },
       onStatusChange: (newStatus) => {
         updateSessionStatus(sessionKey, newStatus);
         onStatusChange?.(newStatus);
 
-        // Reset disconnect message flag when connecting
+        // Reset flags when connecting
         if (newStatus === "connecting" || newStatus === "connected") {
           hasWrittenDisconnectRef.current = false;
+          backendReadyRef.current = false;
+          pendingResizeRef.current = null;
         }
       },
       onConnected: () => {
-        // Send initial shell size
+        // Buffer resize to send once we receive first message from backend
+        // The first message (PTY prompt) signals that the router's bidirectional
+        // copy_data tasks are established and data can flow safely
         const dims = getDimensions();
         if (dims) {
-          resize(dims.rows, dims.cols);
+          if (backendReadyRef.current) {
+            // Backend already sent data (reconnection case) - send immediately
+            resize(dims.rows, dims.cols);
+          } else {
+            // Buffer resize until first message arrives
+            pendingResizeRef.current = { rows: dims.rows, cols: dims.cols };
+          }
         }
         focus();
         announce("Shell connected", "polite");
