@@ -14,7 +14,16 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import { memo, forwardRef, useImperativeHandle, useState, useEffect, useCallback, useDeferredValue } from "react";
+import {
+  memo,
+  forwardRef,
+  useImperativeHandle,
+  useState,
+  useEffect,
+  useCallback,
+  useDeferredValue,
+  useRef,
+} from "react";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
 
@@ -66,14 +75,14 @@ export const ShellTerminalImpl = memo(
     const announce = useAnnouncer();
     const { copy } = useCopy();
 
-    const shellHook = useShell({
-      sessionKey: taskId,
-      workflowName,
-      taskName,
-      shell,
-    });
+    const { containerRef, state, connect, disconnect, focus, fit, write, findNext, findPrevious, clearSearch } =
+      useShell({
+        sessionKey: taskId,
+        workflowName,
+        taskName,
+        shell,
+      });
 
-    const [hasWrittenDisconnect, setHasWrittenDisconnect] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -81,54 +90,58 @@ export const ShellTerminalImpl = memo(
     const [regex, setRegex] = useState(false);
     const [searchResults, setSearchResults] = useState<{ resultIndex: number; resultCount: number } | null>(null);
     const deferredSearchQuery = useDeferredValue(searchQuery);
+    const hasAutoConnectedRef = useRef(false);
+    const prevPhaseRef = useRef<string>(state.phase);
 
     useImperativeHandle(ref, () => ({
-      connect: shellHook.connect,
-      disconnect: shellHook.disconnect,
-      focus: shellHook.focus,
-      fit: shellHook.fit,
-      write: shellHook.write,
+      connect,
+      disconnect,
+      focus,
+      fit,
+      write,
     }));
 
     useEffect(() => {
-      onStatusChange?.(shellHook.state.phase);
-    }, [shellHook.state, onStatusChange]);
+      onStatusChange?.(state.phase);
+    }, [state.phase, onStatusChange]);
 
     useEffect(() => {
-      if (shellHook.state.phase === "ready") {
+      const prevPhase = prevPhaseRef.current;
+      prevPhaseRef.current = state.phase;
+
+      if (state.phase === "ready") {
         onConnected?.();
         announce("Shell connected", "polite");
-      } else if (shellHook.state.phase === "disconnected") {
-        // Write disconnect message to terminal
-        if (!hasWrittenDisconnect) {
-          const isError = !!shellHook.state.reason?.includes("error");
-          shellHook.write(getDisconnectMessage(isError, shellHook.state.reason));
-          setHasWrittenDisconnect(true);
+      } else if (state.phase === "disconnected") {
+        // Write disconnect message to terminal only on transition TO disconnected
+        if (prevPhase !== "disconnected") {
+          const isError = !!state.reason?.includes("error");
+          write(getDisconnectMessage(isError, state.reason));
         }
         onDisconnected?.();
         announce("Shell disconnected", "polite");
-      } else if (shellHook.state.phase === "error") {
-        onError?.(new Error(shellHook.state.error));
-        announce(`Shell error: ${shellHook.state.error}`, "assertive");
+      } else if (state.phase === "error") {
+        onError?.(new Error(state.error));
+        announce(`Shell error: ${state.error}`, "assertive");
       }
-    }, [shellHook.state, onConnected, onDisconnected, onError, announce, shellHook, hasWrittenDisconnect]);
+    }, [state, onConnected, onDisconnected, onError, announce, write]);
 
     const handleFindNext = () => {
       if (deferredSearchQuery) {
-        shellHook.findNext(deferredSearchQuery, { caseSensitive, wholeWord, regex });
+        findNext(deferredSearchQuery, { caseSensitive, wholeWord, regex });
       }
     };
 
     const handleFindPrevious = () => {
       if (deferredSearchQuery) {
-        shellHook.findPrevious(deferredSearchQuery, { caseSensitive, wholeWord, regex });
+        findPrevious(deferredSearchQuery, { caseSensitive, wholeWord, regex });
       }
     };
 
     const handleCloseSearch = useCallback(() => {
       setIsSearchOpen(false);
-      shellHook.clearSearch();
-    }, [shellHook]);
+      clearSearch();
+    }, [clearSearch]);
 
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -140,9 +153,9 @@ export const ShellTerminalImpl = memo(
 
         // Cmd/Ctrl+C: Copy selection
         if ((e.metaKey || e.ctrlKey) && e.key === "c") {
-          if (shellHook.state.phase === "ready" && shellHook.state.terminal.hasSelection()) {
+          if (state.phase === "ready" && state.terminal.hasSelection()) {
             e.preventDefault();
-            const text = shellHook.state.terminal.getSelection();
+            const text = state.terminal.getSelection();
             copy(text).catch(console.error);
           }
         }
@@ -155,7 +168,7 @@ export const ShellTerminalImpl = memo(
 
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [shellHook.state, isSearchOpen, copy, handleCloseSearch]);
+    }, [state, isSearchOpen, copy, handleCloseSearch]);
 
     useEffect(() => {
       const session = getSession(taskId);
@@ -176,17 +189,16 @@ export const ShellTerminalImpl = memo(
     }, [taskId]);
 
     useEffect(() => {
-      if (shellHook.state.phase === "idle") {
-        shellHook.connect();
+      // Auto-connect on mount if idle (using ref to ensure it only happens once)
+      // Note: In React StrictMode (dev), this runs twice. The second call is rejected
+      // by the state machine (can't connect while connecting), which is expected.
+      if (!hasAutoConnectedRef.current && state.phase === "idle") {
+        hasAutoConnectedRef.current = true;
+        connect();
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [state.phase, connect]);
 
-    if (
-      shellHook.state.phase === "connecting" ||
-      shellHook.state.phase === "opening" ||
-      shellHook.state.phase === "initializing"
-    ) {
+    if (state.phase === "connecting" || state.phase === "opening" || state.phase === "initializing") {
       return (
         <div className={cn("shell-wrapper", className)}>
           <ShellConnecting />
@@ -194,18 +206,15 @@ export const ShellTerminalImpl = memo(
       );
     }
 
-    if (shellHook.state.phase === "error") {
+    if (state.phase === "error") {
       return (
         <div className={cn("shell-wrapper", className)}>
           <div className="shell-error">
             <div className="text-destructive font-semibold">Shell Error</div>
-            <div className="text-muted-foreground text-sm">{shellHook.state.error}</div>
+            <div className="text-muted-foreground text-sm">{state.error}</div>
             <button
               className="btn btn-secondary mt-4"
-              onClick={() => {
-                setHasWrittenDisconnect(false);
-                shellHook.connect();
-              }}
+              onClick={connect}
             >
               Reconnect
             </button>
@@ -218,11 +227,11 @@ export const ShellTerminalImpl = memo(
       <div className={cn("shell-wrapper", className)}>
         <div className="shell-body-wrapper">
           <div
-            ref={shellHook.containerRef}
+            ref={containerRef}
             className="shell-body"
           />
 
-          {isSearchOpen && shellHook.state.phase === "ready" && (
+          {isSearchOpen && state.phase === "ready" && (
             <ShellSearch
               query={deferredSearchQuery}
               onQueryChange={setSearchQuery}
@@ -240,14 +249,11 @@ export const ShellTerminalImpl = memo(
           )}
         </div>
 
-        {shellHook.state.phase === "disconnected" && (
+        {state.phase === "disconnected" && (
           <div className="shell-disconnected-actions">
             <button
               className="btn btn-primary"
-              onClick={() => {
-                setHasWrittenDisconnect(false);
-                shellHook.connect();
-              }}
+              onClick={connect}
             >
               Reconnect
             </button>
