@@ -18,15 +18,14 @@
 
 import { memo, useMemo } from "react";
 import type { TaskQueryResponse } from "../../../lib/workflow-types";
-import { getStatusCategory } from "../../../lib/status";
+import { Timeline, type TimelinePhase } from "../shared/Timeline";
 import {
-  Timeline,
-  type TimelinePhase,
+  useTimelineSetup,
+  parseCommonTimestamps,
+  buildPreExecutionPhases,
+  buildTerminalPhase,
   parseTime,
-  createPhaseDurationCalculator,
-  finalizeTimelinePhases,
-} from "../shared/Timeline";
-import { useTick } from "@/hooks";
+} from "../../../lib/timeline-utils";
 
 interface TaskTimelineProps {
   task: TaskQueryResponse;
@@ -35,64 +34,26 @@ interface TaskTimelineProps {
 }
 
 export const TaskTimeline = memo(function TaskTimeline({ task, showHeader, headerText }: TaskTimelineProps) {
-  const statusCategory = getStatusCategory(task.status);
-  const isCompleted = statusCategory === "completed";
-  const isFailed = statusCategory === "failed";
-  const isRunning = statusCategory === "running";
-  const isPending = statusCategory === "waiting";
+  // Set up common timeline context
+  const ctx = useTimelineSetup(task.status);
+  const { isRunning, isCompleted, isFailed, isPending, calculatePhaseDuration, finalizePhases } = ctx;
 
-  const now = useTick();
-  const calculatePhaseDuration = createPhaseDurationCalculator(now);
+  // Parse common timestamps
+  const timestamps = parseCommonTimestamps(task);
+  const { executionStart, endTime } = timestamps;
 
-  // Timestamps follow backend canonical order (see objects.py):
-  // processing_start_time comes from GROUP (all tasks share it)
-  const processingStart = parseTime(task.processing_start_time);
-  const schedulingStart = parseTime(task.scheduling_start_time);
-  const initializingStart = parseTime(task.initializing_start_time);
-  const executionStart = parseTime(task.start_time); // When RUNNING status begins
+  // Parse task-specific timestamps
   const inputDownloadStart = parseTime(task.input_download_start_time);
   const inputDownloadEnd = parseTime(task.input_download_end_time);
   const outputUploadStart = parseTime(task.output_upload_start_time);
-  const endTime = parseTime(task.end_time);
 
   const phases = useMemo<TimelinePhase[]>(() => {
-    const result: TimelinePhase[] = [];
+    // Build pre-execution phases (processing, scheduling, initializing)
+    const result = buildPreExecutionPhases(timestamps, ctx);
 
-    if (processingStart) {
-      const procEnd = schedulingStart || initializingStart || executionStart;
-      result.push({
-        id: "processing",
-        label: "Processing",
-        time: processingStart,
-        duration: calculatePhaseDuration(processingStart, procEnd),
-        status: procEnd ? "completed" : "active",
-      });
-    }
-
-    if (schedulingStart) {
-      const schedEnd = initializingStart || executionStart;
-      result.push({
-        id: "scheduling",
-        label: "Scheduling",
-        time: schedulingStart,
-        duration: calculatePhaseDuration(schedulingStart, schedEnd),
-        status: schedEnd ? "completed" : "active",
-      });
-    }
-
-    if (initializingStart) {
-      const initEnd = executionStart;
-      const initActive = !initEnd && isRunning;
-      result.push({
-        id: "initializing",
-        label: "Initializing",
-        time: initializingStart,
-        duration: calculatePhaseDuration(initializingStart, initEnd),
-        status: initActive ? "active" : initEnd ? "completed" : "pending",
-      });
-    }
-
+    // Build task-specific execution phases (input download, executing, output upload)
     if (executionStart) {
+      // Input download phase (optional)
       if (inputDownloadStart) {
         const dlEnd = inputDownloadEnd || outputUploadStart || endTime;
         const dlActive = isRunning && !dlEnd;
@@ -105,71 +66,52 @@ export const TaskTimeline = memo(function TaskTimeline({ task, showHeader, heade
         });
       }
 
+      // Executing phase
       const execStart = inputDownloadEnd || executionStart;
       const execEnd = outputUploadStart || endTime;
       const execActive = isRunning && !execEnd;
 
-      if (!inputDownloadStart) {
-        result.push({
-          id: "executing",
-          label: "Executing",
-          time: executionStart,
-          duration: calculatePhaseDuration(executionStart, execEnd),
-          status: execActive ? "active" : execEnd ? "completed" : "pending",
-        });
-      } else {
-        result.push({
-          id: "executing",
-          label: "Executing",
-          time: execStart,
-          duration: calculatePhaseDuration(execStart, execEnd),
-          status: execActive ? "active" : execEnd ? "completed" : "pending",
-        });
-      }
+      result.push({
+        id: "executing",
+        label: "Executing",
+        time: inputDownloadStart ? execStart : executionStart,
+        duration: calculatePhaseDuration(inputDownloadStart ? execStart : executionStart, execEnd),
+        status: execActive ? "active" : execEnd ? "completed" : "pending",
+      });
 
+      // Output upload phase (optional)
       if (outputUploadStart) {
-        const uploadEnd = endTime;
-        const uploadActive = isRunning && !uploadEnd;
+        const uploadActive = isRunning && !endTime;
         result.push({
           id: "output-upload",
           label: "Output Upload",
           time: outputUploadStart,
-          duration: calculatePhaseDuration(outputUploadStart, uploadEnd),
-          status: uploadActive ? "active" : uploadEnd ? "completed" : "pending",
+          duration: calculatePhaseDuration(outputUploadStart, endTime),
+          status: uploadActive ? "active" : endTime ? "completed" : "pending",
         });
       }
     }
 
-    if ((isCompleted || isFailed) && endTime) {
-      result.push({
-        id: isFailed ? "failed" : "done",
-        label: isFailed ? "Failed" : "Done",
-        time: endTime,
-        duration: null,
-        status: isFailed ? "failed" : "completed",
-      });
+    // Build terminal phase (done or failed)
+    const terminalPhase = buildTerminalPhase(endTime, { isCompleted, isFailed });
+    if (terminalPhase) {
+      result.push(terminalPhase);
     }
 
-    return finalizeTimelinePhases(result, {
-      calculatePhaseDuration,
-      endTime,
-      isRunning,
-      isCompleted,
-      isFailed,
-    });
+    return finalizePhases(result, endTime);
   }, [
-    processingStart,
-    schedulingStart,
-    initializingStart,
+    timestamps,
+    ctx,
     executionStart,
+    endTime,
     inputDownloadStart,
     inputDownloadEnd,
     outputUploadStart,
-    endTime,
     isRunning,
     isCompleted,
     isFailed,
     calculatePhaseDuration,
+    finalizePhases,
   ]);
 
   return (

@@ -18,74 +18,32 @@
 
 import { memo, useMemo } from "react";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
-import { getStatusCategory } from "../../../lib/status";
+import { Timeline, type TimelinePhase } from "../shared/Timeline";
 import {
-  Timeline,
-  type TimelinePhase,
-  parseTime,
-  createPhaseDurationCalculator,
-  finalizeTimelinePhases,
-} from "../shared/Timeline";
-import { useTick } from "@/hooks";
+  useTimelineSetup,
+  parseCommonTimestamps,
+  buildPreExecutionPhases,
+  buildTerminalPhase,
+} from "../../../lib/timeline-utils";
 
 interface GroupTimelineProps {
   group: GroupWithLayout;
 }
 
 export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelineProps) {
-  const statusCategory = getStatusCategory(group.status);
-  const isCompleted = statusCategory === "completed";
-  const isFailed = statusCategory === "failed";
-  const isRunning = statusCategory === "running";
-  const isPending = statusCategory === "waiting";
+  // Set up common timeline context
+  const ctx = useTimelineSetup(group.status);
+  const { isRunning, isCompleted, isFailed, isPending, calculatePhaseDuration, finalizePhases } = ctx;
 
-  const now = useTick();
-  const calculatePhaseDuration = createPhaseDurationCalculator(now);
-
-  // Timestamps follow backend canonical order (see objects.py)
-  const processingStart = parseTime(group.processing_start_time);
-  const schedulingStart = parseTime(group.scheduling_start_time);
-  const initializingStart = parseTime(group.initializing_start_time);
-  const executionStart = parseTime(group.start_time);
-  const endTime = parseTime(group.end_time);
+  // Parse timestamps (common to groups and tasks)
+  const timestamps = parseCommonTimestamps(group);
+  const { executionStart, endTime } = timestamps;
 
   const phases = useMemo<TimelinePhase[]>(() => {
-    const result: TimelinePhase[] = [];
+    // Build pre-execution phases (processing, scheduling, initializing)
+    const result = buildPreExecutionPhases(timestamps, ctx);
 
-    if (processingStart) {
-      const procEnd = schedulingStart || initializingStart || executionStart;
-      result.push({
-        id: "processing",
-        label: "Processing",
-        time: processingStart,
-        duration: calculatePhaseDuration(processingStart, procEnd),
-        status: procEnd ? "completed" : "active",
-      });
-    }
-
-    if (schedulingStart) {
-      const schedEnd = initializingStart || executionStart;
-      result.push({
-        id: "scheduling",
-        label: "Scheduling",
-        time: schedulingStart,
-        duration: calculatePhaseDuration(schedulingStart, schedEnd),
-        status: schedEnd ? "completed" : "active",
-      });
-    }
-
-    if (initializingStart) {
-      const initEnd = executionStart;
-      const initActive = !initEnd && isRunning;
-      result.push({
-        id: "initializing",
-        label: "Initializing",
-        time: initializingStart,
-        duration: calculatePhaseDuration(initializingStart, initEnd),
-        status: initActive ? "active" : initEnd ? "completed" : "pending",
-      });
-    }
-
+    // Build group-specific executing phase
     if (executionStart) {
       const isActive = isRunning && !endTime;
       result.push({
@@ -97,33 +55,23 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    if ((isCompleted || isFailed) && endTime) {
-      result.push({
-        id: isFailed ? "failed" : "done",
-        label: isFailed ? "Failed" : "Done",
-        time: endTime,
-        duration: null,
-        status: isFailed ? "failed" : "completed",
-      });
+    // Build terminal phase (done or failed)
+    const terminalPhase = buildTerminalPhase(endTime, { isCompleted, isFailed });
+    if (terminalPhase) {
+      result.push(terminalPhase);
     }
 
-    return finalizeTimelinePhases(result, {
-      calculatePhaseDuration,
-      endTime,
-      isRunning,
-      isCompleted,
-      isFailed,
-    });
+    return finalizePhases(result, endTime);
   }, [
-    processingStart,
-    schedulingStart,
-    initializingStart,
+    timestamps,
+    ctx,
     executionStart,
     endTime,
     isRunning,
     isCompleted,
     isFailed,
     calculatePhaseDuration,
+    finalizePhases,
   ]);
 
   return (
