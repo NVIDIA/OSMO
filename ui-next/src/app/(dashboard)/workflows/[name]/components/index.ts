@@ -55,3 +55,13 @@ export {
 // NOTE: ShellContainer is NOT exported here - it's dynamically imported in workflow-detail-inner
 // to keep xterm.js out of the main bundle
 export { ShellPortalProvider, ShellProvider, useShellPortal, useShellContext, type ShellContainerProps } from "./shell";
+
+// View toggle component
+export { WorkflowViewToggle } from "./WorkflowViewToggle";
+
+// Table components
+export { WorkflowTasksTable, type WorkflowTasksTableProps } from "./table";
+
+// View containers
+export { WorkflowDAGView, type WorkflowDAGViewProps } from "./WorkflowDAGView";
+export { WorkflowTableView, type WorkflowTableViewProps } from "./WorkflowTableView";

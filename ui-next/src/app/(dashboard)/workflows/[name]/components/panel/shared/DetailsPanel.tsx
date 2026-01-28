@@ -308,6 +308,9 @@ export const DetailsPanel = memo(function DetailsPanel({
   setSelectedTab,
   selectedWorkflowTab,
   setSelectedWorkflowTab,
+  minWidth,
+  maxWidth,
+  className,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell } = useShellContext();
@@ -450,13 +453,15 @@ export const DetailsPanel = memo(function DetailsPanel({
     <SidePanel
       width={panelPct}
       onWidthChange={onPanelResize}
+      minWidth={minWidth}
+      maxWidth={maxWidth}
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}
       toggleHotkey={toggleHotkey}
       edgeContent={edgeContent}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}
-      className="dag-details-panel"
+      className={cn("dag-details-panel", className)}
       containerRef={containerRef}
       onDraggingChange={onDraggingChange}
       focusTargetRef={focusTargetRef}
