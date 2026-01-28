@@ -32,11 +32,6 @@ export interface CachedSession {
   container: HTMLElement | null;
 }
 
-/** Legacy compatibility: adds 'status' field mapped from state.phase */
-export type ShellSessionSnapshot = CachedSession & {
-  status: "mounting" | "idle" | "connecting" | "connected" | "disconnected" | "error";
-};
-
 const cache = new Map<string, CachedSession>();
 const listeners = new Set<() => void>();
 
