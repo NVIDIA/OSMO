@@ -365,6 +365,15 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       const { terminal, addons } = createTerminal(currentSession.container);
       _updateSession(sessionKey, { addons });
 
+      // Connect terminal input to WebSocket output
+      terminal.onData((data) => {
+        const session = _getSession(sessionKey);
+        if (!session || !hasWebSocket(session.state) || session.state.ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        session.state.ws.send(sharedEncoder.encode(data));
+      });
+
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const routerAddress = response.router_address.replace(/^https?:/, wsProtocol);
       const wsUrl = `${routerAddress}/api/router/exec/${workflowNameRef.current}/client/${response.key}`;
