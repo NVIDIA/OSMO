@@ -58,8 +58,8 @@ func (nst *NodeStateTracker) HasChanged(hostname string, body *pb.UpdateNodeBody
 		return true
 	}
 
-	// Check TTL
-	if time.Since(entry.timestamp) > nst.ttl {
+	// Check TTL (skip if ttl is 0, meaning TTL is disabled)
+	if nst.ttl > 0 && time.Since(entry.timestamp) > nst.ttl {
 		return true
 	}
 
@@ -159,7 +159,7 @@ type ResourceTotals struct {
 
 // PodContribution tracks individual pod contributions
 type PodContribution struct {
-	ResourceTotals        // embedded struct
+	ResourceTotals // embedded struct
 	NodeName       string
 	Namespace      string
 }

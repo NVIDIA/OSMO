@@ -19,7 +19,6 @@ package utils
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -65,13 +64,8 @@ func BuildResourceBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
 		}
 	}
 
-	// Build label fields (filter out feature.node.kubernetes.io prefixed keys)
-	labelFields := make(map[string]string)
-	for key, value := range node.Labels {
-		if !strings.HasPrefix(key, "feature.node.kubernetes.io") {
-			labelFields[key] = value
-		}
-	}
+	// Build label fields
+	labelFields := node.Labels
 
 	// Build taints
 	var taints []*pb.Taint

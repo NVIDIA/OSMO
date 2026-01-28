@@ -21,6 +21,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_test")
 exports_files([
     "test_calculate_pod_status_cases.json",
     "test_resource_usage_cases.json",
+    "test_node_helpers_cases.json",
 ])
 
 py_test(
@@ -55,6 +56,7 @@ py_test(
 go_test(
     name = "node_helpers_test",
     srcs = ["node_helpers_test.go"],
+    data = ["test_node_helpers_cases.json"],
     deps = [
         "//src/operator/utils",
         "//src/proto/operator:operator_go_proto",

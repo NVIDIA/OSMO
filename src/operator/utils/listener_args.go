@@ -38,7 +38,6 @@ type ListenerArgs struct {
 	ProgressFrequencySec  int
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
 	ReconcileIntervalMin  int // Interval for full reconciliation (ResourceListener)
-	NodeEventQueueSize    int // Buffer size for node event queue (ResourceListener)
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -79,9 +78,6 @@ func ListenerParse() ListenerArgs {
 	reconcileIntervalMin := flag.Int("reconcileIntervalMin",
 		getEnvInt("RECONCILE_INTERVAL_MIN", 5),
 		"Interval for full reconciliation in minutes (ResourceListener)")
-	nodeEventQueueSize := flag.Int("nodeEventQueueSize",
-		getEnvInt("NODE_EVENT_QUEUE_SIZE", 100),
-		"Buffer size for node event queue (ResourceListener)")
 
 	flag.Parse()
 
@@ -98,7 +94,6 @@ func ListenerParse() ListenerArgs {
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
 		ReconcileIntervalMin:  *reconcileIntervalMin,
-		NodeEventQueueSize:    *nodeEventQueueSize,
 	}
 }
 

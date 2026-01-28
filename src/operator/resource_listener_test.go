@@ -298,9 +298,9 @@ func TestBuildResourceBody_AllocatableFields(t *testing.T) {
 				},
 			},
 			Allocatable: corev1.ResourceList{
-				corev1.ResourceCPU:                     resource.MustParse("16"),
-				corev1.ResourceMemory:                  resource.MustParse("64Gi"),
-				corev1.ResourceEphemeralStorage:        resource.MustParse("500Gi"),
+				corev1.ResourceCPU:                    resource.MustParse("16"),
+				corev1.ResourceMemory:                 resource.MustParse("64Gi"),
+				corev1.ResourceEphemeralStorage:       resource.MustParse("500Gi"),
 				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("8"),
 			},
 		},
@@ -500,8 +500,8 @@ func TestIsNodeAvailable(t *testing.T) {
 
 func TestResourceBodiesEqual(t *testing.T) {
 	body1 := &pb.UpdateNodeBody{
-		Hostname:  "node-1",
-		Available: true,
+		Hostname:   "node-1",
+		Available:  true,
 		Conditions: []string{"Ready"},
 		AllocatableFields: map[string]string{
 			"cpu":    "8000",
@@ -513,8 +513,8 @@ func TestResourceBodiesEqual(t *testing.T) {
 	}
 
 	body2 := &pb.UpdateNodeBody{
-		Hostname:  "node-1",
-		Available: true,
+		Hostname:   "node-1",
+		Available:  true,
 		Conditions: []string{"Ready"},
 		AllocatableFields: map[string]string{
 			"cpu":    "8000",
@@ -526,8 +526,8 @@ func TestResourceBodiesEqual(t *testing.T) {
 	}
 
 	body3 := &pb.UpdateNodeBody{
-		Hostname:  "node-1",
-		Available: false, // Different
+		Hostname:   "node-1",
+		Available:  false, // Different
 		Conditions: []string{"Ready"},
 		AllocatableFields: map[string]string{
 			"cpu":    "8000",
@@ -782,7 +782,6 @@ func TestNewResourceListener(t *testing.T) {
 		ProgressFrequencySec:  15,
 		UsageFlushIntervalSec: 5,
 		ReconcileIntervalMin:  10,
-		NodeEventQueueSize:    100,
 	}
 
 	listener := NewResourceListener(args)
@@ -836,9 +835,9 @@ func BenchmarkBuildResourceBody(b *testing.B) {
 				},
 			},
 			Allocatable: corev1.ResourceList{
-				corev1.ResourceCPU:                     resource.MustParse("16"),
-				corev1.ResourceMemory:                  resource.MustParse("64Gi"),
-				corev1.ResourceEphemeralStorage:        resource.MustParse("500Gi"),
+				corev1.ResourceCPU:                    resource.MustParse("16"),
+				corev1.ResourceMemory:                 resource.MustParse("64Gi"),
+				corev1.ResourceEphemeralStorage:       resource.MustParse("500Gi"),
 				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("8"),
 			},
 		},
