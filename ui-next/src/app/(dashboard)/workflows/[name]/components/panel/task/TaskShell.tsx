@@ -53,7 +53,7 @@ import {
   type ShellTerminalRef,
   type ConnectionStatus,
   hasSession,
-  getSession,
+  useShellSession,
 } from "@/components/shell";
 
 // =============================================================================
@@ -278,7 +278,7 @@ export const TaskShell = memo(function TaskShell({
 
   // Check if this is a fresh session or returning to an existing one
   const sessionExists = hasSession(sessionKey);
-  const cachedSession = getSession(sessionKey);
+  const cachedSession = useShellSession(sessionKey);
   const cachedStatus = cachedSession?.state.phase;
   const cachedError =
     cachedSession?.state.phase === "error"
@@ -304,13 +304,12 @@ export const TaskShell = memo(function TaskShell({
   // useState initializer only runs on first mount, so we need this effect
   useEffect(() => {
     const exists = hasSession(sessionKey);
-    const session = getSession(sessionKey);
-    const cached = session?.state.phase;
+    const cached = cachedSession?.state.phase;
     const cachedErr =
-      session?.state.phase === "error"
-        ? session.state.error
-        : session?.state.phase === "disconnected"
-          ? session.state.reason
+      cachedSession?.state.phase === "error"
+        ? cachedSession.state.error
+        : cachedSession?.state.phase === "disconnected"
+          ? cachedSession.state.reason
           : null;
 
     startTransition(() => {
@@ -322,7 +321,7 @@ export const TaskShell = memo(function TaskShell({
         setLastError(null);
       }
     });
-  }, [sessionKey]);
+  }, [sessionKey, cachedSession]);
 
   // Determine UI state - always show disconnected bar when disconnected/error
   // User must explicitly click "Remove" in context menu to remove session

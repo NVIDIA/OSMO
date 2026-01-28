@@ -28,7 +28,8 @@ import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
 
 import { useShell } from "../hooks/use-shell";
-import { getSession } from "../lib/shell-cache";
+import { getDisplayStatus } from "../lib/shell-state";
+import { useShellSession } from "../lib/shell-cache";
 import { ShellConnecting } from "./ShellConnecting";
 import { ShellSearch } from "./ShellSearch";
 import { ANSI } from "../lib/types";
@@ -81,6 +82,7 @@ export const ShellTerminalImpl = memo(
         workflowName,
         taskName,
         shell,
+        autoConnect: true,
       });
 
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -90,8 +92,8 @@ export const ShellTerminalImpl = memo(
     const [regex, setRegex] = useState(false);
     const [searchResults, setSearchResults] = useState<{ resultIndex: number; resultCount: number } | null>(null);
     const deferredSearchQuery = useDeferredValue(searchQuery);
-    const hasAutoConnectedRef = useRef(false);
     const prevPhaseRef = useRef<string>(state.phase);
+    const session = useShellSession(taskId);
 
     useImperativeHandle(ref, () => ({
       connect,
@@ -171,66 +173,70 @@ export const ShellTerminalImpl = memo(
     }, [state, isSearchOpen, copy, handleCloseSearch]);
 
     useEffect(() => {
-      const session = getSession(taskId);
       if (!session?.addons) return;
 
-      const disposable = session.addons.searchAddon.onDidChangeResults((results) => {
-        if (results) {
-          setSearchResults({
-            resultIndex: results.resultIndex,
-            resultCount: results.resultCount,
-          });
-        } else {
-          setSearchResults(null);
-        }
-      });
+      const disposable = session.addons.searchAddon.onDidChangeResults(
+        (results: { resultIndex: number; resultCount: number } | null) => {
+          if (results) {
+            setSearchResults({
+              resultIndex: results.resultIndex,
+              resultCount: results.resultCount,
+            });
+          } else {
+            setSearchResults(null);
+          }
+        },
+      );
 
       return () => disposable.dispose();
-    }, [taskId]);
+    }, [session?.addons]);
 
-    useEffect(() => {
-      // Auto-connect on mount if idle (using ref to ensure it only happens once)
-      // Note: In React StrictMode (dev), this runs twice. The second call is rejected
-      // by the state machine (can't connect while connecting), which is expected.
-      if (!hasAutoConnectedRef.current && state.phase === "idle") {
-        hasAutoConnectedRef.current = true;
-        connect();
-      }
-    }, [state.phase, connect]);
+    const isIdle = state.phase === "idle";
+    const isConnecting = state.phase === "connecting" || state.phase === "opening" || state.phase === "initializing";
+    const isError = state.phase === "error";
+    const displayStatus = getDisplayStatus(state);
 
-    if (state.phase === "connecting" || state.phase === "opening" || state.phase === "initializing") {
-      return (
-        <div className={cn("shell-wrapper", className)}>
-          <ShellConnecting />
-        </div>
-      );
-    }
-
-    if (state.phase === "error") {
-      return (
-        <div className={cn("shell-wrapper", className)}>
-          <div className="shell-error">
-            <div className="text-destructive font-semibold">Shell Error</div>
-            <div className="text-muted-foreground text-sm">{state.error}</div>
-            <button
-              className="btn btn-secondary mt-4"
-              onClick={connect}
-            >
-              Reconnect
-            </button>
-          </div>
-        </div>
-      );
-    }
+    // Show overlays for non-ready states
+    const showOverlay = isIdle || isConnecting || isError;
 
     return (
       <div className={cn("shell-wrapper", className)}>
+        {/* Always render container visible so xterm.js can measure dimensions */}
         <div className="shell-body-wrapper">
           <div
             ref={containerRef}
             className="shell-body"
           />
 
+          {/* Overlay for non-ready states */}
+          {showOverlay && (
+            <div className="shell-overlay">
+              {isIdle && (
+                <div className="shell-connecting">
+                  <div className="shell-connecting-content">
+                    <span className="shell-connecting-label">{displayStatus}</span>
+                  </div>
+                </div>
+              )}
+
+              {isConnecting && <ShellConnecting status={displayStatus} />}
+
+              {isError && (
+                <div className="shell-error">
+                  <div className="text-destructive font-semibold">Shell Error</div>
+                  <div className="text-muted-foreground text-sm">{displayStatus}</div>
+                  <button
+                    className="btn btn-secondary mt-4"
+                    onClick={connect}
+                  >
+                    Reconnect
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search UI */}
           {isSearchOpen && state.phase === "ready" && (
             <ShellSearch
               query={deferredSearchQuery}
@@ -249,6 +255,7 @@ export const ShellTerminalImpl = memo(
           )}
         </div>
 
+        {/* Reconnect button for disconnected state */}
         {state.phase === "disconnected" && (
           <div className="shell-disconnected-actions">
             <button

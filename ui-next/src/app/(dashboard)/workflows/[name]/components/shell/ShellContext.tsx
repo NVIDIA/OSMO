@@ -17,7 +17,8 @@
 "use client";
 
 import { createContext, useContext, useCallback, useMemo, type ReactNode } from "react";
-import { useShellSessions, deleteSession, getSession, hasSession, createSession } from "@/components/shell";
+import { useShellSessions, hasSession } from "@/components/shell";
+import { _createSession, _deleteSession } from "@/components/shell/lib/shell-cache";
 import { ShellNavigationGuard } from "./ShellNavigationGuard";
 
 interface ShellContextValue {
@@ -52,7 +53,8 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
     if (hasSession(taskId)) return;
 
     // Create session in cache - useShell hook will handle actual connection
-    createSession({
+    // Container will be set by the ref callback when the component mounts
+    _createSession({
       key: taskId,
       workflowName: wfName,
       taskName,
@@ -60,20 +62,26 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
       state: { phase: "idle" },
       addons: null,
       container: null,
+      isConnecting: false,
+      backendTimeout: null,
+      initialResizeSent: false,
     });
   }, []);
 
-  const disconnectOnly = useCallback((taskId: string) => {
-    const session = getSession(taskId);
-    if (!session) return;
+  const disconnectOnly = useCallback(
+    (taskId: string) => {
+      const session = sessions.find((s) => s.key === taskId);
+      if (!session) return;
 
-    if (session.state.phase === "ready" || session.state.phase === "initializing") {
-      session.state.ws.close();
-    }
-  }, []);
+      if (session.state.phase === "ready" || session.state.phase === "initializing") {
+        session.state.ws.close();
+      }
+    },
+    [sessions],
+  );
 
   const removeShell = useCallback((taskId: string) => {
-    deleteSession(taskId);
+    _deleteSession(taskId);
   }, []);
 
   const hasActiveShell = useCallback((taskId: string) => {
@@ -83,7 +91,21 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
   const disconnectAll = useCallback(() => {
     const workflowSessions = sessions.filter((s) => s.workflowName === workflowName);
     for (const session of workflowSessions) {
-      deleteSession(session.key);
+      // Cleanup resources before deleting
+      if (session.state.phase === "ready" || session.state.phase === "initializing") {
+        session.state.ws.close();
+      }
+      if (session.state.phase === "ready") {
+        session.state.terminal.dispose();
+      }
+      if (session.addons) {
+        session.addons.fitAddon.dispose();
+        session.addons.searchAddon.dispose();
+      }
+      if (session.backendTimeout) {
+        clearTimeout(session.backendTimeout);
+      }
+      _deleteSession(session.key);
     }
   }, [sessions, workflowName]);
 
