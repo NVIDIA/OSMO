@@ -66,7 +66,7 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 // sendMessages starts informers and processes resource events
 func (rl *ResourceListener) sendMessages() {
 	// Create channels for different message types
-	// nodeChan: node resource messages (from watchResources)
+	// nodeChan: node resource messages (from watchNodes)
 	// usageChan: pod resource usage messages (from watchPods)
 	nodeChan := make(chan *pb.ListenerMessage, rl.args.NodeChanSize)
 	usageChan := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
@@ -75,7 +75,7 @@ func (rl *ResourceListener) sendMessages() {
 	var wg sync.WaitGroup
 
 	// Channels to signal if watchers exit unexpectedly
-	resourceWatcherDone := make(chan struct{})
+	nodeWatcherDone := make(chan struct{})
 	podWatcherDone := make(chan struct{})
 
 	streamCtx := rl.GetStreamContext()
@@ -85,8 +85,8 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer close(resourceWatcherDone)
-		rl.watchResources(nodeChan)
+		defer close(nodeWatcherDone)
+		rl.watchNodes(nodeChan)
 	}()
 
 	// Start pod watcher goroutine (handles resource aggregation)
@@ -101,7 +101,7 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.sendFromChannel("resource", nodeChan, resourceWatcherDone, streamCtx, streamCancel)
+		rl.sendFromChannel("resource", nodeChan, nodeWatcherDone, streamCtx, streamCancel)
 	}()
 
 	// Start usage message sender goroutine (dedicated to usageChan)
@@ -151,11 +151,9 @@ func (rl *ResourceListener) sendFromChannel(name string, msgChan <-chan *pb.List
 		select {
 		case <-streamCtx.Done():
 			log.Printf("Context done, draining %s channel...", name)
-			rl.drainChannel(msgChan)
 			return
 		case <-watcherDone:
 			log.Printf("%s watcher stopped unexpectedly, draining channel...", name)
-			rl.drainChannel(msgChan)
 			streamCancel(fmt.Errorf("%s watcher stopped", name))
 			return
 		case msg := <-msgChan:
@@ -183,24 +181,6 @@ func (rl *ResourceListener) sendResourceMessage(msg *pb.ListenerMessage) error {
 	return nil
 }
 
-// drainChannel saves any remaining messages in the channel to unacked queue
-func (rl *ResourceListener) drainChannel(nodeChan <-chan *pb.ListenerMessage) {
-	drained := 0
-	unackedMessages := rl.GetUnackedMessages()
-	for {
-		select {
-		case msg := <-nodeChan:
-			unackedMessages.AddMessageForced(msg)
-			drained++
-		default:
-			if drained > 0 {
-				log.Printf("Drained %d resource messages from channel to unacked queue", drained)
-			}
-			return
-		}
-	}
-}
-
 // closeStream ensures stream is closed only once
 func (rl *ResourceListener) closeStream() {
 	rl.closeOnce.Do(func() {
@@ -219,9 +199,9 @@ func (rl *ResourceListener) Close() {
 	rl.BaseListener.CloseConnection()
 }
 
-// watchResources starts node informer and processes node events
+// watchNodes starts node informer and processes node events
 // This function focuses only on node resource messages
-func (rl *ResourceListener) watchResources(nodeChan chan<- *pb.ListenerMessage) {
+func (rl *ResourceListener) watchNodes(nodeChan chan<- *pb.ListenerMessage) {
 	// Create Kubernetes client
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
