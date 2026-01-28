@@ -107,12 +107,17 @@ function getPathnameFromHref(href: string): string {
 export function ShellNavigationGuard({ workflowName, onCleanup, children }: ShellNavigationGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { sessions: allSessions } = useShellSessions();
+  const allSessions = useShellSessions();
 
-  // Filter to sessions for this workflow that are truly active (connecting or connected)
-  // We don't guard for disconnected, error, idle, or mounting sessions
+  // Filter to sessions for this workflow that are truly active (connecting or ready)
+  // We don't guard for disconnected, error, or idle sessions
   const activeSessions = allSessions.filter(
-    (s) => s.workflowName === workflowName && (s.status === "connecting" || s.status === "connected"),
+    (s) =>
+      s.workflowName === workflowName &&
+      (s.state.phase === "connecting" ||
+        s.state.phase === "opening" ||
+        s.state.phase === "initializing" ||
+        s.state.phase === "ready"),
   );
   const hasActiveSessions = activeSessions.length > 0;
 
