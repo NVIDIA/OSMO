@@ -94,13 +94,17 @@ func IsExpectedClose(err error) bool {
 
 // CreateOrUpdateBackend inserts or updates a backend in the database
 // This function implements the same logic as the Python create_backend function
+// Returns isCreate (true if new backend was created),
+// isUpdate (true if backend was updated), and error
 func CreateOrUpdateBackend(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	initBody *pb.InitBody,
 	serviceHostname string,
-) error {
+) (bool, bool, error) {
 	now := time.Now()
+	isCreate := false
+	isUpdate := false
 
 	// Initialize router_address with hostname from config if available
 	routerAddress := ""
@@ -119,7 +123,7 @@ func CreateOrUpdateBackend(
 	// Default scheduler settings as JSON (empty object)
 	schedulerSettings, err := json.Marshal(struct{}{})
 	if err != nil {
-		return fmt.Errorf("failed to marshal scheduler settings: %w", err)
+		return isCreate, isUpdate, fmt.Errorf("failed to marshal scheduler settings: %w", err)
 	}
 
 	// Insert or update backend using the same pattern as Python code
@@ -153,7 +157,6 @@ func CreateOrUpdateBackend(
 	`
 
 	var k8sUIDResult string
-	var isNew bool
 	err = pool.QueryRow(
 		ctx,
 		insertCmd,
@@ -168,16 +171,15 @@ func CreateOrUpdateBackend(
 		"",                        // description
 		routerAddress,             // router_address
 		initBody.Version,          // version
-	).Scan(&k8sUIDResult, &isNew)
-	_ = isNew // Track but don't use yet TODO update backend queues if new
+	).Scan(&k8sUIDResult, &isCreate)
 
 	if err != nil {
-		return fmt.Errorf("failed to insert/update backend: %w", err)
+		return isCreate, isUpdate, fmt.Errorf("failed to insert/update backend: %w", err)
 	}
 
 	// Verify the k8s_uid matches to prevent conflicts
 	if k8sUIDResult != initBody.K8SUid {
-		return fmt.Errorf(
+		return isCreate, isUpdate, fmt.Errorf(
 			"backend %s is already being used by a different cluster (uid: %s)",
 			initBody.Name, k8sUIDResult)
 	}
@@ -208,7 +210,6 @@ func CreateOrUpdateBackend(
 			) as did_update;
 	`
 
-	var didUpdate bool
 	err = pool.QueryRow(
 		ctx,
 		updateCmd,
@@ -216,12 +217,11 @@ func CreateOrUpdateBackend(
 		initBody.K8SNamespace,
 		initBody.Version,
 		initBody.NodeConditionPrefix,
-	).Scan(&didUpdate)
-	_ = didUpdate // Track but don't use yet TODO create backend config history entry if updated
+	).Scan(&isUpdate)
 
 	if err != nil {
-		return fmt.Errorf("failed to update backend: %w", err)
+		return isCreate, isUpdate, fmt.Errorf("failed to update backend: %w", err)
 	}
 
-	return nil
+	return isCreate, isUpdate, nil
 }
