@@ -125,6 +125,22 @@ export interface DetailsPanelProps {
    * Updates the URL with the new tab value.
    */
   setSelectedWorkflowTab?: (tab: WorkflowTab) => void;
+  /**
+   * Minimum width percentage for the panel.
+   * Defaults to PANEL.MIN_WIDTH_PCT (20%).
+   */
+  minWidth?: number;
+  /**
+   * Maximum width percentage for the panel.
+   * Defaults to PANEL.MAX_WIDTH_PCT (80%).
+   * Set to 100 in table view to allow panel to fill its wrapper.
+   */
+  maxWidth?: number;
+  /**
+   * Additional className to merge with the panel's default classes.
+   * Used for overlay positioning (e.g., pointer-events-auto).
+   */
+  className?: string;
 }
 
 /**

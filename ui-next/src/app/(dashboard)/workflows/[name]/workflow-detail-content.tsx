@@ -47,10 +47,12 @@
 
 "use client";
 
+import { useMemo } from "react";
 import { usePage } from "@/components/chrome";
 import { InlineErrorBoundary } from "@/components/error";
 import { preloadElkWorker } from "@/components/dag";
 import { WorkflowDetailInnerWithProvider } from "./workflow-detail-inner";
+import { WorkflowViewToggle } from "./components";
 
 // =============================================================================
 // Direct Import for ReactFlow
@@ -115,9 +117,14 @@ interface WorkflowDetailContentProps {
  * splitting ensures other pages aren't affected.
  */
 export function WorkflowDetailContent({ name, initialView }: WorkflowDetailContentProps) {
+  // Memoize header actions to prevent infinite re-render loop
+  // usePage uses headerActions as a dependency, so a new JSX element triggers updates
+  const headerActions = useMemo(() => <WorkflowViewToggle />, []);
+
   usePage({
     title: name,
     breadcrumbs: [{ label: "Workflows", href: "/workflows" }],
+    headerActions,
   });
 
   return (

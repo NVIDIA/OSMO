@@ -33,7 +33,7 @@ import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
 import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
 import { SeparatedParts } from "@/components/panel";
-import { useSharedPreferences } from "@/stores";
+import { useSharedPreferences, useWorkflowDetailsView } from "@/stores";
 import { STATUS_SORT_ORDER } from "../../../lib/status";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
@@ -91,6 +91,11 @@ export const GroupDetails = memo(function GroupDetails({
   // Shared preferences (compact mode - used for row height calculation)
   // Note: toggleCompactMode is handled internally by TableToolbar
   const compactMode = useSharedPreferences((s) => s.compactMode);
+
+  // Check if we're in table view - if so, hide the tasks table since it's redundant
+  // with the main content area which already shows all tasks
+  const workflowView = useWorkflowDetailsView();
+  const isTableView = workflowView === "table";
 
   // Task table store (column visibility, order, sort - persisted via Zustand)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
@@ -338,48 +343,62 @@ export const GroupDetails = memo(function GroupDetails({
         onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Toolbar: Search + Controls (using shared TableToolbar) */}
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
-        <TableToolbar
-          data={tasksWithDuration}
-          searchFields={TASK_SEARCH_FIELDS}
-          columns={OPTIONAL_COLUMNS_ALPHABETICAL}
-          visibleColumnIds={visibleColumnIds}
-          onToggleColumn={toggleColumn}
-          searchChips={searchChips}
-          onSearchChipsChange={setSearchChips}
-          placeholder="Filter by name, status:, ip:, duration:..."
-          searchPresets={taskPresets}
-          resultsCount={resultsCount}
-        />
-      </div>
+      {/* Tasks table - hidden in table view since main content already shows all tasks */}
+      {!isTableView && (
+        <>
+          {/* Toolbar: Search + Controls (using shared TableToolbar) */}
+          <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
+            <TableToolbar
+              data={tasksWithDuration}
+              searchFields={TASK_SEARCH_FIELDS}
+              columns={OPTIONAL_COLUMNS_ALPHABETICAL}
+              visibleColumnIds={visibleColumnIds}
+              onToggleColumn={toggleColumn}
+              searchChips={searchChips}
+              onSearchChipsChange={setSearchChips}
+              placeholder="Filter by name, status:, ip:, duration:..."
+              searchPresets={taskPresets}
+              resultsCount={resultsCount}
+            />
+          </div>
 
-      {/* Task List - using canonical DataTable */}
-      <DataTable<TaskWithDuration>
-        data={filteredTasks}
-        columns={columns}
-        getRowId={getRowId}
-        // Column management
-        columnOrder={columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
-        columnVisibility={columnVisibility}
-        fixedColumns={fixedColumns}
-        // Column sizing
-        columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
-        // Sorting
-        sorting={tableSorting}
-        onSortingChange={handleSortChange}
-        // Layout
-        rowHeight={rowHeight}
-        compact={compactMode}
-        className="text-sm"
-        scrollClassName="flex-1"
-        // State
-        emptyContent={emptyContent}
-        // Interaction
-        onRowClick={handleRowClick}
-        selectedRowId={selectedTaskName ?? undefined}
-      />
+          {/* Task List - using canonical DataTable */}
+          <DataTable<TaskWithDuration>
+            data={filteredTasks}
+            columns={columns}
+            getRowId={getRowId}
+            // Column management
+            columnOrder={columnOrder}
+            onColumnOrderChange={handleColumnOrderChange}
+            columnVisibility={columnVisibility}
+            fixedColumns={fixedColumns}
+            // Column sizing
+            columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
+            // Sorting
+            sorting={tableSorting}
+            onSortingChange={handleSortChange}
+            // Layout
+            rowHeight={rowHeight}
+            compact={compactMode}
+            className="text-sm"
+            scrollClassName="flex-1"
+            // State
+            emptyContent={emptyContent}
+            // Interaction
+            onRowClick={handleRowClick}
+            selectedRowId={selectedTaskName ?? undefined}
+          />
+        </>
+      )}
+
+      {/* Table view info message - shown when tasks table is hidden */}
+      {isTableView && (
+        <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-gray-500 dark:text-zinc-400">
+          Tasks are shown in the main table view.
+          <br />
+          Click a task row to see its details.
+        </div>
+      )}
     </div>
   );
 });
