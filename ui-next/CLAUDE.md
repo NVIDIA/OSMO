@@ -731,9 +731,46 @@ NEVER hardcode these values. ALWAYS use the designated source:
 - Feature modules should use public API imports (warnings)
 
 ### File Naming
-- `kebab-case` for files
-- `PascalCase` for components
-- `camelCase` for utilities
+
+**Rule: Match the file name to the primary export's casing.**
+
+- **Component files**: `PascalCase.tsx` to match the component name
+  - Examples: `Button.tsx`, `DataTable.tsx`, `WorkflowDetails.tsx`
+  - Exception: shadcn/ui components use `kebab-case.tsx` (external library convention)
+
+- **Hook files**: `camelCase.ts` with `use` prefix
+  - Examples: `useAuth.ts`, `usePanelState.ts`, `useWorkflowData.ts`
+
+- **Utility files**: `camelCase.ts`
+  - Examples: `formatDate.ts`, `api.ts`, `utils.ts`
+
+- **Type files**: `camelCase.ts` or `kebab-case.ts`
+  - Examples: `types.ts`, `workflow-types.ts`, `panel-types.ts`
+
+- **Constant files**: `camelCase.ts` or `kebab-case.ts`
+  - Examples: `constants.ts`, `api-constants.ts`
+
+**Folder organization within feature modules:**
+```
+src/components/my-feature/
+├── index.ts              # Public API exports
+├── hooks/                # Custom hooks
+│   ├── useFeatureData.ts
+│   └── useFeatureState.ts
+├── lib/                  # Utilities, constants, types
+│   ├── constants.ts
+│   ├── types.ts
+│   └── utils.ts
+└── [components]          # Component files (PascalCase)
+    ├── FeatureCard.tsx
+    ├── FeatureTable.tsx
+    └── FeatureDialog.tsx
+```
+
+**Current codebase state:**
+- Legacy: Some areas use `kebab-case` for components (will be migrated)
+- New code: MUST follow PascalCase convention for components
+- When refactoring existing files, rename to PascalCase if touching significantly
 
 ### Import Order
 ```typescript
@@ -744,7 +781,7 @@ import { useState } from 'react';
 import { usePools } from '@/lib/api/adapter';
 
 // 3. Relative imports
-import { PoolCard } from './pool-card';
+import { PoolCard } from './PoolCard';
 ```
 
 ### Copyright Headers
