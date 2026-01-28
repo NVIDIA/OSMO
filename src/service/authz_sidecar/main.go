@@ -149,7 +149,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Create PostgreSQL client
-	// ctx := context.Background()
+	ctx := context.Background()
 	postgresConfig := postgresFlagPtrs.ToPostgresConfig()
 	pgClient, err := postgresConfig.CreateClient(logger)
 	if err != nil {
@@ -174,10 +174,10 @@ func main() {
 
 	// Load and convert all roles at startup
 	roleStore := NewRoleStore()
-	// if err := roleStore.LoadAndConvertRoles(ctx, pgClient, logger); err != nil {
-	// 	logger.Error("failed to load and convert roles", slog.String("error", err.Error()))
-	// 	os.Exit(1)
-	// }
+	if err := roleStore.LoadAndConvertRoles(ctx, pgClient, logger); err != nil {
+		logger.Error("failed to load and convert roles", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	// Create role fetcher that uses the pre-converted role store
 	// Roles are already converted to semantic format at startup
