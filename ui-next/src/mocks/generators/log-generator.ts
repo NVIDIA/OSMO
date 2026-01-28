@@ -715,7 +715,7 @@ export class LogGenerator {
     ];
 
     for (const msg of osmoMessages) {
-      lines.push(this.formatLogLine(time, "INFO", taskName, msg));
+      lines.push(this.formatLogLine(time, taskName, msg));
       time = new Date(time.getTime() + faker.number.int({ min: 100, max: 2000 }));
     }
 
@@ -760,7 +760,7 @@ export class LogGenerator {
           message = `Step ${step}`;
       }
 
-      lines.push(this.formatLogLine(time, "INFO", taskName, message));
+      lines.push(this.formatLogLine(time, taskName, message));
       time = new Date(time.getTime() + msPerLog + faker.number.int({ min: -100, max: 100 }));
     }
 
@@ -803,9 +803,9 @@ export class LogGenerator {
   private generateCompletionLogs(startTime: Date, taskName: string, duration: number): string[] {
     const endTime = new Date(startTime.getTime() + duration * 1000);
     return [
-      this.formatLogLine(endTime, "INFO", taskName, "Training complete. Saving final model..."),
-      this.formatLogLine(new Date(endTime.getTime() + 1000), "INFO", taskName, "[osmo] Upload Start"),
-      this.formatLogLine(new Date(endTime.getTime() + 3000), "INFO", taskName, "[osmo] Task completed successfully"),
+      this.formatLogLine(endTime, taskName, "Training complete. Saving final model..."),
+      this.formatLogLine(new Date(endTime.getTime() + 1000), taskName, "[osmo] Upload Start"),
+      this.formatLogLine(new Date(endTime.getTime() + 3000), taskName, "[osmo] Task completed successfully"),
     ];
   }
 
@@ -824,14 +824,13 @@ export class LogGenerator {
     const errorMsg = faker.helpers.arrayElement(errors).replace("{message}", "Unexpected error occurred");
 
     return [
-      this.formatLogLine(errorTime, "ERROR", taskName, errorMsg),
+      this.formatLogLine(errorTime, taskName, errorMsg),
       this.formatLogLine(
         new Date(errorTime.getTime() + 100),
-        "ERROR",
         taskName,
         `Process exited with code ${faker.helpers.arrayElement([1, 137, 139])}`,
       ),
-      this.formatLogLine(new Date(errorTime.getTime() + 200), "INFO", taskName, "[osmo] Task failed"),
+      this.formatLogLine(new Date(errorTime.getTime() + 200), taskName, "[osmo] Task failed"),
     ];
   }
 
@@ -846,11 +845,10 @@ export class LogGenerator {
    * - Control logs: {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}
    *
    * @param time - Timestamp
-   * @param _level - Log level (unused in format, only for message content)
    * @param source - Task name
    * @param message - Log message (may include level prefix like "ERROR:")
    */
-  private formatLogLine(time: Date, _level: string, source: string, message: string): string {
+  private formatLogLine(time: Date, source: string, message: string): string {
     const timestamp = this.formatTimestamp(time);
     // Check if this is a control message (has [osmo] in the message itself - legacy pattern)
     if (message.startsWith("[osmo]")) {

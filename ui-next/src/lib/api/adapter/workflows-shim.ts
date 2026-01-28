@@ -168,20 +168,39 @@ export function hasActiveFilters(searchChips: SearchChip[]): boolean {
 /**
  * Build a stable query key for React Query caching.
  * Includes all params that affect the query results.
+ *
+ * Unpacks filter chips into individual fields for clarity and debuggability.
+ * Arrays are sorted for stability (prevents cache misses from reordering).
  */
 export function buildWorkflowsQueryKey(
   searchChips: SearchChip[],
   showAllUsers: boolean = false,
   sortDirection: string = "DESC",
 ): readonly unknown[] {
+  // Extract filter values by field
+  const name = getFirstChipValue(searchChips, "name");
+  const app = getFirstChipValue(searchChips, "app");
+  const statuses = getChipValues(searchChips, "status").sort();
+  const users = getChipValues(searchChips, "user").sort();
+  const pools = getChipValues(searchChips, "pool").sort();
+  const priority = getChipValues(searchChips, "priority").sort();
+  const tags = getChipValues(searchChips, "tag").sort();
+
+  // Build query key - only include filters that have values
+  const filters: Record<string, string | string[]> = {};
+  if (name) filters.name = name;
+  if (app) filters.app = app;
+  if (statuses.length > 0) filters.statuses = statuses;
+  if (users.length > 0) filters.users = users;
+  if (pools.length > 0) filters.pools = pools;
+  if (priority.length > 0) filters.priority = priority;
+  if (tags.length > 0) filters.tags = tags;
+
   return [
     "workflows",
     "paginated",
     {
-      chips: searchChips
-        .map((c) => `${c.field}:${c.value}`)
-        .sort()
-        .join(","),
+      ...filters,
       showAllUsers,
       sortDirection,
     },
