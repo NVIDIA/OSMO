@@ -18,8 +18,6 @@ export const STATUS_DOT_STYLES: Record<ConnectionStatus, string> = {
   ready: "bg-emerald-400",
   disconnected: "border border-red-400 bg-transparent",
   error: "bg-red-400",
-  mounting: "bg-blue-400 animate-pulse", // Legacy
-  connected: "bg-emerald-400", // Legacy
 };
 
 export const STATUS_LABELS: Record<ConnectionStatus, string> = {
@@ -30,8 +28,6 @@ export const STATUS_LABELS: Record<ConnectionStatus, string> = {
   ready: "Connected",
   disconnected: "Disconnected",
   error: "Error",
-  mounting: "Mounting...", // Legacy
-  connected: "Connected", // Legacy
 };
 
 export interface StatusDotProps {

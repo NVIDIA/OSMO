@@ -16,9 +16,7 @@ export const ANSI = {
   GREEN: "\x1b[32m",
 } as const;
 
-/**
- * Shell connection status. Legacy values (mounting, connected) kept for compatibility.
- */
+/** Shell connection status (matches state machine phases) */
 export type ConnectionStatus =
   | "idle"
   | "connecting"
@@ -26,9 +24,7 @@ export type ConnectionStatus =
   | "initializing"
   | "ready"
   | "disconnected"
-  | "error"
-  | "mounting" // Legacy
-  | "connected"; // Legacy
+  | "error";
 
 export interface ShellTerminalProps {
   taskId: string;
