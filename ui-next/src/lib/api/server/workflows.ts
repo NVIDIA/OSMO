@@ -51,8 +51,12 @@ export interface WorkflowsQueryParams {
   status?: WorkflowStatus[];
   /** Filter by priority */
   priority?: WorkflowPriority;
-  /** Filter by pool */
+  /** Filter by pool (deprecated: use pools array) */
   pool?: string;
+  /** Filter by pools (can specify multiple) */
+  pools?: string[];
+  /** Filter by users (can specify multiple) */
+  users?: string[];
   /** Search term for workflow name */
   search?: string;
   /** Max results to return */
@@ -84,16 +88,22 @@ export const fetchWorkflows = cache(
     // Build query string
     const queryParams = new URLSearchParams();
     if (params.status) {
-      params.status.forEach((s) => queryParams.append("status", s));
+      params.status.forEach((s) => queryParams.append("statuses", s));
     }
     if (params.priority) {
       queryParams.append("priority", params.priority);
     }
-    if (params.pool) {
-      queryParams.append("pool", params.pool);
+    if (params.pools) {
+      params.pools.forEach((p) => queryParams.append("pools", p));
+    } else if (params.pool) {
+      // Backwards compat: map singular pool to pools array
+      queryParams.append("pools", params.pool);
+    }
+    if (params.users) {
+      params.users.forEach((u) => queryParams.append("users", u));
     }
     if (params.search) {
-      queryParams.append("search", params.search);
+      queryParams.append("name", params.search);
     }
     if (params.limit !== undefined) {
       queryParams.append("limit", String(params.limit));
@@ -288,10 +298,9 @@ export async function prefetchWorkflowsList(
   const queryKey = buildServerWorkflowsQueryKey(chipsString, false, "DESC");
 
   // Extract filter values from chips for API call
-  // Note: Only status is used currently; others reserved for future backend support
   const statusFilters = filterChips.filter((c) => c.field === "status").map((c) => c.value as WorkflowStatus);
-  const _userFilters = filterChips.filter((c) => c.field === "user").map((c) => c.value);
-  const _poolFilters = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
+  const poolFilters = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
+  const userFilters = filterChips.filter((c) => c.field === "user").map((c) => c.value);
 
   await queryClient.prefetchInfiniteQuery({
     queryKey,
@@ -301,8 +310,8 @@ export async function prefetchWorkflowsList(
           limit: 50,
           offset: 0,
           status: statusFilters.length > 0 ? statusFilters : undefined,
-          // Note: Backend API may not support all filter types
-          // For now, we at least match the query key so cache hits work
+          pools: poolFilters.length > 0 ? poolFilters : undefined,
+          users: userFilters.length > 0 ? userFilters : undefined,
         },
         options,
       );
