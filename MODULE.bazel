@@ -238,8 +238,8 @@ use_repo(
     "org_golang_google_genproto_googleapis_rpc",
     "org_golang_google_grpc",
 
-    # For Envoy
-    "com_github_envoyproxy_go_control_plane",
+    # For Envoy (note: module is github.com/envoyproxy/go-control-plane/envoy)
+    "com_github_envoyproxy_go_control_plane_envoy",
 )
 
 ################
