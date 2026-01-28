@@ -282,13 +282,20 @@ export function useColumnSizing({
     if (typeof requestIdleCallback !== "undefined") {
       pendingIdleCallbackRef.current = requestIdleCallback(measureNewColumns, { timeout: 500 });
     } else {
-      pendingIdleCallbackRef.current = setTimeout(measureNewColumns, 0);
+      // Safari fallback: Use RAF to ensure DOM measurement happens at optimal time
+      // (after paint, before next frame) rather than arbitrary setTimeout timing
+      pendingIdleCallbackRef.current = requestAnimationFrame(measureNewColumns) as unknown as ReturnType<
+        typeof setTimeout
+      >;
     }
 
     return () => {
       if (pendingIdleCallbackRef.current !== null) {
         if (typeof cancelIdleCallback !== "undefined" && typeof pendingIdleCallbackRef.current === "number") {
           cancelIdleCallback(pendingIdleCallbackRef.current);
+        } else if (typeof cancelAnimationFrame !== "undefined") {
+          // Safari fallback uses RAF, so cancel with cancelAnimationFrame
+          cancelAnimationFrame(pendingIdleCallbackRef.current as number);
         } else {
           clearTimeout(pendingIdleCallbackRef.current as ReturnType<typeof setTimeout>);
         }
@@ -362,6 +369,7 @@ export function useColumnSizing({
     // set it. This prevents stale initial values from blocking updates.
     let isFirstObservation = true;
     let timeoutId: ReturnType<typeof setTimeout>;
+    let rafId: number | null = null;
     let pendingWidth: number | null = null;
 
     const observer = new ResizeObserver((entries) => {
@@ -376,11 +384,13 @@ export function useColumnSizing({
       if (isFirstObservation) {
         isFirstObservation = false;
         lastContainerWidthRef.current = newWidth;
-        // Recalculate after a short delay to let layout fully settle
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
+        // Use RAF for first observation to ensure layout is complete
+        // This avoids setTimeout violations while ensuring DOM is ready
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
           calculateAndApply(false, newWidth);
-        }, 50);
+        });
         return;
       }
 
@@ -390,6 +400,8 @@ export function useColumnSizing({
       lastContainerWidthRef.current = newWidth;
       pendingWidth = newWidth;
 
+      // Debounce subsequent resizes with setTimeout (acceptable since it's
+      // user-driven resize, and we need the delay for debouncing)
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         calculateAndApply(true, pendingWidth ?? undefined);
@@ -401,6 +413,7 @@ export function useColumnSizing({
 
     return () => {
       clearTimeout(timeoutId);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
     };
   }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef]);

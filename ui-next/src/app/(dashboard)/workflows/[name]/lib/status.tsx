@@ -221,25 +221,71 @@ export function useMiniMapColors() {
   }, [isDark]);
 }
 
-// Prewarm icon cache during idle time
-function prewarmIconCache(): void {
+// Prewarm icon cache during idle time with deadline-aware chunking
+// This avoids long task violations by yielding to the browser when time runs out
+function prewarmIconCache(deadline?: IdleDeadline): void {
   const categories: StatusCategory[] = ["waiting", "pending", "running", "completed", "failed"];
   const sizes = ["size-3", "size-3.5", "size-4"];
 
+  // Use a generator to enable incremental processing
+  const items: Array<{ category: StatusCategory; size: string }> = [];
   for (const category of categories) {
     for (const size of sizes) {
-      getCachedIcon(category, size);
-      getCachedCompactIcon(category, size);
+      items.push({ category, size });
     }
   }
+
+  // Track progress across calls
+  let index = (prewarmIconCache as { _index?: number })._index ?? 0;
+
+  // Process items while we have time remaining (or process all if no deadline)
+  while (index < items.length) {
+    // If we have a deadline, check if we should yield
+    if (deadline && deadline.timeRemaining() < 2) {
+      // Save progress and reschedule
+      (prewarmIconCache as { _index?: number })._index = index;
+      requestIdleCallback(prewarmIconCache, { timeout: 3000 });
+      return;
+    }
+
+    const { category, size } = items[index];
+    getCachedIcon(category, size);
+    getCachedCompactIcon(category, size);
+    index++;
+  }
+
+  // Reset index for potential future calls
+  (prewarmIconCache as { _index?: number })._index = 0;
 }
 
 // Schedule prewarm during idle time after module load
 if (typeof window !== "undefined") {
   if (typeof requestIdleCallback !== "undefined") {
-    requestIdleCallback(() => prewarmIconCache(), { timeout: 3000 });
+    requestIdleCallback(prewarmIconCache, { timeout: 3000 });
   } else {
-    // Fallback for Safari
-    setTimeout(prewarmIconCache, 200);
+    // Safari fallback: Use RAF to spread work across frames
+    // Process one item per frame to avoid long task violations
+    const categories: StatusCategory[] = ["waiting", "pending", "running", "completed", "failed"];
+    const sizes = ["size-3", "size-3.5", "size-4"];
+    const items: Array<{ category: StatusCategory; size: string }> = [];
+    for (const category of categories) {
+      for (const size of sizes) {
+        items.push({ category, size });
+      }
+    }
+
+    let index = 0;
+    const processNextItem = () => {
+      if (index < items.length) {
+        const { category, size } = items[index];
+        getCachedIcon(category, size);
+        getCachedCompactIcon(category, size);
+        index++;
+        requestAnimationFrame(processNextItem);
+      }
+    };
+
+    // Start after initial render settles
+    requestAnimationFrame(processNextItem);
   }
 }
