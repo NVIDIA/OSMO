@@ -24,12 +24,17 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/utils/postgres",
     visibility = ["//visibility:public"],
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/utils",
+>>>>>>> origin/main
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
 
 go_test(
     name = "postgres_test",
+<<<<<<< HEAD
     srcs = [
         "postgres_client_test.go",
     ],
@@ -65,4 +70,11 @@ go_test(
     deps = [],
     tags = ["manual", "service"],  # Requires running PostgreSQL instance
     local = True,  # Run locally without sandboxing to access external database
+=======
+    srcs = ["postgres_client_test.go"],
+    embed = [":postgres"],
+    deps = [
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+    ],
+>>>>>>> origin/main
 )
