@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useState, useRef, useCallback, useMemo, memo } from "react";
+import { useState, useRef, useCallback, useMemo, memo, useId } from "react";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +49,7 @@ function FilterBarInner<T>({
   const [focusedChipIndex, setFocusedChipIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputId = useId();
 
   // ========== Core hooks (lib/) - never changes ==========
   const {
@@ -308,8 +309,17 @@ function FilterBarInner<T>({
       <Command
         shouldFilter={false}
         loop
+        label="Search and filter"
         className="overflow-visible bg-transparent"
       >
+        {/* Visually hidden label for accessibility and autofill */}
+        <label
+          htmlFor={inputId}
+          className="sr-only"
+        >
+          Search and filter
+        </label>
+
         {/* Input container with chips */}
         <div
           className={cn(
@@ -339,6 +349,7 @@ function FilterBarInner<T>({
           {/* Custom input - cmdk's CommandInput has its own search icon which we don't want */}
           <input
             ref={inputRef}
+            id={inputId}
             type="text"
             value={inputValue}
             onChange={handleInputChangeEvent}
