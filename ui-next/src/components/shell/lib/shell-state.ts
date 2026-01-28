@@ -32,6 +32,7 @@ export type ShellState =
       workflowName: string;
       taskName: string;
       shell: string;
+      terminal?: Terminal; // Optional - present when reconnecting
       startedAt: number;
     }
   | {
@@ -122,12 +123,33 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     };
   }
 
+  if (state.phase === "disconnected" && eventType === "CONNECT") {
+    return {
+      phase: "connecting",
+      workflowName: state.workflowName,
+      taskName: state.taskName,
+      shell: event.shell,
+      terminal: state.terminal, // ✅ Preserve terminal for reuse
+      startedAt: Date.now(),
+    };
+  }
+
+  if (state.phase === "error" && eventType === "CONNECT") {
+    return {
+      phase: "connecting",
+      workflowName: event.workflowName,
+      taskName: event.taskName,
+      shell: event.shell,
+      startedAt: Date.now(),
+    };
+  }
+
   if (state.phase === "connecting" && eventType === "API_SUCCESS") {
     return {
       phase: "opening",
       workflowName: state.workflowName,
       taskName: state.taskName,
-      terminal: event.terminal,
+      terminal: state.terminal ?? event.terminal, // Prefer existing terminal (reconnect) or use new one
       wsUrl: event.wsUrl,
       startedAt: state.startedAt,
     };

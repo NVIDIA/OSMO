@@ -65,6 +65,7 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
       isConnecting: false,
       backendTimeout: null,
       initialResizeSent: false,
+      onDataDisposable: null,
     });
   }, []);
 

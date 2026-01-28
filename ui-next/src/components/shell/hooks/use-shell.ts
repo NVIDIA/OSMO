@@ -102,6 +102,8 @@ export interface UseShellReturn {
   fit: () => void;
   /** Clear terminal output */
   clear: () => void;
+  /** Scroll terminal to bottom */
+  scrollToBottom: () => void;
   /** Get terminal dimensions */
   getDimensions: () => { rows: number; cols: number } | null;
   /** Find next occurrence of search term */
@@ -160,13 +162,18 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     (event: ShellEvent) => {
       const session = _getSession(sessionKey);
       if (!session) {
-        console.warn(`[Shell] Cannot dispatch ${event.type}: session not found`);
+        console.warn(`[Shell] ⚠️ Cannot dispatch ${event.type}: session not found`);
         return;
       }
 
       const currentState = session.state;
       const nextState = transition(currentState, event);
-      console.debug(`[Shell] ${currentState.phase} + ${event.type} → ${nextState.phase}`, nextState);
+      console.debug(`[Shell] 🔀 STATE TRANSITION: ${currentState.phase} + ${event.type} → ${nextState.phase}`, {
+        sessionKey,
+        event,
+        currentState,
+        nextState,
+      });
 
       _updateSession(sessionKey, { state: nextState });
     },
@@ -241,6 +248,10 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
+        console.debug("[Shell] 🔌 WebSocket opened", {
+          sessionKey,
+          readyState: ws.readyState,
+        });
         dispatch({ type: "WS_OPENED", ws });
 
         requestAnimationFrame(() => {
@@ -251,6 +262,11 @@ export function useShell(options: UseShellOptions): UseShellReturn {
           if (!session.initialResizeSent) {
             const dims = { rows: terminal.rows, cols: terminal.cols };
             if (dims.rows >= SHELL_CONFIG.MIN_ROWS && dims.cols >= SHELL_CONFIG.MIN_COLS) {
+              console.debug("[Shell] 📐 Sending initial resize", {
+                sessionKey,
+                rows: dims.rows,
+                cols: dims.cols,
+              });
               const msg = JSON.stringify({ Rows: dims.rows, Cols: dims.cols });
               ws.send(sharedEncoder.encode(msg));
               _updateSession(sessionKey, { initialResizeSent: true });
@@ -269,6 +285,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         // Clear backend timeout on first data (transition to ready)
         const session = _getSession(sessionKey);
         if (session?.backendTimeout) {
+          console.debug("[Shell] 📥 FIRST DATA from PTY - transitioning to ready", { sessionKey });
           clearTimeout(session.backendTimeout);
           _updateSession(sessionKey, { backendTimeout: null });
           dispatch({ type: "FIRST_DATA" });
@@ -282,10 +299,26 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         } else {
           return;
         }
+
+        const dataPreview = new TextDecoder().decode(data.slice(0, 50));
+        console.debug("[Shell] 📥 PTY data received", {
+          sessionKey,
+          byteLength: data.length,
+          preview: dataPreview.replace(/\r/g, "\\r").replace(/\n/g, "\\n"),
+          scrollY: terminal.buffer.active.viewportY,
+          baseY: terminal.buffer.active.baseY,
+        });
+
         terminal.write(data);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        console.debug("[Shell] 🔌 WebSocket closed", {
+          sessionKey,
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+        });
         const session = _getSession(sessionKey);
         if (session?.backendTimeout) {
           clearTimeout(session.backendTimeout);
@@ -294,7 +327,11 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         dispatch({ type: "WS_CLOSED" });
       };
 
-      ws.onerror = () => {
+      ws.onerror = (event) => {
+        console.error("[Shell] ❌ WebSocket error", {
+          sessionKey,
+          error: event,
+        });
         const session = _getSession(sessionKey);
         if (session?.backendTimeout) {
           clearTimeout(session.backendTimeout);
@@ -311,25 +348,36 @@ export function useShell(options: UseShellOptions): UseShellReturn {
    * Initiates the connection flow: API call → terminal creation → WebSocket.
    */
   const connect = useCallback(async () => {
+    console.debug("[Shell] 🚀 connect() called", { sessionKey });
     const session = _getSession(sessionKey);
     if (!session) {
-      console.warn("[Shell] Cannot connect: session not found");
+      console.warn("[Shell] ⚠️ Cannot connect: session not found", { sessionKey });
       return;
     }
 
+    console.debug("[Shell] 📊 Session state", {
+      sessionKey,
+      phase: session.state.phase,
+      isConnecting: session.isConnecting,
+      hasContainer: !!session.container,
+      hasTerminal: hasTerminal(session.state),
+      hasWebSocket: hasWebSocket(session.state),
+    });
+
     // Guard against concurrent connection attempts
     if (session.isConnecting) {
-      console.debug("[Shell] Session already connecting, skipping duplicate attempt");
+      console.debug("[Shell] ⚠️ Session already connecting, skipping duplicate attempt", { sessionKey });
       return;
     }
 
     // Check container exists
     if (!session.container) {
-      console.warn("[Shell] Container not ready, cannot connect");
+      console.warn("[Shell] ⚠️ Container not ready, cannot connect", { sessionKey });
       return;
     }
 
     // Mark as connecting
+    console.debug("[Shell] ✅ Marking as connecting", { sessionKey });
     _updateSession(sessionKey, { isConnecting: true });
 
     try {
@@ -362,17 +410,116 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         return;
       }
 
-      const { terminal, addons } = createTerminal(currentSession.container);
-      _updateSession(sessionKey, { addons });
+      // Reuse existing terminal if available (reconnection scenario)
+      let terminal: Terminal;
+      let addons: TerminalAddons;
+
+      const existingTerminal = hasTerminal(currentSession.state) ? currentSession.state.terminal : null;
+
+      console.debug("[Shell] 🔍 Checking terminal reuse condition", {
+        sessionKey,
+        sessionStatePhase: currentSession.state.phase,
+        hasTerminalInState: hasTerminal(currentSession.state),
+        terminalInState: hasTerminal(currentSession.state) ? "yes - " + typeof currentSession.state.terminal : "no",
+        existingTerminalActual: existingTerminal,
+        hasExistingTerminal: !!existingTerminal,
+        hasAddons: !!currentSession.addons,
+        canReuse: !!existingTerminal,
+        terminalRows: existingTerminal?.rows,
+        terminalCols: existingTerminal?.cols,
+        addonsStatus: currentSession.addons ? "present" : "missing",
+      });
+
+      if (existingTerminal) {
+        // Reconnecting - reuse terminal and add separator
+        terminal = existingTerminal;
+
+        // Reuse addons if available, otherwise they'll be created below
+        if (currentSession.addons) {
+          addons = currentSession.addons;
+          console.debug("[Shell] 🔄 RECONNECT: Reusing existing addons", { sessionKey });
+        } else {
+          // Addons missing - recreate them (shouldn't normally happen but be defensive)
+          console.warn("[Shell] ⚠️ Addons missing - recreating", { sessionKey });
+          const fitAddon = new FitAddon();
+          const searchAddon = new SearchAddon();
+          terminal.loadAddon(fitAddon);
+          terminal.loadAddon(searchAddon);
+
+          let webglAddon: WebglAddon | null = null;
+          try {
+            webglAddon = new WebglAddon();
+            webglAddon.onContextLoss(() => {
+              webglAddon?.dispose();
+            });
+            terminal.loadAddon(webglAddon);
+          } catch {
+            console.debug("[Shell] WebGL not available, using canvas renderer");
+          }
+
+          addons = { fitAddon, searchAddon, webglAddon };
+          _updateSession(sessionKey, { addons });
+        }
+
+        console.debug("[Shell] 🔄 RECONNECT: Reusing existing terminal", {
+          sessionKey,
+          terminalRows: terminal.rows,
+          terminalCols: terminal.cols,
+          scrollY: terminal.buffer.active.viewportY,
+          baseY: terminal.buffer.active.baseY,
+        });
+
+        // Write reconnection banner to show session boundary
+        const ANSI_DIM = "\x1b[2m";
+        const ANSI_GREEN = "\x1b[32m";
+        const ANSI_RESET = "\x1b[0m";
+        const separator = `${ANSI_DIM}${"─".repeat(80)}${ANSI_RESET}`;
+
+        terminal.write(`\r\n\r\n${separator}\r\n`);
+        terminal.write(`${ANSI_GREEN}Reconnecting...${ANSI_RESET}\r\n`);
+        terminal.write(`${separator}\r\n\r\n`);
+
+        console.debug("[Shell] 🔄 RECONNECT: Wrote reconnection banner", {
+          sessionKey,
+          scrollY: terminal.buffer.active.viewportY,
+          baseY: terminal.buffer.active.baseY,
+        });
+      } else {
+        // First connection - create new terminal
+        const created = createTerminal(currentSession.container);
+        terminal = created.terminal;
+        addons = created.addons;
+        _updateSession(sessionKey, { addons });
+
+        console.debug("[Shell] ✨ Created new terminal for session", { sessionKey });
+      }
+
+      // Dispose old input handler if it exists (prevent duplicate listeners)
+      if (currentSession.onDataDisposable) {
+        console.debug("[Shell] 🧹 Disposing old onData handler", { sessionKey });
+        currentSession.onDataDisposable.dispose();
+      }
 
       // Connect terminal input to WebSocket output
-      terminal.onData((data) => {
+      const onDataDisposable = terminal.onData((data) => {
         const session = _getSession(sessionKey);
         if (!session || !hasWebSocket(session.state) || session.state.ws.readyState !== WebSocket.OPEN) {
+          console.debug("[Shell] ⚠️ Cannot send data - WebSocket not ready", {
+            sessionKey,
+            hasSession: !!session,
+            hasWebSocket: session ? hasWebSocket(session.state) : false,
+            wsReadyState: session && hasWebSocket(session.state) ? session.state.ws.readyState : null,
+          });
           return;
         }
+        console.debug("[Shell] 📤 Sending user input to PTY", { sessionKey, dataLength: data.length });
         session.state.ws.send(sharedEncoder.encode(data));
       });
+
+      console.debug("[Shell] ✅ Attached new onData handler", { sessionKey });
+
+      // Store disposable for cleanup
+      _updateSession(sessionKey, { onDataDisposable });
 
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const routerAddress = response.router_address.replace(/^https?:/, wsProtocol);
@@ -397,10 +544,18 @@ export function useShell(options: UseShellOptions): UseShellReturn {
    * Disconnect from shell (keeps session, allows reconnect).
    */
   const disconnect = useCallback(() => {
+    console.debug("[Shell] 🔌 disconnect() called", { sessionKey });
     const session = _getSession(sessionKey);
-    if (!session) return;
+    if (!session) {
+      console.debug("[Shell] ⚠️ Cannot disconnect - no session", { sessionKey });
+      return;
+    }
 
     if (hasWebSocket(session.state)) {
+      console.debug("[Shell] 🔌 Closing WebSocket", {
+        sessionKey,
+        wsReadyState: session.state.ws.readyState,
+      });
       session.state.ws.close();
     }
     dispatch({ type: "DISCONNECT" });
@@ -442,7 +597,11 @@ export function useShell(options: UseShellOptions): UseShellReturn {
    */
   const focus = useCallback(() => {
     const session = _getSession(sessionKey);
-    if (!session || !hasTerminal(session.state)) return;
+    if (!session || !hasTerminal(session.state)) {
+      console.debug("[Shell] ⚠️ Cannot focus - no terminal", { sessionKey });
+      return;
+    }
+    console.debug("[Shell] 🎯 Focusing terminal", { sessionKey });
     session.state.terminal.focus();
   }, [sessionKey]);
 
@@ -472,6 +631,30 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     const session = _getSession(sessionKey);
     if (!session || !hasTerminal(session.state)) return;
     session.state.terminal.clear();
+  }, [sessionKey]);
+
+  /**
+   * Scroll terminal to bottom.
+   */
+  const scrollToBottom = useCallback(() => {
+    const session = _getSession(sessionKey);
+    if (!session || !hasTerminal(session.state)) {
+      console.debug("[Shell] ⚠️ Cannot scroll - no terminal", { sessionKey });
+      return;
+    }
+    const terminal = session.state.terminal;
+    console.debug("[Shell] 📜 Scrolling to bottom", {
+      sessionKey,
+      beforeScrollY: terminal.buffer.active.viewportY,
+      baseY: terminal.buffer.active.baseY,
+      totalLines: terminal.buffer.active.length,
+    });
+    terminal.scrollToBottom();
+    console.debug("[Shell] 📜 After scroll", {
+      sessionKey,
+      afterScrollY: terminal.buffer.active.viewportY,
+      baseY: terminal.buffer.active.baseY,
+    });
   }, [sessionKey]);
 
   /**
@@ -546,6 +729,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     if (session.backendTimeout) {
       clearTimeout(session.backendTimeout);
     }
+    if (session.onDataDisposable) {
+      session.onDataDisposable.dispose();
+    }
     if (hasTerminal(session.state)) {
       session.state.terminal.dispose();
     }
@@ -583,6 +769,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
             isConnecting: false,
             backendTimeout: null,
             initialResizeSent: false,
+            onDataDisposable: null,
           });
           console.debug("[Shell] New session created:", sessionKey);
         }
@@ -652,6 +839,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     focus,
     fit,
     clear,
+    scrollToBottom,
     getDimensions,
     findNext,
     findPrevious,

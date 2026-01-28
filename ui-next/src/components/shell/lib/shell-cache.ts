@@ -69,6 +69,8 @@ export interface CachedSession {
   readonly backendTimeout: NodeJS.Timeout | null;
   /** Initial resize message sent flag (backend bug workaround) */
   readonly initialResizeSent: boolean;
+  /** Terminal input listener disposable */
+  readonly onDataDisposable: { dispose: () => void } | null;
 }
 
 /**

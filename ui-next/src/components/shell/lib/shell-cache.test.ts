@@ -31,6 +31,7 @@ describe("shell-cache", () => {
     isConnecting: false,
     backendTimeout: null,
     initialResizeSent: false,
+    onDataDisposable: null,
   });
 
   beforeEach(() => {
