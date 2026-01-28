@@ -22,6 +22,7 @@
 
 "use client";
 
+import { useId } from "react";
 import { TimeRangePresets } from "./TimeRangePresets";
 import type { TimeRangePreset } from "../lib/timeline-constants";
 
@@ -82,6 +83,9 @@ export function TimeRangeHeader({
   minStartTime,
   maxEndTime,
 }: TimeRangeHeaderProps): React.ReactNode {
+  const startTimeInputId = useId();
+  const endTimeInputId = useId();
+
   function handleStartChange(e: React.ChangeEvent<HTMLInputElement>): void {
     const date = new Date(e.target.value);
     if (!isNaN(date.getTime())) {
@@ -103,22 +107,38 @@ export function TimeRangeHeader({
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium">Time Range:</span>
         <div className="flex items-center gap-2">
+          <label
+            htmlFor={startTimeInputId}
+            className="sr-only"
+          >
+            Start time
+          </label>
           <input
+            id={startTimeInputId}
             type="datetime-local"
             value={formatForInput(filterStartTime)}
             onChange={handleStartChange}
             min={formatForInput(minStartTime)}
             max={formatForInput(maxEndTime)}
             className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
+            aria-label="Start time"
           />
           <span className="text-muted-foreground text-xs">to</span>
+          <label
+            htmlFor={endTimeInputId}
+            className="sr-only"
+          >
+            End time
+          </label>
           <input
+            id={endTimeInputId}
             type="datetime-local"
             value={formatForInput(filterEndTime)}
             onChange={handleEndChange}
             min={formatForInput(filterStartTime ?? minStartTime)}
             max={formatForInput(maxEndTime)}
             className="border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring h-7 rounded-md border px-3 text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
+            aria-label="End time"
           />
         </div>
         {showPresets && (

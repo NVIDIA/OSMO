@@ -14,7 +14,7 @@
 
 "use client";
 
-import { memo, useRef, useEffect } from "react";
+import { memo, useRef, useEffect, useId } from "react";
 import { useEventCallback } from "usehooks-ts";
 import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -74,6 +74,7 @@ export const ShellSearch = memo(function ShellSearch({
   className,
 }: ShellSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchInputId = useId();
 
   // Compute match info text
   const matchInfo = (() => {
@@ -125,10 +126,18 @@ export const ShellSearch = memo(function ShellSearch({
 
   return (
     <div className={cn("shell-search", className)}>
+      {/* Visually hidden label for accessibility and autofill */}
+      <label
+        htmlFor={searchInputId}
+        className="sr-only"
+      >
+        Search shell
+      </label>
       {/* Input with inline filter buttons */}
       <div className="shell-search-input-wrapper">
         <input
           ref={inputRef}
+          id={searchInputId}
           type="text"
           value={query}
           onChange={handleChange}
