@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, FormEvent } from "react";
+import { useState, useCallback, FormEvent, useId } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { getRecentWorkflows } from "../lib/recent-workflows";
@@ -17,6 +17,7 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
   const router = useRouter();
   const [workflowId, setWorkflowId] = useState(initialWorkflowId);
   const [recentWorkflows] = useState<string[]>(() => getRecentWorkflows());
+  const workflowInputId = useId();
 
   const handleSubmit = useCallback(
     (e: FormEvent) => {
@@ -99,8 +100,15 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
           className="space-y-4"
         >
           <div className="relative">
+            <label
+              htmlFor={workflowInputId}
+              className="sr-only"
+            >
+              Workflow ID or name
+            </label>
             <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
             <input
+              id={workflowInputId}
               type="text"
               value={workflowId}
               onChange={(e) => setWorkflowId(e.target.value)}

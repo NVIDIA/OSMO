@@ -105,7 +105,7 @@
    ============================================================================= */
 
 .data-table-row:focus-visible {
-  @apply z-[1] outline-2 outline-blue-500;
+  @apply z-1 outline-2 outline-blue-500;
   outline-offset: -2px;
 }
 
@@ -146,7 +146,7 @@
 
 /* Resize handle - positioned at right edge of header cell */
 .resize-handle {
-  @apply absolute inset-y-0 end-0 z-[1] w-2 cursor-col-resize touch-none select-none;
+  @apply absolute inset-y-0 end-0 z-1 w-2 cursor-col-resize touch-none select-none;
 
   &::after {
     content: "";
@@ -175,6 +175,18 @@
    Smooth Layout Transitions
    ============================================================================= */
 
+/*
+ * PERFORMANCE NOTE: Transitioning width causes reflow on every animation frame.
+ * However, for table column resizing, this is unavoidable - we need the actual
+ * width to change so content inside cells can reflow properly.
+ *
+ * Mitigations applied:
+ * - Transitions disabled during active resize (line 212: transition: none)
+ * - CSS containment used to limit reflow scope (line 214: contain: layout style)
+ * - Transitions only happen on resize complete (user releases handle)
+ *
+ * Alternative considered: transform: scaleX() - rejected because it distorts text
+ */
 .data-table:not(.is-resizing) th,
 .data-table:not(.is-resizing) td {
   transition:

@@ -42,6 +42,8 @@ let chronoModule: typeof import("chrono-node") | null = null;
 let chronoLoadPromise: Promise<typeof import("chrono-node")> | null = null;
 
 // Prefetch during browser idle time (non-blocking)
+// The dynamic import itself is async and won't block, but we want to
+// schedule it at an optimal time to avoid competing with initial render
 if (typeof window !== "undefined" && "requestIdleCallback" in window) {
   requestIdleCallback(
     () => {
@@ -53,13 +55,17 @@ if (typeof window !== "undefined" && "requestIdleCallback" in window) {
     { timeout: 5000 }, // Load within 5 seconds even if not idle
   );
 } else if (typeof window !== "undefined") {
-  // Fallback for browsers without requestIdleCallback (Safari)
-  setTimeout(() => {
-    chronoLoadPromise = import("chrono-node").then((m) => {
-      chronoModule = m;
-      return m;
+  // Safari fallback: Use RAF to wait for initial render to complete,
+  // then use another RAF to ensure we're past the paint cycle
+  // This avoids setTimeout long task violations while still deferring the load
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      chronoLoadPromise = import("chrono-node").then((m) => {
+        chronoModule = m;
+        return m;
+      });
     });
-  }, 2000);
+  });
 }
 
 /**

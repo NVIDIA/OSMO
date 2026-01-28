@@ -132,10 +132,14 @@ function createBrowserServices(): Services {
 
         // Clear and set message (triggers announcement)
         announcer.textContent = "";
-        // Use setTimeout to ensure the clear happens before setting new content
-        setTimeout(() => {
-          announcer!.textContent = message;
-        }, 50);
+        // Use RAF + microtask to ensure the clear happens before setting new content
+        // This avoids setTimeout long task violations while preserving the necessary
+        // delay for screen readers to detect the content change
+        requestAnimationFrame(() => {
+          queueMicrotask(() => {
+            announcer!.textContent = message;
+          });
+        });
       },
     },
   };
