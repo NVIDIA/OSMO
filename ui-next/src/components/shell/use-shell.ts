@@ -242,6 +242,11 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   const [isReady, setIsReady] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResultInfo | null>(null);
 
+  // Fix #6: Guard against double-invocation in React StrictMode
+  // For non-cached sessions (no sessionKey), prevent creating duplicate terminals
+  // when effects run twice. For cached sessions, the session cache handles this.
+  const initializedRef = useRef(false);
+
   // Keep sessionKeyRef in sync
   useEffect(() => {
     sessionKeyRef.current = sessionKey;
@@ -355,6 +360,19 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
       };
     }
 
+    // Fix #6: Guard against double-invocation in React StrictMode
+    // For non-cached sessions, only initialize once to prevent duplicate terminals.
+    // In StrictMode, effects run twice - first terminal would be created then cleaned up,
+    // then second terminal created. This guard prevents the second creation.
+    if (!sessionKey && initializedRef.current) {
+      return;
+    }
+
+    // Mark as initialized for non-cached sessions
+    if (!sessionKey) {
+      initializedRef.current = true;
+    }
+
     // No cached session - create new terminal and session
     const { terminal, fitAddon, searchAddon, webglAddon, dataDisposable } = createTerminal(
       container,
@@ -413,6 +431,9 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
         fitAddonRef.current = null;
         searchAddonRef.current = null;
         webglAddonRef.current = null;
+
+        // Reset initialized flag on cleanup for non-cached sessions
+        initializedRef.current = false;
       }
     };
     // Note: onData and onLinkClick are intentionally excluded from deps when

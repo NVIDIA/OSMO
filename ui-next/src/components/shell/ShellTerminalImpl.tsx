@@ -233,6 +233,8 @@ export const ShellTerminal = memo(
         }
       },
       onConnected: () => {
+        // Fix #4: Ensure terminal is fitted before sending resize
+        //
         // OPTIMIZED STRATEGY: Send resize IMMEDIATELY after WebSocket connects.
         //
         // Why this works (router.py:186-201):
@@ -250,26 +252,35 @@ export const ShellTerminal = memo(
         // - PTY gets correct size from the start (no resize mid-session)
         // - Explicit timeout catches hangs/crashes (no silent failures)
         // - User sees terminal immediately (better UX)
-        const dims = getDimensions();
-        if (dims && dims.rows >= SHELL_CONFIG.MIN_ROWS && dims.cols >= SHELL_CONFIG.MIN_COLS) {
-          // Send size immediately - router will buffer until backend connects
-          resize(dims.rows, dims.cols);
 
-          // Start timeout to detect backend initialization failure
-          // See SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS for timeout rationale
-          if (!backendReadyRef.current) {
-            backendTimeoutRef.current = setTimeout(() => {
-              if (!backendReadyRef.current) {
-                // Backend failed to send data - PTY likely crashed or hung
-                const errorMsg = "Backend failed to initialize shell session (timeout)";
-                write(getDisconnectMessage(true, errorMsg));
-                announce(errorMsg, "assertive");
-                onError?.(new Error(errorMsg));
-                disconnect();
-              }
-            }, SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS);
+        // Ensure terminal is fitted to container before reading dimensions
+        fit();
+
+        // Use requestAnimationFrame to ensure fit() DOM updates complete
+        // before reading dimensions. This prevents sending default 80x24
+        // instead of actual container dimensions.
+        requestAnimationFrame(() => {
+          const dims = getDimensions();
+          if (dims && dims.rows >= SHELL_CONFIG.MIN_ROWS && dims.cols >= SHELL_CONFIG.MIN_COLS) {
+            // Send size immediately - router will buffer until backend connects
+            resize(dims.rows, dims.cols);
+
+            // Start timeout to detect backend initialization failure
+            // See SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS for timeout rationale
+            if (!backendReadyRef.current) {
+              backendTimeoutRef.current = setTimeout(() => {
+                if (!backendReadyRef.current) {
+                  // Backend failed to send data - PTY likely crashed or hung
+                  const errorMsg = "Backend failed to initialize shell session (timeout)";
+                  write(getDisconnectMessage(true, errorMsg));
+                  announce(errorMsg, "assertive");
+                  onError?.(new Error(errorMsg));
+                  disconnect();
+                }
+              }, SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS);
+            }
           }
-        }
+        });
 
         focus();
         announce("Shell connected", "polite");
