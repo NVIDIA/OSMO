@@ -223,6 +223,16 @@ export const SHELL_CONFIG = {
   CURSOR_BLINK_RATE: 600,
   /** Debounce delay for resize events */
   RESIZE_DEBOUNCE_MS: 100,
+  /**
+   * Backend initialization timeout in milliseconds.
+   *
+   * Aligned with router timeout (60s) but fails 5s earlier to provide
+   * better error messages before router closes the connection.
+   *
+   * Router timeout: 60s (src/service/router/router.py:50)
+   * UI timeout: 55s (fail 5s before router)
+   */
+  BACKEND_INIT_TIMEOUT_MS: 55000,
 } as const;
 
 /**
