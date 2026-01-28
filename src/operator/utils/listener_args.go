@@ -30,6 +30,8 @@ type ListenerArgs struct {
 	Backend               string
 	Namespace             string
 	PodUpdateChanSize     int
+	NodeChanSize          int // Buffer size for node update channel (ResourceListener)
+	UsageChanSize         int // Buffer size for usage update channel (ResourceListener)
 	ResyncPeriodSec       int
 	StateCacheTTLMin      int
 	MaxUnackedMessages    int
@@ -54,6 +56,12 @@ func ListenerParse() ListenerArgs {
 	podUpdateChanSize := flag.Int("podUpdateChanSize",
 		getEnvInt("POD_UPDATE_CHAN_SIZE", 500),
 		"Buffer size for pod update channel")
+	nodeChanSize := flag.Int("nodeChanSize",
+		getEnvInt("NODE_CHAN_SIZE", 500),
+		"Buffer size for node update channel (ResourceListener)")
+	usageChanSize := flag.Int("usageChanSize",
+		getEnvInt("USAGE_CHAN_SIZE", 500),
+		"Buffer size for usage update channel (ResourceListener)")
 	resyncPeriodSec := flag.Int("resyncPeriodSec",
 		getEnvInt("RESYNC_PERIOD_SEC", 300),
 		"Resync period in seconds for Kubernetes informer")
@@ -86,6 +94,8 @@ func ListenerParse() ListenerArgs {
 		Backend:               *backend,
 		Namespace:             *namespace,
 		PodUpdateChanSize:     *podUpdateChanSize,
+		NodeChanSize:          *nodeChanSize,
+		UsageChanSize:         *usageChanSize,
 		ResyncPeriodSec:       *resyncPeriodSec,
 		StateCacheTTLMin:      *stateCacheTTLMin,
 		MaxUnackedMessages:    *maxUnackedMessages,

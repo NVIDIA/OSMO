@@ -66,10 +66,10 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 // sendMessages starts informers and processes resource events
 func (rl *ResourceListener) sendMessages() {
 	// Create channels for different message types
-	// resourceChan: node resource messages (from watchResources)
+	// nodeChan: node resource messages (from watchResources)
 	// usageChan: pod resource usage messages (from watchPods)
-	resourceChan := make(chan *pb.ListenerMessage, rl.args.PodUpdateChanSize)
-	usageChan := make(chan *pb.ListenerMessage, rl.args.PodUpdateChanSize)
+	nodeChan := make(chan *pb.ListenerMessage, rl.args.NodeChanSize)
+	usageChan := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
 
 	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
@@ -86,7 +86,7 @@ func (rl *ResourceListener) sendMessages() {
 	go func() {
 		defer wg.Done()
 		defer close(resourceWatcherDone)
-		rl.watchResources(resourceChan)
+		rl.watchResources(nodeChan)
 	}()
 
 	// Start pod watcher goroutine (handles resource aggregation)
@@ -97,11 +97,11 @@ func (rl *ResourceListener) sendMessages() {
 		rl.watchPods(usageChan)
 	}()
 
-	// Start resource message sender goroutine (dedicated to resourceChan)
+	// Start resource message sender goroutine (dedicated to nodeChan)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.sendFromChannel("resource", resourceChan, resourceWatcherDone, streamCtx, streamCancel)
+		rl.sendFromChannel("resource", nodeChan, resourceWatcherDone, streamCtx, streamCancel)
 	}()
 
 	// Start usage message sender goroutine (dedicated to usageChan)
@@ -184,12 +184,12 @@ func (rl *ResourceListener) sendResourceMessage(msg *pb.ListenerMessage) error {
 }
 
 // drainChannel saves any remaining messages in the channel to unacked queue
-func (rl *ResourceListener) drainChannel(resourceChan <-chan *pb.ListenerMessage) {
+func (rl *ResourceListener) drainChannel(nodeChan <-chan *pb.ListenerMessage) {
 	drained := 0
 	unackedMessages := rl.GetUnackedMessages()
 	for {
 		select {
-		case msg := <-resourceChan:
+		case msg := <-nodeChan:
 			unackedMessages.AddMessageForced(msg)
 			drained++
 		default:
@@ -221,7 +221,7 @@ func (rl *ResourceListener) Close() {
 
 // watchResources starts node informer and processes node events
 // This function focuses only on node resource messages
-func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessage) {
+func (rl *ResourceListener) watchResources(nodeChan chan<- *pb.ListenerMessage) {
 	// Create Kubernetes client
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
@@ -249,7 +249,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 		msg := rl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {
 			select {
-			case resourceChan <- msg:
+			case nodeChan <- msg:
 			case <-rl.GetStreamContext().Done():
 				return
 			}
@@ -294,7 +294,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 	// Set watch error handler for rebuild on watch gaps
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
-		rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, resourceChan)
+		rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, nodeChan)
 	})
 
 	// Start the informer
@@ -309,7 +309,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 	log.Println("Node informer cache synced successfully")
 
 	// Initial rebuild from store after sync
-	rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, resourceChan)
+	rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, nodeChan)
 
 	// Periodic reconciliation (safety net) - can be disabled by setting ReconcileIntervalMin to 0
 	var reconcileTicker *time.Ticker
@@ -332,7 +332,7 @@ func (rl *ResourceListener) watchResources(resourceChan chan<- *pb.ListenerMessa
 		}():
 			// Periodic full reconcile as safety net (only if enabled)
 			log.Println("Performing periodic node reconciliation...")
-			rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, resourceChan)
+			rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, nodeChan)
 		}
 	}
 }
@@ -471,7 +471,7 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 func (rl *ResourceListener) rebuildNodesFromStore(
 	nodeInformer cache.SharedIndexInformer,
 	nodeStateTracker *utils.NodeStateTracker,
-	resourceChan chan<- *pb.ListenerMessage,
+	nodeChan chan<- *pb.ListenerMessage,
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
 
@@ -486,7 +486,7 @@ func (rl *ResourceListener) rebuildNodesFromStore(
 		msg := rl.buildResourceMessageForced(node, nodeStateTracker)
 		if msg != nil {
 			select {
-			case resourceChan <- msg:
+			case nodeChan <- msg:
 			case <-rl.GetStreamContext().Done():
 				return
 			}
@@ -510,8 +510,9 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 		if !ok {
 			continue
 		}
-		// Only include Running or Pending pods with a node assignment
-		if pod.Spec.NodeName != "" && (pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending) {
+		// Only include Running pods with a node assignment
+		// Note: Store only contains Running pods due to field selector in informer factory
+		if pod.Spec.NodeName != "" && pod.Status.Phase == corev1.PodRunning {
 			rl.aggregator.UpdatePod(pod)
 		}
 	}
@@ -520,7 +521,7 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 }
 
 // flushDirtyNodes sends resource usage updates for all dirty nodes
-func (rl *ResourceListener) flushDirtyNodes(resourceChan chan<- *pb.ListenerMessage) {
+func (rl *ResourceListener) flushDirtyNodes(usageChan chan<- *pb.ListenerMessage) {
 	dirtyNodes := rl.aggregator.GetAndClearDirtyNodes()
 	if len(dirtyNodes) == 0 {
 		return
@@ -530,7 +531,7 @@ func (rl *ResourceListener) flushDirtyNodes(resourceChan chan<- *pb.ListenerMess
 		msg := rl.buildResourceUsageMessage(hostname)
 		if msg != nil {
 			select {
-			case resourceChan <- msg:
+			case usageChan <- msg:
 				log.Printf("Sent resource_usage for node: %s", hostname)
 			case <-rl.GetStreamContext().Done():
 				return
