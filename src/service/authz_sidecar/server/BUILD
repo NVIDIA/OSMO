@@ -26,9 +26,9 @@ go_library(
     visibility = ["//src/service/authz_sidecar:__subpackages__"],
     deps = [
         "//src/utils/roles",
-        "@com_github_envoyproxy_go_control_plane//envoy/config/core/v3:go_default_library",
-        "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:go_default_library",
-        "@com_github_envoyproxy_go_control_plane//envoy/type/v3:go_default_library",
+        "@com_github_envoyproxy_go_control_plane_envoy//config/core/v3:go_default_library",
+        "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:go_default_library",
+        "@com_github_envoyproxy_go_control_plane_envoy//type/v3:go_default_library",
         "@org_golang_google_genproto_googleapis_rpc//status:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
@@ -44,8 +44,8 @@ go_test(
     embed = [":server"],
     deps = [
         "//src/utils/roles",
-        "@com_github_envoyproxy_go_control_plane//envoy/config/core/v3:go_default_library",
-        "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:go_default_library",
+        "@com_github_envoyproxy_go_control_plane_envoy//config/core/v3:go_default_library",
+        "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
     ],
 )
