@@ -17,14 +17,7 @@ export const ANSI = {
 } as const;
 
 /** Shell connection status (matches state machine phases) */
-export type ConnectionStatus =
-  | "idle"
-  | "connecting"
-  | "opening"
-  | "initializing"
-  | "ready"
-  | "disconnected"
-  | "error";
+export type ConnectionStatus = "idle" | "connecting" | "opening" | "initializing" | "ready" | "disconnected" | "error";
 
 export interface ShellTerminalProps {
   taskId: string;

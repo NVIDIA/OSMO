@@ -56,7 +56,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { cn, formatHotkey } from "@/lib/utils";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
-import { ShellSessionIcon, reconnectSession, useShellSessions } from "@/components/shell";
+import { ShellSessionIcon, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
 
 // =============================================================================
@@ -121,7 +121,7 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   onReconnectSession,
   onRemoveSession,
 }: WorkflowEdgeStripProps) {
-  const { sessions: allSessions } = useShellSessions();
+  const allSessions = useShellSessions();
 
   // Filter sessions to only show those belonging to this workflow
   const sessions = workflowName ? allSessions.filter((s) => s.workflowName === workflowName) : allSessions;
@@ -260,15 +260,15 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
             />
             {sessions.map((session) => (
               <ShellSessionIcon
-                key={session.taskId}
+                key={session.key}
                 session={session}
-                isActive={session.taskId === currentTaskId}
+                isActive={session.key === currentTaskId}
                 onClick={handleSessionClick}
-                onSelect={() => handleSelect(session.taskId)}
-                onDisconnect={() => handleDisconnect(session.taskId)}
-                onReconnect={() => handleReconnect(session.taskId)}
-                onRemove={() => handleRemove(session.taskId)}
-                data-task-id={session.taskId}
+                onSelect={() => handleSelect(session.key)}
+                onDisconnect={() => handleDisconnect(session.key)}
+                onReconnect={() => handleReconnect(session.key)}
+                onRemove={() => handleRemove(session.key)}
+                data-task-id={session.key}
               />
             ))}
           </>
@@ -313,7 +313,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   className,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
-  const { disconnectOnly, removeShell } = useShellContext();
+  const { disconnectOnly, removeShell, connectShell } = useShellContext();
+  const allSessions = useShellSessions();
 
   // Ref to override focus behavior when panel expands.
   // - undefined: use default (focus first focusable)
@@ -386,12 +387,16 @@ export const DetailsPanel = memo(function DetailsPanel({
   // Handle reconnecting a shell session (opens panel + shell tab + triggers reconnection)
   const handleReconnectSession = useCallback(
     (taskId: string) => {
-      // Trigger reconnection directly through the session cache
-      reconnectSession(taskId);
+      // Find the session to get its metadata
+      const session = allSessions.find((s) => s.key === taskId);
+      if (session) {
+        // Trigger new connection through ShellContext
+        connectShell(taskId, session.taskName, session.workflowName, session.shell);
+      }
       // Expand panel and go to shell tab
       handleSelectShellSession(taskId);
     },
-    [handleSelectShellSession],
+    [allSessions, connectShell, handleSelectShellSession],
   );
 
   // Handle removing a shell session (closes WebSocket + removes from list)
