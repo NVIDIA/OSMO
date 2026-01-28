@@ -21,10 +21,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/shadcn/context-menu";
 import { StatusDot, STATUS_LABELS } from "./StatusDot";
-import type { ShellSessionSnapshot } from "../lib/shell-cache";
+import type { CachedSession } from "../lib/shell-cache";
 
 export interface ShellSessionIconProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  session: ShellSessionSnapshot;
+  session: CachedSession;
   isActive?: boolean;
   onSelect?: () => void;
   onDisconnect?: () => void;
@@ -42,9 +42,10 @@ export const ShellSessionIcon = memo(function ShellSessionIcon({
   className,
   ...buttonProps
 }: ShellSessionIconProps) {
-  const isConnected = session.status === "connected" || session.status === "connecting";
-  const isDisconnected = session.status === "disconnected";
-  const isError = session.status === "error";
+  const phase = session.state.phase;
+  const isConnected = phase === "connecting" || phase === "opening" || phase === "initializing" || phase === "ready";
+  const isDisconnected = phase === "disconnected";
+  const isError = phase === "error";
 
   return (
     <ContextMenu>
@@ -64,14 +65,14 @@ export const ShellSessionIcon = memo(function ShellSessionIcon({
                 "focus-visible:outline-none",
                 className,
               )}
-              aria-label={`${session.taskName} shell - ${STATUS_LABELS[session.status]}`}
+              aria-label={`${session.taskName} shell - ${STATUS_LABELS[phase]}`}
             >
               <Terminal
                 className="size-4"
                 aria-hidden="true"
               />
               <StatusDot
-                status={session.status}
+                status={phase}
                 className="absolute -right-0.5 -bottom-0.5"
               />
             </button>
@@ -80,7 +81,7 @@ export const ShellSessionIcon = memo(function ShellSessionIcon({
         <TooltipContent side="left">
           <div className="text-xs">
             <div className="font-medium">{session.taskName}</div>
-            <div className="text-zinc-400">{STATUS_LABELS[session.status]}</div>
+            <div className="text-zinc-400">{STATUS_LABELS[phase]}</div>
           </div>
         </TooltipContent>
       </Tooltip>
@@ -94,10 +95,10 @@ export const ShellSessionIcon = memo(function ShellSessionIcon({
             <span className="max-w-[180px] truncate font-medium">{session.taskName}</span>
             <span className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
               <StatusDot
-                status={session.status}
+                status={phase}
                 className="size-2"
               />
-              {STATUS_LABELS[session.status]}
+              {STATUS_LABELS[phase]}
             </span>
           </ContextMenuItem>
         ) : (
@@ -105,10 +106,10 @@ export const ShellSessionIcon = memo(function ShellSessionIcon({
             <span className="max-w-[180px] truncate">{session.taskName}</span>
             <span className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
               <StatusDot
-                status={session.status}
+                status={phase}
                 className="size-2"
               />
-              {STATUS_LABELS[session.status]}
+              {STATUS_LABELS[phase]}
             </span>
           </ContextMenuLabel>
         )}
