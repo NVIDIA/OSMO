@@ -55,8 +55,9 @@ export interface PanelContentProps {
  * Displays:
  * - GPU Quota (used/limit bar)
  * - GPU Capacity (usage/total bar, shared capacity info)
+ * - Quick Links (links to related resources and workflows)
+ * - Pool Details (description, timeouts, exit actions)
  * - Platform Configuration (platform selector + config details)
- * - Placeholder sections for future cross-reference features
  */
 export const PanelContent = memo(function PanelContent({
   pool,
@@ -154,6 +155,41 @@ export const PanelContent = memo(function PanelContent({
             </div>
           )}
         </CapacityBar>
+
+        {/* Quick Links */}
+        <section>
+          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Quick Links</h3>
+
+          <Card className="gap-0 py-0">
+            <CardContent className="divide-border divide-y p-0">
+              {/* Resources Link */}
+              <Link
+                href={`/resources?f=pool:${encodeURIComponent(pool.name)}`}
+                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
+              >
+                <Server className="text-muted-foreground size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">Resources</div>
+                  <div className="text-muted-foreground text-xs">View compute resources in this pool</div>
+                </div>
+                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
+              </Link>
+
+              {/* Workflows Link */}
+              <Link
+                href={`/workflows?f=pool:${encodeURIComponent(pool.name)}&all=true`}
+                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
+              >
+                <Workflow className="text-muted-foreground size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">Workflows</div>
+                  <div className="text-muted-foreground text-xs">View workflows that ran on this pool</div>
+                </div>
+                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
+              </Link>
+            </CardContent>
+          </Card>
+        </section>
 
         {/* Pool Details */}
         {hasPoolDetails && (
@@ -256,41 +292,6 @@ export const PanelContent = memo(function PanelContent({
             </Card>
           </section>
         )}
-
-        {/* Related */}
-        <section>
-          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Related</h3>
-
-          <Card className="gap-0 py-0">
-            <CardContent className="divide-border divide-y p-0">
-              {/* Resources Link */}
-              <Link
-                href={`/resources?f=pool:${encodeURIComponent(pool.name)}`}
-                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
-              >
-                <Server className="text-muted-foreground size-5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">Resources</div>
-                  <div className="text-muted-foreground text-xs">View compute resources in this pool</div>
-                </div>
-                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
-              </Link>
-
-              {/* Workflows Link */}
-              <Link
-                href={`/workflows?f=pool:${encodeURIComponent(pool.name)}&all=true`}
-                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
-              >
-                <Workflow className="text-muted-foreground size-5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">Workflows</div>
-                  <div className="text-muted-foreground text-xs">View workflows that ran on this pool</div>
-                </div>
-                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
-              </Link>
-            </CardContent>
-          </Card>
-        </section>
       </div>
     </div>
   );
