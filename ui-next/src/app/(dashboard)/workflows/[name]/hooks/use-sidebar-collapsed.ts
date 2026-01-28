@@ -45,11 +45,9 @@ export interface UseSidebarCollapsedOptions {
   hasSelection: boolean;
   /** Unique key identifying the current selection (changes trigger auto-expand) */
   selectionKey: string | null;
-  /** Whether in table view mode - when true, panel starts collapsed by default */
-  isTableView?: boolean;
 }
 
-export function useSidebarCollapsed({ hasSelection, selectionKey, isTableView = false }: UseSidebarCollapsedOptions) {
+export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCollapsedOptions) {
   // User preference for default state (used when no selection)
   // Using Zustand shared preferences store for unified localStorage management
   const storePreferredCollapsed = useSharedPreferences((s) => s.detailsPanelCollapsed);
@@ -109,10 +107,10 @@ export function useSidebarCollapsed({ hasSelection, selectionKey, isTableView = 
   const usesSessionState = hasSelection || hasNavigatedThisSession;
 
   // Derive collapsed state from the appropriate source
-  // In table view, default to collapsed when showing workflow overview (no selection)
+  // In table view with no preference set, default to collapsed when showing workflow overview (no selection)
   // This gives more space for the table, since the workflow info is less critical
-  const defaultCollapsed = isTableView ? true : preferredCollapsed;
-  const collapsed = usesSessionState ? userCollapsed : defaultCollapsed;
+  // However, once the user sets a preference (by toggling), respect it even in table view
+  const collapsed = usesSessionState ? userCollapsed : preferredCollapsed;
 
   // Toggle collapsed state - stable callback for memoized children
   const toggle = useEventCallback(() => {
