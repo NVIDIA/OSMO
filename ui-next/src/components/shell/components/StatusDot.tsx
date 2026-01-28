@@ -6,56 +6,40 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-/**
- * StatusDot Component
- *
- * Shared status indicator dot for connection status.
- * Used by ShellSessionIcon, PanelTabs, and other components.
- */
-
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { ConnectionStatus } from "./types";
+import type { ConnectionStatus } from "../lib/types";
 
-// =============================================================================
-// Shared Styles (Single Source of Truth)
-// =============================================================================
-
-/** CSS classes for each connection status */
 export const STATUS_DOT_STYLES: Record<ConnectionStatus, string> = {
-  mounting: "bg-blue-400 animate-pulse",
   idle: "bg-zinc-500",
-  connecting: "bg-amber-400",
-  connected: "bg-emerald-400",
+  connecting: "bg-amber-400 animate-pulse",
+  opening: "bg-amber-400 animate-pulse",
+  initializing: "bg-amber-400 animate-pulse",
+  ready: "bg-emerald-400",
   disconnected: "border border-red-400 bg-transparent",
   error: "bg-red-400",
+  mounting: "bg-blue-400 animate-pulse", // Legacy
+  connected: "bg-emerald-400", // Legacy
 };
 
-/** Human-readable labels for each status */
 export const STATUS_LABELS: Record<ConnectionStatus, string> = {
-  mounting: "Mounting...",
   idle: "Idle",
   connecting: "Connecting...",
-  connected: "Connected",
+  opening: "Opening...",
+  initializing: "Initializing...",
+  ready: "Connected",
   disconnected: "Disconnected",
   error: "Error",
+  mounting: "Mounting...", // Legacy
+  connected: "Connected", // Legacy
 };
 
-// =============================================================================
-// Component
-// =============================================================================
-
 export interface StatusDotProps {
-  /** Connection status to display */
   status: ConnectionStatus;
-  /** Additional className (e.g., for sizing) */
   className?: string;
 }
 
-/**
- * Renders a colored dot indicating connection status.
- * Default size is size-2 (8px). Override with className.
- */
+/** Colored dot indicating connection status. Default size: 8px. */
 export const StatusDot = memo(function StatusDot({ status, className }: StatusDotProps) {
   return (
     <span

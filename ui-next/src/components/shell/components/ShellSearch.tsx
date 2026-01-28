@@ -6,12 +6,6 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-/**
- * ShellSearch Component
- *
- * Search bar for shell content using xterm.js SearchAddon.
- */
-
 "use client";
 
 import { memo, useRef, useEffect, useId } from "react";
@@ -19,44 +13,23 @@ import { useEventCallback } from "usehooks-ts";
 import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
-import type { SearchResultInfo } from "./types";
-
-// =============================================================================
-// Types
-// =============================================================================
+import type { SearchResultInfo } from "../lib/types";
 
 export interface ShellSearchProps {
-  /** Current search query */
   query: string;
-  /** Called when query changes */
   onQueryChange: (query: string) => void;
-  /** Called to find next match */
   onFindNext: () => void;
-  /** Called to find previous match */
   onFindPrevious: () => void;
-  /** Called to close search */
   onClose: () => void;
-  /** Whether search is case sensitive */
   caseSensitive: boolean;
-  /** Called when case sensitivity changes */
   onCaseSensitiveChange: (value: boolean) => void;
-  /** Whether to match whole words only */
   wholeWord: boolean;
-  /** Called when whole word changes */
   onWholeWordChange: (value: boolean) => void;
-  /** Whether to use regex */
   regex: boolean;
-  /** Called when regex changes */
   onRegexChange: (value: boolean) => void;
-  /** Search result info from xterm.js */
   searchResults: SearchResultInfo | null;
-  /** Additional className */
   className?: string;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const ShellSearch = memo(function ShellSearch({
   query,
@@ -76,27 +49,20 @@ export const ShellSearch = memo(function ShellSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputId = useId();
 
-  // Compute match info text
   const matchInfo = (() => {
     if (!query) return null;
     if (!searchResults) return null;
     if (searchResults.resultCount === 0) return "No results";
-    // resultIndex is -1 when no match is focused yet, treat as first match
     const displayIndex = searchResults.resultIndex < 0 ? 1 : searchResults.resultIndex + 1;
     return `${displayIndex} of ${searchResults.resultCount}`;
   })();
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Handle keyboard shortcuts (scoped to search input)
-  // Shortcuts defined in: ./hotkeys.ts (SHELL_SEARCH_HOTKEYS)
-  // useEventCallback: stable ref, always accesses latest props
   const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
-    // SHELL_SEARCH_HOTKEYS.shortcuts.FOCUS_SEARCH
-    // Prevent Ctrl/Cmd+F from triggering browser find when search is already open
+    // Prevent browser find when search is already open
     if (e.key === "f" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       e.stopPropagation();
@@ -104,7 +70,6 @@ export const ShellSearch = memo(function ShellSearch({
       return;
     }
 
-    // SHELL_SEARCH_HOTKEYS.shortcuts.FIND_NEXT / FIND_PREVIOUS
     if (e.key === "Enter") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -113,27 +78,23 @@ export const ShellSearch = memo(function ShellSearch({
         onFindNext();
       }
     } else if (e.key === "Escape") {
-      // SHELL_SEARCH_HOTKEYS.shortcuts.CLOSE_SEARCH
       e.preventDefault();
       onClose();
     }
   });
 
-  // useEventCallback: stable ref for input onChange
   const handleChange = useEventCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onQueryChange(e.target.value);
   });
 
   return (
     <div className={cn("shell-search", className)}>
-      {/* Visually hidden label for accessibility and autofill */}
       <label
         htmlFor={searchInputId}
         className="sr-only"
       >
         Search shell
       </label>
-      {/* Input with inline filter buttons */}
       <div className="shell-search-input-wrapper">
         <input
           ref={inputRef}
@@ -146,7 +107,6 @@ export const ShellSearch = memo(function ShellSearch({
           className="shell-search-input"
           aria-label="Search shell"
         />
-        {/* Search options - inside input */}
         <div className="shell-search-options">
           <button
             type="button"
@@ -178,7 +138,6 @@ export const ShellSearch = memo(function ShellSearch({
         </div>
       </div>
 
-      {/* Navigation buttons */}
       <div className="shell-search-buttons flex gap-0.5">
         <Button
           variant="ghost"
@@ -202,10 +161,8 @@ export const ShellSearch = memo(function ShellSearch({
         </Button>
       </div>
 
-      {/* Match info */}
       {matchInfo && <span className="shell-search-count">{matchInfo}</span>}
 
-      {/* Close button */}
       <Button
         variant="ghost"
         size="sm"

@@ -6,30 +6,14 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-/**
- * ShellConnecting Component
- *
- * Connecting state overlay with spinner.
- * Shown while establishing WebSocket connection.
- */
-
 "use client";
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface ShellConnectingProps {
-  /** Additional className */
   className?: string;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const ShellConnecting = memo(function ShellConnecting({ className }: ShellConnectingProps) {
   return (

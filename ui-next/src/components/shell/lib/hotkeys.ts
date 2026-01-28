@@ -17,12 +17,8 @@
 import type { HotkeyRegistry } from "@/lib/hotkeys/types";
 
 /**
- * Terminal keyboard shortcuts (scoped to terminal container).
- * Active only when terminal is focused.
- *
- * Implementation: ShellTerminalImpl.tsx uses manual addEventListener
- * because these shortcuts require custom logic (e.g., Cmd+C only copies
- * if text is selected, otherwise sends SIGINT).
+ * Terminal shortcuts use manual addEventListener because Cmd+C requires
+ * custom logic (copy if selected, otherwise SIGINT).
  */
 export const TERMINAL_HOTKEYS: HotkeyRegistry = {
   id: "terminal",
@@ -52,10 +48,6 @@ export const TERMINAL_HOTKEYS: HotkeyRegistry = {
   },
 };
 
-/**
- * Shell search keyboard shortcuts (scoped to search input).
- * Active only when shell search is open.
- */
 export const SHELL_SEARCH_HOTKEYS: HotkeyRegistry = {
   id: "shell-search",
   label: "Shell Search",
