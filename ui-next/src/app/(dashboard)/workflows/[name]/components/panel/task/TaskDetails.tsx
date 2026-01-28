@@ -458,7 +458,7 @@ export const TaskDetails = memo(function TaskDetails({
   const availableTabs: PanelTab[] = useMemo(() => {
     // Shell status indicator: show StatusDot when connected, nothing otherwise
     const shellStatusContent =
-      shellSession && shellSession.status !== "idle" ? <StatusDot status={shellSession.status} /> : undefined;
+      shellSession && shellSession.state.phase !== "idle" ? <StatusDot status={shellSession.state.phase} /> : undefined;
 
     return [
       { id: "overview", label: "Overview", icon: Info },
