@@ -224,7 +224,8 @@ func (ls *ListenerService) InitBackend(
 	}
 
 	// Store backend initialization information in postgres database
-	err := utils.CreateOrUpdateBackend(ctx, ls.pgPool, initBody, ls.serviceHostname)
+	isCreate, isUpdate, err := utils.CreateOrUpdateBackend(
+		ctx, ls.pgPool, initBody, ls.serviceHostname)
 	if err != nil {
 		ls.logger.ErrorContext(ctx, "failed to initialize backend",
 			slog.String("backend_name", backendName),
@@ -235,8 +236,41 @@ func (ls *ListenerService) InitBackend(
 		}, nil
 	}
 
+	// TODO: This should be built-in instead of pushing to Redis
+	// Push backend operation notification to Redis for agent_worker to process in Python
+	// This triggers update_backend_queues (if create) or create_backend_config_history_entry
+	if isCreate || isUpdate {
+		operation := "update"
+		if isCreate {
+			operation = "create"
+		}
+
+		// Create a simple protobuf message for backend operation notification
+		// Using LoggingBody with a special format that agent can parse
+		msg := &pb.ListenerMessage{
+			Uuid:      fmt.Sprintf("backend-op-%s-%d", backendName, time.Now().UnixNano()),
+			Timestamp: time.Now().Format(time.RFC3339),
+			Body: &pb.ListenerMessage_Logging{
+				Logging: &pb.LoggingBody{
+					Type: pb.LoggingType_INFO,
+					Text: fmt.Sprintf("__BACKEND_OP__:%s", operation),
+				},
+			},
+		}
+
+		// Push using the existing function
+		if err := ls.pushMessageToRedis(ctx, msg, backendName); err != nil {
+			return &pb.InitBackendResponse{
+				Success: false,
+				Message: fmt.Sprintf("failed to push backend operation notification: %s", err.Error()),
+			}, nil
+		}
+	}
+
 	ls.logger.InfoContext(ctx, "backend initialized successfully",
 		slog.String("backend_name", backendName),
+		slog.Bool("is_create", isCreate),
+		slog.Bool("is_update", isUpdate),
 		slog.String("k8s_uid", initBody.K8SUid))
 
 	// Report progress after successful backend initialization
