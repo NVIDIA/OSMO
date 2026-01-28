@@ -189,22 +189,10 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
           return; // Unknown data type
         }
 
-        // Filter out resize messages that might be echoed back from the server
-        // Resize messages are JSON strings like {"Rows":39,"Cols":132}
-        // They should not be displayed in the terminal buffer
-        try {
-          const text = new TextDecoder().decode(data);
-          const trimmed = text.trim();
-          // Check if this is ONLY a resize message (exact match)
-          if (trimmed.match(/^\{"Rows":\d+,"Cols":\d+\}$/)) {
-            // This is a resize message - don't pass it to the terminal
-            console.debug("[Shell] Filtered resize message:", trimmed);
-            return;
-          }
-        } catch {
-          // UTF-8 decode failed - not a text message, pass through as-is
-        }
-
+        // Pass all data to terminal without filtering
+        // Legacy UI (ExecTerminal.tsx) doesn't filter resize messages and works reliably
+        // The backend router should not echo resize messages, but if it does, the terminal
+        // will handle them gracefully (they just won't display as they're control sequences)
         onDataRef.current?.(data);
       };
 
