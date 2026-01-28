@@ -2364,22 +2364,31 @@ class Backend(pydantic.BaseModel):
         fetch_cmd = 'SELECT * FROM backends ORDER BY name;'
         backend_rows = database.execute_fetch_command(fetch_cmd, ())
 
-        return [Backend(name=backend_row.name,
-                        description=backend_row.description,
-                        version=backend_row.version,
-                        k8s_uid=backend_row.k8s_uid,
-                        k8s_namespace=backend_row.k8s_namespace,
-                        dashboard_url=backend_row.dashboard_url,
-                        grafana_url=backend_row.grafana_url,
-                        tests=backend_row.tests,
-                        scheduler_settings=BackendSchedulerSettings(
-                           **yaml.safe_load(backend_row.scheduler_settings)),
-                        node_conditions=BackendNodeConditions(**backend_row.node_conditions),
-                        last_heartbeat=backend_row.last_heartbeat,
-                        created_date=backend_row.created_date,
-                        router_address=backend_row.router_address,
-                        online=common.heartbeat_online(backend_row.last_heartbeat))
-                        for backend_row in backend_rows]
+        backends = []
+        for backend_row in backend_rows:
+            try:
+                backend = Backend(
+                    name=backend_row.name,
+                    description=backend_row.description,
+                    version=backend_row.version,
+                    k8s_uid=backend_row.k8s_uid,
+                    k8s_namespace=backend_row.k8s_namespace,
+                    dashboard_url=backend_row.dashboard_url,
+                    grafana_url=backend_row.grafana_url,
+                    tests=backend_row.tests,
+                    scheduler_settings=BackendSchedulerSettings(
+                        **yaml.safe_load(backend_row.scheduler_settings)),
+                    node_conditions=BackendNodeConditions(
+                        **backend_row.node_conditions),
+                    last_heartbeat=backend_row.last_heartbeat,
+                    created_date=backend_row.created_date,
+                    router_address=backend_row.router_address,
+                    online=common.heartbeat_online(backend_row.last_heartbeat))
+                backends.append(backend)
+            except pydantic.ValidationError as e:
+                raise ValueError(
+                    f"Failed to load backend '{backend_row.name}': {e}") from e
+        return backends
 
 
 class BackendConfigCache:
