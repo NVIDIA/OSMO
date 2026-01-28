@@ -17,22 +17,11 @@
 "use client";
 
 import { createContext, useContext, useCallback, useMemo, type ReactNode } from "react";
-import { useShellSessions, deleteSession, getSession, hasSession } from "@/components/shell";
+import { useShellSessions, deleteSession, getSession, hasSession, createSession } from "@/components/shell";
 import { ShellNavigationGuard } from "./ShellNavigationGuard";
 
-/** Shell intents - pending shell connections requested by UI */
-const shellIntents = new Map<
-  string,
-  {
-    taskId: string;
-    taskName: string;
-    workflowName: string;
-    shell: string;
-  }
->();
-
 interface ShellContextValue {
-  /** Request a shell to be rendered (called by TaskDetails on Connect click) */
+  /** Create a shell session (called by TaskDetails on Connect click) */
   connectShell: (taskId: string, taskName: string, workflowName: string, shell: string) => void;
 
   /** Disconnect only - closes WebSocket but keeps session in list for reconnect */
@@ -41,7 +30,7 @@ interface ShellContextValue {
   /** Remove a shell from rendering and dispose its session */
   removeShell: (taskId: string) => void;
 
-  /** Check if a shell intent exists for a given task */
+  /** Check if a shell session exists for a given task */
   hasActiveShell: (taskId: string) => boolean;
 
   /** Disconnect all shells for the current workflow (called on page leave) */
@@ -59,7 +48,19 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
   const sessions = useShellSessions();
 
   const connectShell = useCallback((taskId: string, taskName: string, wfName: string, shell: string) => {
-    shellIntents.set(taskId, { taskId, taskName, workflowName: wfName, shell });
+    // Don't create duplicate sessions
+    if (hasSession(taskId)) return;
+
+    // Create session in cache - useShell hook will handle actual connection
+    createSession({
+      key: taskId,
+      workflowName: wfName,
+      taskName,
+      shell,
+      state: { phase: "idle" },
+      addons: null,
+      container: null,
+    });
   }, []);
 
   const disconnectOnly = useCallback((taskId: string) => {
@@ -72,18 +73,16 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
   }, []);
 
   const removeShell = useCallback((taskId: string) => {
-    shellIntents.delete(taskId);
     deleteSession(taskId);
   }, []);
 
   const hasActiveShell = useCallback((taskId: string) => {
-    return shellIntents.has(taskId) || hasSession(taskId);
+    return hasSession(taskId);
   }, []);
 
   const disconnectAll = useCallback(() => {
     const workflowSessions = sessions.filter((s) => s.workflowName === workflowName);
     for (const session of workflowSessions) {
-      shellIntents.delete(session.key);
       deleteSession(session.key);
     }
   }, [sessions, workflowName]);
@@ -117,14 +116,4 @@ export function useShellContext(): ShellContextValue {
     throw new Error("useShellContext must be used within a ShellProvider");
   }
   return context;
-}
-
-/** Get shell intent if exists (for ShellContainer) */
-export function getShellIntent(taskId: string) {
-  return shellIntents.get(taskId);
-}
-
-/** Clear shell intent (called after shell is created) */
-export function clearShellIntent(taskId: string): void {
-  shellIntents.delete(taskId);
 }
