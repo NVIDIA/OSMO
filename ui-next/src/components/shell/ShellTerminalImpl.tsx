@@ -134,10 +134,10 @@ export const ShellTerminal = memo(
     // Track if we've written the disconnect message to avoid duplicates
     const hasWrittenDisconnectRef = useRef(false);
 
-    // Track if backend is ready (has sent first message)
+    // Track if backend has sent any data (proves PTY is running)
     const backendReadyRef = useRef(false);
-    // Buffer resize to send once backend is ready
-    const pendingResizeRef = useRef<{ rows: number; cols: number } | null>(null);
+    // Timeout for detecting backend initialization failure
+    const backendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
     const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
@@ -188,16 +188,32 @@ export const ShellTerminal = memo(
         // Write received data to shell
         write(data);
 
-        // First message from backend signals that copy_data tasks are running
-        // and it's safe to send buffered resize
+        // TODO: Backend fix needed (user.go:156)
+        // Currently, backend forwards ALL subsequent data via io.Copy(terminal, conn).
+        // This means resize messages {"Rows":40,"Cols":80} get forwarded to PTY
+        // and echo back, appearing as text in the terminal.
+        //
+        // CORRECT FIX: Backend should parse and filter resize messages:
+        //   for {
+        //     data := conn.Read()
+        //     if isResizeJSON(data) {
+        //       pty.Setsize(terminal, parseSize(data))
+        //       continue  // Don't forward to PTY
+        //     }
+        //     terminal.Write(data)  // Forward non-resize data
+        //   }
+        //
+        // This is simpler, more robust, and fixes the root cause.
+        // Client-side filtering is complex and fragile (regex parsing, edge cases).
+
+        // First message from backend proves PTY is running
         if (!backendReadyRef.current) {
           backendReadyRef.current = true;
 
-          // Send buffered resize if we have one
-          if (pendingResizeRef.current) {
-            const { rows, cols } = pendingResizeRef.current;
-            resize(rows, cols);
-            pendingResizeRef.current = null;
+          // Clear timeout - backend is responding
+          if (backendTimeoutRef.current) {
+            clearTimeout(backendTimeoutRef.current);
+            backendTimeoutRef.current = null;
           }
         }
       },
@@ -205,32 +221,67 @@ export const ShellTerminal = memo(
         updateSessionStatus(sessionKey, newStatus);
         onStatusChange?.(newStatus);
 
-        // Reset flags when connecting
-        if (newStatus === "connecting" || newStatus === "connected") {
+        // Reset synchronization flags when starting new connection
+        if (newStatus === "connecting") {
           hasWrittenDisconnectRef.current = false;
           backendReadyRef.current = false;
-          pendingResizeRef.current = null;
+          // Clear any existing timeout
+          if (backendTimeoutRef.current) {
+            clearTimeout(backendTimeoutRef.current);
+            backendTimeoutRef.current = null;
+          }
         }
       },
       onConnected: () => {
-        // Buffer resize to send once we receive first message from backend
-        // The first message (PTY prompt) signals that the router's bidirectional
-        // copy_data tasks are established and data can flow safely
+        // OPTIMIZED STRATEGY: Send resize IMMEDIATELY after WebSocket connects.
+        //
+        // Why this works (router.py:186-201):
+        // 1. Client WebSocket connects to router ✓
+        // 2. Client sends resize message immediately
+        // 3. Message buffered in WebSocket receive queue (router hasn't started copy_data yet)
+        // 4. Backend connects to router (async)
+        // 5. Router starts copy_data tasks → reads buffered resize from client
+        // 6. Forwards resize to backend → PTY initializes with correct dimensions ✓
+        //
+        // SAFETY: 5-second timeout detects backend initialization failures.
+        // If backend doesn't send data within 5 seconds, fail fast with clear error.
+        //
+        // This approach is MORE DETERMINISTIC than waiting for first message because:
+        // - PTY gets correct size from the start (no resize mid-session)
+        // - Explicit timeout catches hangs/crashes (no silent failures)
+        // - User sees terminal immediately (better UX)
         const dims = getDimensions();
-        if (dims) {
-          if (backendReadyRef.current) {
-            // Backend already sent data (reconnection case) - send immediately
-            resize(dims.rows, dims.cols);
-          } else {
-            // Buffer resize until first message arrives
-            pendingResizeRef.current = { rows: dims.rows, cols: dims.cols };
+        if (dims && dims.rows >= SHELL_CONFIG.MIN_ROWS && dims.cols >= SHELL_CONFIG.MIN_COLS) {
+          // Send size immediately - router will buffer until backend connects
+          resize(dims.rows, dims.cols);
+
+          // Start timeout to detect backend initialization failure
+          // See SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS for timeout rationale
+          if (!backendReadyRef.current) {
+            backendTimeoutRef.current = setTimeout(() => {
+              if (!backendReadyRef.current) {
+                // Backend failed to send data - PTY likely crashed or hung
+                const errorMsg = "Backend failed to initialize shell session (timeout)";
+                write(getDisconnectMessage(true, errorMsg));
+                announce(errorMsg, "assertive");
+                onError?.(new Error(errorMsg));
+                disconnect();
+              }
+            }, SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS);
           }
         }
+
         focus();
         announce("Shell connected", "polite");
         onConnected?.();
       },
       onDisconnected: () => {
+        // Clear timeout on disconnect
+        if (backendTimeoutRef.current) {
+          clearTimeout(backendTimeoutRef.current);
+          backendTimeoutRef.current = null;
+        }
+
         // Write disconnect message to terminal buffer
         if (!hasWrittenDisconnectRef.current) {
           write(getDisconnectMessage(false));
@@ -240,6 +291,12 @@ export const ShellTerminal = memo(
         onDisconnected?.();
       },
       onError: (err) => {
+        // Clear timeout on error
+        if (backendTimeoutRef.current) {
+          clearTimeout(backendTimeoutRef.current);
+          backendTimeoutRef.current = null;
+        }
+
         // Write error message to terminal buffer
         if (!hasWrittenDisconnectRef.current) {
           write(getDisconnectMessage(true, err.message));
