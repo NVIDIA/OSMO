@@ -400,6 +400,31 @@
 }
 
 /* =============================================================================
+   Search Result Highlighting (xterm.js SearchAddon)
+   ============================================================================= */
+
+/* Hide the overview ruler (scrollbar markers) */
+.shell-body .xterm-decoration-overview-ruler {
+  display: none !important;
+}
+
+/* All search matches (subtle yellow background) */
+.shell-body .xterm-decoration,
+.shell-body .xterm-decoration-cursor-offset {
+  background-color: rgba(255, 255, 0, 0.25) !important;
+  border-bottom: 1px solid rgba(255, 255, 0, 0.6);
+  box-sizing: border-box;
+}
+
+/* Active/selected match (bright orange/yellow highlight) */
+.shell-body .xterm-decoration-top,
+.shell-body .xterm-decoration-top-cursor-offset {
+  background-color: rgba(255, 200, 0, 0.45) !important;
+  border-bottom: 2px solid rgba(255, 165, 0, 1);
+  box-sizing: border-box;
+}
+
+/* =============================================================================
    Inactive/Disconnected State
    ============================================================================= */
 
