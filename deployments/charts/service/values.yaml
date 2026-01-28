@@ -1660,13 +1660,17 @@ sidecars:
     ##
     grpcPort: 50052
 
+    ## Extra environment variables for the API service container
+    ##
+    extraEnv: []
+
     ## PostgreSQL connection pool configuration
     ## Note: Host, port, database, user, and password are inherited from services.postgres
     ##
     postgres:
-      ## PostgreSQL SSL mode (disable, require, verify-full)
+      ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
       ##
-      sslMode: disable
+      sslMode: prefer
 
       ## Maximum number of connections in the pool
       ##

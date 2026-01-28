@@ -421,11 +421,22 @@ Authorization sidecar container
     - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
     - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
   env:
-    - name: POSTGRES_PASSWORD
+    {{- include "osmo.extra-env" .Values.sidecars.authz | nindent 4 }}
+    {{- if .Values.services.postgres.password }}
+    - name: OSMO_POSTGRES_PASSWORD
+      value: {{ .Values.services.postgres.password }}
+    {{- else if .Values.services.configFile.enabled }}
+    - name: OSMO_POSTGRES_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: {{ .Values.services.postgres.passwordSecretName }}
-          key: {{ .Values.services.postgres.passwordSecretKey }}
+          name: db-secret
+          key: db-password
+    - name: OSMO_REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: redis-secret
+          key: redis-password
+    {{- end }}
   ports:
     - containerPort: {{ .Values.sidecars.authz.grpcPort }}
       name: authz-grpc
