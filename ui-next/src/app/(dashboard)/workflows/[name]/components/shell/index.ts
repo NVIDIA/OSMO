@@ -13,13 +13,12 @@
  * within the workflow detail page.
  *
  * ARCHITECTURE:
- * All shell state is managed in @/components/shell/shell-session-cache.ts.
+ * All shell state is managed in @/components/shell/lib/shell-cache.ts.
  * This module provides React integration:
  *
  * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │  Session Cache (source of truth)                                           │
- * │  ├── shellIntents Map: what UI wants to render                             │
- * │  └── sessionCache Map: xterm + WebSocket instances                         │
+ * │  Session Cache (single source of truth)                                    │
+ * │  └── Map<key, CachedSession> with xterm + WebSocket instances              │
  * ├─────────────────────────────────────────────────────────────────────────────┤
  * │  ShellContext (thin wrapper)                                               │
  * │  └── Provides actions: connectShell, removeShell, disconnectOnly           │
@@ -34,14 +33,14 @@
  * └─────────────────────────────────────────────────────────────────────────────┘
  *
  * DATA FLOW:
- * 1. User clicks "Connect" → connectShell() → openShellIntent() in cache
+ * 1. User clicks "Connect" → connectShell() → createSession() in cache
  * 2. Cache notifies subscribers → ShellContainer re-renders
- * 3. ShellContainer renders TaskShell for new intent
- * 4. TaskShell mounts → useShell creates session in cache
+ * 3. ShellContainer renders TaskShell for new session
+ * 4. TaskShell renders ShellTerminal which auto-connects via useShell
  * 5. User navigates away → shell stays mounted (hidden), connection preserved
  * 6. User returns → shell portals back, same terminal instance
  *
- * @see @/components/shell/shell-session-cache.ts for lifecycle documentation
+ * @see @/components/shell/lib/shell-cache.ts for session management
  */
 
 export { ShellContainer, type ShellContainerProps } from "./ShellContainer";
