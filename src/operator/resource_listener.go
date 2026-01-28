@@ -363,38 +363,53 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 	// Get pod informer (all namespaces)
 	podInformer := podInformerFactory.Core().V1().Pods().Informer()
 
-	// Handler for pod events - updates aggregator
-	handlePodEvent := func(pod *corev1.Pod, eventType string) {
-		// Only process pods with a node assignment
-		if pod.Spec.NodeName == "" {
-			return
-		}
-
-		// For non-delete events, only process Running or Pending pods
-		if eventType != "delete" && pod.Status.Phase != corev1.PodRunning {
-			if pod.Status.Phase != corev1.PodPending {
-				return
-			}
-		}
-
-		// Update aggregator based on event type
-		switch eventType {
-		case "add", "update":
-			rl.aggregator.UpdatePod(pod)
-		case "delete":
-			rl.aggregator.DeletePod(pod)
-		}
-	}
-
-	// Add pod event handler
+	// Add pod event handler with early filtering to minimize processing
+	// We only care about:
+	// 1. Pods transitioning INTO Running state (to add resources)
+	// 2. Pod deletions (to subtract resources)
+	// All other updates (labels, annotations, status changes) are ignored since
+	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
-			handlePodEvent(pod, "add")
+			// Only track if pod is already Running and has a node assignment
+			if pod.Spec.NodeName == "" || pod.Status.Phase != corev1.PodRunning {
+				return
+			}
+			rl.aggregator.UpdatePod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			pod := newObj.(*corev1.Pod)
-			handlePodEvent(pod, "update")
+			oldPod := oldObj.(*corev1.Pod)
+			newPod := newObj.(*corev1.Pod)
+
+			// Only process if pod just transitioned TO Running state
+			// This happens exactly once per pod, when it starts running
+			wasRunning := oldPod.Status.Phase == corev1.PodRunning
+			isRunning := newPod.Status.Phase == corev1.PodRunning
+
+			// Skip if pod was already Running (status update, label change, etc.)
+			if wasRunning {
+				return
+			}
+
+			// Skip if pod still not Running
+			if !isRunning {
+				return
+			}
+
+			// Case 2: Pod transitioned FROM Running to terminal state (e.g., Running → Succeeded/Failed)
+			// Terminal states: Succeeded, Failed (not Pending, Unknown)
+			if wasRunning && !isRunning {
+				isTerminal := newPod.Status.Phase == corev1.PodSucceeded || newPod.Status.Phase == corev1.PodFailed
+				if isTerminal {
+					// Pod finished - release its resources
+					rl.aggregator.DeletePod(newPod)
+					return
+				}
+			}
+
+			// Pod just transitioned to Running - track its resources
+			rl.aggregator.UpdatePod(newPod)
 		},
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*corev1.Pod)
@@ -410,7 +425,8 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 					return
 				}
 			}
-			handlePodEvent(pod, "delete")
+			// Always remove pod from aggregator on delete
+			rl.aggregator.DeletePod(pod)
 		},
 	})
 	if err != nil {

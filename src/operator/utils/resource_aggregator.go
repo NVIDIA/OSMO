@@ -17,8 +17,7 @@
 package utils
 
 import (
-	"fmt"
-	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -144,9 +143,6 @@ type ResourceUsageAggregator struct {
 
 	// Set of dirty nodes (modified since last flush)
 	dirtyNodes map[string]struct{}
-
-	// Last sent totals for deduplication
-	lastSentTotals map[string]*ResourceTotals
 }
 
 // ResourceTotals holds resource counters (cpu, memory, storage, gpu)
@@ -172,7 +168,6 @@ func NewResourceUsageAggregator(workflowNamespace string) *ResourceUsageAggregat
 		nodeTotals:            make(map[string]*ResourceTotals),
 		nodeNonWorkflowTotals: make(map[string]*ResourceTotals),
 		dirtyNodes:            make(map[string]struct{}),
-		lastSentTotals:        make(map[string]*ResourceTotals),
 	}
 }
 
@@ -187,40 +182,31 @@ func (rua *ResourceUsageAggregator) Reset() {
 	rua.dirtyNodes = make(map[string]struct{})
 }
 
-// UpdatePod updates the aggregator with a pod's resource requests
+// UpdatePod updates the aggregator with a pod's resource requests.
+// Note: Pod resources and node assignment are immutable in Kubernetes.
+// Once a pod is scheduled, its spec.nodeName and resource requests cannot change.
+// Therefore, if we've already seen this pod UID, we can skip processing.
 func (rua *ResourceUsageAggregator) UpdatePod(pod *corev1.Pod) {
-	rua.mu.Lock()
-	defer rua.mu.Unlock()
-
 	uid := pod.UID
 	nodeName := pod.Spec.NodeName
 	namespace := pod.Namespace
 
-	// Calculate new contribution
+	// Calculate contribution outside the lock to minimize lock hold time
 	newContrib := CalculatePodContribution(pod)
 	newContrib.NodeName = nodeName
 	newContrib.Namespace = namespace
 
-	// Get old contribution if exists
-	oldContrib := rua.podContributions[uid]
+	rua.mu.Lock()
+	defer rua.mu.Unlock()
 
-	// If pod moved nodes, handle node migration
-	if oldContrib != nil && oldContrib.NodeName != nodeName {
-		// Subtract from old node
-		rua.subtractContribution(oldContrib.NodeName, oldContrib)
-		rua.dirtyNodes[oldContrib.NodeName] = struct{}{}
+	// Skip if we've already tracked this pod - resources and node are immutable
+	if _, exists := rua.podContributions[uid]; exists {
+		return
 	}
 
-	// Subtract old contribution from current node (if same node)
-	if oldContrib != nil && oldContrib.NodeName == nodeName {
-		rua.subtractContribution(nodeName, oldContrib)
-	}
-
-	// Add new contribution
+	// Add new pod contribution
 	rua.addContribution(nodeName, newContrib)
 	rua.dirtyNodes[nodeName] = struct{}{}
-
-	// Update stored contribution
 	rua.podContributions[uid] = newContrib
 }
 
@@ -367,9 +353,9 @@ func CalculatePodContribution(pod *corev1.Pod) *PodContribution {
 // FormatResourceUsage formats resource totals as a map for the proto message
 func FormatResourceUsage(totals *ResourceTotals) map[string]string {
 	return map[string]string{
-		"cpu":               fmt.Sprintf("%d", int64(math.Ceil(float64(totals.CPU)))),
-		"memory":            fmt.Sprintf("%dKi", int64(math.Ceil(float64(totals.Memory)))),
-		"ephemeral-storage": fmt.Sprintf("%dKi", int64(math.Ceil(float64(totals.Storage)))),
-		"nvidia.com/gpu":    fmt.Sprintf("%d", totals.GPU),
+		"cpu":               strconv.FormatInt(totals.CPU, 10),
+		"memory":            strconv.FormatInt(totals.Memory, 10) + "Ki",
+		"ephemeral-storage": strconv.FormatInt(totals.Storage, 10) + "Ki",
+		"nvidia.com/gpu":    strconv.FormatInt(totals.GPU, 10),
 	}
 }

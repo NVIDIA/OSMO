@@ -499,7 +499,7 @@ func TestIsNodeAvailable(t *testing.T) {
 }
 
 func TestResourceBodiesEqual(t *testing.T) {
-	body1 := &pb.UpdateNodeBody{
+	body1 := &pb.ResourceBody{
 		Hostname:   "node-1",
 		Available:  true,
 		Conditions: []string{"Ready"},
@@ -512,7 +512,7 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	body2 := &pb.UpdateNodeBody{
+	body2 := &pb.ResourceBody{
 		Hostname:   "node-1",
 		Available:  true,
 		Conditions: []string{"Ready"},
@@ -525,7 +525,7 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	body3 := &pb.UpdateNodeBody{
+	body3 := &pb.ResourceBody{
 		Hostname:   "node-1",
 		Available:  false, // Different
 		Conditions: []string{"Ready"},
@@ -625,7 +625,9 @@ func TestResourceUsageAggregator_DeletePod(t *testing.T) {
 	}
 }
 
-func TestResourceUsageAggregator_NodeMigration(t *testing.T) {
+func TestResourceUsageAggregator_DuplicateUpdateIgnored(t *testing.T) {
+	// In Kubernetes, pod spec.nodeName and resource requests are immutable after creation.
+	// Therefore, duplicate UpdatePod calls for the same UID should be ignored.
 	agg := utils.NewResourceUsageAggregator("osmo")
 
 	// Create pod on node-1
@@ -651,18 +653,20 @@ func TestResourceUsageAggregator_NodeMigration(t *testing.T) {
 
 	agg.UpdatePod(pod)
 
-	// Migrate to node-2
+	// Attempt to "migrate" to node-2 (impossible in real K8s, but test that it's ignored)
 	pod.Spec.NodeName = "node-2"
 	agg.UpdatePod(pod)
 
 	usageFields1, _ := agg.GetNodeUsage("node-1")
 	usageFields2, _ := agg.GetNodeUsage("node-2")
 
-	if usageFields1["cpu"] != "0" {
-		t.Errorf("Node-1 CPU after migration = %s, expected 0", usageFields1["cpu"])
+	// Node-1 should still have the CPU since duplicate updates are ignored
+	if usageFields1["cpu"] != "1000" {
+		t.Errorf("Node-1 CPU after duplicate update = %s, expected 1000 (unchanged)", usageFields1["cpu"])
 	}
-	if usageFields2["cpu"] != "1000" {
-		t.Errorf("Node-2 CPU after migration = %s, expected 1000", usageFields2["cpu"])
+	// Node-2 should have 0 since the second update was ignored
+	if usageFields2["cpu"] != "0" {
+		t.Errorf("Node-2 CPU after duplicate update = %s, expected 0 (ignored)", usageFields2["cpu"])
 	}
 }
 
@@ -724,6 +728,398 @@ func TestResourceUsageAggregator_NonWorkflowNamespace(t *testing.T) {
 	}
 }
 
+// Test pod lifecycle transitions for event handler logic
+func TestPodLifecycle_PendingToRunning(t *testing.T) {
+	agg := utils.NewResourceUsageAggregator("osmo")
+
+	// Create a pod in Pending state
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-lifecycle-1",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("1000m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+		},
+	}
+
+	// Simulate AddFunc during cache sync - pod is Pending, should not be tracked
+	if pod.Status.Phase == corev1.PodRunning {
+		agg.UpdatePod(pod)
+	}
+
+	usageFields, _ := agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "0" {
+		t.Errorf("CPU for Pending pod = %s, expected 0", usageFields["cpu"])
+	}
+
+	// Simulate UpdateFunc: Pending → Running
+	oldPod := pod.DeepCopy()
+	pod.Status.Phase = corev1.PodRunning
+
+	wasRunning := oldPod.Status.Phase == corev1.PodRunning
+	isRunning := pod.Status.Phase == corev1.PodRunning
+
+	if !wasRunning && isRunning && pod.Spec.NodeName != "" {
+		agg.UpdatePod(pod)
+	}
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "1000" {
+		t.Errorf("CPU after Running = %s, expected 1000", usageFields["cpu"])
+	}
+}
+
+func TestPodLifecycle_RunningToSucceeded(t *testing.T) {
+	agg := utils.NewResourceUsageAggregator("osmo")
+
+	// Create a Running pod
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-lifecycle-2",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2000m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	agg.UpdatePod(pod)
+
+	usageFields, _ := agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "2000" {
+		t.Errorf("CPU for Running pod = %s, expected 2000", usageFields["cpu"])
+	}
+
+	// Simulate UpdateFunc: Running → Succeeded
+	oldPod := pod.DeepCopy()
+	pod.Status.Phase = corev1.PodSucceeded
+
+	wasRunning := oldPod.Status.Phase == corev1.PodRunning
+	if wasRunning {
+		isTerminal := pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed
+		if isTerminal {
+			agg.DeletePod(pod)
+		}
+	}
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "0" {
+		t.Errorf("CPU after Succeeded = %s, expected 0", usageFields["cpu"])
+	}
+}
+
+func TestPodLifecycle_RunningToFailed(t *testing.T) {
+	agg := utils.NewResourceUsageAggregator("osmo")
+
+	// Create a Running pod
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-lifecycle-3",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("1500m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	agg.UpdatePod(pod)
+
+	usageFields, _ := agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "1500" {
+		t.Errorf("CPU for Running pod = %s, expected 1500", usageFields["cpu"])
+	}
+
+	// Simulate UpdateFunc: Running → Failed
+	oldPod := pod.DeepCopy()
+	pod.Status.Phase = corev1.PodFailed
+
+	wasRunning := oldPod.Status.Phase == corev1.PodRunning
+	if wasRunning {
+		isTerminal := pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed
+		if isTerminal {
+			agg.DeletePod(pod)
+		}
+	}
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "0" {
+		t.Errorf("CPU after Failed = %s, expected 0", usageFields["cpu"])
+	}
+}
+
+func TestPodLifecycle_DeletionTimestamp(t *testing.T) {
+	agg := utils.NewResourceUsageAggregator("osmo")
+
+	// Create a Running pod
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-lifecycle-4",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("3000m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	agg.UpdatePod(pod)
+
+	usageFields, _ := agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "3000" {
+		t.Errorf("CPU for Running pod = %s, expected 3000", usageFields["cpu"])
+	}
+
+	// Simulate UpdateFunc: DeletionTimestamp set (pod being evicted/preempted)
+	oldPod := pod.DeepCopy()
+	now := metav1.Now()
+	pod.ObjectMeta.DeletionTimestamp = &now
+
+	wasRunning := oldPod.Status.Phase == corev1.PodRunning
+	if wasRunning {
+		isTerminal := pod.ObjectMeta.DeletionTimestamp != nil && oldPod.ObjectMeta.DeletionTimestamp == nil
+		if isTerminal {
+			agg.DeletePod(pod)
+		}
+	}
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "0" {
+		t.Errorf("CPU after DeletionTimestamp set = %s, expected 0", usageFields["cpu"])
+	}
+}
+
+func TestPodLifecycle_AllContainersTerminated(t *testing.T) {
+	agg := utils.NewResourceUsageAggregator("osmo")
+
+	// Create a Running pod
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-lifecycle-5",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2500m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "main",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+				},
+			},
+		},
+	}
+
+	agg.UpdatePod(pod)
+
+	usageFields, _ := agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "2500" {
+		t.Errorf("CPU for Running pod = %s, expected 2500", usageFields["cpu"])
+	}
+
+	// Simulate UpdateFunc: All containers terminated (phase might lag behind)
+	oldPod := pod.DeepCopy()
+	pod.Status.ContainerStatuses[0].State = corev1.ContainerState{
+		Terminated: &corev1.ContainerStateTerminated{
+			ExitCode: 0,
+		},
+	}
+
+	wasRunning := oldPod.Status.Phase == corev1.PodRunning
+	if wasRunning {
+		// Check if all containers terminated
+		allTerminated := true
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.State.Terminated == nil {
+				allTerminated = false
+				break
+			}
+		}
+		if allTerminated {
+			agg.DeletePod(pod)
+		}
+	}
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "0" {
+		t.Errorf("CPU after all containers terminated = %s, expected 0", usageFields["cpu"])
+	}
+}
+
+func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
+	agg := utils.NewResourceUsageAggregator("osmo")
+
+	// Create three pods
+	pod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-multi-1",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("1000m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	pod2 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-multi-2",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("2000m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	pod3 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "test-pod-multi-3",
+			Namespace: "osmo",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("500m"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	// All three pods running
+	agg.UpdatePod(pod1)
+	agg.UpdatePod(pod2)
+	agg.UpdatePod(pod3)
+
+	usageFields, _ := agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "3500" {
+		t.Errorf("Total CPU = %s, expected 3500", usageFields["cpu"])
+	}
+
+	// Pod2 completes successfully
+	pod2.Status.Phase = corev1.PodSucceeded
+	agg.DeletePod(pod2)
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "1500" {
+		t.Errorf("CPU after pod2 succeeded = %s, expected 1500", usageFields["cpu"])
+	}
+
+	// Pod3 deleted
+	agg.DeletePod(pod3)
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "1000" {
+		t.Errorf("CPU after pod3 deleted = %s, expected 1000", usageFields["cpu"])
+	}
+
+	// Pod1 still running - duplicate update should be ignored
+	agg.UpdatePod(pod1)
+
+	usageFields, _ = agg.GetNodeUsage("node-1")
+	if usageFields["cpu"] != "1000" {
+		t.Errorf("CPU after duplicate update = %s, expected 1000", usageFields["cpu"])
+	}
+}
+
 func TestNodeStateTracker(t *testing.T) {
 	tracker := utils.NewNodeStateTracker(1 * time.Minute)
 
@@ -782,6 +1178,7 @@ func TestNewResourceListener(t *testing.T) {
 		ProgressFrequencySec:  15,
 		UsageFlushIntervalSec: 5,
 		ReconcileIntervalMin:  10,
+		NodeEventQueueSize:    100,
 	}
 
 	listener := NewResourceListener(args)
