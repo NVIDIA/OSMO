@@ -1650,11 +1650,11 @@ sidecars:
 
     ## Authorization sidecar Docker image
     ##
-    image: ""  # Set to: {{ .Values.global.osmoImageLocation }}/authz-sidecar:{{ .Values.global.osmoImageTag }}
+    imageName: "authz-sidecar"
 
     ## Image pull policy for authorization sidecar
     ##
-    imagePullPolicy: IfNotPresent
+    imagePullPolicy: Always
 
     ## gRPC port for authorization service
     ##
