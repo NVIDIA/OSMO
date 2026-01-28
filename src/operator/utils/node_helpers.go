@@ -64,8 +64,15 @@ func BuildResourceBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
 		}
 	}
 
-	// Build label fields
-	labelFields := node.Labels
+	// Build label fields (filter out feature.node.kubernetes.io labels)
+	labelFields := make(map[string]string)
+	for key, value := range node.Labels {
+		// Filter out feature.node.kubernetes.io prefixed labels
+		if len(key) >= 27 && key[:27] == "feature.node.kubernetes.io/" {
+			continue
+		}
+		labelFields[key] = value
+	}
 
 	// Build taints
 	var taints []*pb.Taint

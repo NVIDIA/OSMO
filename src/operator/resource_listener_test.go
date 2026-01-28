@@ -499,7 +499,7 @@ func TestIsNodeAvailable(t *testing.T) {
 }
 
 func TestResourceBodiesEqual(t *testing.T) {
-	body1 := &pb.ResourceBody{
+	body1 := &pb.UpdateNodeBody{
 		Hostname:   "node-1",
 		Available:  true,
 		Conditions: []string{"Ready"},
@@ -512,7 +512,7 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	body2 := &pb.ResourceBody{
+	body2 := &pb.UpdateNodeBody{
 		Hostname:   "node-1",
 		Available:  true,
 		Conditions: []string{"Ready"},
@@ -525,7 +525,7 @@ func TestResourceBodiesEqual(t *testing.T) {
 		},
 	}
 
-	body3 := &pb.ResourceBody{
+	body3 := &pb.UpdateNodeBody{
 		Hostname:   "node-1",
 		Available:  false, // Different
 		Conditions: []string{"Ready"},
@@ -1178,7 +1178,6 @@ func TestNewResourceListener(t *testing.T) {
 		ProgressFrequencySec:  15,
 		UsageFlushIntervalSec: 5,
 		ReconcileIntervalMin:  10,
-		NodeEventQueueSize:    100,
 	}
 
 	listener := NewResourceListener(args)
