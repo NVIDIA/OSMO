@@ -14,30 +14,63 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Shell Module Public API
+ *
+ * This module provides terminal/shell functionality for executing commands
+ * in workflow tasks via PTY sessions over WebSockets.
+ *
+ * **Primary Entry Point:**
+ * - `useShell()` - Main hook for managing shell sessions
+ * - `<ShellTerminal />` - React component for rendering terminal UI
+ *
+ * **Observing Sessions (Read-Only):**
+ * - `useShellSession(key)` - React hook to observe a specific session
+ * - `useShellSessions()` - React hook to observe all sessions
+ * - `getAllSessions()` - Get all sessions (non-React)
+ * - `hasSession(key)` - Check if session exists
+ *
+ * **Session Mutations:**
+ * All session mutations (create, update, delete) should go through `useShell()`
+ * methods. Direct cache manipulation is an anti-pattern.
+ *
+ * ❌ DON'T:
+ * ```ts
+ * import { _createSession } from '@/components/shell';
+ * _createSession(...); // Violates encapsulation!
+ * ```
+ *
+ * ✅ DO:
+ * ```ts
+ * const shell = useShell({ sessionKey, workflowName, taskName, shell });
+ * shell.connect(); // Proper API usage
+ * ```
+ */
+
+// ============================================================================
 // Components
+// ============================================================================
+
 export { ShellTerminal } from "./components/ShellTerminal";
 export { ShellSessionIcon } from "./components/ShellSessionIcon";
 export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from "./components/StatusDot";
 
-// Hooks
+// ============================================================================
+// Primary Hook
+// ============================================================================
+
 export { useShell, type UseShellOptions, type UseShellReturn } from "./hooks/use-shell";
 
-// Cache
-export {
-  useShellSessions,
-  useShellSession,
-  getSession,
-  createSession,
-  updateState,
-  updateAddons,
-  updateContainer,
-  deleteSession,
-  getAllSessions,
-  hasSession,
-  type CachedSession,
-} from "./lib/shell-cache";
+// ============================================================================
+// Session Observation (Read-Only)
+// ============================================================================
 
+export { useShellSession, useShellSessions, getAllSessions, hasSession, type CachedSession } from "./lib/shell-cache";
+
+// ============================================================================
 // State Machine
+// ============================================================================
+
 export {
   transition,
   canSendData,
@@ -51,8 +84,9 @@ export {
   type TerminalAddons,
 } from "./lib/shell-state";
 
-// Types
-export type { ShellTerminalProps, ShellTerminalRef, ConnectionStatus } from "./lib/types";
+// ============================================================================
+// Types & Constants
+// ============================================================================
 
-// Constants
+export type { ShellTerminalProps, ShellTerminalRef, ConnectionStatus } from "./lib/types";
 export { SHELL_OPTIONS, SHELL_CONFIG, SHELL_THEME, ANSI } from "./lib/types";

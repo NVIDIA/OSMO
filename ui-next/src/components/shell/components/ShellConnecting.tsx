@@ -13,14 +13,18 @@ import { cn } from "@/lib/utils";
 
 export interface ShellConnectingProps {
   className?: string;
+  status?: string;
 }
 
-export const ShellConnecting = memo(function ShellConnecting({ className }: ShellConnectingProps) {
+export const ShellConnecting = memo(function ShellConnecting({
+  className,
+  status = "Connecting...",
+}: ShellConnectingProps) {
   return (
     <div className={cn("shell-connecting", className)}>
       <div className="shell-connecting-content">
         <span className="shell-connecting-dot" />
-        <span className="shell-connecting-label">Connecting...</span>
+        <span className="shell-connecting-label">{status}</span>
       </div>
     </div>
   );

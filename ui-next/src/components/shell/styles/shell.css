@@ -77,12 +77,31 @@
 }
 
 /* =============================================================================
+   Shell Wrapper & Body Wrapper
+   ============================================================================= */
+
+.shell-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.shell-body-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* =============================================================================
    Shell Body (xterm container)
    ============================================================================= */
 
 .shell-body {
-  flex: 1;
-  min-height: 0;
+  width: 100%;
+  height: 100%;
   padding: var(--shell-padding);
   overflow: hidden;
   background: var(--shell-bg);
@@ -91,8 +110,16 @@
   transform: translateZ(0);
   backface-visibility: hidden;
 
-  /* Performance: Strict containment for xterm rendering */
-  contain: strict;
+  /* Performance: Containment without size (size containment causes 0 height with height: 100%) */
+  contain: layout style paint;
+}
+
+/* Overlay container for idle/connecting/error states */
+.shell-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: auto;
 }
 
 /* Inner wrapper - this is what FitAddon measures via parentElement */
@@ -175,6 +202,39 @@
 .shell-connecting-label {
   font-size: 13px;
   color: #93c5fd;
+}
+
+/* =============================================================================
+   Error State
+   ============================================================================= */
+
+.shell-error {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--shell-bg-overlay);
+  backdrop-filter: blur(4px);
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+/* =============================================================================
+   Disconnected Actions (Bottom Bar)
+   ============================================================================= */
+
+.shell-disconnected-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-top: 1px solid var(--shell-border);
+  background: var(--shell-bg);
 }
 
 /* =============================================================================
