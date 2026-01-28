@@ -30,7 +30,7 @@ const PARAM_KEYS = {
   allPools: "allPools",
   resourceType: "resourceType",
   isShowingUsed: "isShowingUsed",
-  showGauges: "showGauges",
+  showDetails: "showDetails",
   selectedResource: "selectedResource",
 } as const;
 
@@ -41,7 +41,7 @@ export interface ToolParamUpdaterProps {
   allPools?: boolean;
   resourceType?: string | null;
   isShowingUsed?: boolean;
-  showGauges?: boolean;
+  showDetails?: boolean;
   selectedResource?: NodePoolAndPlatform | null;
 }
 
@@ -59,7 +59,7 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
   const [filterResourceTypes, setFilterResourceTypes] = useState<string | undefined>(undefined);
   const [selectedResource, setSelectedResource] = useState<NodePoolAndPlatform | undefined>(undefined);
   const [isShowingUsed, setIsShowingUsed] = useState(false);
-  const [showGauges, setShowGauges] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     let filterCount = 0;
@@ -76,7 +76,7 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
       }
     }
 
-    setShowGauges(params.get(PARAM_KEYS.showGauges) !== "false");
+    setShowDetails(params.get(PARAM_KEYS.showDetails) === "true");
 
     const resourceType = params.get(PARAM_KEYS.resourceType);
     setFilterResourceTypes(resourceType ?? undefined);
@@ -118,7 +118,7 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
   }, [params, urlType]);
 
   const updateUrl = (props: ToolParamUpdaterProps): void => {
-    const { nodes, allNodes, pools, allPools, resourceType, isShowingUsed, showGauges, selectedResource } = props;
+    const { nodes, allNodes, pools, allPools, resourceType, isShowingUsed, showDetails, selectedResource } = props;
     const newParams = new URLSearchParams(window.location.search);
 
     if (pathname !== window.location.pathname) {
@@ -154,8 +154,8 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
       newParams.delete(PARAM_KEYS.isShowingUsed);
     }
 
-    if (showGauges !== undefined) {
-      newParams.set(PARAM_KEYS.showGauges, showGauges.toString());
+    if (showDetails !== undefined) {
+      newParams.set(PARAM_KEYS.showDetails, showDetails.toString());
     }
 
     if (selectedResource) {
@@ -186,7 +186,7 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
     filterCount,
     filterResourceTypes,
     isShowingUsed,
-    showGauges,
+    showDetails,
     selectedResource,
   };
 };

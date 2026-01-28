@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -101,6 +101,12 @@ const replaceLocalPath = (currentSpec: any, previousRenderedSpec: any): any => {
   return currentSpec;
 };
 
+const WorkflowStatusTotalsRequestSchema = WorkflowListRequestSchema.omit({
+  order: true,
+  limit: true,
+  offset: true,
+});
+
 export const workflowsRouter = createTRPCRouter({
   getList: publicProcedure.input(WorkflowListRequestSchema).query(async ({ ctx, input }) => {
     try {
@@ -148,6 +154,55 @@ export const workflowsRouter = createTRPCRouter({
       return [];
     }
   }),
+  getStatusTotals: publicProcedure
+    .input(WorkflowStatusTotalsRequestSchema)
+    .query(async ({ ctx, input }) => {
+      const searchParams = new URLSearchParams({
+        all_users: input.all_users.toString(),
+        all_pools: input.all_pools.toString(),
+        name: input.name,
+      });
+
+      if (input.submitted_before) {
+        searchParams.append("submitted_before", input.submitted_before);
+      }
+
+      if (input.submitted_after) {
+        searchParams.append("submitted_after", input.submitted_after);
+      }
+
+      input.users.forEach((user) => {
+        searchParams.append("users", user);
+      });
+
+      input.pools.forEach((pool) => {
+        searchParams.append("pools", pool);
+      });
+
+      input.tags.forEach((tag) => {
+        searchParams.append("tags", tag);
+      });
+
+      input.statuses.forEach((status) => {
+        searchParams.append("statuses", status);
+      });
+
+      if (input.priority) {
+        searchParams.append("priority", input.priority);
+      }
+
+      const response = await OsmoApiFetch("/api/workflow/status_totals", ctx, searchParams);
+      const data = (await response.json()) as Record<string, number>;
+
+      if (!response.ok) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: (data as { message?: string }).message ?? "Unknown error",
+        });
+      }
+
+      return data;
+    }),
   getWorkflow: publicProcedure.input(WorkflowRequestSchema).query(async ({ ctx, input }) => {
     const response = await OsmoApiFetch(`/api/workflow/${input.name}?verbose=${input.verbose}`, ctx);
     const data = await response.json();

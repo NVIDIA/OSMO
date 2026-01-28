@@ -28,7 +28,7 @@ import { TRPCReactProvider } from "~/trpc/react";
 import "../styles/globals.css";
 
 export const metadata = {
-  title: `${env.NEXT_PUBLIC_APP_NAME} Home`,
+  title: `${env.NEXT_PUBLIC_APP_NAME} Dashboard`,
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 

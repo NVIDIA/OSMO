@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -575,6 +575,50 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
         rows = rows[1:]
     return objects.ListResponse.from_db_rows(rows, service_url,
                                              more_entries=len(rows) > limit)
+
+
+@router.get('/api/workflow/status_totals', response_class=common.PrettyJSONResponse)
+def get_workflow_status_totals(
+    users: List[str] | None = fastapi.Query(default = None),
+    name: str | None = None,
+    statuses: List[workflow.WorkflowStatus] | None = fastapi.Query(default = None),
+    all_users: bool = False,
+    pools: List[str] | None = fastapi.Query(default = None),
+    all_pools: bool = False,
+    submitted_before: datetime.datetime | None = None,
+    submitted_after: datetime.datetime | None = None,
+    tags: List[str] | None = fastapi.Query(default = None),
+    app: str | None = fastapi.Query(default = None),
+    priority: List[wf_priority.WorkflowPriority] | None = \
+        fastapi.Query(default = None),
+    user_header: Optional[str] =
+        fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> Dict[str, int]:
+    if not users and not all_users:
+        if user_header:
+            users = [user_header]
+    if not pools and not all_pools:
+        postgres = objects.WorkflowServiceContext.get().database
+        user_pool = connectors.UserProfile.fetch_from_db(postgres, user_header or '').pool
+        if not user_pool:
+            raise osmo_errors.OSMOUserError('No pool selected!')
+        pools = [user_pool]
+    if all_pools:
+        pools = []
+
+    app_info = common.AppStructure(app) if app else None
+    rows = helpers.get_workflow_status_totals(
+        users=users,
+        name=name,
+        statuses=statuses,
+        pools=pools,
+        submitted_after=submitted_after,
+        submitted_before=submitted_before,
+        tags=tags,
+        app_info=app_info,
+        priority=priority,
+    )
+    return {row['status']: row['count'] for row in rows}
 
 
 @router.get('/api/workflow/{name}/task/{task_name}', response_class=common.PrettyJSONResponse)

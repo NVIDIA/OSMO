@@ -18,11 +18,11 @@ import { type NextRequest, NextResponse } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  // Redirect root path to /workflows
-  if (pathname === "/") {
-    const newUrl = new URL(`/workflows${search}`, request.url);
-    return NextResponse.redirect(newUrl, 307);
-  }
+  // // Redirect root path to /workflows
+  // if (pathname === "/") {
+  //   const newUrl = new URL(`/workflows${search}`, request.url);
+  //   return NextResponse.redirect(newUrl, 307);
+  // }
 
   // Check if the path starts with /collections
   if (pathname.startsWith("/collections")) {

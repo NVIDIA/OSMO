@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -112,6 +112,74 @@ def get_workflows(users: List[str] | None = None,
         fetch_cmd += ' ORDER BY submit_time DESC'
     fetch_cmd += ';'
     return context.database.execute_fetch_command(fetch_cmd, tuple(fetch_input), return_raw)
+
+
+def get_workflow_status_totals(
+    users: List[str] | None = None,
+    name: str | None = None,
+    statuses: List[workflow.WorkflowStatus] | None = None,
+    pools: List[str] | None = None,
+    submitted_after: datetime.datetime | None = None,
+    submitted_before: datetime.datetime | None = None,
+    tags: List[str] | None = None,
+    app_info: common.AppStructure | None = None,
+    priority: List[wf_priority.WorkflowPriority] | None = None,
+) -> List[dict]:
+    """Fetch workflow status totals with given parameters."""
+    context = objects.WorkflowServiceContext.get()
+
+    fetch_cmd = '''
+            SELECT workflows.status, COUNT(*) AS count
+            FROM workflows
+            LEFT JOIN apps ON workflows.app_uuid = apps.uuid
+        '''
+    fetch_input: List = []
+    commands: List = []
+    if tags:
+        tags_cmd = '''
+            JOIN workflow_tags ON workflows.workflow_uuid = workflow_tags.workflow_uuid
+            AND workflow_tags.tag in %s
+        '''
+        fetch_cmd += tags_cmd
+        fetch_input.append(tuple(tags))
+    if app_info:
+        commands.append('apps.name = %s')
+        fetch_input.append(app_info.name)
+        if app_info.version:
+            commands.append('workflows.app_version = %s')
+            fetch_input.append(app_info.version)
+    if users:
+        parsed_users = context.database.fetch_user_names(users)
+        commands.append('submitted_by IN %s')
+        fetch_input.append(tuple(parsed_users))
+    if pools:
+        commands.append('pool IN %s')
+        fetch_input.append(tuple(pools))
+    if name:
+        name = name.replace('_', r'\_').replace('%', r'\%')
+        commands.append('workflow_id LIKE %s')
+        fetch_input.append(f'%{name}%')
+    if statuses:
+        commands.append('status IN %s')
+        fetch_input.append(tuple(status.name for status in statuses))
+    else:
+        commands.append('status != %s')
+        fetch_input.append(f'{workflow.WorkflowStatus.FAILED_SUBMISSION.name}')
+    if submitted_after:
+        commands.append('submit_time >= %s')
+        fetch_input.append(submitted_after.replace(microsecond=0).isoformat())
+    if submitted_before:
+        commands.append('submit_time < %s')
+        fetch_input.append(submitted_before.replace(microsecond=0).isoformat())
+    if priority:
+        commands.append('priority IN %s')
+        fetch_input.append(tuple(p.value for p in priority))
+    if commands:
+        conditions = ' AND '.join(commands)
+        fetch_cmd = f'{fetch_cmd} WHERE {conditions}'
+
+    fetch_cmd += ' GROUP BY workflows.status ORDER BY workflows.status;'
+    return context.database.execute_fetch_command(fetch_cmd, tuple(fetch_input), True)
 
 
 def get_tasks(workflow_id: str | None = None,

@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -84,11 +84,54 @@ const ResourceButton = ({
   );
 };
 
+export const calculateAggregatesPerPool = (resources: ResourceListItem[]): Record<string, AggregateProps> => {
+  const aggregatesByPool: Record<string, AggregateProps> = {};
+  const processedNodes = new Set<string>();
+
+  resources.forEach((resource) => {
+    const pool = resource.pool || "N/A";
+    const nodeKey = `${pool}:${resource.node}`;
+
+    if (processedNodes.has(nodeKey)) {
+      return;
+    }
+
+    const current = aggregatesByPool[pool] ?? {
+      cpu: { allocatable: 0, usage: 0 },
+      gpu: { allocatable: 0, usage: 0 },
+      storage: { allocatable: 0, usage: 0 },
+      memory: { allocatable: 0, usage: 0 },
+    };
+
+    aggregatesByPool[pool] = {
+      cpu: {
+        allocatable: current.cpu.allocatable + resource.cpu.allocatable,
+        usage: current.cpu.usage + resource.cpu.usage,
+      },
+      gpu: {
+        allocatable: current.gpu.allocatable + resource.gpu.allocatable,
+        usage: current.gpu.usage + resource.gpu.usage,
+      },
+      storage: {
+        allocatable: current.storage.allocatable + resource.storage.allocatable,
+        usage: current.storage.usage + resource.storage.usage,
+      },
+      memory: {
+        allocatable: current.memory.allocatable + resource.memory.allocatable,
+        usage: current.memory.usage + resource.memory.usage,
+      },
+    };
+
+    processedNodes.add(nodeKey);
+  });
+
+  return aggregatesByPool;
+};
+
 export const ResourcesTable = ({
   resources,
   isLoading,
   isShowingUsed,
-  setAggregates,
   nodes,
   allNodes,
   filterResourceTypes,
@@ -98,7 +141,6 @@ export const ResourcesTable = ({
   resources: ResourceListItem[];
   isLoading: boolean;
   isShowingUsed: boolean;
-  setAggregates: (aggregates: AggregateProps) => void;
   nodes: string;
   allNodes?: boolean;
   filterResourceTypes?: string;
@@ -262,48 +304,6 @@ export const ResourcesTable = ({
     filterFns: commonFilterFns,
     autoResetPageIndex: false,
   });
-
-  useEffect(() => {
-    const filteredRows = table.getFilteredRowModel().flatRows;
-
-    const newAggregates: AggregateProps = {
-      cpu: { allocatable: 0, usage: 0 },
-      gpu: { allocatable: 0, usage: 0 },
-      storage: { allocatable: 0, usage: 0 },
-      memory: { allocatable: 0, usage: 0 },
-    };
-
-    const processedNodes = new Set<string>();
-
-    filteredRows.forEach((row) => {
-      const item = row.original;
-
-      if (processedNodes.has(item.node)) {
-        return;
-      }
-
-      Object.keys(newAggregates).forEach((key) => {
-        const entry = item[key as keyof AggregateProps];
-        if (!entry || typeof entry !== "object") {
-          return;
-        }
-
-        const currentAggregate = newAggregates[key as keyof AggregateProps];
-        if (!currentAggregate) {
-          return;
-        }
-
-        newAggregates[key as keyof AggregateProps] = {
-          allocatable: currentAggregate.allocatable + entry.allocatable,
-          usage: currentAggregate.usage + entry.usage,
-        };
-        processedNodes.add(item.node);
-      });
-    });
-
-    setAggregates(newAggregates);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getFilteredRowModel().flatRows, setAggregates]);
 
   return (
     <TableBase

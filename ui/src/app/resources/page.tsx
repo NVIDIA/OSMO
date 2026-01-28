@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -20,19 +20,22 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { z } from "zod";
 
+import { CheckboxWithLabel } from "~/components/Checkbox";
 import { FilterButton } from "~/components/FilterButton";
 import FullPageModal from "~/components/FullPageModal";
 import { FilledIcon } from "~/components/Icon";
 import { IconButton } from "~/components/IconButton";
 import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
+import { Spinner } from "~/components/Spinner";
 import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
 import { convertFields, ResourcesEntrySchema, roundResources } from "~/models";
 import { api } from "~/trpc/react";
 
-import { AggregatePanels, type AggregateProps } from "./components/AggregatePanels";
+import { type AggregateProps } from "./components/AggregatePanels";
 import { ResourceDetails, type ResourceListItem } from "./components/ResourceDetails";
+import { ResourceGraph } from "./components/ResourceGraph";
 import { ResourcesFilter } from "./components/ResourcesFilter";
 import { ResourcesTable } from "./components/ResourcesTable";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
@@ -49,19 +52,12 @@ export default function Resources() {
     filterCount,
     filterResourceTypes,
     isShowingUsed,
-    showGauges,
+    showDetails,
     selectedResource,
   } = useToolParamUpdater();
   const [showFilters, setShowFilters] = useState(false);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const { setSafeTimeout } = useSafeTimeout();
-
-  const [aggregates, setAggregates] = useState<AggregateProps>({
-    cpu: { allocatable: 0, usage: 0 },
-    gpu: { allocatable: 0, usage: 0 },
-    storage: { allocatable: 0, usage: 0 },
-    memory: { allocatable: 0, usage: 0 },
-  });
 
   const {
     data: resources,
@@ -70,8 +66,7 @@ export default function Resources() {
     refetch,
   } = api.resources.listResources.useQuery(
     {
-      all_pools: isSelectAllPoolsChecked,
-      pools: isSelectAllPoolsChecked ? [] : selectedPools.split(","),
+      all_pools: true,
     },
     {
       refetchOnWindowFocus: false,
@@ -86,12 +81,12 @@ export default function Resources() {
   }, [resources]);
 
   const gridClass = useMemo(() => {
-    if (showGauges) {
+    if (showDetails) {
       return "grid grid-cols-[auto_1fr]";
     } else {
       return "flex flex-row";
     }
-  }, [showGauges]);
+  }, [showDetails]);
 
   const processResources = useMemo((): ResourceListItem[] => {
     if (!isSuccess) {
@@ -137,6 +132,64 @@ export default function Resources() {
     return result;
   }, [resources, isSuccess]);
 
+  const filteredResources = useMemo(() => {
+    return processResources.filter((item) =>
+      isSelectAllPoolsChecked ? true : selectedPools.split(",").includes(item.pool),
+    );
+  }, [processResources, isSelectAllPoolsChecked, selectedPools]);
+
+  const aggregateTotals = useMemo<{
+    byPool: Record<string, AggregateProps>;
+    total: AggregateProps;
+  }>(() => {
+    const total: AggregateProps = {
+      cpu: { allocatable: 0, usage: 0 },
+      gpu: { allocatable: 0, usage: 0 },
+      storage: { allocatable: 0, usage: 0 },
+      memory: { allocatable: 0, usage: 0 },
+    };
+    const byPool: Record<string, AggregateProps> = {};
+    const processedNodes = new Set<string>();
+
+    processResources.forEach((item) => {
+      if (processedNodes.has(item.node)) {
+        return;
+      }
+
+      const poolKey = item.pool || "N/A";
+      const poolTotals = byPool[poolKey] ?? {
+        cpu: { allocatable: 0, usage: 0 },
+        gpu: { allocatable: 0, usage: 0 },
+        storage: { allocatable: 0, usage: 0 },
+        memory: { allocatable: 0, usage: 0 },
+      };
+
+      poolTotals.cpu.allocatable += item.cpu.allocatable;
+      poolTotals.cpu.usage += item.cpu.usage;
+      poolTotals.gpu.allocatable += item.gpu.allocatable;
+      poolTotals.gpu.usage += item.gpu.usage;
+      poolTotals.storage.allocatable += item.storage.allocatable;
+      poolTotals.storage.usage += item.storage.usage;
+      poolTotals.memory.allocatable += item.memory.allocatable;
+      poolTotals.memory.usage += item.memory.usage;
+
+      byPool[poolKey] = poolTotals;
+
+      total.cpu.allocatable += item.cpu.allocatable;
+      total.cpu.usage += item.cpu.usage;
+      total.gpu.allocatable += item.gpu.allocatable;
+      total.gpu.usage += item.gpu.usage;
+      total.storage.allocatable += item.storage.allocatable;
+      total.storage.usage += item.storage.usage;
+      total.memory.allocatable += item.memory.allocatable;
+      total.memory.usage += item.memory.usage;
+
+      processedNodes.add(item.node);
+    });
+
+    return { byPool, total };
+  }, [processResources]);
+
   const forceRefetch = useCallback(() => {
     // Wait to see if the refresh has already happened. If not call it explicitly
     const lastFetchTime = lastFetchTimeRef.current;
@@ -153,11 +206,11 @@ export default function Resources() {
       <PageHeader>
         <IconButton
           id="gauges-button"
-          className={`btn ${showGauges ? "btn-primary" : ""}`}
-          aria-pressed={showGauges}
-          onClick={() => updateUrl({ showGauges: !showGauges })}
-          icon="speed"
-          text="Gauges"
+          className={`btn ${showDetails ? "btn-primary" : ""}`}
+          aria-pressed={showDetails}
+          onClick={() => updateUrl({ showDetails: !showDetails })}
+          icon="table_chart"
+          text="Details"
         />
         <UsedFreeToggle
           isShowingUsed={isShowingUsed}
@@ -170,51 +223,109 @@ export default function Resources() {
           aria-controls="resources-filters"
         />
       </PageHeader>
-      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
-        <SlideOut
-          id="resources-filter"
-          open={showFilters}
-          onClose={() => {
-            setShowFilters(false);
-          }}
-          aria-label="Resources Filter"
-          className="z-40 border-t-0 w-100"
-        >
-          <ResourcesFilter
-            selectedPools={selectedPools}
-            isSelectAllPoolsChecked={isSelectAllPoolsChecked}
-            isSelectAllNodesChecked={isSelectAllNodesChecked}
-            availableNodes={availableNodes ?? []}
-            nodes={nodes ?? ""}
-            resourceTypes={filterResourceTypes}
-            updateUrl={updateUrl}
-            onRefresh={forceRefetch}
-          />
-        </SlideOut>
-        {showGauges && (
+      {isFetching ? (
+        <div className="h-full w-full flex justify-center items-center">
+          <Spinner size="large" />
+        </div>
+      ) : (
+        <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
+          <SlideOut
+            id="resources-filter"
+            open={showFilters}
+            onClose={() => {
+              setShowFilters(false);
+            }}
+            aria-label="Resources Filter"
+            className="z-40 border-t-0 w-100"
+          >
+            <ResourcesFilter
+              selectedPools={selectedPools}
+              isSelectAllPoolsChecked={isSelectAllPoolsChecked}
+              isSelectAllNodesChecked={isSelectAllNodesChecked}
+              availableNodes={availableNodes ?? []}
+              nodes={nodes ?? ""}
+              resourceTypes={filterResourceTypes}
+              updateUrl={updateUrl}
+              onRefresh={forceRefetch}
+            />
+          </SlideOut>
           <section
-            className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
+            className={`h-full justify-center relative overflow-y-auto p-global gap-global ${showDetails ? "flex flex-col" : "flex flex-row flex-wrap w-full"}`}
             aria-labelledby="gauges-button"
           >
-            <AggregatePanels
-              {...aggregates}
-              isLoading={isFetching}
-              isShowingUsed={isShowingUsed}
-            />
+            <div className="card">
+              <div className="body-header p-global">
+                {showDetails ? (
+                  <CheckboxWithLabel
+                    checked={isSelectAllPoolsChecked}
+                    onChange={() => updateUrl({ allPools: !isSelectAllPoolsChecked, pools: "" })}
+                    label="Select All Pools"
+                  />
+                ) : (
+                  <h2 className="text-base p-0 m-0">Total</h2>
+                )}
+              </div>
+              <ResourceGraph
+                {...aggregateTotals.total}
+                isLoading={isFetching}
+                isShowingUsed={isShowingUsed}
+                width={200}
+                height={150}
+              />
+            </div>
+            {Object.entries(aggregateTotals.byPool)
+              .sort(([poolA], [poolB]) => poolA.localeCompare(poolB))
+              .map(([pool, totals]) => (
+                <div
+                  key={pool}
+                  className="card"
+                >
+                  <div className="body-header p-global">
+                    {showDetails ? (
+                      <CheckboxWithLabel
+                        checked={isSelectAllPoolsChecked ? true : selectedPools.split(",").includes(pool)}
+                        onChange={() =>
+                          updateUrl({
+                            pools: selectedPools.split(",").includes(pool)
+                              ? selectedPools
+                                  .split(",")
+                                  .filter((p) => p !== pool)
+                                  .join(",")
+                              : [...selectedPools, pool].join(","),
+                            allPools: false,
+                          })
+                        }
+                        id={pool}
+                        label={pool}
+                      />
+                    ) : (
+                      <h2 className="text-base p-0 m-0">{pool}</h2>
+                    )}
+                  </div>
+                  <ResourceGraph
+                    {...totals}
+                    isLoading={isFetching}
+                    isShowingUsed={isShowingUsed}
+                    width={200}
+                    height={150}
+                  />
+                </div>
+              ))}
           </section>
-        )}
-        <ResourcesTable
-          isLoading={isFetching}
-          resources={processResources}
-          isShowingUsed={isShowingUsed}
-          setAggregates={setAggregates}
-          nodes={nodes}
-          allNodes={isSelectAllNodesChecked}
-          filterResourceTypes={filterResourceTypes}
-          selectedResource={selectedResource}
-          updateUrl={updateUrl}
-        />
-      </div>
+          {showDetails && (
+            <ResourcesTable
+              isLoading={isFetching}
+              resources={filteredResources}
+              isShowingUsed={isShowingUsed}
+              nodes={nodes}
+              allNodes={isSelectAllNodesChecked}
+              filterResourceTypes={filterResourceTypes}
+              selectedResource={selectedResource}
+              updateUrl={updateUrl}
+            />
+          )}
+        </div>
+      )}
       <FullPageModal
         headerChildren={
           selectedResource?.node && (
