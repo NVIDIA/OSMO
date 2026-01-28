@@ -77,14 +77,25 @@ export const ShellTerminalImpl = memo(
     const announce = useAnnouncer();
     const { copy } = useCopy();
 
-    const { containerRef, state, connect, disconnect, focus, fit, write, findNext, findPrevious, clearSearch } =
-      useShell({
-        sessionKey: taskId,
-        workflowName,
-        taskName,
-        shell,
-        autoConnect: true,
-      });
+    const {
+      containerRef,
+      state,
+      connect,
+      disconnect,
+      focus,
+      fit,
+      write,
+      findNext,
+      findPrevious,
+      clearSearch,
+      scrollToBottom,
+    } = useShell({
+      sessionKey: taskId,
+      workflowName,
+      taskName,
+      shell,
+      autoConnect: true,
+    });
 
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -112,22 +123,39 @@ export const ShellTerminalImpl = memo(
       const prevPhase = prevPhaseRef.current;
       prevPhaseRef.current = state.phase;
 
+      console.debug("[ShellTerminal] 🔀 Phase transition", {
+        taskId,
+        from: prevPhase,
+        to: state.phase,
+      });
+
       if (state.phase === "ready") {
+        console.debug("[ShellTerminal] ✅ Ready - focusing and scrolling", { taskId });
         onConnected?.();
         announce("Shell connected", "polite");
+        // Auto-focus terminal when ready (especially important for reconnect)
+        focus();
+        // Scroll to bottom to show new PTY session (especially important for reconnect)
+        // Use setTimeout to ensure PTY welcome message has been written
+        setTimeout(() => {
+          console.debug("[ShellTerminal] 📜 Delayed scroll to bottom", { taskId });
+          scrollToBottom();
+        }, 100);
       } else if (state.phase === "disconnected") {
         // Write disconnect message to terminal only on transition TO disconnected
         if (prevPhase !== "disconnected") {
+          console.debug("[ShellTerminal] 🔌 Disconnected - writing banner", { taskId, prevPhase });
           const isError = !!state.reason?.includes("error");
           write(getDisconnectMessage(isError, state.reason));
         }
         onDisconnected?.();
         announce("Shell disconnected", "polite");
       } else if (state.phase === "error") {
+        console.debug("[ShellTerminal] ❌ Error", { taskId, error: state.error });
         onError?.(new Error(state.error));
         announce(`Shell error: ${state.error}`, "assertive");
       }
-    }, [state, onConnected, onDisconnected, onError, announce, write]);
+    }, [state, onConnected, onDisconnected, onError, announce, write, focus, scrollToBottom, taskId]);
 
     // Memoize search options to avoid unnecessary effect triggers
     const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
