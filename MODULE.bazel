@@ -224,11 +224,8 @@ use_repo(
     "com_github_google_shlex",
     "com_github_gorilla_websocket",
     "com_github_jackc_pgx_v5",
-<<<<<<< HEAD
     "com_github_hashicorp_golang_lru_v2",
-=======
     "com_github_redis_go_redis_v9",
->>>>>>> origin/main
     "in_gopkg_yaml_v3",
     "org_golang_google_grpc",
     "org_golang_google_protobuf",

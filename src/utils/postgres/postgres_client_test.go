@@ -19,9 +19,15 @@ SPDX-License-Identifier: Apache-2.0
 package postgres
 
 import (
-<<<<<<< HEAD
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.corp.nvidia.com/osmo/utils"
 )
 
 func TestPostgresConfig(t *testing.T) {
@@ -70,17 +76,6 @@ func TestPostgresConfig(t *testing.T) {
 // Note: Full PostgreSQL integration tests require a running database
 // and are better suited for integration test environments.
 // These unit tests verify the structure and helper functions.
-=======
-	"fmt"
-	"net/url"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"go.corp.nvidia.com/osmo/utils"
-)
 
 // TestURLEscaping verifies that passwords with special characters are properly escaped
 func TestURLEscaping(t *testing.T) {
@@ -519,4 +514,3 @@ func TestConnectionURLGeneration(t *testing.T) {
 		})
 	}
 }
->>>>>>> origin/main
