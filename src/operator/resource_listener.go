@@ -366,7 +366,7 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 	// Add pod event handler with early filtering to minimize processing
 	// We only care about:
 	// 1. Pods transitioning INTO Running state (to add resources)
-	// 2. Pod deletions (to subtract resources)
+	// 2. Pods transitioning FROM Running state to terminal state (to subtract resources)
 	// All other updates (labels, annotations, status changes) are ignored since
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -382,22 +382,19 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 			oldPod := oldObj.(*corev1.Pod)
 			newPod := newObj.(*corev1.Pod)
 
-			// Only process if pod just transitioned TO Running state
-			// This happens exactly once per pod, when it starts running
+			// Handle two cases:
+			// Case 1: Pod transitioned TO Running state (Pending/Unknown → Running)
+			// Case 2: Pod transitioned FROM Running to terminal state (Running → Succeeded/Failed)
 			wasRunning := oldPod.Status.Phase == corev1.PodRunning
 			isRunning := newPod.Status.Phase == corev1.PodRunning
 
-			// Skip if pod was already Running (status update, label change, etc.)
-			if wasRunning {
+			// Case 1: Pod just transitioned TO Running - track its resources
+			if !wasRunning && isRunning {
+				rl.aggregator.UpdatePod(newPod)
 				return
 			}
 
-			// Skip if pod still not Running
-			if !isRunning {
-				return
-			}
-
-			// Case 2: Pod transitioned FROM Running to terminal state (e.g., Running → Succeeded/Failed)
+			// Case 2: Pod transitioned FROM Running to terminal state
 			// Terminal states: Succeeded, Failed (not Pending, Unknown)
 			if wasRunning && !isRunning {
 				isTerminal := newPod.Status.Phase == corev1.PodSucceeded || newPod.Status.Phase == corev1.PodFailed
@@ -408,8 +405,7 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 				}
 			}
 
-			// Pod just transitioned to Running - track its resources
-			rl.aggregator.UpdatePod(newPod)
+			// All other transitions (e.g., Running → Running, Pending → Pending) are ignored
 		},
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*corev1.Pod)
