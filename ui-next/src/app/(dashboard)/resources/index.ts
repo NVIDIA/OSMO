@@ -82,6 +82,12 @@ export {
 export { LAYOUT, ResourceAllocationTypeDisplay, getResourceAllocationTypeDisplay } from "./lib/constants";
 
 // =============================================================================
+// Utilities
+// =============================================================================
+
+export { computeAggregates, type ResourceAggregates } from "./lib/computeAggregates";
+
+// =============================================================================
 // Stores
 // =============================================================================
 

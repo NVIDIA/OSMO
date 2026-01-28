@@ -116,10 +116,11 @@ import type { SearchChip } from "@/stores";
  * Build query key for resources list (matches client-side useResourcesData).
  *
  * This must match the key format in use-resources-data.ts to enable hydration.
+ * Exported for use in resources-with-data.tsx to extract prefetched aggregates.
  *
  * @param chips - Filter chips from URL
  */
-function buildServerResourcesQueryKey(chips: SearchChip[] = []): readonly unknown[] {
+export function buildResourcesQueryKey(chips: SearchChip[] = []): readonly unknown[] {
   // Extract filter values matching client-side chipsToParams format
   const pools = chips
     .filter((c) => c.field === "pool")
@@ -168,6 +169,11 @@ function buildServerResourcesQueryKey(chips: SearchChip[] = []): readonly unknow
  * Uses prefetchInfiniteQuery to match the client's useInfiniteQuery.
  * Only prefetches the first page - subsequent pages are fetched on demand.
  *
+ * SHIM NOTE:
+ * - Uses adapter's fetchPaginatedResources which handles client-side filtering
+ * - Returns aggregates computed from the full filtered dataset
+ * - When backend supports filtering/aggregation, adapter will pass through to server
+ *
  * nuqs Compatibility:
  * - Accepts filter chips parsed from URL searchParams
  * - Builds query key matching what client will use
@@ -175,32 +181,35 @@ function buildServerResourcesQueryKey(chips: SearchChip[] = []): readonly unknow
  *
  * @param queryClient - The QueryClient to prefetch into
  * @param filterChips - Filter chips from URL (optional, for nuqs compatibility)
- * @param options - Fetch options
  */
-export async function prefetchResourcesList(
-  queryClient: QueryClient,
-  filterChips: SearchChip[] = [],
-  options: ServerFetchOptions = {},
-): Promise<void> {
-  const queryKey = buildServerResourcesQueryKey(filterChips);
+export async function prefetchResourcesList(queryClient: QueryClient, filterChips: SearchChip[] = []): Promise<void> {
+  const queryKey = buildResourcesQueryKey(filterChips);
+
+  // Import adapter function (uses resources-shim with aggregates)
+  const { fetchResources: fetchResourcesWithAggregates } = await import("../adapter/hooks");
+
+  // Convert chips to filter params (matching client-side logic)
+  const pools = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
+  const platforms = filterChips.filter((c) => c.field === "platform").map((c) => c.value);
+  const resourceTypes = filterChips.filter((c) => c.field === "type").map((c) => c.value);
+  const backends = filterChips.filter((c) => c.field === "backend").map((c) => c.value);
+  const search = filterChips.find((c) => c.field === "name")?.value;
+  const hostname = filterChips.find((c) => c.field === "hostname")?.value;
 
   await queryClient.prefetchInfiniteQuery({
     queryKey,
     queryFn: async () => {
-      const response = await fetchResources(options);
-      const resources = response?.resources ?? [];
-
-      // Return first page in PaginatedResponse format
-      const pageSize = 50;
-      const firstPage = resources.slice(0, pageSize);
-
-      return {
-        items: firstPage,
-        hasMore: resources.length > pageSize,
-        nextOffset: resources.length > pageSize ? pageSize : undefined,
-        total: resources.length,
-        filteredTotal: resources.length,
-      };
+      // Use adapter which goes through shim - returns with aggregates
+      return fetchResourcesWithAggregates({
+        pools: pools.length > 0 ? pools : undefined,
+        platforms: platforms.length > 0 ? platforms : undefined,
+        resourceTypes: resourceTypes.length > 0 ? resourceTypes : undefined,
+        backends: backends.length > 0 ? backends : undefined,
+        search,
+        hostname,
+        limit: 50,
+        offset: 0,
+      });
     },
     initialPageParam: { cursor: undefined, offset: 0 },
   });

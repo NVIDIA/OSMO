@@ -62,6 +62,7 @@ import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination";
 import { matchesSearch } from "@/lib/utils";
 import type { Resource } from "./types";
 import { transformAllResourcesResponse } from "./transforms";
+import { computeAggregates, type ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
 
 /**
  * Cache structure for client-side pagination shim.
@@ -70,6 +71,7 @@ interface ClientPaginationCache<T> {
   allItems: T[];
   pools: string[];
   platforms: string[];
+  aggregates: ResourceAggregates;
   fetchedAt: number;
 }
 
@@ -112,6 +114,10 @@ export interface PaginatedResourcesResult extends PaginatedResponse<Resource> {
   pools: string[];
   /** Available platforms for filtering */
   platforms: string[];
+  /** Aggregated metrics for current filtered set */
+  aggregates: ResourceAggregates;
+  /** Aggregated metrics for entire unfiltered dataset (for comparison) */
+  unfilteredAggregates: ResourceAggregates;
 }
 
 /**
@@ -210,6 +216,9 @@ export async function fetchPaginatedResources(
     const pageItems = filteredItems.slice(startIndex, endIndex);
     const hasMore = endIndex < filteredItems.length;
 
+    // Compute aggregates for filtered set (~1ms for 10k resources)
+    const filteredAggregates = computeAggregates(filteredItems);
+
     return {
       items: pageItems,
       nextCursor: hasMore ? encodeCursor(endIndex) : null,
@@ -218,6 +227,8 @@ export async function fetchPaginatedResources(
       total: resourcesCache.allItems.length,
       pools: resourcesCache.pools,
       platforms: resourcesCache.platforms,
+      aggregates: filteredAggregates,
+      unfilteredAggregates: resourcesCache.aggregates, // Use cached unfiltered aggregates
     };
   }
 
@@ -225,11 +236,15 @@ export async function fetchPaginatedResources(
   const rawResponse = await fetchFn();
   const transformed = transformAllResourcesResponse(rawResponse);
 
-  // Update cache with unfiltered data
+  // Compute unfiltered aggregates ONCE and cache them
+  const unfilteredAggregates = computeAggregates(transformed.resources);
+
+  // Update cache with unfiltered data + aggregates
   resourcesCache = {
     allItems: transformed.resources,
     pools: transformed.pools,
     platforms: transformed.platforms,
+    aggregates: unfilteredAggregates,
     fetchedAt: Date.now(),
   };
 
@@ -240,6 +255,9 @@ export async function fetchPaginatedResources(
   const pageItems = filteredItems.slice(startIndex, endIndex);
   const hasMore = endIndex < filteredItems.length;
 
+  // Compute aggregates for filtered set
+  const filteredAggregates = computeAggregates(filteredItems);
+
   return {
     items: pageItems,
     nextCursor: hasMore ? encodeCursor(endIndex) : null,
@@ -248,6 +266,8 @@ export async function fetchPaginatedResources(
     total: transformed.resources.length,
     pools: transformed.pools,
     platforms: transformed.platforms,
+    aggregates: filteredAggregates,
+    unfilteredAggregates,
   };
 }
 

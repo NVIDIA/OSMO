@@ -52,6 +52,7 @@ import {
 } from "@/lib/api/chip-filter-utils";
 import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
 import { QUERY_STALE_TIME } from "@/lib/config";
+import type { ResourceAggregates } from "../lib/computeAggregates";
 
 // =============================================================================
 // Types
@@ -74,6 +75,8 @@ interface UseResourcesDataReturn {
   hasNextPage: boolean;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
+  /** Aggregated metrics for the full filtered dataset */
+  aggregates?: ResourceAggregates;
 }
 
 // =============================================================================
@@ -145,6 +148,7 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     isLoading,
     error,
     refetch,
+    firstPage,
   } = usePaginatedData<Resource, ResourceFilterParams>({
     queryKey,
     queryFn: async (params): Promise<PaginatedResourcesResult> => {
@@ -158,6 +162,9 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
       staleTime: QUERY_STALE_TIME.STANDARD,
     },
   });
+
+  // Extract aggregates from first page (computed by shim for full filtered dataset)
+  const aggregates = (firstPage as PaginatedResourcesResult | undefined)?.aggregates;
 
   // Apply client-only chips (numeric filters with % calculations)
   // These can't be handled by the shim because they need complex math
@@ -177,5 +184,6 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    aggregates,
   };
 }
