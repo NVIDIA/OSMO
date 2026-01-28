@@ -421,8 +421,19 @@ export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWor
  * Generate a unique nonce for mutation keys.
  * Ensures every API call gets a fresh token, preventing cache reuse.
  */
+// Global counter to ensure nonce uniqueness even across simultaneous calls
+let nonceCounter = 0;
+
+/**
+ * Generate a unique nonce for single-use mutations.
+ * Combines timestamp + counter + random to guarantee uniqueness even if:
+ * - Multiple components mount simultaneously (same timestamp)
+ * - Same component calls mutation multiple times (counter increments)
+ * - Counter wraps (random provides additional entropy)
+ */
 function generateNonce(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  nonceCounter = (nonceCounter + 1) % 1000000; // Wrap at 1M to prevent overflow
+  return `${Date.now()}-${nonceCounter}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 /**
