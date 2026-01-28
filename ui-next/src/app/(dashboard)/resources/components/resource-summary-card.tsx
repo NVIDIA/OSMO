@@ -18,15 +18,15 @@
 
 "use client";
 
-import { useMemo, memo } from "react";
+import { memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
-import type { Resource } from "@/lib/api/adapter";
 import type { DisplayMode } from "@/stores";
+import type { ResourceAggregates } from "../lib/computeAggregates";
 
 interface AdaptiveSummaryProps {
-  /** Array of resources to aggregate */
-  resources: Resource[];
+  /** Pre-computed aggregates from shim or server prefetch */
+  aggregates: ResourceAggregates;
   /** Display mode: "free" shows available, "used" shows utilization */
   displayMode?: DisplayMode;
   /** Show loading skeleton */
@@ -39,43 +39,25 @@ interface AdaptiveSummaryProps {
  * Adaptive summary cards using CSS container queries.
  *
  * Full mode (forceCompact=false):
- * - Wide (≥500px): 4 column grid with icon + label header, value below
+ * - Wide (>=500px): 4 column grid with icon + label header, value below
  * - Narrow (<500px): 2 column grid with icon + value inline
  *
  * Compact mode (forceCompact=true):
  * - Always 4 column inline layout with smaller text
  * - Progressively shows more detail as width increases:
- *   - ≥600px: Shows denominator (e.g., "/ 100")
- *   - ≥700px: Shows "free"/"used" label, larger text
- *   - ≥800px: Shows metric labels (GPU, CPU, etc.)
+ *   - >=600px: Shows denominator (e.g., "/ 100")
+ *   - >=700px: Shows "free"/"used" label, larger text
+ *   - >=800px: Shows metric labels (GPU, CPU, etc.)
  *
  * Uses GPU-accelerated CSS transitions for smooth layout changes.
  * Memoized to prevent unnecessary re-renders when props haven't changed.
  */
 export const AdaptiveSummary = memo(function AdaptiveSummary({
-  resources,
+  aggregates,
   displayMode = "free",
   isLoading = false,
   forceCompact = false,
 }: AdaptiveSummaryProps) {
-  // Calculate totals
-  const totals = useMemo(() => {
-    return resources.reduce(
-      (acc, r) => ({
-        gpu: { used: acc.gpu.used + r.gpu.used, total: acc.gpu.total + r.gpu.total },
-        cpu: { used: acc.cpu.used + r.cpu.used, total: acc.cpu.total + r.cpu.total },
-        memory: { used: acc.memory.used + r.memory.used, total: acc.memory.total + r.memory.total },
-        storage: { used: acc.storage.used + r.storage.used, total: acc.storage.total + r.storage.total },
-      }),
-      {
-        gpu: { used: 0, total: 0 },
-        cpu: { used: 0, total: 0 },
-        memory: { used: 0, total: 0 },
-        storage: { used: 0, total: 0 },
-      },
-    );
-  }, [resources]);
-
   if (isLoading) {
     return <div className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />;
   }
@@ -107,10 +89,10 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
   };
 
   const metrics = [
-    { Icon: Zap, label: "GPU", value: totals.gpu, isBytes: false, color: "text-amber-500" },
-    { Icon: Cpu, label: "CPU", value: totals.cpu, isBytes: false, color: "text-blue-500" },
-    { Icon: MemoryStick, label: "Memory", value: totals.memory, isBytes: true, color: "text-purple-500" },
-    { Icon: HardDrive, label: "Storage", value: totals.storage, isBytes: true, color: "text-emerald-500" },
+    { Icon: Zap, label: "GPU", value: aggregates.gpu, isBytes: false, color: "text-amber-500" },
+    { Icon: Cpu, label: "CPU", value: aggregates.cpu, isBytes: false, color: "text-blue-500" },
+    { Icon: MemoryStick, label: "Memory", value: aggregates.memory, isBytes: true, color: "text-purple-500" },
+    { Icon: HardDrive, label: "Storage", value: aggregates.storage, isBytes: true, color: "text-emerald-500" },
   ];
 
   return (

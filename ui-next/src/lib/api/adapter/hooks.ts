@@ -21,7 +21,12 @@ import {
 } from "./transforms";
 
 import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
-import { fetchPaginatedResources, invalidateResourcesCache, getResourceFilterOptions } from "./resources-shim";
+import {
+  fetchPaginatedResources,
+  invalidateResourcesCache,
+  getResourceFilterOptions,
+  type ResourceFilterParams,
+} from "./resources-shim";
 import {
   applyPoolFiltersSync,
   hasActiveFilters,
@@ -195,12 +200,7 @@ import type { PaginatedResourcesResult } from "./resources-shim";
 
 // SHIM: Client-side pagination until backend supports it (Issue: BACKEND_TODOS.md#11)
 export async function fetchResources(
-  params: {
-    pools?: string[];
-    platforms?: string[];
-    resourceTypes?: string[];
-    search?: string;
-  } & PaginationParams,
+  params: Omit<ResourceFilterParams, "all_pools"> & PaginationParams,
 ): Promise<PaginatedResourcesResult> {
   // Pass all filter params to the adapter shim - it handles client-side filtering
   return fetchPaginatedResources({ ...params, all_pools: true }, () =>
