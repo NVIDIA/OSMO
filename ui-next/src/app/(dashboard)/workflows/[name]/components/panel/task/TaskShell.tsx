@@ -51,10 +51,9 @@ import {
   ShellTerminal,
   SHELL_OPTIONS,
   type ShellTerminalRef,
-  type ConnectionStatusType,
+  type ConnectionStatus,
   hasSession,
-  getSessionStatus,
-  getSessionError,
+  getSession,
 } from "@/components/shell";
 
 // =============================================================================
@@ -71,7 +70,7 @@ export interface TaskShellProps {
   /** Shell to use (e.g., /bin/bash, /bin/sh, /bin/zsh) */
   shell?: string;
   /** Called when connection status changes */
-  onStatusChange?: (status: ConnectionStatusType) => void;
+  onStatusChange?: (status: ConnectionStatus) => void;
   /** Whether this shell is currently visible (triggers focus when becoming visible) */
   isVisible?: boolean;
   /** Additional className for the container */
@@ -279,12 +278,18 @@ export const TaskShell = memo(function TaskShell({
 
   // Check if this is a fresh session or returning to an existing one
   const sessionExists = hasSession(sessionKey);
-  const cachedStatus = getSessionStatus(sessionKey);
-  const cachedError = getSessionError(sessionKey);
+  const cachedSession = getSession(sessionKey);
+  const cachedStatus = cachedSession?.state.phase;
+  const cachedError =
+    cachedSession?.state.phase === "error"
+      ? cachedSession.state.error
+      : cachedSession?.state.phase === "disconnected"
+        ? cachedSession.state.reason
+        : null;
 
   // Track connection status - restore from cache if session exists
   // This preserves the exact state when switching tabs (connected, disconnected, error)
-  const [status, setStatus] = useState<ConnectionStatusType>(() => {
+  const [status, setStatus] = useState<ConnectionStatus>(() => {
     if (sessionExists && cachedStatus) {
       return cachedStatus;
     }
@@ -299,8 +304,14 @@ export const TaskShell = memo(function TaskShell({
   // useState initializer only runs on first mount, so we need this effect
   useEffect(() => {
     const exists = hasSession(sessionKey);
-    const cached = getSessionStatus(sessionKey);
-    const cachedErr = getSessionError(sessionKey);
+    const session = getSession(sessionKey);
+    const cached = session?.state.phase;
+    const cachedErr =
+      session?.state.phase === "error"
+        ? session.state.error
+        : session?.state.phase === "disconnected"
+          ? session.state.reason
+          : null;
 
     startTransition(() => {
       if (exists && cached) {
@@ -327,10 +338,15 @@ export const TaskShell = memo(function TaskShell({
 
   // Handle status changes from ShellTerminal
   // useEventCallback: frequently called, stable reference avoids child re-renders
-  const handleStatusChange = useEventCallback((newStatus: ConnectionStatusType) => {
+  const handleStatusChange = useEventCallback((newStatus: ConnectionStatus) => {
     setStatus(newStatus);
     // Clear error when connecting/connected
-    if (newStatus === "connecting" || newStatus === "connected") {
+    if (
+      newStatus === "connecting" ||
+      newStatus === "opening" ||
+      newStatus === "initializing" ||
+      newStatus === "ready"
+    ) {
       setLastError(null);
     }
     // Forward to parent
@@ -352,7 +368,7 @@ export const TaskShell = memo(function TaskShell({
   // Auto-focus when becoming visible (e.g., navigating to shell tab)
   // This allows immediate typing without an extra click
   useEffect(() => {
-    if (isVisible && status === "connected") {
+    if (isVisible && status === "ready") {
       shellRef.current?.focus();
     }
   }, [isVisible, status]);

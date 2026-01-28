@@ -14,7 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import { memo, forwardRef, useImperativeHandle, useState, useEffect, useDeferredValue } from "react";
+import { memo, forwardRef, useImperativeHandle, useState, useEffect, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
 
@@ -125,10 +125,10 @@ export const ShellTerminalImpl = memo(
       }
     };
 
-    const handleCloseSearch = () => {
+    const handleCloseSearch = useCallback(() => {
       setIsSearchOpen(false);
       shellHook.clearSearch();
-    };
+    }, [shellHook]);
 
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -155,7 +155,7 @@ export const ShellTerminalImpl = memo(
 
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [shellHook.state, isSearchOpen, copy]);
+    }, [shellHook.state, isSearchOpen, copy, handleCloseSearch]);
 
     useEffect(() => {
       const session = getSession(taskId);
