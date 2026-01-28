@@ -24,11 +24,11 @@
 
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo } from "react";
 import { createPortal } from "react-dom";
 import { TaskShell } from "../panel/task/TaskShell";
 import { useShellPortal } from "./ShellPortalContext";
-import { useShellSessions, type ConnectionStatus } from "@/components/shell";
+import { useShellSessions } from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -57,11 +57,6 @@ export const ShellContainer = memo(function ShellContainer({
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
-
-  // Handle status changes from TaskShell (no-op now - status is in session state)
-  const handleStatusChange = useCallback((_taskId: string, _status: ConnectionStatus) => {
-    // Status is already tracked in session.state.phase
-  }, []);
 
   // Filter shells to only include those from this workflow
   // This prevents shells from other workflows from being rendered/mounted here
@@ -93,7 +88,6 @@ export const ShellContainer = memo(function ShellContainer({
               taskName={visibleShell.taskName}
               shell={visibleShell.shell}
               isVisible
-              onStatusChange={(status) => handleStatusChange(visibleShell.key, status)}
             />
           </div>,
           portalTarget,
@@ -109,7 +103,6 @@ export const ShellContainer = memo(function ShellContainer({
               workflowName={workflowName}
               taskName={shell.taskName}
               shell={shell.shell}
-              onStatusChange={(status) => handleStatusChange(shell.key, status)}
             />
           ))}
         </div>
