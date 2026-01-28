@@ -48,7 +48,13 @@
 // These are still available for use in Server Actions, Route Handlers,
 // or if you want to add blocking SSR prefetch for specific pages
 export { fetchPools, fetchPoolByName, prefetchPools, prefetchPoolsForDashboard } from "./pools";
-export { fetchResources, fetchResourcesByPool, prefetchResources, prefetchResourcesList } from "./resources";
+export {
+  fetchResources,
+  fetchResourcesByPool,
+  prefetchResources,
+  prefetchResourcesList,
+  buildResourcesQueryKey,
+} from "./resources";
 export {
   fetchWorkflows,
   fetchWorkflowByName,

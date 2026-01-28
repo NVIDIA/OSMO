@@ -43,12 +43,13 @@ import { ResourcePanelLayout } from "./components/panel/resource-panel";
 import { ResourcesToolbar } from "./components/resources-toolbar";
 import { AdaptiveSummary } from "./components/resource-summary-card";
 import { useResourcesData } from "./hooks/use-resources-data";
+import type { ResourceAggregates } from "./lib/computeAggregates";
 
 // =============================================================================
 // Client Component
 // =============================================================================
 
-export function ResourcesPageContent() {
+export function ResourcesPageContent({ initialAggregates }: { initialAggregates?: ResourceAggregates | null }) {
   usePage({ title: "Resources" });
   const { startTransition } = useViewTransition();
 
@@ -107,6 +108,7 @@ export function ResourcesPageContent() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    aggregates: queryAggregates,
   } = useResourcesData({ searchChips });
 
   // Check if filters are active
@@ -118,6 +120,13 @@ export function ResourcesPageContent() {
     filteredTotal: filteredCount ?? resources.length,
     hasActiveFilters,
   });
+
+  // ==========================================================================
+  // Aggregates - Prefer query aggregates, fallback to initial (server prefetch)
+  // The shim computes aggregates for the full filtered dataset on every request
+  // ==========================================================================
+
+  const aggregates = queryAggregates ?? initialAggregates;
 
   // ==========================================================================
   // Resource Selection
@@ -165,10 +174,10 @@ export function ResourcesPageContent() {
         </div>
 
         {/* Adaptive resource summary cards */}
-        {!error && resources.length > 0 && (
+        {!error && aggregates && (
           <div className="shrink-0">
             <AdaptiveSummary
-              resources={resources}
+              aggregates={aggregates}
               displayMode={displayMode}
               isLoading={isLoading}
               forceCompact={compactMode}

@@ -32,10 +32,12 @@
  */
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchResourcesList } from "@/lib/api/server";
+import { prefetchResourcesList, buildResourcesQueryKey } from "@/lib/api/server";
 import { ResourcesPageContent } from "./resources-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createQueryClient } from "@/lib/query-client";
+import type { PaginatedResourcesResult } from "@/lib/api/adapter/resources-shim";
+import type { ResourceAggregates } from "./lib/computeAggregates";
 
 interface ResourcesWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -53,10 +55,17 @@ export async function ResourcesWithData({ searchParams }: ResourcesWithDataProps
   // React streams the Suspense fallback, then streams this when ready
   await prefetchResourcesList(queryClient, filterChips);
 
+  // Extract aggregates from prefetched data
+  // The shim computes aggregates server-side and includes them in the response
+  const queryKey = buildResourcesQueryKey(filterChips);
+  const infiniteData = queryClient.getQueryData<{ pages: PaginatedResourcesResult[] }>(queryKey);
+  const firstPage = infiniteData?.pages?.[0];
+  const aggregates: ResourceAggregates | null = firstPage?.aggregates ?? null;
+
   // Wrap in HydrationBoundary so client gets the cached data
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <ResourcesPageContent />
+      <ResourcesPageContent initialAggregates={aggregates} />
     </HydrationBoundary>
   );
 }
