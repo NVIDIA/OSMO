@@ -405,7 +405,7 @@ Authorization sidecar container
 - name: authz-sidecar
   securityContext:
     {{- toYaml .Values.sidecars.authz.securityContext | nindent 4 }}
-  image: "{{ .Values.global.osmoImageLocation }}/{{ .Values.sidecar.authz.imageName }}:{{ .Values.global.osmoImageTag }}"
+  image: "{{ .Values.global.osmoImageLocation }}/{{ .Values.sidecars.authz.imageName }}:{{ .Values.global.osmoImageTag }}"
   imagePullPolicy: {{ .Values.sidecars.authz.imagePullPolicy }}
   args:
     - "--grpc-port={{ .Values.sidecars.authz.grpcPort }}"
