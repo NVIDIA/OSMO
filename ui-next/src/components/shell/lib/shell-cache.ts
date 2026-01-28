@@ -34,8 +34,10 @@ export interface CachedSession {
 
 const cache = new Map<string, CachedSession>();
 const listeners = new Set<() => void>();
+let cachedSnapshot: CachedSession[] = [];
 
 function notifyListeners(): void {
+  cachedSnapshot = Array.from(cache.values());
   listeners.forEach((listener) => listener());
 }
 
@@ -102,7 +104,7 @@ export function subscribe(callback: () => void): () => void {
 }
 
 export function getSnapshot(): CachedSession[] {
-  return getAllSessions();
+  return cachedSnapshot;
 }
 
 export function useShellSessions(): CachedSession[] {
