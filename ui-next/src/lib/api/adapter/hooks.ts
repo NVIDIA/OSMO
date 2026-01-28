@@ -331,7 +331,13 @@ export function useResourceDetail(
   };
 }
 
-import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "../generated";
+import {
+  useGetWorkflowApiWorkflowNameGet,
+  type WorkflowQueryResponse,
+  useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost,
+  usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost,
+  usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost,
+} from "../generated";
 
 interface UseWorkflowParams {
   name: string;
@@ -394,4 +400,141 @@ export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWor
     refetch,
     isNotFound,
   };
+}
+
+// =============================================================================
+// CRITICAL: Single-Use Session APIs (Exec, PortForward)
+// =============================================================================
+//
+// These APIs generate SINGLE-USE session tokens/cookies that cannot be reused
+// after the session terminates. Every call MUST mint a new token.
+//
+// To prevent accidental caching or deduplication:
+// 1. Mutation keys include unique nonce (timestamp + random) per call
+// 2. gcTime: 0 ensures results are never cached
+// 3. These hooks MUST be used instead of generated hooks
+//
+// See: CLAUDE.md - "we don't inadvertently cache our exec/portforward APIs"
+// =============================================================================
+
+/**
+ * Generate a unique nonce for mutation keys.
+ * Ensures every API call gets a fresh token, preventing cache reuse.
+ */
+function generateNonce(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/**
+ * CRITICAL: Exec into task container.
+ *
+ * This API generates a SINGLE-USE session token that cannot be reused.
+ * Each call MUST create a new exec session with a fresh token.
+ *
+ * DO NOT use the generated hook directly - it has a static mutation key
+ * that could allow React Query to cache or deduplicate requests.
+ *
+ * This wrapper ensures:
+ * - Unique mutation key per call (prevents deduplication)
+ * - gcTime: 0 (prevents caching)
+ * - Fresh token on every call
+ *
+ * @example
+ * ```ts
+ * const execMutation = useExecIntoTask();
+ * const response = await execMutation.mutateAsync({
+ *   name: workflowName,
+ *   taskName: taskName,
+ *   params: { entry_command: '/bin/bash' },
+ * });
+ * // response.key is a single-use session token
+ * ```
+ */
+export function useExecIntoTask() {
+  const nonce = useMemo(() => generateNonce(), []);
+
+  return useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost({
+    mutation: {
+      // CRITICAL: Include nonce in mutation key to prevent deduplication
+      mutationKey: ["execIntoTask", nonce],
+      // CRITICAL: gcTime 0 prevents caching - every call must be fresh
+      gcTime: 0,
+    },
+  });
+}
+
+/**
+ * CRITICAL: Port forward to task container.
+ *
+ * This API generates a SINGLE-USE session token that cannot be reused.
+ * Each call MUST create a new port forward session with a fresh token.
+ *
+ * DO NOT use the generated hook directly - it has a static mutation key
+ * that could allow React Query to cache or deduplicate requests.
+ *
+ * This wrapper ensures:
+ * - Unique mutation key per call (prevents deduplication)
+ * - gcTime: 0 (prevents caching)
+ * - Fresh token on every call
+ *
+ * @example
+ * ```ts
+ * const portForwardMutation = usePortForwardTask();
+ * const response = await portForwardMutation.mutateAsync({
+ *   name: workflowName,
+ *   taskName: taskName,
+ *   params: { local_port: 8080, remote_port: 8080 },
+ * });
+ * // response contains single-use session info
+ * ```
+ */
+export function usePortForwardTask() {
+  const nonce = useMemo(() => generateNonce(), []);
+
+  return usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost({
+    mutation: {
+      // CRITICAL: Include nonce in mutation key to prevent deduplication
+      mutationKey: ["portForwardTask", nonce],
+      // CRITICAL: gcTime 0 prevents caching - every call must be fresh
+      gcTime: 0,
+    },
+  });
+}
+
+/**
+ * CRITICAL: Port forward to webserver in task container.
+ *
+ * This API generates a SINGLE-USE session token that cannot be reused.
+ * Each call MUST create a new webserver connection with a fresh token.
+ *
+ * DO NOT use the generated hook directly - it has a static mutation key
+ * that could allow React Query to cache or deduplicate requests.
+ *
+ * This wrapper ensures:
+ * - Unique mutation key per call (prevents deduplication)
+ * - gcTime: 0 (prevents caching)
+ * - Fresh token on every call
+ *
+ * @example
+ * ```ts
+ * const webserverMutation = usePortForwardWebserver();
+ * const response = await webserverMutation.mutateAsync({
+ *   name: workflowName,
+ *   taskName: taskName,
+ *   params: { port: 8080 },
+ * });
+ * // response contains single-use router address
+ * ```
+ */
+export function usePortForwardWebserver() {
+  const nonce = useMemo(() => generateNonce(), []);
+
+  return usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost({
+    mutation: {
+      // CRITICAL: Include nonce in mutation key to prevent deduplication
+      mutationKey: ["portForwardWebserver", nonce],
+      // CRITICAL: gcTime 0 prevents caching - every call must be fresh
+      gcTime: 0,
+    },
+  });
 }

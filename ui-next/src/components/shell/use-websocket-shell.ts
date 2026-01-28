@@ -43,7 +43,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, startTransition } from "react";
-import { useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost } from "@/lib/api/generated";
+import { useExecIntoTask } from "@/lib/api/adapter";
 import type { ConnectionStatus, UseWebSocketShellReturn } from "./types";
 import { SHELL_CONFIG } from "./types";
 import {
@@ -132,7 +132,8 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
   const controllerRef = useRef<AbortController | null>(null);
 
   // API mutation for creating exec session
-  const execMutation = useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost();
+  // CRITICAL: Use adapter hook to prevent caching (single-use session tokens)
+  const execMutation = useExecIntoTask();
 
   // Get the WebSocket (from cache or local)
   const getWebSocket = useCallback((): WebSocket | null => {
