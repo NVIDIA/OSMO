@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect, useId } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -64,6 +64,7 @@ export function PlatformSelector({
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputId = useId();
 
   const sortedPlatforms = useMemo(() => [...platforms].sort(), [platforms]);
   const isDefault = selectedPlatform === defaultPlatform;
@@ -185,14 +186,22 @@ export function PlatformSelector({
       >
         {/* Search input */}
         <div className="flex items-center border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+          <label
+            htmlFor={searchInputId}
+            className="sr-only"
+          >
+            Search platforms
+          </label>
           <Search className="mr-2 size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
           <input
             ref={searchInputRef}
+            id={searchInputId}
             type="text"
             placeholder="Search platforms..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            aria-label="Search platforms"
             onKeyDown={(e) => {
               // Stop propagation for navigation keys (let Escape bubble to close dropdown)
               if (e.key !== "Escape") {

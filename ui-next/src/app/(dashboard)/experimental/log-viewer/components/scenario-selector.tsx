@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useId } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useMounted } from "@/hooks";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -165,18 +165,29 @@ export function ScenarioSelector() {
   // Hydration-safe rendering for Radix Select
   const mounted = useMounted();
 
+  // Generate unique ID for label-select association
+  const selectId = useId();
+
   if (!mounted) {
     return <Skeleton className="h-9 w-[220px]" />;
   }
 
   return (
     <div className="flex items-center gap-2">
-      <label className="text-muted-foreground text-sm font-medium">Scenario:</label>
+      <label
+        htmlFor={selectId}
+        className="text-muted-foreground text-sm font-medium"
+      >
+        Scenario:
+      </label>
       <Select
         value={scenario}
         onValueChange={(v) => setScenario(v as LogScenario)}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger
+          id={selectId}
+          className="w-[180px]"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

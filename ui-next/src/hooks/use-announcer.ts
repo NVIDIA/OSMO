@@ -132,7 +132,9 @@ export function useAnnouncer(options: UseAnnouncerOptions = {}): AnnounceFunctio
 
     return () => {
       if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+        // Cancel either setTimeout or RAF (both accept numeric IDs)
+        cancelAnimationFrame(timeoutRef.current as unknown as number);
+        timeoutRef.current = null;
       }
       // Note: We don't remove the region on unmount as it may be reused
       // by other components. Call cleanupAnnouncer() explicitly if needed.
@@ -154,13 +156,22 @@ export function useAnnouncer(options: UseAnnouncerOptions = {}): AnnounceFunctio
       region.textContent = "";
 
       // Set new message after a brief delay (ensures screen reader picks up change)
+      // Use RAF + microtask instead of setTimeout to avoid long task violations
+      // while still providing the necessary delay for screen readers
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
 
-      timeoutRef.current = setTimeout(() => {
-        region.textContent = message;
-      }, 50);
+      // Store RAF ID in timeout ref (both are numbers, compatible for cleanup)
+      const rafId = requestAnimationFrame(() => {
+        queueMicrotask(() => {
+          region.textContent = message;
+        });
+        timeoutRef.current = null;
+      });
+      // Cast to setTimeout return type for ref compatibility (both are numbers in browsers)
+      timeoutRef.current = rafId as unknown as ReturnType<typeof setTimeout>;
     },
     [defaultPoliteness],
   );
