@@ -44,6 +44,7 @@
 
 import { useRef, useState, useCallback, useEffect, startTransition } from "react";
 import { useExecIntoTask } from "@/lib/api/adapter";
+import { updateALBCookies } from "@/lib/auth/cookies";
 import type { ConnectionStatus, UseWebSocketShellReturn } from "./types";
 import { SHELL_CONFIG } from "./types";
 import {
@@ -130,6 +131,12 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
 
   // Create a ref for the AbortController to allow cancellation of the API request
   const controllerRef = useRef<AbortController | null>(null);
+
+  // Track if initial resize was sent (workaround for backend protocol bug)
+  // Backend blindly copies resize JSON to PTY stdin, corrupting user input.
+  // Only send resize ONCE at connection start to avoid corruption mid-session.
+  // TODO: Remove when backend implements framed protocol (BACKEND_TODOS.md #22)
+  const initialResizeSentRef = useRef(false);
 
   // API mutation for creating exec session
   // CRITICAL: Use adapter hook to prevent caching (single-use session tokens)
@@ -225,12 +232,24 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
     if (sessionKey && hasActiveConnection(sessionKey)) {
       const session = getSession(sessionKey);
       if (session?.connection.webSocket) {
-        // Reattach callbacks to existing WebSocket
-        attachCallbacks(session.connection.webSocket);
-        usingCachedConnectionRef.current = true;
-        updateStatus("connected");
-        onConnectedRef.current?.();
-        return;
+        const ws = session.connection.webSocket;
+
+        // Verify WebSocket is truly functional before reusing
+        // Fix #3: Prevent race condition where ws.readyState is OPEN but backend has closed PTY
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.debug("[Shell] Cached WebSocket not OPEN (state: %d), creating new connection", ws.readyState);
+          // Close stale connection and fall through to create new one
+          ws.close();
+          updateSessionWebSocket(sessionKey, null);
+        } else {
+          // WebSocket is OPEN - safe to reuse
+          console.debug("[Shell] Reusing cached WebSocket connection");
+          attachCallbacks(ws);
+          usingCachedConnectionRef.current = true;
+          updateStatus("connected");
+          onConnectedRef.current?.();
+          return;
+        }
       }
     }
 
@@ -242,6 +261,9 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
 
     usingCachedConnectionRef.current = false;
     updateStatus("connecting");
+
+    // Reset resize flag for new connection
+    initialResizeSentRef.current = false;
 
     // Create a new AbortController for this connection attempt
     const controller = new AbortController();
@@ -279,6 +301,14 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         wsUrl,
         sessionKey,
       });
+
+      // Fix #1 (CRITICAL): Set ALB sticky session cookies before WebSocket connection
+      // This ensures the WebSocket routes to the same ALB backend node that created
+      // the exec session. Without this, connection may timeout (60s) when routed to
+      // a different node that doesn't have the session key.
+      if (response.cookie) {
+        updateALBCookies(response.cookie);
+      }
 
       // Create WebSocket connection
       const ws = new WebSocket(wsUrl);
@@ -359,6 +389,27 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
   // Send resize event
   const resize = useCallback(
     (rows: number, cols: number) => {
+      // Fix #2 (CRITICAL WORKAROUND): Only send resize once at connection start
+      //
+      // Backend bug: resize JSON is blindly copied to PTY stdin, corrupting user commands.
+      // Example: User types "ls" → backend has {"Rows":40,"Cols":120} in buffer
+      // → bash tries to execute '{"Rows":40,"Cols":120}ls' → command not found
+      //
+      // This workaround prevents resize during session, sacrificing window resize
+      // support to avoid command corruption. Terminal won't resize if user changes
+      // window size, but at least commands work correctly.
+      //
+      // TODO: Remove when backend implements framed protocol (BACKEND_TODOS.md #22)
+      if (initialResizeSentRef.current) {
+        console.debug(
+          "[Shell] Skipping resize to avoid backend protocol corruption (sent: %d)",
+          initialResizeSentRef.current,
+        );
+        return;
+      }
+
+      initialResizeSentRef.current = true;
+
       // Use session cache helper if available
       if (sessionKey) {
         sendResize(sessionKey, rows, cols);
