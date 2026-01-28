@@ -131,9 +131,10 @@ export function usePaginatedData<T, TParams extends object>({
     return query.data.pages.flatMap((page) => page.items);
   }, [query.data]);
 
-  // Get totals from first page (if available)
-  const filteredCount = query.data?.pages[0]?.filteredTotal;
-  const totalCount = query.data?.pages[0]?.total;
+  // Get first page for metadata (counts, aggregates, etc.)
+  const firstPage = query.data?.pages[0];
+  const filteredCount = firstPage?.filteredTotal;
+  const totalCount = firstPage?.total;
 
   const reset = useCallback(() => {
     // TanStack Query automatically resets when queryKey changes
@@ -154,6 +155,7 @@ export function usePaginatedData<T, TParams extends object>({
     error: query.error,
     refetch: query.refetch,
     reset,
+    firstPage,
   };
 }
 

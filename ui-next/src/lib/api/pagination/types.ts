@@ -94,6 +94,8 @@ export interface PaginatedDataResult<T> {
   refetch: () => void;
   /** Reset to first page */
   reset: () => void;
+  /** First page data (for accessing extended metadata like aggregates) */
+  firstPage?: PaginatedResponse<T>;
 }
 
 /**
