@@ -37,9 +37,9 @@ import { nodeTypes, MiniMapNode, DAGControls, DAGProvider, DetailsPanel } from "
 import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries } from "@/components/dag";
 import { useMiniMapColors } from "../lib/status";
 import { useDAGState } from "../hooks/use-dag-state";
-import type { GroupWithLayout, TaskQueryResponse, WorkflowQueryResponse } from "../lib/workflow-types";
-import type { DetailsPanelView } from "../lib/panel-types";
-import type { WorkflowTab, TaskTab } from "../hooks/use-navigation-state";
+import { usePanelProps } from "../hooks/use-panel-props";
+import type { WorkflowViewCommonProps, WorkflowDAGViewSpecificProps } from "../lib/view-types";
+import type { GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
 
 import "../styles/dag.css";
 
@@ -52,90 +52,34 @@ const ShellContainer = dynamic(() => import("./shell/ShellContainer").then((m) =
 // Types
 // =============================================================================
 
-export interface WorkflowDAGViewProps {
-  // Data
-  workflow: WorkflowQueryResponse;
-  groups: GroupWithLayout[];
-
-  // Selection state
-  selectedGroupName: string | null;
-  selectedTaskName: string | null;
-  selectedTaskRetryId: number | null;
-  selectedGroup: GroupWithLayout | null;
-  selectedTask: TaskQueryResponse | null;
-  currentPanelView: DetailsPanelView;
-  selectionKey: string | null;
-
-  // Navigation handlers
-  onSelectGroup: (group: GroupWithLayout) => void;
-  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
-  onBackToGroup: () => void;
-  onBackToWorkflow: () => void;
-
-  // Panel state
-  panelPct: number;
-  onPanelResize: (pct: number) => void;
-  isDetailsExpanded: boolean;
-  onToggleDetailsExpanded: () => void;
-  isPanelCollapsed: boolean;
-  togglePanelCollapsed: () => void;
-  expandPanel: () => void;
-  panelOverrideContent?: React.ReactNode;
-  onPanelDraggingChange?: (isDragging: boolean) => void;
-
-  // Workflow actions
-  onCancelWorkflow?: () => void;
-
-  // Tab state
-  selectedTab: TaskTab | null;
-  setSelectedTab: (tab: TaskTab) => void;
-  selectedWorkflowTab: WorkflowTab | null;
-  setSelectedWorkflowTab: (tab: WorkflowTab) => void;
-  onShellTabChange: (taskName: string | null) => void;
-  activeShellTaskName: string | null;
-
-  // Panning state for tick controller
-  isPanning: boolean;
-  onPanningChange: (isPanning: boolean) => void;
-}
+/**
+ * DAG view props combine common view props with DAG-specific additions.
+ * Common props handle data, selection, navigation, panel, and tabs.
+ * DAG-specific props handle viewport, panning, and re-click behavior.
+ */
+export interface WorkflowDAGViewProps extends WorkflowViewCommonProps, WorkflowDAGViewSpecificProps {}
 
 // =============================================================================
 // Component Implementation
 // =============================================================================
 
-function WorkflowDAGViewImpl({
-  workflow,
-  groups,
-  selectedGroupName,
-  selectedTaskName,
-  selectedTaskRetryId,
-  selectedGroup,
-  selectedTask,
-  currentPanelView,
-  selectionKey,
-  onSelectGroup,
-  onSelectTask,
-  onBackToGroup,
-  onBackToWorkflow,
-  panelPct,
-  onPanelResize,
-  isDetailsExpanded,
-  onToggleDetailsExpanded,
-  isPanelCollapsed,
-  togglePanelCollapsed,
-  expandPanel,
-  panelOverrideContent,
-  onPanelDraggingChange,
-  onCancelWorkflow,
-  selectedTab,
-  setSelectedTab,
-  selectedWorkflowTab,
-  setSelectedWorkflowTab,
-  onShellTabChange,
-  activeShellTaskName,
-  isPanning,
-  onPanningChange,
-}: WorkflowDAGViewProps) {
+function WorkflowDAGViewImpl(props: WorkflowDAGViewProps) {
+  const {
+    groups,
+    selectedGroupName,
+    selectedTaskName,
+    selectedTaskRetryId,
+    selectedGroup,
+    isPanelCollapsed,
+    expandPanel,
+    onPanelDraggingChange,
+    isPanning,
+    onPanningChange,
+    panelPct,
+    selectionKey,
+    onSelectGroup,
+    onSelectTask,
+  } = props;
   // DAG-specific state
   const [showMinimap, setShowMinimap] = useState(true);
   const [isPanelDragging, setIsPanelDragging] = useState(false);
@@ -200,6 +144,14 @@ function WorkflowDAGViewImpl({
     initialDirection: "TB",
     onSelectGroup: handleNavigateToGroup,
     onSelectTask: handleNavigateToTask,
+  });
+
+  // Generate common panel props from view props
+  // Use dagGroups (with layout info) instead of the raw groups
+  const { panelProps, shellContainerProps } = usePanelProps({
+    ...props,
+    allGroups: dagGroups,
+    containerRef,
   });
 
   // ---------------------------------------------------------------------------
@@ -399,41 +351,12 @@ function WorkflowDAGViewImpl({
 
       {/* Side-by-side Panel */}
       <DetailsPanel
-        view={currentPanelView}
-        workflow={workflow}
-        group={selectedGroup}
-        allGroups={dagGroups}
-        task={selectedTask}
-        onBackToGroup={onBackToGroup}
-        onBackToWorkflow={onBackToWorkflow}
-        onSelectTask={onSelectTask}
-        onSelectGroup={onSelectGroup}
-        panelPct={panelPct}
-        onPanelResize={onPanelResize}
-        isDetailsExpanded={isDetailsExpanded}
-        onToggleDetailsExpanded={onToggleDetailsExpanded}
-        isCollapsed={isPanelCollapsed}
-        onToggleCollapsed={togglePanelCollapsed}
-        toggleHotkey="mod+i"
-        onCancelWorkflow={onCancelWorkflow}
-        fallbackContent={panelOverrideContent}
-        containerRef={containerRef}
+        {...panelProps}
         onDraggingChange={handlePanelDraggingChange}
-        onShellTabChange={onShellTabChange}
-        selectedTab={selectedTab ?? undefined}
-        setSelectedTab={(tab: TaskTab) => setSelectedTab(tab)}
-        selectedWorkflowTab={selectedWorkflowTab ?? undefined}
-        setSelectedWorkflowTab={(tab: WorkflowTab) => setSelectedWorkflowTab(tab)}
       />
 
       {/* Shell Container */}
-      {workflow.name && (
-        <ShellContainer
-          workflowName={workflow.name}
-          currentTaskId={selectedTask?.task_uuid}
-          isShellTabActive={activeShellTaskName !== null}
-        />
-      )}
+      {shellContainerProps && <ShellContainer {...shellContainerProps} />}
     </div>
   );
 }

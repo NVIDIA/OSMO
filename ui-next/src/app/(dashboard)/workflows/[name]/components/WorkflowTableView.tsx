@@ -29,9 +29,8 @@ import { memo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { WorkflowTasksTable, DetailsPanel } from ".";
 import { PANEL } from "@/components/panel";
-import type { GroupWithLayout, TaskQueryResponse, WorkflowQueryResponse } from "../lib/workflow-types";
-import type { DetailsPanelView } from "../lib/panel-types";
-import type { WorkflowTab, TaskTab } from "../hooks/use-navigation-state";
+import { usePanelProps } from "../hooks/use-panel-props";
+import type { WorkflowViewCommonProps } from "../lib/view-types";
 
 // Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(() => import("./shell/ShellContainer").then((m) => ({ default: m.ShellContainer })), {
@@ -42,79 +41,28 @@ const ShellContainer = dynamic(() => import("./shell/ShellContainer").then((m) =
 // Types
 // =============================================================================
 
-export interface WorkflowTableViewProps {
-  // Data
-  workflow: WorkflowQueryResponse;
-  groups: GroupWithLayout[];
-
-  // Selection state
-  selectedGroupName: string | null;
-  selectedTaskName: string | null;
-  selectedGroup: GroupWithLayout | null;
-  selectedTask: TaskQueryResponse | null;
-  currentPanelView: DetailsPanelView;
-
-  // Navigation handlers
-  onSelectGroup: (group: GroupWithLayout) => void;
-  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
-  onBackToGroup: () => void;
-  onBackToWorkflow: () => void;
-
-  // Panel state
-  panelPct: number;
-  onPanelResize: (pct: number) => void;
-  isDetailsExpanded: boolean;
-  onToggleDetailsExpanded: () => void;
-  isPanelCollapsed: boolean;
-  togglePanelCollapsed: () => void;
-  panelOverrideContent?: React.ReactNode;
-  onPanelDraggingChange?: (isDragging: boolean) => void;
-
-  // Workflow actions
-  onCancelWorkflow?: () => void;
-
-  // Tab state
-  selectedTab: TaskTab | null;
-  setSelectedTab: (tab: TaskTab) => void;
-  selectedWorkflowTab: WorkflowTab | null;
-  setSelectedWorkflowTab: (tab: WorkflowTab) => void;
-  onShellTabChange: (taskName: string | null) => void;
-  activeShellTaskName: string | null;
-}
+/**
+ * Table view props use the common view props without DAG-specific additions.
+ * Table view doesn't need panning, selectionKey, or expandPanel.
+ */
+export type WorkflowTableViewProps = WorkflowViewCommonProps;
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export const WorkflowTableView = memo(function WorkflowTableView({
-  workflow,
-  groups,
-  selectedGroupName,
-  selectedTaskName,
-  selectedGroup,
-  selectedTask,
-  currentPanelView,
-  onSelectGroup,
-  onSelectTask,
-  onBackToGroup,
-  onBackToWorkflow,
-  panelPct,
-  onPanelResize,
-  isDetailsExpanded,
-  onToggleDetailsExpanded,
-  isPanelCollapsed,
-  togglePanelCollapsed,
-  panelOverrideContent,
-  onPanelDraggingChange,
-  onCancelWorkflow,
-  selectedTab,
-  setSelectedTab,
-  selectedWorkflowTab,
-  setSelectedWorkflowTab,
-  onShellTabChange,
-  activeShellTaskName,
-}: WorkflowTableViewProps) {
+export const WorkflowTableView = memo(function WorkflowTableView(props: WorkflowTableViewProps) {
+  const { workflow, groups, selectedGroupName, selectedTaskName, onSelectGroup, onSelectTask, onPanelDraggingChange } =
+    props;
+
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Generate common panel props from view props
+  const { panelProps, shellContainerProps } = usePanelProps({
+    ...props,
+    containerRef,
+    className: "absolute inset-y-0 right-0 z-10",
+  });
 
   // Reserve space for the edge strip to maintain consistent table layout
   // This prevents the table from jumping when the panel expands/collapses
@@ -148,42 +96,12 @@ export const WorkflowTableView = memo(function WorkflowTableView({
 
       {/* Panel - positioned on right side */}
       <DetailsPanel
-        view={currentPanelView}
-        workflow={workflow}
-        group={selectedGroup}
-        allGroups={groups}
-        task={selectedTask}
-        onBackToGroup={onBackToGroup}
-        onBackToWorkflow={onBackToWorkflow}
-        onSelectTask={onSelectTask}
-        onSelectGroup={onSelectGroup}
-        panelPct={panelPct}
-        onPanelResize={onPanelResize}
-        isDetailsExpanded={isDetailsExpanded}
-        onToggleDetailsExpanded={onToggleDetailsExpanded}
-        isCollapsed={isPanelCollapsed}
-        onToggleCollapsed={togglePanelCollapsed}
-        toggleHotkey="mod+i"
-        onCancelWorkflow={onCancelWorkflow}
-        fallbackContent={panelOverrideContent}
-        containerRef={containerRef}
+        {...panelProps}
         onDraggingChange={onPanelDraggingChange}
-        onShellTabChange={onShellTabChange}
-        selectedTab={selectedTab ?? undefined}
-        setSelectedTab={(tab: TaskTab) => setSelectedTab(tab)}
-        selectedWorkflowTab={selectedWorkflowTab ?? undefined}
-        setSelectedWorkflowTab={(tab: WorkflowTab) => setSelectedWorkflowTab(tab)}
-        className="absolute inset-y-0 right-0 z-10"
       />
 
       {/* Shell Container - renders shells, portals into TaskDetails */}
-      {workflow.name && (
-        <ShellContainer
-          workflowName={workflow.name}
-          currentTaskId={selectedTask?.task_uuid}
-          isShellTabActive={activeShellTaskName !== null}
-        />
-      )}
+      {shellContainerProps && <ShellContainer {...shellContainerProps} />}
     </div>
   );
 });
