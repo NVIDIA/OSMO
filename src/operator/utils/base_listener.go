@@ -37,6 +37,9 @@ type MessageReceiver interface {
 	Recv() (*pb.AckMessage, error)
 }
 
+// MessageSenderFunc is a function type for sending messages
+type MessageSenderFunc func()
+
 // BaseListener contains common functionality for all listeners
 type BaseListener struct {
 	unackedMessages *UnackMessages
@@ -45,6 +48,7 @@ type BaseListener struct {
 	// Connection state
 	conn   *grpc.ClientConn
 	client pb.ListenerServiceClient
+	stream pb.ListenerService_ListenerStreamClient
 
 	// Stream coordination
 	streamCtx    context.Context
@@ -218,4 +222,57 @@ func (bl *BaseListener) AddToWaitGroup(delta int) {
 // WaitGroupDone marks a wait group item as done
 func (bl *BaseListener) WaitGroupDone() {
 	bl.wg.Done()
+}
+
+// Run manages the bidirectional streaming lifecycle
+func (bl *BaseListener) Run(
+	ctx context.Context,
+	logMessage string,
+	sendMessages MessageSenderFunc,
+	closeStream func(),
+	streamName string,
+) error {
+	// Initialize the base connection
+	if err := bl.InitConnection(ctx, bl.args.ServiceURL); err != nil {
+		return err
+	}
+
+	// Establish the bidirectional stream
+	var err error
+	bl.stream, err = bl.client.ListenerStream(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create stream: %w", err)
+	}
+
+	// Context for coordinated shutdown of goroutines with error cause
+	bl.InitStreamContext(ctx)
+
+	log.Printf("%s", logMessage)
+
+	defer closeStream()
+
+	// Resend all unacked messages from previous connection (if any)
+	if err := bl.unackedMessages.ResendAll(bl.stream); err != nil {
+		return err
+	}
+
+	// Launch goroutines for send and receive
+	bl.AddToWaitGroup(2)
+	go func() {
+		defer bl.WaitGroupDone()
+		bl.ReceiveAcks(bl.stream, streamName)
+	}()
+
+	go func() {
+		defer bl.WaitGroupDone()
+		sendMessages()
+	}()
+
+	// Wait for completion
+	return bl.WaitForCompletion(ctx, closeStream)
+}
+
+// GetStream returns the gRPC stream
+func (bl *BaseListener) GetStream() pb.ListenerService_ListenerStreamClient {
+	return bl.stream
 }

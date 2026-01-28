@@ -38,7 +38,6 @@ import (
 type WorkflowListener struct {
 	*utils.BaseListener
 	args      utils.ListenerArgs
-	stream    pb.ListenerService_ListenerStreamClient
 	closeOnce sync.Once
 }
 
@@ -50,53 +49,15 @@ func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
 	}
 }
 
-// Connect establishes a gRPC connection and stream
-func (wl *WorkflowListener) Connect(ctx context.Context) error {
-	// Initialize the base connection
-	if err := wl.BaseListener.InitConnection(ctx, wl.args.ServiceURL); err != nil {
-		return err
-	}
-
-	// Establish the bidirectional stream
-	var err error
-	wl.stream, err = wl.GetClient().ListenerStream(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create stream: %w", err)
-	}
-
-	// Context for coordinated shutdown of goroutines with error cause
-	wl.InitStreamContext(ctx)
-
-	log.Printf("Connected to operator service, stream established")
-	return nil
-}
-
 // Run manages the bidirectional streaming lifecycle
 func (wl *WorkflowListener) Run(ctx context.Context) error {
-	if err := wl.Connect(ctx); err != nil {
-		return err
-	}
-	defer wl.Close()
-
-	// Resend all unacked messages from previous connection (if any)
-	if err := wl.GetUnackedMessages().ResendAll(wl.stream); err != nil {
-		return err
-	}
-
-	// Launch goroutines for send and receive
-	wl.AddToWaitGroup(2)
-	go func() {
-		defer wl.WaitGroupDone()
-		wl.BaseListener.ReceiveAcks(wl.stream, "workflow")
-	}()
-
-	go func() {
-		defer wl.WaitGroupDone()
-		wl.sendMessages()
-	}()
-
-	// Wait for completion
-	return wl.WaitForCompletion(ctx, wl.closeStream)
+	return wl.BaseListener.Run(
+		ctx,
+		"Connected to operator service, stream established",
+		wl.sendMessages,
+		wl.closeStream,
+		"workflow",
+	)
 }
 
 // receiveMessages handles receiving ACK messages from the server
@@ -168,7 +129,7 @@ func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
 		return nil // Don't fail the stream
 	}
 
-	if err := wl.stream.Send(msg); err != nil {
+	if err := wl.GetStream().Send(msg); err != nil {
 		return err
 	}
 
@@ -202,8 +163,9 @@ func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
 // closeStream ensures stream is closed only once
 func (wl *WorkflowListener) closeStream() {
 	wl.closeOnce.Do(func() {
-		if wl.stream != nil {
-			if err := wl.stream.CloseSend(); err != nil {
+		stream := wl.GetStream()
+		if stream != nil {
+			if err := stream.CloseSend(); err != nil {
 				log.Printf("Error closing stream: %v", err)
 			}
 		}

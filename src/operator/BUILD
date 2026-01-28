@@ -303,6 +303,7 @@ go_library(
     name = "workflow_listener_lib",
     srcs = [
         "main.go",
+        "resource_listener.go",
         "workflow_listener.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/operator",
@@ -314,7 +315,9 @@ go_library(
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource:resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types:types",
         "@io_k8s_client_go//informers",
         "@io_k8s_client_go//tools/cache",
         "@org_golang_google_grpc//:grpc",
@@ -333,6 +336,20 @@ go_test(
         "//src/proto/operator:operator_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+go_test(
+    name = "resource_listener_test",
+    srcs = ["resource_listener_test.go"],
+    embed = [":workflow_listener_lib"],
+    deps = [
+        "//src/operator/utils:utils",
+        "//src/proto/operator:operator_go_proto",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/api/resource:resource",
+        "@io_k8s_apimachinery//pkg/types:types",
     ],
 )
 

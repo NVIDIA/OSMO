@@ -24,18 +24,22 @@ import (
 	"strconv"
 )
 
-// ListenerArgs holds configuration for the workflow listener
+// ListenerArgs holds configuration for all listeners
 type ListenerArgs struct {
-	ServiceURL           string
-	Backend              string
-	Namespace            string
-	PodUpdateChanSize    int
-	ResyncPeriodSec      int
-	StateCacheTTLMin     int
-	MaxUnackedMessages   int
-	NodeConditionPrefix  string
-	ProgressDir          string
-	ProgressFrequencySec int
+	ServiceURL            string
+	Backend               string
+	Namespace             string
+	PodUpdateChanSize     int
+	NodeChanSize          int // Buffer size for node update channel (ResourceListener)
+	UsageChanSize         int // Buffer size for usage update channel (ResourceListener)
+	ResyncPeriodSec       int
+	StateCacheTTLMin      int
+	MaxUnackedMessages    int
+	NodeConditionPrefix   string
+	ProgressDir           string
+	ProgressFrequencySec  int
+	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
+	ReconcileIntervalMin  int // Interval for full reconciliation (ResourceListener)
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -52,6 +56,12 @@ func ListenerParse() ListenerArgs {
 	podUpdateChanSize := flag.Int("podUpdateChanSize",
 		getEnvInt("POD_UPDATE_CHAN_SIZE", 500),
 		"Buffer size for pod update channel")
+	nodeChanSize := flag.Int("nodeChanSize",
+		getEnvInt("NODE_CHAN_SIZE", 500),
+		"Buffer size for node update channel (ResourceListener)")
+	usageChanSize := flag.Int("usageChanSize",
+		getEnvInt("USAGE_CHAN_SIZE", 500),
+		"Buffer size for usage update channel (ResourceListener)")
 	resyncPeriodSec := flag.Int("resyncPeriodSec",
 		getEnvInt("RESYNC_PERIOD_SEC", 300),
 		"Resync period in seconds for Kubernetes informer")
@@ -70,20 +80,30 @@ func ListenerParse() ListenerArgs {
 	progressFrequencySec := flag.Int("progressFrequencySec",
 		getEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
+	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
+		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
+		"Interval for flushing resource usage updates (ResourceListener)")
+	reconcileIntervalMin := flag.Int("reconcileIntervalMin",
+		getEnvInt("RECONCILE_INTERVAL_MIN", 5),
+		"Interval for full reconciliation in minutes (ResourceListener)")
 
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL:           *serviceURL,
-		Backend:              *backend,
-		Namespace:            *namespace,
-		PodUpdateChanSize:    *podUpdateChanSize,
-		ResyncPeriodSec:      *resyncPeriodSec,
-		StateCacheTTLMin:     *stateCacheTTLMin,
-		MaxUnackedMessages:   *maxUnackedMessages,
-		NodeConditionPrefix:  *nodeConditionPrefix,
-		ProgressDir:          *progressDir,
-		ProgressFrequencySec: *progressFrequencySec,
+		ServiceURL:            *serviceURL,
+		Backend:               *backend,
+		Namespace:             *namespace,
+		PodUpdateChanSize:     *podUpdateChanSize,
+		NodeChanSize:          *nodeChanSize,
+		UsageChanSize:         *usageChanSize,
+		ResyncPeriodSec:       *resyncPeriodSec,
+		StateCacheTTLMin:      *stateCacheTTLMin,
+		MaxUnackedMessages:    *maxUnackedMessages,
+		NodeConditionPrefix:   *nodeConditionPrefix,
+		ProgressDir:           *progressDir,
+		ProgressFrequencySec:  *progressFrequencySec,
+		UsageFlushIntervalSec: *usageFlushIntervalSec,
+		ReconcileIntervalMin:  *reconcileIntervalMin,
 	}
 }
 
