@@ -493,7 +493,15 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     (query: string, options?: { caseSensitive?: boolean; wholeWord?: boolean; regex?: boolean }) => {
       const session = _getSession(sessionKey);
       if (!session?.addons?.searchAddon) return false;
-      return session.addons.searchAddon.findNext(query, options);
+      // Enable decorations to trigger onDidChangeResults event
+      const searchOptions = {
+        ...options,
+        decorations: {
+          matchOverviewRuler: "#ffff0099",
+          activeMatchColorOverviewRuler: "#ffa50099",
+        },
+      };
+      return session.addons.searchAddon.findNext(query, searchOptions);
     },
     [sessionKey],
   );
@@ -505,7 +513,15 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     (query: string, options?: { caseSensitive?: boolean; wholeWord?: boolean; regex?: boolean }) => {
       const session = _getSession(sessionKey);
       if (!session?.addons?.searchAddon) return false;
-      return session.addons.searchAddon.findPrevious(query, options);
+      // Enable decorations to trigger onDidChangeResults event
+      const searchOptions = {
+        ...options,
+        decorations: {
+          matchOverviewRuler: "#ffff0099",
+          activeMatchColorOverviewRuler: "#ffa50099",
+        },
+      };
+      return session.addons.searchAddon.findPrevious(query, searchOptions);
     },
     [sessionKey],
   );

@@ -23,6 +23,7 @@ import {
   useCallback,
   useDeferredValue,
   useRef,
+  useMemo,
 } from "react";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
@@ -128,22 +129,36 @@ export const ShellTerminalImpl = memo(
       }
     }, [state, onConnected, onDisconnected, onError, announce, write]);
 
-    const handleFindNext = () => {
-      if (deferredSearchQuery) {
-        findNext(deferredSearchQuery, { caseSensitive, wholeWord, regex });
-      }
-    };
+    // Memoize search options to avoid unnecessary effect triggers
+    const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
 
-    const handleFindPrevious = () => {
+    const handleFindNext = useCallback(() => {
       if (deferredSearchQuery) {
-        findPrevious(deferredSearchQuery, { caseSensitive, wholeWord, regex });
+        findNext(deferredSearchQuery, searchOptions);
       }
-    };
+    }, [deferredSearchQuery, searchOptions, findNext]);
+
+    const handleFindPrevious = useCallback(() => {
+      if (deferredSearchQuery) {
+        findPrevious(deferredSearchQuery, searchOptions);
+      }
+    }, [deferredSearchQuery, searchOptions, findPrevious]);
 
     const handleCloseSearch = useCallback(() => {
       setIsSearchOpen(false);
       clearSearch();
-    }, [clearSearch]);
+      focus();
+    }, [clearSearch, focus]);
+
+    // Auto-search when query or options change
+    useEffect(() => {
+      if (deferredSearchQuery) {
+        clearSearch(); // Clear old decorations before applying new search
+        findNext(deferredSearchQuery, searchOptions);
+      } else {
+        clearSearch();
+      }
+    }, [deferredSearchQuery, searchOptions, findNext, clearSearch]);
 
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -173,7 +188,7 @@ export const ShellTerminalImpl = memo(
     }, [state, isSearchOpen, copy, handleCloseSearch]);
 
     useEffect(() => {
-      if (!session?.addons) return;
+      if (!session?.addons?.searchAddon) return;
 
       const disposable = session.addons.searchAddon.onDidChangeResults(
         (results: { resultIndex: number; resultCount: number } | null) => {
@@ -189,7 +204,7 @@ export const ShellTerminalImpl = memo(
       );
 
       return () => disposable.dispose();
-    }, [session?.addons]);
+    }, [session?.addons?.searchAddon]);
 
     const isIdle = state.phase === "idle";
     const isConnecting = state.phase === "connecting" || state.phase === "opening" || state.phase === "initializing";
