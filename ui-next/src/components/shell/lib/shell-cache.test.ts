@@ -32,6 +32,9 @@ describe("shell-cache", () => {
     backendTimeout: null,
     initialResizeSent: false,
     onDataDisposable: null,
+    reconnectCallback: null,
+    terminalReady: false,
+    onRenderDisposable: null,
   });
 
   beforeEach(() => {

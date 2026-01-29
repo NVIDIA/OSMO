@@ -60,6 +60,7 @@ import {
   hasWebSocket,
 } from "../lib/shell-state";
 import { _getSession, _createSession, _updateSession, _deleteSession, useShellSession } from "../lib/shell-cache";
+import { shellKeyboardManager } from "../lib/shell-keyboard-manager";
 import { SHELL_CONFIG, SHELL_THEME } from "../lib/types";
 
 import "@xterm/xterm/css/xterm.css";
@@ -182,63 +183,135 @@ export function useShell(options: UseShellOptions): UseShellReturn {
 
   /**
    * Create terminal instance with all addons.
+   *
+   * IMPORTANT: This function does NOT call fitAddon.fit() immediately.
+   * FitAddon.proposeDimensions() returns NaN until the terminal's render service
+   * has measured character dimensions, which requires at least one render cycle.
+   *
+   * Instead, we set up an onRender listener that:
+   * 1. Waits for the first render to complete
+   * 2. Sets terminalReady=true in the session
+   * 3. Then calls fit() which will now succeed
+   *
+   * This prevents the NaN dimensions issue that causes terminals to go dark.
    */
-  const createTerminal = useCallback((container: HTMLElement): { terminal: Terminal; addons: TerminalAddons } => {
-    const computedStyle = getComputedStyle(document.documentElement);
-    const geistMono = computedStyle.getPropertyValue("--font-geist-mono").trim();
-    const fontFamily = geistMono
-      ? `${geistMono}, "SF Mono", "Monaco", "Menlo", "Consolas", monospace`
-      : '"SF Mono", "Monaco", "Menlo", "Consolas", "Liberation Mono", "Courier New", monospace';
+  const createTerminal = useCallback(
+    (container: HTMLElement): { terminal: Terminal; addons: TerminalAddons } => {
+      const computedStyle = getComputedStyle(document.documentElement);
+      const geistMono = computedStyle.getPropertyValue("--font-geist-mono").trim();
+      const fontFamily = geistMono
+        ? `${geistMono}, "SF Mono", "Monaco", "Menlo", "Consolas", monospace`
+        : '"SF Mono", "Monaco", "Menlo", "Consolas", "Liberation Mono", "Courier New", monospace';
 
-    const terminal = new Terminal({
-      cursorBlink: true,
-      cursorStyle: "block",
-      fontSize: SHELL_CONFIG.FONT_SIZE,
-      fontFamily,
-      lineHeight: 1.2,
-      letterSpacing: 0,
-      scrollback: SHELL_CONFIG.SCROLLBACK,
-      theme: SHELL_THEME,
-      allowProposedApi: true,
-      screenReaderMode: true,
-      rightClickSelectsWord: true,
-    });
-
-    const fitAddon = new FitAddon();
-    const searchAddon = new SearchAddon();
-    const webLinksAddon = new WebLinksAddon((event, url) => {
-      event.preventDefault();
-      window.open(url, "_blank", "noopener,noreferrer");
-    });
-
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(searchAddon);
-    terminal.loadAddon(webLinksAddon);
-    terminal.open(container);
-
-    let webglAddon: WebglAddon | null = null;
-    try {
-      webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon?.dispose();
+      const terminal = new Terminal({
+        cursorBlink: true,
+        cursorStyle: "block",
+        fontSize: SHELL_CONFIG.FONT_SIZE,
+        fontFamily,
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        scrollback: SHELL_CONFIG.SCROLLBACK,
+        theme: SHELL_THEME,
+        allowProposedApi: true,
+        screenReaderMode: true,
+        rightClickSelectsWord: true,
       });
-      terminal.loadAddon(webglAddon);
-    } catch {
-      console.debug("[Shell] WebGL not available, using canvas renderer");
-    }
 
-    fitAddon.fit();
+      const fitAddon = new FitAddon();
+      const searchAddon = new SearchAddon();
+      const webLinksAddon = new WebLinksAddon((event, url) => {
+        event.preventDefault();
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
 
-    // Attach onData handler if provided
-    if (onDataRef.current) {
-      terminal.onData(onDataRef.current);
-    }
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(searchAddon);
+      terminal.loadAddon(webLinksAddon);
+      terminal.open(container);
 
-    return {
-      terminal,
-      addons: { fitAddon, searchAddon, webglAddon },
-    };
-  }, []);
+      let webglAddon: WebglAddon | null = null;
+      try {
+        webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => {
+          webglAddon?.dispose();
+        });
+        terminal.loadAddon(webglAddon);
+      } catch {
+        console.debug("[Shell] WebGL not available, using canvas renderer");
+      }
+
+      // Set up onRender listener to detect when terminal is ready for measurement.
+      // FitAddon.proposeDimensions() returns NaN until the render service has
+      // measured character dimensions (actualCellWidth/Height).
+      //
+      // CRITICAL: onRender fires on EVERY render, not just the first one.
+      // We must check if proposeDimensions() returns valid values BEFORE
+      // marking the terminal as ready. If it returns NaN, we wait for the next render.
+      //
+      // IMPORTANT: Capture fitAddon in closure instead of reading from session
+      // to avoid race condition (onRender might fire before addons stored in session)
+      const onRenderDisposable = terminal.onRender(() => {
+        // Check if terminal can propose valid dimensions NOW
+        const proposed = fitAddon.proposeDimensions();
+        const isValid =
+          proposed &&
+          Number.isFinite(proposed.cols) &&
+          Number.isFinite(proposed.rows) &&
+          proposed.cols >= SHELL_CONFIG.MIN_COLS &&
+          proposed.rows >= SHELL_CONFIG.MIN_ROWS;
+
+        if (!isValid) {
+          console.debug("[Shell] 🎨 Render complete but dimensions not ready yet", {
+            sessionKey,
+            proposed,
+          });
+          // Wait for next render - don't dispose listener yet
+          return;
+        }
+
+        // Valid dimensions available - terminal is ready!
+        console.debug("[Shell] 🎨 Render complete with valid dimensions, terminal ready", {
+          sessionKey,
+          proposed,
+        });
+
+        // Mark terminal as ready and clean up listener
+        _updateSession(sessionKey, {
+          terminalReady: true,
+          onRenderDisposable: null,
+        });
+
+        // Dispose listener - we only need the first VALID render
+        onRenderDisposable.dispose();
+
+        // Fit immediately now that we know dimensions are valid
+        try {
+          fitAddon.fit();
+          console.debug("[Shell] ✅ Initial fit after terminal ready", {
+            sessionKey,
+            cols: proposed.cols,
+            rows: proposed.rows,
+          });
+        } catch (error) {
+          console.debug("[Shell] ⚠️ Initial fit failed", { sessionKey, error });
+        }
+      });
+
+      // Store the disposable so it can be cleaned up if session is disposed before render
+      _updateSession(sessionKey, { onRenderDisposable });
+
+      // Attach onData handler if provided
+      if (onDataRef.current) {
+        terminal.onData(onDataRef.current);
+      }
+
+      return {
+        terminal,
+        addons: { fitAddon, searchAddon, webglAddon },
+      };
+    },
+    [sessionKey],
+  );
 
   /**
    * Setup WebSocket event handlers.
@@ -603,24 +676,135 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     }
     console.debug("[Shell] 🎯 Focusing terminal", { sessionKey });
     session.state.terminal.focus();
+    // Notify keyboard manager that this terminal is now focused
+    shellKeyboardManager.markFocused(sessionKey);
   }, [sessionKey]);
 
   /**
    * Fit terminal to container.
+   *
+   * IMPORTANT: This function guards against calling FitAddon.proposeDimensions()
+   * before the terminal has completed its first render. xterm.js's render service
+   * needs to measure character dimensions (actualCellWidth/Height) before
+   * proposeDimensions() can calculate valid cols/rows. Calling it too early
+   * results in NaN values that corrupt terminal state.
+   *
+   * The `terminalReady` flag is set to true after the first onRender event fires.
    */
   const fit = useCallback(() => {
     const session = _getSession(sessionKey);
-    if (!session?.addons?.fitAddon) return;
+    if (!session?.addons?.fitAddon) {
+      console.debug("[Shell] ⚠️ Cannot fit - no fitAddon", { sessionKey });
+      return;
+    }
+
+    if (!session.container) {
+      console.debug("[Shell] ⚠️ Cannot fit - no container", { sessionKey });
+      return;
+    }
+
+    // Guard against calling fit() before terminal has rendered
+    // FitAddon.proposeDimensions() returns NaN until the render service
+    // has measured character dimensions (requires at least one render)
+    if (!session.terminalReady) {
+      console.debug("[Shell] ⏳ Cannot fit - terminal not ready (waiting for first render)", { sessionKey });
+      return;
+    }
 
     try {
       const proposed = session.addons.fitAddon.proposeDimensions();
-      if (!proposed || proposed.cols < SHELL_CONFIG.MIN_COLS || proposed.rows < SHELL_CONFIG.MIN_ROWS) {
+      console.debug("[Shell] 📐 Fit proposed dimensions", {
+        sessionKey,
+        proposed,
+        containerSize: {
+          width: session.container.offsetWidth,
+          height: session.container.offsetHeight,
+          clientWidth: session.container.clientWidth,
+          clientHeight: session.container.clientHeight,
+        },
+      });
+
+      // Guard against invalid dimensions
+      if (
+        !proposed ||
+        !Number.isFinite(proposed.cols) ||
+        !Number.isFinite(proposed.rows) ||
+        proposed.cols < SHELL_CONFIG.MIN_COLS ||
+        proposed.rows < SHELL_CONFIG.MIN_ROWS
+      ) {
+        console.debug("[Shell] ⚠️ Invalid proposed dimensions even though terminalReady=true", {
+          sessionKey,
+          proposed,
+        });
+
+        // Terminal got into bad state - reset ready flag and wait for next render
+        if (!hasTerminal(session.state)) {
+          console.debug("[Shell] ⚠️ No terminal in state, cannot recover", { sessionKey });
+          return;
+        }
+
+        _updateSession(sessionKey, { terminalReady: false });
+
+        // Set up new onRender listener to detect when terminal recovers
+        const terminal = session.state.terminal;
+        const onRenderDisposable = terminal.onRender(() => {
+          const currentSession = _getSession(sessionKey);
+          if (!currentSession?.addons?.fitAddon) return;
+
+          const newProposed = currentSession.addons.fitAddon.proposeDimensions();
+          const isValid =
+            newProposed &&
+            Number.isFinite(newProposed.cols) &&
+            Number.isFinite(newProposed.rows) &&
+            newProposed.cols >= SHELL_CONFIG.MIN_COLS &&
+            newProposed.rows >= SHELL_CONFIG.MIN_ROWS;
+
+          if (!isValid) {
+            console.debug("[Shell] 🔄 Waiting for valid dimensions after reset", {
+              sessionKey,
+              proposed: newProposed,
+            });
+            return;
+          }
+
+          console.debug("[Shell] 🔄 Terminal recovered with valid dimensions", {
+            sessionKey,
+            proposed: newProposed,
+          });
+
+          _updateSession(sessionKey, {
+            terminalReady: true,
+            onRenderDisposable: null,
+          });
+
+          onRenderDisposable.dispose();
+
+          try {
+            currentSession.addons.fitAddon.fit();
+            console.debug("[Shell] ✅ Fit after recovery", {
+              sessionKey,
+              cols: newProposed.cols,
+              rows: newProposed.rows,
+            });
+            onResizeRef.current?.(newProposed.cols, newProposed.rows);
+          } catch (error) {
+            console.debug("[Shell] ⚠️ Fit after recovery failed", { sessionKey, error });
+          }
+        });
+
+        _updateSession(sessionKey, { onRenderDisposable });
         return;
       }
+
       session.addons.fitAddon.fit();
+      console.debug("[Shell] ✅ Fit complete", {
+        sessionKey,
+        cols: proposed.cols,
+        rows: proposed.rows,
+      });
       onResizeRef.current?.(proposed.cols, proposed.rows);
-    } catch {
-      // Fit may fail if terminal is not visible
+    } catch (error) {
+      console.debug("[Shell] ⚠️ Fit failed", { sessionKey, error });
     }
   }, [sessionKey]);
 
@@ -732,6 +916,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     if (session.onDataDisposable) {
       session.onDataDisposable.dispose();
     }
+    if (session.onRenderDisposable) {
+      session.onRenderDisposable.dispose();
+    }
     if (hasTerminal(session.state)) {
       session.state.terminal.dispose();
     }
@@ -753,9 +940,79 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       if (node) {
         const existingSession = _getSession(sessionKey);
         if (existingSession) {
-          // Session exists - just update container reference
+          // Session exists - update container reference and reattach terminal
           _updateSession(sessionKey, { container: node });
           console.debug("[Shell] UI component mounted, attaching to existing session:", sessionKey);
+
+          // CRITICAL: If terminal already exists, we need to move its DOM element into the new container.
+          // xterm.js terminals can't be "reopened" to a new container - they're permanently attached
+          // to the element passed to terminal.open(). When the React component unmounts and remounts,
+          // we get a NEW container div, but the terminal is still rendering into the OLD (detached) div.
+          // Solution: Move the terminal's element into the new container and trigger a refresh.
+          if (hasTerminal(existingSession.state)) {
+            const terminal = existingSession.state.terminal;
+            // xterm.js stores its element on terminal.element
+            if (terminal.element && terminal.element.parentElement !== node) {
+              console.debug("[Shell] 🔄 Moving terminal element to new container", { sessionKey });
+              node.appendChild(terminal.element);
+
+              // After moving, terminal needs to remeasure and rerender
+              // Reset terminalReady to trigger new onRender validation
+              _updateSession(sessionKey, { terminalReady: false });
+
+              // Set up onRender listener to detect when terminal is ready after reattachment
+              const onRenderDisposable = terminal.onRender(() => {
+                const currentSession = _getSession(sessionKey);
+                if (!currentSession?.addons?.fitAddon) return;
+
+                const proposed = currentSession.addons.fitAddon.proposeDimensions();
+                const isValid =
+                  proposed &&
+                  Number.isFinite(proposed.cols) &&
+                  Number.isFinite(proposed.rows) &&
+                  proposed.cols >= SHELL_CONFIG.MIN_COLS &&
+                  proposed.rows >= SHELL_CONFIG.MIN_ROWS;
+
+                if (!isValid) {
+                  console.debug("[Shell] 🔄 Terminal reattached, waiting for valid dimensions", {
+                    sessionKey,
+                    proposed,
+                  });
+                  return;
+                }
+
+                console.debug("[Shell] 🔄 Terminal reattached with valid dimensions", {
+                  sessionKey,
+                  proposed,
+                });
+
+                _updateSession(sessionKey, {
+                  terminalReady: true,
+                  onRenderDisposable: null,
+                });
+
+                onRenderDisposable.dispose();
+
+                try {
+                  currentSession.addons.fitAddon.fit();
+                  console.debug("[Shell] ✅ Fit after reattachment", {
+                    sessionKey,
+                    cols: proposed.cols,
+                    rows: proposed.rows,
+                  });
+                } catch (error) {
+                  console.debug("[Shell] ⚠️ Fit after reattachment failed", { sessionKey, error });
+                }
+              });
+
+              _updateSession(sessionKey, { onRenderDisposable });
+
+              // Force a refresh by calling refresh() if available, or trigger a render
+              if (typeof terminal.refresh === "function") {
+                terminal.refresh(0, terminal.rows - 1);
+              }
+            }
+          }
         } else {
           // First mount - create new session
           _createSession({
@@ -770,6 +1027,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
             backendTimeout: null,
             initialResizeSent: false,
             onDataDisposable: null,
+            reconnectCallback: null,
+            terminalReady: false,
+            onRenderDisposable: null,
           });
           console.debug("[Shell] New session created:", sessionKey);
         }
@@ -817,6 +1077,24 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       return () => clearTimeout(timer);
     }
   }, [state.phase, fit]);
+
+  /**
+   * Register reconnect callback so external code can trigger reconnection.
+   * Use a ref to avoid infinite update loops.
+   */
+  const connectRef = useRef(connect);
+  connectRef.current = connect;
+
+  useEffect(() => {
+    // Wrap in a stable function that calls the latest connect via ref
+    const stableReconnect = () => connectRef.current();
+    _updateSession(sessionKey, { reconnectCallback: stableReconnect });
+
+    return () => {
+      // Clean up callback on unmount
+      _updateSession(sessionKey, { reconnectCallback: null });
+    };
+  }, [sessionKey]); // Only depend on sessionKey, not connect
 
   /**
    * Debounced resize handler.

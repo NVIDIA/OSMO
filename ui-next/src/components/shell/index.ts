@@ -65,7 +65,15 @@ export { useShell, type UseShellOptions, type UseShellReturn } from "./hooks/use
 // Session Observation (Read-Only)
 // ============================================================================
 
-export { useShellSession, useShellSessions, getAllSessions, hasSession, type CachedSession } from "./lib/shell-cache";
+export {
+  useShellSession,
+  useShellSessions,
+  getAllSessions,
+  hasSession,
+  disconnectSession,
+  reconnectSession,
+  type CachedSession,
+} from "./lib/shell-cache";
 
 // ============================================================================
 // State Machine
@@ -90,3 +98,9 @@ export {
 
 export type { ShellTerminalProps, ShellTerminalRef, ConnectionStatus } from "./lib/types";
 export { SHELL_OPTIONS, SHELL_CONFIG, SHELL_THEME, ANSI } from "./lib/types";
+
+// ============================================================================
+// Keyboard Manager
+// ============================================================================
+
+export { shellKeyboardManager, type ShellKeyboardHandlers } from "./lib/shell-keyboard-manager";
