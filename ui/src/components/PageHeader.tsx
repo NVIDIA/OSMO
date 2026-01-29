@@ -29,7 +29,11 @@ export default function PageHeader({ children, title }: PropsWithChildren<{ titl
     if (title !== undefined) {
       setTitle(title);
     } else {
-      setTitle(pathname.split("/")[1] ?? "Dashboard");
+      if (pathname === "/") {
+        setTitle("Dashboard");
+      } else {
+        setTitle(pathname.split("/")[1]);
+      }
     }
   }, [title, setTitle, pathname]);
 

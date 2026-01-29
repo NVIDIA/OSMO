@@ -65,14 +65,13 @@ export const BarChart = ({
   labelFormatter,
   valueFormatter,
 }: BarChartProps) => {
-  const normalizedData = data.filter((datum) => datum.value > 0);
-  const total = normalizedData.reduce((sum, datum) => sum + datum.value, 0);
-  const computedMaxValue = Math.max(1, ...normalizedData.map((datum) => datum.value));
+  const total = data.reduce((sum, datum) => sum + datum.value, 0);
+  const computedMaxValue = Math.max(1, ...data.map((datum) => datum.value));
   const maxScale = maxValue ?? computedMaxValue;
   const chartWidth = showAxes ? width - axisLabelWidth - axisBarGap : width;
   const barWidth =
-    normalizedData.length > 0
-      ? (chartWidth - barGap * (normalizedData.length - 1)) / normalizedData.length
+    data.length > 0
+      ? (chartWidth - barGap * (data.length - 1)) / data.length
       : chartWidth;
   const bottomPadding = showAxes ? 2 : 0;
   const topPadding = showAxes ? 3 : 0;
@@ -148,7 +147,7 @@ export const BarChart = ({
           })}
         </g>
       )}
-      {normalizedData.map((datum, index) => {
+      {data.map((datum, index) => {
         const barHeight = (datum.value / maxScale) * (height - topPadding);
         const x = (showAxes ? axisLabelWidth + axisBarGap : 0) + index * (barWidth + barGap);
         const y = height - barHeight;

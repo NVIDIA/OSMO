@@ -150,45 +150,52 @@ export default function Resources() {
     };
     const byPool: Record<string, AggregateProps> = {};
     const processedNodes = new Set<string>();
+    const processedPoolNodes = new Set<string>();
 
     processResources.forEach((item) => {
-      if (processedNodes.has(item.node)) {
-        return;
+      const poolKey = item.pool || "N/A";
+      const poolNodeKey = `${poolKey}:${item.node}`;
+
+      if (!processedPoolNodes.has(poolNodeKey)) {
+        const poolTotals = byPool[poolKey] ?? {
+          cpu: { allocatable: 0, usage: 0 },
+          gpu: { allocatable: 0, usage: 0 },
+          storage: { allocatable: 0, usage: 0 },
+          memory: { allocatable: 0, usage: 0 },
+        };
+
+        poolTotals.cpu.allocatable += item.cpu.allocatable;
+        poolTotals.cpu.usage += item.cpu.usage;
+        poolTotals.gpu.allocatable += item.gpu.allocatable;
+        poolTotals.gpu.usage += item.gpu.usage;
+        poolTotals.storage.allocatable += item.storage.allocatable;
+        poolTotals.storage.usage += item.storage.usage;
+        poolTotals.memory.allocatable += item.memory.allocatable;
+        poolTotals.memory.usage += item.memory.usage;
+
+        byPool[poolKey] = poolTotals;
+        processedPoolNodes.add(poolNodeKey);
       }
 
-      const poolKey = item.pool || "N/A";
-      const poolTotals = byPool[poolKey] ?? {
-        cpu: { allocatable: 0, usage: 0 },
-        gpu: { allocatable: 0, usage: 0 },
-        storage: { allocatable: 0, usage: 0 },
-        memory: { allocatable: 0, usage: 0 },
-      };
+      if (!processedNodes.has(item.node)) {
+        total.cpu.allocatable += item.cpu.allocatable;
+        total.cpu.usage += item.cpu.usage;
+        total.gpu.allocatable += item.gpu.allocatable;
+        total.gpu.usage += item.gpu.usage;
+        total.storage.allocatable += item.storage.allocatable;
+        total.storage.usage += item.storage.usage;
+        total.memory.allocatable += item.memory.allocatable;
+        total.memory.usage += item.memory.usage;
 
-      poolTotals.cpu.allocatable += item.cpu.allocatable;
-      poolTotals.cpu.usage += item.cpu.usage;
-      poolTotals.gpu.allocatable += item.gpu.allocatable;
-      poolTotals.gpu.usage += item.gpu.usage;
-      poolTotals.storage.allocatable += item.storage.allocatable;
-      poolTotals.storage.usage += item.storage.usage;
-      poolTotals.memory.allocatable += item.memory.allocatable;
-      poolTotals.memory.usage += item.memory.usage;
-
-      byPool[poolKey] = poolTotals;
-
-      total.cpu.allocatable += item.cpu.allocatable;
-      total.cpu.usage += item.cpu.usage;
-      total.gpu.allocatable += item.gpu.allocatable;
-      total.gpu.usage += item.gpu.usage;
-      total.storage.allocatable += item.storage.allocatable;
-      total.storage.usage += item.storage.usage;
-      total.memory.allocatable += item.memory.allocatable;
-      total.memory.usage += item.memory.usage;
-
-      processedNodes.add(item.node);
+        processedNodes.add(item.node);
+      }
     });
 
     return { byPool, total };
   }, [processResources]);
+
+  console.log("processResources", processResources);
+  console.log("aggregateTotals", aggregateTotals);
 
   const forceRefetch = useCallback(() => {
     // Wait to see if the refresh has already happened. If not call it explicitly
@@ -250,11 +257,11 @@ export default function Resources() {
             />
           </SlideOut>
           <section
-            className={`h-full justify-center relative overflow-y-auto p-global gap-global ${showDetails ? "flex flex-col" : "flex flex-row flex-wrap w-full"}`}
+            className={`justify-center items-baseline relative overflow-y-auto p-global gap-global ${showDetails ? "flex flex-col h-full" : "flex flex-row flex-wrap w-full"}`}
             aria-labelledby="gauges-button"
           >
             <div className="card">
-              <div className="body-header p-global">
+              <div className="brand-header p-global">
                 {showDetails ? (
                   <CheckboxWithLabel
                     checked={isSelectAllPoolsChecked}

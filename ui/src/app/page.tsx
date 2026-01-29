@@ -17,22 +17,19 @@
 
 import { useEffect, useState } from "react";
 
+import Link from "next/link";
+
 import { UsedFreeToggle } from "~/app/pools/components/UsedFreeToggle";
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
-import { TaskPieChart } from "~/components/TaskPieChart";
+import { useAuth } from "~/components/AuthProvider";
+import { getDateFromValues } from "~/components/DateRangePicker";
+import PageHeader from "~/components/PageHeader";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { WorkflowPieChart } from "~/components/WorkflowPieChart";
+import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
-const mockTaskCounts = {
-  COMPLETED: 64,
-  RUNNING: 12,
-  WAITING: 8,
-  PROCESSING: 6,
-  INITIALIZING: 4,
-  FAILED: 3,
-  FAILED_EXEC_TIMEOUT: 2,
-  FAILED_QUEUE_TIMEOUT: 1,
-};
+import { getWorkflowStatusArray } from "./workflows/components/StatusFilter";
 
 const mockAggregateResources = {
   cpu: { allocatable: 400, usage: 380 },
@@ -52,12 +49,29 @@ const mockMessagePool = [
 ];
 
 export default function Home() {
+  const { username } = useAuth();
   const [isShowingUsed, setIsShowingUsed] = useState(true);
   const [messages, setMessages] = useState<string[]>([]);
   const [messageIndex, setMessageIndex] = useState(0);
-  const { data: workflowStatusTotals } = api.workflows.getStatusTotals.useQuery({
-    all_users: true,
+  const todayDateRange = getDateFromValues(365);
+
+  const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery({
+    all_users: false,
     all_pools: true,
+    users: [username],
+    statuses: getWorkflowStatusArray(StatusFilterType.CURRENT),
+  });
+
+  const { data: todaysWorkflows } = api.workflows.getStatusTotals.useQuery({
+    all_users: false,
+    all_pools: true,
+    users: [username],
+    submitted_after: todayDateRange.fromDate?.toISOString(),
+    submitted_before: todayDateRange.toDate?.toISOString(),
+  });
+
+  const {data: profile} = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -78,43 +92,61 @@ export default function Home() {
   }, [messageIndex]);
 
   return (
+    <>
+      <PageHeader />
     <div className="grid grid-cols-3 grid-rows-[auto_1fr] gap-global p-global w-full h-full overflow-hidden">
-      <div className="card">
-        <h2 className="bg-headerbg p-global">Workflows</h2>
-        <WorkflowPieChart
-          counts={workflowStatusTotals ?? {}}
-          size={160}
-          innerRadius={40}
-          ariaLabel="Workflow status distribution"
-        />
-      </div>
-      <div className="card">
-        <h2 className="bg-headerbg p-global">Tasks</h2>
-        <TaskPieChart
-          counts={mockTaskCounts}
-          size={160}
-          innerRadius={40}
-          ariaLabel="Mock task status distribution"
-        />
-      </div>
-      <div className="card">
-        <div className="bg-headerbg px-global flex items-center justify-between gap-2">
-          <h2>Isaac-Hil</h2>
-          <UsedFreeToggle
-            isShowingUsed={isShowingUsed}
-            updateUrl={(props) => {
-              setIsShowingUsed(props.isShowingUsed ?? true);
-            }}
+      <section className="card" aria-labelledby="current-workflows-title">
+        <div className="popup-header body-header">
+          <h2 id="current-workflows-title">Current Workflows</h2>
+          <Link
+          href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=-2&statusType=current`}
+          className="btn btn-secondary" title="View All Current Workflows">Details</Link>
+        </div>
+        <div className="p-global">
+          <WorkflowPieChart
+            counts={currentWorkflows ?? {}}
+            size={160}
+            innerRadius={40}
+            ariaLabel="My Current Workflows"
           />
+        </div>
+        </section>
+        <section className="card" aria-labelledby="todays-workflows-title">
+        <div className="popup-header body-header">
+          <h2 id="todays-workflows-title">Today&apos;s Workflows</h2>
+          <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365`} className="btn btn-secondary" title="View All Today&apos;s Workflows">Details</Link>
+        </div>
+        <div className="p-global">
+        <WorkflowPieChart
+          counts={todaysWorkflows ?? {}}
+            size={160}
+            innerRadius={40}
+            ariaLabel="Today&apos;s Workflows"
+          />
+        </div>
+      </section>
+      <section className="card" aria-labelledby="resources-title">
+        <div className="popup-header body-header">
+          <h2>{profile?.profile.pool ?? "Default Pool"}</h2>
+          {profile?.profile.pool ? (
+            <UsedFreeToggle
+              isShowingUsed={isShowingUsed}
+              updateUrl={(props) => {
+                setIsShowingUsed(props.isShowingUsed ?? true);
+              }}
+            />
+          ) : <Link href="/profile?tool=settings" className="btn btn-secondary" title="Configure Default Pool">Configure</Link>}
         </div>
         <ResourcesGraph
           {...mockAggregateResources}
           isLoading={false}
           isShowingUsed={isShowingUsed}
         />
-      </div>
-      <div className="card col-span-3 h-full min-h-0 flex flex-col">
-        <h2 className="bg-headerbg p-global">Messages</h2>
+      </section>
+      <section className="card col-span-3 h-full min-h-0 flex flex-col" aria-labelledby="messages-title">
+        <div className="popup-header body-header">
+          <h2 id="messages-title">Messages</h2>
+        </div>
         <div className="flex-1 w-full p-global overflow-auto">
           {messages.map((message, index) => (
             <div
@@ -125,7 +157,8 @@ export default function Home() {
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </div>
+    </>
   );
 }

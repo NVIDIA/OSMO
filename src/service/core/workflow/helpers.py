@@ -298,6 +298,44 @@ def get_tasks(workflow_id: str | None = None,
     return context.database.execute_fetch_command(fetch_cmd, tuple(fetch_input), return_raw)
 
 
+def get_task_status_totals(users: List[str] | None = None,
+                           pools: List[str] | None = None,
+                           statuses: List[task.TaskGroupStatus] | None = None,
+                           started_after: datetime.datetime | None = None,
+                           started_before: datetime.datetime | None = None) -> List[dict]:
+    """Fetch task status totals with given parameters."""
+    context = objects.WorkflowServiceContext.get()
+
+    fetch_cmd = '''
+        SELECT tasks.status AS task_status, COUNT(*) AS count
+        FROM tasks
+        LEFT JOIN workflows ON tasks.workflow_id = workflows.workflow_id
+    '''
+    fetch_input: List = []
+    commands: List = []
+    if statuses:
+        commands.append('tasks.status IN %s')
+        fetch_input.append(tuple(status.name for status in statuses))
+    if users:
+        commands.append('workflows.submitted_by IN %s')
+        fetch_input.append(tuple(context.database.fetch_user_names(users)))
+    if pools:
+        commands.append('workflows.pool IN %s')
+        fetch_input.append(tuple(pools))
+    if started_after:
+        commands.append('(tasks.start_time >= %s OR tasks.start_time is NULL)')
+        fetch_input.append(started_after.replace(microsecond=0).isoformat())
+    if started_before:
+        commands.append('(tasks.start_time < %s AND tasks.start_time is not NULL)')
+        fetch_input.append(started_before.replace(microsecond=0).isoformat())
+    if commands:
+        conditions = ' AND '.join(commands)
+        fetch_cmd = f'{fetch_cmd} WHERE {conditions}'
+
+    fetch_cmd += ' GROUP BY tasks.status ORDER BY tasks.status;'
+    return context.database.execute_fetch_command(fetch_cmd, tuple(fetch_input), True)
+
+
 def get_resource_node_hash(resource_node: List[Tuple[str, str]]):
     """ Calculate a hash value based on a node's resources. """
     resource_node_str = ''
