@@ -69,6 +69,7 @@ export type ShellState =
   | {
       phase: "error";
       error: string;
+      terminal?: Terminal; // Optional - present when error occurred after terminal creation
     };
 
 export interface TerminalAddons {
@@ -107,7 +108,8 @@ export type ShellEvent =
     }
   | { type: "FIRST_DATA" }
   | { type: "TIMEOUT" }
-  | { type: "DISCONNECT" };
+  | { type: "DISCONNECT" }
+  | { type: "ABORT" };
 
 /** Pure transition function. Returns new state given current state and event. */
 export function transition(state: ShellState, event: ShellEvent): ShellState {
@@ -159,6 +161,7 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: event.error,
+      terminal: state.terminal, // ✅ Preserve terminal if reconnecting
     };
   }
 
@@ -177,6 +180,25 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: event.error,
+      terminal: state.terminal, // ✅ Preserve terminal for cleanup
+    };
+  }
+
+  if (state.phase === "opening" && eventType === "WS_CLOSED") {
+    return {
+      phase: "disconnected",
+      workflowName: state.workflowName,
+      taskName: state.taskName,
+      terminal: state.terminal,
+      reason: event.reason || "WebSocket closed before handshake",
+    };
+  }
+
+  if (state.phase === "opening" && eventType === "TIMEOUT") {
+    return {
+      phase: "error",
+      error: "WebSocket connection timeout",
+      terminal: state.terminal, // ✅ Preserve terminal for cleanup
     };
   }
 
@@ -198,6 +220,16 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
       taskName: state.taskName,
       terminal: state.terminal,
       reason: "Backend failed to initialize (timeout after 5s)",
+    };
+  }
+
+  if (state.phase === "initializing" && eventType === "WS_CLOSED") {
+    return {
+      phase: "disconnected",
+      workflowName: state.workflowName,
+      taskName: state.taskName,
+      terminal: state.terminal,
+      reason: event.reason || "WebSocket closed during initialization",
     };
   }
 
@@ -225,6 +257,14 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: event.error,
+      terminal: state.terminal, // ✅ Preserve terminal for cleanup
+    };
+  }
+
+  // ABORT: Cancel connection in progress
+  if ((state.phase === "connecting" || state.phase === "opening") && eventType === "ABORT") {
+    return {
+      phase: "idle",
     };
   }
 
