@@ -423,25 +423,31 @@ func (rl *ResourceListener) rebuildNodesFromStore(
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
 
-	// Process all nodes and send resource messages
+	sent := 0
+	skipped := 0
 	nodes := nodeInformer.GetStore().List()
 	for _, obj := range nodes {
 		node, ok := obj.(*corev1.Node)
 		if !ok {
 			continue
 		}
-		// Force send for all nodes after rebuild
-		msg := rl.buildResourceMessageForced(node, nodeStateTracker)
+
+		msg := rl.buildResourceMessage(node, nodeStateTracker, false)
+
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
+				sent++
 			case <-rl.GetStreamContext().Done():
+				log.Printf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
 				return
 			}
+		} else {
+			skipped++
 		}
 	}
 
-	log.Printf("Node rebuild complete: processed %d nodes", len(nodes))
+	log.Printf("Node rebuild complete: sent=%d, skipped=%d", sent, skipped)
 }
 
 // rebuildPodsFromStore rebuilds aggregator state from pod informer cache
@@ -475,16 +481,22 @@ func (rl *ResourceListener) flushDirtyNodes(usageChan chan<- *pb.ListenerMessage
 		return
 	}
 
+	sent := 0
 	for _, hostname := range dirtyNodes {
 		msg := rl.buildResourceUsageMessage(hostname)
 		if msg != nil {
 			select {
 			case usageChan <- msg:
-				log.Printf("Sent resource_usage for node: %s", hostname)
+				sent++
 			case <-rl.GetStreamContext().Done():
+				log.Printf("Flushed %d/%d resource usage messages before shutdown", sent, len(dirtyNodes))
 				return
 			}
 		}
+	}
+
+	if sent > 0 {
+		log.Printf("Flushed %d resource usage messages", sent)
 	}
 }
 
@@ -525,33 +537,6 @@ func (rl *ResourceListener) buildResourceMessage(
 		action = "delete"
 	}
 	log.Printf("Sent resource (%s): hostname=%s, available=%v", action, hostname, body.Available)
-
-	return msg
-}
-
-// buildResourceMessageForced creates a ResourceBody message bypassing deduplication
-func (rl *ResourceListener) buildResourceMessageForced(
-	node *corev1.Node,
-	tracker *utils.NodeStateTracker,
-) *pb.ListenerMessage {
-	hostname := utils.GetNodeHostname(node)
-	body := utils.BuildResourceBody(node, false)
-
-	// Update tracker
-	tracker.Update(hostname, body)
-
-	// Generate message UUID
-	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
-
-	msg := &pb.ListenerMessage{
-		Uuid:      messageUUID,
-		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: body,
-		},
-	}
-
-	log.Printf("Sent resource (forced): hostname=%s, available=%v", hostname, body.Available)
 
 	return msg
 }

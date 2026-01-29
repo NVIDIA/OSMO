@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"math/rand"
 	"strconv"
 	"sync"
 	"time"
@@ -29,9 +30,10 @@ import (
 
 // NodeStateTracker tracks the last sent state for each node to avoid duplicate messages
 type NodeStateTracker struct {
-	mu     sync.RWMutex
-	states map[string]nodeStateEntry
-	ttl    time.Duration
+	mu        sync.RWMutex
+	states    map[string]nodeStateEntry
+	ttl       time.Duration
+	ttlJitter time.Duration
 }
 
 type nodeStateEntry struct {
@@ -42,24 +44,29 @@ type nodeStateEntry struct {
 // NewNodeStateTracker creates a new node state tracker
 func NewNodeStateTracker(ttl time.Duration) *NodeStateTracker {
 	return &NodeStateTracker{
-		states: make(map[string]nodeStateEntry),
-		ttl:    ttl,
+		states:    make(map[string]nodeStateEntry),
+		ttl:       ttl,
+		ttlJitter: ttl / 5, // 20% jitter
 	}
 }
 
 // HasChanged checks if the node's state has changed since last sent
 func (nst *NodeStateTracker) HasChanged(hostname string, body *pb.UpdateNodeBody) bool {
 	nst.mu.RLock()
-	entry, exists := nst.states[hostname]
-	nst.mu.RUnlock()
+	defer nst.mu.RUnlock()
 
+	entry, exists := nst.states[hostname]
 	if !exists {
 		return true
 	}
 
-	// Check TTL (skip if ttl is 0, meaning TTL is disabled)
-	if nst.ttl > 0 && time.Since(entry.timestamp) > nst.ttl {
-		return true
+	// Check TTL with jitter (skip if ttl is 0, meaning TTL is disabled)
+	if nst.ttl > 0 {
+		jitter := time.Duration(rand.Int63n(int64(nst.ttlJitter)))
+		effectiveTTL := nst.ttl + jitter
+		if time.Since(entry.timestamp) > effectiveTTL {
+			return true
+		}
 	}
 
 	// Compare resource bodies
@@ -188,6 +195,17 @@ func (rua *ResourceUsageAggregator) Reset() {
 // Therefore, if we've already seen this pod UID, we can skip processing.
 func (rua *ResourceUsageAggregator) UpdatePod(pod *corev1.Pod) {
 	uid := pod.UID
+
+	// Fast path: check if already exists with RLock
+	rua.mu.RLock()
+	_, exists := rua.podContributions[uid]
+	rua.mu.RUnlock()
+
+	if exists {
+		return // Most common case - pod already tracked
+	}
+
+	// Slow path: actually add the pod
 	nodeName := pod.Spec.NodeName
 	namespace := pod.Namespace
 
@@ -199,7 +217,7 @@ func (rua *ResourceUsageAggregator) UpdatePod(pod *corev1.Pod) {
 	rua.mu.Lock()
 	defer rua.mu.Unlock()
 
-	// Skip if we've already tracked this pod - resources and node are immutable
+	// Double-check under write lock (another goroutine may have added it)
 	if _, exists := rua.podContributions[uid]; exists {
 		return
 	}
