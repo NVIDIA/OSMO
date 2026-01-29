@@ -302,7 +302,7 @@ oci_push(
 go_library(
     name = "listener_lib",
     srcs = [
-        "main.go",
+        "listener.go",
         "resource_listener.go",
         "workflow_listener.go",
     ],
@@ -464,7 +464,7 @@ oci_load(
 oci_push(
     name = "listener_push_arm64",
     image = ":listener_image_arm64",
-    repository = BASE_IMAGE_URL + "workflow-listener",
+    repository = BASE_IMAGE_URL + "backend-listener",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],
