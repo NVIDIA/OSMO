@@ -87,7 +87,7 @@ export const WorkflowPieChart = ({
           onSliceSelect={(slice) => setSelectedLabel(slice.label)}
         />
         {showLegend && (
-          <div className="flex flex-col gap-2 min-w-40">
+          <div className="flex flex-col gap-2">
             {slices.map((slice) => (
               <div
                 key={slice.label}

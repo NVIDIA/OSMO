@@ -110,6 +110,7 @@ export const PieChart = ({
   const total = displaySlices.reduce((sum, slice) => sum + slice.value, 0);
   const radius = size / 2;
   const center = radius;
+  const hoverOffset = 2;
 
   let currentAngle = 0;
 
@@ -133,8 +134,12 @@ export const PieChart = ({
           .pie-slice-path.is-clickable {
             cursor: pointer;
           }
-          .pie-slice-path.is-clickable:hover {
-            transform: scale(1.02);
+          .pie-slice-hover {
+            opacity: 0;
+            transition: opacity 120ms ease;
+          }
+          .pie-slice:hover .pie-slice-hover {
+            opacity: 1;
           }
         `}
       </style>
@@ -147,6 +152,11 @@ export const PieChart = ({
         const path = isEmpty
           ? describeFullCircle(center, center, radius, innerRadius)
           : describeArc(center, center, radius, startAngle, endAngle, innerRadius);
+        const hoverOuterRadius = radius + hoverOffset;
+        const hoverInnerRadius = Math.max(0, innerRadius - hoverOffset);
+        const hoverPath = isEmpty
+          ? describeFullCircle(center, center, hoverOuterRadius, hoverInnerRadius)
+          : describeArc(center, center, hoverOuterRadius, startAngle, endAngle, hoverInnerRadius);
         const displayValue = isEmpty ? 0 : slice.value;
         const percent = isEmpty ? 100 : (slice.value / total) * 100;
         const ariaSliceLabel = defaultAriaLabel({ ...slice, value: displayValue }, percent);
@@ -154,6 +164,7 @@ export const PieChart = ({
         return (
           <g
             key={slice.id ?? `${slice.label}-${index}`}
+            className="pie-slice"
             role="listitem"
             aria-label={ariaSliceLabel}
             onClick={() => onSliceSelect?.(slice, index)}
@@ -167,6 +178,14 @@ export const PieChart = ({
             >
               <title>{ariaSliceLabel}</title>
             </path>
+            <path
+              d={hoverPath}
+              fill={slice.color ?? "lightgray"}
+              className="pie-slice-hover"
+              stroke={slice.borderColor ?? slice.color ?? "lightgray"}
+              strokeWidth={1}
+              style={{ pointerEvents: "none" }}
+            />
           </g>
         );
       })}
