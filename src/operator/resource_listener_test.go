@@ -56,7 +56,7 @@ func TestBuildResourceBody_Basic(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	if body.Hostname != "worker-node-1" {
 		t.Errorf("Hostname = %s, expected worker-node-1", body.Hostname)
@@ -101,7 +101,7 @@ func TestBuildResourceBody_Unschedulable(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	if body.Available {
 		t.Error("Expected unschedulable node to be unavailable")
@@ -128,7 +128,7 @@ func TestBuildResourceBody_NotReady(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	if body.Available {
 		t.Error("Expected not-ready node to be unavailable")
@@ -160,7 +160,7 @@ func TestBuildResourceBody_Conditions(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	// Only conditions with Status=True should be included
 	expectedConditions := map[string]bool{
@@ -200,7 +200,7 @@ func TestBuildResourceBody_LabelFiltering(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	// feature.node.kubernetes.io prefixed labels should now be included
 	if body.LabelFields["feature.node.kubernetes.io/cpu-cpuid"] != "AVX512" {
@@ -255,7 +255,7 @@ func TestBuildResourceBody_Taints(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	if len(body.Taints) != 2 {
 		t.Errorf("Expected 2 taints, got %d", len(body.Taints))
@@ -306,7 +306,7 @@ func TestBuildResourceBody_AllocatableFields(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	// CPU should be in millicores
 	if body.AllocatableFields["cpu"] != "16000" {
@@ -348,7 +348,7 @@ func TestBuildResourceBody_Delete(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, true)
+	body := utils.BuildUpdateNodeBody(node, true)
 
 	if !body.Delete {
 		t.Error("Expected Delete to be true")
@@ -371,7 +371,7 @@ func TestBuildResourceBody_MissingHostnameLabel(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	// Should fallback to "-" when hostname label is missing
 	if body.Hostname != "-" {
@@ -1139,7 +1139,7 @@ func TestNodeStateTracker(t *testing.T) {
 		},
 	}
 
-	body := utils.BuildResourceBody(node, false)
+	body := utils.BuildUpdateNodeBody(node, false)
 
 	// First time should indicate change
 	if !tracker.HasChanged("test-node", body) {
@@ -1156,7 +1156,7 @@ func TestNodeStateTracker(t *testing.T) {
 
 	// Change availability
 	node.Spec.Unschedulable = true
-	body2 := utils.BuildResourceBody(node, false)
+	body2 := utils.BuildUpdateNodeBody(node, false)
 
 	// Should indicate change
 	if !tracker.HasChanged("test-node", body2) {
@@ -1241,7 +1241,7 @@ func BenchmarkBuildResourceBody(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utils.BuildResourceBody(node, false)
+		utils.BuildUpdateNodeBody(node, false)
 	}
 }
 

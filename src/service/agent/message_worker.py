@@ -132,11 +132,11 @@ class MessageWorker:
                 message_type = backend_messages.MessageType.UPDATE_POD
                 body_data = protobuf_msg['update_pod']
             elif 'resource' in protobuf_msg:
-                message_type = backend_messages.MessageType.RESOURCE
-                body_data = protobuf_msg['resource']
+                message_type = backend_messages.MessageType.UPDATE_NODE
+                body_data = protobuf_msg['update_node']
             elif 'resource_usage' in protobuf_msg:
-                message_type = backend_messages.MessageType.RESOURCE_USAGE
-                body_data = protobuf_msg['resource_usage']
+                message_type = backend_messages.MessageType.UPDATE_NODE_USAGE
+                body_data = protobuf_msg['update_node_usage']
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack invalid message to prevent infinite retries
@@ -161,11 +161,11 @@ class MessageWorker:
 
             if message_body.update_pod:
                 helpers.queue_update_group_job(message_body.update_pod)
-            elif message_body.resource:
-                helpers.update_resource(backend_name, message_body.resource)
-            elif message_body.resource_usage:
+            elif message_body.update_node:
+                helpers.update_resource(backend_name, message_body.update_node)
+            elif message_body.update_node_usage:
                 helpers.update_resource_usage(
-                    backend_name, message_body.resource_usage)
+                    backend_name, message_body.update_node_usage)
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)

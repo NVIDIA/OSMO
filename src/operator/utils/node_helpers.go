@@ -34,8 +34,8 @@ func GetNodeHostname(node *corev1.Node) string {
 	return "-"
 }
 
-// BuildResourceBody creates an UpdateNodeBody from a node
-func BuildResourceBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
+// BuildUpdateNodeBody creates an UpdateNodeBody from a node
+func BuildUpdateNodeBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
 	hostname := GetNodeHostname(node)
 
 	// Build conditions list (types with status True)

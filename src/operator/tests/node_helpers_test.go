@@ -34,23 +34,23 @@ import (
 
 // Test case structures for JSON parsing
 type NodeHelpersTestSuite struct {
-	Version     string                          `json:"version"`
-	Description string                          `json:"description"`
-	TestSuites  NodeHelpersTestSuites           `json:"test_suites"`
+	Version     string                `json:"version"`
+	Description string                `json:"description"`
+	TestSuites  NodeHelpersTestSuites `json:"test_suites"`
 }
 
 type NodeHelpersTestSuites struct {
-	GetNodeHostname    []GetNodeHostnameTestCase    `json:"get_node_hostname"`
-	IsNodeAvailable    []IsNodeAvailableTestCase    `json:"is_node_available"`
-	ToKi               []ToKiTestCase               `json:"to_ki"`
-	BuildResourceBody  []BuildResourceBodyTestCase  `json:"build_resource_body"`
+	GetNodeHostname   []GetNodeHostnameTestCase   `json:"get_node_hostname"`
+	IsNodeAvailable   []IsNodeAvailableTestCase   `json:"is_node_available"`
+	ToKi              []ToKiTestCase              `json:"to_ki"`
+	BuildResourceBody []BuildResourceBodyTestCase `json:"build_resource_body"`
 }
 
 type GetNodeHostnameTestCase struct {
-	Name        string                     `json:"name"`
-	Description string                     `json:"description"`
-	Input       GetNodeHostnameInput       `json:"input"`
-	Expected    GetNodeHostnameExpected    `json:"expected"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Input       GetNodeHostnameInput    `json:"input"`
+	Expected    GetNodeHostnameExpected `json:"expected"`
 }
 
 type GetNodeHostnameInput struct {
@@ -69,8 +69,8 @@ type IsNodeAvailableTestCase struct {
 }
 
 type IsNodeAvailableInput struct {
-	Unschedulable bool                   `json:"unschedulable"`
-	Conditions    []NodeConditionInput   `json:"conditions"`
+	Unschedulable bool                 `json:"unschedulable"`
+	Conditions    []NodeConditionInput `json:"conditions"`
 }
 
 type NodeConditionInput struct {
@@ -83,10 +83,10 @@ type IsNodeAvailableExpected struct {
 }
 
 type ToKiTestCase struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Input       ToKiInput       `json:"input"`
-	Expected    ToKiExpected    `json:"expected"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Input       ToKiInput    `json:"input"`
+	Expected    ToKiExpected `json:"expected"`
 }
 
 type ToKiInput struct {
@@ -105,12 +105,12 @@ type BuildResourceBodyTestCase struct {
 }
 
 type BuildResourceBodyInput struct {
-	Labels       map[string]string `json:"labels"`
-	Unschedulable bool             `json:"unschedulable"`
-	Conditions   []NodeConditionInput `json:"conditions"`
-	Allocatable  map[string]string `json:"allocatable"`
-	Taints       []TaintInput      `json:"taints"`
-	IsDelete     bool              `json:"is_delete"`
+	Labels        map[string]string    `json:"labels"`
+	Unschedulable bool                 `json:"unschedulable"`
+	Conditions    []NodeConditionInput `json:"conditions"`
+	Allocatable   map[string]string    `json:"allocatable"`
+	Taints        []TaintInput         `json:"taints"`
+	IsDelete      bool                 `json:"is_delete"`
 }
 
 type TaintInput struct {
@@ -121,13 +121,13 @@ type TaintInput struct {
 }
 
 type BuildResourceBodyExpected struct {
-	Hostname             string            `json:"hostname,omitempty"`
-	Available            *bool             `json:"available,omitempty"`
-	Delete               *bool             `json:"delete,omitempty"`
-	Conditions           []string          `json:"conditions,omitempty"`
-	AllocatableFields    map[string]string `json:"allocatable_fields,omitempty"`
-	TaintsCount          *int              `json:"taints_count,omitempty"`
-	Taints               []TaintExpected   `json:"taints,omitempty"`
+	Hostname          string            `json:"hostname,omitempty"`
+	Available         *bool             `json:"available,omitempty"`
+	Delete            *bool             `json:"delete,omitempty"`
+	Conditions        []string          `json:"conditions,omitempty"`
+	AllocatableFields map[string]string `json:"allocatable_fields,omitempty"`
+	TaintsCount       *int              `json:"taints_count,omitempty"`
+	Taints            []TaintExpected   `json:"taints,omitempty"`
 }
 
 type TaintExpected struct {
@@ -211,7 +211,7 @@ func TestBuildResourceBodyFromJSON(t *testing.T) {
 				},
 			}
 
-			result := utils.BuildResourceBody(node, tc.Input.IsDelete)
+			result := utils.BuildUpdateNodeBody(node, tc.Input.IsDelete)
 
 			// Validate hostname
 			if tc.Expected.Hostname != "" {
@@ -382,7 +382,7 @@ func TestToKi_NegativeBytes(t *testing.T) {
 func TestBuildResourceBody_EmptyNode(t *testing.T) {
 	// Test with completely empty node
 	node := &corev1.Node{}
-	result := utils.BuildResourceBody(node, false)
+	result := utils.BuildUpdateNodeBody(node, false)
 
 	if result.Hostname != "-" {
 		t.Errorf("Empty node hostname = %v, expected '-'", result.Hostname)
@@ -468,9 +468,9 @@ func BenchmarkBuildResourceBody(b *testing.B) {
 				{Type: corev1.NodeReady, Status: corev1.ConditionTrue},
 			},
 			Allocatable: corev1.ResourceList{
-				corev1.ResourceCPU:              *resource.NewMilliQuantity(8000, resource.DecimalSI),
-				corev1.ResourceMemory:           *resource.NewQuantity(16*1024*1024*1024, resource.BinarySI),
-				corev1.ResourceEphemeralStorage: *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
+				corev1.ResourceCPU:                    *resource.NewMilliQuantity(8000, resource.DecimalSI),
+				corev1.ResourceMemory:                 *resource.NewQuantity(16*1024*1024*1024, resource.BinarySI),
+				corev1.ResourceEphemeralStorage:       *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
 				corev1.ResourceName("nvidia.com/gpu"): *resource.NewQuantity(2, resource.DecimalSI),
 			},
 		},
@@ -478,6 +478,6 @@ func BenchmarkBuildResourceBody(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utils.BuildResourceBody(node, false)
+		utils.BuildUpdateNodeBody(node, false)
 	}
 }

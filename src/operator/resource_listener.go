@@ -108,7 +108,7 @@ func (rl *ResourceListener) sendMessages() {
 	log.Println("All message sender goroutines stopped")
 }
 
-// sendFromChannels sends messages from both resource and usage channels to the server
+// sendFromChannels sends messages from both node and usage channels to the server
 func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage, usageChan <-chan *pb.ListenerMessage, nodeWatcherDone <-chan struct{}, podWatcherDone <-chan struct{}, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
 	log.Printf("Starting message sender for node and usage channels")
 	defer log.Printf("Stopping message sender")
@@ -139,12 +139,12 @@ func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage
 			}
 		case msg := <-nodeChan:
 			if err := rl.sendResourceMessage(msg); err != nil {
-				streamCancel(fmt.Errorf("failed to send resource message: %w", err))
+				streamCancel(fmt.Errorf("failed to send UpdateNodeBody message: %w", err))
 				return
 			}
 		case msg := <-usageChan:
 			if err := rl.sendResourceMessage(msg); err != nil {
-				streamCancel(fmt.Errorf("failed to send usage message: %w", err))
+				streamCancel(fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err))
 				return
 			}
 		}
@@ -483,7 +483,7 @@ func (rl *ResourceListener) flushDirtyNodes(usageChan chan<- *pb.ListenerMessage
 
 	sent := 0
 	for _, hostname := range dirtyNodes {
-		msg := rl.buildResourceUsageMessage(hostname)
+		msg := rl.buildNodeUsageMessage(hostname)
 		if msg != nil {
 			select {
 			case usageChan <- msg:
@@ -508,8 +508,8 @@ func (rl *ResourceListener) buildResourceMessage(
 ) *pb.ListenerMessage {
 	hostname := utils.GetNodeHostname(node)
 
-	// Build resource body
-	body := utils.BuildResourceBody(node, isDelete)
+	// Build UpdateNodeBody object
+	body := utils.BuildUpdateNodeBody(node, isDelete)
 
 	// Check if we should send (deduplication)
 	if !isDelete && !tracker.HasChanged(hostname, body) {
@@ -527,8 +527,8 @@ func (rl *ResourceListener) buildResourceMessage(
 	msg := &pb.ListenerMessage{
 		Uuid:      messageUUID,
 		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: body,
+		Body: &pb.ListenerMessage_UpdateNode{
+			UpdateNode: body,
 		},
 	}
 
@@ -536,13 +536,13 @@ func (rl *ResourceListener) buildResourceMessage(
 	if isDelete {
 		action = "delete"
 	}
-	log.Printf("Sent resource (%s): hostname=%s, available=%v", action, hostname, body.Available)
+	log.Printf("Sent Node (%s): hostname=%s, available=%v", action, hostname, body.Available)
 
 	return msg
 }
 
-// buildResourceUsageMessage creates a ResourceUsageBody message
-func (rl *ResourceListener) buildResourceUsageMessage(hostname string) *pb.ListenerMessage {
+// buildNodeUsageMessage creates a UpdateNodeUsageBody message
+func (rl *ResourceListener) buildNodeUsageMessage(hostname string) *pb.ListenerMessage {
 	usageFields, nonWorkflowFields := rl.aggregator.GetNodeUsage(hostname)
 	if usageFields == nil {
 		return nil
@@ -554,8 +554,8 @@ func (rl *ResourceListener) buildResourceUsageMessage(hostname string) *pb.Liste
 	msg := &pb.ListenerMessage{
 		Uuid:      messageUUID,
 		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
-		Body: &pb.ListenerMessage_ResourceUsage{
-			ResourceUsage: &pb.UpdateNodeUsageBody{
+		Body: &pb.ListenerMessage_UpdateNodeUsage{
+			UpdateNodeUsage: &pb.UpdateNodeUsageBody{
 				Hostname:               hostname,
 				UsageFields:            usageFields,
 				NonWorkflowUsageFields: nonWorkflowFields,

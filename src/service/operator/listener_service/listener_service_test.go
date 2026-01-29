@@ -730,8 +730,8 @@ func TestListenerStream_HappyPath_UpdateNodeBody(t *testing.T) {
 	msg1 := &pb.ListenerMessage{
 		Uuid:      "resource-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.UpdateNodeBody{
+		Body: &pb.ListenerMessage_UpdateNode{
+			UpdateNode: &pb.UpdateNodeBody{
 				Hostname:   "node-1",
 				Available:  true,
 				Conditions: []string{"Ready"},
@@ -748,8 +748,8 @@ func TestListenerStream_HappyPath_UpdateNodeBody(t *testing.T) {
 	msg2 := &pb.ListenerMessage{
 		Uuid:      "resource-uuid-2",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.UpdateNodeBody{
+		Body: &pb.ListenerMessage_UpdateNode{
+			UpdateNode: &pb.UpdateNodeBody{
 				Hostname:   "node-2",
 				Available:  false,
 				Conditions: []string{"Ready", "DiskPressure"},
@@ -805,8 +805,8 @@ func TestListenerStream_HappyPath_UpdateNodeUsageBody(t *testing.T) {
 	msg := &pb.ListenerMessage{
 		Uuid:      "usage-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_ResourceUsage{
-			ResourceUsage: &pb.UpdateNodeUsageBody{
+		Body: &pb.ListenerMessage_UpdateNodeUsage{
+			UpdateNodeUsage: &pb.UpdateNodeUsageBody{
 				Hostname: "node-1",
 				UsageFields: map[string]string{
 					"cpu":    "2000m",
@@ -860,8 +860,8 @@ func TestListenerStream_HappyPath_DeleteResource(t *testing.T) {
 	msg := &pb.ListenerMessage{
 		Uuid:      "delete-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.UpdateNodeBody{
+		Body: &pb.ListenerMessage_UpdateNode{
+			UpdateNode: &pb.UpdateNodeBody{
 				Hostname: "node-to-delete",
 				Delete:   true,
 			},
@@ -908,8 +908,8 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 	msg1 := &pb.ListenerMessage{
 		Uuid:      "resource-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.UpdateNodeBody{
+		Body: &pb.ListenerMessage_UpdateNode{
+			UpdateNode: &pb.UpdateNodeBody{
 				Hostname:  "node-1",
 				Available: true,
 			},
@@ -918,8 +918,8 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 	msg2 := &pb.ListenerMessage{
 		Uuid:      "usage-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_ResourceUsage{
-			ResourceUsage: &pb.UpdateNodeUsageBody{
+		Body: &pb.ListenerMessage_UpdateNodeUsage{
+			UpdateNodeUsage: &pb.UpdateNodeUsageBody{
 				Hostname: "node-1",
 				UsageFields: map[string]string{
 					"cpu": "2000m",
@@ -930,8 +930,8 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 	msg3 := &pb.ListenerMessage{
 		Uuid:      "delete-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body: &pb.ListenerMessage_Resource{
-			Resource: &pb.UpdateNodeBody{
+		Body: &pb.ListenerMessage_UpdateNode{
+			UpdateNode: &pb.UpdateNodeBody{
 				Hostname: "node-2",
 				Delete:   true,
 			},

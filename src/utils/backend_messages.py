@@ -45,7 +45,7 @@ class MessageType(enum.Enum):
     INIT = 'init'
     POD_LOG = 'pod_log'
     UPDATE_POD = 'update_pod'
-    RESOURCE = 'resource'
+    UPDATE_NODE = 'update_node'
     RESOURCE_USAGE = 'resource_usage'
     DELETE_RESOURCE = 'delete_resource'
     NODE_HASH = 'node_hash'
@@ -214,9 +214,9 @@ class MessageOptions(pydantic.BaseModel):
         description='Message for events')
     monitor_pod: Optional[MonitorPodBody] = pydantic.Field(
         description='Message for monitoring pod')
-    resource: Optional[UpdateNodeBody] = pydantic.Field(
+    update_node: Optional[UpdateNodeBody] = pydantic.Field(
         description='Message for resource change')
-    resource_usage: Optional[UpdateNodeUsageBody] = pydantic.Field(
+    update_node_usage: Optional[UpdateNodeUsageBody] = pydantic.Field(
         description='Message for resource usage change')
     delete_resource: Optional[DeleteResourceBody] = pydantic.Field(
         description='Message for resource change')
