@@ -160,14 +160,14 @@ const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onTog
         aria-label={isExpanded ? "Collapse group" : "Expand group"}
       >
         {isExpanded ? (
-          <ChevronDown className="size-4 text-gray-500 dark:text-zinc-400" />
+          <ChevronDown className="size-3.5 text-gray-500 dark:text-zinc-400" />
         ) : (
-          <ChevronRight className="size-4 text-gray-500 dark:text-zinc-400" />
+          <ChevronRight className="size-3.5 text-gray-500 dark:text-zinc-400" />
         )}
       </button>
 
       {/* Status icon */}
-      <StatusIcon className={cn("size-4 shrink-0", statusIconClass)} />
+      <StatusIcon className={cn("size-3.5 shrink-0", statusIconClass)} />
 
       {/* Group name */}
       <span className="min-w-0 truncate font-medium text-gray-900 dark:text-zinc-100">{group.name}</span>
@@ -215,8 +215,9 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   const sort = useTaskTableStore((s) => s.sort);
   const setSort = useTaskTableStore((s) => s.setSort);
 
-  // Row height based on compact mode
+  // Row height and section height based on compact mode
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
+  const sectionHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Synchronized tick for live durations
   const now = useTick();
@@ -445,36 +446,38 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   }, [groups.length]);
 
   return (
-    <DataTable<TaskWithDuration, GroupSectionMeta>
-      data={[]}
-      sections={sections}
-      columns={columns}
-      getRowId={getRowId}
-      renderSectionHeader={renderSectionHeader}
-      // Column management
-      columnOrder={columnOrder}
-      onColumnOrderChange={handleColumnOrderChange}
-      columnVisibility={columnVisibility}
-      fixedColumns={fixedColumns}
-      // Column sizing
-      columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
-      // Sorting
-      sorting={tableSorting}
-      onSortingChange={handleSortChange}
-      // Layout
-      rowHeight={rowHeight}
-      sectionHeight={TABLE_ROW_HEIGHTS.SECTION}
-      compact={compactMode}
-      className="text-sm"
-      scrollClassName="h-full"
-      // State
-      emptyContent={emptyContent}
-      // Interaction
-      onRowClick={handleRowClick}
-      selectedRowId={selectedRowId}
-      rowClassName={rowClassName}
-      // Sticky section headers
-      stickyHeaders
-    />
+    <div className="table-container relative h-full">
+      <DataTable<TaskWithDuration, GroupSectionMeta>
+        data={[]}
+        sections={sections}
+        columns={columns}
+        getRowId={getRowId}
+        renderSectionHeader={renderSectionHeader}
+        // Column management
+        columnOrder={columnOrder}
+        onColumnOrderChange={handleColumnOrderChange}
+        columnVisibility={columnVisibility}
+        fixedColumns={fixedColumns}
+        // Column sizing
+        columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
+        // Sorting
+        sorting={tableSorting}
+        onSortingChange={handleSortChange}
+        // Layout
+        rowHeight={rowHeight}
+        sectionHeight={sectionHeight}
+        compact={compactMode}
+        className="text-sm"
+        scrollClassName="scrollbar-styled flex-1"
+        // State
+        emptyContent={emptyContent}
+        // Interaction
+        onRowClick={handleRowClick}
+        selectedRowId={selectedRowId}
+        rowClassName={rowClassName}
+        // Sticky section headers
+        stickyHeaders
+      />
+    </div>
   );
 });
