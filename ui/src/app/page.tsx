@@ -23,12 +23,15 @@ import { UsedFreeToggle } from "~/app/pools/components/UsedFreeToggle";
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
 import { useAuth } from "~/components/AuthProvider";
 import { getDateFromValues } from "~/components/DateRangePicker";
+import { OutlinedIcon } from "~/components/Icon";
 import PageHeader from "~/components/PageHeader";
 import { StatusFilterType } from "~/components/StatusFilter";
+import { TaskPieChart } from "~/components/TaskPieChart";
 import { WorkflowPieChart } from "~/components/WorkflowPieChart";
 import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
+import { getTaskStatusArray } from "./tasks/components/StatusFilter";
 import { getWorkflowStatusArray } from "./workflows/components/StatusFilter";
 
 const mockAggregateResources = {
@@ -70,6 +73,21 @@ export default function Home() {
     submitted_before: todayDateRange.toDate?.toISOString(),
   });
 
+  const { data: todaysTasks } = api.tasks.getStatusTotals.useQuery({
+    all_users: false,
+    all_pools: true,
+    users: [username],
+    started_after: todayDateRange.fromDate?.toISOString(),
+    started_before: todayDateRange.toDate?.toISOString(),
+  });
+
+  const { data: currentTasks } = api.tasks.getStatusTotals.useQuery({
+    all_users: false,
+    all_pools: true,
+    users: [username],
+    statuses: getTaskStatusArray(StatusFilterType.CURRENT),
+  });
+
   const {data: profile} = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -94,71 +112,97 @@ export default function Home() {
   return (
     <>
       <PageHeader />
-    <div className="grid grid-cols-3 grid-rows-[auto_1fr] gap-global p-global w-full h-full overflow-hidden">
-      <section className="card" aria-labelledby="current-workflows-title">
-        <div className="popup-header body-header">
-          <h2 id="current-workflows-title">Current Workflows</h2>
-          <Link
-          href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=-2&statusType=current`}
-          className="btn btn-secondary" title="View All Current Workflows">Details</Link>
-        </div>
-        <div className="p-global">
-          <WorkflowPieChart
-            counts={currentWorkflows ?? {}}
-            size={160}
-            innerRadius={40}
-            ariaLabel="My Current Workflows"
-          />
-        </div>
-        </section>
-        <section className="card" aria-labelledby="todays-workflows-title">
-        <div className="popup-header body-header">
-          <h2 id="todays-workflows-title">Today&apos;s Workflows</h2>
-          <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365`} className="btn btn-secondary" title="View All Today&apos;s Workflows">Details</Link>
-        </div>
-        <div className="p-global">
-        <WorkflowPieChart
-          counts={todaysWorkflows ?? {}}
-            size={160}
-            innerRadius={40}
-            ariaLabel="Today&apos;s Workflows"
-          />
-        </div>
-      </section>
-      <section className="card" aria-labelledby="resources-title">
-        <div className="popup-header body-header">
-          <h2>{profile?.profile.pool ?? "Default Pool"}</h2>
-          {profile?.profile.pool ? (
-            <UsedFreeToggle
-              isShowingUsed={isShowingUsed}
-              updateUrl={(props) => {
-                setIsShowingUsed(props.isShowingUsed ?? true);
-              }}
+      <div className="grid grid-cols-4 grid-rows-[auto_1fr] gap-global p-global w-full h-full">
+        <section className="card" aria-labelledby="current-workflows-title">
+          <div className="popup-header body-header">
+            <h2 id="current-workflows-title">Current Workflows</h2>
+            <Link
+            href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=-2&statusType=current`}
+            className="btn btn-secondary" title="View All Current Workflows">
+              <OutlinedIcon name="more_vert" />
+            </Link>
+          </div>
+          <div className="p-global">
+            <WorkflowPieChart
+              counts={currentWorkflows ?? {}}
+              size={160}
+              innerRadius={40}
+              ariaLabel="My Current Workflows"
             />
-          ) : <Link href="/profile?tool=settings" className="btn btn-secondary" title="Configure Default Pool">Configure</Link>}
-        </div>
-        <ResourcesGraph
-          {...mockAggregateResources}
-          isLoading={false}
-          isShowingUsed={isShowingUsed}
-        />
-      </section>
-      <section className="card col-span-3 h-full min-h-0 flex flex-col" aria-labelledby="messages-title">
-        <div className="popup-header body-header">
-          <h2 id="messages-title">Messages</h2>
-        </div>
-        <div className="flex-1 w-full p-global overflow-auto">
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className="text-sm text-gray-500"
-            >
-              {message}
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </div>
+          </section>
+          <section className="card" aria-labelledby="todays-workflows-title">
+          <div className="popup-header body-header">
+            <h2 id="todays-workflows-title">Today&apos;s Workflows</h2>
+            <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365`} className="btn btn-secondary" title="View All Today&apos;s Workflows">
+              <OutlinedIcon name="more_vert" />
+            </Link>
+          </div>
+          <div className="p-global">
+          <WorkflowPieChart
+            counts={todaysWorkflows ?? {}}
+              size={160}
+              innerRadius={40}
+              ariaLabel="Today&apos;s Workflows"
+            />
+          </div>
+        </section>
+        <section className="card" aria-labelledby="current-tasks-title">
+          <div className="popup-header body-header">
+            <h2 id="current-tasks-title">Current Tasks</h2>
+            <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&statusType=current`} className="btn btn-secondary" title="View All Current Tasks">
+              <OutlinedIcon name="more_vert" />
+            </Link>
+          </div>
+          <div className="p-global">
+            <TaskPieChart counts={currentTasks ?? {}} size={160} innerRadius={40} ariaLabel="Current Tasks" />
+          </div>
+        </section>
+        <section className="card" aria-labelledby="todays-tasks-title">
+          <div className="popup-header body-header">
+            <h2 id="todays-tasks-title">Today&apos;s Tasks</h2>
+            <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365&statusType=all`} className="btn btn-secondary" title="View All Today&apos;s Tasks">
+              <OutlinedIcon name="more_vert" />
+            </Link>
+          </div>
+          <div className="p-global">
+            <TaskPieChart counts={todaysTasks ?? {}} size={160} innerRadius={40} ariaLabel="Today&apos;s Tasks" />
+          </div>
+        </section>
+        <section className="card" aria-labelledby="resources-title">
+          <div className="popup-header body-header">
+            <h2>{profile?.profile.pool ?? "Default Pool"}</h2>
+            {profile?.profile.pool ? (
+              <UsedFreeToggle
+                isShowingUsed={isShowingUsed}
+                updateUrl={(props) => {
+                  setIsShowingUsed(props.isShowingUsed ?? true);
+                }}
+              />
+            ) : <Link href="/profile?tool=settings" className="btn btn-secondary" title="Configure Default Pool">Configure</Link>}
+          </div>
+          <ResourcesGraph
+            {...mockAggregateResources}
+            isLoading={false}
+            isShowingUsed={isShowingUsed}
+          />
+        </section>
+        <section className="card col-span-3 h-full min-h-50 flex flex-col" aria-labelledby="messages-title">
+          <div className="popup-header body-header">
+            <h2 id="messages-title">Messages</h2>
+          </div>
+          <div className="flex-1 w-full p-global overflow-auto">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className="text-sm text-gray-500"
+              >
+                {message}
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </>
   );
 }
