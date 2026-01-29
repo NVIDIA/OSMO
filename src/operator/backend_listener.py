@@ -494,7 +494,7 @@ def update_resource_in_database(node_send_queue: helpers.EnqueueCallback,
         f'Send node {node.metadata.name} to be updated in the database',
         event_send_queue)
     resource_message = backend_messages.MessageBody(
-        type=backend_messages.MessageType.RESOURCE,
+        type=backend_messages.MessageType.UPDATE_NODE,
         body=backend_messages.UpdateNodeBody(hostname=hostname,
                                            available=node_available,
                                            conditions=conditions,

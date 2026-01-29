@@ -572,7 +572,7 @@ func TestNodeUsageAggregator_UpdatePod(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	usageFields, nonWorkflowFields := agg.GetNodeUsage("node-1")
 
@@ -612,7 +612,7 @@ func TestNodeUsageAggregator_DeletePod(t *testing.T) {
 	}
 
 	// Add then delete
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 	agg.DeletePod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
@@ -651,11 +651,11 @@ func TestNodeUsageAggregator_DuplicateUpdateIgnored(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	// Attempt to "migrate" to node-2 (impossible in real K8s, but test that it's ignored)
 	pod.Spec.NodeName = "node-2"
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	usageFields1, _ := agg.GetNodeUsage("node-1")
 	usageFields2, _ := agg.GetNodeUsage("node-2")
@@ -715,8 +715,8 @@ func TestNodeUsageAggregator_NonWorkflowNamespace(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(workflowPod)
-	agg.UpdatePod(systemPod)
+	agg.AddPod(workflowPod)
+	agg.AddPod(systemPod)
 
 	usageFields, nonWorkflowFields := agg.GetNodeUsage("node-1")
 
@@ -758,7 +758,7 @@ func TestPodLifecycle_PendingToRunning(t *testing.T) {
 
 	// Simulate AddFunc during cache sync - pod is Pending, should not be tracked
 	if pod.Status.Phase == corev1.PodRunning {
-		agg.UpdatePod(pod)
+		agg.AddPod(pod)
 	}
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
@@ -774,7 +774,7 @@ func TestPodLifecycle_PendingToRunning(t *testing.T) {
 	isRunning := pod.Status.Phase == corev1.PodRunning
 
 	if !wasRunning && isRunning && pod.Spec.NodeName != "" {
-		agg.UpdatePod(pod)
+		agg.AddPod(pod)
 	}
 
 	usageFields, _ = agg.GetNodeUsage("node-1")
@@ -810,7 +810,7 @@ func TestPodLifecycle_RunningToSucceeded(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
 	if usageFields["cpu"] != "2000" {
@@ -862,7 +862,7 @@ func TestPodLifecycle_RunningToFailed(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
 	if usageFields["cpu"] != "1500" {
@@ -914,7 +914,7 @@ func TestPodLifecycle_DeletionTimestamp(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
 	if usageFields["cpu"] != "3000" {
@@ -975,7 +975,7 @@ func TestPodLifecycle_AllContainersTerminated(t *testing.T) {
 		},
 	}
 
-	agg.UpdatePod(pod)
+	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
 	if usageFields["cpu"] != "2500" {
@@ -1085,9 +1085,9 @@ func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
 	}
 
 	// All three pods running
-	agg.UpdatePod(pod1)
-	agg.UpdatePod(pod2)
-	agg.UpdatePod(pod3)
+	agg.AddPod(pod1)
+	agg.AddPod(pod2)
+	agg.AddPod(pod3)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
 	if usageFields["cpu"] != "3500" {
@@ -1112,7 +1112,7 @@ func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
 	}
 
 	// Pod1 still running - duplicate update should be ignored
-	agg.UpdatePod(pod1)
+	agg.AddPod(pod1)
 
 	usageFields, _ = agg.GetNodeUsage("node-1")
 	if usageFields["cpu"] != "1000" {
@@ -1177,7 +1177,6 @@ func TestNewResourceListener(t *testing.T) {
 		ProgressDir:           "/tmp/osmo/operator/",
 		ProgressFrequencySec:  15,
 		UsageFlushIntervalSec: 5,
-		ReconcileIntervalMin:  10,
 	}
 
 	listener := NewResourceListener(args)
@@ -1271,6 +1270,6 @@ func BenchmarkNodeUsageAggregator_UpdatePod(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		agg.UpdatePod(pod)
+		agg.AddPod(pod)
 	}
 }

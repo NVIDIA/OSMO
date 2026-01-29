@@ -39,7 +39,6 @@ type ListenerArgs struct {
 	ProgressDir           string
 	ProgressFrequencySec  int
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
-	ReconcileIntervalMin  int // Interval for full reconciliation (ResourceListener)
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -83,9 +82,6 @@ func ListenerParse() ListenerArgs {
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
 		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
-	reconcileIntervalMin := flag.Int("reconcileIntervalMin",
-		getEnvInt("RECONCILE_INTERVAL_MIN", 5),
-		"Interval for full reconciliation in minutes (ResourceListener)")
 
 	flag.Parse()
 
@@ -103,7 +99,6 @@ func ListenerParse() ListenerArgs {
 		ProgressDir:           *progressDir,
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
-		ReconcileIntervalMin:  *reconcileIntervalMin,
 	}
 }
 

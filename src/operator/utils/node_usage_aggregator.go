@@ -90,7 +90,7 @@ func (nst *NodeStateTracker) Remove(hostname string) {
 	delete(nst.states, hostname)
 }
 
-// ResourceBodiesEqual compares two UpdateNodeBody messages for equality
+// ResourceBodiesEqual compares two UpdateNodeBody messages for equality.
 func ResourceBodiesEqual(a, b *pb.UpdateNodeBody) bool {
 	if a == nil || b == nil {
 		return a == b
@@ -189,11 +189,11 @@ func (rua *NodeUsageAggregator) Reset() {
 	rua.dirtyNodes = make(map[string]struct{})
 }
 
-// UpdatePod updates the aggregator with a pod's resource requests.
+// AddPod adds a pod's resource requests to the aggregator.
 // Note: Pod resources and node assignment are immutable in Kubernetes.
 // Once a pod is scheduled, its spec.nodeName and resource requests cannot change.
 // Therefore, if we've already seen this pod UID, we can skip processing.
-func (rua *NodeUsageAggregator) UpdatePod(pod *corev1.Pod) {
+func (rua *NodeUsageAggregator) AddPod(pod *corev1.Pod) {
 	uid := pod.UID
 
 	// Fast path: check if already exists with RLock

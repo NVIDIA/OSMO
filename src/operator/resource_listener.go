@@ -183,7 +183,7 @@ func (rl *ResourceListener) watchNodes(nodeChan chan<- *pb.ListenerMessage) {
 	nodeStateTracker := utils.NewNodeStateTracker(time.Duration(rl.args.StateCacheTTLMin) * time.Minute)
 
 	// Create informer factory for nodes (cluster-scoped)
-	// Disable informer resync - rely on watch + manual ReconcileIntervalMin instead
+	// Disable informer resync - rely on watch + error handlers
 	nodeInformerFactory := informers.NewSharedInformerFactory(
 		clientset,
 		0, // No automatic resync
@@ -259,30 +259,9 @@ func (rl *ResourceListener) watchNodes(nodeChan chan<- *pb.ListenerMessage) {
 	// Initial rebuild from store after sync
 	rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, nodeChan)
 
-	// Periodic reconciliation (safety net) - can be disabled by setting ReconcileIntervalMin to 0
-	var reconcileTicker *time.Ticker
-	if rl.args.ReconcileIntervalMin > 0 {
-		reconcileInterval := time.Duration(rl.args.ReconcileIntervalMin) * time.Minute
-		reconcileTicker = time.NewTicker(reconcileInterval)
-		defer reconcileTicker.Stop()
-	}
-
-	for {
-		select {
-		case <-rl.GetStreamContext().Done():
-			log.Println("Node resource watcher stopped")
-			return
-		case <-func() <-chan time.Time {
-			if reconcileTicker != nil {
-				return reconcileTicker.C
-			}
-			return nil
-		}():
-			// Periodic full reconcile as safety net (only if enabled)
-			log.Println("Performing periodic node reconciliation...")
-			rl.rebuildNodesFromStore(nodeInformer, nodeStateTracker, nodeChan)
-		}
-	}
+	// Wait for context cancellation
+	<-rl.GetStreamContext().Done()
+	log.Println("Node resource watcher stopped")
 }
 
 // watchPods starts pod informer and handles resource aggregation
@@ -321,10 +300,10 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
 			// Only track if pod is already Running and has a node assignment
-			if pod.Spec.NodeName == "" || pod.Status.Phase != corev1.PodRunning {
+			if pod.Status.Phase != corev1.PodRunning {
 				return
 			}
-			rl.aggregator.UpdatePod(pod)
+			rl.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod := oldObj.(*corev1.Pod)
@@ -338,7 +317,7 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 
 			// Case 1: Pod just transitioned TO Running - track its resources
 			if !wasRunning && isRunning {
-				rl.aggregator.UpdatePod(newPod)
+				rl.aggregator.AddPod(newPod)
 				return
 			}
 
@@ -467,7 +446,7 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 		// Only include Running pods with a node assignment
 		// Note: Store only contains Running pods due to field selector in informer factory
 		if pod.Spec.NodeName != "" && pod.Status.Phase == corev1.PodRunning {
-			rl.aggregator.UpdatePod(pod)
+			rl.aggregator.AddPod(pod)
 		}
 	}
 
