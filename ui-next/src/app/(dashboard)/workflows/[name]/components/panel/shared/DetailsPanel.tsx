@@ -313,8 +313,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   className,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
-  const { disconnectOnly, removeShell, connectShell } = useShellContext();
-  const allSessions = useShellSessions();
+  const { disconnectOnly, removeShell, reconnectShell } = useShellContext();
 
   // Ref to override focus behavior when panel expands.
   // - undefined: use default (focus first focusable)
@@ -387,16 +386,12 @@ export const DetailsPanel = memo(function DetailsPanel({
   // Handle reconnecting a shell session (opens panel + shell tab + triggers reconnection)
   const handleReconnectSession = useCallback(
     (taskId: string) => {
-      // Find the session to get its metadata
-      const session = allSessions.find((s) => s.key === taskId);
-      if (session) {
-        // Trigger new connection through ShellContext
-        connectShell(taskId, session.taskName, session.workflowName, session.shell);
-      }
+      // Trigger reconnection through ShellContext
+      reconnectShell(taskId);
       // Expand panel and go to shell tab
       handleSelectShellSession(taskId);
     },
-    [allSessions, connectShell, handleSelectShellSession],
+    [reconnectShell, handleSelectShellSession],
   );
 
   // Handle removing a shell session (closes WebSocket + removes from list)

@@ -71,6 +71,17 @@ export interface CachedSession {
   readonly initialResizeSent: boolean;
   /** Terminal input listener disposable */
   readonly onDataDisposable: { dispose: () => void } | null;
+  /** Reconnect callback - called by useShell, exposed for external reconnect triggers */
+  readonly reconnectCallback: (() => Promise<void>) | null;
+  /**
+   * Terminal ready for measurement flag.
+   * FitAddon.proposeDimensions() returns NaN until the terminal has rendered
+   * at least once and the render service has measured character dimensions.
+   * This flag is set to true after the first onRender event fires.
+   */
+  readonly terminalReady: boolean;
+  /** Disposable for the onRender listener used to detect terminal ready state */
+  readonly onRenderDisposable: { dispose: () => void } | null;
 }
 
 /**
@@ -225,4 +236,54 @@ export function _updateSession(key: string, updates: SessionUpdate): void {
 export function _deleteSession(key: string): void {
   cache.delete(key);
   notifyListeners();
+}
+
+/**
+ * Disconnect a shell session (closes WebSocket, transitions to disconnected state).
+ * This is the proper way to disconnect - it goes through the state machine.
+ *
+ * @param key - Session key
+ * @public
+ */
+export function disconnectSession(key: string): void {
+  const session = cache.get(key);
+  if (!session) {
+    console.warn(`[ShellCache] Cannot disconnect non-existent session: ${key}`);
+    return;
+  }
+
+  // Close WebSocket if connected
+  if (
+    (session.state.phase === "ready" || session.state.phase === "initializing" || session.state.phase === "opening") &&
+    "ws" in session.state &&
+    session.state.ws
+  ) {
+    console.debug("[ShellCache] 🔌 Disconnecting session", { key });
+    session.state.ws.close(); // This will trigger WS_CLOSED event in onclose handler
+  } else {
+    console.debug("[ShellCache] ⚠️ Cannot disconnect - not in connected state", { key, phase: session.state.phase });
+  }
+}
+
+/**
+ * Reconnect a shell session (triggers reconnection for disconnected/error sessions).
+ * This calls the reconnect callback registered by useShell.
+ *
+ * @param key - Session key
+ * @public
+ */
+export async function reconnectSession(key: string): Promise<void> {
+  const session = cache.get(key);
+  if (!session) {
+    console.warn(`[ShellCache] Cannot reconnect non-existent session: ${key}`);
+    return;
+  }
+
+  if (!session.reconnectCallback) {
+    console.warn(`[ShellCache] Cannot reconnect - no callback registered: ${key}`);
+    return;
+  }
+
+  console.debug("[ShellCache] 🔄 Triggering reconnect", { key, phase: session.state.phase });
+  await session.reconnectCallback();
 }
