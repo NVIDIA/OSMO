@@ -41,7 +41,7 @@
  * Direct cache manipulation from components violates encapsulation.
  */
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useCallback } from "react";
 import type { ShellState, TerminalAddons } from "./shell-state";
 
 /**
@@ -144,23 +144,32 @@ function getSnapshot(): CachedSession[] {
 }
 
 /**
+ * Get server snapshot (for useSyncExternalStore SSR safety).
+ * @returns Empty array (no sessions on server)
+ */
+function getServerSnapshot(): CachedSession[] {
+  return [];
+}
+
+/**
  * React hook to observe all shell sessions.
  * Re-renders when any session changes.
  * @returns Array of all sessions
  */
 export function useShellSessions(): readonly CachedSession[] {
-  return useSyncExternalStore(subscribe, getSnapshot);
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 /**
  * React hook to observe a specific shell session.
- * Re-renders when the session changes.
+ * Re-renders only when THIS session changes (not all sessions).
  * @param key - Session key
  * @returns Session or undefined if not found
  */
 export function useShellSession(key: string): CachedSession | undefined {
-  const sessions = useShellSessions();
-  return sessions.find((s) => s.key === key);
+  const getSnapshot = useCallback(() => cache.get(key), [key]);
+  const getServerSnapshot = useCallback(() => undefined, []);
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 // ============================================================================
