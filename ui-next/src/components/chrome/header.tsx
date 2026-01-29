@@ -31,6 +31,8 @@ import { useSidebar } from "@/components/shadcn/sidebar";
 import { useUser } from "@/lib/auth";
 import { useVersion } from "@/lib/api/adapter";
 import { usePageConfig, type BreadcrumbSegment } from "./page-context";
+import { useBreadcrumbOrigin } from "./breadcrumb-origin-context";
+import { useRouter, usePathname } from "next/navigation";
 
 export function Header() {
   const { user, isLoading, logout } = useUser();
@@ -177,7 +179,41 @@ export function Header() {
   );
 }
 
+/**
+ * Smart Breadcrumb Item
+ *
+ * Checks if there's a stored "origin" for the current page in React Context.
+ * If yes, navigates to the origin (preserving filters) instead of the default href.
+ * If no, uses the normal href (clean URL).
+ *
+ * **How it works**:
+ * 1. Table row click stores origin: setOrigin('/workflows/my-workflow', '/workflows?f=status:RUNNING')
+ * 2. User navigates to detail page
+ * 3. Breadcrumb "Workflows" checks getOrigin('/workflows/my-workflow')
+ * 4. Finds origin → navigates to '/workflows?f=status:RUNNING' (not '/workflows')
+ * 5. Deep link without origin → navigates to clean '/workflows'
+ *
+ * **Storage**: React Context (survives navigation, lost on refresh/new tab)
+ */
 function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { getOrigin } = useBreadcrumbOrigin();
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!segment.href) return;
+
+    // Check if there's a stored origin for the current page
+    const origin = getOrigin(pathname);
+
+    if (origin) {
+      // Navigate to the origin (preserving filters)
+      e.preventDefault();
+      router.push(origin);
+    }
+    // Otherwise, let the Link handle normal navigation to segment.href
+  };
+
   return (
     <>
       <ChevronRight
@@ -187,6 +223,7 @@ function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
       {segment.href ? (
         <Link
           href={segment.href}
+          onClick={handleClick}
           className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
           {segment.label}
