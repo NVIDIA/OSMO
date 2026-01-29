@@ -202,13 +202,13 @@ func TestBuildResourceBody_LabelFiltering(t *testing.T) {
 
 	body := utils.BuildResourceBody(node, false)
 
-	// feature.node.kubernetes.io prefixed labels should be filtered out
-	if _, ok := body.LabelFields["feature.node.kubernetes.io/cpu-cpuid"]; ok {
-		t.Error("Expected feature.node.kubernetes.io labels to be filtered out")
+	// feature.node.kubernetes.io prefixed labels should now be included
+	if body.LabelFields["feature.node.kubernetes.io/cpu-cpuid"] != "AVX512" {
+		t.Error("Expected feature.node.kubernetes.io/cpu-cpuid label to be present")
 	}
 
-	if _, ok := body.LabelFields["feature.node.kubernetes.io/gpu-vendor"]; ok {
-		t.Error("Expected feature.node.kubernetes.io labels to be filtered out")
+	if body.LabelFields["feature.node.kubernetes.io/gpu-vendor"] != "nvidia" {
+		t.Error("Expected feature.node.kubernetes.io/gpu-vendor label to be present")
 	}
 
 	// Other labels should be present
