@@ -258,19 +258,21 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
               className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700"
               aria-hidden="true"
             />
-            {sessions.map((session) => (
-              <ShellSessionIcon
-                key={session.key}
-                session={session}
-                isActive={session.key === currentTaskId}
-                onClick={handleSessionClick}
-                onSelect={() => handleSelect(session.key)}
-                onDisconnect={() => handleDisconnect(session.key)}
-                onReconnect={() => handleReconnect(session.key)}
-                onRemove={() => handleRemove(session.key)}
-                data-task-id={session.key}
-              />
-            ))}
+            <div className="flex flex-col items-center space-y-1">
+              {sessions.map((session) => (
+                <ShellSessionIcon
+                  key={session.key}
+                  session={session}
+                  isActive={session.key === currentTaskId}
+                  onClick={handleSessionClick}
+                  onSelect={() => handleSelect(session.key)}
+                  onDisconnect={() => handleDisconnect(session.key)}
+                  onReconnect={() => handleReconnect(session.key)}
+                  onRemove={() => handleRemove(session.key)}
+                  data-task-id={session.key}
+                />
+              ))}
+            </div>
           </>
         )}
       </div>
