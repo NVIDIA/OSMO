@@ -20,10 +20,9 @@ package utils
 
 import (
 	"flag"
-	"os"
-	"strconv"
 
 	"go.corp.nvidia.com/osmo/utils/postgres"
+	"go.corp.nvidia.com/osmo/utils/redis"
 )
 
 // OperatorArgs holds configuration for the operator service
@@ -35,13 +34,7 @@ type OperatorArgs struct {
 	OperatorProgressDir          string
 	OperatorProgressFrequencySec int
 
-	// Redis configuration
-	RedisHost       string
-	RedisPort       int
-	RedisPassword   string
-	RedisDB         int
-	RedisTLSEnabled bool
-
+	Redis    redis.RedisConfig
 	Postgres postgres.PostgresConfig
 }
 
@@ -58,28 +51,14 @@ func OperatorParse() OperatorArgs {
 		"INFO",
 		"Logging level (DEBUG, INFO, WARN, ERROR)")
 	operatorProgressDir := flag.String("operator-progress-dir",
-		getEnv("OSMO_OPERATOR_PROGRESS_DIR", "/tmp/osmo/service/operator/"),
+		"/tmp/osmo/service/operator/",
 		"The directory to write progress timestamps to (For liveness/startup probes)")
 	operatorProgressFrequencySec := flag.Int("operator-progress-frequency-sec",
-		getEnvInt("OSMO_OPERATOR_PROGRESS_FREQUENCY_SEC", 15),
+		15,
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
 
 	// Redis configuration
-	redisHost := flag.String("redis-host",
-		getEnv("OSMO_REDIS_HOST", "localhost"),
-		"Redis host")
-	redisPort := flag.Int("redis-port",
-		getEnvInt("OSMO_REDIS_PORT", 6379),
-		"Redis port")
-	redisPassword := flag.String("redis-password",
-		getEnv("OSMO_REDIS_PASSWORD", ""),
-		"Redis password")
-	redisDB := flag.Int("redis-db-number",
-		getEnvInt("OSMO_REDIS_DB_NUMBER", 0),
-		"Redis database number to connect to. Default value is 0")
-	redisTLSEnabled := flag.Bool("redis-tls-enable",
-		getEnvBool("OSMO_REDIS_TLS_ENABLE", false),
-		"Enable TLS for Redis connection")
+	redisFlagPtrs := redis.RegisterRedisFlags()
 
 	// PostgreSQL configuration
 	postgresFlagPtrs := postgres.RegisterPostgresFlags()
@@ -92,36 +71,7 @@ func OperatorParse() OperatorArgs {
 		LogLevel:                     *logLevel,
 		OperatorProgressDir:          *operatorProgressDir,
 		OperatorProgressFrequencySec: *operatorProgressFrequencySec,
-		RedisHost:                    *redisHost,
-		RedisPort:                    *redisPort,
-		RedisPassword:                *redisPassword,
-		RedisDB:                      *redisDB,
-		RedisTLSEnabled:              *redisTLSEnabled,
+		Redis:                        redisFlagPtrs.ToRedisConfig(),
 		Postgres:                     postgresFlagPtrs.ToPostgresConfig(),
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
-	}
-	return defaultValue
 }

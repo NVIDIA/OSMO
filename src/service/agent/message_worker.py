@@ -30,6 +30,7 @@ import redis  # type: ignore
 from src.lib.utils import common, osmo_errors
 import src.lib.utils.logging
 from src.service.agent import helpers
+from src.service.core.config import helpers as config_helpers
 from src.service.core.workflow import objects
 from src.utils import connectors, backend_messages, static_config
 from src.utils.metrics import metrics
@@ -137,6 +138,39 @@ class MessageWorker:
             elif 'resource_usage' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_NODE_USAGE
                 body_data = protobuf_msg['update_node_usage']
+            elif 'logging' in protobuf_msg:
+                # Check if this is a backend operation notification
+                logging_text = protobuf_msg['logging'].get('text', '')
+                if logging_text.startswith('__BACKEND_OP__:'):
+                    operation = logging_text.split(':', 1)[1]  # Extract 'create' or 'update'
+                    logging.info('Processing backend operation id=%s backend=%s operation=%s',
+                                message_id, backend_name, operation)
+
+                    # Process backend operation inline
+                    if operation == 'create':
+                        config_helpers.update_backend_queues(
+                            connectors.Backend.fetch_from_db(self.postgres, backend_name))
+                        config_helpers.create_backend_config_history_entry(
+                            self.postgres, backend_name, 'system',
+                            f'Create backend {backend_name}', [])
+                    elif operation == 'update':
+                        config_helpers.create_backend_config_history_entry(
+                            self.postgres, backend_name, 'system',
+                            f'Update backend {backend_name}: k8s_namespace, version, or '
+                            'node_conditions prefix changed', [])
+                    else:
+                        logging.error('Unknown backend operation: %s for backend %s',
+                                     operation, backend_name)
+
+                    # Acknowledge the message
+                    self.redis_client.xack(self.stream_name, self.group_name, message_id)
+                    self._progress_writer.report_progress()
+                    return
+                else:
+                    # Regular logging message - ack and ignore
+                    logging.debug('Ignoring logging message id=%s', message_id)
+                    self.redis_client.xack(self.stream_name, self.group_name, message_id)
+                    return
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack invalid message to prevent infinite retries
