@@ -67,7 +67,7 @@ func (rl *ResourceListener) sendMessages() {
 	// Create channels for different message types
 	// nodeChan: node resource messages (from watchNodes)
 	// usageChan: pod resource usage messages (from watchPods)
-	nodeChan := make(chan *pb.ListenerMessage, rl.args.NodeChanSize)
+	nodeChan := make(chan *pb.ListenerMessage, rl.args.NodeUpdateChanSize)
 	usageChan := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
 
 	// WaitGroup to track all goroutines

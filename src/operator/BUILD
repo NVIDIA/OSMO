@@ -304,7 +304,7 @@ go_library(
     srcs = [
         "main.go",
         "resource_listener.go",
-        "listener.go",
+        "workflow_listener.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/operator",
     visibility = ["//src/operator:__subpackages__"],
