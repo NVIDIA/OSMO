@@ -296,13 +296,13 @@ oci_push(
 )
 
 ################################################################
-#                    Workflow Listener                         #
+#                    Listener                                  #
 ################################################################
 
 go_library(
-    name = "workflow_listener_lib",
+    name = "listener_lib",
     srcs = [
-        "main.go",
+        "listener.go",
         "workflow_listener.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/operator",
@@ -341,9 +341,9 @@ go_test(
 ################
 
 go_binary(
-    name = "workflow_listener_x86_64",
-    basename = "workflow_listener",
-    embed = [":workflow_listener_lib"],
+    name = "listener_x86_64",
+    basename = "listener",
+    embed = [":listener_lib"],
     goarch = "amd64",
     goos = "linux",
     pure = "on",
@@ -354,8 +354,8 @@ go_binary(
 )
 
 pkg_tar(
-    name = "workflow_listener_x86_64_pkg",
-    srcs = [":workflow_listener_x86_64"],
+    name = "listener_x86_64_pkg",
+    srcs = [":listener_x86_64"],
     mode = "0755",
     package_dir = "/usr/local/bin",
     target_compatible_with = [
@@ -364,9 +364,9 @@ pkg_tar(
 )
 
 oci_image(
-    name = "workflow_listener_image_x86_64",
+    name = "listener_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
-    tars = [":workflow_listener_x86_64_pkg"],
+    tars = [":listener_x86_64_pkg"],
     entrypoint = ["/usr/local/bin/workflow_listener"],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -375,8 +375,8 @@ oci_image(
 )
 
 oci_load(
-    name = "workflow_listener_image_load_x86_64",
-    image = ":workflow_listener_image_x86_64",
+    name = "listener_image_load_x86_64",
+    image = ":listener_image_x86_64",
     repo_tags = ["osmo.local/workflow-listener:latest-x86_64"],
     tags = ["manual"],
     target_compatible_with = [
@@ -385,8 +385,8 @@ oci_load(
 )
 
 oci_push(
-    name = "workflow_listener_push_x86_64",
-    image = ":workflow_listener_image_x86_64",
+    name = "listener_push_x86_64",
+    image = ":listener_image_x86_64",
     repository = BASE_IMAGE_URL + "workflow-listener",
     remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
@@ -401,9 +401,9 @@ oci_push(
 ###############
 
 go_binary(
-    name = "workflow_listener_arm64",
-    basename = "workflow_listener",
-    embed = [":workflow_listener_lib"],
+    name = "listener_arm64",
+    basename = "listener",
+    embed = [":listener_lib"],
     goarch = "arm64",
     goos = "linux",
     pure = "on",
@@ -414,8 +414,8 @@ go_binary(
 )
 
 pkg_tar(
-    name = "workflow_listener_arm64_pkg",
-    srcs = [":workflow_listener_arm64"],
+    name = "listener_arm64_pkg",
+    srcs = [":listener_arm64"],
     mode = "0755",
     package_dir = "/usr/local/bin",
     target_compatible_with = [
@@ -424,9 +424,9 @@ pkg_tar(
 )
 
 oci_image(
-    name = "workflow_listener_image_arm64",
+    name = "listener_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
-    tars = [":workflow_listener_arm64_pkg"],
+    tars = [":listener_arm64_pkg"],
     entrypoint = ["/usr/local/bin/workflow_listener"],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -435,8 +435,8 @@ oci_image(
 )
 
 oci_load(
-    name = "workflow_listener_image_load_arm64",
-    image = ":workflow_listener_image_arm64",
+    name = "listener_image_load_arm64",
+    image = ":listener_image_arm64",
     repo_tags = ["osmo.local/workflow-listener:latest-arm64"],
     tags = ["manual"],
     target_compatible_with = [
@@ -445,9 +445,9 @@ oci_load(
 )
 
 oci_push(
-    name = "workflow_listener_push_arm64",
-    image = ":workflow_listener_image_arm64",
-    repository = BASE_IMAGE_URL + "workflow-listener",
+    name = "listener_push_arm64",
+    image = ":listener_image_arm64",
+    repository = BASE_IMAGE_URL + "backend-listener",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],
