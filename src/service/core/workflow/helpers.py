@@ -307,7 +307,7 @@ def get_task_status_totals(users: List[str] | None = None,
     context = objects.WorkflowServiceContext.get()
 
     fetch_cmd = '''
-        SELECT tasks.status AS task_status, COUNT(*) AS count
+        SELECT tasks.status, COUNT(*) AS count
         FROM tasks
         LEFT JOIN workflows ON tasks.workflow_id = workflows.workflow_id
     '''

@@ -619,7 +619,7 @@ def get_workflow_status_totals(
         app_info=app_info,
         priority=priority,
     )
-    return {row['task_status']: row['count'] for row in rows}
+    return {row['status']: row['count'] for row in rows}
 
 
 @router.get('/api/workflow/{name}/task/{task_name}', response_class=common.PrettyJSONResponse)
