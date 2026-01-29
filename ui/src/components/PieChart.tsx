@@ -67,6 +67,30 @@ const describeArc = (cx: number, cy: number, radius: number, startAngle: number,
   ].join(" ");
 };
 
+const describeFullCircle = (cx: number, cy: number, radius: number, innerRadius = 0) => {
+  const startOuter = polarToCartesian(cx, cy, radius, 0);
+  const midOuter = polarToCartesian(cx, cy, radius, 180);
+  if (innerRadius > 0) {
+    const startInner = polarToCartesian(cx, cy, innerRadius, 0);
+    const midInner = polarToCartesian(cx, cy, innerRadius, 180);
+    return [
+      `M ${startOuter.x} ${startOuter.y}`,
+      `A ${radius} ${radius} 0 1 0 ${midOuter.x} ${midOuter.y}`,
+      `A ${radius} ${radius} 0 1 0 ${startOuter.x} ${startOuter.y}`,
+      `L ${startInner.x} ${startInner.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 1 ${midInner.x} ${midInner.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 1 ${startInner.x} ${startInner.y}`,
+      "Z",
+    ].join(" ");
+  }
+  return [
+    `M ${startOuter.x} ${startOuter.y}`,
+    `A ${radius} ${radius} 0 1 0 ${midOuter.x} ${midOuter.y}`,
+    `A ${radius} ${radius} 0 1 0 ${startOuter.x} ${startOuter.y}`,
+    "Z",
+  ].join(" ");
+};
+
 const defaultAriaLabel = (slice: PieSlice, percent: number) =>
   `${slice.label}: ${slice.value} (${percent.toFixed(1)}%)`;
 
@@ -81,7 +105,9 @@ export const PieChart = ({
   centerValue,
 }: PieChartProps) => {
   const normalizedSlices = slices.filter((slice) => slice.value > 0);
-  const total = normalizedSlices.reduce((sum, slice) => sum + slice.value, 0);
+  const isEmpty = normalizedSlices.length === 0;
+  const displaySlices = isEmpty ? [{ label: "Empty", value: 1 }] : normalizedSlices;
+  const total = displaySlices.reduce((sum, slice) => sum + slice.value, 0);
   const radius = size / 2;
   const center = radius;
 
@@ -112,15 +138,18 @@ export const PieChart = ({
           }
         `}
       </style>
-      {normalizedSlices.map((slice, index) => {
+      {displaySlices.map((slice, index) => {
         const sliceAngle = (slice.value / total) * 360;
         const startAngle = currentAngle;
         const endAngle = currentAngle + sliceAngle;
         currentAngle = endAngle;
 
-        const path = describeArc(center, center, radius, startAngle, endAngle, innerRadius);
-        const percent = (slice.value / total) * 100;
-        const ariaSliceLabel = defaultAriaLabel(slice, percent);
+        const path = isEmpty
+          ? describeFullCircle(center, center, radius, innerRadius)
+          : describeArc(center, center, radius, startAngle, endAngle, innerRadius);
+        const displayValue = isEmpty ? 0 : slice.value;
+        const percent = isEmpty ? 100 : (slice.value / total) * 100;
+        const ariaSliceLabel = defaultAriaLabel({ ...slice, value: displayValue }, percent);
 
         return (
           <g
@@ -131,9 +160,9 @@ export const PieChart = ({
           >
             <path
               d={path}
-              fill={slice.color ?? "black"}
+              fill={slice.color ?? "lightgray"}
               className={`pie-slice-path${onSliceSelect ? " is-clickable" : ""}`}
-              stroke={slice.borderColor ?? slice.color ?? "black"}
+              stroke={slice.borderColor ?? slice.color ?? "lightgray"}
               strokeWidth={1}
             >
               <title>{ariaSliceLabel}</title>
@@ -141,9 +170,9 @@ export const PieChart = ({
           </g>
         );
       })}
-      {innerRadius > 0 && (centerValue ?? centerLabel) && (
+      {innerRadius > 0 && (isEmpty || centerValue !== undefined || centerLabel) && (
         <g aria-hidden="true">
-          {centerValue !== undefined && centerValue !== null && (
+          {(isEmpty || centerValue !== undefined) && centerValue !== null && (
             <text
               x={center}
               y={center - 8}
@@ -151,7 +180,7 @@ export const PieChart = ({
               dominantBaseline="central"
               className="fill-[black] text-base font-semibold"
             >
-              {centerValue}
+              {isEmpty ? 0 : centerValue}
             </text>
           )}
           {centerLabel && (

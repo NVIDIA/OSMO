@@ -53,11 +53,12 @@ const mockMessagePool = [
 ];
 
 export default function Home() {
+  const currentDays = 365;
   const { username } = useAuth();
   const [isShowingUsed, setIsShowingUsed] = useState(true);
   const [messages, setMessages] = useState<string[]>([]);
   const [messageIndex, setMessageIndex] = useState(0);
-  const todayDateRange = getDateFromValues(365);
+  const todayDateRange = getDateFromValues(currentDays);
 
   const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery({
     all_users: false,
@@ -148,7 +149,7 @@ export default function Home() {
           <section className="card" aria-labelledby="todays-workflows-title">
             <div className="popup-header body-header">
               <h2 id="todays-workflows-title">Today&apos;s Workflows</h2>
-              <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365`} className="btn btn-secondary" title="View All Today&apos;s Workflows">
+              <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=${currentDays}`} className="btn btn-secondary" title="View All Today&apos;s Workflows">
                 <OutlinedIcon name="more_horiz" />
               </Link>
             </div>
@@ -175,7 +176,7 @@ export default function Home() {
           <section className="card" aria-labelledby="todays-tasks-title">
             <div className="popup-header body-header">
               <h2 id="todays-tasks-title">Today&apos;s Tasks</h2>
-              <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365&statusType=all`} className="btn btn-secondary" title="View All Today&apos;s Tasks">
+              <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=${currentDays}&statusType=all`} className="btn btn-secondary" title="View All Today&apos;s Tasks">
                 <OutlinedIcon name="more_horiz" />
               </Link>
             </div>
