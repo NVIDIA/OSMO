@@ -20,6 +20,7 @@ export interface PieSlice {
   label: string;
   value: number;
   color?: string;
+  borderColor?: string;
 }
 
 interface PieChartProps {
@@ -132,7 +133,7 @@ export const PieChart = ({
               d={path}
               fill={slice.color ?? "black"}
               className={`pie-slice-path${onSliceSelect ? " is-clickable" : ""}`}
-              stroke="white"
+              stroke={slice.borderColor ?? slice.color ?? "black"}
               strokeWidth={1}
             >
               <title>{ariaSliceLabel}</title>
@@ -145,7 +146,7 @@ export const PieChart = ({
           {centerValue !== undefined && centerValue !== null && (
             <text
               x={center}
-              y={center}
+              y={center - 8}
               textAnchor="middle"
               dominantBaseline="central"
               className="fill-[black] text-base font-semibold"
@@ -156,7 +157,7 @@ export const PieChart = ({
           {centerLabel && (
             <text
               x={center}
-              y={center + 16}
+              y={center + 8}
               textAnchor="middle"
               dominantBaseline="central"
               className="fill-[var(--colors-displayFgLowPrimary)] text-xs"
