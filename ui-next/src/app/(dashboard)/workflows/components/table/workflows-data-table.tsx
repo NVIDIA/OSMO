@@ -161,19 +161,13 @@ export function WorkflowsDataTable({
     [setColumnSizingPreference],
   );
 
-  // Handle row click - navigate to workflow detail page
-  // Store origin (current URL with filters) so breadcrumb can navigate back
   const handleRowClick = useCallback(
     (workflow: WorkflowListEntry) => {
       const detailPath = `/workflows/${encodeURIComponent(workflow.name)}`;
-
-      // Build current URL with search params (if any)
       const search = searchParams.toString();
       const currentUrl = search ? `${pathname}?${search}` : pathname;
 
-      // Store origin for smart breadcrumb navigation
       setOrigin(detailPath, currentUrl);
-
       startTransition(() => {
         router.push(detailPath);
       });
