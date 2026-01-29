@@ -84,8 +84,20 @@
   top: 0;
   left: 0;
   width: 100%;
+  /* Use flex layout to ensure proper height distribution */
+  display: flex;
+  align-items: stretch;
   /* Match data row fade-in for consistency */
   animation: row-fade-in var(--duration-quick) var(--ease-out);
+}
+
+/* Section header cell - ensure vertical centering */
+.data-table-section-row td {
+  /* Make cell a flex container that takes full height */
+  display: flex;
+  align-items: center;
+  flex: 1;
+  padding: 0;
 }
 
 /* Header row - flex layout for column alignment */

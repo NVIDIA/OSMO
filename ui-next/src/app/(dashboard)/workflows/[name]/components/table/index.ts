@@ -21,3 +21,4 @@
  */
 
 export { WorkflowTasksTable, type WorkflowTasksTableProps } from "./WorkflowTasksTable";
+export { WorkflowTasksToolbar, type WorkflowTasksToolbarProps } from "./WorkflowTasksToolbar";
