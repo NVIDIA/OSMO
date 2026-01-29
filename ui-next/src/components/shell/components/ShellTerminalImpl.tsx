@@ -31,6 +31,7 @@ import { useAnnouncer, useCopy } from "@/hooks";
 import { useShell } from "../hooks/use-shell";
 import { getDisplayStatus } from "../lib/shell-state";
 import { useShellSession } from "../lib/shell-cache";
+import { shellKeyboardManager, type ShellKeyboardHandlers } from "../lib/shell-keyboard-manager";
 import { ShellConnecting } from "./ShellConnecting";
 import { ShellSearch } from "./ShellSearch";
 import { ANSI } from "../lib/types";
@@ -135,6 +136,8 @@ export const ShellTerminalImpl = memo(
         announce("Shell connected", "polite");
         // Auto-focus terminal when ready (especially important for reconnect)
         focus();
+        // Mark this terminal as focused for keyboard manager
+        shellKeyboardManager.markFocused(taskId);
         // Scroll to bottom to show new PTY session (especially important for reconnect)
         // Use setTimeout to ensure PTY welcome message has been written
         setTimeout(() => {
@@ -178,6 +181,19 @@ export const ShellTerminalImpl = memo(
       focus();
     }, [clearSearch, focus]);
 
+    // Refs for latest values (avoid re-registering keyboard handlers on every state change)
+    const stateRef = useRef(state);
+    const isSearchOpenRef = useRef(isSearchOpen);
+    const copyRef = useRef(copy);
+    const handleCloseSearchRef = useRef(handleCloseSearch);
+
+    useEffect(() => {
+      stateRef.current = state;
+      isSearchOpenRef.current = isSearchOpen;
+      copyRef.current = copy;
+      handleCloseSearchRef.current = handleCloseSearch;
+    }, [state, isSearchOpen, copy, handleCloseSearch]);
+
     // Auto-search when query or options change
     useEffect(() => {
       if (deferredSearchQuery) {
@@ -188,32 +204,36 @@ export const ShellTerminalImpl = memo(
       }
     }, [deferredSearchQuery, searchOptions, findNext, clearSearch]);
 
+    // Register keyboard handlers with centralized manager
+    // This replaces per-component global listeners with a single delegating listener
+    // Uses refs to access latest state without re-registering on every change
     useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Cmd/Ctrl+F: Toggle search
-        if ((e.metaKey || e.ctrlKey) && e.key === "f") {
-          e.preventDefault();
+      const handlers: ShellKeyboardHandlers = {
+        onToggleSearch: () => {
           setIsSearchOpen((prev) => !prev);
-        }
-
-        // Cmd/Ctrl+C: Copy selection
-        if ((e.metaKey || e.ctrlKey) && e.key === "c") {
-          if (state.phase === "ready" && state.terminal.hasSelection()) {
-            e.preventDefault();
-            const text = state.terminal.getSelection();
-            copy(text).catch(console.error);
+        },
+        onCopySelection: () => {
+          const currentState = stateRef.current;
+          if (currentState.phase === "ready") {
+            const text = currentState.terminal.getSelection();
+            copyRef.current(text).catch(console.error);
           }
-        }
-
-        // Escape: Close search
-        if (e.key === "Escape" && isSearchOpen) {
-          handleCloseSearch();
-        }
+        },
+        onCloseSearch: () => {
+          handleCloseSearchRef.current();
+        },
+        shouldHandleCopy: () => {
+          const currentState = stateRef.current;
+          return currentState.phase === "ready" && currentState.terminal.hasSelection();
+        },
+        shouldHandleEscape: () => {
+          return isSearchOpenRef.current;
+        },
       };
 
-      window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [state, isSearchOpen, copy, handleCloseSearch]);
+      const unregister = shellKeyboardManager.register(taskId, handlers);
+      return unregister;
+    }, [taskId]); // Only re-register when taskId changes
 
     useEffect(() => {
       if (!session?.addons?.searchAddon) return;
