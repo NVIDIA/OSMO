@@ -38,7 +38,6 @@ import (
 type ResourceListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
-	closeOnce  sync.Once
 	aggregator *utils.ResourceUsageAggregator
 }
 
@@ -57,7 +56,7 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 		ctx,
 		"Connected to operator service, resource stream established",
 		rl.sendMessages,
-		rl.closeStream,
+		rl.BaseListener.CloseStream,
 		"resource",
 	)
 }
@@ -178,24 +177,6 @@ func (rl *ResourceListener) sendResourceMessage(msg *pb.ListenerMessage) error {
 	}
 
 	return nil
-}
-
-// closeStream ensures stream is closed only once
-func (rl *ResourceListener) closeStream() {
-	rl.closeOnce.Do(func() {
-		stream := rl.GetStream()
-		if stream != nil {
-			if err := stream.CloseSend(); err != nil {
-				log.Printf("Error closing resource stream: %v", err)
-			}
-		}
-	})
-}
-
-// Close cleans up resources
-func (rl *ResourceListener) Close() {
-	rl.closeStream()
-	rl.BaseListener.CloseConnection()
 }
 
 // watchNodes starts node informer and processes node events

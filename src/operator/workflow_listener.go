@@ -37,8 +37,7 @@ import (
 // WorkflowListener manages the bidirectional gRPC stream connection to the operator service
 type WorkflowListener struct {
 	*utils.BaseListener
-	args      utils.ListenerArgs
-	closeOnce sync.Once
+	args utils.ListenerArgs
 }
 
 // NewWorkflowListener creates a new workflow listener instance
@@ -55,7 +54,7 @@ func (wl *WorkflowListener) Run(ctx context.Context) error {
 		ctx,
 		"Connected to operator service, stream established",
 		wl.sendMessages,
-		wl.closeStream,
+		wl.BaseListener.CloseStream,
 		"workflow",
 	)
 }
@@ -158,24 +157,6 @@ func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
 			return
 		}
 	}
-}
-
-// closeStream ensures stream is closed only once
-func (wl *WorkflowListener) closeStream() {
-	wl.closeOnce.Do(func() {
-		stream := wl.GetStream()
-		if stream != nil {
-			if err := stream.CloseSend(); err != nil {
-				log.Printf("Error closing stream: %v", err)
-			}
-		}
-	})
-}
-
-// Close cleans up resources
-func (wl *WorkflowListener) Close() {
-	wl.closeStream()
-	wl.BaseListener.CloseConnection()
 }
 
 // podWithStatus bundles a pod with its calculated status to avoid duplicate computation

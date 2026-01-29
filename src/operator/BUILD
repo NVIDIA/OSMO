@@ -328,8 +328,8 @@ go_library(
 )
 
 go_test(
-    name = "listener_test",
-    srcs = ["listener_test.go"],
+    name = "workflow_listener_test",
+    srcs = ["workflow_listener_test.go"],
     embed = [":listener_lib"],
     deps = [
         "//src/operator/utils:utils",

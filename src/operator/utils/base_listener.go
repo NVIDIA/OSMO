@@ -179,6 +179,24 @@ func (bl *BaseListener) WaitForCompletion(ctx context.Context, closeStreamFunc f
 	return finalErr
 }
 
+// CloseStream ensures stream is closed only once
+func (bl *BaseListener) CloseStream() {
+	bl.closeOnce.Do(func() {
+		stream := bl.GetStream()
+		if stream != nil {
+			if err := stream.CloseSend(); err != nil {
+				log.Printf("Error closing stream: %v", err)
+			}
+		}
+	})
+}
+
+// Close cleans up all resources including stream and connection
+func (bl *BaseListener) Close() {
+	bl.CloseStream()
+	bl.CloseConnection()
+}
+
 // CloseConnection cleans up resources
 func (bl *BaseListener) CloseConnection() {
 	if bl.streamCancel != nil {
