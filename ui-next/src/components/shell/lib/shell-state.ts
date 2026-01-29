@@ -14,17 +14,11 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * Explicit state machine for shell lifecycle. Pure transition function for
- * predictable, debuggable state management.
- */
-
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { WebglAddon } from "@xterm/addon-webgl";
 
-/** Discriminated union of all shell states */
 export type ShellState =
   | { phase: "idle" }
   | {
@@ -111,7 +105,6 @@ export type ShellEvent =
   | { type: "DISCONNECT" }
   | { type: "ABORT" };
 
-/** Pure transition function. Returns new state given current state and event. */
 export function transition(state: ShellState, event: ShellEvent): ShellState {
   const eventType = event.type;
 
@@ -131,7 +124,7 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
       workflowName: state.workflowName,
       taskName: state.taskName,
       shell: event.shell,
-      terminal: state.terminal, // ✅ Preserve terminal for reuse
+      terminal: state.terminal,
       startedAt: Date.now(),
     };
   }
@@ -151,7 +144,7 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
       phase: "opening",
       workflowName: state.workflowName,
       taskName: state.taskName,
-      terminal: state.terminal ?? event.terminal, // Prefer existing terminal (reconnect) or use new one
+      terminal: state.terminal ?? event.terminal,
       wsUrl: event.wsUrl,
       startedAt: state.startedAt,
     };
@@ -161,7 +154,7 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: event.error,
-      terminal: state.terminal, // ✅ Preserve terminal if reconnecting
+      terminal: state.terminal,
     };
   }
 
@@ -180,7 +173,7 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: event.error,
-      terminal: state.terminal, // ✅ Preserve terminal for cleanup
+      terminal: state.terminal,
     };
   }
 
@@ -198,7 +191,7 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: "WebSocket connection timeout",
-      terminal: state.terminal, // ✅ Preserve terminal for cleanup
+      terminal: state.terminal,
     };
   }
 
@@ -257,18 +250,15 @@ export function transition(state: ShellState, event: ShellEvent): ShellState {
     return {
       phase: "error",
       error: event.error,
-      terminal: state.terminal, // ✅ Preserve terminal for cleanup
+      terminal: state.terminal,
     };
   }
 
-  // ABORT: Cancel connection in progress
   if ((state.phase === "connecting" || state.phase === "opening") && eventType === "ABORT") {
-    return {
-      phase: "idle",
-    };
+    return { phase: "idle" };
   }
 
-  console.warn(`[Shell] Invalid transition: ${state.phase} + ${eventType}`);
+  // Invalid transition - return current state unchanged
   return state;
 }
 

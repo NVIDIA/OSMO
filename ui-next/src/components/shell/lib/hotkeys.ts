@@ -16,10 +16,6 @@
 
 import type { HotkeyRegistry } from "@/lib/hotkeys/types";
 
-/**
- * Terminal shortcuts use manual addEventListener because Cmd+C requires
- * custom logic (copy if selected, otherwise SIGINT).
- */
 export const TERMINAL_HOTKEYS: HotkeyRegistry = {
   id: "terminal",
   label: "Terminal",

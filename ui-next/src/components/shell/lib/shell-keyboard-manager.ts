@@ -14,37 +14,13 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * Centralized Keyboard Manager for Shell Sessions
- *
- * Problem: When multiple shells are mounted (1 visible + N hidden), each adds its own
- * global window.addEventListener("keydown"), causing N handlers to fire on every keypress.
- *
- * Solution: Single global keyboard listener that delegates to the currently focused shell.
- *
- * Benefits:
- * - Performance: 1 event listener instead of N
- * - Correctness: Only focused shell handles shortcuts
- * - Maintainability: Single source of truth for keyboard shortcuts
- *
- * Usage:
- * ```typescript
- * // In ShellTerminalImpl component:
- * useEffect(() => {
- *   const unregister = shellKeyboardManager.register(taskId, handlers);
- *   return unregister;
- * }, [taskId, handlers]);
- * ```
- */
+// Single global keyboard listener that delegates to the most recently focused shell.
+// Prevents N handlers firing when multiple shells are mounted (1 visible + N hidden).
 
 export interface ShellKeyboardHandlers {
-  /** Cmd/Ctrl+F: Toggle search */
   onToggleSearch: () => void;
-  /** Cmd/Ctrl+C: Copy selection (only if terminal has selection) */
   onCopySelection: () => void;
-  /** Escape: Close search (only if search is open) */
   onCloseSearch: () => void;
-  /** Check if this shell should handle the event (e.g., has selection, search is open) */
   shouldHandleCopy: () => boolean;
   shouldHandleEscape: () => boolean;
 }
@@ -59,12 +35,6 @@ class ShellKeyboardManager {
   private registeredShells = new Map<string, RegisteredShell>();
   private globalHandlerAttached = false;
 
-  /**
-   * Register a shell's keyboard handlers.
-   * @param taskId - Unique shell session identifier
-   * @param handlers - Keyboard event handlers
-   * @returns Unregister function
-   */
   register(taskId: string, handlers: ShellKeyboardHandlers): () => void {
     this.registeredShells.set(taskId, {
       taskId,
@@ -72,17 +42,14 @@ class ShellKeyboardManager {
       lastFocusTime: Date.now(),
     });
 
-    // Attach global handler on first registration
     if (!this.globalHandlerAttached) {
       window.addEventListener("keydown", this.handleGlobalKeyDown);
       this.globalHandlerAttached = true;
     }
 
-    // Return unregister function
     return () => {
       this.registeredShells.delete(taskId);
 
-      // Remove global handler if no shells registered
       if (this.registeredShells.size === 0 && this.globalHandlerAttached) {
         window.removeEventListener("keydown", this.handleGlobalKeyDown);
         this.globalHandlerAttached = false;
@@ -90,10 +57,6 @@ class ShellKeyboardManager {
     };
   }
 
-  /**
-   * Update the last focus time for a shell (called when terminal is focused).
-   * @param taskId - Shell session identifier
-   */
   markFocused(taskId: string): void {
     const shell = this.registeredShells.get(taskId);
     if (shell) {
@@ -101,10 +64,6 @@ class ShellKeyboardManager {
     }
   }
 
-  /**
-   * Get the most recently focused shell.
-   * This is the shell that should handle keyboard shortcuts.
-   */
   private getMostRecentlyFocusedShell(): RegisteredShell | undefined {
     let mostRecent: RegisteredShell | undefined;
     let latestTime = 0;
@@ -119,23 +78,18 @@ class ShellKeyboardManager {
     return mostRecent;
   }
 
-  /**
-   * Global keydown handler - delegates to the focused shell.
-   */
   private handleGlobalKeyDown = (e: KeyboardEvent): void => {
     const focusedShell = this.getMostRecentlyFocusedShell();
     if (!focusedShell) return;
 
     const { handlers } = focusedShell;
 
-    // Cmd/Ctrl+F: Toggle search
     if ((e.metaKey || e.ctrlKey) && e.key === "f") {
       e.preventDefault();
       handlers.onToggleSearch();
       return;
     }
 
-    // Cmd/Ctrl+C: Copy selection (only if terminal has selection)
     if ((e.metaKey || e.ctrlKey) && e.key === "c") {
       if (handlers.shouldHandleCopy()) {
         e.preventDefault();
@@ -144,15 +98,12 @@ class ShellKeyboardManager {
       return;
     }
 
-    // Escape: Close search (only if search is open)
     if (e.key === "Escape") {
       if (handlers.shouldHandleEscape()) {
         handlers.onCloseSearch();
       }
-      return;
     }
   };
 }
 
-// Singleton instance
 export const shellKeyboardManager = new ShellKeyboardManager();
