@@ -179,22 +179,7 @@ export function Header() {
   );
 }
 
-/**
- * Smart Breadcrumb Item
- *
- * Checks if there's a stored "origin" for the current page in React Context.
- * If yes, navigates to the origin (preserving filters) instead of the default href.
- * If no, uses the normal href (clean URL).
- *
- * **How it works**:
- * 1. Table row click stores origin: setOrigin('/workflows/my-workflow', '/workflows?f=status:RUNNING')
- * 2. User navigates to detail page
- * 3. Breadcrumb "Workflows" checks getOrigin('/workflows/my-workflow')
- * 4. Finds origin → navigates to '/workflows?f=status:RUNNING' (not '/workflows')
- * 5. Deep link without origin → navigates to clean '/workflows'
- *
- * **Storage**: React Context (survives navigation, lost on refresh/new tab)
- */
+/** Navigates to stored origin (with filters) if available, otherwise uses default href */
 function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -203,15 +188,11 @@ function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!segment.href) return;
 
-    // Check if there's a stored origin for the current page
     const origin = getOrigin(pathname);
-
     if (origin) {
-      // Navigate to the origin (preserving filters)
       e.preventDefault();
       router.push(origin);
     }
-    // Otherwise, let the Link handle normal navigation to segment.href
   };
 
   return (
