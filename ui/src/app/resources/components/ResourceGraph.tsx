@@ -25,7 +25,6 @@ interface ResourceGraphProps extends AggregateProps {
   isShowingUsed: boolean;
   width?: number;
   height?: number;
-  title?: string;
 }
 
 const buildBarValue = (allocatable: number, usage: number, isShowingUsed: boolean) => {
@@ -69,7 +68,6 @@ export const ResourcesGraph = ({
   isShowingUsed,
   width = 250,
   height = 200,
-  title,
 }: ResourceGraphProps) => {
   const data: BarDatum[] = useMemo(
     () => [
@@ -108,26 +106,23 @@ export const ResourcesGraph = ({
   );
 
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full p-global relative">
-      {title && <p className="font-semibold text-sm">{title}</p>}
-      <div className={`flex flex-col items-center gap-3 ${isLoading ? "opacity-50" : ""}`}>
-        <div className="flex flex-col md:flex-row gap-3 items-start">
-          <BarChart
-            data={data}
-            width={width}
-            height={height}
-            labelAreaHeight={40}
-            maxValue={100}
-            showTrack={true}
-            showAxes={true}
-            yAxisTicks={[0, 50, 100]}
-            axisLabelWidth={22}
-            trackOpacity={0.2}
-            ariaLabel={`Aggregate ${isShowingUsed ? "used" : "free"} resources`}
-            labelFormatter={(_, index) => barLabels[index] ?? ""}
-            valueFormatter={(_, index) => barValues[index] ?? []}
-          />
-        </div>
+    <>
+      <div className={`p-global ${isLoading ? "opacity-50" : ""}`}>
+        <BarChart
+          data={data}
+          width={width}
+          height={height}
+          labelAreaHeight={40}
+          maxValue={100}
+          showTrack={true}
+          showAxes={true}
+          yAxisTicks={[0, 50, 100]}
+          axisLabelWidth={22}
+          trackOpacity={0.2}
+          ariaLabel={`Aggregate ${isShowingUsed ? "used" : "free"} resources`}
+          labelFormatter={(_, index) => barLabels[index] ?? ""}
+          valueFormatter={(_, index) => barValues[index] ?? []}
+        />
       </div>
       {isLoading && (
         <Spinner
@@ -135,7 +130,7 @@ export const ResourcesGraph = ({
           className="border-brand absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
         />
       )}
-    </div>
+    </>
   );
 };
 
