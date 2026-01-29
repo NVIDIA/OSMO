@@ -364,13 +364,15 @@ export const TaskShell = memo(function TaskShell({
     shellRef.current?.focus();
   });
 
-  // Auto-focus when becoming visible (e.g., navigating to shell tab)
-  // This allows immediate typing without an extra click
+  // Handle visibility changes - focus when shell becomes visible
+  // The resize observer in use-shell will automatically handle fitting when container resizes
   useEffect(() => {
     if (isVisible && status === "ready") {
+      console.debug("[TaskShell] Shell becoming visible", { taskId, status });
+      // Just focus - let resize observer handle the fit
       shellRef.current?.focus();
     }
-  }, [isVisible, status]);
+  }, [isVisible, status, taskId]);
 
   return (
     <div className={cn("relative flex h-full min-h-[300px] flex-col", className)}>

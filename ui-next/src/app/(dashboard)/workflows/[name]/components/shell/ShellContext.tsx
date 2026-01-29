@@ -17,13 +17,16 @@
 "use client";
 
 import { createContext, useContext, useCallback, useMemo, type ReactNode } from "react";
-import { useShellSessions, hasSession } from "@/components/shell";
+import { useShellSessions, hasSession, disconnectSession, reconnectSession } from "@/components/shell";
 import { _createSession, _deleteSession } from "@/components/shell/lib/shell-cache";
 import { ShellNavigationGuard } from "./ShellNavigationGuard";
 
 interface ShellContextValue {
   /** Create a shell session (called by TaskDetails on Connect click) */
   connectShell: (taskId: string, taskName: string, workflowName: string, shell: string) => void;
+
+  /** Reconnect a disconnected shell session */
+  reconnectShell: (taskId: string) => Promise<void>;
 
   /** Disconnect only - closes WebSocket but keeps session in list for reconnect */
   disconnectOnly: (taskId: string) => void;
@@ -66,20 +69,21 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
       backendTimeout: null,
       initialResizeSent: false,
       onDataDisposable: null,
+      reconnectCallback: null,
+      terminalReady: false,
+      onRenderDisposable: null,
     });
   }, []);
 
-  const disconnectOnly = useCallback(
-    (taskId: string) => {
-      const session = sessions.find((s) => s.key === taskId);
-      if (!session) return;
+  const reconnectShell = useCallback(async (taskId: string) => {
+    // Use the proper reconnect function that triggers the connect callback
+    await reconnectSession(taskId);
+  }, []);
 
-      if (session.state.phase === "ready" || session.state.phase === "initializing") {
-        session.state.ws.close();
-      }
-    },
-    [sessions],
-  );
+  const disconnectOnly = useCallback((taskId: string) => {
+    // Use the proper disconnect function that goes through the state machine
+    disconnectSession(taskId);
+  }, []);
 
   const removeShell = useCallback((taskId: string) => {
     _deleteSession(taskId);
@@ -92,19 +96,30 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
   const disconnectAll = useCallback(() => {
     const workflowSessions = sessions.filter((s) => s.workflowName === workflowName);
     for (const session of workflowSessions) {
-      // Cleanup resources before deleting
-      if (session.state.phase === "ready" || session.state.phase === "initializing") {
-        session.state.ws.close();
-      }
-      if (session.state.phase === "ready") {
-        session.state.terminal.dispose();
+      // Use proper disconnect that goes through state machine
+      disconnectSession(session.key);
+
+      // Then dispose resources and delete session
+      if (session.state.phase === "ready" || session.state.phase === "disconnected") {
+        if ("terminal" in session.state && session.state.terminal) {
+          session.state.terminal.dispose();
+        }
       }
       if (session.addons) {
         session.addons.fitAddon.dispose();
         session.addons.searchAddon.dispose();
+        if (session.addons.webglAddon) {
+          session.addons.webglAddon.dispose();
+        }
       }
       if (session.backendTimeout) {
         clearTimeout(session.backendTimeout);
+      }
+      if (session.onDataDisposable) {
+        session.onDataDisposable.dispose();
+      }
+      if (session.onRenderDisposable) {
+        session.onRenderDisposable.dispose();
       }
       _deleteSession(session.key);
     }
@@ -113,12 +128,13 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
   const value = useMemo<ShellContextValue>(
     () => ({
       connectShell,
+      reconnectShell,
       disconnectOnly,
       removeShell,
       hasActiveShell,
       disconnectAll,
     }),
-    [connectShell, disconnectOnly, removeShell, hasActiveShell, disconnectAll],
+    [connectShell, reconnectShell, disconnectOnly, removeShell, hasActiveShell, disconnectAll],
   );
 
   return (

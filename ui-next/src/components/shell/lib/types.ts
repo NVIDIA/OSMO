@@ -40,9 +40,11 @@ export interface ShellTerminalProps {
 }
 
 export interface ShellTerminalRef {
-  connect: () => void;
+  connect: () => Promise<void>;
   disconnect: () => void;
   focus: () => void;
+  fit: () => void;
+  write: (data: string | Uint8Array) => void;
 }
 
 export interface SearchOptions {
