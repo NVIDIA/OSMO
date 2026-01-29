@@ -96,18 +96,11 @@ func (rl *ResourceListener) sendMessages() {
 		rl.watchPods(usageChan)
 	}()
 
-	// Start resource message sender goroutine (dedicated to nodeChan)
+	// Start message sender goroutine (handles both resource and usage channels)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.sendFromChannel("resource", nodeChan, nodeWatcherDone, streamCtx, streamCancel)
-	}()
-
-	// Start usage message sender goroutine (dedicated to usageChan)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		rl.sendFromChannel("usage", usageChan, podWatcherDone, streamCtx, streamCancel)
+		rl.sendFromChannels(nodeChan, usageChan, nodeWatcherDone, podWatcherDone, streamCtx, streamCancel)
 	}()
 
 	// Start progress reporter goroutine
@@ -140,23 +133,31 @@ func (rl *ResourceListener) sendMessages() {
 	log.Println("All message sender goroutines stopped")
 }
 
-// sendFromChannel sends messages from a channel to the server
-// Each channel has its own dedicated sender to avoid starvation
-func (rl *ResourceListener) sendFromChannel(name string, msgChan <-chan *pb.ListenerMessage, watcherDone <-chan struct{}, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
-	log.Printf("Starting %s message sender", name)
-	defer log.Printf("Stopping %s message sender", name)
+// sendFromChannels sends messages from both resource and usage channels to the server
+func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage, usageChan <-chan *pb.ListenerMessage, nodeWatcherDone <-chan struct{}, podWatcherDone <-chan struct{}, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
+	log.Printf("Starting message sender for resource and usage channels")
+	defer log.Printf("Stopping message sender")
 
 	for {
 		select {
 		case <-streamCtx.Done():
 			return
-		case <-watcherDone:
-			log.Printf("%s watcher stopped unexpectedly...", name)
-			streamCancel(fmt.Errorf("%s watcher stopped", name))
+		case <-nodeWatcherDone:
+			log.Printf("resource watcher stopped unexpectedly...")
+			streamCancel(fmt.Errorf("resource watcher stopped"))
 			return
-		case msg := <-msgChan:
+		case <-podWatcherDone:
+			log.Printf("usage watcher stopped unexpectedly...")
+			streamCancel(fmt.Errorf("usage watcher stopped"))
+			return
+		case msg := <-nodeChan:
 			if err := rl.sendResourceMessage(msg); err != nil {
-				streamCancel(fmt.Errorf("failed to send %s message: %w", name, err))
+				streamCancel(fmt.Errorf("failed to send resource message: %w", err))
+				return
+			}
+		case msg := <-usageChan:
+			if err := rl.sendResourceMessage(msg); err != nil {
+				streamCancel(fmt.Errorf("failed to send usage message: %w", err))
 				return
 			}
 		}
