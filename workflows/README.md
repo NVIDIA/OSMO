@@ -36,6 +36,12 @@ This directory contains brief examples of workflows that can be used in combinat
 | TorchRun: Training with Rescheduling                                   | [README](./dnn_training/torchrun_reschedule/README.md) |
 | Hardware-in-the-Loop: Deploying Policy on Jetson                        | [README](./hil/README.md)                      |
 
+## Workflow Series
+
+| Series Name                                                          | Link                                         |
+|------------------------------------------------------------------------|----------------------------------------------|
+| Physical AI: Nut Pouring through End-to-End VLA Fine-tuning Pipeline | [README](./nut_pouring/README.md) |
+
 ## Remote Development
 
 | Workflow Name                                                          | Link                                         |
