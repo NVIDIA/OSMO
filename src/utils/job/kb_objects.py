@@ -538,7 +538,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                 labels={'osmo.namespace': backend.k8s_namespace},
                 custom_api=backend_job_defs.BackendCustomApi(
                     api_major='kai.scheduler',
-                    api_minor='v1',
+                    api_minor='v1alpha1',
                     path='topologies'
                 ))
         ]
@@ -625,7 +625,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         for pool in pools:
             if pool.topology_keys:
                 topology_crds.append({
-                    'apiVersion': 'kai.scheduler/v1',
+                    'apiVersion': 'kai.scheduler/v1alpha1',
                     'kind': 'Topology',
                     'metadata': {
                         'name': f'osmo-pool-{backend.k8s_namespace}-{pool.name}-topology',

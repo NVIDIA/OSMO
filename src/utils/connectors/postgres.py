@@ -746,6 +746,7 @@ class PostgresConnector:
                 enable_maintenance BOOLEAN,
                 action_permissions JSONB,
                 resources JSONB,
+                topology_keys JSONB,
                 PRIMARY KEY (name)
             );
         '''
@@ -3407,8 +3408,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              max_exec_timeout, max_queue_timeout, default_exit_actions,
              common_default_variables, common_resource_validations, parsed_resource_validations,
              common_pod_template, parsed_pod_template, enable_maintenance,
-             action_permissions, resources)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             action_permissions, resources, topology_keys)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
@@ -3428,7 +3429,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 parsed_pod_template = EXCLUDED.parsed_pod_template,
                 enable_maintenance = EXCLUDED.enable_maintenance,
                 action_permissions = EXCLUDED.action_permissions,
-                resources = EXCLUDED.resources;
+                resources = EXCLUDED.resources,
+                topology_keys = EXCLUDED.topology_keys;
             '''
         database.execute_commit_command(
             insert_cmd,
@@ -3444,7 +3446,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              self.common_pod_template, json.dumps(self.parsed_pod_template),
              self.enable_maintenance,
              json.dumps(self.action_permissions, default=common.pydantic_encoder),
-             json.dumps(self.resources, default=common.pydantic_encoder)))
+             json.dumps(self.resources, default=common.pydantic_encoder),
+             json.dumps(self.topology_keys, default=common.pydantic_encoder)))
 
 
 class VerbosePoolConfig(pydantic.BaseModel):
