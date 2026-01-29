@@ -191,26 +191,26 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.messageWorker.resources` | Resource limits and requests | `{}` |
 | `services.messageWorker.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 
-#### Operator Service
+#### Compute Service
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `services.operator.scaling.minReplicas` | Minimum replicas | `1` |
-| `services.operator.scaling.maxReplicas` | Maximum replicas | `3` |
-| `services.operator.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
-| `services.operator.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
-| `services.operator.imageName` | Operator image name | `operator-service` |
-| `services.operator.serviceName` | Service name | `osmo-operator` |
-| `services.operator.initContainers` | Init containers for operator service | `[]` |
-| `services.operator.progressDir` | Progress directory for liveness/startup probes | `/tmp/osmo/service/operator` |
-| `services.operator.progressFrequencySec` | Frequency for writing progress timestamps in seconds | `15` |
-| `services.operator.extraArgs` | Additional command line arguments | `[]` |
-| `services.operator.hostAliases` | Host aliases for custom DNS resolution | `[]` |
-| `services.operator.nodeSelector` | Node selector constraints | `{}` |
-| `services.operator.tolerations` | Pod tolerations | `[]` |
-| `services.operator.resources` | Resource limits and requests | See values.yaml |
-| `services.operator.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
-| `services.operator.envoy` | Operator service Envoy configuration overrides | `{}` |
+| `services.computeService.scaling.minReplicas` | Minimum replicas | `1` |
+| `services.computeService.scaling.maxReplicas` | Maximum replicas | `3` |
+| `services.computeService.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.computeService.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.computeService.imageName` | Compute image name | `compute-service` |
+| `services.computeService.serviceName` | Service name | `osmo-compute-service` |
+| `services.computeService.initContainers` | Init containers for compute service | `[]` |
+| `services.computeService.progressDir` | Progress directory for liveness/startup probes | `/tmp/osmo/service/compute` |
+| `services.computeService.progressFrequencySec` | Frequency for writing progress timestamps in seconds | `15` |
+| `services.computeService.extraArgs` | Additional command line arguments | `[]` |
+| `services.computeService.hostAliases` | Host aliases for custom DNS resolution | `[]` |
+| `services.computeService.nodeSelector` | Node selector constraints | `{}` |
+| `services.computeService.tolerations` | Pod tolerations | `[]` |
+| `services.computeService.resources` | Resource limits and requests | See values.yaml |
+| `services.computeService.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.computeService.envoy` | Compute service Envoy configuration overrides | `{}` |
 
 ### Ingress Settings
 
@@ -347,7 +347,7 @@ The osmo platform consists of:
 - **Logger Service**: Log collection and processing with connection-based scaling
 - **Agent Service**: Client communication and management
 - **Message Worker Service**: Processing of backend messages with progress-based health checks
-- **Operator Service**: gRPC service for handling backend operations and lifecycle management
+- **Compute Service**: gRPC service for handling compute backend operations and lifecycle management
 - **Delayed Job Monitor**: Monitoring and management of delayed background jobs
 
 ### Sidecar Components
@@ -358,9 +358,9 @@ The osmo platform consists of:
 
 ## Notes
 
-- The chart consists of multiple services: API, Worker, Logger, Agent, Message Worker, Operator, and Delayed Job Monitor
+- The chart consists of multiple services: API, Worker, Logger, Agent, Message Worker, Compute, and Delayed Job Monitor
 - Each service can be scaled independently using HPA
-- The Operator service uses gRPC with built-in health checks for robust communication
+- The Compute service uses gRPC with built-in health checks for robust communication
 - Authentication is handled through OAuth2 providers with JWT tokens
 - The service supports both external OAuth2 providers and internal JWT authentication
 - Envoy is used as a proxy sidecar for handling authentication and routing

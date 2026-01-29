@@ -101,7 +101,7 @@ services:
       minReplicas: 1
       maxReplicas: 1
 
-  operator:
+  computeService:
     scaling:
       minReplicas: 1
       maxReplicas: 1

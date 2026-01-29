@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 )
 
 // Mock MessageSender for testing

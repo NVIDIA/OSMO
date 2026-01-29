@@ -24,7 +24,7 @@ import (
 	"io"
 	"testing"
 
-	"go.corp.nvidia.com/osmo/service/operator/utils"
+	"go.corp.nvidia.com/osmo/service/compute/utils"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"

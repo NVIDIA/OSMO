@@ -24,7 +24,7 @@ import (
 	"log"
 	"sync"
 
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 )
 
 // MessageSender defines the interface for sending messages

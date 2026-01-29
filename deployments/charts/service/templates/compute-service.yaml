@@ -15,37 +15,37 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{/* Create a copy of the shared sidecar config values */}}
-{{ $operatorSidecarValues := deepCopy .Values.sidecars }}
+{{ $computeSidecarValues := deepCopy .Values.sidecars }}
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.services.operator.serviceName }}
+  name: {{ .Values.services.computeService.serviceName }}
   labels:
-    app: {{ .Values.services.operator.serviceName }}
+    app: {{ .Values.services.computeService.serviceName }}
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.services.operator.serviceName }}
+      app: {{ .Values.services.computeService.serviceName }}
   template:
     metadata:
       labels:
-        app: {{ .Values.services.operator.serviceName }}
-        {{- with .Values.services.operator.extraPodLabels }}
+        app: {{ .Values.services.computeService.serviceName }}
+        {{- with .Values.services.computeService.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- include "osmo.extra-annotations" .Values.services.operator | nindent 8 }}
+        {{- include "osmo.extra-annotations" .Values.services.computeService | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         sidecar.opentelemetry.io/inject: "true"
         {{- end}}
     spec:
-      {{- with .Values.services.operator.hostAliases }}
+      {{- with .Values.services.computeService.hostAliases }}
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       topologySpreadConstraints:
-      {{- range .Values.services.operator.topologySpreadConstraints }}
+      {{- range .Values.services.computeService.topologySpreadConstraints }}
       - topologyKey: {{.topologyKey }}
         {{- range $key, $value := . }}
         {{- if ne $key "topologyKey" }}
@@ -54,31 +54,31 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $.Values.services.operator.serviceName }}
+            app: {{ $.Values.services.computeService.serviceName }}
       {{- end }}
       nodeSelector:
         {{- range $k, $v := .Values.global.nodeSelector}}
         {{ $k }}: {{ $v }}
         {{- end}}
-        {{- range $k, $v := .Values.services.operator.nodeSelector}}
+        {{- range $k, $v := .Values.services.computeService.nodeSelector}}
         {{ $k }}: {{ $v }}
         {{- end}}
       tolerations:
-      {{ toYaml .Values.services.operator.tolerations | nindent 8 }}
+      {{ toYaml .Values.services.computeService.tolerations | nindent 8 }}
       {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       {{- end }}
-      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.operator.serviceAccountName "Values" .Values) }}
-      {{- with .Values.services.operator.initContainers }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.computeService.serviceAccountName "Values" .Values) }}
+      {{- with .Values.services.computeService.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       containers:
-      - name: {{ .Values.services.operator.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.operator.imageName }}:{{ .Values.global.osmoImageTag }}
+      - name: {{ .Values.services.computeService.serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.computeService.imageName }}:{{ .Values.global.osmoImageTag }}
         command:
-        - operator_service
+        - compute_service
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -113,15 +113,15 @@ spec:
         - --log-level
         - {{ .Values.global.logs.logLevel }}
         {{- end }}
-        - --operator-progress-dir
-        - {{ .Values.services.operator.progressDir | quote }}
-        - --operator-progress-frequency-sec
-        - {{ .Values.services.operator.progressFrequencySec | quote }}
-        {{- range $arg := .Values.services.operator.extraArgs }}
+        - --compute-progress-dir
+        - {{ .Values.services.computeService.progressDir | quote }}
+        - --compute-progress-frequency-sec
+        - {{ .Values.services.computeService.progressFrequencySec | quote }}
+        {{- range $arg := .Values.services.computeService.extraArgs }}
         - {{$arg}}
         {{- end }}
         env:
-        {{- include "osmo.extra-env" .Values.services.operator | nindent 8 }}
+        {{- include "osmo.extra-env" .Values.services.computeService | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
@@ -137,9 +137,9 @@ spec:
               name: redis-secret
               key: redis-password
         {{- end }}
-        imagePullPolicy: {{ .Values.services.operator.imagePullPolicy }}
+        imagePullPolicy: {{ .Values.services.computeService.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.operator.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.computeService.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -151,9 +151,9 @@ spec:
         - name: logs
           mountPath: /logs
         {{- end }}
-        {{- include "osmo.extra-volume-mounts" .Values.services.operator | nindent 8 }}
+        {{- include "osmo.extra-volume-mounts" .Values.services.computeService | nindent 8 }}
         resources:
-        {{- toYaml .Values.services.operator.resources | nindent 10 }}
+        {{- toYaml .Values.services.computeService.resources | nindent 10 }}
 
         livenessProbe:
           grpc:
@@ -183,10 +183,10 @@ spec:
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
       {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
-      {{- include "osmo.extra-sidecars" .Values.services.operator | nindent 6 }}
+      {{- include "osmo.extra-sidecars" .Values.services.computeService | nindent 6 }}
       volumes:
-        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.operator.serviceName "serviceEnvoy" .Values.services.operator.envoy "Values" .Values) | nindent 8 }}
-        {{- include "osmo.extra-volumes" .Values.services.operator | nindent 8 }}
+        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.computeService.serviceName "serviceEnvoy" .Values.services.computeService.envoy "Values" .Values) | nindent 8 }}
+        {{- include "osmo.extra-volumes" .Values.services.computeService | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}
         {{- end }}
@@ -208,16 +208,16 @@ spec:
 ---
 {{- if .Values.sidecars.envoy.enabled }}
 
-{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.operator.serviceName "serviceEnvoy" .Values.services.operator.envoy "Values" .Values "Release" .Release) }}
+{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.computeService.serviceName "serviceEnvoy" .Values.services.computeService.envoy "Values" .Values "Release" .Release) }}
 ---
 {{- end }}
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.services.operator.serviceName }}
+  name: {{ .Values.services.computeService.serviceName }}
   labels:
-    app: {{ .Values.services.operator.serviceName }}
+    app: {{ .Values.services.computeService.serviceName }}
 spec:
   ports:
     - port: 80
@@ -225,36 +225,36 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: {{ .Values.services.operator.serviceName }}
+    app: {{ .Values.services.computeService.serviceName }}
 
 ---
 
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ .Values.services.operator.serviceName }}
+  name: {{ .Values.services.computeService.serviceName }}
   labels:
-    app: {{ .Values.services.operator.serviceName }}
+    app: {{ .Values.services.computeService.serviceName }}
   annotations:
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ .Values.services.operator.serviceName }}
-  minReplicas: {{ .Values.services.operator.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.operator.scaling.maxReplicas }}
+    name: {{ .Values.services.computeService.serviceName }}
+  minReplicas: {{ .Values.services.computeService.scaling.minReplicas }}
+  maxReplicas: {{ .Values.services.computeService.scaling.maxReplicas }}
   metrics:
   - type: ContainerResource
     containerResource:
       name: memory
-      container: {{ .Values.services.operator.serviceName }}
+      container: {{ .Values.services.computeService.serviceName }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.operator.scaling.hpaMemoryTarget }}
+        averageUtilization: {{ .Values.services.computeService.scaling.hpaMemoryTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu
-      container: {{ .Values.services.operator.serviceName }}
+      container: {{ .Values.services.computeService.serviceName }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.operator.scaling.hpaCpuTarget }}
+        averageUtilization: {{ .Values.services.computeService.scaling.hpaCpuTarget }}

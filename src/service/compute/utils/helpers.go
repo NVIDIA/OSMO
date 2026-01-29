@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 )
 
 // ParseHost extracts host and port from a URL string or host:port format

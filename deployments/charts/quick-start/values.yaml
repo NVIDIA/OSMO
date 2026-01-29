@@ -509,22 +509,22 @@ service:
           done
           echo "Redis is ready"
 
-    ## Operator service configuration for handling backend operations
+    ## Compute service configuration for handling backend operations
     ##
-    operator:
-      ## Kubernetes image pull policy for the operator service
+    computeService:
+      ## Kubernetes image pull policy for the compute service
       ##
       imagePullPolicy: IfNotPresent
-      ## Horizontal Pod Autoscaler (HPA) configuration for the operator service
+      ## Horizontal Pod Autoscaler (HPA) configuration for the compute service
       ##
       scaling:
-        ## Minimum number of operator replicas
+        ## Minimum number of compute service replicas
         ##
         minReplicas: 1
-        ## Maximum number of operator replicas
+        ## Maximum number of compute service replicas
         ##
         maxReplicas: 1
-      ## Init containers for operator service
+      ## Init containers for compute service
       ##
       ## Wait for data infra to be up before starting service
       ##

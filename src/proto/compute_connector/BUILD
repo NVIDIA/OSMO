@@ -20,7 +20,7 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
 proto_library(
-    name = "operator_proto",
+    name = "compute_connector_proto",
     srcs = [
         "messages.proto",
         "services.proto",
@@ -29,13 +29,12 @@ proto_library(
 
 # To generate go code for IDE support, run the following commands:
 #
-# bazel build //src/proto/operator:operator_go_proto
-# cp $(bazel info bazel-bin)/src/proto/operator/operator_go_proto_/go.corp.nvidia.com/osmo/proto/operator/*.go src/proto/operator/
+# bazel build //src/proto/compute_connector:compute_connector_go_proto
+# cp $(bazel info bazel-bin)/src/proto/compute_connector/compute_connector_go_proto_/go.corp.nvidia.com/osmo/proto/compute_connector/*.go src/proto/compute_connector/
 #
 go_proto_library(
-    name = "operator_go_proto",
+    name = "compute_connector_go_proto",
     compilers = ["@io_bazel_rules_go//proto:go_grpc"],
-    importpath = "go.corp.nvidia.com/osmo/proto/operator",
-    proto = ":operator_proto",
+    importpath = "go.corp.nvidia.com/osmo/proto/compute_connector",
+    proto = ":compute_connector_proto",
 )
-

@@ -47,7 +47,7 @@ This chart installs and configures:
 1. **Ingress NGINX Controller** - For routing traffic to OSMO services
 2. **Data infrastructure** - PostgreSQL, Redis, Localstack S3
 3. **OSMO Core Services**:
-   - OSMO service (API server, worker, logger, agent, message worker, operator)
+   - OSMO service (API server, worker, logger, agent, message worker, compute service)
    - Web UI service
    - Router service
 4. **Backend Operator** - For managing compute workloads
@@ -127,10 +127,10 @@ This chart installs and configures:
 | `service.services.messageWorker.scaling.minReplicas`    | Minimum number of message worker replicas                        | `1`                                         |
 | `service.services.messageWorker.scaling.maxReplicas`    | Maximum number of message worker replicas                        | `1`                                         |
 | `service.services.messageWorker.initContainers`         | Init containers for message worker service                       | Wait for postgres and redis                 |
-| `service.services.operator.imagePullPolicy`             | Kubernetes image pull policy for the operator service            | `IfNotPresent`                              |
-| `service.services.operator.scaling.minReplicas`         | Minimum number of operator replicas                              | `1`                                         |
-| `service.services.operator.scaling.maxReplicas`         | Maximum number of operator replicas                              | `1`                                         |
-| `service.services.operator.initContainers`              | Init containers for operator service                             | Wait for postgres and redis                 |
+| `service.services.computeService.imagePullPolicy`             | Kubernetes image pull policy for the compute service            | `IfNotPresent`                              |
+| `service.services.computeService.scaling.minReplicas`         | Minimum number of compute service replicas                              | `1`                                         |
+| `service.services.computeService.scaling.maxReplicas`         | Maximum number of compute service replicas                              | `1`                                         |
+| `service.services.computeService.initContainers`              | Init containers for compute service service                             | Wait for postgres and redis                 |
 | `service.services.delayedJobMonitor.imagePullPolicy`    | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent`                              |
 | `service.services.delayedJobMonitor.initContainers`     | Init containers for delayed job monitor service                  | Wait for postgres, redis, and localstack-s3 |
 | `service.sidecars.envoy.enabled`                        | Enable Envoy proxy sidecar container                             | `false`                                     |
