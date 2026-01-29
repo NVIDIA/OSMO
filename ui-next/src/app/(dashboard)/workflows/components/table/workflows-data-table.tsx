@@ -29,7 +29,7 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useViewTransition } from "@/hooks";
 import {
   DataTable,
@@ -46,6 +46,7 @@ import { MANDATORY_COLUMN_IDS, asWorkflowColumnIds, WORKFLOW_COLUMN_SIZE_CONFIG 
 import { getStatusDisplay } from "../../lib/workflow-constants";
 import { createWorkflowColumns } from "./workflow-column-defs";
 import { useWorkflowsTableStore } from "../../stores/workflows-table-store";
+import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
 
 // =============================================================================
 // Types
@@ -94,7 +95,10 @@ export function WorkflowsDataTable({
   isFetchingNextPage = false,
 }: WorkflowsDataTableProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { startTransition } = useViewTransition();
+  const { setOrigin } = useBreadcrumbOrigin();
 
   // Shared preferences
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -158,13 +162,23 @@ export function WorkflowsDataTable({
   );
 
   // Handle row click - navigate to workflow detail page
+  // Store origin (current URL with filters) so breadcrumb can navigate back
   const handleRowClick = useCallback(
     (workflow: WorkflowListEntry) => {
+      const detailPath = `/workflows/${encodeURIComponent(workflow.name)}`;
+
+      // Build current URL with search params (if any)
+      const search = searchParams.toString();
+      const currentUrl = search ? `${pathname}?${search}` : pathname;
+
+      // Store origin for smart breadcrumb navigation
+      setOrigin(detailPath, currentUrl);
+
       startTransition(() => {
-        router.push(`/workflows/${encodeURIComponent(workflow.name)}`);
+        router.push(detailPath);
       });
     },
-    [router, startTransition],
+    [router, pathname, searchParams, startTransition, setOrigin],
   );
 
   // Get row href for middle-click support (opens in new tab)
