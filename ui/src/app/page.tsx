@@ -112,7 +112,7 @@ export default function Home() {
   return (
     <>
       <PageHeader />
-      <div className="grid grid-cols-4 grid-rows-[auto_1fr] gap-global p-global w-full h-full">
+      <div className="grid grid-cols-4 grid-rows-[auto_1fr] gap-global p-global h-full w-full overflow-x-hidden">
         <section className="card" aria-labelledby="current-workflows-title">
           <div className="popup-header body-header">
             <h2 id="current-workflows-title">Current Workflows</h2>
@@ -130,8 +130,8 @@ export default function Home() {
               ariaLabel="My Current Workflows"
             />
           </div>
-          </section>
-          <section className="card" aria-labelledby="todays-workflows-title">
+        </section>
+        <section className="card" aria-labelledby="todays-workflows-title">
           <div className="popup-header body-header">
             <h2 id="todays-workflows-title">Today&apos;s Workflows</h2>
             <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=365`} className="btn btn-secondary" title="View All Today&apos;s Workflows">
@@ -139,12 +139,12 @@ export default function Home() {
             </Link>
           </div>
           <div className="p-global">
-          <WorkflowPieChart
-            counts={todaysWorkflows ?? {}}
-              size={160}
-              innerRadius={40}
-              ariaLabel="Today&apos;s Workflows"
-            />
+            <WorkflowPieChart
+              counts={todaysWorkflows ?? {}}
+                size={160}
+                innerRadius={40}
+                ariaLabel="Today&apos;s Workflows"
+              />
           </div>
         </section>
         <section className="card" aria-labelledby="current-tasks-title">
