@@ -214,6 +214,8 @@ osmo workflow submit --pool <parent--subpool> my-workflow.yaml
 
 Example `osmo pool list` output (HIGH/NORMAL only; Available can be negative while draining):
 
+> **Note**: Only subpools in states `ACTIVE` and `DELETING` are shown in this table. `ARCHIVED` subpools are omitted to ensure GPU quota accounting remains balanced and clear.
+
 ```
 Pool            Status         Subpool State  GPU Quota        Used  Available
 --------------  -------------  -------------  ---------------  ----  ---------
@@ -222,6 +224,7 @@ team            ONLINE         -              10 (Total: 100)  50    -40
 ├─ team--b      ONLINE         ACTIVE         40               10    30
 └─ team--c      ONLINE         ACTIVE         20               0     20
 ```
+
 
 Column semantics:
 - **GPU Quota (parent)**: `unallocated (Total: parent_quota)`
@@ -268,10 +271,18 @@ At all times: `_shared.quota + sum(active_subpool_quotas) = parent.quota`
 ### Subpool State
 
 ```
-┌──────────┐            ┌────────┐   delete   ┌───────────┐   drained  ┌──────────┐
-│  CREATE  │ ─────────► │ ACTIVE │ ─────────► │ DELETING  │ ─────────► │ ARCHIVED │
-└──────────┘            └────────┘            └───────────┘            └──────────┘
+  create    ┌────────┐   delete   ┌───────────┐   drained  ┌──────────┐
+  ────────► │ ACTIVE │ ─────────► │ DELETING  │ ─────────► │ ARCHIVED │
+            └────────┘            └───────────┘            └──────────┘
+                ▲                                                  │
+                │                                                  │
+                └──────────────── recreate ────────────────────────┘
 ```
+
+**State behavior**:
+- **ACTIVE**: All operations allowed (read, update quota, delete, submit jobs)
+- **DELETING**: Read-only. No updates allowed (cannot delete, update quota, or recreate) until drained to ARCHIVED
+- **ARCHIVED**: Read-only. Can only recreate to transition back to ACTIVE
 
 ### Inheritance (subpools are quota partitions only)
 
@@ -386,21 +397,22 @@ ALTER TABLE pools ADD COLUMN subpool_state TEXT;                        -- NULL 
 
 ### API Endpoints
 
-Subpools are pool entries in the `pools` table, so **read operations** use existing pool endpoints
-with the canonical name (`{parent}--{subpool}`). **Write operations** use dedicated `/subpool`
-endpoints to enforce parent context, quota constraints, and state-machine semantics.
+Subpools are pool entries in the `pools` table, but **all operations** use dedicated `/subpool`
+endpoints to enforce parent context, maintain consistent API semantics, and clearly distinguish
+subpool-specific behavior (quota constraints, state-machine semantics).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/configs/pool/{parent}--{subpool}` | GET | Read subpool (existing pool endpoint) |
+| `/api/configs/pool/{parent}/subpool/{subpool}` | GET | Read subpool |
 | `/api/configs/pool/{parent}/subpool` | GET | List subpools of parent |
 | `/api/configs/pool/{parent}/subpool` | POST | Create subpool under parent |
 | `/api/configs/pool/{parent}/subpool/{subpool}` | PATCH | Update quota (quota-only) |
 | `/api/configs/pool/{parent}/subpool/{subpool}` | DELETE | Delete (smart, state-managed) |
 
-**Design rationale**: Write operations have different semantics than top-level pools (quota-only
-updates, parent-constrained creates, state-machine deletes), so they use dedicated endpoints.
-Read operations work with the canonical name since subpools are stored as pool entries.
+**Design rationale**: All operations use dedicated `/subpool` endpoints to provide consistent
+API semantics, enforce parent context, clearly distinguish subpool-specific behavior
+(quota-only updates, parent-constrained creates, state-machine deletes) from top-level pool operations,
+and simplify authorization enforcement by making pool and subpool access controls distinct and explicit.
 
 ### Security
 
@@ -487,7 +499,7 @@ KAI queue name, which is not visible to users.
 
 #### Migration Path
 
-No migration is required for existing pools:
+No migration is required for existing workflows:
 1. On deployment, OSMO will create `--_shared` queues for all existing pools
 2. Existing workflows continue running in their original queues until completion
 3. New submissions route to `--_shared` queues automatically
