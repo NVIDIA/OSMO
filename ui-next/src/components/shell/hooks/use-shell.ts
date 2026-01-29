@@ -41,7 +41,7 @@
  * ```
  */
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, startTransition } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -275,14 +275,14 @@ export function useShell(options: UseShellOptions): UseShellReturn {
           proposed,
         });
 
-        // Mark terminal as ready and clean up listener
+        // Dispose listener first - we only need the first VALID render
+        onRenderDisposable.dispose();
+
+        // ✅ Batch update: Mark terminal as ready and clean up listener in one call
         _updateSession(sessionKey, {
           terminalReady: true,
           onRenderDisposable: null,
         });
-
-        // Dispose listener - we only need the first VALID render
-        onRenderDisposable.dispose();
 
         // Fit immediately now that we know dimensions are valid
         try {
@@ -355,15 +355,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       };
 
       ws.onmessage = (event) => {
-        // Clear backend timeout on first data (transition to ready)
-        const session = _getSession(sessionKey);
-        if (session?.backendTimeout) {
-          console.debug("[Shell] 📥 FIRST DATA from PTY - transitioning to ready", { sessionKey });
-          clearTimeout(session.backendTimeout);
-          _updateSession(sessionKey, { backendTimeout: null });
-          dispatch({ type: "FIRST_DATA" });
-        }
-
+        // Parse data first (synchronous, must be fast)
         let data: Uint8Array;
         if (event.data instanceof ArrayBuffer) {
           data = new Uint8Array(event.data);
@@ -371,6 +363,22 @@ export function useShell(options: UseShellOptions): UseShellReturn {
           data = sharedEncoder.encode(event.data);
         } else {
           return;
+        }
+
+        // Write to terminal immediately (urgent - must be responsive)
+        terminal.write(data);
+
+        // Clear backend timeout on first data (transition to ready)
+        const session = _getSession(sessionKey);
+        if (session?.backendTimeout) {
+          console.debug("[Shell] 📥 FIRST DATA from PTY - transitioning to ready", { sessionKey });
+          clearTimeout(session.backendTimeout);
+
+          // ✅ Non-urgent state updates in startTransition
+          startTransition(() => {
+            _updateSession(sessionKey, { backendTimeout: null });
+            dispatch({ type: "FIRST_DATA" });
+          });
         }
 
         const dataPreview = new TextDecoder().decode(data.slice(0, 50));
@@ -381,8 +389,6 @@ export function useShell(options: UseShellOptions): UseShellReturn {
           scrollY: terminal.buffer.active.viewportY,
           baseY: terminal.buffer.active.baseY,
         });
-
-        terminal.write(data);
       };
 
       ws.onclose = (event) => {
@@ -919,9 +925,15 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     if (session.onRenderDisposable) {
       session.onRenderDisposable.dispose();
     }
+
+    // Dispose terminal - check for terminal in all states that might have it
     if (hasTerminal(session.state)) {
       session.state.terminal.dispose();
+    } else if (session.state.phase === "error" && session.state.terminal) {
+      // ✅ Handle error state with terminal
+      session.state.terminal.dispose();
     }
+
     if (hasWebSocket(session.state)) {
       session.state.ws.close();
     }
