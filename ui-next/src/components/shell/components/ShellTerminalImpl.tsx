@@ -124,43 +124,26 @@ export const ShellTerminalImpl = memo(
       const prevPhase = prevPhaseRef.current;
       prevPhaseRef.current = state.phase;
 
-      console.debug("[ShellTerminal] 🔀 Phase transition", {
-        taskId,
-        from: prevPhase,
-        to: state.phase,
-      });
-
       if (state.phase === "ready") {
-        console.debug("[ShellTerminal] ✅ Ready - focusing and scrolling", { taskId });
         onConnected?.();
         announce("Shell connected", "polite");
-        // Auto-focus terminal when ready (especially important for reconnect)
         focus();
-        // Mark this terminal as focused for keyboard manager
         shellKeyboardManager.markFocused(taskId);
-        // Scroll to bottom to show new PTY session (especially important for reconnect)
-        // Use setTimeout to ensure PTY welcome message has been written
-        setTimeout(() => {
-          console.debug("[ShellTerminal] 📜 Delayed scroll to bottom", { taskId });
-          scrollToBottom();
-        }, 100);
+        // Scroll after PTY welcome message has been written
+        setTimeout(() => scrollToBottom(), 100);
       } else if (state.phase === "disconnected") {
-        // Write disconnect message to terminal only on transition TO disconnected
         if (prevPhase !== "disconnected") {
-          console.debug("[ShellTerminal] 🔌 Disconnected - writing banner", { taskId, prevPhase });
           const isError = !!state.reason?.includes("error");
           write(getDisconnectMessage(isError, state.reason));
         }
         onDisconnected?.();
         announce("Shell disconnected", "polite");
       } else if (state.phase === "error") {
-        console.debug("[ShellTerminal] ❌ Error", { taskId, error: state.error });
         onError?.(new Error(state.error));
         announce(`Shell error: ${state.error}`, "assertive");
       }
     }, [state, onConnected, onDisconnected, onError, announce, write, focus, scrollToBottom, taskId]);
 
-    // Memoize search options to avoid unnecessary effect triggers
     const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
 
     const handleFindNext = useCallback(() => {
@@ -194,19 +177,16 @@ export const ShellTerminalImpl = memo(
       handleCloseSearchRef.current = handleCloseSearch;
     }, [state, isSearchOpen, copy, handleCloseSearch]);
 
-    // Auto-search when query or options change
     useEffect(() => {
       if (deferredSearchQuery) {
-        clearSearch(); // Clear old decorations before applying new search
+        clearSearch();
         findNext(deferredSearchQuery, searchOptions);
       } else {
         clearSearch();
       }
     }, [deferredSearchQuery, searchOptions, findNext, clearSearch]);
 
-    // Register keyboard handlers with centralized manager
-    // This replaces per-component global listeners with a single delegating listener
-    // Uses refs to access latest state without re-registering on every change
+    // Register keyboard handlers with centralized manager (uses refs to avoid re-registration)
     useEffect(() => {
       const handlers: ShellKeyboardHandlers = {
         onToggleSearch: () => {
@@ -233,7 +213,7 @@ export const ShellTerminalImpl = memo(
 
       const unregister = shellKeyboardManager.register(taskId, handlers);
       return unregister;
-    }, [taskId]); // Only re-register when taskId changes
+    }, [taskId]);
 
     useEffect(() => {
       if (!session?.addons?.searchAddon) return;
