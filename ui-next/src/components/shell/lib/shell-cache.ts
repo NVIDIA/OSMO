@@ -14,85 +14,28 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * Immutable Session Cache
- *
- * This module provides a Map-based cache for shell sessions with immutable updates.
- * Sessions persist across UI component mount/unmount cycles.
- *
- * **Architecture:**
- * - All CachedSession fields are readonly (enforced immutability)
- * - All updates create new objects (no mutations)
- * - Cache only stores data - no cleanup logic or side effects
- *
- * **Public API (for consumers):**
- * - `useShellSession(key)` - React hook to observe a session
- * - `useShellSessions()` - React hook to observe all sessions
- * - `getAllSessions()` - Get all sessions (non-React)
- * - `hasSession(key)` - Check if session exists
- *
- * **Internal API (for useShell hook only - marked with _):**
- * - `_getSession(key)` - Get session by key
- * - `_createSession(session)` - Create new session
- * - `_updateSession(key, updates)` - Update session immutably
- * - `_deleteSession(key)` - Delete session
- *
- * NOTE: Internal APIs should ONLY be called by useShell hook.
- * Direct cache manipulation from components violates encapsulation.
- */
-
 import { useSyncExternalStore, useCallback } from "react";
 import type { ShellState, TerminalAddons } from "./shell-state";
 
-/**
- * Immutable session data structure.
- * All fields are readonly to enforce immutability at the type level.
- */
 export interface CachedSession {
-  /** Unique session identifier (typically taskId) */
   readonly key: string;
-  /** Workflow name for this session */
   readonly workflowName: string;
-  /** Task name for this session */
   readonly taskName: string;
-  /** Shell command (e.g., "/bin/bash") */
   readonly shell: string;
-  /** Current state machine state */
   readonly state: ShellState;
-  /** Terminal addons (fit, search, webgl) */
   readonly addons: TerminalAddons | null;
-  /** DOM container element for terminal rendering */
   readonly container: HTMLElement | null;
-  /** Connection in progress flag (prevents concurrent attempts) */
   readonly isConnecting: boolean;
-  /** Backend initialization timeout handle */
   readonly backendTimeout: NodeJS.Timeout | null;
-  /** Initial resize message sent flag (backend bug workaround) */
   readonly initialResizeSent: boolean;
-  /** Terminal input listener disposable */
   readonly onDataDisposable: { dispose: () => void } | null;
-  /** Reconnect callback - called by useShell, exposed for external reconnect triggers */
   readonly reconnectCallback: (() => Promise<void>) | null;
-  /**
-   * Terminal ready for measurement flag.
-   * FitAddon.proposeDimensions() returns NaN until the terminal has rendered
-   * at least once and the render service has measured character dimensions.
-   * This flag is set to true after the first onRender event fires.
-   */
+  // FitAddon.proposeDimensions() returns NaN until the render service has measured dimensions
   readonly terminalReady: boolean;
-  /** Disposable for the onRender listener used to detect terminal ready state */
   readonly onRenderDisposable: { dispose: () => void } | null;
 }
 
-/**
- * Type for partial session updates.
- * Cannot change identity fields (key, workflowName, taskName, shell).
- */
 export type SessionUpdate = Partial<Omit<CachedSession, "key" | "workflowName" | "taskName" | "shell">>;
-
-// ============================================================================
-// Private State
-// ============================================================================
 
 const cache = new Map<string, CachedSession>();
 const listeners = new Set<() => void>();
@@ -103,117 +46,48 @@ function notifyListeners(): void {
   listeners.forEach((listener) => listener());
 }
 
-// ============================================================================
-// Public API (for React components)
-// ============================================================================
-
-/**
- * Check if a session exists in the cache.
- * @param key - Session key
- * @returns true if session exists
- */
 export function hasSession(key: string): boolean {
   return cache.has(key);
 }
 
-/**
- * Get all sessions (non-React).
- * Returns a snapshot - mutations won't affect returned array.
- * @returns Array of all sessions
- */
 export function getAllSessions(): readonly CachedSession[] {
   return cachedSnapshot;
 }
 
-/**
- * Subscribe to cache changes (for useSyncExternalStore).
- * @param callback - Called when cache changes
- * @returns Unsubscribe function
- */
 function subscribe(callback: () => void): () => void {
   listeners.add(callback);
   return () => listeners.delete(callback);
 }
 
-/**
- * Get cache snapshot (for useSyncExternalStore).
- * @returns Array of all sessions
- */
 function getSnapshot(): CachedSession[] {
   return cachedSnapshot;
 }
 
-/**
- * Get server snapshot (for useSyncExternalStore SSR safety).
- * @returns Empty array (no sessions on server)
- */
 function getServerSnapshot(): CachedSession[] {
   return [];
 }
 
-/**
- * React hook to observe all shell sessions.
- * Re-renders when any session changes.
- * @returns Array of all sessions
- */
 export function useShellSessions(): readonly CachedSession[] {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/**
- * React hook to observe a specific shell session.
- * Re-renders only when THIS session changes (not all sessions).
- * @param key - Session key
- * @returns Session or undefined if not found
- */
 export function useShellSession(key: string): CachedSession | undefined {
   const getSnapshot = useCallback(() => cache.get(key), [key]);
   const getServerSnapshot = useCallback(() => undefined, []);
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-// ============================================================================
-// Internal API (for useShell hook only)
-// ============================================================================
+// Internal APIs - should ONLY be called by useShell hook
 
-/**
- * INTERNAL: Get session by key.
- * Used by useShell hook for internal logic.
- * Components should use useShellSession() instead.
- *
- * @param key - Session key
- * @returns Session or undefined
- * @internal
- */
 export function _getSession(key: string): CachedSession | undefined {
   return cache.get(key);
 }
 
-/**
- * INTERNAL: Create a new session.
- * Used by useShell hook when initializing.
- * Components should not create sessions directly.
- *
- * @param session - New session data
- * @internal
- */
 export function _createSession(session: CachedSession): void {
   cache.set(session.key, session);
   notifyListeners();
 }
 
-/**
- * INTERNAL: Update session immutably.
- * Used by useShell hook for all state changes.
- * Components should call useShell methods, not update cache directly.
- *
- * This performs an immutable update - creates new session object.
- * Cannot change identity fields (key, workflowName, taskName, shell).
- *
- * @param key - Session key
- * @param updates - Partial updates to apply
- * @internal
- */
 export function _updateSession(key: string, updates: SessionUpdate): void {
   const session = cache.get(key);
   if (!session) {
@@ -221,78 +95,31 @@ export function _updateSession(key: string, updates: SessionUpdate): void {
     return;
   }
 
-  // Immutable update - create new object
-  const updated: CachedSession = {
-    ...session,
-    ...updates,
-  };
-
+  const updated: CachedSession = { ...session, ...updates };
   cache.set(key, updated);
   notifyListeners();
 }
 
-/**
- * INTERNAL: Delete session from cache.
- * Used by useShell hook's dispose() method.
- * Components should not delete sessions directly.
- *
- * NOTE: This only removes from cache - resource cleanup (terminal.dispose(),
- * ws.close(), clearTimeout) must be done by the caller BEFORE deletion.
- *
- * @param key - Session key
- * @internal
- */
 export function _deleteSession(key: string): void {
   cache.delete(key);
   notifyListeners();
 }
 
-/**
- * Disconnect a shell session (closes WebSocket, transitions to disconnected state).
- * This is the proper way to disconnect - it goes through the state machine.
- *
- * @param key - Session key
- * @public
- */
 export function disconnectSession(key: string): void {
   const session = cache.get(key);
-  if (!session) {
-    console.warn(`[ShellCache] Cannot disconnect non-existent session: ${key}`);
-    return;
-  }
+  if (!session) return;
 
-  // Close WebSocket if connected
   if (
     (session.state.phase === "ready" || session.state.phase === "initializing" || session.state.phase === "opening") &&
     "ws" in session.state &&
     session.state.ws
   ) {
-    console.debug("[ShellCache] 🔌 Disconnecting session", { key });
-    session.state.ws.close(); // This will trigger WS_CLOSED event in onclose handler
-  } else {
-    console.debug("[ShellCache] ⚠️ Cannot disconnect - not in connected state", { key, phase: session.state.phase });
+    session.state.ws.close();
   }
 }
 
-/**
- * Reconnect a shell session (triggers reconnection for disconnected/error sessions).
- * This calls the reconnect callback registered by useShell.
- *
- * @param key - Session key
- * @public
- */
 export async function reconnectSession(key: string): Promise<void> {
   const session = cache.get(key);
-  if (!session) {
-    console.warn(`[ShellCache] Cannot reconnect non-existent session: ${key}`);
-    return;
-  }
-
-  if (!session.reconnectCallback) {
-    console.warn(`[ShellCache] Cannot reconnect - no callback registered: ${key}`);
-    return;
-  }
-
-  console.debug("[ShellCache] 🔄 Triggering reconnect", { key, phase: session.state.phase });
+  if (!session?.reconnectCallback) return;
   await session.reconnectCallback();
 }

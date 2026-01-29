@@ -16,7 +16,6 @@
 
 import type { Terminal } from "@xterm/xterm";
 
-/** ANSI escape codes for terminal styling */
 export const ANSI = {
   RESET: "\x1b[0m",
   DIM: "\x1b[2m",
@@ -24,7 +23,6 @@ export const ANSI = {
   GREEN: "\x1b[32m",
 } as const;
 
-/** Shell connection status (matches state machine phases) */
 export type ConnectionStatus = "idle" | "connecting" | "opening" | "initializing" | "ready" | "disconnected" | "error";
 
 export interface ShellTerminalProps {
@@ -86,7 +84,6 @@ export interface UseWebSocketShellReturn {
   resize: (rows: number, cols: number) => void;
 }
 
-/** Shell theme with NVIDIA green accent */
 export const SHELL_THEME = {
   background: "#09090b",
   foreground: "#e4e4e7",
