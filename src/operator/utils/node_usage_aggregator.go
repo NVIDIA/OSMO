@@ -132,8 +132,8 @@ func MapsEqual(a, b map[string]string) bool {
 	return true
 }
 
-// ResourceUsageAggregator tracks per-node resource usage from pods
-type ResourceUsageAggregator struct {
+// NodeUsageAggregator tracks per-node usage from pods
+type NodeUsageAggregator struct {
 	mu sync.RWMutex
 
 	// Workflow namespace for distinguishing workflow vs non-workflow pods
@@ -143,17 +143,17 @@ type ResourceUsageAggregator struct {
 	podContributions map[types.UID]*PodContribution
 
 	// Per-node totals
-	nodeTotals map[string]*ResourceTotals
+	nodeTotals map[string]*NodeUsageTotals
 
 	// Per-node non-workflow totals
-	nodeNonWorkflowTotals map[string]*ResourceTotals
+	nodeNonWorkflowTotals map[string]*NodeUsageTotals
 
 	// Set of dirty nodes (modified since last flush)
 	dirtyNodes map[string]struct{}
 }
 
-// ResourceTotals holds resource counters (cpu, memory, storage, gpu)
-type ResourceTotals struct {
+// NodeUsageTotals holds resource counters (cpu, memory, storage, gpu)
+type NodeUsageTotals struct {
 	CPU     int64 // millicores
 	Memory  int64 // Ki
 	Storage int64 // Ki
@@ -162,30 +162,30 @@ type ResourceTotals struct {
 
 // PodContribution tracks individual pod contributions
 type PodContribution struct {
-	ResourceTotals // embedded struct
-	NodeName       string
-	Namespace      string
+	NodeUsageTotals // embedded struct
+	NodeName        string
+	Namespace       string
 }
 
-// NewResourceUsageAggregator creates a new resource usage aggregator
-func NewResourceUsageAggregator(workflowNamespace string) *ResourceUsageAggregator {
-	return &ResourceUsageAggregator{
+// NewNodeUsageAggregator creates a new node usage aggregator
+func NewNodeUsageAggregator(workflowNamespace string) *NodeUsageAggregator {
+	return &NodeUsageAggregator{
 		workflowNamespace:     workflowNamespace,
 		podContributions:      make(map[types.UID]*PodContribution),
-		nodeTotals:            make(map[string]*ResourceTotals),
-		nodeNonWorkflowTotals: make(map[string]*ResourceTotals),
+		nodeTotals:            make(map[string]*NodeUsageTotals),
+		nodeNonWorkflowTotals: make(map[string]*NodeUsageTotals),
 		dirtyNodes:            make(map[string]struct{}),
 	}
 }
 
 // Reset clears all aggregator state
-func (rua *ResourceUsageAggregator) Reset() {
+func (rua *NodeUsageAggregator) Reset() {
 	rua.mu.Lock()
 	defer rua.mu.Unlock()
 
 	rua.podContributions = make(map[types.UID]*PodContribution)
-	rua.nodeTotals = make(map[string]*ResourceTotals)
-	rua.nodeNonWorkflowTotals = make(map[string]*ResourceTotals)
+	rua.nodeTotals = make(map[string]*NodeUsageTotals)
+	rua.nodeNonWorkflowTotals = make(map[string]*NodeUsageTotals)
 	rua.dirtyNodes = make(map[string]struct{})
 }
 
@@ -193,7 +193,7 @@ func (rua *ResourceUsageAggregator) Reset() {
 // Note: Pod resources and node assignment are immutable in Kubernetes.
 // Once a pod is scheduled, its spec.nodeName and resource requests cannot change.
 // Therefore, if we've already seen this pod UID, we can skip processing.
-func (rua *ResourceUsageAggregator) UpdatePod(pod *corev1.Pod) {
+func (rua *NodeUsageAggregator) UpdatePod(pod *corev1.Pod) {
 	uid := pod.UID
 
 	// Fast path: check if already exists with RLock
@@ -229,7 +229,7 @@ func (rua *ResourceUsageAggregator) UpdatePod(pod *corev1.Pod) {
 }
 
 // DeletePod removes a pod's contribution from the aggregator
-func (rua *ResourceUsageAggregator) DeletePod(pod *corev1.Pod) {
+func (rua *NodeUsageAggregator) DeletePod(pod *corev1.Pod) {
 	rua.mu.Lock()
 	defer rua.mu.Unlock()
 
@@ -248,14 +248,14 @@ func (rua *ResourceUsageAggregator) DeletePod(pod *corev1.Pod) {
 }
 
 // MarkDirty marks a node as dirty for the next flush
-func (rua *ResourceUsageAggregator) MarkDirty(hostname string) {
+func (rua *NodeUsageAggregator) MarkDirty(hostname string) {
 	rua.mu.Lock()
 	defer rua.mu.Unlock()
 	rua.dirtyNodes[hostname] = struct{}{}
 }
 
 // GetAndClearDirtyNodes returns and clears the set of dirty nodes
-func (rua *ResourceUsageAggregator) GetAndClearDirtyNodes() []string {
+func (rua *NodeUsageAggregator) GetAndClearDirtyNodes() []string {
 	rua.mu.Lock()
 	defer rua.mu.Unlock()
 
@@ -268,18 +268,18 @@ func (rua *ResourceUsageAggregator) GetAndClearDirtyNodes() []string {
 }
 
 // GetNodeUsage returns the resource usage for a node
-func (rua *ResourceUsageAggregator) GetNodeUsage(hostname string) (map[string]string, map[string]string) {
+func (rua *NodeUsageAggregator) GetNodeUsage(hostname string) (map[string]string, map[string]string) {
 	rua.mu.RLock()
 	defer rua.mu.RUnlock()
 
 	totals := rua.nodeTotals[hostname]
 	if totals == nil {
-		totals = &ResourceTotals{}
+		totals = &NodeUsageTotals{}
 	}
 
 	nonWfTotals := rua.nodeNonWorkflowTotals[hostname]
 	if nonWfTotals == nil {
-		nonWfTotals = &ResourceTotals{}
+		nonWfTotals = &NodeUsageTotals{}
 	}
 
 	usageFields := FormatResourceUsage(totals)
@@ -288,13 +288,13 @@ func (rua *ResourceUsageAggregator) GetNodeUsage(hostname string) (map[string]st
 	return usageFields, nonWorkflowFields
 }
 
-func (rua *ResourceUsageAggregator) addContribution(nodeName string, contrib *PodContribution) {
+func (rua *NodeUsageAggregator) addContribution(nodeName string, contrib *PodContribution) {
 	// Initialize totals if needed
 	if rua.nodeTotals[nodeName] == nil {
-		rua.nodeTotals[nodeName] = &ResourceTotals{}
+		rua.nodeTotals[nodeName] = &NodeUsageTotals{}
 	}
 	if rua.nodeNonWorkflowTotals[nodeName] == nil {
-		rua.nodeNonWorkflowTotals[nodeName] = &ResourceTotals{}
+		rua.nodeNonWorkflowTotals[nodeName] = &NodeUsageTotals{}
 	}
 
 	// Add to totals
@@ -312,7 +312,7 @@ func (rua *ResourceUsageAggregator) addContribution(nodeName string, contrib *Po
 	}
 }
 
-func (rua *ResourceUsageAggregator) subtractContribution(nodeName string, contrib *PodContribution) {
+func (rua *NodeUsageAggregator) subtractContribution(nodeName string, contrib *PodContribution) {
 	if rua.nodeTotals[nodeName] == nil {
 		return
 	}
@@ -369,7 +369,7 @@ func CalculatePodContribution(pod *corev1.Pod) *PodContribution {
 }
 
 // FormatResourceUsage formats resource totals as a map for the proto message
-func FormatResourceUsage(totals *ResourceTotals) map[string]string {
+func FormatResourceUsage(totals *NodeUsageTotals) map[string]string {
 	return map[string]string{
 		"cpu":               strconv.FormatInt(totals.CPU, 10),
 		"memory":            strconv.FormatInt(totals.Memory, 10) + "Ki",

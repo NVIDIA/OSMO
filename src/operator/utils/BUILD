@@ -49,7 +49,7 @@ go_library(
         "k8s_helpers.go",
         "listener_args.go",
         "node_helpers.go",
-        "resource_aggregator.go",
+        "node_usage_aggregator.go",
         "task_status.go",
         "unack_messages.go",
     ],

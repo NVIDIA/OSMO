@@ -38,7 +38,7 @@ import (
 type ResourceListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
-	aggregator *utils.ResourceUsageAggregator
+	aggregator *utils.NodeUsageAggregator
 }
 
 // NewResourceListener creates a new resource listener instance
@@ -46,7 +46,7 @@ func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
 	return &ResourceListener{
 		BaseListener: utils.NewBaseListener(args, "last_progress_resource_listener"),
 		args:         args,
-		aggregator:   utils.NewResourceUsageAggregator(args.Namespace),
+		aggregator:   utils.NewNodeUsageAggregator(args.Namespace),
 	}
 }
 

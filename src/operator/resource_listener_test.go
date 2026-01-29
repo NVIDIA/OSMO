@@ -547,9 +547,9 @@ func TestResourceBodiesEqual(t *testing.T) {
 	}
 }
 
-// Test ResourceUsageAggregator
-func TestResourceUsageAggregator_UpdatePod(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+// Test NodeUsageAggregator
+func TestNodeUsageAggregator_UpdatePod(t *testing.T) {
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -587,8 +587,8 @@ func TestResourceUsageAggregator_UpdatePod(t *testing.T) {
 	}
 }
 
-func TestResourceUsageAggregator_DeletePod(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+func TestNodeUsageAggregator_DeletePod(t *testing.T) {
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -625,10 +625,10 @@ func TestResourceUsageAggregator_DeletePod(t *testing.T) {
 	}
 }
 
-func TestResourceUsageAggregator_DuplicateUpdateIgnored(t *testing.T) {
+func TestNodeUsageAggregator_DuplicateUpdateIgnored(t *testing.T) {
 	// In Kubernetes, pod spec.nodeName and resource requests are immutable after creation.
 	// Therefore, duplicate UpdatePod calls for the same UID should be ignored.
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create pod on node-1
 	pod := &corev1.Pod{
@@ -670,8 +670,8 @@ func TestResourceUsageAggregator_DuplicateUpdateIgnored(t *testing.T) {
 	}
 }
 
-func TestResourceUsageAggregator_NonWorkflowNamespace(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+func TestNodeUsageAggregator_NonWorkflowNamespace(t *testing.T) {
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Pod in workflow namespace
 	workflowPod := &corev1.Pod{
@@ -730,7 +730,7 @@ func TestResourceUsageAggregator_NonWorkflowNamespace(t *testing.T) {
 
 // Test pod lifecycle transitions for event handler logic
 func TestPodLifecycle_PendingToRunning(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create a pod in Pending state
 	pod := &corev1.Pod{
@@ -784,7 +784,7 @@ func TestPodLifecycle_PendingToRunning(t *testing.T) {
 }
 
 func TestPodLifecycle_RunningToSucceeded(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create a Running pod
 	pod := &corev1.Pod{
@@ -836,7 +836,7 @@ func TestPodLifecycle_RunningToSucceeded(t *testing.T) {
 }
 
 func TestPodLifecycle_RunningToFailed(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create a Running pod
 	pod := &corev1.Pod{
@@ -888,7 +888,7 @@ func TestPodLifecycle_RunningToFailed(t *testing.T) {
 }
 
 func TestPodLifecycle_DeletionTimestamp(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create a Running pod
 	pod := &corev1.Pod{
@@ -941,7 +941,7 @@ func TestPodLifecycle_DeletionTimestamp(t *testing.T) {
 }
 
 func TestPodLifecycle_AllContainersTerminated(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create a Running pod
 	pod := &corev1.Pod{
@@ -1012,7 +1012,7 @@ func TestPodLifecycle_AllContainersTerminated(t *testing.T) {
 }
 
 func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	// Create three pods
 	pod1 := &corev1.Pod{
@@ -1245,8 +1245,8 @@ func BenchmarkBuildResourceBody(b *testing.B) {
 	}
 }
 
-func BenchmarkResourceUsageAggregator_UpdatePod(b *testing.B) {
-	agg := utils.NewResourceUsageAggregator("osmo")
+func BenchmarkNodeUsageAggregator_UpdatePod(b *testing.B) {
+	agg := utils.NewNodeUsageAggregator("osmo")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
