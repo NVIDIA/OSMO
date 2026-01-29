@@ -37,8 +37,8 @@ from src.utils.metrics import metrics
 from src.utils.progress_check import progress
 
 
-# Redis Stream name for operator messages from backends
-OPERATOR_STREAM_NAME = '{osmo}:{message-queue}:operator_messages'
+# Redis Stream name for messages from backends
+REDIS_STREAM_NAME = '{osmo}:{message-queue}:compute_messages'
 # Consumer group name for message workers
 CONSUMER_GROUP_NAME = 'message_workers'
 # Time in milliseconds before a pending message is considered abandoned (5 minutes)
@@ -66,7 +66,7 @@ class MessageWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
 
 class MessageWorker:
     """
-    A Message Worker subscribes to the operator Redis Stream and processes messages
+    A Message Worker subscribes to the Redis Stream and processes messages
     from all backend agents using consumer groups for reliability.
     """
     def __init__(self, config: MessageWorkerConfig):
@@ -80,7 +80,7 @@ class MessageWorker:
             objects.WorkflowServiceContext(config=config, database=self.postgres))
 
         # Redis Stream configuration
-        self.stream_name = OPERATOR_STREAM_NAME
+        self.stream_name = REDIS_STREAM_NAME
         self.group_name = CONSUMER_GROUP_NAME
         self.consumer_name = f'worker-{socket.gethostname()}-{os.getpid()}'
 
@@ -113,7 +113,7 @@ class MessageWorker:
 
     def process_message(self, message_id: str, message_json: str, backend_name: str):
         """
-        Process a message from the operator stream.
+        Process a message from the Redis stream.
 
         Args:
             message_id: The Redis Stream message ID
@@ -349,13 +349,13 @@ def main():
     connectors.RedisConnector(config)
     metrics.MetricCreator(config=config)
 
-    logging.info('Starting operator message worker...')
+    logging.info('Starting message worker...')
 
     try:
         worker = MessageWorker(config)
         worker.run()
     except KeyboardInterrupt:
-        logging.info('Operator message worker shutting down...')
+        logging.info('Message worker shutting down...')
         sys.exit(0)
 
 

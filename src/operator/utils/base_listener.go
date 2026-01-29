@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 

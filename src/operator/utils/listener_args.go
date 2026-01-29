@@ -65,7 +65,7 @@ func ListenerParse() ListenerArgs {
 		getEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
 		"Prefix for node conditions")
 	progressDir := flag.String("progressDir",
-		getEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/operator/"),
+		getEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/compute_connector/"),
 		"The directory to write progress timestamps to (For liveness/startup probes)")
 	progressFrequencySec := flag.Int("progressFrequencySec",
 		getEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),

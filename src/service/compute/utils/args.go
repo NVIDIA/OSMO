@@ -25,35 +25,35 @@ import (
 	"go.corp.nvidia.com/osmo/utils/redis"
 )
 
-// OperatorArgs holds configuration for the operator service
-type OperatorArgs struct {
+// Args holds configuration for the service
+type Args struct {
 	// Service configuration
-	Host                         string
-	ServiceHostname              string
-	LogLevel                     string
-	OperatorProgressDir          string
-	OperatorProgressFrequencySec int
+	Host                 string
+	ServiceHostname      string
+	LogLevel             string
+	ProgressDir          string
+	ProgressFrequencySec int
 
 	Redis    redis.RedisConfig
 	Postgres postgres.PostgresConfig
 }
 
-// OperatorParse parses command line arguments and environment variables
-func OperatorParse() OperatorArgs {
+// Parse parses command line arguments and environment variables
+func Parse() Args {
 	// Service configuration
 	host := flag.String("host",
 		"http://0.0.0.0:8001",
-		"Host for the operator service")
+		"Host for the service")
 	serviceHostname := flag.String("service-hostname",
 		"",
 		"The public hostname for the OSMO service (used for URL generation)")
 	logLevel := flag.String("log-level",
 		"INFO",
 		"Logging level (DEBUG, INFO, WARN, ERROR)")
-	operatorProgressDir := flag.String("operator-progress-dir",
-		"/tmp/osmo/service/operator/",
+	progressDir := flag.String("progress-dir",
+		"/tmp/osmo/service/compute/",
 		"The directory to write progress timestamps to (For liveness/startup probes)")
-	operatorProgressFrequencySec := flag.Int("operator-progress-frequency-sec",
+	progressFrequencySec := flag.Int("progress-frequency-sec",
 		15,
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
 
@@ -65,13 +65,13 @@ func OperatorParse() OperatorArgs {
 
 	flag.Parse()
 
-	return OperatorArgs{
-		Host:                         *host,
-		ServiceHostname:              *serviceHostname,
-		LogLevel:                     *logLevel,
-		OperatorProgressDir:          *operatorProgressDir,
-		OperatorProgressFrequencySec: *operatorProgressFrequencySec,
-		Redis:                        redisFlagPtrs.ToRedisConfig(),
-		Postgres:                     postgresFlagPtrs.ToPostgresConfig(),
+	return Args{
+		Host:                 *host,
+		ServiceHostname:      *serviceHostname,
+		LogLevel:             *logLevel,
+		ProgressDir:          *progressDir,
+		ProgressFrequencySec: *progressFrequencySec,
+		Redis:                redisFlagPtrs.ToRedisConfig(),
+		Postgres:             postgresFlagPtrs.ToPostgresConfig(),
 	}
 }

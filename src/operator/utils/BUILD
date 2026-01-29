@@ -54,7 +54,7 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/operator/utils",
     visibility = ["//visibility:public"],
     deps = [
-        "//src/proto/operator:operator_go_proto",
+        "//src/proto/compute_connector:compute_connector_go_proto",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
@@ -85,7 +85,7 @@ go_test(
     srcs = ["unack_messages_test.go"],
     embed = [":utils"],
     deps = [
-        "//src/proto/operator:operator_go_proto",
+        "//src/proto/compute_connector:compute_connector_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],

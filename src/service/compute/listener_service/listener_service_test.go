@@ -33,8 +33,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/service/operator/utils"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
+	"go.corp.nvidia.com/osmo/service/compute/utils"
 )
 
 // mockStream implements pb.ListenerService_ListenerStreamServer for testing
@@ -118,7 +118,7 @@ func setupTestRedis(t *testing.T) *redis.Client {
 	}
 
 	// Clean up test stream before each test
-	_ = client.Del(ctx, operatorMessagesStream).Err()
+	_ = client.Del(ctx, MessagesStream).Err()
 
 	t.Cleanup(func() {
 		client.Close()
@@ -127,12 +127,12 @@ func setupTestRedis(t *testing.T) *redis.Client {
 	return client
 }
 
-// setupTestOperatorArgs creates a test OperatorArgs configuration
-func setupTestOperatorArgs() *utils.OperatorArgs {
-	return &utils.OperatorArgs{
-		ServiceHostname:              "test-hostname",
-		OperatorProgressDir:          "/tmp/osmo/test",
-		OperatorProgressFrequencySec: 15,
+// setupTestArgs creates a test Args configuration
+func setupTestArgs() *utils.Args {
+	return &utils.Args{
+		ServiceHostname:      "test-hostname",
+		ProgressDir:          "/tmp/osmo/test",
+		ProgressFrequencySec: 15,
 	}
 }
 
@@ -140,7 +140,7 @@ func TestNewListenerService(t *testing.T) {
 	t.Run("with custom logger", func(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 		redisClient := setupTestRedis(t)
-		args := setupTestOperatorArgs()
+		args := setupTestArgs()
 		service := NewListenerService(logger, redisClient, nil, args)
 		if service == nil {
 			t.Fatal("expected non-nil service")
@@ -149,7 +149,7 @@ func TestNewListenerService(t *testing.T) {
 
 	t.Run("with nil logger", func(t *testing.T) {
 		redisClient := setupTestRedis(t)
-		args := setupTestOperatorArgs()
+		args := setupTestArgs()
 		service := NewListenerService(nil, redisClient, nil, args)
 		if service == nil {
 			t.Fatal("expected non-nil service with default logger")
@@ -160,7 +160,7 @@ func TestNewListenerService(t *testing.T) {
 func TestListenerStream_HappyPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -234,7 +234,7 @@ func TestListenerStream_HappyPath(t *testing.T) {
 func TestListenerStream_EOFClose(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 	stream.recvError = io.EOF
@@ -248,7 +248,7 @@ func TestListenerStream_EOFClose(t *testing.T) {
 func TestListenerStream_ContextCanceled(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 	stream.recvError = context.Canceled
@@ -262,7 +262,7 @@ func TestListenerStream_ContextCanceled(t *testing.T) {
 func TestListenerStream_CanceledStatusCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 	stream.recvError = status.Error(codes.Canceled, "canceled")
@@ -276,7 +276,7 @@ func TestListenerStream_CanceledStatusCode(t *testing.T) {
 func TestListenerStream_RecvError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 	expectedErr := errors.New("recv error")
@@ -294,7 +294,7 @@ func TestListenerStream_RecvError(t *testing.T) {
 func TestListenerStream_SendError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -331,7 +331,7 @@ func TestListenerStream_SendError(t *testing.T) {
 func TestListenerStream_LatencyCalculation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -383,7 +383,7 @@ func TestListenerStream_LatencyCalculation(t *testing.T) {
 func TestListenerStream_MultipleMessages(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -437,7 +437,7 @@ func TestListenerStream_MultipleMessages(t *testing.T) {
 func TestRegisterServices(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	// Create a gRPC server
 	grpcServer := grpc.NewServer()
@@ -497,7 +497,7 @@ func TestIsExpectedClose(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			redisClient := setupTestRedis(t)
-			service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+			service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 			stream := newMockStream()
 			stream.recvError = tt.err
@@ -524,7 +524,7 @@ func TestIsExpectedClose(t *testing.T) {
 func TestListenerStream_WithCanceledContext(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// Add backend-name metadata to context before canceling
@@ -566,7 +566,7 @@ func TestListenerStream_WithCanceledContext(t *testing.T) {
 func TestListenerStream_EmptyData(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -617,7 +617,7 @@ func TestListenerStream_EmptyData(t *testing.T) {
 func TestListenerStream_WithBackendNameMetadata(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	// Create stream with specific backend name
 	stream := newMockStreamWithBackend("production-backend")
@@ -666,7 +666,7 @@ func TestListenerStream_WithBackendNameMetadata(t *testing.T) {
 func TestListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	// Create stream without metadata (should be rejected)
 	stream := &mockStream{
@@ -691,7 +691,7 @@ func TestListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 func TestListenerStream_WithEmptyBackendName(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	// Create stream with empty backend name (should be rejected)
 	ctx := context.Background()
@@ -722,7 +722,7 @@ func TestListenerStream_WithEmptyBackendName(t *testing.T) {
 func TestListenerStream_HappyPath_UpdateNodeBody(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -797,7 +797,7 @@ func TestListenerStream_HappyPath_UpdateNodeBody(t *testing.T) {
 func TestListenerStream_HappyPath_UpdateNodeUsageBody(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -852,7 +852,7 @@ func TestListenerStream_HappyPath_UpdateNodeUsageBody(t *testing.T) {
 func TestListenerStream_HappyPath_DeleteResource(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 
@@ -900,7 +900,7 @@ func TestListenerStream_HappyPath_DeleteResource(t *testing.T) {
 func TestListenerStream_MixedMessageTypes(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+	service := NewListenerService(logger, redisClient, nil, setupTestArgs())
 
 	stream := newMockStream()
 

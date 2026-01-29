@@ -32,13 +32,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/service/operator/utils"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
+	"go.corp.nvidia.com/osmo/service/compute/utils"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
 const (
-	operatorMessagesStream = "{osmo}:{message-queue}:operator_messages"
+	MessagesStream = "{osmo}:{message-queue}:compute_messages"
 )
 
 // ListenerService handles workflow listener gRPC streaming operations
@@ -57,14 +57,14 @@ func NewListenerService(
 	logger *slog.Logger,
 	redisClient *redis.Client,
 	pgPool *pgxpool.Pool,
-	args *utils.OperatorArgs,
+	args *utils.Args,
 ) *ListenerService {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	// Construct progress file path
-	progressFile := filepath.Join(args.OperatorProgressDir, "last_progress_listener")
+	progressFile := filepath.Join(args.ProgressDir, "last_progress_listener")
 
 	// Initialize progress writer
 	progressWriter, err := progress_check.NewProgressWriter(progressFile)
@@ -85,7 +85,7 @@ func NewListenerService(
 		pgPool:           pgPool,
 		serviceHostname:  args.ServiceHostname,
 		progressWriter:   progressWriter,
-		progressInterval: time.Duration(args.OperatorProgressFrequencySec) * time.Second,
+		progressInterval: time.Duration(args.ProgressFrequencySec) * time.Second,
 	}
 }
 
@@ -108,7 +108,7 @@ func (ls *ListenerService) pushMessageToRedis(
 
 	// Add message to Redis Stream with backend name
 	err = ls.redisClient.XAdd(ctx, &redis.XAddArgs{
-		Stream: operatorMessagesStream,
+		Stream: MessagesStream,
 		Values: map[string]interface{}{
 			"message": string(messageJSON),
 			"backend": backendName,
@@ -117,7 +117,7 @@ func (ls *ListenerService) pushMessageToRedis(
 	if err != nil {
 		return fmt.Errorf(
 			"failed to add message to Redis stream %s: %w",
-			operatorMessagesStream,
+			MessagesStream,
 			err,
 		)
 	}

@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"go.corp.nvidia.com/osmo/operator/utils"
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

@@ -31,10 +31,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"go.corp.nvidia.com/osmo/operator/utils"
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 )
 
-// WorkflowListener manages the bidirectional gRPC stream connection to the operator service
+// WorkflowListener manages the bidirectional gRPC stream connection to the service
 type WorkflowListener struct {
 	*utils.BaseListener
 	args      utils.ListenerArgs
@@ -67,7 +67,7 @@ func (wl *WorkflowListener) Connect(ctx context.Context) error {
 	// Context for coordinated shutdown of goroutines with error cause
 	wl.InitStreamContext(ctx)
 
-	log.Printf("Connected to operator service, stream established")
+	log.Printf("Connected to compute service, stream established")
 	return nil
 }
 

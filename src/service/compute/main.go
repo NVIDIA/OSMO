@@ -33,8 +33,8 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 
-	"go.corp.nvidia.com/osmo/service/operator/listener_service"
-	"go.corp.nvidia.com/osmo/service/operator/utils"
+	"go.corp.nvidia.com/osmo/service/compute/listener_service"
+	"go.corp.nvidia.com/osmo/service/compute/utils"
 )
 
 // ParseLogLevel converts a string log level to slog.Level
@@ -48,7 +48,7 @@ func ParseLogLevel(levelStr string) slog.Level {
 
 func main() {
 	// Parse command line arguments and environment variables
-	args := utils.OperatorParse()
+	args := utils.Parse()
 
 	// Setup structured logging
 	level := ParseLogLevel(args.LogLevel)
@@ -101,7 +101,7 @@ func main() {
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
-	// Register operator services with Redis client and PostgreSQL pool
+	// Register listener services with Redis client and PostgreSQL pool
 	listenerService := listener_service.NewListenerService(
 		logger, redisClient.Client(), pgClient.Pool(), &args)
 	listener_service.RegisterServices(grpcServer, listenerService)
@@ -114,7 +114,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("operator server listening", slog.String("address", addr))
+	logger.Info("Compute server listening", slog.String("address", addr))
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

@@ -310,7 +310,7 @@ go_library(
     deps = [
         "//src/lib/utils:utils",
         "//src/operator/utils:utils",
-        "//src/proto/operator:operator_go_proto",
+        "//src/proto/compute_connector:compute_connector_go_proto",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
@@ -330,7 +330,7 @@ go_test(
     embed = [":workflow_listener_lib"],
     deps = [
         "//src/operator/utils:utils",
-        "//src/proto/operator:operator_go_proto",
+        "//src/proto/compute_connector:compute_connector_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],

@@ -16,9 +16,9 @@
 
 syntax = "proto3";
 
-package operator;
+package compute_connector;
 
-option go_package = "go.corp.nvidia.com/osmo/proto/operator;operator";
+option go_package = "go.corp.nvidia.com/osmo/proto/compute_connector;compute_connector";
 
 // LoggingType represents different logging levels
 enum LoggingType {
@@ -35,7 +35,7 @@ message LoggingBody {
   string workflow_uuid = 3;  // Empty string represents non-workflow logging
 }
 
-// ListenerMessage represents messages sent from workflow backends to the operator service
+// ListenerMessage represents messages sent from workflow backends to the service
 message ListenerMessage {
   // UUID uniquely identifies this message for correlation and acknowledgment
   string uuid = 1;
@@ -52,7 +52,7 @@ message ListenerMessage {
   }
 }
 
-// AckMessage represents acknowledgment messages sent from the operator service to workflow backends
+// AckMessage represents acknowledgment messages sent from the service to workflow backends
 message AckMessage {
   // UUID of the client message being acknowledged
   string ack_uuid = 1;

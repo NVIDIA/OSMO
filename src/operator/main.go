@@ -28,7 +28,7 @@ import (
 
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
-	pb "go.corp.nvidia.com/osmo/proto/operator"
+	pb "go.corp.nvidia.com/osmo/proto/compute_connector"
 )
 
 func main() {
@@ -79,7 +79,7 @@ func main() {
 	log.Println("Workflow Listener stopped gracefully")
 }
 
-// initializeBackend sends the initial backend registration to the operator service
+// initializeBackend sends the initial backend registration to the service
 // with automatic retry until successful or context cancelled
 func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
 	version, err := libutils.LoadVersion()
