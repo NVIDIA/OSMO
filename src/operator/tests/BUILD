@@ -20,7 +20,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_test")
 
 exports_files([
     "test_calculate_pod_status_cases.json",
-    "test_resource_usage_cases.json",
+    "test_node_usage_cases.json",
     "test_node_helpers_cases.json",
 ])
 
