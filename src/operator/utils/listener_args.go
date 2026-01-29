@@ -30,7 +30,7 @@ type ListenerArgs struct {
 	Backend               string
 	Namespace             string
 	PodUpdateChanSize     int
-	NodeChanSize          int // Buffer size for node update channel (ResourceListener)
+	NodeUpdateChanSize    int // Buffer size for node update channel (ResourceListener)
 	UsageChanSize         int // Buffer size for usage update channel (ResourceListener)
 	ResyncPeriodSec       int
 	StateCacheTTLMin      int
@@ -55,9 +55,9 @@ func ListenerParse() ListenerArgs {
 		"Kubernetes namespace to watch")
 	podUpdateChanSize := flag.Int("podUpdateChanSize",
 		getEnvInt("POD_UPDATE_CHAN_SIZE", 500),
-		"Buffer size for pod update channel")
-	nodeChanSize := flag.Int("nodeChanSize",
-		getEnvInt("NODE_CHAN_SIZE", 500),
+		"Buffer size for pod update channel (WorkflowListener)")
+	nodeUpdateChanSize := flag.Int("nodeUpdateChanSize",
+		getEnvInt("NODE_UPDATE_CHAN_SIZE", 500),
 		"Buffer size for node update channel (ResourceListener)")
 	usageChanSize := flag.Int("usageChanSize",
 		getEnvInt("USAGE_CHAN_SIZE", 500),
@@ -94,7 +94,7 @@ func ListenerParse() ListenerArgs {
 		Backend:               *backend,
 		Namespace:             *namespace,
 		PodUpdateChanSize:     *podUpdateChanSize,
-		NodeChanSize:          *nodeChanSize,
+		NodeUpdateChanSize:    *nodeUpdateChanSize,
 		UsageChanSize:         *usageChanSize,
 		ResyncPeriodSec:       *resyncPeriodSec,
 		StateCacheTTLMin:      *stateCacheTTLMin,

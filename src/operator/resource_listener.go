@@ -150,10 +150,9 @@ func (rl *ResourceListener) sendFromChannel(name string, msgChan <-chan *pb.List
 	for {
 		select {
 		case <-streamCtx.Done():
-			log.Printf("Context done, draining %s channel...", name)
 			return
 		case <-watcherDone:
-			log.Printf("%s watcher stopped unexpectedly, draining channel...", name)
+			log.Printf("%s watcher stopped unexpectedly...", name)
 			streamCancel(fmt.Errorf("%s watcher stopped", name))
 			return
 		case msg := <-msgChan:
