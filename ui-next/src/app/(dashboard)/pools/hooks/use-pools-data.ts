@@ -87,7 +87,7 @@ const POOL_CHIP_MAPPING: ChipMappingConfig<PoolFilterParams> = {
   backend: { type: "array", paramKey: "backends" },
   shared: { type: "single", paramKey: "sharedWith" },
   search: { type: "single", paramKey: "search" },
-  name: { type: "single", paramKey: "search" }, // Both search and name map to search
+  pool: { type: "single", paramKey: "search" },
 };
 
 // =============================================================================
