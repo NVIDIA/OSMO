@@ -25,12 +25,18 @@
 
 "use client";
 
-import { memo, useRef } from "react";
+import { memo, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { InlineErrorBoundary } from "@/components/error";
+import { useUrlChips, useResultsCount } from "@/hooks";
+import { filterByChips } from "@/components/filter-bar";
 import { WorkflowTasksTable, DetailsPanel } from ".";
+import { WorkflowTasksToolbar } from "./table/WorkflowTasksToolbar";
 import { PANEL } from "@/components/panel";
 import { usePanelProps } from "../hooks/use-panel-props";
+import { TASK_SEARCH_FIELDS } from "../lib/task-search-fields";
 import type { WorkflowViewCommonProps } from "../lib/view-types";
+import type { TaskWithDuration } from "../lib/workflow-types";
 
 // Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(() => import("./shell/ShellContainer").then((m) => ({ default: m.ShellContainer })), {
@@ -57,6 +63,39 @@ export const WorkflowTableView = memo(function WorkflowTableView(props: Workflow
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Filter chips - URL-synced via shared hook
+  const { searchChips, setSearchChips } = useUrlChips();
+
+  // Collect all tasks from all groups for filtering
+  const allTasks = useMemo((): TaskWithDuration[] => {
+    const tasks: TaskWithDuration[] = [];
+    for (const group of groups) {
+      if (group.tasks) {
+        for (const task of group.tasks) {
+          tasks.push({
+            ...task,
+            duration: null, // Will be computed by WorkflowTasksTable
+            _groupName: group.name,
+          } as TaskWithDuration & { _groupName: string });
+        }
+      }
+    }
+    return tasks;
+  }, [groups]);
+
+  // Apply filters to get filtered tasks for results count
+  const filteredTasks = useMemo(() => {
+    if (searchChips.length === 0) return allTasks;
+    return filterByChips(allTasks, searchChips, TASK_SEARCH_FIELDS);
+  }, [allTasks, searchChips]);
+
+  // Results count for FilterBar display
+  const resultsCount = useResultsCount({
+    total: allTasks.length,
+    filteredTotal: filteredTasks.length,
+    hasActiveFilters: searchChips.length > 0,
+  });
+
   // Generate common panel props from view props
   const { panelProps, shellContainerProps } = usePanelProps({
     ...props,
@@ -73,7 +112,7 @@ export const WorkflowTableView = memo(function WorkflowTableView(props: Workflow
       ref={containerRef}
       className="relative h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
     >
-      {/* Table - full width, lower z-index */}
+      {/* Table with toolbar - full width, lower z-index */}
       <main
         id="workflow-table"
         className="absolute inset-0 overflow-hidden"
@@ -84,14 +123,39 @@ export const WorkflowTableView = memo(function WorkflowTableView(props: Workflow
         role="main"
         aria-label="Workflow tasks table"
       >
-        <WorkflowTasksTable
-          workflow={workflow}
-          groups={groups}
-          onSelectGroup={onSelectGroup}
-          onSelectTask={onSelectTask}
-          selectedGroupName={selectedGroupName ?? undefined}
-          selectedTaskName={selectedTaskName ?? undefined}
-        />
+        <div className="flex h-full flex-col gap-4 p-6">
+          {/* Toolbar with search and controls */}
+          <div className="shrink-0">
+            <InlineErrorBoundary
+              title="Toolbar error"
+              compact
+            >
+              <WorkflowTasksToolbar
+                tasks={allTasks}
+                searchChips={searchChips}
+                onSearchChipsChange={setSearchChips}
+                resultsCount={resultsCount}
+              />
+            </InlineErrorBoundary>
+          </div>
+
+          {/* Main tasks table */}
+          <div className="min-h-0 flex-1">
+            <InlineErrorBoundary
+              title="Unable to display tasks table"
+              resetKeys={[groups.length]}
+            >
+              <WorkflowTasksTable
+                workflow={workflow}
+                groups={groups}
+                onSelectGroup={onSelectGroup}
+                onSelectTask={onSelectTask}
+                selectedGroupName={selectedGroupName ?? undefined}
+                selectedTaskName={selectedTaskName ?? undefined}
+              />
+            </InlineErrorBoundary>
+          </div>
+        </div>
       </main>
 
       {/* Panel - positioned on right side */}
