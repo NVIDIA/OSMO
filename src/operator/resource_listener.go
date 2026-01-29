@@ -103,31 +103,6 @@ func (rl *ResourceListener) sendMessages() {
 		rl.sendFromChannels(nodeChan, usageChan, nodeWatcherDone, podWatcherDone, streamCtx, streamCancel)
 	}()
 
-	// Start progress reporter goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// Ticker to report progress when idle
-		progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
-		defer progressTicker.Stop()
-
-		for {
-			select {
-			case <-streamCtx.Done():
-				log.Println("Progress reporter stopped")
-				return
-			case <-progressTicker.C:
-				// Report progress periodically even when idle
-				progressWriter := rl.GetProgressWriter()
-				if progressWriter != nil {
-					if err := progressWriter.ReportProgress(); err != nil {
-						log.Printf("Warning: failed to report progress: %v", err)
-					}
-				}
-			}
-		}
-	}()
-
 	// Wait for all goroutines to complete
 	wg.Wait()
 	log.Println("All message sender goroutines stopped")
@@ -135,21 +110,33 @@ func (rl *ResourceListener) sendMessages() {
 
 // sendFromChannels sends messages from both resource and usage channels to the server
 func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage, usageChan <-chan *pb.ListenerMessage, nodeWatcherDone <-chan struct{}, podWatcherDone <-chan struct{}, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
-	log.Printf("Starting message sender for resource and usage channels")
+	log.Printf("Starting message sender for node and usage channels")
 	defer log.Printf("Stopping message sender")
+
+	// Ticker to report progress when idle
+	progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
+	defer progressTicker.Stop()
 
 	for {
 		select {
 		case <-streamCtx.Done():
 			return
 		case <-nodeWatcherDone:
-			log.Printf("resource watcher stopped unexpectedly...")
-			streamCancel(fmt.Errorf("resource watcher stopped"))
+			log.Printf("node watcher stopped unexpectedly...")
+			streamCancel(fmt.Errorf("node watcher stopped"))
 			return
 		case <-podWatcherDone:
 			log.Printf("usage watcher stopped unexpectedly...")
 			streamCancel(fmt.Errorf("usage watcher stopped"))
 			return
+		case <-progressTicker.C:
+			// Report progress periodically even when idle
+			progressWriter := rl.GetProgressWriter()
+			if progressWriter != nil {
+				if err := progressWriter.ReportProgress(); err != nil {
+					log.Printf("Warning: failed to report progress: %v", err)
+				}
+			}
 		case msg := <-nodeChan:
 			if err := rl.sendResourceMessage(msg); err != nil {
 				streamCancel(fmt.Errorf("failed to send resource message: %w", err))
