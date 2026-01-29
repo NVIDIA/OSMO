@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -19,6 +19,17 @@ import { type TaskListRequest, TaskListRequestSchema, type TaskListResponse, typ
 import { type OSMOErrorResponse } from "~/models/workflows-model";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { OsmoApiFetch } from "~/utils/common";
+
+const TaskStatusTotalsRequestSchema = TaskListRequestSchema.omit({
+  workflow_id: true,
+  nodes: true,
+  offset: true,
+  limit: true,
+  order: true,
+  summary: true,
+  aggregate_by_workflow: true,
+  priority: true,
+});
 
 const prepareSearchParams = (input: TaskListRequest) => {
   const searchParams = new URLSearchParams({
@@ -97,4 +108,44 @@ export const tasksRouter = createTRPCRouter({
     const data = (await response.json()) as TaskSummaryListResponse;
     return data.summaries;
   }),
+  getStatusTotals: publicProcedure
+    .input(TaskStatusTotalsRequestSchema)
+    .query(async ({ ctx, input }): Promise<Record<string, number>> => {
+      const searchParams = new URLSearchParams({
+        all_users: input.all_users.toString(),
+        all_pools: input.all_pools.toString(),
+      });
+
+      if (input.started_before) {
+        searchParams.append("started_before", input.started_before);
+      }
+
+      if (input.started_after) {
+        searchParams.append("started_after", input.started_after);
+      }
+
+      input.users.forEach((user) => {
+        searchParams.append("users", user);
+      });
+
+      input.pools.forEach((pool) => {
+        searchParams.append("pools", pool);
+      });
+
+      input.statuses.forEach((status) => {
+        searchParams.append("statuses", status);
+      });
+
+      const response = await OsmoApiFetch("/api/task/status_totals", ctx, searchParams);
+
+      if (!response.ok) {
+        const data = (await response.json()) as OSMOErrorResponse;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: data.message ?? "Unknown error",
+        });
+      }
+
+      return (await response.json()) as Record<string, number>;
+    }),
 });

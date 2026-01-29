@@ -619,7 +619,7 @@ def get_workflow_status_totals(
         app_info=app_info,
         priority=priority,
     )
-    return {row['status']: row['count'] for row in rows}
+    return {row['task_status']: row['count'] for row in rows}
 
 
 @router.get('/api/workflow/{name}/task/{task_name}', response_class=common.PrettyJSONResponse)
@@ -678,6 +678,40 @@ def list_task(workflow_id: str | None = None,
         return objects.ListTaskAggregatedResponse.from_db_rows(rows)
     service_url = postgres.get_workflow_service_url()
     return objects.ListTaskResponse.from_db_rows(rows, service_url)
+
+
+@router.get('/api/task/status_totals', response_class=common.PrettyJSONResponse)
+def get_task_status_totals(
+    statuses: List[task.TaskGroupStatus] | None = fastapi.Query(default = None),
+    users: List[str] | None = fastapi.Query(default = None),
+    all_users: bool = False,
+    pools: List[str] | None = fastapi.Query(default = None),
+    all_pools: bool = False,
+    started_after: datetime.datetime | None = None,
+    started_before: datetime.datetime | None = None,
+    user_header: Optional[str] =
+        fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> Dict[str, int]:
+    if not users and not all_users:
+        if user_header:
+            users = [user_header]
+    if not pools and not all_pools:
+        postgres = objects.WorkflowServiceContext.get().database
+        user_pool = connectors.UserProfile.fetch_from_db(postgres, user_header or '').pool
+        if not user_pool:
+            raise osmo_errors.OSMOUserError('No pool selected!')
+        pools = [user_pool]
+    if all_pools:
+        pools = []
+
+    rows = helpers.get_task_status_totals(
+        users=users,
+        pools=pools,
+        statuses=statuses,
+        started_after=started_after,
+        started_before=started_before,
+    )
+    return {row['status']: row['count'] for row in rows}
 
 
 @router.get('/api/workflow/{name}', response_class=common.PrettyJSONResponse)

@@ -107,6 +107,14 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   const links = useMemo((): React.ReactNode[] => {
     const links: React.ReactNode[] = [
       <MenuLink
+        key="dashboard"
+        label="Dashboard"
+        to={`/`}
+        icon={<OutlinedIcon name="dashboard" />}
+        isActive={activeRoute === "dashboard"}
+        onItemClick={onItemClick}
+      />,
+      <MenuLink
         key="pools"
         label="Pools"
         to={`/pools${sidebarData.get(UrlTypes.Pools) ?? ""}`}
