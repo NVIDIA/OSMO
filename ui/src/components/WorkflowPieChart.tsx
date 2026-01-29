@@ -29,21 +29,21 @@ interface WorkflowPieChartProps {
   showLegend?: boolean;
 }
 
-const statusColorMap: Record<string, string> = {
-  COMPLETED: "var(--color-tag-bg-completed)",
-  FAILED: "var(--color-error-bg-reversed)",
-  PENDING: "var(--color-pending-bg-reversed)",
-  RUNNING: "var(--color-pool-bg-reversed)",
-  INITIALIZING: "var(--color-pending-bg-reversed)",
-  PROCESSING: "var(--color-pending-bg-reversed)",
-  SUBMITTING: "var(--color-pending-bg-reversed)",
-  SCHEDULING: "var(--color-pending-bg-reversed)",
-  WAITING: "var(--color-pending-bg-reversed)",
-  RESCHEDULED: "var(--color-error-bg)",
-  DEFAULT: "var(--color-tag-bg)",
+const statusColorMap: Record<string, { color: string, borderColor?: string }> = {
+  COMPLETED: { color: "var(--color-tag-bg-completed)" },
+  FAILED: { color: "var(--color-error-bg-reversed)" },
+  PENDING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
+  RUNNING: { color: "var(--color-pool-bg-reversed)" },
+  INITIALIZING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
+  PROCESSING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
+  SUBMITTING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
+  SCHEDULING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
+  WAITING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
+  RESCHEDULED: { color: "var(--color-error-bg)" },
+  DEFAULT: { color: "var(--color-tag-bg)" },
 };
 
-export const getWorkflowStatusColor = (status: WorkflowStatusType): string => {
+export const getWorkflowStatusColor = (status: WorkflowStatusType): { color: string, borderColor?: string } => {
   if (status.startsWith("FAILED")) {
     return statusColorMap.FAILED!;
   }
@@ -64,7 +64,8 @@ export const WorkflowPieChart = ({
       WorkflowStatusValues.map((status) => ({
         label: status,
         value: counts[status] ?? 0,
-        color: getWorkflowStatusColor(status),
+        color: getWorkflowStatusColor(status).color,
+        borderColor: getWorkflowStatusColor(status).borderColor,
       })).filter((slice) => slice.value > 0),
     [counts],
   );
@@ -90,13 +91,12 @@ export const WorkflowPieChart = ({
             {slices.map((slice) => (
               <div
                 key={slice.label}
-                className={`flex items-center gap-1 text-xs rounded px-1 ${
-                  selectedLabel === slice.label ? "bg-headerbg font-semibold" : ""
-                }`}
+                className={`flex items-center gap-1 text-xs rounded px-1 ${selectedLabel === slice.label ? "bg-headerbg font-semibold" : ""
+                  }`}
               >
                 <span
                   className="inline-block h-3 w-3 rounded-sm"
-                  style={{ backgroundColor: slice.color }}
+                  style={{ backgroundColor: slice.color, borderColor: slice.borderColor ?? slice.color ?? "black", borderWidth: 1 }}
                 />
                 <span>{slice.label}</span>
                 <span>{slice.value}</span>

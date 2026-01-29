@@ -108,7 +108,7 @@ export const ResourcesGraph = ({
   );
 
   return (
-    <div className="flex flex-col items-center justify-center p-global relative">
+    <div className="flex flex-col items-center justify-center h-full w-full p-global relative">
       {title && <p className="font-semibold text-sm">{title}</p>}
       <div className={`flex flex-col items-center gap-3 ${isLoading ? "opacity-50" : ""}`}>
         <div className="flex flex-col md:flex-row gap-3 items-start">
