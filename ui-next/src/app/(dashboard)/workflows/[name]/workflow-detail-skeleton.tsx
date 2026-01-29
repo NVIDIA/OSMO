@@ -14,25 +14,59 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+"use client";
+
 /**
  * Workflow Detail Page Skeleton
  *
  * Loading skeleton for the workflow detail page.
- * Shows a placeholder for the DAG canvas and panel.
+ * Shows a placeholder for either the DAG canvas or table view with panel.
  */
 
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { TableSkeleton } from "@/components/data-table/TableSkeleton";
+import { useWorkflowDetailsView } from "@/stores";
 
 export function WorkflowDetailSkeleton() {
+  const workflowView = useWorkflowDetailsView();
+  const isTableView = workflowView === "table";
+
   return (
     <div className="flex h-full">
-      {/* DAG Canvas Area */}
-      <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="text-center">
-          <Skeleton className="mx-auto mb-4 h-32 w-32 rounded-lg" />
-          <Skeleton className="mx-auto h-4 w-32" />
-        </div>
-      </div>
+      {isTableView ? (
+        <>
+          {/* Table View Area */}
+          <div className="flex flex-1 flex-col gap-4 bg-zinc-50 p-6 dark:bg-zinc-950">
+            {/* Toolbar skeleton */}
+            <div className="flex shrink-0 items-center justify-between">
+              <Skeleton className="h-10 w-80" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-9 w-9" />
+                <Skeleton className="h-9 w-9" />
+              </div>
+            </div>
+
+            {/* Table skeleton */}
+            <div className="min-h-0 flex-1 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+              <TableSkeleton
+                columnCount={6}
+                rowCount={10}
+                showHeader={true}
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* DAG Canvas Area */}
+          <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+            <div className="text-center">
+              <Skeleton className="mx-auto mb-4 h-32 w-32 rounded-lg" />
+              <Skeleton className="mx-auto h-4 w-32" />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Panel Area */}
       <div className="w-[400px] shrink-0 border-l border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
