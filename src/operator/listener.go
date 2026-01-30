@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
@@ -147,7 +146,7 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
 	// Create connection (lazy - actual connection happens on first RPC)
 	conn, err := grpc.NewClient(
 		serviceAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(utils.GetTransportCredentials(args.ServiceURL)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create gRPC client: %w", err)
