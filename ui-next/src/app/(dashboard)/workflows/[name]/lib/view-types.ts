@@ -71,6 +71,8 @@ export interface ViewPanelProps {
   isPanelCollapsed: boolean;
   /** Toggle the panel collapsed state */
   togglePanelCollapsed: () => void;
+  /** Expand the panel (for re-click behavior) */
+  expandPanel: () => void;
   /** Override content for loading/error states */
   panelOverrideContent?: React.ReactNode;
   /** Called when panel drag state changes */
@@ -116,8 +118,6 @@ export interface WorkflowDAGViewSpecificProps {
   selectedTaskRetryId: number | null;
   /** Key that changes when selection changes (for panel behavior) */
   selectionKey: string | null;
-  /** Expand the panel (for re-click behavior) */
-  expandPanel: () => void;
   /** Whether the canvas is being panned */
   isPanning: boolean;
   /** Called when panning state changes */
