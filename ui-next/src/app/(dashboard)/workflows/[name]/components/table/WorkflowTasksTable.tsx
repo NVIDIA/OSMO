@@ -97,13 +97,14 @@ interface GroupHeaderRowProps {
   isExpanded: boolean;
   onToggle: () => void;
   onClick: () => void;
+  now: number;
 }
 
-const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onToggle, onClick }: GroupHeaderRowProps) {
+const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onToggle, onClick, now }: GroupHeaderRowProps) {
   const { metadata } = section;
   if (!metadata) return null;
 
-  const { group, stats, status } = metadata;
+  const { group, stats } = metadata;
 
   // Get status category and styles for badge
   const category = getStatusCategory(group.status);
@@ -111,7 +112,7 @@ const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onTog
   const StatusIcon = category === "completed" ? Check : category === "running" ? Loader2 : category === "failed" ? AlertCircle : Clock;
 
   // Calculate duration from group response
-  const groupDuration = calculateDuration(group.start_time, group.end_time, Date.now());
+  const groupDuration = calculateDuration(group.start_time, group.end_time, now);
 
   return (
     <div
@@ -380,10 +381,11 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
               onSelectGroup(group);
             }
           }}
+          now={now}
         />
       );
     },
-    [collapsedGroups, handleToggleGroup, onSelectGroup],
+    [collapsedGroups, handleToggleGroup, onSelectGroup, now],
   );
 
   // Handle row click
