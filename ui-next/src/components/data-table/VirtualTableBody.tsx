@@ -65,6 +65,8 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   getRowId?: (item: TData) => string;
   /** Custom row class name */
   rowClassName?: string | ((item: TData) => string);
+  /** Custom section row class name (for zebra striping, borders, etc.) */
+  sectionClassName?: string | ((section: Section<TData, TSectionMeta>) => string);
   /** Render custom section header */
   renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
   /** Get tabIndex for a row (roving tabindex pattern) */
@@ -94,6 +96,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   selectedRowId,
   getRowId,
   rowClassName,
+  sectionClassName,
   renderSectionHeader,
   getRowTabIndex,
   onRowFocus,
@@ -113,6 +116,32 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         if (!item) return null;
 
         if (item.type === VirtualItemTypes.SECTION) {
+          // Render section header content
+          const sectionContent = renderSectionHeader ? (
+            renderSectionHeader(item.section)
+          ) : (
+            <td
+              role="gridcell"
+              colSpan={columnCount}
+              className="px-0"
+            >
+              <div className="flex items-center gap-2 px-4 font-medium">
+                <span>{item.section.label}</span>
+                <span className="text-zinc-500 dark:text-zinc-400">({item.section.items.length})</span>
+              </div>
+            </td>
+          );
+
+          // Skip rendering entire row if renderSectionHeader returns null
+          // (e.g., for single-task groups that don't need a section header)
+          if (sectionContent === null) {
+            return null;
+          }
+
+          // Calculate custom class name for section row (zebra striping, borders)
+          const customSectionClassName =
+            typeof sectionClassName === "function" ? sectionClassName(item.section) : sectionClassName;
+
           // Use index in key to guarantee uniqueness in virtualized list
           return (
             <tr
@@ -120,27 +149,14 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
               role="row"
               aria-rowindex={virtualRow.index + 2}
               data-section={item.section.id}
-              className="data-table-section-row sticky bg-zinc-100 dark:bg-zinc-900"
+              className={cn("data-table-section-row sticky", customSectionClassName)}
               style={{
                 height: virtualRow.size,
                 // translate3d triggers GPU compositor layer for smoother animation
                 transform: `translate3d(0, ${virtualRow.start}px, 0)`,
               }}
             >
-              {renderSectionHeader ? (
-                renderSectionHeader(item.section)
-              ) : (
-                <td
-                  role="gridcell"
-                  colSpan={columnCount}
-                  className="px-0"
-                >
-                  <div className="flex items-center gap-2 px-4 font-medium">
-                    <span>{item.section.label}</span>
-                    <span className="text-zinc-500 dark:text-zinc-400">({item.section.items.length})</span>
-                  </div>
-                </td>
-              )}
+              {sectionContent}
             </tr>
           );
         }

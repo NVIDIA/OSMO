@@ -43,6 +43,26 @@ export type { GroupQueryResponse, TaskQueryResponse, WorkflowQueryResponse };
 export interface TaskWithDuration extends TaskQueryResponse {
   /** Computed duration in seconds (from start_time/end_time) */
   duration: number | null;
+  /** Group name this task belongs to (for identification) */
+  _groupName?: string;
+  /** Whether this is the last VISIBLE task (after filtering/sorting) */
+  _isLastTask?: boolean;
+  /** Index within the visible task list (after filtering/sorting) */
+  _taskIndex?: number;
+  /**
+   * Whether this task is a single-task group.
+   * When true:
+   * - Group row is skipped
+   * - Task renders with empty circle (○) instead of L-connector
+   * - Task name is NOT indented (flush with header)
+   */
+  _isSingleTaskGroup?: boolean;
+  /**
+   * Visual row index for zebra striping (alternating row colors).
+   * Counts visible rows (section headers that aren't skipped + all task rows).
+   * Used for consistent striping across groups.
+   */
+  _visualRowIndex?: number;
 }
 
 // ============================================================================
