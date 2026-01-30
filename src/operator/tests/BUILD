@@ -65,3 +65,16 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )
+
+go_test(
+    name = "node_usage_test",
+    srcs = ["node_usage_test.go"],
+    data = ["test_node_usage_cases.json"],
+    deps = [
+        "//src/operator/utils",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource:resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types:types",
+    ],
+)
