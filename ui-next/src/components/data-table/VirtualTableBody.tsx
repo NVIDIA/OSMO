@@ -203,6 +203,12 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             {row.getVisibleCells().map((cell, cellIndex) => {
               // Cache CSS variable string to avoid duplicate function calls
               const cssWidth = getColumnCSSValue(cell.column.id);
+
+              // Get cell className from column meta (if provided).
+              // This allows columns to inject their styling requirements
+              // without VirtualTableBody needing specific knowledge of column types.
+              const cellClassName = cell.column.columnDef.meta?.cellClassName;
+
               return (
                 <td
                   key={cell.id}
@@ -214,7 +220,11 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                     minWidth: cssWidth,
                     flexShrink: 0, // Prevent shrinking below specified width
                   }}
-                  className={cn("flex items-center px-4", compact ? "py-1.5" : "py-3")}
+                  className={cn(
+                    "flex items-center",
+                    // Use custom className if provided, otherwise apply default padding
+                    cellClassName ?? (compact ? "px-4 py-1.5" : "px-4 py-3"),
+                  )}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>

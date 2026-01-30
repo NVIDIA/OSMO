@@ -104,6 +104,7 @@ export type {
   ColumnWidthConfig,
   ColumnSizingPreference,
   ColumnSizingPreferences,
+  DataTableColumnMeta,
 } from "./types";
 
 // Re-export TanStack Table types
