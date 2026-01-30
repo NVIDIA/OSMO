@@ -73,10 +73,6 @@ func (rl *ResourceListener) sendMessages() {
 	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
 
-	// Channels to signal if watchers exit unexpectedly
-	nodeWatcherDone := make(chan struct{})
-	podWatcherDone := make(chan struct{})
-
 	streamCtx := rl.GetStreamContext()
 	streamCancel := rl.GetStreamCancel()
 
@@ -84,7 +80,7 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer close(nodeWatcherDone)
+		defer close(nodeChan)
 		rl.watchNodes(nodeChan)
 	}()
 
@@ -92,7 +88,7 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer close(podWatcherDone)
+		defer close(usageChan)
 		rl.watchPods(usageChan)
 	}()
 
@@ -100,7 +96,7 @@ func (rl *ResourceListener) sendMessages() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rl.sendFromChannels(nodeChan, usageChan, nodeWatcherDone, podWatcherDone, streamCtx, streamCancel)
+		rl.sendFromChannels(nodeChan, usageChan, streamCtx, streamCancel)
 	}()
 
 	// Wait for all goroutines to complete
@@ -109,7 +105,7 @@ func (rl *ResourceListener) sendMessages() {
 }
 
 // sendFromChannels sends messages from both node and usage channels to the server
-func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage, usageChan <-chan *pb.ListenerMessage, nodeWatcherDone <-chan struct{}, podWatcherDone <-chan struct{}, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
+func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage, usageChan <-chan *pb.ListenerMessage, streamCtx context.Context, streamCancel context.CancelCauseFunc) {
 	log.Printf("Starting message sender for node and usage channels")
 	defer log.Printf("Stopping message sender")
 
@@ -121,14 +117,6 @@ func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage
 		select {
 		case <-streamCtx.Done():
 			return
-		case <-nodeWatcherDone:
-			log.Printf("node watcher stopped unexpectedly...")
-			streamCancel(fmt.Errorf("node watcher stopped"))
-			return
-		case <-podWatcherDone:
-			log.Printf("usage watcher stopped unexpectedly...")
-			streamCancel(fmt.Errorf("usage watcher stopped"))
-			return
 		case <-progressTicker.C:
 			// Report progress periodically even when idle
 			progressWriter := rl.GetProgressWriter()
@@ -137,12 +125,22 @@ func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
-		case msg := <-nodeChan:
+		case msg, ok := <-nodeChan:
+			if !ok {
+				log.Printf("node watcher stopped unexpectedly...")
+				streamCancel(fmt.Errorf("node watcher stopped"))
+				return
+			}
 			if err := rl.sendResourceMessage(msg); err != nil {
 				streamCancel(fmt.Errorf("failed to send UpdateNodeBody message: %w", err))
 				return
 			}
-		case msg := <-usageChan:
+		case msg, ok := <-usageChan:
+			if !ok {
+				log.Printf("usage watcher stopped unexpectedly...")
+				streamCancel(fmt.Errorf("usage watcher stopped"))
+				return
+			}
 			if err := rl.sendResourceMessage(msg); err != nil {
 				streamCancel(fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err))
 				return

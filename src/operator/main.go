@@ -48,9 +48,9 @@ func main() {
 		cmdArgs.Backend, cmdArgs.Namespace,
 	)
 
-	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Set up context with signal handling for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Add backend-name to metadata
 	md := metadata.Pairs("backend-name", cmdArgs.Backend)
@@ -64,23 +64,12 @@ func main() {
 	workflowListener := NewWorkflowListener(cmdArgs)
 	resourceListener := NewResourceListener(cmdArgs)
 
-	// Set up signal handling for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
 	var wg sync.WaitGroup
 
 	// Launch both listeners in parallel
 	wg.Add(2)
 	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
 	go runListenerWithRetry(ctx, resourceListener, "ResourceListener", &wg)
-
-	// Handle shutdown signal in a separate goroutine
-	go func() {
-		sig := <-sigChan
-		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
-		cancel()
-	}()
 
 	// Wait for both listeners to complete
 	wg.Wait()
