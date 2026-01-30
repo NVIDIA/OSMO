@@ -210,7 +210,9 @@ func GetAllRoleNames(ctx context.Context, client *postgres.PostgresClient) ([]st
 
 // GetPoolForWorkflow returns the pool name for a given workflow ID
 // by querying the workflows table. Returns empty string and error if not found.
-func GetPoolForWorkflow(ctx context.Context, client *postgres.PostgresClient, workflowID string) (string, error) {
+func GetPoolForWorkflow(
+	ctx context.Context, client *postgres.PostgresClient, workflowID string,
+) (string, error) {
 	query := `SELECT pool FROM workflows WHERE workflow_id = $1`
 
 	var pool string
@@ -224,7 +226,9 @@ func GetPoolForWorkflow(ctx context.Context, client *postgres.PostgresClient, wo
 
 // UpdateRolePolicies updates the policies for a role in the database.
 // This converts the policies to JSONB[] format expected by PostgreSQL.
-func UpdateRolePolicies(ctx context.Context, client *postgres.PostgresClient, role *Role, logger *slog.Logger) error {
+func UpdateRolePolicies(
+	ctx context.Context, client *postgres.PostgresClient, role *Role, logger *slog.Logger,
+) error {
 	// Convert each policy to JSON
 	policiesJSON := make([][]byte, len(role.Policies))
 	for i, policy := range role.Policies {

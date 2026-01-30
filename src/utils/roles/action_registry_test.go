@@ -192,36 +192,36 @@ func TestExtractResourceFromPath(t *testing.T) {
 			action:       ActionProfileRead,
 			wantResource: "user/user123",
 		},
-		// Global/public resources
+		// Global/public resources - no resource scope needed (empty string)
 		{
-			name:         "system action returns global",
+			name:         "system action returns empty (no scope needed)",
 			path:         "/health",
 			action:       ActionSystemHealth,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "auth action returns global",
+			name:         "auth action returns empty (no scope needed)",
 			path:         "/api/auth/login",
 			action:       ActionAuthLogin,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "user list returns global",
+			name:         "user list returns empty (no scope needed)",
 			path:         "/api/users",
 			action:       ActionUserList,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "credentials returns global",
+			name:         "credentials returns empty (no scope needed)",
 			path:         "/api/credentials/cred-123",
 			action:       ActionCredentialsRead,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "app returns global",
+			name:         "app returns empty (no scope needed)",
 			path:         "/api/app/app-123",
 			action:       ActionAppRead,
-			wantResource: "*",
+			wantResource: "",
 		},
 		// Internal resources - scoped to backend
 		{
