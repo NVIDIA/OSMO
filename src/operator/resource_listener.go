@@ -80,7 +80,7 @@ func (rl *ResourceListener) sendMessages() {
 	streamCtx := rl.GetStreamContext()
 	streamCancel := rl.GetStreamCancel()
 
-	// Start node resource watcher goroutine
+	// Start node node watcher goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -88,7 +88,7 @@ func (rl *ResourceListener) sendMessages() {
 		rl.watchNodes(nodeChan)
 	}()
 
-	// Start pod watcher goroutine (handles resource aggregation)
+	// Start pod watcher goroutine (handles node usageaggregation)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -96,7 +96,7 @@ func (rl *ResourceListener) sendMessages() {
 		rl.watchPods(usageChan)
 	}()
 
-	// Start message sender goroutine (handles both resource and usage channels)
+	// Start message sender goroutine (handles both node and usage channels)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -299,40 +299,22 @@ func (rl *ResourceListener) watchPods(usageChan chan<- *pb.ListenerMessage) {
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
-			// Only track if pod is already Running and has a node assignment
-			if pod.Status.Phase != corev1.PodRunning {
-				return
-			}
 			rl.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldPod := oldObj.(*corev1.Pod)
-			newPod := newObj.(*corev1.Pod)
+			pod := newObj.(*corev1.Pod)
 
 			// Handle two cases:
 			// Case 1: Pod transitioned TO Running state (Pending/Unknown → Running)
 			// Case 2: Pod transitioned FROM Running to terminal state (Running → Succeeded/Failed)
-			wasRunning := oldPod.Status.Phase == corev1.PodRunning
-			isRunning := newPod.Status.Phase == corev1.PodRunning
-
-			// Case 1: Pod just transitioned TO Running - track its resources
-			if !wasRunning && isRunning {
-				rl.aggregator.AddPod(newPod)
-				return
+			if pod.Status.Phase == corev1.PodRunning {
+				rl.aggregator.AddPod(pod)
 			}
 
-			// Case 2: Pod transitioned FROM Running to terminal state
-			// Terminal states: Succeeded, Failed (not Pending, Unknown)
-			if wasRunning && !isRunning {
-				isTerminal := newPod.Status.Phase == corev1.PodSucceeded || newPod.Status.Phase == corev1.PodFailed
-				if isTerminal {
-					// Pod finished - release its resources
-					rl.aggregator.DeletePod(newPod)
-					return
-				}
+			if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+				rl.aggregator.DeletePod(pod)
 			}
 
-			// All other transitions (e.g., Running → Running, Pending → Pending) are ignored
 		},
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*corev1.Pod)
@@ -443,9 +425,7 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 		if !ok {
 			continue
 		}
-		// Only include Running pods with a node assignment
-		// Note: Store only contains Running pods due to field selector in informer factory
-		if pod.Spec.NodeName != "" && pod.Status.Phase == corev1.PodRunning {
+		if pod.Status.Phase == corev1.PodRunning {
 			rl.aggregator.AddPod(pod)
 		}
 	}

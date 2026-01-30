@@ -54,8 +54,8 @@ func BuildUpdateNodeBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
 	for name, qty := range node.Status.Allocatable {
 		switch name {
 		case corev1.ResourceCPU:
-			// CPU in millicores
-			allocatableFields[string(name)] = fmt.Sprintf("%d", qty.MilliValue())
+			// CPU in cores (rounded down from millicores)
+			allocatableFields[string(name)] = fmt.Sprintf("%d", int(qty.MilliValue()/1000))
 		case corev1.ResourceMemory, corev1.ResourceEphemeralStorage:
 			// Memory/Storage in Ki
 			allocatableFields[string(name)] = fmt.Sprintf("%dKi", ToKi(qty))

@@ -46,7 +46,7 @@ class MessageType(enum.Enum):
     POD_LOG = 'pod_log'
     UPDATE_POD = 'update_pod'
     UPDATE_NODE = 'update_node'
-    RESOURCE_USAGE = 'resource_usage'
+    UPDATE_NODE_USAGE = 'update_node_usage'
     DELETE_RESOURCE = 'delete_resource'
     NODE_HASH = 'node_hash'
     TASK_LIST = 'task_list'

@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"math"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -370,8 +371,11 @@ func CalculatePodContribution(pod *corev1.Pod) *PodContribution {
 
 // FormatResourceUsage formats resource totals as a map for the proto message
 func FormatResourceUsage(totals *NodeUsageTotals) map[string]string {
+	// Convert CPU from millicores to cores and round up
+	cpuCores := int64(math.Ceil(float64(totals.CPU) / 1000.0))
+
 	return map[string]string{
-		"cpu":               strconv.FormatInt(totals.CPU, 10),
+		"cpu":               strconv.FormatInt(cpuCores, 10),
 		"memory":            strconv.FormatInt(totals.Memory, 10) + "Ki",
 		"ephemeral-storage": strconv.FormatInt(totals.Storage, 10) + "Ki",
 		"nvidia.com/gpu":    strconv.FormatInt(totals.GPU, 10),

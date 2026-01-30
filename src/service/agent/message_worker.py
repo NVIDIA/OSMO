@@ -132,10 +132,10 @@ class MessageWorker:
             if 'update_pod' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_POD
                 body_data = protobuf_msg['update_pod']
-            elif 'resource' in protobuf_msg:
+            elif 'update_node' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_NODE
                 body_data = protobuf_msg['update_node']
-            elif 'resource_usage' in protobuf_msg:
+            elif 'update_node_usage' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_NODE_USAGE
                 body_data = protobuf_msg['update_node_usage']
             elif 'logging' in protobuf_msg:
@@ -174,6 +174,8 @@ class MessageWorker:
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack invalid message to prevent infinite retries
+                logging.info('Message type: %s', message_type)
+                logging.info('Message body: %s', body_data)
                 self.redis_client.xack(self.stream_name, self.group_name, message_id)
                 return
 
