@@ -176,6 +176,29 @@ export function DataTable<TData, TSectionMeta = unknown>({
     return sizes;
   }, [columns]);
 
+  const columnInitialSizes = useMemo(() => {
+    const sizes: Record<string, number> = {};
+    for (const col of columns) {
+      const colId = col.id ?? ("accessorKey" in col && col.accessorKey ? String(col.accessorKey) : "");
+      if (colId && col.size != null) {
+        sizes[colId] = col.size;
+      }
+    }
+    return sizes;
+  }, [columns]);
+
+  const columnResizability = useMemo(() => {
+    const resizability: Record<string, boolean> = {};
+    for (const col of columns) {
+      const colId = col.id ?? ("accessorKey" in col && col.accessorKey ? String(col.accessorKey) : "");
+      if (colId) {
+        // enableResizing defaults to true if not specified
+        resizability[colId] = col.enableResizing !== false;
+      }
+    }
+    return resizability;
+  }, [columns]);
+
   const showSkeleton = isLoading && allItems.length === 0;
 
   const columnSizingHook = useColumnSizing({
@@ -186,6 +209,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
     sizingPreferences: columnSizingPreferences,
     onPreferenceChange: onColumnSizingPreferenceChange,
     minSizes: columnMinSizes,
+    configuredSizes: columnInitialSizes,
+    columnResizability,
     dataLength: allItems.length,
     isLoading: showSkeleton,
   });
@@ -480,7 +505,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
             </table>
 
             {isFetchingNextPage && (
-              <div className="sticky right-0 bottom-0 left-0 flex items-center justify-center bg-gradient-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
+              <div className="sticky right-0 bottom-0 left-0 flex items-center justify-center bg-linear-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
                 <div className="flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-300">
                   <svg
                     className="h-4 w-4 animate-spin"

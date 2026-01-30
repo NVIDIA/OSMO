@@ -106,7 +106,7 @@ export const COLUMN_PREFERRED_WIDTHS_REM = {
   ACTIONS_MEDIUM: 5.5,
 
   /** Status badge column - dot + text */
-  STATUS_BADGE: 8,
+  STATUS_BADGE: 10,
 
   /** Status badge column - long text */
   STATUS_BADGE_LONG: 12,
