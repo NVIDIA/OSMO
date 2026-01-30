@@ -68,13 +68,13 @@ const STATUS_PILL_STYLES = {
   },
 } as const;
 
-interface DependencyPillProps {
+export interface DependencyPillProps {
   group: GroupWithLayout;
   onClick?: () => void;
   isMeasurement?: boolean;
 }
 
-const DependencyPill = memo(function DependencyPill({ group, onClick, isMeasurement }: DependencyPillProps) {
+export const DependencyPill = memo(function DependencyPill({ group, onClick, isMeasurement }: DependencyPillProps) {
   const category = getStatusCategory(group.status);
   const style = STATUS_PILL_STYLES[category] || STATUS_PILL_STYLES.waiting;
   const Icon = style.icon;
@@ -82,7 +82,7 @@ const DependencyPill = memo(function DependencyPill({ group, onClick, isMeasurem
   const className = cn(
     "dependency-pill inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
     !isMeasurement &&
-      "focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
+      "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
     style.pillClass,
     onClick && "cursor-pointer",
   );

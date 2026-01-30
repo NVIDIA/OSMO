@@ -29,39 +29,24 @@
 "use client";
 
 import { useState, useMemo, useCallback, memo } from "react";
-import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
-import { cn, naturalCompare } from "@/lib/utils";
-import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
-import { SeparatedParts } from "@/components/panel";
-import { useSharedPreferences, useWorkflowDetailsView } from "@/stores";
-import { STATUS_SORT_ORDER } from "../../../lib/status";
+import { Check, Loader2, AlertCircle, Clock, Info, List } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { PanelTabs, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
+import { useWorkflowDetailsView } from "@/stores";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
 import type { GroupDetailsProps } from "../../../lib/panel-types";
 import type { TaskWithDuration } from "../../../lib/workflow-types";
-import {
-  OPTIONAL_COLUMNS_ALPHABETICAL,
-  MANDATORY_COLUMN_IDS,
-  TASK_COLUMN_SIZE_CONFIG,
-  asTaskColumnIds,
-} from "../../../lib/task-columns";
-import { createTaskColumns } from "../../../lib/task-column-defs";
-import { filterByChips, type SearchChip } from "@/components/filter-bar";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-fields";
-import { useTaskTableStore } from "../../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "../shared/DetailsPanelHeader";
-import { GroupTimeline } from "./GroupTimeline";
-import { DependencyPills } from "../shared/DependencyPills";
-import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { useResultsCount, useTick } from "@/hooks";
+import { useTick } from "@/hooks";
 import type { BreadcrumbSegment } from "../../../lib/panel-types";
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Stable row ID extractor */
-const getRowId = (task: TaskWithDuration) => task.name;
+import { GroupOverviewTab } from "./GroupOverviewTab";
+import { GroupTasksTab } from "./GroupTasksTab";
+import type { GroupTab } from "../../../hooks/use-navigation-state";
+import { OPTIONAL_COLUMNS_ALPHABETICAL } from "../../../lib/task-columns";
+import { asTaskColumnIds } from "../../../lib/task-columns";
+import { useTaskTableStore } from "../../../stores";
+import { useViewTransition } from "@/hooks";
 
 // =============================================================================
 // Component
@@ -71,8 +56,6 @@ interface GroupDetailsInternalProps extends GroupDetailsProps {
   /** Navigate back to workflow details */
   onBack?: () => void;
   onPanelResize: (pct: number) => void;
-  isDetailsExpanded: boolean;
-  onToggleDetailsExpanded: () => void;
 }
 
 export const GroupDetails = memo(function GroupDetails({
@@ -82,31 +65,21 @@ export const GroupDetails = memo(function GroupDetails({
   onSelectGroup,
   onBack,
   onPanelResize,
-  isDetailsExpanded,
-  onToggleDetailsExpanded,
+  selectedGroupTab = "overview",
+  setSelectedGroupTab,
 }: GroupDetailsInternalProps) {
-  const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
-  // Shared preferences (compact mode - used for row height calculation)
-  // Note: toggleCompactMode is handled internally by TableToolbar
-  const compactMode = useSharedPreferences((s) => s.compactMode);
-
-  // Check if we're in table view - if so, hide the tasks table since it's redundant
-  // with the main content area which already shows all tasks
+  // Check if we're in table view
   const workflowView = useWorkflowDetailsView();
   const isTableView = workflowView === "table";
 
-  // Task table store (column visibility, order, sort - persisted via Zustand)
+  // Task table store (column visibility for menu)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
-  const columnOrder = asTaskColumnIds(useTaskTableStore((s) => s.columnOrder));
-  const setColumnOrder = useTaskTableStore((s) => s.setColumnOrder);
   const toggleColumn = useTaskTableStore((s) => s.toggleColumn);
-  const sort = useTaskTableStore((s) => s.sort);
-  const setSort = useTaskTableStore((s) => s.setSort);
 
-  // Row height based on compact mode
-  const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
+  // View transition for smooth tab changes
+  const { startTransition } = useViewTransition();
 
   // Synchronized tick for live durations
   const now = useTick();
@@ -125,110 +98,37 @@ export const GroupDetails = memo(function GroupDetails({
   // Use synchronized tick for running group duration
   const groupDuration = useMemo(() => computeGroupDuration(stats, now), [stats, now]);
 
-  // TanStack column definitions
-  const columns = useMemo(() => createTaskColumns(), []);
+  // Define available tabs based on view mode
+  const availableTabs = useMemo<PanelTab[]>(() => {
+    const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
 
-  // Fixed columns (not draggable)
-  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
-
-  // Column visibility map for TanStack
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    visibleColumnIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, visibleColumnIds]);
-
-  // Sort comparator for client-side sorting
-  // Uses the entire sort object as dependency to satisfy React Compiler optimization
-  const sortComparator = useMemo(() => {
-    const column = sort?.column;
-    const direction = sort?.direction;
-    if (!column) return null;
-    const dir = direction === "asc" ? 1 : -1;
-
-    switch (column) {
-      case "status":
-        return (a: TaskWithDuration, b: TaskWithDuration) =>
-          ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
-      case "name":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.name, b.name) * dir;
-      case "duration":
-        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
-      case "node":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.node_name ?? "", b.node_name ?? "") * dir;
-      case "podIp":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.pod_ip ?? "", b.pod_ip ?? "") * dir;
-      case "exitCode":
-        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
-      case "startTime":
-        return (a: TaskWithDuration, b: TaskWithDuration) => {
-          const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
-          const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
-          return (aTime - bTime) * dir;
-        };
-      case "endTime":
-        return (a: TaskWithDuration, b: TaskWithDuration) => {
-          const aTime = a.end_time ? new Date(a.end_time).getTime() : 0;
-          const bTime = b.end_time ? new Date(b.end_time).getTime() : 0;
-          return (aTime - bTime) * dir;
-        };
-      case "retry":
-        return (a: TaskWithDuration, b: TaskWithDuration) => (a.retry_id - b.retry_id) * dir;
-      default:
-        return null;
+    // Tasks tab only available in DAG view
+    if (!isTableView) {
+      tabs.push({ id: "tasks", label: "Tasks", icon: List });
     }
-  }, [sort]);
 
-  // Filter and sort tasks
-  const filteredTasks = useMemo(() => {
-    let result = filterByChips(tasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
-    if (sortComparator) {
-      result = [...result].sort(sortComparator);
-    }
-    return result;
-  }, [tasksWithDuration, searchChips, sortComparator]);
+    return tabs;
+  }, [isTableView]);
 
-  // Static presets for state filtering (no data-dependent counts)
-  const taskPresets = TASK_PRESETS;
+  // Derive active tab - fallback to "overview" if current tab unavailable
+  const activeTab = useMemo<GroupTab>(() => {
+    const isTabAvailable = availableTabs.some((t) => t.id === selectedGroupTab);
+    return isTabAvailable ? selectedGroupTab : "overview";
+  }, [selectedGroupTab, availableTabs]);
 
-  // Results count for FilterBar display (using consolidated hook)
-  const resultsCount = useResultsCount({
-    total: stats.total,
-    filteredTotal: filteredTasks.length,
-    hasActiveFilters: searchChips.length > 0,
-  });
-
-  // Callbacks
-  const handleColumnOrderChange = useCallback(
-    (newOrder: string[]) => {
-      setColumnOrder(newOrder);
-    },
-    [setColumnOrder],
-  );
-
-  const handleSortChange = useCallback(
-    (newSort: SortState<string>) => {
-      if (newSort.column) {
-        setSort(newSort.column);
+  // Tab change handler
+  const handleTabChange = useCallback(
+    (value: string) => {
+      if (setSelectedGroupTab && (value === "overview" || value === "tasks")) {
+        startTransition(() => {
+          setSelectedGroupTab(value);
+        });
       }
     },
-    [setSort],
+    [setSelectedGroupTab, startTransition],
   );
 
-  const handleRowClick = useCallback(
-    (task: TaskWithDuration) => {
-      setSelectedTaskName(task.name);
-      onSelectTask(task, group);
-    },
-    [group, onSelectTask],
-  );
-
-  // Handle dependency pill click
+  // Handle dependency pill click (pass group name directly to GroupOverviewTab)
   const handleSelectGroupByName = useCallback(
     (groupName: string) => {
       if (onSelectGroup) {
@@ -239,6 +139,14 @@ export const GroupDetails = memo(function GroupDetails({
       }
     },
     [allGroups, onSelectGroup],
+  );
+
+  // Callback wrapper for overview tab
+  const handleOverviewSelectGroup = useCallback(
+    (groupName: string) => {
+      handleSelectGroupByName(groupName);
+    },
+    [handleSelectGroupByName],
   );
 
   // Status content for header (Row 2) - clean, no error message here
@@ -265,61 +173,15 @@ export const GroupDetails = memo(function GroupDetails({
     </SeparatedParts>
   );
 
-  // Menu content (columns submenu in header dropdown)
-  const menuContent = (
-    <ColumnMenuContent
-      columns={OPTIONAL_COLUMNS_ALPHABETICAL}
-      visibleColumnIds={visibleColumnIds}
-      onToggleColumn={toggleColumn}
-    />
-  );
-
-  // Compute upstream/downstream groups for dependencies
-  const upstreamGroups = allGroups.filter((g) => g.downstream_groups?.includes(group.name));
-  const downstreamGroups = allGroups.filter((g) => group.downstream_groups?.includes(g.name));
-
-  // Check if we have any expandable content
-  const hasFailureMessage = !!group.failure_message;
-  const hasTimeline = group.scheduling_start_time || group.start_time;
-  const hasDependencies = upstreamGroups.length > 0 || downstreamGroups.length > 0;
-  const hasExpandableContent = hasFailureMessage || hasTimeline || hasDependencies;
-
-  // Expandable content for header (failure message first, then timeline, then dependencies)
-  const expandableContent = hasExpandableContent ? (
-    <div className="space-y-3">
-      {/* Failure message - first item when present */}
-      {hasFailureMessage && (
-        <div className="flex items-start gap-1.5 text-xs text-red-400">
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <span>{group.failure_message}</span>
-        </div>
-      )}
-      {hasTimeline && <GroupTimeline group={group} />}
-      {hasDependencies && (
-        <DependencyPills
-          upstreamGroups={upstreamGroups}
-          downstreamGroups={downstreamGroups}
-          onSelectGroup={handleSelectGroupByName}
-        />
-      )}
-    </div>
-  ) : undefined;
-
-  // Empty content for table
-  const emptyContent = useMemo(
-    () => (
-      <div className="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-zinc-400">
-        No tasks match your filters
-      </div>
-    ),
-    [],
-  );
-
-  // Convert store sort to DataTable format
-  const tableSorting = useMemo<SortState<string> | undefined>(() => {
-    if (!sort) return undefined;
-    return { column: sort.column, direction: sort.direction };
-  }, [sort]);
+  // Menu content (columns submenu in header dropdown - only shown in DAG view with tasks tab)
+  const menuContent =
+    !isTableView && activeTab === "tasks" ? (
+      <ColumnMenuContent
+        columns={OPTIONAL_COLUMNS_ALPHABETICAL}
+        visibleColumnIds={visibleColumnIds}
+        onToggleColumn={toggleColumn}
+      />
+    ) : null;
 
   // Build breadcrumbs for hierarchical navigation (Workflow > Group)
   const breadcrumbs = useMemo((): BreadcrumbSegment[] => {
@@ -329,7 +191,7 @@ export const GroupDetails = memo(function GroupDetails({
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
-      {/* Header with expandable details */}
+      {/* Header (compact - no expandable content) */}
       <DetailsPanelHeader
         viewType="group"
         title={group.name}
@@ -338,67 +200,48 @@ export const GroupDetails = memo(function GroupDetails({
         breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
         onPanelResize={onPanelResize}
         menuContent={menuContent}
-        expandableContent={expandableContent}
-        isExpanded={isDetailsExpanded}
-        onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Tasks table - hidden in table view since main content already shows all tasks */}
-      {!isTableView && (
-        <>
-          {/* Toolbar: Search + Controls (using shared TableToolbar) */}
-          <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
-            <TableToolbar
-              data={tasksWithDuration}
-              searchFields={TASK_SEARCH_FIELDS}
-              columns={OPTIONAL_COLUMNS_ALPHABETICAL}
-              visibleColumnIds={visibleColumnIds}
-              onToggleColumn={toggleColumn}
-              searchChips={searchChips}
-              onSearchChipsChange={setSearchChips}
-              placeholder="Filter by name, status:, ip:, duration:..."
-              searchPresets={taskPresets}
-              resultsCount={resultsCount}
-            />
-          </div>
+      {/* Tabs */}
+      <PanelTabs
+        tabs={availableTabs}
+        value={activeTab}
+        onValueChange={handleTabChange}
+      />
 
-          {/* Task List - using canonical DataTable */}
-          <DataTable<TaskWithDuration>
-            data={filteredTasks}
-            columns={columns}
-            getRowId={getRowId}
-            // Column management
-            columnOrder={columnOrder}
-            onColumnOrderChange={handleColumnOrderChange}
-            columnVisibility={columnVisibility}
-            fixedColumns={fixedColumns}
-            // Column sizing
-            columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
-            // Sorting
-            sorting={tableSorting}
-            onSortingChange={handleSortChange}
-            // Layout
-            rowHeight={rowHeight}
-            compact={compactMode}
-            className="text-sm"
-            scrollClassName="flex-1"
-            // State
-            emptyContent={emptyContent}
-            // Interaction
-            onRowClick={handleRowClick}
-            selectedRowId={selectedTaskName ?? undefined}
+      {/* Tab Content */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Overview Tab */}
+        <TabPanel
+          tab="overview"
+          activeTab={activeTab}
+          scrollable={true}
+        >
+          <GroupOverviewTab
+            group={group}
+            allGroups={allGroups}
+            onSelectGroup={handleOverviewSelectGroup}
           />
-        </>
-      )}
+        </TabPanel>
 
-      {/* Table view info message - shown when tasks table is hidden */}
-      {isTableView && (
-        <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-gray-500 dark:text-zinc-400">
-          Tasks are shown in the main table view.
-          <br />
-          Click a task row to see its details.
-        </div>
-      )}
+        {/* Tasks Tab (only in DAG view) */}
+        {!isTableView && (
+          <TabPanel
+            tab="tasks"
+            activeTab={activeTab}
+            scrollable={false}
+          >
+            <GroupTasksTab
+              tasksWithDuration={tasksWithDuration}
+              group={group}
+              totalTasks={stats.total}
+              onSelectTask={onSelectTask}
+              selectedTaskName={selectedTaskName}
+              onSelectedTaskNameChange={setSelectedTaskName}
+            />
+          </TabPanel>
+        )}
+      </div>
     </div>
   );
 });
