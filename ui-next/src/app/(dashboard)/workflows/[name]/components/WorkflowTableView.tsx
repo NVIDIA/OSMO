@@ -25,7 +25,7 @@
 
 "use client";
 
-import { memo, useRef, useMemo } from "react";
+import { memo, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { InlineErrorBoundary } from "@/components/error";
 import { useUrlChips, useResultsCount } from "@/hooks";
@@ -36,7 +36,7 @@ import { PANEL } from "@/components/panel";
 import { usePanelProps } from "../hooks/use-panel-props";
 import { TASK_SEARCH_FIELDS } from "../lib/task-search-fields";
 import type { WorkflowViewCommonProps } from "../lib/view-types";
-import type { TaskWithDuration } from "../lib/workflow-types";
+import type { TaskWithDuration, GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
 
 // Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(() => import("./shell/ShellContainer").then((m) => ({ default: m.ShellContainer })), {
@@ -49,7 +49,7 @@ const ShellContainer = dynamic(() => import("./shell/ShellContainer").then((m) =
 
 /**
  * Table view props use the common view props without DAG-specific additions.
- * Table view doesn't need panning, selectionKey, or expandPanel.
+ * Table view doesn't need panning or selectionKey (DAG-specific).
  */
 export type WorkflowTableViewProps = WorkflowViewCommonProps;
 
@@ -58,9 +58,44 @@ export type WorkflowTableViewProps = WorkflowViewCommonProps;
 // =============================================================================
 
 export const WorkflowTableView = memo(function WorkflowTableView(props: WorkflowTableViewProps) {
-  const { groups, selectedGroupName, selectedTaskName, onSelectGroup, onSelectTask, onPanelDraggingChange } = props;
+  const {
+    groups,
+    selectedGroupName,
+    selectedTaskName,
+    onSelectGroup,
+    onSelectTask,
+    onPanelDraggingChange,
+    isPanelCollapsed,
+    expandPanel,
+  } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Wrapped navigation handlers for re-click behavior
+  // When clicking an already-selected row, expand the panel if it's collapsed
+  const handleNavigateToGroup = useCallback(
+    (group: GroupWithLayout) => {
+      const isAlreadySelected = selectedGroupName === group.name && !selectedTaskName;
+      if (isAlreadySelected && isPanelCollapsed) {
+        expandPanel();
+      } else {
+        onSelectGroup(group);
+      }
+    },
+    [selectedGroupName, selectedTaskName, isPanelCollapsed, expandPanel, onSelectGroup],
+  );
+
+  const handleNavigateToTask = useCallback(
+    (task: TaskQueryResponse, group: GroupWithLayout) => {
+      const isAlreadySelected = selectedGroupName === group.name && selectedTaskName === task.name;
+      if (isAlreadySelected && isPanelCollapsed) {
+        expandPanel();
+      } else {
+        onSelectTask(task, group);
+      }
+    },
+    [selectedGroupName, selectedTaskName, isPanelCollapsed, expandPanel, onSelectTask],
+  );
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
@@ -146,8 +181,8 @@ export const WorkflowTableView = memo(function WorkflowTableView(props: Workflow
             >
               <WorkflowTasksTable
                 groups={groups}
-                onSelectGroup={onSelectGroup}
-                onSelectTask={onSelectTask}
+                onSelectGroup={handleNavigateToGroup}
+                onSelectTask={handleNavigateToTask}
                 selectedGroupName={selectedGroupName ?? undefined}
                 selectedTaskName={selectedTaskName ?? undefined}
               />
