@@ -109,6 +109,13 @@
   --color-table-border-bottom: var(--table-border-bottom);
 
   /* ==========================================================================
+     Tree Connector Colors
+     More prominent than regular borders for clear visual hierarchy
+     Available as: bg-tree-line, border-tree-line
+     ========================================================================== */
+  --color-tree-line: var(--tree-line);
+
+  /* ==========================================================================
      Border Radius Scale
      ========================================================================== */
   --radius-sm: calc(var(--radius) - 4px);
@@ -236,6 +243,9 @@
   --table-border-left: oklch(0.92 0 0);
   --table-border-right: oklch(0.86 0 0);
   --table-border-bottom: oklch(0.85 0 0);
+
+  /* Tree connector lines (light mode) - more prominent than regular borders */
+  --tree-line: oklch(0.8 0 0);
 }
 
 .dark {
@@ -292,6 +302,9 @@
   --table-border-left: oklch(0.17 0 0);
   --table-border-right: oklch(0.1 0 0);
   --table-border-bottom: oklch(0.09 0 0);
+
+  /* Tree connector lines (dark mode) - more prominent than regular borders */
+  --tree-line: oklch(0.45 0 0);
 }
 
 @layer base {

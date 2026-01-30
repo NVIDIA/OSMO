@@ -105,7 +105,13 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       > = [];
 
       for (const section of sections) {
-        result.push({ type: VirtualItemTypes.SECTION, section, height: sectionHeight });
+        // Use height 0 for sections with skipGroupRow (e.g., single-task groups)
+        // so they don't allocate vertical space in the virtual list
+        const metadata = section.metadata as { skipGroupRow?: boolean } | undefined;
+        const shouldSkipHeader = metadata?.skipGroupRow === true;
+        const headerHeight = shouldSkipHeader ? 0 : sectionHeight;
+
+        result.push({ type: VirtualItemTypes.SECTION, section, height: headerHeight });
         for (const item of section.items) {
           result.push({ type: VirtualItemTypes.ROW, item, height: rowHeight });
         }
