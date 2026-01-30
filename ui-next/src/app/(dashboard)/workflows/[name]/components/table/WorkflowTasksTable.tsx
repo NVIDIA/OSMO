@@ -29,19 +29,20 @@
 "use client";
 
 import { useMemo, useCallback, useState, memo } from "react";
-import { ChevronDown, ChevronRight, Check, Loader2, AlertCircle, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
-import { DataTable, type Section, type SortState } from "@/components/data-table";
+import { DataTable, type Section, type SortState, getColumnCSSValue } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useTick } from "@/hooks";
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
-import { calculateDuration, formatDuration } from "../../lib/workflow-types";
-import { computeTaskStats, computeGroupStatus, computeGroupDuration, STATUS_SORT_ORDER, getStatusCategory, STATUS_STYLES } from "../../lib/status";
-import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
+import { calculateDuration } from "../../lib/workflow-types";
+import { computeTaskStats, STATUS_SORT_ORDER } from "../../lib/status";
 import { createTaskColumns } from "../../lib/task-column-defs";
-import { TASK_COLUMN_SIZE_CONFIG, MANDATORY_COLUMN_IDS, asTaskColumnIds } from "../../lib/task-columns";
+import { TASK_WITH_TREE_COLUMN_SIZE_CONFIG, MANDATORY_COLUMN_IDS, asTaskColumnIds } from "../../lib/task-columns";
 import { useTaskTableStore } from "../../stores";
+import { TreeConnector } from "./TreeConnector";
 
 import type {
   GroupWithLayout,
@@ -75,8 +76,6 @@ export interface WorkflowTasksTableProps {
 interface GroupSectionMeta {
   group: GroupWithLayout;
   stats: ReturnType<typeof computeTaskStats>;
-  status: ReturnType<typeof computeGroupStatus>;
-  duration: number | null;
 }
 
 // =============================================================================
@@ -89,123 +88,8 @@ function getTaskId(task: TaskWithDuration, groupName: string): string {
 }
 
 // =============================================================================
-// Group Header Component
+// Group Header Component (renders as table cells)
 // =============================================================================
-
-interface GroupHeaderRowProps {
-  section: Section<TaskWithDuration, GroupSectionMeta>;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onClick: () => void;
-  now: number;
-}
-
-const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onToggle, onClick, now }: GroupHeaderRowProps) {
-  const { metadata } = section;
-  if (!metadata) return null;
-
-  const { group, stats } = metadata;
-
-  // Get status category and styles for badge
-  const category = getStatusCategory(group.status);
-  const styles = STATUS_STYLES[category];
-  const StatusIcon = category === "completed" ? Check : category === "running" ? Loader2 : category === "failed" ? AlertCircle : Clock;
-
-  // Calculate duration from group response
-  const groupDuration = calculateDuration(group.start_time, group.end_time, now);
-
-  return (
-    <div
-      className="group-header-row flex h-full w-full cursor-pointer items-center"
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-      aria-expanded={isExpanded}
-      aria-label={`Group ${group.name}, ${stats.completed} of ${stats.total} tasks complete`}
-    >
-      {/* Name column */}
-      <div className="flex min-w-0 items-center gap-2 px-3" style={{ width: "var(--col-name, 200px)" }}>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          className="flex size-5 shrink-0 items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-zinc-700"
-          aria-label={isExpanded ? "Collapse group" : "Expand group"}
-        >
-          {isExpanded ? (
-            <ChevronDown className="size-3.5 text-gray-500 dark:text-zinc-400" />
-          ) : (
-            <ChevronRight className="size-3.5 text-gray-500 dark:text-zinc-400" />
-          )}
-        </button>
-        <span className="min-w-0 truncate font-medium text-gray-900 dark:text-zinc-100">{group.name}</span>
-      </div>
-
-      {/* Status column */}
-      <div className="flex items-center px-3" style={{ width: "var(--col-status, 120px)" }}>
-        <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
-          <StatusIcon className={cn("size-3.5", styles.text, category === "running" && "animate-spin")} />
-          <span className={cn("text-xs font-semibold", styles.text)}>{group.status}</span>
-        </span>
-      </div>
-
-      {/* Duration column */}
-      <div className="px-3 text-gray-500 tabular-nums dark:text-zinc-400" style={{ width: "var(--col-duration, 100px)" }}>
-        {formatDuration(groupDuration)}
-      </div>
-
-      {/* Node column (empty for groups) */}
-      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-node, 120px)" }}>
-        —
-      </div>
-
-      {/* Pod IP column (empty for groups) */}
-      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-podIp, 120px)" }}>
-        —
-      </div>
-
-      {/* Exit Code column (empty for groups) */}
-      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-exitCode, 80px)" }}>
-        —
-      </div>
-
-      {/* Start Time column */}
-      <div className="px-3 text-gray-500 tabular-nums dark:text-zinc-400" style={{ width: "var(--col-startTime, 110px)" }}>
-        {group.start_time ? (
-          <span className="whitespace-nowrap" title={formatDateTimeFull(group.start_time)}>
-            {formatDateTimeSuccinct(group.start_time)}
-          </span>
-        ) : (
-          <span className="text-gray-400 dark:text-zinc-500">—</span>
-        )}
-      </div>
-
-      {/* End Time column */}
-      <div className="px-3 text-gray-500 tabular-nums dark:text-zinc-400" style={{ width: "var(--col-endTime, 110px)" }}>
-        {group.end_time ? (
-          <span className="whitespace-nowrap" title={formatDateTimeFull(group.end_time)}>
-            {formatDateTimeSuccinct(group.end_time)}
-          </span>
-        ) : (
-          <span className="text-gray-400 dark:text-zinc-500">—</span>
-        )}
-      </div>
-
-      {/* Retry column (empty for groups) */}
-      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-retry, 80px)" }}>
-        —
-      </div>
-    </div>
-  );
-});
 
 // =============================================================================
 // Component
@@ -290,15 +174,22 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   // Transform groups into sections with computed metadata
   const sections = useMemo((): Section<TaskWithDuration, GroupSectionMeta>[] => {
     return groups.map((group) => {
-      // Compute tasks with duration
+      // Compute tasks with duration and tree position
       const tasksWithDuration: TaskWithDuration[] = (group.tasks || []).map(
-        (task) =>
+        (task, index, arr) =>
           ({
             ...task,
             duration: calculateDuration(task.start_time, task.end_time, now),
             // Store group reference for row click handler
             _groupName: group.name,
-          }) as TaskWithDuration & { _groupName: string },
+            // Tree position for connector rendering
+            _taskPosition: index === 0 ? "first" : index === arr.length - 1 ? "last" : "middle",
+            _isOnlyTask: arr.length === 1,
+          }) as TaskWithDuration & {
+            _groupName: string;
+            _taskPosition: "first" | "middle" | "last";
+            _isOnlyTask: boolean;
+          },
       );
 
       // Sort tasks if we have a comparator
@@ -306,8 +197,6 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
 
       // Compute stats
       const stats = computeTaskStats(sortedTasks);
-      const status = computeGroupStatus(stats);
-      const duration = computeGroupDuration(stats, now);
 
       // Filter out collapsed groups' tasks
       const isExpanded = !collapsedGroups.has(group.name);
@@ -320,22 +209,55 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         metadata: {
           group,
           stats,
-          status,
-          duration,
         },
       };
     });
   }, [groups, now, sortComparator, collapsedGroups]);
 
-  // TanStack column definitions
-  const columns = useMemo(() => createTaskColumns(), []);
+  // TanStack column definitions (tree column + task columns)
+  const columns = useMemo(() => {
+    const baseColumns = createTaskColumns();
 
-  // Fixed columns (not draggable)
-  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
+    // Create a dedicated tree column as the first column
+    const treeColumn: ColumnDef<TaskWithDuration> = {
+      id: "_tree",
+      header: "", // Empty header - no text
+      enableResizing: false, // Prevent manual resize + auto-sizing
+      enableSorting: false,
+      cell: (props: CellContext<TaskWithDuration, unknown>) => {
+        const task = props.row.original as TaskWithDuration & {
+          _groupName?: string;
+          _taskPosition?: "first" | "middle" | "last";
+          _isOnlyTask?: boolean;
+        };
+
+        const position = task._taskPosition ?? "middle";
+        const isOnlyTask = task._isOnlyTask ?? false;
+
+        return (
+          <TreeConnector
+            position={position}
+            isSingleTask={isOnlyTask}
+          />
+        );
+      },
+    };
+
+    // Return tree column + all base columns
+    return [treeColumn, ...baseColumns];
+  }, []);
+
+  // Fixed columns (not draggable) - tree column must be first
+  const fixedColumns = useMemo(() => ["_tree", ...Array.from(MANDATORY_COLUMN_IDS)], []);
+
+  // Ensure tree column is always first in the order
+  const tableColumnOrder = useMemo(() => ["_tree", ...columnOrder], [columnOrder]);
 
   // Column visibility map for TanStack
   const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
+    const visibility: Record<string, boolean> = {
+      _tree: true, // Tree column is always visible
+    };
     columnOrder.forEach((id) => {
       visibility[id] = false;
     });
@@ -365,27 +287,95 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     });
   }, []);
 
-  // Render section header
+  // Render section header (as table cells)
   const renderSectionHeader = useCallback(
     (section: Section<TaskWithDuration, GroupSectionMeta>) => {
       const isExpanded = !collapsedGroups.has(section.id);
-      const group = section.metadata?.group;
+      const { group, stats } = section.metadata || {};
+      if (!group) return null;
+
+      const isSingleTask = (group.tasks?.length ?? 0) === 1;
+      const taskCount = stats?.total ?? 0;
+
+      // Get column IDs for width styling
+      const columnIds = columns.map((col) => {
+        if (typeof col.id === "string") return col.id;
+        if ("accessorKey" in col && col.accessorKey) return String(col.accessorKey);
+        return "";
+      });
 
       return (
-        <GroupHeaderRow
-          section={section}
-          isExpanded={isExpanded}
-          onToggle={() => handleToggleGroup(section.id)}
-          onClick={() => {
-            if (group) {
-              onSelectGroup(group);
-            }
-          }}
-          now={now}
-        />
+        <>
+          {/* Tree column cell */}
+          <td
+            role="gridcell"
+            className="flex items-center justify-center px-4"
+            style={{
+              width: getColumnCSSValue("_tree"),
+              minWidth: getColumnCSSValue("_tree"),
+              flex: "none",
+            }}
+            onClick={() => onSelectGroup(group)}
+          >
+            {/* Expand/collapse button or leaf indicator */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click when toggling
+                handleToggleGroup(section.id);
+              }}
+              className={cn(
+                "relative z-10 flex size-6 items-center justify-center rounded text-sm transition-colors",
+                !isSingleTask && "hover:bg-gray-200 dark:hover:bg-zinc-700",
+              )}
+              aria-label={isSingleTask ? "Single task group" : isExpanded ? "Collapse group" : "Expand group"}
+              disabled={isSingleTask}
+            >
+              {isSingleTask ? (
+                <span className="text-cyan-500">○</span>
+              ) : isExpanded ? (
+                <ChevronDown className="size-4 text-gray-600 dark:text-zinc-400" />
+              ) : (
+                <ChevronRight className="size-4 text-gray-600 dark:text-zinc-400" />
+              )}
+            </button>
+          </td>
+
+          {/* Name column cell - clickable to select group */}
+          <td
+            role="gridcell"
+            className="px-4 py-2"
+            style={{
+              width: getColumnCSSValue(columnIds[1] || "name"),
+              minWidth: getColumnCSSValue(columnIds[1] || "name"),
+              flex: "none",
+            }}
+            onClick={() => onSelectGroup(group)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{group.name}</span>
+              <span className="text-muted-foreground text-sm">
+                {taskCount} {taskCount === 1 ? "task" : "tasks"}
+              </span>
+            </div>
+          </td>
+
+          {/* Remaining columns - empty cells to maintain structure */}
+          {columnIds.slice(2).map((colId, i) => (
+            <td
+              key={colId || i}
+              role="gridcell"
+              style={{
+                width: getColumnCSSValue(colId),
+                minWidth: getColumnCSSValue(colId),
+                flex: "none",
+              }}
+              onClick={() => onSelectGroup(group)}
+            />
+          ))}
+        </>
       );
     },
-    [collapsedGroups, handleToggleGroup, onSelectGroup, now],
+    [collapsedGroups, handleToggleGroup, columns, onSelectGroup],
   );
 
   // Handle row click
@@ -400,10 +390,12 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     [groupMap, onSelectTask],
   );
 
-  // Handle column order change
+  // Handle column order change (filter out tree column before saving to store)
   const handleColumnOrderChange = useCallback(
     (newOrder: string[]) => {
-      setColumnOrder(newOrder);
+      // Remove _tree column as it's not part of the task columns managed by the store
+      const taskColumnOrder = newOrder.filter((id) => id !== "_tree");
+      setColumnOrder(taskColumnOrder);
     },
     [setColumnOrder],
   );
@@ -463,7 +455,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   }, [groups.length]);
 
   return (
-    <div className="table-container relative h-full">
+    <div className="table-container border-border bg-card relative h-full overflow-hidden rounded-lg border">
       <DataTable<TaskWithDuration, GroupSectionMeta>
         data={[]}
         sections={sections}
@@ -471,12 +463,12 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         getRowId={getRowId}
         renderSectionHeader={renderSectionHeader}
         // Column management
-        columnOrder={columnOrder}
+        columnOrder={tableColumnOrder}
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
-        // Column sizing
-        columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
+        // Column sizing (includes tree column + task columns)
+        columnSizeConfigs={TASK_WITH_TREE_COLUMN_SIZE_CONFIG}
         // Sorting
         sorting={tableSorting}
         onSortingChange={handleSortChange}

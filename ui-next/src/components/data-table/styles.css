@@ -89,6 +89,7 @@
   align-items: stretch;
   /* Match data row fade-in for consistency */
   animation: row-fade-in var(--duration-quick) var(--ease-out);
+  cursor: pointer;
 }
 
 /* Section header cell - ensure vertical centering */
@@ -98,6 +99,11 @@
   align-items: center;
   flex: 1;
   padding: 0;
+}
+
+/* Atomic hover effect - all cells change together when row is hovered */
+.data-table-section-row:hover td {
+  @apply bg-gray-50 dark:bg-zinc-800/50;
 }
 
 /* Header row - flex layout for column alignment */
