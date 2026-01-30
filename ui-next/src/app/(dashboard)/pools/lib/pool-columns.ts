@@ -50,7 +50,7 @@ const poolColumnConfig = createColumnConfig<PoolColumnId>({
     },
     {
       id: "status",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE,
     },
     {

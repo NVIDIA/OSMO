@@ -38,6 +38,7 @@ export interface UseColumnSizingOptions {
   onPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
   minSizes?: Record<string, number>;
   configuredSizes?: Record<string, number>;
+  columnResizability?: Record<string, boolean>;
   resizeDebounceMs?: number;
   dataLength?: number;
   isLoading?: boolean;
@@ -91,6 +92,7 @@ export function useColumnSizing({
   onPreferenceChange,
   minSizes: minSizesProp,
   configuredSizes: configuredSizesProp,
+  columnResizability = {},
   resizeDebounceMs = 150,
   dataLength = 0,
   isLoading = false,
@@ -321,6 +323,7 @@ export function useColumnSizing({
       configuredSizesRef.current,
       sizingPreferencesRef.current,
       contentWidthsRef.current,
+      columnResizability,
     );
 
     // Handle animation class
