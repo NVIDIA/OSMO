@@ -252,6 +252,16 @@ const OverviewTab = memo(function OverviewTab({
         </Card>
       </section>
 
+      {/* Dependencies section - only for standalone tasks */}
+      {isStandaloneTask && (upstreamGroups.length > 0 || downstreamGroups.length > 0) && (
+        <DependenciesSection
+          upstreamItems={upstreamGroups.map((g) => ({ name: g.name, status: g.status }))}
+          downstreamItems={downstreamGroups.map((g) => ({ name: g.name, status: g.status }))}
+          onSelect={onSelectGroup}
+          renderPill={renderDependencyPill}
+        />
+      )}
+
       {/* Details section - using DetailsSection component */}
       <DetailsSection
         title="Details"
@@ -262,16 +272,6 @@ const OverviewTab = memo(function OverviewTab({
           { label: "Pod IP", value: task.pod_ip, copyable: true, mono: true, truncate: true, show: !!task.pod_ip },
         ]}
       />
-
-      {/* Dependencies section - only for standalone tasks */}
-      {isStandaloneTask && (upstreamGroups.length > 0 || downstreamGroups.length > 0) && (
-        <DependenciesSection
-          upstreamItems={upstreamGroups.map((g) => ({ name: g.name, status: g.status }))}
-          downstreamItems={downstreamGroups.map((g) => ({ name: g.name, status: g.status }))}
-          onSelect={onSelectGroup}
-          renderPill={renderDependencyPill}
-        />
-      )}
 
       {/* Links section - using LinksSection component */}
       <LinksSection
