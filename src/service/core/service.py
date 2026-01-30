@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,6 +39,8 @@ from src.service.core.config import (
 )
 from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
+from src.service.core.scim import migrations as scim_migrations
+from src.service.core.scim import scim_service
 from src.service.core.workflow import (
     helpers, objects, workflow_service, workflow_metrics
 )
@@ -94,6 +96,7 @@ app.include_router(workflow_service.router_resource)
 app.include_router(workflow_service.router_pool)
 app.include_router(data_service.router)
 app.include_router(profile_service.router)
+app.include_router(scim_service.router)
 
 
 @misc_router.get('/client/version')
@@ -320,6 +323,9 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     create_default_pool(postgres)
     set_default_backend_images(postgres)
     set_default_service_url(postgres)
+
+    # Create SCIM tables for IdP user/group provisioning
+    scim_migrations.create_scim_tables(postgres)
 
     # Instantiate QueryParser
     query.QueryParser()
