@@ -55,8 +55,6 @@ export interface TreeGroupCellProps {
   hasVisibleTasks: boolean;
   /** Callback when expand/collapse is toggled */
   onToggle: () => void;
-  /** Visual row index for zebra striping (determines icon color) */
-  visualRowIndex?: number;
   /** Optional className for the container */
   className?: string;
 }
@@ -69,7 +67,6 @@ export const TreeGroupCell = memo(function TreeGroupCell({
   isExpanded,
   hasVisibleTasks,
   onToggle,
-  visualRowIndex = 0,
   className,
 }: TreeGroupCellProps) {
   const handleClick = useCallback(
@@ -94,15 +91,12 @@ export const TreeGroupCell = memo(function TreeGroupCell({
   // Vertical line only when expanded AND has visible tasks
   const showVerticalLine = isExpanded && hasVisibleTasks;
 
-  // Icon color matches row background for "cutout" effect (respects zebra striping)
-  const isEvenRow = visualRowIndex % 2 === 0;
-  const iconColorClass = isEvenRow
-    ? "text-white dark:text-zinc-950" // Even rows: white/zinc-950 background
-    : "text-gray-50 dark:text-zinc-900"; // Odd rows: gray-50/zinc-900 background
+  // Icon color matches row text color
+  const iconColorClass = "text-gray-900 dark:text-zinc-100";
 
   return (
     <div className={cn("relative flex h-full w-full items-center justify-center", className)}>
-      {/* Circle button with +/- indicator - cutout effect */}
+      {/* Circle button with +/- indicator */}
       <button
         type="button"
         onClick={handleClick}
@@ -124,14 +118,12 @@ export const TreeGroupCell = memo(function TreeGroupCell({
       >
         {isExpanded ? (
           <Minus
-            // Icon color matches row background for "cutout" effect
             className={iconColorClass}
             style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }}
             aria-hidden="true"
           />
         ) : (
           <Plus
-            // Icon color matches row background for "cutout" effect
             className={iconColorClass}
             style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }}
             aria-hidden="true"
