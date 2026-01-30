@@ -22,7 +22,7 @@
 
 import type { WorkflowQueryResponse } from "@/lib/api/adapter";
 import type { TaskQueryResponse, GroupWithLayout } from "./workflow-types";
-import type { TaskTab, WorkflowTab } from "../hooks/use-navigation-state";
+import type { TaskTab, WorkflowTab, GroupTab } from "../hooks/use-navigation-state";
 
 // ============================================================================
 // Panel View Types
@@ -126,6 +126,16 @@ export interface DetailsPanelProps {
    */
   setSelectedWorkflowTab?: (tab: WorkflowTab) => void;
   /**
+   * Currently selected group tab (URL-synced).
+   * Defaults to "overview" when not specified.
+   */
+  selectedGroupTab?: GroupTab;
+  /**
+   * Callback to change the selected group tab.
+   * Updates the URL with the new tab value.
+   */
+  setSelectedGroupTab?: (tab: GroupTab) => void;
+  /**
    * Minimum width percentage for the panel.
    * Defaults to PANEL.MIN_WIDTH_PCT (20%).
    */
@@ -155,6 +165,16 @@ export interface GroupDetailsProps {
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
   /** Callback when selecting a different group (for dependency navigation) */
   onSelectGroup?: (group: GroupWithLayout) => void;
+  /**
+   * Currently selected group tab (URL-synced).
+   * Defaults to "overview" when not specified.
+   */
+  selectedGroupTab?: GroupTab;
+  /**
+   * Callback to change the selected group tab.
+   * Updates the URL with the new tab value.
+   */
+  setSelectedGroupTab?: (tab: GroupTab) => void;
 }
 
 /**

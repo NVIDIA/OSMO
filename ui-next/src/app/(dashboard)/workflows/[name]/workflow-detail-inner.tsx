@@ -106,12 +106,14 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     selectedTaskRetryId,
     selectedTab,
     selectedWorkflowTab,
+    selectedGroupTab,
     navigateToGroup,
     navigateToTask,
     navigateToWorkflow,
     navigateBackToGroup,
     setSelectedTab,
     setSelectedWorkflowTab,
+    setSelectedGroupTab,
   } = useNavigationState({ groups: groupsWithLayout, initialView });
 
   // Compute selection key for panel collapse behavior
@@ -268,6 +270,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     setSelectedTab,
     selectedWorkflowTab,
     setSelectedWorkflowTab,
+    selectedGroupTab,
+    setSelectedGroupTab,
     onShellTabChange: handleShellTabChange,
     activeShellTaskName,
   };
