@@ -29,7 +29,7 @@
  */
 
 import { memo } from "react";
-import { Badge } from "@/components/shadcn/badge";
+import { GroupBadge } from "../../shared";
 
 // =============================================================================
 // Types
@@ -50,12 +50,7 @@ export const GroupNameCell = memo(function GroupNameCell({ name, taskCount }: Gr
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span className="text-foreground truncate font-semibold">{name}</span>
-      <Badge
-        variant="outline"
-        className="shrink-0 rounded-md text-[10px] font-medium tracking-wide uppercase"
-      >
-        Group
-      </Badge>
+      <GroupBadge />
       <span className="text-muted-foreground shrink-0 text-sm">
         ({taskCount} {taskCount === 1 ? "task" : "tasks"})
       </span>
