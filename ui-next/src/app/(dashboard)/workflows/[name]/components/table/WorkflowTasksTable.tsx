@@ -37,7 +37,8 @@ import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useTick } from "@/hooks";
 
 import { calculateDuration, formatDuration } from "../../lib/workflow-types";
-import { computeTaskStats, computeGroupStatus, computeGroupDuration, STATUS_SORT_ORDER } from "../../lib/status";
+import { computeTaskStats, computeGroupStatus, computeGroupDuration, STATUS_SORT_ORDER, getStatusCategory, STATUS_STYLES } from "../../lib/status";
+import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
 import { createTaskColumns } from "../../lib/task-column-defs";
 import { TASK_COLUMN_SIZE_CONFIG, MANDATORY_COLUMN_IDS, asTaskColumnIds } from "../../lib/task-columns";
 import { useTaskTableStore } from "../../stores";
@@ -102,41 +103,19 @@ const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onTog
   const { metadata } = section;
   if (!metadata) return null;
 
-  const { group, stats, status, duration } = metadata;
-  const progressPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+  const { group, stats, status } = metadata;
 
-  // Determine progress bar color based on status
-  const progressColor =
-    status.status === "completed"
-      ? "bg-emerald-500"
-      : status.status === "failed"
-        ? "bg-red-500"
-        : status.status === "running"
-          ? "bg-blue-500"
-          : "bg-gray-400 dark:bg-zinc-500";
+  // Get status category and styles for badge
+  const category = getStatusCategory(group.status);
+  const styles = STATUS_STYLES[category];
+  const StatusIcon = category === "completed" ? Check : category === "running" ? Loader2 : category === "failed" ? AlertCircle : Clock;
 
-  // Status icon
-  const StatusIcon =
-    status.status === "completed"
-      ? Check
-      : status.status === "running"
-        ? Loader2
-        : status.status === "failed"
-          ? AlertCircle
-          : Clock;
-
-  const statusIconClass =
-    status.status === "completed"
-      ? "text-emerald-500"
-      : status.status === "running"
-        ? "text-blue-500 animate-spin"
-        : status.status === "failed"
-          ? "text-red-500"
-          : "text-gray-400 dark:text-zinc-500";
+  // Calculate duration from group response
+  const groupDuration = calculateDuration(group.start_time, group.end_time, Date.now());
 
   return (
     <div
-      className="flex h-full w-full cursor-pointer items-center gap-3 px-4"
+      className="group-header-row flex h-full w-full cursor-pointer items-center"
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -149,44 +128,80 @@ const GroupHeaderRow = memo(function GroupHeaderRow({ section, isExpanded, onTog
       aria-expanded={isExpanded}
       aria-label={`Group ${group.name}, ${stats.completed} of ${stats.total} tasks complete`}
     >
-      {/* Expand/collapse toggle */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        className="flex size-5 shrink-0 items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-zinc-700"
-        aria-label={isExpanded ? "Collapse group" : "Expand group"}
-      >
-        {isExpanded ? (
-          <ChevronDown className="size-3.5 text-gray-500 dark:text-zinc-400" />
-        ) : (
-          <ChevronRight className="size-3.5 text-gray-500 dark:text-zinc-400" />
-        )}
-      </button>
-
-      {/* Status icon */}
-      <StatusIcon className={cn("size-3.5 shrink-0", statusIconClass)} />
-
-      {/* Group name */}
-      <span className="min-w-0 truncate font-medium text-gray-900 dark:text-zinc-100">{group.name}</span>
-
-      {/* Progress bar */}
-      <div className="flex w-20 shrink-0 items-center gap-2">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-zinc-700">
-          <div
-            className={cn("h-full rounded-full transition-[width] duration-300", progressColor)}
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
+      {/* Name column */}
+      <div className="flex min-w-0 items-center gap-2 px-3" style={{ width: "var(--col-name, 200px)" }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className="flex size-5 shrink-0 items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-zinc-700"
+          aria-label={isExpanded ? "Collapse group" : "Expand group"}
+        >
+          {isExpanded ? (
+            <ChevronDown className="size-3.5 text-gray-500 dark:text-zinc-400" />
+          ) : (
+            <ChevronRight className="size-3.5 text-gray-500 dark:text-zinc-400" />
+          )}
+        </button>
+        <span className="min-w-0 truncate font-medium text-gray-900 dark:text-zinc-100">{group.name}</span>
       </div>
 
-      {/* Summary stats */}
-      <span className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-zinc-400">
-        {stats.completed}/{stats.total} complete
-        {duration !== null && <span className="ml-2">{formatDuration(duration)}</span>}
-      </span>
+      {/* Status column */}
+      <div className="flex items-center px-3" style={{ width: "var(--col-status, 120px)" }}>
+        <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
+          <StatusIcon className={cn("size-3.5", styles.text, category === "running" && "animate-spin")} />
+          <span className={cn("text-xs font-semibold", styles.text)}>{group.status}</span>
+        </span>
+      </div>
+
+      {/* Duration column */}
+      <div className="px-3 text-gray-500 tabular-nums dark:text-zinc-400" style={{ width: "var(--col-duration, 100px)" }}>
+        {formatDuration(groupDuration)}
+      </div>
+
+      {/* Node column (empty for groups) */}
+      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-node, 120px)" }}>
+        —
+      </div>
+
+      {/* Pod IP column (empty for groups) */}
+      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-podIp, 120px)" }}>
+        —
+      </div>
+
+      {/* Exit Code column (empty for groups) */}
+      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-exitCode, 80px)" }}>
+        —
+      </div>
+
+      {/* Start Time column */}
+      <div className="px-3 text-gray-500 tabular-nums dark:text-zinc-400" style={{ width: "var(--col-startTime, 110px)" }}>
+        {group.start_time ? (
+          <span className="whitespace-nowrap" title={formatDateTimeFull(group.start_time)}>
+            {formatDateTimeSuccinct(group.start_time)}
+          </span>
+        ) : (
+          <span className="text-gray-400 dark:text-zinc-500">—</span>
+        )}
+      </div>
+
+      {/* End Time column */}
+      <div className="px-3 text-gray-500 tabular-nums dark:text-zinc-400" style={{ width: "var(--col-endTime, 110px)" }}>
+        {group.end_time ? (
+          <span className="whitespace-nowrap" title={formatDateTimeFull(group.end_time)}>
+            {formatDateTimeSuccinct(group.end_time)}
+          </span>
+        ) : (
+          <span className="text-gray-400 dark:text-zinc-500">—</span>
+        )}
+      </div>
+
+      {/* Retry column (empty for groups) */}
+      <div className="px-3 text-gray-400 dark:text-zinc-500" style={{ width: "var(--col-retry, 80px)" }}>
+        —
+      </div>
     </div>
   );
 });
