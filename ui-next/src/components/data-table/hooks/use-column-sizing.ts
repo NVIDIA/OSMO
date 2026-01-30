@@ -355,11 +355,13 @@ export function useColumnSizing({
   const prevColumnSetKey = usePrevious(columnSetKey);
   useEffect(() => {
     if (prevColumnSetKey !== undefined && prevColumnSetKey !== columnSetKey) {
-      // Column set changed, ResizeObserver will recalculate on next observation
-      // Force a recalculation by resetting the last width (next observation will trigger)
+      // Column set changed, trigger immediate recalculation
+      // Reset the last width to ensure ResizeObserver will also recalculate if container resizes
       lastContainerWidthRef.current = 0;
+      // Trigger immediate recalculation with current container width
+      calculateAndApply(false, undefined);
     }
-  }, [columnSetKey, prevColumnSetKey]);
+  }, [columnSetKey, prevColumnSetKey, calculateAndApply]);
 
   // =========================================================================
   // Container Resize Effect
