@@ -154,3 +154,48 @@ export interface ColumnSizingPreference {
  * Map of column IDs to sizing preferences.
  */
 export type ColumnSizingPreferences = Record<string, ColumnSizingPreference>;
+
+// =============================================================================
+// Column Meta Types
+// =============================================================================
+
+/**
+ * Custom metadata that can be attached to column definitions.
+ * Used to customize cell rendering without VirtualTableBody needing
+ * specific knowledge of column types (e.g., tree columns).
+ *
+ * This enables dependency injection: columns inject their styling requirements
+ * rather than the table body having hardcoded knowledge of column types.
+ */
+export interface DataTableColumnMeta {
+  /**
+   * Custom className for the td cell element.
+   * When provided, this REPLACES the default cell padding.
+   *
+   * @example
+   * // Tree column with no padding (content fills the cell)
+   * meta: { cellClassName: "p-0" }
+   *
+   * // Custom padding for a specific column
+   * meta: { cellClassName: "px-2 py-1" }
+   */
+  cellClassName?: string;
+
+  /**
+   * Text alignment for the column.
+   * Used by column headers and cells for consistent alignment.
+   *
+   * @example
+   * // Right-align numeric columns
+   * meta: { align: "right" }
+   */
+  align?: TextAlignment;
+}
+
+// Augment TanStack Table's module to add our meta type.
+// This uses declaration merging to extend the ColumnMeta interface
+// so that our custom properties are recognized when defining columns.
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends unknown, TValue> extends DataTableColumnMeta {}
+}
