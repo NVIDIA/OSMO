@@ -71,8 +71,8 @@ func TestBuildResourceBody_Basic(t *testing.T) {
 	}
 
 	// Check allocatable fields
-	if body.AllocatableFields["cpu"] != "8000" { // 8 cores = 8000 millicores
-		t.Errorf("CPU allocatable = %s, expected 8000", body.AllocatableFields["cpu"])
+	if body.AllocatableFields["cpu"] != "8" { // 8 cores
+		t.Errorf("CPU allocatable = %s, expected 8", body.AllocatableFields["cpu"])
 	}
 
 	// Check labels are present
@@ -308,9 +308,9 @@ func TestBuildResourceBody_AllocatableFields(t *testing.T) {
 
 	body := utils.BuildUpdateNodeBody(node, false)
 
-	// CPU should be in millicores
-	if body.AllocatableFields["cpu"] != "16000" {
-		t.Errorf("CPU = %s, expected 16000", body.AllocatableFields["cpu"])
+	// CPU should be in cores
+	if body.AllocatableFields["cpu"] != "16" {
+		t.Errorf("CPU = %s, expected 16", body.AllocatableFields["cpu"])
 	}
 
 	// Memory should be in Ki
@@ -576,8 +576,8 @@ func TestNodeUsageAggregator_UpdatePod(t *testing.T) {
 
 	usageFields, nonWorkflowFields := agg.GetNodeUsage("node-1")
 
-	if usageFields["cpu"] != "1000" {
-		t.Errorf("CPU = %s, expected 1000", usageFields["cpu"])
+	if usageFields["cpu"] != "1" { // 1000m = 1 core
+		t.Errorf("CPU = %s, expected 1", usageFields["cpu"])
 	}
 	if usageFields["memory"] != "1048576Ki" {
 		t.Errorf("Memory = %s, expected 1048576Ki", usageFields["memory"])
@@ -661,8 +661,8 @@ func TestNodeUsageAggregator_DuplicateUpdateIgnored(t *testing.T) {
 	usageFields2, _ := agg.GetNodeUsage("node-2")
 
 	// Node-1 should still have the CPU since duplicate updates are ignored
-	if usageFields1["cpu"] != "1000" {
-		t.Errorf("Node-1 CPU after duplicate update = %s, expected 1000 (unchanged)", usageFields1["cpu"])
+	if usageFields1["cpu"] != "1" { // 1000m = 1 core
+		t.Errorf("Node-1 CPU after duplicate update = %s, expected 1 (unchanged)", usageFields1["cpu"])
 	}
 	// Node-2 should have 0 since the second update was ignored
 	if usageFields2["cpu"] != "0" {
@@ -720,11 +720,11 @@ func TestNodeUsageAggregator_NonWorkflowNamespace(t *testing.T) {
 
 	usageFields, nonWorkflowFields := agg.GetNodeUsage("node-1")
 
-	if usageFields["cpu"] != "1500" {
-		t.Errorf("Total CPU = %s, expected 1500", usageFields["cpu"])
+	if usageFields["cpu"] != "2" { // 1000m + 500m = 1500m = 2 cores (ceiling)
+		t.Errorf("Total CPU = %s, expected 2", usageFields["cpu"])
 	}
-	if nonWorkflowFields["cpu"] != "500" {
-		t.Errorf("Non-workflow CPU = %s, expected 500", nonWorkflowFields["cpu"])
+	if nonWorkflowFields["cpu"] != "1" { // 500m = 1 core (ceiling)
+		t.Errorf("Non-workflow CPU = %s, expected 1", nonWorkflowFields["cpu"])
 	}
 }
 
@@ -778,8 +778,8 @@ func TestPodLifecycle_PendingToRunning(t *testing.T) {
 	}
 
 	usageFields, _ = agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "1000" {
-		t.Errorf("CPU after Running = %s, expected 1000", usageFields["cpu"])
+	if usageFields["cpu"] != "1" { // 1000m = 1 core
+		t.Errorf("CPU after Running = %s, expected 1", usageFields["cpu"])
 	}
 }
 
@@ -813,8 +813,8 @@ func TestPodLifecycle_RunningToSucceeded(t *testing.T) {
 	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "2000" {
-		t.Errorf("CPU for Running pod = %s, expected 2000", usageFields["cpu"])
+	if usageFields["cpu"] != "2" { // 2000m = 2 cores
+		t.Errorf("CPU for Running pod = %s, expected 2", usageFields["cpu"])
 	}
 
 	// Simulate UpdateFunc: Running → Succeeded
@@ -865,8 +865,8 @@ func TestPodLifecycle_RunningToFailed(t *testing.T) {
 	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "1500" {
-		t.Errorf("CPU for Running pod = %s, expected 1500", usageFields["cpu"])
+	if usageFields["cpu"] != "2" { // 1500m = 2 cores (ceiling)
+		t.Errorf("CPU for Running pod = %s, expected 2", usageFields["cpu"])
 	}
 
 	// Simulate UpdateFunc: Running → Failed
@@ -917,8 +917,8 @@ func TestPodLifecycle_DeletionTimestamp(t *testing.T) {
 	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "3000" {
-		t.Errorf("CPU for Running pod = %s, expected 3000", usageFields["cpu"])
+	if usageFields["cpu"] != "3" { // 3000m = 3 cores
+		t.Errorf("CPU for Running pod = %s, expected 3", usageFields["cpu"])
 	}
 
 	// Simulate UpdateFunc: DeletionTimestamp set (pod being evicted/preempted)
@@ -978,8 +978,8 @@ func TestPodLifecycle_AllContainersTerminated(t *testing.T) {
 	agg.AddPod(pod)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "2500" {
-		t.Errorf("CPU for Running pod = %s, expected 2500", usageFields["cpu"])
+	if usageFields["cpu"] != "3" { // 2500m = 3 cores (ceiling)
+		t.Errorf("CPU for Running pod = %s, expected 3", usageFields["cpu"])
 	}
 
 	// Simulate UpdateFunc: All containers terminated (phase might lag behind)
@@ -1090,8 +1090,8 @@ func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
 	agg.AddPod(pod3)
 
 	usageFields, _ := agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "3500" {
-		t.Errorf("Total CPU = %s, expected 3500", usageFields["cpu"])
+	if usageFields["cpu"] != "4" { // 1000m + 2000m + 500m = 3500m = 4 cores (ceiling)
+		t.Errorf("Total CPU = %s, expected 4", usageFields["cpu"])
 	}
 
 	// Pod2 completes successfully
@@ -1099,24 +1099,24 @@ func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
 	agg.DeletePod(pod2)
 
 	usageFields, _ = agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "1500" {
-		t.Errorf("CPU after pod2 succeeded = %s, expected 1500", usageFields["cpu"])
+	if usageFields["cpu"] != "2" { // 1000m + 500m = 1500m = 2 cores (ceiling)
+		t.Errorf("CPU after pod2 succeeded = %s, expected 2", usageFields["cpu"])
 	}
 
 	// Pod3 deleted
 	agg.DeletePod(pod3)
 
 	usageFields, _ = agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "1000" {
-		t.Errorf("CPU after pod3 deleted = %s, expected 1000", usageFields["cpu"])
+	if usageFields["cpu"] != "1" { // 1000m = 1 core
+		t.Errorf("CPU after pod3 deleted = %s, expected 1", usageFields["cpu"])
 	}
 
 	// Pod1 still running - duplicate update should be ignored
 	agg.AddPod(pod1)
 
 	usageFields, _ = agg.GetNodeUsage("node-1")
-	if usageFields["cpu"] != "1000" {
-		t.Errorf("CPU after duplicate update = %s, expected 1000", usageFields["cpu"])
+	if usageFields["cpu"] != "1" { // 1000m = 1 core
+		t.Errorf("CPU after duplicate update = %s, expected 1", usageFields["cpu"])
 	}
 }
 
