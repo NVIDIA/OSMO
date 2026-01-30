@@ -165,5 +165,17 @@ export const MANDATORY_COLUMN_IDS = taskColumnConfig.MANDATORY_COLUMN_IDS;
 /** Column sizing configuration */
 export const TASK_COLUMN_SIZE_CONFIG = taskColumnConfig.COLUMN_SIZE_CONFIG;
 
+/** Tree column sizing configuration (for tree pattern table) */
+export const TREE_COLUMN_SIZE_CONFIG = [
+  {
+    id: "_tree",
+    minWidthRem: 2,
+    preferredWidthRem: 2,
+  },
+];
+
+/** Combined tree + task column sizing (tree column first) */
+export const TASK_WITH_TREE_COLUMN_SIZE_CONFIG = [...TREE_COLUMN_SIZE_CONFIG, ...TASK_COLUMN_SIZE_CONFIG];
+
 /** Default sort configuration */
 export const DEFAULT_SORT = taskColumnConfig.DEFAULT_SORT;
