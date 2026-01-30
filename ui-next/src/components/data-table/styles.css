@@ -101,18 +101,6 @@
   padding: 0;
 }
 
-/* Group row styling - light background to distinguish from task rows */
-.data-table-section-row {
-  @apply bg-muted/50 dark:bg-muted/30;
-  /* Subtle top border for visual separation between groups */
-  @apply border-border border-t;
-}
-
-/* Atomic hover effect - all cells change together when row is hovered */
-.data-table-section-row:hover {
-  @apply bg-muted/70 dark:bg-muted/50;
-}
-
 /* Focus state for group rows */
 .data-table-section-row:focus-visible {
   @apply outline-ring z-1 outline-2;

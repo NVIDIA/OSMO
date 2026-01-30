@@ -80,6 +80,7 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   getRowHref?: (row: TData) => string | undefined;
   selectedRowId?: string;
   rowClassName?: string | ((item: TData) => string);
+  sectionClassName?: string | ((section: Section<TData, TSectionMeta>) => string);
   columnSizeConfigs?: readonly ColumnSizeConfig[];
   columnSizingPreferences?: ColumnSizingPreferences;
   onColumnSizingPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
@@ -115,6 +116,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   getRowHref,
   selectedRowId,
   rowClassName,
+  sectionClassName,
   columnSizeConfigs,
   columnSizingPreferences,
   onColumnSizingPreferenceChange,
@@ -446,6 +448,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
                         const colIndex = headerIndex + 1;
 
+                        // Get custom header className from column meta (dependency injection)
+                        const headerClassName = header.column.columnDef.meta?.headerClassName;
+
                         if (isFixed) {
                           return (
                             <th
@@ -459,7 +464,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                                 minWidth: cssWidth,
                                 flexShrink: 0,
                               }}
-                              className="relative flex items-center px-4 py-3"
+                              className={cn("relative flex items-center", headerClassName ?? "px-4 py-3")}
                             >
                               {cellContent}
                             </th>
@@ -473,7 +478,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                             as="th"
                             width={cssWidth}
                             colIndex={colIndex}
-                            className="relative flex items-center px-4 py-3"
+                            className={cn("relative flex items-center", headerClassName ?? "px-4 py-3")}
                           >
                             {cellContent}
                           </SortableCell>
@@ -495,6 +500,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 selectedRowId={selectedRowId}
                 getRowId={getRowId}
                 rowClassName={rowClassName}
+                sectionClassName={sectionClassName}
                 renderSectionHeader={renderSectionHeader}
                 getRowTabIndex={rowNavigation.getRowTabIndex}
                 onRowFocus={rowNavigation.handleRowFocus}

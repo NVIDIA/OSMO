@@ -29,20 +29,20 @@
 "use client";
 
 import { useMemo, useCallback, useState, memo } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { cn, naturalCompare } from "@/lib/utils";
+import { naturalCompare } from "@/lib/utils";
 import { DataTable, type Section, type SortState, getColumnCSSValue } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useTick } from "@/hooks";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
-import { calculateDuration } from "../../lib/workflow-types";
+import { calculateTaskDuration } from "../../lib/workflow-types";
+import { TaskGroupStatus } from "@/lib/api/generated";
 import { computeTaskStats, STATUS_SORT_ORDER } from "../../lib/status";
 import { createTaskColumns } from "../../lib/task-column-defs";
 import { TASK_WITH_TREE_COLUMN_SIZE_CONFIG, MANDATORY_COLUMN_IDS, asTaskColumnIds } from "../../lib/task-columns";
 import { useTaskTableStore } from "../../stores";
-import { TreeConnector } from "./TreeConnector";
+import { TreeConnector, TreeGroupCell, GroupNameCell } from "./tree";
 
 import type { GroupWithLayout, TaskQueryResponse, TaskWithDuration } from "../../lib/workflow-types";
 
@@ -69,6 +69,16 @@ export interface WorkflowTasksTableProps {
 interface GroupSectionMeta {
   group: GroupWithLayout;
   stats: ReturnType<typeof computeTaskStats>;
+  /** TOTAL task count (unfiltered - for badge display) */
+  taskCount: number;
+  /** Whether original group has exactly one task */
+  isSingleTask: boolean;
+  /** Whether to skip rendering the group row (for single-task groups with visible task) */
+  skipGroupRow?: boolean;
+  /** Whether the group has any visible tasks after filtering */
+  hasVisibleTasks: boolean;
+  /** Visual row index for zebra striping (consistent across group and task rows) */
+  _visualRowIndex?: number;
 }
 
 // =============================================================================
@@ -160,47 +170,155 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   }, [sort]);
 
   // Transform groups into sections with computed metadata
+  // Critical flow: Raw tasks → Filter → Sort → Calculate position (_isLastTask) → Render
   const sections = useMemo((): Section<TaskWithDuration, GroupSectionMeta>[] => {
-    return groups.map((group) => {
-      // Compute tasks with duration and tree position
-      const tasksWithDuration: TaskWithDuration[] = (group.tasks || []).map(
-        (task, index, arr) =>
-          ({
-            ...task,
-            duration: calculateDuration(task.start_time, task.end_time, now),
-            // Store group reference for row click handler
-            _groupName: group.name,
-            // Tree position for connector rendering
-            _isLastTask: index === arr.length - 1,
-            _isOnlyTask: arr.length === 1,
-          }) as TaskWithDuration & {
-            _groupName: string;
-            _isLastTask: boolean;
-            _isOnlyTask: boolean;
+    const builtSections = groups.map((group) => {
+      const taskArray = group.tasks || [];
+      const totalTaskCount = taskArray.length;
+      const isSingleTaskOriginal = totalTaskCount === 1;
+
+      // Build tasks with duration (status-aware calculation)
+      const buildTaskWithDuration = (task: (typeof taskArray)[0]): TaskWithDuration => ({
+        ...task,
+        duration: calculateTaskDuration(task.start_time, task.end_time, task.status as TaskGroupStatus, now),
+        _groupName: group.name,
+      });
+
+      // ==== SINGLE-TASK GROUP ====
+      if (isSingleTaskOriginal) {
+        const singleTask = taskArray[0];
+        const taskWithDuration = buildTaskWithDuration(singleTask);
+
+        // Future: Apply filterFn here
+        // const matchesFilter = !filterFn || filterFn(taskWithDuration);
+        const matchesFilter = true; // No filter for now
+
+        if (!matchesFilter) {
+          // Task filtered out: show group row with no tasks
+          return {
+            id: group.name,
+            label: group.name,
+            items: [],
+            metadata: {
+              group,
+              stats: computeTaskStats([]),
+              taskCount: totalTaskCount,
+              isSingleTask: true,
+              skipGroupRow: false, // Show group row
+              hasVisibleTasks: false,
+            },
+          };
+        }
+
+        // Task visible: skip group row, render task with single-task styling
+        const visibleTask: TaskWithDuration = {
+          ...taskWithDuration,
+          _isSingleTaskGroup: true,
+          _isLastTask: true, // Only task, so it's last
+          _taskIndex: 0,
+        };
+
+        return {
+          id: group.name,
+          label: group.name,
+          items: [visibleTask],
+          metadata: {
+            group,
+            stats: computeTaskStats([visibleTask]),
+            taskCount: totalTaskCount,
+            isSingleTask: true,
+            skipGroupRow: true, // Skip group row for visible single task
+            hasVisibleTasks: true,
           },
-      );
+        };
+      }
 
-      // Sort tasks if we have a comparator
-      const sortedTasks = sortComparator ? [...tasksWithDuration].sort(sortComparator) : tasksWithDuration;
-
-      // Compute stats
-      const stats = computeTaskStats(sortedTasks);
-
-      // Filter out collapsed groups' tasks
+      // ==== MULTI-TASK GROUP ====
       const isExpanded = !collapsedGroups.has(group.name);
-      const items = isExpanded ? sortedTasks : [];
+
+      if (!isExpanded) {
+        // Collapsed: show group row with no tasks
+        // Stats computed on ALL tasks (for progress display)
+        const allTasksWithDuration = taskArray.map(buildTaskWithDuration);
+        return {
+          id: group.name,
+          label: group.name,
+          items: [],
+          metadata: {
+            group,
+            stats: computeTaskStats(allTasksWithDuration),
+            taskCount: totalTaskCount,
+            isSingleTask: false,
+            skipGroupRow: false,
+            hasVisibleTasks: false, // No visible tasks when collapsed
+          },
+        };
+      }
+
+      // Expanded: build all tasks with duration
+      const tasksWithDuration = taskArray.map(buildTaskWithDuration);
+
+      // Step 1: Apply filtering (no filter for now, structure for later)
+      // Future: const filteredTasks = filterFn ? tasksWithDuration.filter(filterFn) : tasksWithDuration;
+      const filteredTasks = tasksWithDuration;
+
+      // Step 2: Apply sorting to filtered tasks
+      const sortedTasks = sortComparator ? [...filteredTasks].sort(sortComparator) : filteredTasks;
+
+      // Step 3: Calculate position on FINAL visible list
+      const visibleTasks: TaskWithDuration[] = sortedTasks.map((task, index) => ({
+        ...task,
+        _isLastTask: index === sortedTasks.length - 1,
+        _taskIndex: index,
+        _isSingleTaskGroup: false,
+      }));
+
+      // Compute stats on visible tasks (for accurate progress display)
+      const stats = computeTaskStats(visibleTasks);
 
       return {
         id: group.name,
         label: group.name,
-        items,
+        items: visibleTasks,
         metadata: {
           group,
           stats,
+          taskCount: totalTaskCount, // Original count for badge
+          isSingleTask: false,
+          skipGroupRow: false,
+          hasVisibleTasks: visibleTasks.length > 0,
         },
       };
     });
-  }, [groups, now, sortComparator, collapsedGroups]);
+
+    // Second pass: Calculate visual row index for zebra striping
+    // Count visible rows (section headers that aren't skipped + all task rows)
+    let visualRowIndex = 0;
+    return builtSections.map((section) => {
+      const skipHeader = section.metadata?.skipGroupRow === true;
+
+      // Capture visual row index for section header (before incrementing)
+      const sectionVisualRowIndex = skipHeader ? undefined : visualRowIndex;
+
+      // Increment for section header (if not skipped)
+      if (!skipHeader) {
+        visualRowIndex++;
+      }
+
+      // Add visual row index to each task and increment counter
+      const itemsWithVisualIndex = section.items.map((task) => ({
+        ...task,
+        _visualRowIndex: visualRowIndex++,
+      }));
+
+      return {
+        ...section,
+        items: itemsWithVisualIndex,
+        // Store section's visual row index in metadata for zebra striping
+        metadata: section.metadata ? { ...section.metadata, _visualRowIndex: sectionVisualRowIndex } : section.metadata,
+      };
+    });
+  }, [groups, collapsedGroups, sortComparator, now]);
 
   // TanStack column definitions (tree column + task columns)
   const columns = useMemo(() => {
@@ -212,16 +330,19 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       header: "", // Empty header - no text
       enableResizing: false, // Prevent manual resize + auto-sizing
       enableSorting: false,
+      meta: {
+        // No padding - tree components handle their own spacing.
+        // This uses dependency injection via TanStack Table's meta property
+        // so VirtualTableBody doesn't need hardcoded knowledge of tree columns.
+        cellClassName: "p-0",
+      },
       cell: (props: CellContext<TaskWithDuration, unknown>) => {
-        const task = props.row.original as TaskWithDuration & {
-          _isLastTask?: boolean;
-          _isOnlyTask?: boolean;
-        };
+        const task = props.row.original;
 
         return (
           <TreeConnector
             isLast={task._isLastTask ?? false}
-            isSingleTask={task._isOnlyTask ?? false}
+            isSingleTaskGroup={task._isSingleTaskGroup ?? false}
           />
         );
       },
@@ -274,12 +395,14 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   // Render section header (as table cells)
   const renderSectionHeader = useCallback(
     (section: Section<TaskWithDuration, GroupSectionMeta>) => {
-      const isExpanded = !collapsedGroups.has(section.id);
-      const { group, stats } = section.metadata || {};
+      const { group, stats, skipGroupRow, taskCount, hasVisibleTasks, _visualRowIndex } = section.metadata || {};
       if (!group) return null;
 
-      const isSingleTask = (group.tasks?.length ?? 0) === 1;
-      const taskCount = stats?.total ?? 0;
+      // Skip group row for single-task groups where the task is visible
+      if (skipGroupRow) return null;
+
+      const isExpanded = !collapsedGroups.has(section.id);
+      const displayTaskCount = taskCount ?? stats?.total ?? 0;
 
       // Get column IDs for width styling
       const columnIds = columns.map((col) => {
@@ -290,44 +413,30 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
 
       return (
         <>
-          {/* Tree column cell */}
+          {/* Tree column cell - TreeGroupCell handles expand/collapse
+              No padding - cell content is centered within the 2rem column */}
           <td
             role="gridcell"
-            className="flex items-center justify-center px-4"
+            className="flex items-center p-0"
             style={{
               width: getColumnCSSValue("_tree"),
               minWidth: getColumnCSSValue("_tree"),
               flex: "none",
             }}
-            onClick={() => onSelectGroup(group)}
           >
-            {/* Expand/collapse button or leaf indicator */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent row click when toggling
-                handleToggleGroup(section.id);
-              }}
-              className={cn(
-                "relative z-10 flex size-6 items-center justify-center rounded text-sm transition-colors",
-                !isSingleTask && "hover:bg-gray-200 dark:hover:bg-zinc-700",
-              )}
-              aria-label={isSingleTask ? "Single task group" : isExpanded ? "Collapse group" : "Expand group"}
-              disabled={isSingleTask}
-            >
-              {isSingleTask ? (
-                <span className="text-cyan-500">○</span>
-              ) : isExpanded ? (
-                <ChevronDown className="size-4 text-gray-600 dark:text-zinc-400" />
-              ) : (
-                <ChevronRight className="size-4 text-gray-600 dark:text-zinc-400" />
-              )}
-            </button>
+            <TreeGroupCell
+              isExpanded={isExpanded}
+              hasVisibleTasks={hasVisibleTasks ?? false}
+              onToggle={() => handleToggleGroup(section.id)}
+              visualRowIndex={_visualRowIndex}
+            />
           </td>
 
-          {/* Name column cell - clickable to select group */}
+          {/* Name column cell - GroupNameCell with badge and count
+              Uses px-4 to match regular row cells from VirtualTableBody */}
           <td
             role="gridcell"
-            className="px-4 py-2"
+            className="flex items-center px-4"
             style={{
               width: getColumnCSSValue(columnIds[1] || "name"),
               minWidth: getColumnCSSValue(columnIds[1] || "name"),
@@ -335,12 +444,10 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
             }}
             onClick={() => onSelectGroup(group)}
           >
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{group.name}</span>
-              <span className="text-muted-foreground text-sm">
-                {taskCount} {taskCount === 1 ? "task" : "tasks"}
-              </span>
-            </div>
+            <GroupNameCell
+              name={group.name}
+              taskCount={displayTaskCount}
+            />
           </td>
 
           {/* Remaining columns - empty cells to maintain structure */}
@@ -348,6 +455,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
             <td
               key={colId || i}
               role="gridcell"
+              className="px-4"
               style={{
                 width: getColumnCSSValue(colId),
                 minWidth: getColumnCSSValue(colId),
@@ -410,19 +518,20 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     return getTaskId(task as TaskWithDuration, selectedGroupName);
   }, [selectedTaskName, selectedGroupName, groupMap]);
 
-  // Row class name for zebra striping within groups
-  const rowClassName = useCallback(
-    (task: TaskWithDuration) => {
-      // Use the task's position within its group for zebra striping
-      const groupName = (task as TaskWithDuration & { _groupName?: string })._groupName;
-      const group = groupName ? groupMap.get(groupName) : undefined;
-      if (!group) return "";
+  // Row class name for zebra striping across all visible rows
+  const rowClassName = useCallback((task: TaskWithDuration) => {
+    // Use visual row index for consistent striping (ignores skipped section headers)
+    const visualIndex = task._visualRowIndex ?? 0;
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+  }, []);
 
-      const taskIndex = group.tasks?.findIndex((t) => t.name === task.name && t.retry_id === task.retry_id) ?? 0;
-      return taskIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
-    },
-    [groupMap],
-  );
+  // Section class name for zebra striping and borders (matches task rows)
+  const sectionClassName = useCallback((section: Section<TaskWithDuration, GroupSectionMeta>) => {
+    const visualIndex = section.metadata?._visualRowIndex ?? 0;
+    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    // Add bottom border to match task rows
+    return `${zebraClass} border-b border-zinc-200 dark:border-zinc-800`;
+  }, []);
 
   // Empty state - only show "no groups" message if there are actually no groups
   // If groups exist but are all collapsed, return null to keep section headers visible
@@ -468,6 +577,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         onRowClick={handleRowClick}
         selectedRowId={selectedRowId}
         rowClassName={rowClassName}
+        sectionClassName={sectionClassName}
         // Sticky section headers
         stickyHeaders
       />
