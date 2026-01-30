@@ -23,7 +23,7 @@ from typing import Literal
 
 from run.check_tools import check_required_tools
 from run.host_ip import get_host_ip
-from run.kind_utils import check_cluster_exists, create_cluster, setup_kai_scheduler
+from run.kind_utils import check_cluster_exists, create_cluster, setup_kai_scheduler, detect_platform
 from run.print_next_steps import print_next_steps
 from run.run_command import run_command_with_logging, cleanup_registered_processes, wait_for_all_processes
 
@@ -116,23 +116,41 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
         service_type: Either 'listener' or 'worker'
         emoji: Emoji to use in log messages
     """
-    service_name = f'backend_{service_type}_binary'
+    # Detect platform and map to binary architecture
+    platform = detect_platform()
+    arch = 'x86_64' if platform == 'amd64' else 'arm64'
+
+    if service_type == 'listener':
+        service_name = f'listener_{arch}'
+    else:
+        service_name = f'backend_{service_type}_binary'
+
     display_name = f'Backend {service_type}'
 
     logger.info('%s Starting OSMO %s...', emoji, display_name.lower())
 
     host_ip = get_host_ip()
 
-    cmd = [
-        'bazel', 'run', f'@osmo_workspace//src/operator:{service_name}',
-        '--',
-        '--method=dev',
-        f'--host=http://{host_ip}:8000',
-        '--backend', 'default',
-        '--namespace', 'default',
-        '--username', 'testuser',
-        '--progress_folder_path', '/tmp/osmo/operator'
-    ]
+    if service_type == 'listener':
+        cmd = [
+            'bazel', 'run', f'@osmo_workspace//src/operator:{service_name}',
+            '--',
+            '--serviceURL', f'http://{host_ip}:8002',
+            '--backend', 'default',
+            '--namespace', 'default',
+            '--progressDir', '/tmp/osmo/operator/',
+        ]
+    else:
+        cmd = [
+            'bazel', 'run', f'@osmo_workspace//src/operator:{service_name}',
+            '--',
+            '--method=dev',
+            f'--host=http://{host_ip}:8000',
+            '--backend', 'default',
+            '--namespace', 'default',
+            '--username', 'testuser',
+            '--progress_folder_path', '/tmp/osmo/operator'
+        ]
 
     process = run_command_with_logging(
         cmd,

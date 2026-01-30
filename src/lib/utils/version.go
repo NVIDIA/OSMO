@@ -19,13 +19,14 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
+	_ "embed"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed version.yaml
+var versionYAML []byte
 
 // Version represents the version structure
 type Version struct {
@@ -44,25 +45,11 @@ func (v Version) String() string {
 	return version
 }
 
-// LoadVersion loads the version from version.yaml file in the same directory
+// LoadVersion loads the version from embedded version.yaml file
 func LoadVersion() (string, error) {
-	// Get the directory where this Go file is located
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return "dev", fmt.Errorf("failed to get current file path")
-	}
-
-	dir := filepath.Dir(filename)
-	versionPath := filepath.Join(dir, "version.yaml")
-
-	data, err := os.ReadFile(versionPath)
-	if err != nil {
-		return "dev", fmt.Errorf("failed to read version file: %w", err)
-	}
-
 	var version Version
-	if err := yaml.Unmarshal(data, &version); err != nil {
-		return "dev", fmt.Errorf("failed to parse version file: %w", err)
+	if err := yaml.Unmarshal(versionYAML, &version); err != nil {
+		return "dev", fmt.Errorf("failed to parse embedded version file: %w", err)
 	}
 
 	return version.String(), nil
