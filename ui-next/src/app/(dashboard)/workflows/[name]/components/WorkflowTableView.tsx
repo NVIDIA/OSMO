@@ -109,7 +109,7 @@ export const WorkflowTableView = memo(function WorkflowTableView(props: Workflow
   return (
     <div
       ref={containerRef}
-      className="relative h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
+      className="relative h-full overflow-hidden"
     >
       {/* Table with toolbar - full width, lower z-index */}
       <main
