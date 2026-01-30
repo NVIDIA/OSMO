@@ -36,6 +36,7 @@ import {
   PanelTabs,
   DetailsSection,
   LinksSection,
+  DependenciesSection,
   EmptyTabPrompt,
   TabPanel,
   SeparatedParts,
@@ -49,7 +50,7 @@ import type { TaskTab } from "../../../hooks/use-navigation-state";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
 import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
-import { DependencyPills } from "../shared/DependencyPills";
+import { DependencyPill } from "../shared/DependencyPills";
 import { useShellPortal, useShellContext } from "../../shell";
 import { useShellSession, StatusDot } from "@/components/shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
@@ -57,6 +58,11 @@ import { TaskGroupStatus } from "@/lib/api/generated";
 
 interface OverviewTabProps {
   task: TaskDetailsProps["task"];
+  upstreamGroups: GroupWithLayout[];
+  downstreamGroups: GroupWithLayout[];
+  allGroups: GroupWithLayout[];
+  onSelectGroup?: (groupName: string) => void;
+  isStandaloneTask: boolean;
 }
 
 /** Section header styling */
@@ -192,8 +198,30 @@ const ShellStatusPrompt = memo(function ShellStatusPrompt({ status, category }: 
   return null;
 });
 
-const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
+const OverviewTab = memo(function OverviewTab({
+  task,
+  upstreamGroups,
+  downstreamGroups,
+  allGroups,
+  onSelectGroup,
+  isStandaloneTask,
+}: OverviewTabProps) {
   const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
+
+  // Render function for dependency pills
+  const renderDependencyPill = useCallback(
+    (item: { name: string; status: string }, onClick?: () => void) => {
+      const groupData = allGroups.find((g) => g.name === item.name);
+      if (!groupData) return null;
+      return (
+        <DependencyPill
+          group={groupData}
+          onClick={onClick}
+        />
+      );
+    },
+    [allGroups],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -235,6 +263,16 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
         ]}
       />
 
+      {/* Dependencies section - only for standalone tasks */}
+      {isStandaloneTask && (upstreamGroups.length > 0 || downstreamGroups.length > 0) && (
+        <DependenciesSection
+          upstreamItems={upstreamGroups.map((g) => ({ name: g.name, status: g.status }))}
+          downstreamItems={downstreamGroups.map((g) => ({ name: g.name, status: g.status }))}
+          onSelect={onSelectGroup}
+          renderPill={renderDependencyPill}
+        />
+      )}
+
       {/* Links section - using LinksSection component */}
       <LinksSection
         title="Links"
@@ -250,8 +288,6 @@ interface TaskDetailsInternalProps extends TaskDetailsProps {
   onBackToWorkflow?: () => void;
   onPanelResize: (pct: number) => void;
   onSelectGroup?: (group: GroupWithLayout) => void;
-  isDetailsExpanded: boolean;
-  onToggleDetailsExpanded: () => void;
   /** Called when shell tab becomes active/inactive. Passes taskName when active, null when inactive. */
   onShellTabChange?: (taskName: string | null) => void;
   /** Currently selected tab (URL-synced) */
@@ -270,8 +306,6 @@ export const TaskDetails = memo(function TaskDetails({
   onSelectTask,
   onSelectGroup,
   onPanelResize,
-  isDetailsExpanded,
-  onToggleDetailsExpanded,
   onShellTabChange,
   selectedTab: selectedTabProp,
   setSelectedTab: setSelectedTabProp,
@@ -402,31 +436,6 @@ export const TaskDetails = memo(function TaskDetails({
     </SeparatedParts>
   );
 
-  // Check if we have any expandable content
-  const hasFailureMessage = !!task.failure_message;
-  const hasDependencies = isStandaloneTask && (upstreamGroups.length > 0 || downstreamGroups.length > 0);
-  const hasExpandableContent = hasFailureMessage || hasDependencies;
-
-  // Expandable content for header
-  const expandableContent = hasExpandableContent ? (
-    <div className="space-y-3">
-      {/* Failure message - first item when present */}
-      {hasFailureMessage && (
-        <div className="flex items-start gap-1.5 text-xs text-red-400">
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <span>{task.failure_message}</span>
-        </div>
-      )}
-      {hasDependencies && (
-        <DependencyPills
-          upstreamGroups={upstreamGroups}
-          downstreamGroups={downstreamGroups}
-          onSelectGroup={handleSelectGroupByName}
-        />
-      )}
-    </div>
-  ) : undefined;
-
   // Build breadcrumbs for hierarchical navigation
   // For tasks within a group: Workflow / Group > Task
   // For standalone tasks: Workflow > Task
@@ -480,9 +489,6 @@ export const TaskDetails = memo(function TaskDetails({
         onPanelResize={onPanelResize}
         siblingTasks={isFromGroup ? siblingTasks : undefined}
         onSelectSibling={isFromGroup ? handleSelectSibling : undefined}
-        expandableContent={expandableContent}
-        isExpanded={isDetailsExpanded}
-        onToggleExpand={onToggleDetailsExpanded}
       />
 
       {/* Tab Navigation - Chrome-style tabs with curved connectors */}
@@ -499,7 +505,14 @@ export const TaskDetails = memo(function TaskDetails({
           activeTab={activeTab}
           padding="with-bottom"
         >
-          <OverviewTab task={task} />
+          <OverviewTab
+            task={task}
+            upstreamGroups={upstreamGroups}
+            downstreamGroups={downstreamGroups}
+            allGroups={allGroups}
+            onSelectGroup={handleSelectGroupByName}
+            isStandaloneTask={isStandaloneTask}
+          />
         </TabPanel>
 
         {/* Shell tab - always shown with contextual content based on task status */}

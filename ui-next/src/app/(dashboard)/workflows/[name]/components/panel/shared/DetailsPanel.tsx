@@ -310,6 +310,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   setSelectedTab,
   selectedWorkflowTab,
   setSelectedWorkflowTab,
+  selectedGroupTab,
+  setSelectedGroupTab,
   minWidth,
   maxWidth,
   className,
@@ -490,8 +492,8 @@ export const DetailsPanel = memo(function DetailsPanel({
           onSelectGroup={onSelectGroup}
           onBack={onBackToWorkflow}
           onPanelResize={onPanelResize}
-          isDetailsExpanded={isDetailsExpanded}
-          onToggleDetailsExpanded={onToggleDetailsExpanded}
+          selectedGroupTab={selectedGroupTab}
+          setSelectedGroupTab={setSelectedGroupTab}
         />
       )}
 
@@ -507,8 +509,6 @@ export const DetailsPanel = memo(function DetailsPanel({
           onSelectTask={onSelectTask}
           onSelectGroup={onSelectGroup}
           onPanelResize={onPanelResize}
-          isDetailsExpanded={isDetailsExpanded}
-          onToggleDetailsExpanded={onToggleDetailsExpanded}
           onShellTabChange={onShellTabChange}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
