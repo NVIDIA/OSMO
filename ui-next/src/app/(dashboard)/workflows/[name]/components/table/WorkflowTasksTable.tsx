@@ -547,7 +547,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   }, [groups.length]);
 
   return (
-    <div className="table-container border-border bg-card relative h-full overflow-hidden rounded-lg border">
+    <div className="table-container border-border bg-card relative flex h-full flex-col rounded-lg border">
       <DataTable<TaskWithDuration, GroupSectionMeta>
         data={[]}
         sections={sections}
