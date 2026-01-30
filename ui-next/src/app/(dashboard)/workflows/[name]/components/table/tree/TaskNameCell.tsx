@@ -26,6 +26,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
+import { LeadBadge } from "../../shared";
 
 // =============================================================================
 // Types
@@ -63,11 +64,7 @@ export const TaskNameCell = memo(function TaskNameCell({
       )}
     >
       <span className="text-foreground truncate font-medium">{name}</span>
-      {isLead && (
-        <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium tracking-wide text-amber-700 uppercase ring-1 ring-amber-600/20 ring-inset dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
-          Lead
-        </span>
-      )}
+      {isLead && <LeadBadge />}
     </div>
   );
 });
