@@ -44,20 +44,13 @@ import { TASK_WITH_TREE_COLUMN_SIZE_CONFIG, MANDATORY_COLUMN_IDS, asTaskColumnId
 import { useTaskTableStore } from "../../stores";
 import { TreeConnector } from "./TreeConnector";
 
-import type {
-  GroupWithLayout,
-  TaskQueryResponse,
-  TaskWithDuration,
-  WorkflowQueryResponse,
-} from "../../lib/workflow-types";
+import type { GroupWithLayout, TaskQueryResponse, TaskWithDuration } from "../../lib/workflow-types";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface WorkflowTasksTableProps {
-  /** The workflow data */
-  workflow: WorkflowQueryResponse;
   /** Groups with computed layout information */
   groups: GroupWithLayout[];
   /** Callback when a group is selected */
@@ -88,10 +81,6 @@ function getTaskId(task: TaskWithDuration, groupName: string): string {
 }
 
 // =============================================================================
-// Group Header Component (renders as table cells)
-// =============================================================================
-
-// =============================================================================
 // Component
 // =============================================================================
 
@@ -115,9 +104,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   const sort = useTaskTableStore((s) => s.sort);
   const setSort = useTaskTableStore((s) => s.setSort);
 
-  // Row height and section height based on compact mode
+  // Row height based on compact mode (also used for section headers)
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
-  const sectionHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Synchronized tick for live durations
   const now = useTick();
@@ -183,11 +171,11 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
             // Store group reference for row click handler
             _groupName: group.name,
             // Tree position for connector rendering
-            _taskPosition: index === 0 ? "first" : index === arr.length - 1 ? "last" : "middle",
+            _isLastTask: index === arr.length - 1,
             _isOnlyTask: arr.length === 1,
           }) as TaskWithDuration & {
             _groupName: string;
-            _taskPosition: "first" | "middle" | "last";
+            _isLastTask: boolean;
             _isOnlyTask: boolean;
           },
       );
@@ -226,18 +214,14 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       enableSorting: false,
       cell: (props: CellContext<TaskWithDuration, unknown>) => {
         const task = props.row.original as TaskWithDuration & {
-          _groupName?: string;
-          _taskPosition?: "first" | "middle" | "last";
+          _isLastTask?: boolean;
           _isOnlyTask?: boolean;
         };
 
-        const position = task._taskPosition ?? "middle";
-        const isOnlyTask = task._isOnlyTask ?? false;
-
         return (
           <TreeConnector
-            position={position}
-            isSingleTask={isOnlyTask}
+            isLast={task._isLastTask ?? false}
+            isSingleTask={task._isOnlyTask ?? false}
           />
         );
       },
@@ -474,7 +458,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         onSortingChange={handleSortChange}
         // Layout
         rowHeight={rowHeight}
-        sectionHeight={sectionHeight}
+        sectionHeight={rowHeight}
         compact={compactMode}
         className="text-sm"
         scrollClassName="scrollbar-styled flex-1"
