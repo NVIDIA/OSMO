@@ -127,18 +127,20 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                 transform: `translate3d(0, ${virtualRow.start}px, 0)`,
               }}
             >
-              <td
-                role="gridcell"
-                colSpan={columnCount}
-                className="px-0"
-              >
-                {renderSectionHeader?.(item.section) ?? (
+              {renderSectionHeader ? (
+                renderSectionHeader(item.section)
+              ) : (
+                <td
+                  role="gridcell"
+                  colSpan={columnCount}
+                  className="px-0"
+                >
                   <div className="flex items-center gap-2 px-4 font-medium">
                     <span>{item.section.label}</span>
                     <span className="text-zinc-500 dark:text-zinc-400">({item.section.items.length})</span>
                   </div>
-                )}
-              </td>
+                </td>
+              )}
             </tr>
           );
         }

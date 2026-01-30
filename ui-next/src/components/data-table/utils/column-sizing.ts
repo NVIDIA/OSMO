@@ -130,9 +130,12 @@ import { PreferenceModes, assertNever } from "../constants";
  *
  * Algorithm:
  * 1. Each column has: min (absolute floor), target (preferred), floor (mode-dependent)
- * 2. If container >= totalTarget: distribute surplus proportionally
+ * 2. If container >= totalTarget: distribute surplus proportionally (excluding non-resizable columns)
  * 3. If container >= totalFloor but < totalTarget: shrink columns with "give" (target - floor)
  * 4. If container < totalFloor: all columns at floor (overflow, scrollable)
+ *
+ * Non-resizable columns (enableResizing: false) are kept at their target width and excluded
+ * from surplus distribution, preventing auto-sizing from changing their width.
  */
 export function calculateColumnWidths(
   columnIds: string[],
@@ -141,6 +144,7 @@ export function calculateColumnWidths(
   configuredSizes: Record<string, number>,
   preferences: ColumnSizingPreferences,
   contentWidths: Record<string, number> = {},
+  columnResizability: Record<string, boolean> = {},
 ): ColumnSizingState {
   if (columnIds.length === 0 || containerWidth <= 0) {
     return {};
@@ -151,6 +155,7 @@ export function calculateColumnWidths(
     const configuredWidth = configuredSizes[id] ?? min * 1.5;
     const pref = preferences[id];
     const contentWidth = contentWidths[id];
+    const resizable = columnResizability[id] ?? true; // default to resizable
 
     let target: number;
     let floor: number;
@@ -181,7 +186,7 @@ export function calculateColumnWidths(
     target = Math.max(target, min);
     floor = Math.max(floor, min);
 
-    return { id, min, target, floor };
+    return { id, min, target, floor, resizable };
   });
 
   const totalTarget = columns.reduce((sum, c) => sum + c.target, 0);
@@ -190,12 +195,29 @@ export function calculateColumnWidths(
   // Case 1: Container fits all targets
   if (containerWidth >= totalTarget) {
     const surplus = containerWidth - totalTarget;
-    if (surplus > 0 && totalTarget > 0) {
+    if (surplus > 0) {
+      // Separate resizable and non-resizable columns
+      const resizableColumns = columns.filter((c) => c.resizable);
+      const nonResizableColumns = columns.filter((c) => !c.resizable);
+
+      // Distribute surplus only among resizable columns
+      const resizableTotal = resizableColumns.reduce((sum, c) => sum + c.target, 0);
+
       const result: ColumnSizingState = {};
-      for (const c of columns) {
-        const shareOfSurplus = (c.target / totalTarget) * surplus;
-        result[c.id] = c.target + shareOfSurplus;
+
+      // Non-resizable columns stay at target
+      for (const c of nonResizableColumns) {
+        result[c.id] = c.target;
       }
+
+      // Resizable columns share the surplus proportionally
+      if (resizableTotal > 0) {
+        for (const c of resizableColumns) {
+          const shareOfSurplus = (c.target / resizableTotal) * surplus;
+          result[c.id] = c.target + shareOfSurplus;
+        }
+      }
+
       return result;
     }
     return Object.fromEntries(columns.map((c) => [c.id, c.target]));
@@ -203,28 +225,63 @@ export function calculateColumnWidths(
 
   // Case 2: Container smaller than targets but larger than floors
   if (containerWidth >= totalFloor) {
-    const deficit = totalTarget - containerWidth;
-    const columnsWithGive = columns.map((c) => ({
-      ...c,
-      give: Math.max(0, c.target - c.floor),
-    }));
+    // Separate resizable and non-resizable columns
+    const resizableColumns = columns.filter((c) => c.resizable);
+    const nonResizableColumns = columns.filter((c) => !c.resizable);
 
-    const totalGive = columnsWithGive.reduce((sum, c) => sum + c.give, 0);
-    if (totalGive <= 0) {
-      return Object.fromEntries(columnsWithGive.map((c) => [c.id, c.floor]));
-    }
+    // Non-resizable columns stay at target, resizable columns absorb the deficit
+    const nonResizableTotal = nonResizableColumns.reduce((sum, c) => sum + c.target, 0);
+    const resizableTarget = resizableColumns.reduce((sum, c) => sum + c.target, 0);
+    const resizableFloor = resizableColumns.reduce((sum, c) => sum + c.floor, 0);
 
-    const shrinkRatio = Math.min(1, deficit / totalGive);
+    // Available space for resizable columns after non-resizable take their target
+    const availableForResizable = containerWidth - nonResizableTotal;
+
     const result: ColumnSizingState = {};
-    for (const c of columnsWithGive) {
-      const shrinkAmount = c.give * shrinkRatio;
-      result[c.id] = Math.max(c.floor, c.target - shrinkAmount);
+
+    // Non-resizable columns keep their target
+    for (const c of nonResizableColumns) {
+      result[c.id] = c.target;
     }
+
+    // Shrink only resizable columns
+    if (availableForResizable >= resizableFloor) {
+      // Proportional shrink among resizable columns
+      const deficit = resizableTarget - availableForResizable;
+      const columnsWithGive = resizableColumns.map((c) => ({
+        ...c,
+        give: Math.max(0, c.target - c.floor),
+      }));
+
+      const totalGive = columnsWithGive.reduce((sum, c) => sum + c.give, 0);
+      if (totalGive <= 0) {
+        for (const c of columnsWithGive) {
+          result[c.id] = c.floor;
+        }
+      } else {
+        const shrinkRatio = Math.min(1, deficit / totalGive);
+        for (const c of columnsWithGive) {
+          const shrinkAmount = c.give * shrinkRatio;
+          result[c.id] = Math.max(c.floor, c.target - shrinkAmount);
+        }
+      }
+    } else {
+      // Not enough space even at floor - resizable columns at floor
+      for (const c of resizableColumns) {
+        result[c.id] = c.floor;
+      }
+    }
+
     return result;
   }
 
   // Case 3: Container smaller than total floors
-  return Object.fromEntries(columns.map((c) => [c.id, c.floor]));
+  // Non-resizable columns still keep target, resizable columns at floor
+  const result: ColumnSizingState = {};
+  for (const c of columns) {
+    result[c.id] = c.resizable ? c.floor : c.target;
+  }
+  return result;
 }
 
 // =============================================================================
