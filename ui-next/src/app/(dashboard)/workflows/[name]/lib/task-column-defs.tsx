@@ -23,6 +23,7 @@ import { getStatusCategory, STATUS_STYLES, type StatusCategory } from "./status"
 import type { TaskWithDuration } from "./workflow-types";
 import { TASK_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type TaskColumnId } from "./task-columns";
 import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
+import { TaskNameCell } from "../components/table/tree";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
@@ -45,15 +46,15 @@ export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
       header: COLUMN_LABELS.name,
       minSize: getMinSize("name"),
       enableSorting: true,
+      meta: {
+        headerClassName: "pl-0 pr-4 py-3",
+      },
       cell: ({ row }) => (
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-medium text-gray-900 dark:text-zinc-100">{row.original.name}</span>
-          {row.original.lead && (
-            <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium tracking-wide text-amber-700 uppercase ring-1 ring-amber-600/20 ring-inset dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
-              Lead
-            </span>
-          )}
-        </div>
+        <TaskNameCell
+          name={row.original.name}
+          isLead={row.original.lead}
+          isSingleTaskGroup={row.original._isSingleTaskGroup}
+        />
       ),
     },
     {
