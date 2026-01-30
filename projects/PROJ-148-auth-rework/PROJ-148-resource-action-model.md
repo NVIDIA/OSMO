@@ -130,22 +130,17 @@ The action registry is defined in code (not database) for several reasons:
 │                                                                             │
 │  RESOURCES           ACTIONS                    SCOPED TO                   │
 │  ─────────           ───────                    ─────────                   │
-│  pool                List                       (global)                    │
-│                                                                             │
 │  workflow            Create, Read, Update,      pool / user                 │
-│                      Delete, Cancel, Clone,                                 │
-│                      List, Execute                                          │
-│                                                                             │
-│  task                Read, Update, Cancel,      pool / user                 │
+│                      Delete, Cancel,                                        │
 │                      Exec, PortForward, Rsync                               │
 │                                                                             │
-│  dataset             Create, Read, Write,       bucket                      │
+│  bucket              Read, Write,               bucket                      │
 │                      Delete, List                                           │
 │                                                                             │
 │  credentials         Create, Read, Update,      (global)                    │
 │                      Delete, List                                           │
 │                                                                             │
-│  profile             Read, Update               user                        │
+│  profile             Read, Update               (global)                    │
 │                                                                             │
 │  user                List                       (global)                    │
 │                                                                             │
@@ -156,7 +151,7 @@ The action registry is defined in code (not database) for several reasons:
 │                                                                             │
 │  system              Health, Version            (public)                    │
 │                                                                             │
-│  internal            Operator, Logger, Router   backend / workflow          │
+│  internal            Operator, Logger, Router   backend                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

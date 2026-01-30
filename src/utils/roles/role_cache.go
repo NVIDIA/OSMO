@@ -20,128 +20,53 @@ package roles
 
 import (
 	"log/slog"
-	"sort"
-	"strings"
-	"sync/atomic"
-	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
-// RoleCacheConfig holds configuration for the role cache
-type RoleCacheConfig struct {
-	Enabled bool
-	TTL     time.Duration
-	MaxSize int
-}
-
-// RoleCache provides thread-safe caching of role policies
+// RoleCache provides thread-safe caching for roles using LRU eviction.
+// Acts as a cache with DB fallback - caller should fetch missing roles from DB.
 type RoleCache struct {
-	cache  *expirable.LRU[string, []*Role]
-	config RoleCacheConfig
+	cache  *lru.Cache[string, *Role]
 	logger *slog.Logger
-	hits   atomic.Int64
-	misses atomic.Int64
 }
 
-// NewRoleCache creates a new role cache
-func NewRoleCache(config RoleCacheConfig, logger *slog.Logger) *RoleCache {
-	var cache *expirable.LRU[string, []*Role]
-	if config.Enabled {
-		cache = expirable.NewLRU[string, []*Role](config.MaxSize, nil, config.TTL)
-	}
-
+// NewRoleCache creates a new role cache with the specified max size
+func NewRoleCache(maxSize int, logger *slog.Logger) *RoleCache {
+	cache, _ := lru.New[string, *Role](maxSize)
 	return &RoleCache{
 		cache:  cache,
-		config: config,
 		logger: logger,
 	}
 }
 
-// Get retrieves roles from cache by role names
-// Returns the roles and a boolean indicating if found and not expired
-func (c *RoleCache) Get(roleNames []string) ([]*Role, bool) {
-	if !c.config.Enabled || c.cache == nil {
-		return nil, false
+// Get retrieves roles by name from the cache.
+// Returns:
+//   - found: roles that exist in the cache
+//   - missing: role names that were not found in the cache
+func (c *RoleCache) Get(roleNames []string) (found []*Role, missing []string) {
+	for _, name := range roleNames {
+		if role, exists := c.cache.Get(name); exists {
+			found = append(found, role)
+		} else {
+			missing = append(missing, name)
+		}
 	}
-
-	key := c.cacheKey(roleNames)
-	cachedRoles, found := c.cache.Get(key)
-
-	if !found {
-		misses := c.misses.Add(1)
-		c.logger.Debug("cache miss",
-			slog.String("key", key),
-			slog.Int64("total_misses", misses),
-		)
-		return nil, false
-	}
-
-	hits := c.hits.Add(1)
-	c.logger.Debug("cache hit",
-		slog.String("key", key),
-		slog.Int64("total_hits", hits),
-	)
-
-	return cachedRoles, true
+	return found, missing
 }
 
-// Set stores roles in cache with the configured TTL
-func (c *RoleCache) Set(roleNames []string, r []*Role) {
-	if !c.config.Enabled || c.cache == nil {
-		return
+// Set adds or updates roles in the cache
+func (c *RoleCache) Set(roles []*Role) {
+	for _, role := range roles {
+		c.cache.Add(role.Name, role)
 	}
 
-	key := c.cacheKey(roleNames)
-	c.cache.Add(key, r)
-
-	c.logger.Debug("cache set",
-		slog.String("key", key),
-		slog.Int("roles_count", len(r)),
+	c.logger.Debug("roles cached",
+		slog.Int("count", len(roles)),
 	)
 }
 
-// Clear removes all entries from the cache
-func (c *RoleCache) Clear() {
-	if !c.config.Enabled || c.cache == nil {
-		return
-	}
-
-	c.cache.Purge()
-	c.logger.Info("cache cleared")
-}
-
-// Stats returns cache statistics
-func (c *RoleCache) Stats() map[string]interface{} {
-	hits := c.hits.Load()
-	misses := c.misses.Load()
-	total := hits + misses
-	hitRate := 0.0
-	if total > 0 {
-		hitRate = float64(hits) / float64(total) * 100
-	}
-
-	size := 0
-	if c.cache != nil {
-		size = c.cache.Len()
-	}
-
-	return map[string]interface{}{
-		"enabled":     c.config.Enabled,
-		"size":        size,
-		"max_size":    c.config.MaxSize,
-		"hits":        hits,
-		"misses":      misses,
-		"hit_rate":    hitRate,
-		"ttl_seconds": c.config.TTL.Seconds(),
-	}
-}
-
-// cacheKey generates a cache key from sorted role names
-func (c *RoleCache) cacheKey(roleNames []string) string {
-	// Create a copy to avoid modifying the input
-	sorted := make([]string, len(roleNames))
-	copy(sorted, roleNames)
-	sort.Strings(sorted)
-	return strings.Join(sorted, ",")
+// Size returns the number of roles in the cache
+func (c *RoleCache) Size() int {
+	return c.cache.Len()
 }

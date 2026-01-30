@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
+	"go.corp.nvidia.com/osmo/utils/postgres"
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
@@ -42,34 +44,58 @@ const (
 	defaultRole = "osmo-default"
 )
 
-// PostgresClientInterface defines the interface for PostgreSQL operations
-type PostgresClientInterface interface {
-	Close()
-	Ping(ctx context.Context) error
-}
-
-// RoleFetcher is a function type for fetching roles from the database.
-// This allows the authz server to be decoupled from the roles package,
-// enabling easier testing with mock implementations.
-type RoleFetcher func(ctx context.Context, roleNames []string) ([]*roles.Role, error)
-
 // AuthzServer implements Envoy External Authorization service
 type AuthzServer struct {
 	envoy_service_auth_v3.UnimplementedAuthorizationServer
-	pgClient    PostgresClientInterface
-	roleFetcher RoleFetcher
-	roleCache   *roles.RoleCache
-	logger      *slog.Logger
+	pgClient  *postgres.PostgresClient
+	roleCache *roles.RoleCache
+	logger    *slog.Logger
 }
 
 // NewAuthzServer creates a new authorization server
-func NewAuthzServer(pgClient PostgresClientInterface, roleFetcher RoleFetcher, roleCache *roles.RoleCache, logger *slog.Logger) *AuthzServer {
+func NewAuthzServer(pgClient *postgres.PostgresClient, roleCache *roles.RoleCache, logger *slog.Logger) *AuthzServer {
 	return &AuthzServer{
-		pgClient:    pgClient,
-		roleFetcher: roleFetcher,
-		roleCache:   roleCache,
-		logger:      logger,
+		pgClient:  pgClient,
+		roleCache: roleCache,
+		logger:    logger,
 	}
+}
+
+// MigrateRoles converts all legacy roles to semantic format and updates the database.
+// This should be called at startup to ensure all roles are in semantic format.
+func (s *AuthzServer) MigrateRoles(ctx context.Context) error {
+	// Get all role names from the database
+	allRoleNames, err := roles.GetAllRoleNames(ctx, s.pgClient)
+	if err != nil {
+		return fmt.Errorf("failed to get all role names: %w", err)
+	}
+
+	if len(allRoleNames) == 0 {
+		s.logger.Warn("no roles found in database")
+		return nil
+	}
+
+	// Fetch all roles from database
+	allRoles, err := roles.GetRoles(ctx, s.pgClient, allRoleNames, s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to get roles: %w", err)
+	}
+
+	// Convert all roles to semantic format
+	convertedRoles := roles.ConvertRolesToSemantic(allRoles)
+
+	// Update each role in the database with converted policies
+	for _, role := range convertedRoles {
+		if err := roles.UpdateRolePolicies(ctx, s.pgClient, role, s.logger); err != nil {
+			return fmt.Errorf("failed to update role %s: %w", role.Name, err)
+		}
+	}
+
+	s.logger.Info("migrated roles to semantic format",
+		slog.Int("total_roles", len(convertedRoles)),
+	)
+
+	return nil
 }
 
 // RegisterAuthzService registers the authorization service with gRPC server
@@ -158,22 +184,24 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 // checkAccess verifies if the given roles have access to the path and method
 func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, roleNames []string) (bool, error) {
 	// Try cache first
-	fetchedRoles, found := s.roleCache.Get(roleNames)
-	if !found {
-		// Query PostgreSQL - roles are converted to semantic format by the roleFetcher
-		var err error
-		fetchedRoles, err = s.roleFetcher(ctx, roleNames)
+	cachedRoles, missingNames := s.roleCache.Get(roleNames)
+
+	// Fetch missing roles from database
+	if len(missingNames) > 0 {
+		dbRoles, err := roles.GetRoles(ctx, s.pgClient, missingNames, s.logger)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to fetch roles: %w", err)
 		}
 
-		// Update cache with roles (already converted to semantic by roleFetcher)
-		s.roleCache.Set(roleNames, fetchedRoles)
+		// Add fetched roles to cache
+		if len(dbRoles) > 0 {
+			s.roleCache.Set(dbRoles)
+			cachedRoles = append(cachedRoles, dbRoles...)
+		}
 	}
 
 	// Use the unified policy access check from the roles package
-	// All roles are semantic-only (converted by roleFetcher at load time)
-	result := roles.CheckRolesAccess(fetchedRoles, path, method)
+	result := roles.CheckRolesAccess(ctx, cachedRoles, path, method, s.pgClient)
 
 	// Log the result based on action type
 	s.logAccessResult(result, path, method)

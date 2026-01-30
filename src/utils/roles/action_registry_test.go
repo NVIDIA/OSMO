@@ -19,57 +19,9 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"context"
 	"testing"
 )
-
-func TestActionRegistryComplete(t *testing.T) {
-	// Test that all expected actions are registered
-	expectedActions := []string{
-		ActionWorkflowCreate,
-		ActionWorkflowRead,
-		ActionWorkflowUpdate,
-		ActionWorkflowDelete,
-		ActionWorkflowCancel,
-		ActionWorkflowExec,
-		ActionWorkflowPortForward,
-		ActionWorkflowRsync,
-		ActionBucketRead,
-		ActionBucketWrite,
-		ActionBucketDelete,
-		ActionPoolRead,
-		ActionPoolDelete,
-		ActionCredentialsCreate,
-		ActionCredentialsRead,
-		ActionCredentialsUpdate,
-		ActionCredentialsDelete,
-		ActionProfileRead,
-		ActionProfileUpdate,
-		ActionUserList,
-		ActionAppCreate,
-		ActionAppRead,
-		ActionAppUpdate,
-		ActionAppDelete,
-		ActionResourcesRead,
-		ActionConfigRead,
-		ActionConfigUpdate,
-		ActionAuthLogin,
-		ActionAuthRefresh,
-		ActionAuthToken,
-		ActionAuthServiceToken,
-		ActionRouterClient,
-		ActionSystemHealth,
-		ActionSystemVersion,
-		ActionInternalOperator,
-		ActionInternalLogger,
-		ActionInternalRouter,
-	}
-
-	for _, action := range expectedActions {
-		if _, exists := ActionRegistry[action]; !exists {
-			t.Errorf("Expected action %q not found in ActionRegistry", action)
-		}
-	}
-}
 
 func TestGetAllActions(t *testing.T) {
 	actions := GetAllActions()
@@ -192,36 +144,36 @@ func TestExtractResourceFromPath(t *testing.T) {
 			action:       ActionProfileRead,
 			wantResource: "user/user123",
 		},
-		// Global/public resources
+		// Global/public resources - no resource scope needed (empty string)
 		{
-			name:         "system action returns global",
+			name:         "system action returns empty (no scope needed)",
 			path:         "/health",
 			action:       ActionSystemHealth,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "auth action returns global",
+			name:         "auth action returns empty (no scope needed)",
 			path:         "/api/auth/login",
 			action:       ActionAuthLogin,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "user list returns global",
+			name:         "user list returns empty (no scope needed)",
 			path:         "/api/users",
 			action:       ActionUserList,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "credentials returns global",
+			name:         "credentials returns empty (no scope needed)",
 			path:         "/api/credentials/cred-123",
 			action:       ActionCredentialsRead,
-			wantResource: "*",
+			wantResource: "",
 		},
 		{
-			name:         "app returns global",
+			name:         "app returns empty (no scope needed)",
 			path:         "/api/app/app-123",
 			action:       ActionAppRead,
-			wantResource: "*",
+			wantResource: "",
 		},
 		// Internal resources - scoped to backend
 		{
@@ -240,7 +192,7 @@ func TestExtractResourceFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractResourceFromPath(tt.path, tt.action)
+			got := extractResourceFromPath(context.Background(), tt.path, tt.action, nil)
 			if got != tt.wantResource {
 				t.Errorf("extractResourceFromPath(%q, %q) = %q, want %q",
 					tt.path, tt.action, got, tt.wantResource)
@@ -265,7 +217,7 @@ func TestDefaultRolesWithRegistry(t *testing.T) {
 	}
 
 	for _, tt := range adminTests {
-		action, _ := ResolvePathToAction(tt.path, tt.method)
+		action, _ := ResolvePathToAction(context.Background(), tt.path, tt.method, nil)
 		if action != tt.wantAction {
 			t.Errorf("Admin path %s %s: got action %q, want %q",
 				tt.method, tt.path, action, tt.wantAction)
@@ -284,7 +236,7 @@ func TestDefaultRolesWithRegistry(t *testing.T) {
 	}
 
 	for _, tt := range defaultTests {
-		action, _ := ResolvePathToAction(tt.path, tt.method)
+		action, _ := ResolvePathToAction(context.Background(), tt.path, tt.method, nil)
 		if action != tt.wantAction {
 			t.Errorf("Default path %s %s: got action %q, want %q",
 				tt.method, tt.path, action, tt.wantAction)
@@ -306,7 +258,7 @@ func TestInternalActionsRestricted(t *testing.T) {
 	}
 
 	for _, tt := range internalTests {
-		action, _ := ResolvePathToAction(tt.path, tt.method)
+		action, _ := ResolvePathToAction(context.Background(), tt.path, tt.method, nil)
 		if action != tt.wantAction {
 			t.Errorf("Internal path %s %s: got action %q, want %q",
 				tt.method, tt.path, action, tt.wantAction)

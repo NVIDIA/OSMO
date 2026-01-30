@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 package server
 
 import (
+	"context"
 	"testing"
 
 	"go.corp.nvidia.com/osmo/utils/roles"
@@ -385,7 +386,7 @@ func TestCheckPolicyAccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Convert role to semantic format (simulates what authz_server does)
 			convertedRole := roles.ConvertRoleToSemantic(tt.role)
-			result := roles.CheckPolicyAccess(convertedRole, tt.path, tt.method)
+			result := roles.CheckPolicyAccess(context.Background(), convertedRole, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckPolicyAccess() = %v, want %v (actionType: %s, matched: %s)",
 					result.Allowed, tt.wantAccess, result.ActionType, result.MatchedAction)
@@ -451,7 +452,7 @@ func TestDefaultRoleAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roles.CheckPolicyAccess(defaultRole, tt.path, tt.method)
+			result := roles.CheckPolicyAccess(context.Background(), defaultRole, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckPolicyAccess() = %v, want %v for path %s", result.Allowed, tt.wantAccess, tt.path)
 			}
@@ -518,7 +519,7 @@ func TestAdminRoleAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roles.CheckPolicyAccess(adminRole, tt.path, tt.method)
+			result := roles.CheckPolicyAccess(context.Background(), adminRole, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckPolicyAccess() = %v, want %v for path %s", result.Allowed, tt.wantAccess, tt.path)
 			}
@@ -613,7 +614,7 @@ func TestCheckRolesAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roles.CheckRolesAccess(tt.roles, tt.path, tt.method)
+			result := roles.CheckRolesAccess(context.Background(), tt.roles, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckRolesAccess() = %v, want %v", result.Allowed, tt.wantAccess)
 			}
