@@ -68,6 +68,7 @@ const (
 const (
 	// Workflow actions
 	ActionWorkflowCreate      = resourceTypeWorkflow + ":Create"
+	ActionWorkflowList        = resourceTypeWorkflow + ":List"
 	ActionWorkflowRead        = resourceTypeWorkflow + ":Read"
 	ActionWorkflowUpdate      = resourceTypeWorkflow + ":Update"
 	ActionWorkflowDelete      = resourceTypeWorkflow + ":Delete"
@@ -77,13 +78,10 @@ const (
 	ActionWorkflowRsync       = resourceTypeWorkflow + ":Rsync"
 
 	// Bucket actions
+	ActionBucketList   = resourceTypeBucket + ":List"
 	ActionBucketRead   = resourceTypeBucket + ":Read"
 	ActionBucketWrite  = resourceTypeBucket + ":Write"
 	ActionBucketDelete = resourceTypeBucket + ":Delete"
-
-	// Pool actions
-	ActionPoolRead   = resourceTypePool + ":Read"
-	ActionPoolDelete = resourceTypePool + ":Delete"
 
 	// Credentials actions
 	ActionCredentialsCreate = resourceTypeCredentials + ":Create"
@@ -116,9 +114,6 @@ const (
 	ActionAuthRefresh      = resourceTypeAuth + ":Refresh"
 	ActionAuthToken        = resourceTypeAuth + ":Token"
 	ActionAuthServiceToken = resourceTypeAuth + ":ServiceToken"
-
-	// Router actions
-	ActionRouterClient = resourceTypeRouter + ":Client"
 
 	// System actions (public)
 	ActionSystemHealth  = resourceTypeSystem + ":Health"
@@ -176,13 +171,13 @@ var ActionRegistry = map[string][]EndpointPattern{
 	ActionWorkflowCreate: {
 		{Path: "/api/pool/*/workflow", Methods: []string{"POST"}},
 	},
-	ActionWorkflowRead: {
+	ActionWorkflowList: {
 		{Path: "/api/workflow", Methods: []string{"GET"}},
-		{Path: "/api/workflow/*", Methods: []string{"GET"}},
-		{Path: "/api/workflow/spec", Methods: []string{"GET"}},
 		{Path: "/api/task", Methods: []string{"GET"}},
-		{Path: "/api/task/*", Methods: []string{"GET"}},
 		{Path: "/api/tag", Methods: []string{"GET"}},
+	},
+	ActionWorkflowRead: {
+		{Path: "/api/workflow/*", Methods: []string{"GET"}},
 	},
 	ActionWorkflowUpdate: {
 		{Path: "/api/workflow/*", Methods: []string{"PUT", "PATCH"}},
@@ -195,17 +190,22 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowExec: {
 		{Path: "/api/workflow/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
+		{Path: "/api/router/exec/*/client/*", Methods: []string{"*"}},
 	},
 	ActionWorkflowPortForward: {
 		{Path: "/api/workflow/*/portforward/*", Methods: []string{"*"}},
+		{Path: "/api/router/portforward/*/client/*", Methods: []string{"*"}},
 	},
 	ActionWorkflowRsync: {
 		{Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
+		{Path: "/api/router/rsync/*/client/*", Methods: []string{"*"}},
 	},
 
 	// ==================== BUCKET ====================
-	ActionBucketRead: {
+	ActionBucketList: {
 		{Path: "/api/bucket", Methods: []string{"GET"}},
+	},
+	ActionBucketRead: {
 		{Path: "/api/bucket/*", Methods: []string{"GET"}},
 	},
 	ActionBucketWrite: {
@@ -213,15 +213,6 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionBucketDelete: {
 		{Path: "/api/bucket/*", Methods: []string{"DELETE"}},
-	},
-
-	// ==================== POOL ====================
-	ActionPoolRead: {
-		{Path: "/api/pool", Methods: []string{"GET"}},
-		{Path: "/api/pool/*", Methods: []string{"GET"}},
-	},
-	ActionPoolDelete: {
-		{Path: "/api/pool/*", Methods: []string{"DELETE"}},
 	},
 
 	// ==================== CREDENTIALS ====================
@@ -241,11 +232,10 @@ var ActionRegistry = map[string][]EndpointPattern{
 
 	// ==================== PROFILE ====================
 	ActionProfileRead: {
-		{Path: "/api/profile", Methods: []string{"GET"}},
-		{Path: "/api/profile/*", Methods: []string{"GET"}},
+		{Path: "/api/profile/settings", Methods: []string{"GET"}},
 	},
 	ActionProfileUpdate: {
-		{Path: "/api/profile/*", Methods: []string{"PUT", "PATCH"}},
+		{Path: "/api/profile/settings", Methods: []string{"POST"}},
 	},
 
 	// ==================== USER ====================
@@ -303,12 +293,12 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/auth/access_token/service/*", Methods: []string{"*"}},
 	},
 
-	// ==================== ROUTER ====================
-	ActionRouterClient: {
-		{Path: "/api/router/webserver/*", Methods: []string{"*"}},
-		{Path: "/api/router/webserver_enabled", Methods: []string{"*"}},
-		{Path: "/api/router/*/*/client/*", Methods: []string{"*"}},
-	},
+	// // ==================== ROUTER ====================
+	// ActionRouterClient: {
+	// 	{Path: "/api/router/webserver/*", Methods: []string{"*"}},
+	// 	{Path: "/api/router/webserver_enabled", Methods: []string{"*"}},
+	// 	{Path: "/api/router/*/*/client/*", Methods: []string{"*"}},
+	// },
 
 	// ==================== SYSTEM (PUBLIC) ====================
 	ActionSystemHealth: {
@@ -326,7 +316,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/agent/worker/*", Methods: []string{"*"}},
 	},
 	ActionInternalLogger: {
-		{Path: "/api/logger/workflow/*", Methods: []string{"*"}},
+		{Path: "/api/logger/workflow/*/osmo_ctrl/*", Methods: []string{"*"}},
 	},
 	ActionInternalRouter: {
 		{Path: "/api/router/*/*/backend/*", Methods: []string{"*"}},
@@ -641,26 +631,29 @@ func extractResourceFromPath(ctx context.Context, path, action string, pgClient 
 	switch resourceType {
 	case ResourceTypeBucket:
 		// Bucket-scoped resources - the resource ID IS the scope
-		return extractScopedResourceID(string(ResourceTypeBucket), parts, []string{"bucket"})
+		if actionName == "List" {
+			return "*"
+		}
+		return "bucket/" + extractScopedResourceID(parts, "bucket")
 
 	case ResourceTypeConfig:
 		// Config-scoped resources - the resource ID IS the scope
-		return extractScopedResourceID(string(ResourceTypeConfig), parts, []string{"configs"})
-
-	case ResourceTypeProfile:
-		// User-scoped resources - profile is scoped to user
-		return extractScopedResourceID(string(ResourceTypeUser), parts, []string{"profile"})
+		return "config/" + extractScopedResourceID(parts, "config")
 
 	case ResourceTypeWorkflow:
+		// List action doesn't need resource scope check
+		if actionName == "List" {
+			return "*"
+		}
 		// Pool-scoped resources - workflow/task are scoped to pool
 		return extractWorkflowPoolResource(ctx, parts, actionName, pgClient)
 
 	case ResourceTypeInternal:
 		// Backend-scoped resources - internal actions
-		if len(parts) >= 3 {
-			return "backend/" + parts[2]
+		if actionName == "Operator" {
+			return "backend/" + extractScopedResourceID(parts, "backend")
 		}
-		return "backend/*"
+		return "*"
 
 	default:
 		// Global/public resources - no resource check needed
@@ -712,18 +705,14 @@ func extractWorkflowPoolResource(ctx context.Context, parts []string, actionName
 }
 
 // extractScopedResourceID extracts the resource ID from path parts and formats as "{scope}/{id}"
-func extractScopedResourceID(scope string, parts []string, pathSegments []string) string {
+// Returns the next part after a matching segment, or "*" if nothing is found
+func extractScopedResourceID(parts []string, previousPart string) string {
 	for i, part := range parts {
-		for _, segment := range pathSegments {
-			if part == segment {
-				if i+1 < len(parts) && parts[i+1] != "" {
-					return scope + "/" + parts[i+1]
-				}
-				return scope + "/*"
-			}
+		if part == previousPart && i+1 < len(parts) && parts[i+1] != "" {
+			return parts[i+1]
 		}
 	}
-	return scope + "/*"
+	return "*"
 }
 
 // GetAllActions returns all registered action names

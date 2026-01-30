@@ -27,6 +27,7 @@ func TestActionRegistryComplete(t *testing.T) {
 	// Test that all expected actions are registered
 	expectedActions := []string{
 		ActionWorkflowCreate,
+		ActionWorkflowList,
 		ActionWorkflowRead,
 		ActionWorkflowUpdate,
 		ActionWorkflowDelete,
@@ -37,8 +38,6 @@ func TestActionRegistryComplete(t *testing.T) {
 		ActionBucketRead,
 		ActionBucketWrite,
 		ActionBucketDelete,
-		ActionPoolRead,
-		ActionPoolDelete,
 		ActionCredentialsCreate,
 		ActionCredentialsRead,
 		ActionCredentialsUpdate,
