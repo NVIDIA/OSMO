@@ -58,8 +58,7 @@ export type WorkflowTableViewProps = WorkflowViewCommonProps;
 // =============================================================================
 
 export const WorkflowTableView = memo(function WorkflowTableView(props: WorkflowTableViewProps) {
-  const { workflow, groups, selectedGroupName, selectedTaskName, onSelectGroup, onSelectTask, onPanelDraggingChange } =
-    props;
+  const { groups, selectedGroupName, selectedTaskName, onSelectGroup, onSelectTask, onPanelDraggingChange } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -146,7 +145,6 @@ export const WorkflowTableView = memo(function WorkflowTableView(props: Workflow
               resetKeys={[groups.length]}
             >
               <WorkflowTasksTable
-                workflow={workflow}
                 groups={groups}
                 onSelectGroup={onSelectGroup}
                 onSelectTask={onSelectTask}
