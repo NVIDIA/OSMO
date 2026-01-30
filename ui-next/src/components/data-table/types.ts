@@ -182,6 +182,16 @@ export interface DataTableColumnMeta {
   cellClassName?: string;
 
   /**
+   * Custom className for the th header element.
+   * When provided, this REPLACES the default header padding.
+   *
+   * @example
+   * // Name column with no left padding (flush with content)
+   * meta: { headerClassName: "pl-0 pr-4 py-3" }
+   */
+  headerClassName?: string;
+
+  /**
    * Text alignment for the column.
    * Used by column headers and cells for consistent alignment.
    *
