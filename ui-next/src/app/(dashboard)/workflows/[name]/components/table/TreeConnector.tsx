@@ -22,14 +22,16 @@
  */
 
 export interface TreeConnectorProps {
-  position: "first" | "middle" | "last";
+  /** Whether this is the last task in the group */
+  isLast: boolean;
+  /** Whether this group has only one task */
   isSingleTask: boolean;
 }
 
 /**
  * Tree connector using Unicode box-drawing characters
  */
-export function TreeConnector({ position, isSingleTask }: TreeConnectorProps): React.JSX.Element {
+export function TreeConnector({ isLast, isSingleTask }: TreeConnectorProps): React.JSX.Element {
   if (isSingleTask) {
     return (
       <div className="relative flex h-full w-full items-center justify-center">
@@ -44,7 +46,7 @@ export function TreeConnector({ position, isSingleTask }: TreeConnectorProps): R
         className="text-muted-foreground absolute text-sm"
         style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
       >
-        {position === "last" ? "└" : "├"}
+        {isLast ? "└" : "├"}
       </span>
     </div>
   );
