@@ -428,7 +428,6 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
               isExpanded={isExpanded}
               hasVisibleTasks={hasVisibleTasks ?? false}
               onToggle={() => handleToggleGroup(section.id)}
-              visualRowIndex={_visualRowIndex}
             />
           </td>
 
