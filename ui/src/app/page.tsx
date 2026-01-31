@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
@@ -23,63 +23,50 @@ import { UsedFreeToggle } from "~/app/pools/components/UsedFreeToggle";
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
 import { useAuth } from "~/components/AuthProvider";
 import { getDateFromValues } from "~/components/DateRangePicker";
+import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
+import { IconButton } from "~/components/IconButton";
 import PageHeader from "~/components/PageHeader";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { TaskPieChart } from "~/components/TaskPieChart";
-import { WorkflowPieChart } from "~/components/WorkflowPieChart";
+import { TextInput } from "~/components/TextInput";
+import { UserFilterType } from "~/components/UserFilter";
 import { env } from "~/env.mjs";
 import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
+import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
 import { getTaskStatusArray } from "./tasks/components/StatusFilter";
-import { getWorkflowStatusArray } from "./workflows/components/StatusFilter";
-
-const mockAggregateResources = {
-  cpu: { allocatable: 400, usage: 380 },
-  memory: { allocatable: 1024, usage: 849 },
-  gpu: { allocatable: 8, usage: 4 },
-  storage: { allocatable: 2000, usage: 640 },
-};
-
-const mockMessagePool = [
-  "Workflow alpha-vision queued for GPU pool.",
-  "Robot RX-17 completed inspection task.",
-  "Workflow data-sync running on pool cpu-large.",
-  "Robot TX-02 awaiting task assignment.",
-  "Workflow render-frames completed successfully.",
-  "Robot QA-05 reported low battery.",
-  "Workflow ingest-logs failed with timeout.",
-];
+import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
+import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/components/WorkflowsFilters";
 
 export default function Home() {
   const currentDays = 365;
   const { username } = useAuth();
   const [isShowingUsed, setIsShowingUsed] = useState(true);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [messageIndex, setMessageIndex] = useState(0);
   const todayDateRange = getDateFromValues(currentDays);
+  const [isEditing, setIsEditing] = useState(false);
+  const [widgetName, setWidgetName] = useState("");
+  const [widgetDescription, setWidgetDescription] = useState("");
+  const [editingWidget, setEditingWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
 
-  const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery({
-    all_users: false,
-    all_pools: true,
-    users: [username],
-    statuses: getWorkflowStatusArray(StatusFilterType.CURRENT),
-  }, {
-    refetchOnWindowFocus: true,
-    refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000
-  });
+  const createWidgetId = () => crypto.randomUUID();
+  const [widgets, setWidgets] = useState<WorkflowWidgetDataProps[]>([]);
+  const updateWidgets = (
+    updater: WorkflowWidgetDataProps[] | ((prev: WorkflowWidgetDataProps[]) => WorkflowWidgetDataProps[]),
+  ) => {
+    setWidgets((prevWidgets) => {
+      const nextWidgets = typeof updater === "function" ? updater(prevWidgets) : updater;
 
-  const { data: todaysWorkflows } = api.workflows.getStatusTotals.useQuery({
-    all_users: false,
-    all_pools: true,
-    users: [username],
-    submitted_after: todayDateRange.fromDate?.toISOString(),
-    submitted_before: todayDateRange.toDate?.toISOString(),
-  }, {
-    refetchOnWindowFocus: true,
-    refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000
-  });
+      if (nextWidgets.length > 0) {
+        localStorage.setItem("widgets", JSON.stringify(nextWidgets));
+      } else {
+        localStorage.removeItem("widgets");
+      }
+
+      return nextWidgets;
+    });
+  };
 
   const { data: todaysTasks } = api.tasks.getStatusTotals.useQuery({
     all_users: false,
@@ -106,63 +93,107 @@ export default function Home() {
     refetchOnWindowFocus: false,
   });
 
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      const nextIndex = (messageIndex + 1) % mockMessagePool.length;
-      const timestamp = new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-      setMessages((prev) => [...prev, `[${timestamp}] ${mockMessagePool[messageIndex]}`]);
-      setMessageIndex(nextIndex);
-    }, 3000);
+  const {
+    data: resources,
+    isFetching: isResourcesFetching,
+    isSuccess: isResourcesSuccess,
+    refetch: refetchResources,
+  } = api.resources.listResources.useQuery(
+    {
+      all_pools: false,
+      pools: [profile?.profile.pool ?? ""],
+    },
+    {
+      refetchOnWindowFocus: false,
+    },
+  );
 
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [messageIndex]);
+  const processResources = useMemo(() => {
+    if (!isResourcesSuccess) {
+      return [];
+    }
+
+    return calcResourceUsages(resources);
+  }, [resources, isResourcesSuccess]);
+
+  const aggregateTotals = useMemo(() => calcAggregateTotals(processResources), [processResources]);
+
+  const onSaveWidget = (data: WorkflowsFiltersDataProps) => {
+    if (!editingWidget) {
+      return;
+    }
+    updateWidgets(prevWidgets => prevWidgets.map(widget => widget.id === editingWidget.id ? {
+      ...data,
+      id: editingWidget.id,
+      name: widgetName,
+      description: widgetDescription
+    } : widget));
+    setEditingWidget(undefined);
+  };
+
+  const validateWidget = (data: WorkflowsFiltersDataProps) => {
+    return [];
+  };
+
+  useEffect(() => {
+    const storedWidgets = localStorage.getItem("widgets");
+
+    if (storedWidgets !== null) {
+      updateWidgets(JSON.parse(storedWidgets) as WorkflowWidgetDataProps[]);
+    } else {
+      updateWidgets([
+        {
+          id: createWidgetId(),
+          name: "My Current Workflows",
+          userType: UserFilterType.CURRENT,
+          selectedUsers: username,
+          isSelectAllPoolsChecked: true,
+          selectedPools: "",
+          dateRange: -2,
+          statusFilterType: StatusFilterType.CURRENT,
+        },
+        {
+          id: createWidgetId(),
+          name: "My Workflows Today",
+          userType: UserFilterType.CURRENT,
+          selectedUsers: username,
+          isSelectAllPoolsChecked: true,
+          selectedPools: "",
+          dateRange: 365,
+          statusFilterType: StatusFilterType.ALL,
+        },
+        {
+          id: createWidgetId(),
+          name: "Low Priority Workflows",
+          description: "Low Priority Workflows in the last 7 days",
+          userType: UserFilterType.ALL,
+          selectedUsers: "",
+          isSelectAllPoolsChecked: true,
+          selectedPools: "",
+          dateRange: 7,
+          statusFilterType: StatusFilterType.ALL,
+          priority: "LOW",
+        },
+      ]);
+    }
+  }, [username]);
+
+  useEffect(() => {
+    setWidgetName(editingWidget?.name ?? "");
+    setWidgetDescription(editingWidget?.description ?? "");
+  }, [editingWidget]);
 
   return (
     <>
-      <PageHeader />
-      <div className="flex justify-center h-full w-full overflow-hidden">
-        <div className="grid grid-cols-4 grid-rows-[auto_1fr] gap-global p-global h-full max-w-400 overflow-hidden">
-          <section className="card" aria-labelledby="current-workflows-title">
-            <div className="popup-header body-header">
-              <h2 id="current-workflows-title">Current Workflows</h2>
-              <Link
-                href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=-2&statusType=current`}
-                className="btn btn-secondary" title="View All Current Workflows">
-                <OutlinedIcon name="more_horiz" />
-              </Link>
-            </div>
-            <div className="p-global">
-              <WorkflowPieChart
-                counts={currentWorkflows ?? {}}
-                size={160}
-                innerRadius={40}
-                ariaLabel="My Current Workflows"
-              />
-            </div>
-          </section>
-          <section className="card" aria-labelledby="todays-workflows-title">
-            <div className="popup-header body-header">
-              <h2 id="todays-workflows-title">Today&apos;s Workflows</h2>
-              <Link href={`/workflows?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=${currentDays}`} className="btn btn-secondary" title="View All Today&apos;s Workflows">
-                <OutlinedIcon name="more_horiz" />
-              </Link>
-            </div>
-            <div className="p-global">
-              <WorkflowPieChart
-                counts={todaysWorkflows ?? {}}
-                size={160}
-                innerRadius={40}
-                ariaLabel="Today&apos;s Workflows"
-              />
-            </div>
-          </section>
-          <section className="card" aria-labelledby="current-tasks-title">
+      <PageHeader>
+        <IconButton icon="edit" text="Edit" className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`} onClick={() => setIsEditing(!isEditing)} />
+      </PageHeader>
+      <div className="h-full w-full flex justify-center items-baseline">
+        <div className="flex flex-row flex-wrap gap-global p-global">
+          {widgets.map((widget) => (
+            <WorkflowsWidget key={widget.name} filters={widget} onEdit={setEditingWidget} onDelete={setEditingWidget} isEditing={isEditing} />
+          ))}
+          <section className="card w-100 h-100" aria-labelledby="current-tasks-title">
             <div className="popup-header body-header">
               <h2 id="current-tasks-title">Current Tasks</h2>
               <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&statusType=current`} className="btn btn-secondary" title="View All Current Tasks">
@@ -173,7 +204,7 @@ export default function Home() {
               <TaskPieChart counts={currentTasks ?? {}} size={160} innerRadius={40} ariaLabel="Current Tasks" />
             </div>
           </section>
-          <section className="card" aria-labelledby="todays-tasks-title">
+          <section className="card w-100 h-100" aria-labelledby="todays-tasks-title">
             <div className="popup-header body-header">
               <h2 id="todays-tasks-title">Today&apos;s Tasks</h2>
               <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=${currentDays}&statusType=all`} className="btn btn-secondary" title="View All Today&apos;s Tasks">
@@ -184,7 +215,7 @@ export default function Home() {
               <TaskPieChart counts={todaysTasks ?? {}} size={160} innerRadius={40} ariaLabel="Today&apos;s Tasks" />
             </div>
           </section>
-          <section className="card" aria-labelledby="resources-title">
+          <section className="card w-100 h-100" aria-labelledby="resources-title">
             <div className="popup-header body-header">
               <h2>{profile?.profile.pool ?? "Default Pool"}</h2>
               {profile?.profile.pool ? (
@@ -197,28 +228,66 @@ export default function Home() {
               ) : <Link href="/profile?tool=settings" className="btn btn-secondary" title="Configure Default Pool">Configure</Link>}
             </div>
             <ResourcesGraph
-              {...mockAggregateResources}
-              isLoading={false}
+              {...aggregateTotals.total}
+              isLoading={isResourcesFetching}
               isShowingUsed={isShowingUsed}
             />
           </section>
-          <section className="card col-span-3 h-full min-h-50 flex flex-col" aria-labelledby="messages-title">
-            <div className="popup-header body-header">
-              <h2 id="messages-title">Messages</h2>
-            </div>
-            <div className="flex-1 w-full p-global overflow-auto">
-              {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className="text-sm text-gray-500"
-                >
-                  {message}
-                </div>
-              ))}
-            </div>
+          <section className="card w-100 h-100 p-global">
+            <button className="btn btn-secondary border-dashed w-full h-full justify-center items-center text-[10rem] opacity-30 hover:opacity-100 hover:cursor-pointer focus:opacity-100"><OutlinedIcon name="add" className="text-[7rem]!" /></button>
           </section>
         </div>
       </div>
+      <FullPageModal
+        open={!!editingWidget}
+        onClose={() => {
+          setEditingWidget(undefined);
+        }}
+        headerChildren={<h2 id="edit-header">Edit</h2>}
+        aria-labelledby="edit-header"
+        size="md"
+      >
+        <TextInput
+          id="widget-name"
+          label="Name"
+          helperText="Name of the widget (unique)"
+          className="w-full"
+          required
+          containerClassName="w-full p-global"
+          value={widgetName}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+            setWidgetName(event.target.value);
+          }}
+        />
+        <TextInput
+          id="widget-description"
+          label="Description"
+          helperText="Optional"
+          className="w-full"
+          containerClassName="w-full p-global"
+          value={widgetDescription}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+            setWidgetDescription(event.target.value);
+          }}
+        />
+        <WorkflowsFilters
+          name={""}
+          userType={editingWidget?.userType ?? UserFilterType.ALL}
+          selectedUsers={editingWidget?.selectedUsers ?? ""}
+          selectedPools={editingWidget?.selectedPools ?? ""}
+          dateRange={editingWidget?.dateRange ?? 30}
+          statusFilterType={editingWidget?.statusFilterType ?? StatusFilterType.CURRENT}
+          submittedAfter={editingWidget?.submittedAfter ?? todayDateRange.fromDate?.toISOString()}
+          submittedBefore={editingWidget?.submittedBefore ?? todayDateRange.toDate?.toISOString()}
+          isSelectAllPoolsChecked={editingWidget?.isSelectAllPoolsChecked ?? true}
+          currentUserName={username}
+          priority={editingWidget?.priority ?? undefined}
+          onSave={onSaveWidget}
+          validateFilters={validateWidget}
+          saveButtonText="Save"
+          saveButtonIcon="save"
+        />
+      </FullPageModal>
     </>
   );
 }

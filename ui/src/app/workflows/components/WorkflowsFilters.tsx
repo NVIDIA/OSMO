@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState } from "react";
 
-import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
+import { DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
@@ -26,7 +26,6 @@ import { PoolsListResponseSchema, type PriorityType, WorkflowStatusValues, type 
 import { api } from "~/trpc/react";
 
 import { getMapFromStatusArray, getWorkflowStatusArray, StatusFilter } from "./StatusFilter";
-import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
 export interface WorkflowsFiltersDataProps {
   userType: UserFilterType;
@@ -44,9 +43,11 @@ export interface WorkflowsFiltersDataProps {
 
 interface WorkflowsFiltersProps extends WorkflowsFiltersDataProps {
   currentUserName: string;
-  onRefresh: () => void;
   validateFilters: (props: WorkflowsFiltersDataProps) => string[];
-  updateUrl: (params: ToolParamUpdaterProps) => void;
+  onSave: (props: WorkflowsFiltersDataProps) => void;
+  onReset?: () => void;
+  saveButtonText?: string;
+  saveButtonIcon?: string;
 }
 
 export const WorkflowsFilters = ({
@@ -62,9 +63,11 @@ export const WorkflowsFilters = ({
   name,
   priority,
   currentUserName,
-  onRefresh,
   validateFilters,
-  updateUrl,
+  onSave,
+  onReset,
+  saveButtonText = "Refresh",
+  saveButtonIcon = "refresh",
 }: WorkflowsFiltersProps) => {
   const [localName, setLocalName] = useState<string>(name);
   const [localDateRange, setLocalDateRange] = useState(dateRange);
@@ -82,6 +85,10 @@ export const WorkflowsFilters = ({
   const pools = api.resources.getPools.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    setPriorityFilter(priority);
+  }, [priority]);
 
   useEffect(() => {
     setAllPools(isSelectAllPoolsChecked);
@@ -138,7 +145,7 @@ export const WorkflowsFilters = ({
       .filter(([_, enabled]) => enabled)
       .map(([pool]) => pool);
 
-    const formErrors = validateFilters({
+    const data = {
       userType: localUserType,
       selectedUsers: localUsers,
       selectedPools: pools.join(","),
@@ -149,7 +156,9 @@ export const WorkflowsFilters = ({
       name: localName,
       statusFilterType: localStatusFilterType,
       statuses: statuses.join(","),
-    });
+      priority: priorityFilter
+    };
+    const formErrors = validateFilters(data);
 
     setErrors(formErrors);
 
@@ -157,21 +166,7 @@ export const WorkflowsFilters = ({
       return;
     }
 
-    updateUrl({
-      filterName: localName,
-      dateRange: localDateRange,
-      dateAfter: localDateRange === customDateRange ? localSubmittedAfter : null,
-      dateBefore: localDateRange === customDateRange ? localSubmittedBefore : null,
-      statusFilterType: localStatusFilterType,
-      status: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : null,
-      allPools,
-      pools: allPools ? null : pools,
-      allUsers: localUserType === UserFilterType.ALL,
-      users: localUserType === UserFilterType.ALL ? null : localUsers.split(","),
-      priority: priorityFilter ?? null,
-    });
-
-    onRefresh();
+    onSave(data);
   };
 
   const handleReset = () => {
@@ -185,20 +180,7 @@ export const WorkflowsFilters = ({
     setErrors([]);
     setPriorityFilter(undefined);
 
-    updateUrl({
-      filterName: null,
-      statusFilterType: StatusFilterType.ALL,
-      status: null,
-      allPools: true,
-      allUsers: false,
-      users: [currentUserName],
-      dateRange: null,
-      dateAfter: null,
-      dateBefore: null,
-      priority: null,
-    });
-
-    onRefresh();
+    onReset?.();
   };
 
   return (
@@ -306,20 +288,22 @@ export const WorkflowsFilters = ({
         )}
       </div>
       <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
-        <button
-          type="button"
-          className="btn"
-          onClick={handleReset}
-        >
-          <OutlinedIcon name="undo" />
-          Reset
-        </button>
+        {onReset && (
+          <button
+            type="button"
+            className="btn"
+            onClick={handleReset}
+          >
+            <OutlinedIcon name="undo" />
+            Reset
+          </button>
+        )}
         <button
           type="submit"
           className="btn btn-primary"
         >
-          <OutlinedIcon name="refresh" />
-          Refresh
+          <OutlinedIcon name={saveButtonIcon} />
+          {saveButtonText}
         </button>
       </div>
     </form>

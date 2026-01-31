@@ -74,37 +74,35 @@ export const WorkflowPieChart = ({
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col gap-global p-global">
-      <div className="flex flex-col md:flex-row gap-global">
-        <PieChart
-          slices={slices}
-          size={size}
-          innerRadius={innerRadius}
-          className={className}
-          ariaLabel={ariaLabel}
-          centerValue={showTotal ? total : undefined}
-          centerLabel={showTotal ? "Total" : undefined}
-          onSliceSelect={(slice) => setSelectedLabel(slice.label)}
-        />
-        {showLegend && (
-          <div className="flex flex-col gap-2">
-            {slices.map((slice) => (
-              <div
-                key={slice.label}
-                className={`flex items-center gap-1 text-xs rounded px-1 ${selectedLabel === slice.label ? "bg-headerbg font-semibold" : ""
-                  }`}
-              >
-                <span
-                  className="inline-block h-3 w-3 rounded-sm"
-                  style={{ backgroundColor: slice.color, borderColor: slice.borderColor ?? slice.color ?? "black", borderWidth: 1 }}
-                />
-                <span>{slice.label}</span>
-                <span>{slice.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+    <div className="flex gap-global">
+      <PieChart
+        slices={slices}
+        size={size}
+        innerRadius={innerRadius}
+        className={className}
+        ariaLabel={ariaLabel}
+        centerValue={showTotal ? total : undefined}
+        centerLabel={showTotal ? "Total" : undefined}
+        onSliceSelect={(slice) => setSelectedLabel(slice.label)}
+      />
+      {showLegend && (
+        <div className="flex flex-col gap-2">
+          {slices.map((slice) => (
+            <div
+              key={slice.label}
+              className={`flex items-center gap-1 text-xs rounded px-1 ${selectedLabel === slice.label ? "bg-headerbg font-semibold" : ""
+                }`}
+            >
+              <span
+                className="inline-block h-3 w-3 rounded-sm"
+                style={{ backgroundColor: slice.color, borderColor: slice.borderColor ?? slice.color ?? "black", borderWidth: 1 }}
+              />
+              <span>{slice.label}</span>
+              <span>{slice.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

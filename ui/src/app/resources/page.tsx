@@ -18,7 +18,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
-import { z } from "zod";
 
 import { CheckboxWithLabel } from "~/components/Checkbox";
 import { FilterButton } from "~/components/FilterButton";
@@ -30,14 +29,13 @@ import { SlideOut } from "~/components/SlideOut";
 import { Spinner } from "~/components/Spinner";
 import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { convertFields, ResourcesEntrySchema, roundResources } from "~/models";
 import { api } from "~/trpc/react";
 
-import { type AggregateProps } from "./components/AggregatePanels";
-import { ResourceDetails, type ResourceListItem } from "./components/ResourceDetails";
+import { ResourceDetails } from "./components/ResourceDetails";
 import { ResourceGraph } from "./components/ResourceGraph";
 import { ResourcesFilter } from "./components/ResourcesFilter";
 import { ResourcesTable } from "./components/ResourcesTable";
+import { calcAggregateTotals, calcResourceUsages } from "./components/utils";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
 import { UsedFreeToggle } from "../pools/components/UsedFreeToggle";
 import { resourcesToNodes } from "../tasks/components/TasksFilters";
@@ -66,7 +64,8 @@ export default function Resources() {
     refetch,
   } = api.resources.listResources.useQuery(
     {
-      all_pools: true,
+      all_pools: isSelectAllPoolsChecked,
+      pools: isSelectAllPoolsChecked ? [] : selectedPools.split(","),
     },
     {
       refetchOnWindowFocus: false,
@@ -88,48 +87,12 @@ export default function Resources() {
     }
   }, [showDetails]);
 
-  const processResources = useMemo((): ResourceListItem[] => {
+  const processResources = useMemo(() => {
     if (!isSuccess) {
       return [];
     }
 
-    const parsedResponse = z.array(ResourcesEntrySchema).safeParse(resources);
-
-    if (!parsedResponse.success) {
-      console.error(parsedResponse.error);
-      return [];
-    }
-
-    const result = parsedResponse.data.flatMap((resource) => {
-      const poolPlatformMap = (resource.exposed_fields["pool/platform"] ?? []).reduce(
-        (acc, poolPlatform) => {
-          const [poolName, platformName] = poolPlatform.split("/");
-          if (poolName && platformName) {
-            acc[poolName] = [...(acc[poolName] ?? []), platformName];
-          }
-          return acc;
-        },
-        {} as Record<string, string[]>,
-      );
-
-      return Object.entries(poolPlatformMap).flatMap(([poolName, platforms]) =>
-        platforms.map((platform) => {
-          const item: ResourceListItem = {
-            node: resource.exposed_fields.node ?? "-",
-            pool: poolName,
-            platform,
-            storage: roundResources(convertFields("storage", resource, poolName, platform)),
-            cpu: roundResources(convertFields("cpu", resource, poolName, platform)),
-            memory: roundResources(convertFields("memory", resource, poolName, platform)),
-            gpu: roundResources(convertFields("gpu", resource, poolName, platform)),
-            resourceType: resource.resource_type ?? "-",
-          };
-
-          return item;
-        }),
-      );
-    });
-    return result;
+    return calcResourceUsages(resources);
   }, [resources, isSuccess]);
 
   const filteredResources = useMemo(() => {
@@ -138,64 +101,7 @@ export default function Resources() {
     );
   }, [processResources, isSelectAllPoolsChecked, selectedPools]);
 
-  const aggregateTotals = useMemo<{
-    byPool: Record<string, AggregateProps>;
-    total: AggregateProps;
-  }>(() => {
-    const total: AggregateProps = {
-      cpu: { allocatable: 0, usage: 0 },
-      gpu: { allocatable: 0, usage: 0 },
-      storage: { allocatable: 0, usage: 0 },
-      memory: { allocatable: 0, usage: 0 },
-    };
-    const byPool: Record<string, AggregateProps> = {};
-    const processedNodes = new Set<string>();
-    const processedPoolNodes = new Set<string>();
-
-    processResources.forEach((item) => {
-      const poolKey = item.pool || "N/A";
-      const poolNodeKey = `${poolKey}:${item.node}`;
-
-      if (!processedPoolNodes.has(poolNodeKey)) {
-        const poolTotals = byPool[poolKey] ?? {
-          cpu: { allocatable: 0, usage: 0 },
-          gpu: { allocatable: 0, usage: 0 },
-          storage: { allocatable: 0, usage: 0 },
-          memory: { allocatable: 0, usage: 0 },
-        };
-
-        poolTotals.cpu.allocatable += item.cpu.allocatable;
-        poolTotals.cpu.usage += item.cpu.usage;
-        poolTotals.gpu.allocatable += item.gpu.allocatable;
-        poolTotals.gpu.usage += item.gpu.usage;
-        poolTotals.storage.allocatable += item.storage.allocatable;
-        poolTotals.storage.usage += item.storage.usage;
-        poolTotals.memory.allocatable += item.memory.allocatable;
-        poolTotals.memory.usage += item.memory.usage;
-
-        byPool[poolKey] = poolTotals;
-        processedPoolNodes.add(poolNodeKey);
-      }
-
-      if (!processedNodes.has(item.node)) {
-        total.cpu.allocatable += item.cpu.allocatable;
-        total.cpu.usage += item.cpu.usage;
-        total.gpu.allocatable += item.gpu.allocatable;
-        total.gpu.usage += item.gpu.usage;
-        total.storage.allocatable += item.storage.allocatable;
-        total.storage.usage += item.storage.usage;
-        total.memory.allocatable += item.memory.allocatable;
-        total.memory.usage += item.memory.usage;
-
-        processedNodes.add(item.node);
-      }
-    });
-
-    return { byPool, total };
-  }, [processResources]);
-
-  console.log("processResources", processResources);
-  console.log("aggregateTotals", aggregateTotals);
+  const aggregateTotals = useMemo(() => calcAggregateTotals(processResources), [processResources]);
 
   const forceRefetch = useCallback(() => {
     // Wait to see if the refresh has already happened. If not call it explicitly
@@ -295,9 +201,9 @@ export default function Resources() {
                           updateUrl({
                             pools: selectedPools.split(",").includes(pool)
                               ? selectedPools
-                                  .split(",")
-                                  .filter((p) => p !== pool)
-                                  .join(",")
+                                .split(",")
+                                .filter((p) => p !== pool)
+                                .join(",")
                               : [...selectedPools, pool].join(","),
                             allPools: false,
                           })

@@ -236,6 +236,41 @@ export default function Workflows() {
     }, 500);
   }, [refetch, isFetching, setSafeTimeout]);
 
+  const onSaveFilters = useCallback((data: WorkflowsFiltersDataProps) => {
+    updateUrl({
+      filterName: data.name,
+      dateRange: data.dateRange,
+      dateAfter: data.dateRange === customDateRange ? data.submittedAfter : null,
+      dateBefore: data.dateRange === customDateRange ? data.submittedBefore : null,
+      statusFilterType: data.statusFilterType,
+      status: data.statusFilterType === StatusFilterType.CUSTOM ? data.statuses : null,
+      allPools: data.isSelectAllPoolsChecked,
+      pools: data.isSelectAllPoolsChecked ? null : data.selectedPools.split(","),
+      allUsers: data.userType === UserFilterType.ALL,
+      users: data.userType === UserFilterType.ALL ? null : data.selectedUsers.split(","),
+      priority: data.priority ?? null,
+    });
+
+    forceRefetch();
+  }, [updateUrl, forceRefetch]);
+
+  const onResetFilters = useCallback(() => {
+    updateUrl({
+      filterName: null,
+      statusFilterType: StatusFilterType.ALL,
+      status: null,
+      allPools: true,
+      allUsers: false,
+      users: [username],
+      dateRange: null,
+      dateAfter: null,
+      dateBefore: null,
+      priority: null,
+    });
+
+    forceRefetch();
+  }, [updateUrl, forceRefetch, username]);
+
   return (
     <>
       <PageHeader>
@@ -274,10 +309,10 @@ export default function Workflows() {
             isSelectAllPoolsChecked={isSelectAllPoolsChecked}
             name={nameFilter}
             currentUserName={username}
-            onRefresh={forceRefetch}
             validateFilters={validateFilters}
+            onSave={onSaveFilters}
+            onReset={onResetFilters}
             priority={priority}
-            updateUrl={updateUrl}
           />
         </SlideOut>
         <WorkflowsTable

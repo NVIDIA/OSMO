@@ -173,7 +173,7 @@ export const PieChart = ({
               d={path}
               fill={slice.color ?? "lightgray"}
               className={`pie-slice-path${onSliceSelect ? " is-clickable" : ""}`}
-              stroke={slice.borderColor ?? slice.color ?? "lightgray"}
+              stroke={slice.borderColor ?? "black"}
               strokeWidth={1}
             >
               <title>{ariaSliceLabel}</title>
@@ -182,7 +182,7 @@ export const PieChart = ({
               d={hoverPath}
               fill={slice.color ?? "lightgray"}
               className="pie-slice-hover"
-              stroke={slice.borderColor ?? slice.color ?? "lightgray"}
+              stroke={slice.borderColor ?? slice.color ?? "black"}
               strokeWidth={1}
               style={{ pointerEvents: "none" }}
             />
