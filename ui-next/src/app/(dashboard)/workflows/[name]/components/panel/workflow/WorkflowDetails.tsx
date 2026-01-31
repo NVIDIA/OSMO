@@ -32,7 +32,7 @@
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
-import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History } from "lucide-react";
+import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { PanelTabs, LinksSection, EmptyTabPrompt, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
@@ -45,6 +45,7 @@ import { WorkflowTimeline } from "./WorkflowTimeline";
 import { parseTime } from "../shared/Timeline";
 import { useTick } from "@/hooks";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
+import { WorkflowTasksTab } from "./WorkflowTasksTab";
 
 // =============================================================================
 // Styling Constants (Single Source of Truth)
@@ -82,6 +83,19 @@ export interface WorkflowDetailsProps {
   selectedTab?: WorkflowTab;
   /** Callback to change the selected tab */
   setSelectedTab?: (tab: WorkflowTab) => void;
+  /** All groups in the workflow (for Tasks tab) */
+  allGroups?: import("../../../lib/workflow-types").GroupWithLayout[];
+  /** Currently selected group name (for Tasks tab) */
+  selectedGroupName?: string | null;
+  /** Currently selected task name (for Tasks tab) */
+  selectedTaskName?: string | null;
+  /** Callback when a group is selected (for Tasks tab) */
+  onSelectGroup?: (group: import("../../../lib/workflow-types").GroupWithLayout) => void;
+  /** Callback when a task is selected (for Tasks tab) */
+  onSelectTask?: (
+    task: import("../../../lib/workflow-types").TaskQueryResponse,
+    group: import("../../../lib/workflow-types").GroupWithLayout,
+  ) => void;
 }
 
 // =============================================================================
@@ -255,11 +269,17 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   onToggleDetailsExpanded,
   selectedTab: selectedTabProp,
   setSelectedTab: setSelectedTabProp,
+  allGroups,
+  selectedGroupName,
+  selectedTaskName,
+  onSelectGroup,
+  onSelectTask,
 }: WorkflowDetailsProps) {
   // Tab configuration
   const tabs = useMemo<PanelTab[]>(
     () => [
       { id: "overview", label: "Overview", icon: Info },
+      { id: "tasks", label: "Tasks", icon: ListTodo },
       { id: "logs", label: "Logs", icon: FileText },
       { id: "events", label: "Events", icon: History },
     ],
@@ -315,6 +335,26 @@ export const WorkflowDetails = memo(function WorkflowDetails({
             canCancel={canCancel}
             onCancel={onCancel}
           />
+        </TabPanel>
+
+        <TabPanel
+          tab="tasks"
+          activeTab={activeTab}
+        >
+          {allGroups && onSelectGroup && onSelectTask ? (
+            <WorkflowTasksTab
+              workflow={workflow}
+              groups={allGroups}
+              selectedGroupName={selectedGroupName ?? null}
+              selectedTaskName={selectedTaskName ?? null}
+              onSelectGroup={onSelectGroup}
+              onSelectTask={onSelectTask}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center p-4">
+              <p className="text-muted-foreground text-sm">No tasks available</p>
+            </div>
+          )}
         </TabPanel>
 
         <TabPanel

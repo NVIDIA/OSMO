@@ -47,6 +47,8 @@ export interface SidePanelProps {
   containerRef?: RefObject<HTMLDivElement | null>;
   onDraggingChange?: (isDragging: boolean) => void;
   focusTargetRef?: React.MutableRefObject<HTMLElement | null | undefined>;
+  /** When true, panel spans 100% width with no resize handle */
+  fullWidth?: boolean;
 }
 
 export function SidePanel({
@@ -73,6 +75,7 @@ export function SidePanel({
   containerRef: externalContainerRef,
   onDraggingChange,
   focusTargetRef,
+  fullWidth = false,
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
@@ -265,12 +268,14 @@ export function SidePanel({
     [focusableSelector, focusTargetRef],
   );
 
-  // Calculate panel width based on collapsed state
-  const panelWidth = isCollapsed
-    ? typeof collapsedWidth === "number"
-      ? `${collapsedWidth}px`
-      : collapsedWidth
-    : `${width}%`;
+  // Calculate panel width based on fullWidth, collapsed state
+  const panelWidth = fullWidth
+    ? "100%"
+    : isCollapsed
+      ? typeof collapsedWidth === "number"
+        ? `${collapsedWidth}px`
+        : collapsedWidth
+      : `${width}%`;
 
   // Default collapsed content
   const defaultCollapsedContent = useMemo(
@@ -316,7 +321,7 @@ export function SidePanel({
       aria-label={ariaLabel}
     >
       {/* Resize Handle - positioned at panel's left edge (before edge strip) */}
-      {!isCollapsed && (
+      {!isCollapsed && !fullWidth && (
         <ResizeHandle
           bindResizeHandle={bindResizeHandle}
           isDragging={isDragging}

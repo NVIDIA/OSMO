@@ -50,7 +50,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, startTransition, useCallback, useEffectEvent, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, startTransition, useCallback, useRef } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
@@ -255,8 +255,22 @@ export function useDAGState({
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
-  const setNodesEvent = useEffectEvent((nodes: Node<GroupNodeData>[]) => setNodes(nodes));
-  const setEdgesEvent = useEffectEvent((edges: Edge[]) => setEdges(edges));
+  // STABLE REF PATTERN: useNodesState/useEdgesState return new setter functions
+  // on every render. We use refs to hold the latest setters, allowing the layout
+  // effect to call them without adding unstable functions to its dependency array.
+  //
+  // Why NOT useEffectEvent: React 19.2.x has a bug where useEffectEvent can cause
+  // infinite "reconnectPassiveEffects" loops when combined with startTransition
+  // and TanStack Query's Suspense boundaries. The stable ref pattern is safer.
+  //
+  // The useLayoutEffect ensures refs are updated synchronously before any
+  // useEffect reads them (layout effects run before regular effects).
+  const setNodesRef = useRef(setNodes);
+  const setEdgesRef = useRef(setEdges);
+  useLayoutEffect(() => {
+    setNodesRef.current = setNodes;
+    setEdgesRef.current = setEdges;
+  }, [setNodes, setEdges]);
 
   const lastRunInputRef = useRef<{
     groups: GroupWithLayout[];
@@ -290,8 +304,8 @@ export function useDAGState({
           // hooks like useViewportBoundaries see 'isLayouting === false' only
           // when the new nodes are actually committed to state.
           startTransition(() => {
-            setNodesEvent(result.nodes);
-            setEdgesEvent(result.edges);
+            setNodesRef.current(result.nodes);
+            setEdgesRef.current(result.edges);
             setIsLayouting(false);
           });
         }

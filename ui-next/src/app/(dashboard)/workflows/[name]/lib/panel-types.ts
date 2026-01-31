@@ -151,6 +151,10 @@ export interface DetailsPanelProps {
    * Used for overlay positioning (e.g., pointer-events-auto).
    */
   className?: string;
+  /**
+   * When true, panel spans 100% width with no resize handle (used when DAG is hidden).
+   */
+  fullWidth?: boolean;
 }
 
 /**
