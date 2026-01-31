@@ -23,27 +23,16 @@
  * - Layout calculation (ELK)
  * - Node bounds computation
  *
- * Navigation state is now managed externally via useNavigationState (URL-synced).
+ * Navigation state is managed externally via useNavigationState (URL-synced).
  * This hook receives selection handlers as callbacks to update URL state.
- *
- * ## Architecture: Dependency Injection
- *
- * This hook supports dependency injection for testability:
- * - `layoutCalculator`: Override the ELK layout algorithm (default: calculateLayout)
- * - `groupTransformer`: Override the group transformation (default: transformGroups)
- * - `cacheManager`: Override cache management (default: clearLayoutCache)
- * - `expandedGroupsComputer`: Override initial expansion logic
  *
  * @example
  * ```tsx
- * // Normal usage (defaults)
- * const dagState = useDAGState({ groups });
- *
- * // Testing with mock layout
  * const dagState = useDAGState({
  *   groups,
- *   layoutCalculator: mockCalculateLayout,
- *   cacheManager: { clear: mockClear },
+ *   initialDirection: "TB",
+ *   onSelectGroup: handleSelectGroup,
+ *   onSelectTask: handleSelectTask,
  * });
  * ```
  */
@@ -62,51 +51,11 @@ import {
   computeInitialExpandedGroups as defaultComputeInitialExpandedGroups,
   clearLayoutCache as defaultClearLayoutCache,
   type GroupNodeData,
-  type LayoutResult,
 } from "../lib/dag-layout";
 
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Layout calculator function type.
- * Override for testing or alternative layout algorithms.
- */
-export type LayoutCalculator = (
-  groups: GroupWithLayout[],
-  expandedGroups: Set<string>,
-  direction: LayoutDirection,
-) => Promise<LayoutResult>;
-
-/**
- * Group transformer function type.
- * Converts API groups to groups with layout metadata.
- */
-export type GroupTransformer = (groups: GroupQueryResponse[]) => GroupWithLayout[];
-
-/**
- * Compute which groups should be initially expanded.
- */
-export type ExpandedGroupsComputer = (groups: GroupWithLayout[]) => Set<string>;
-
-/**
- * Cache manager for layout cache operations.
- */
-export interface CacheManager {
-  clear: () => void;
-}
-
-// =============================================================================
-// Stable Default Dependencies
-// =============================================================================
-
-// These must be defined outside the hook to maintain stable references
-// and prevent infinite re-render loops in useEffect dependencies.
-
-const DEFAULT_CACHE_MANAGER: CacheManager = {
-  clear: defaultClearLayoutCache,
-};
 
 interface UseDAGStateOptions {
   /** Initial workflow groups from the API */
@@ -117,17 +66,6 @@ interface UseDAGStateOptions {
   onSelectGroup?: (group: GroupWithLayout) => void;
   /** Callback when a task is selected (for URL navigation) */
   onSelectTask?: (task: TaskQueryResponse, group: GroupWithLayout) => void;
-
-  // === Dependency Injection (all optional with sensible defaults) ===
-
-  /** Layout calculator (default: ELK-based calculateLayout) */
-  layoutCalculator?: LayoutCalculator;
-  /** Group transformer (default: transformGroups) */
-  groupTransformer?: GroupTransformer;
-  /** Compute initial expanded groups (default: computeInitialExpandedGroups) */
-  expandedGroupsComputer?: ExpandedGroupsComputer;
-  /** Cache manager for layout cache (default: { clear: clearLayoutCache }) */
-  cacheManager?: CacheManager;
 }
 
 interface UseDAGStateReturn {
@@ -167,20 +105,15 @@ export function useDAGState({
   initialDirection = "TB",
   onSelectGroup,
   onSelectTask,
-  // Dependency injection with defaults (using stable references)
-  layoutCalculator = defaultCalculateLayout,
-  groupTransformer = defaultTransformGroups,
-  expandedGroupsComputer = defaultComputeInitialExpandedGroups,
-  cacheManager = DEFAULT_CACHE_MANAGER,
 }: UseDAGStateOptions): UseDAGStateReturn {
   // Core state
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(initialDirection);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isLayouting, setIsLayouting] = useState(false);
 
-  // Compute topological levels from dependency graph (using injectable transformer)
+  // Compute topological levels from dependency graph
   // Note: 'groups' is now stabilized at the adapter layer (src/lib/api/adapter/hooks.ts)
-  const groupsWithLayout = useMemo(() => groupTransformer(groups), [groupTransformer, groups]);
+  const groupsWithLayout = useMemo(() => defaultTransformGroups(groups), [groups]);
 
   // Get root node IDs (level 0) for initial zoom target
   const rootNodeIds = useMemo(
@@ -200,18 +133,18 @@ export function useDAGState({
     if (structureChanged) {
       prevGroupsWithLayoutRef.current = groupsWithLayout;
       // Clear layout cache when workflow fundamentally changes
-      cacheManager.clear();
+      defaultClearLayoutCache();
       // Use startTransition to avoid cascading renders when resetting state
       startTransition(() => {
-        const nextExpanded = expandedGroupsComputer(groupsWithLayout);
+        const nextExpanded = defaultComputeInitialExpandedGroups(groupsWithLayout);
         setExpandedGroups(nextExpanded);
       });
     }
-  }, [groupsWithLayout, cacheManager, expandedGroupsComputer]);
+  }, [groupsWithLayout]);
 
   // Cleanup on unmount - clear layout cache to free memory when navigating away
   useUnmount(() => {
-    cacheManager.clear();
+    defaultClearLayoutCache();
   });
 
   // Callbacks for expansion state - stable callbacks for memoized children
@@ -296,7 +229,7 @@ export function useDAGState({
       lastRunInputRef.current = { groups: groupsWithLayout, expanded: expandedGroups, direction: layoutDirection };
       setIsLayouting(true);
       try {
-        const result = await layoutCalculator(groupsWithLayout, expandedGroups, layoutDirection);
+        const result = await defaultCalculateLayout(groupsWithLayout, expandedGroups, layoutDirection);
 
         if (!cancelled) {
           // CRITICAL: setIsLayouting(false) MUST be called inside startTransition
@@ -323,7 +256,7 @@ export function useDAGState({
     return () => {
       cancelled = true;
     };
-  }, [groupsWithLayout, expandedGroups, layoutDirection, layoutCalculator]);
+  }, [groupsWithLayout, expandedGroups, layoutDirection]);
 
   // Calculate node bounds and fit-all zoom
   // Uses Float64Array for optimal numeric performance (SIMD-friendly)
