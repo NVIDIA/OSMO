@@ -32,7 +32,6 @@ import { useState, useMemo, useCallback, memo } from "react";
 import { Check, Loader2, AlertCircle, Clock, Info, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelTabs, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
-import { useDagVisible } from "@/stores";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
 import type { GroupDetailsProps } from "../../../lib/panel-types";
@@ -46,7 +45,6 @@ import type { GroupTab } from "../../../hooks/use-navigation-state";
 import { OPTIONAL_COLUMNS_ALPHABETICAL } from "../../../lib/task-columns";
 import { asTaskColumnIds } from "../../../lib/task-columns";
 import { useTaskTableStore } from "../../../stores";
-import { useViewTransition } from "@/hooks";
 
 // =============================================================================
 // Component
@@ -70,15 +68,9 @@ export const GroupDetails = memo(function GroupDetails({
 }: GroupDetailsInternalProps) {
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
-  // Check if DAG is visible
-  const dagVisible: boolean = useDagVisible();
-
   // Task table store (column visibility for menu)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
   const toggleColumn = useTaskTableStore((s) => s.toggleColumn);
-
-  // View transition for smooth tab changes
-  const { startTransition } = useViewTransition();
 
   // Synchronized tick for live durations
   const now = useTick();
@@ -97,17 +89,16 @@ export const GroupDetails = memo(function GroupDetails({
   // Use synchronized tick for running group duration
   const groupDuration = useMemo(() => computeGroupDuration(stats, now), [stats, now]);
 
-  // Define available tabs based on view mode
-  const availableTabs = useMemo<PanelTab[]>(() => {
-    const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
-
-    // Tasks tab only available when DAG is visible
-    if (dagVisible) {
-      tabs.push({ id: "tasks", label: "Tasks", icon: List });
-    }
-
-    return tabs;
-  }, [dagVisible]);
+  // Define available tabs - both Overview and Tasks are always available
+  // Note: Tasks tab shows a table of tasks within this group (not the DAG),
+  // so it should always be available regardless of the dagVisible preference.
+  const availableTabs = useMemo<PanelTab[]>(
+    () => [
+      { id: "overview", label: "Overview", icon: Info },
+      { id: "tasks", label: "Tasks", icon: List },
+    ],
+    [],
+  );
 
   // Derive active tab - fallback to "overview" if current tab unavailable
   const activeTab = useMemo<GroupTab>(() => {
@@ -119,12 +110,10 @@ export const GroupDetails = memo(function GroupDetails({
   const handleTabChange = useCallback(
     (value: string) => {
       if (setSelectedGroupTab && (value === "overview" || value === "tasks")) {
-        startTransition(() => {
-          setSelectedGroupTab(value);
-        });
+        setSelectedGroupTab(value);
       }
     },
-    [setSelectedGroupTab, startTransition],
+    [setSelectedGroupTab],
   );
 
   // Handle dependency pill click (pass group name directly to GroupOverviewTab)
@@ -172,9 +161,9 @@ export const GroupDetails = memo(function GroupDetails({
     </SeparatedParts>
   );
 
-  // Menu content (columns submenu in header dropdown - only shown when DAG visible with tasks tab)
+  // Menu content (columns submenu in header dropdown - only shown on tasks tab)
   const menuContent =
-    dagVisible && activeTab === "tasks" ? (
+    activeTab === "tasks" ? (
       <ColumnMenuContent
         columns={OPTIONAL_COLUMNS_ALPHABETICAL}
         visibleColumnIds={visibleColumnIds}
@@ -223,23 +212,21 @@ export const GroupDetails = memo(function GroupDetails({
           />
         </TabPanel>
 
-        {/* Tasks Tab (only when DAG is visible) */}
-        {dagVisible && (
-          <TabPanel
-            tab="tasks"
-            activeTab={activeTab}
-            scrollable={false}
-          >
-            <GroupTasksTab
-              tasksWithDuration={tasksWithDuration}
-              group={group}
-              totalTasks={stats.total}
-              onSelectTask={onSelectTask}
-              selectedTaskName={selectedTaskName}
-              onSelectedTaskNameChange={setSelectedTaskName}
-            />
-          </TabPanel>
-        )}
+        {/* Tasks Tab - always available (shows table of tasks within this group) */}
+        <TabPanel
+          tab="tasks"
+          activeTab={activeTab}
+          scrollable={false}
+        >
+          <GroupTasksTab
+            tasksWithDuration={tasksWithDuration}
+            group={group}
+            totalTasks={stats.total}
+            onSelectTask={onSelectTask}
+            selectedTaskName={selectedTaskName}
+            onSelectedTaskNameChange={setSelectedTaskName}
+          />
+        </TabPanel>
       </div>
     </div>
   );

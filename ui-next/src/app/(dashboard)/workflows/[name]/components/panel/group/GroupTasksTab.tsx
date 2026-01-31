@@ -212,7 +212,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
   }, [sort]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Toolbar: Search + Controls */}
       <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
         <TableToolbar
