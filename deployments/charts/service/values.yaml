@@ -1048,6 +1048,7 @@ sidecars:
     - /api/auth/jwt/refresh_token
     - /api/auth/jwt/access_token
     - /client/version
+    - /api/scim/v2/
 
     ## Advanced routing configuration for Envoy proxy
     ## Contains detailed regex-based routing rules for various API endpoints
