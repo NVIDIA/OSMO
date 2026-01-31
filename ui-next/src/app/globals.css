@@ -396,6 +396,10 @@
     contain: layout;
   }
 
+  .contain-style {
+    contain: style;
+  }
+
   .contain-layout-style {
     contain: layout style;
   }

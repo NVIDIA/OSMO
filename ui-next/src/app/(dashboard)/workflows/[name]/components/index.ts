@@ -62,6 +62,13 @@ export { WorkflowViewToggle } from "./WorkflowViewToggle";
 // Table components
 export { WorkflowTasksTable, type WorkflowTasksTableProps } from "./table";
 
-// View containers
+// View containers (legacy - deprecated, use content components instead)
 export { WorkflowDAGView, type WorkflowDAGViewProps } from "./WorkflowDAGView";
 export { WorkflowTableView, type WorkflowTableViewProps } from "./WorkflowTableView";
+
+// Content components (new architecture - visualization only, no panel/shell)
+export { WorkflowDAGContent, type WorkflowDAGContentProps } from "./WorkflowDAGContent";
+export { WorkflowTableContent, type WorkflowTableContentProps } from "./WorkflowTableContent";
+
+// Layout container
+export { WorkflowDetailLayout, type WorkflowDetailLayoutProps, type LayoutMode } from "./WorkflowDetailLayout";

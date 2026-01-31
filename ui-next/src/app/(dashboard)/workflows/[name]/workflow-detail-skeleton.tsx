@@ -25,15 +25,14 @@
 
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TableSkeleton } from "@/components/data-table/TableSkeleton";
-import { useWorkflowDetailsView } from "@/stores";
+import { useDagVisible } from "@/stores";
 
 export function WorkflowDetailSkeleton() {
-  const workflowView = useWorkflowDetailsView();
-  const isTableView = workflowView === "table";
+  const dagVisible = useDagVisible();
 
   return (
     <div className="flex h-full">
-      {isTableView ? (
+      {!dagVisible ? (
         <>
           {/* Table View Area */}
           <div className="flex flex-1 flex-col gap-4 bg-zinc-50 p-6 dark:bg-zinc-950">
