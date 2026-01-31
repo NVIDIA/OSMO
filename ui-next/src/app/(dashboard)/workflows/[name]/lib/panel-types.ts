@@ -155,6 +155,14 @@ export interface DetailsPanelProps {
    * When true, panel spans 100% width with no resize handle (used when DAG is hidden).
    */
   fullWidth?: boolean;
+  /**
+   * Callback when panel resize drag starts (for snap zone integration).
+   */
+  onDragStart?: () => void;
+  /**
+   * Callback when panel resize drag ends (for snap zone integration).
+   */
+  onDragEnd?: () => void;
 }
 
 /**

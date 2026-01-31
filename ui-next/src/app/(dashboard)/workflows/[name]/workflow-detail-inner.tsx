@@ -28,11 +28,11 @@
 
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
-import { useTickController, useViewTransition } from "@/hooks";
+import { useTickController, useViewTransition, useAnnouncer } from "@/hooks";
 import { useSharedPreferences, useDagVisible } from "@/stores";
 
 // Route-level components
@@ -51,6 +51,7 @@ import { useWorkflowDetail } from "./hooks/use-workflow-detail";
 import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
 import { useNavigationState } from "./hooks/use-navigation-state";
 import { usePanelProps } from "./hooks/use-panel-props";
+import { usePanelInteraction } from "./hooks/use-panel-interaction";
 
 // Types
 import type { GroupWithLayout, TaskQueryResponse } from "./lib/workflow-types";
@@ -82,7 +83,7 @@ export interface WorkflowDetailInnerProps {
 
 export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerProps) {
   // Persisted panel preferences from Zustand store
-  const panelPct = useSharedPreferences((s) => s.panelWidthPct);
+  const persistedPanelPct = useSharedPreferences((s) => s.panelWidthPct);
   const setPanelPct = useSharedPreferences((s) => s.setPanelWidthPct);
   const isDetailsExpanded = useSharedPreferences((s) => s.detailsExpanded);
   const toggleDetailsExpanded = useSharedPreferences((s) => s.toggleDetailsExpanded);
@@ -96,15 +97,16 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 
   // Panning state for tick controller (DAG-specific, but managed here for tick control)
   const [isPanning, setIsPanning] = useState(false);
+  const [isPanelDragging, setIsPanelDragging] = useState(false);
 
   // Synchronized tick for live durations - only tick when workflow is active
-  // PERFORMANCE: Pause ticking during pan/zoom to prevent React re-renders mid-frame
+  // PERFORMANCE: Pause ticking during pan/zoom AND panel drag to prevent React re-renders mid-frame
   const workflowStatus = workflow?.status;
   const isWorkflowActive =
     workflowStatus === WorkflowStatus.PENDING ||
     workflowStatus === WorkflowStatus.RUNNING ||
     workflowStatus === WorkflowStatus.WAITING;
-  const shouldTick = isWorkflowActive && !isPanning;
+  const shouldTick = isWorkflowActive && !isPanning && !isPanelDragging;
   useTickController(shouldTick);
 
   // Container ref for layout and resize calculations
@@ -153,6 +155,16 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     dagVisible,
   });
 
+  // Panel interaction (snap zones, drag coordination)
+  const panelInteraction = usePanelInteraction({
+    persistedPct: persistedPanelPct,
+    onPersist: setPanelPct,
+    dagVisible,
+    onHideDAG: () => useSharedPreferences.getState().setDagVisible(false),
+    isPanelCollapsed,
+    onExpandPanel: expandPanel,
+  });
+
   const { startTransition } = useViewTransition();
 
   // Navigation handlers with transitions
@@ -175,6 +187,18 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const handleShellTabChange = useEventCallback((taskName: string | null) => {
     setActiveShellTaskName(taskName);
   });
+
+  // Screen reader announcements for snap zone transitions
+  const announce = useAnnouncer();
+  useEffect(() => {
+    if (panelInteraction.phase.type === "snapping") {
+      if (panelInteraction.phase.snapZone === "full") {
+        announce("Hiding DAG view, panel expanding to full width", "polite");
+      } else {
+        announce("Panel snapping to 80%", "polite");
+      }
+    }
+  }, [panelInteraction.phase, announce]);
 
   // Determine current panel view from URL navigation state
   const currentPanelView: DetailsPanelView =
@@ -261,8 +285,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     onSelectTask: handleNavigateToTask,
     onBackToGroup: handleNavigateBackToGroup,
     onBackToWorkflow: handleBackToWorkflow,
-    panelPct,
-    onPanelResize: setPanelPct,
+    panelPct: panelInteraction.displayPct, // Use optimistic width during drag
+    onPanelResize: panelInteraction.dragHandlers.onDrag, // Route through snap detection
     isDetailsExpanded,
     onToggleDetailsExpanded: toggleDetailsExpanded,
     isPanelCollapsed,
@@ -278,8 +302,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     setSelectedGroupTab,
     onShellTabChange: handleShellTabChange,
     activeShellTaskName,
-    onPanelDraggingChange: undefined,
+    onPanelDraggingChange: setIsPanelDragging,
     containerRef,
+    onDragStart: panelInteraction.dragHandlers.onDragStart, // Snap zone integration
+    onDragEnd: panelInteraction.dragHandlers.onDragEnd, // Snap zone integration
   });
 
   // Wrapped navigation handlers for re-click behavior
@@ -302,6 +328,62 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   });
 
   // ---------------------------------------------------------------------------
+  // Memoized Content Elements (Performance Optimization)
+  // ---------------------------------------------------------------------------
+  // Prevent unnecessary re-renders during panel drag/resize
+  // ---------------------------------------------------------------------------
+
+  // Memoize DAG content to prevent re-renders during panel drag
+  const dagContentElement = useMemo(() => {
+    if (!dagVisible || !workflow) return undefined;
+    return (
+      <WorkflowDAGContent
+        workflow={workflow}
+        groups={groupsWithLayout}
+        selectedGroupName={selectedGroupName}
+        selectedTaskName={selectedTaskName}
+        selectedTaskRetryId={selectedTaskRetryId}
+        onSelectGroup={handleNavigateToGroupWithExpand}
+        onSelectTask={handleNavigateToTaskWithExpand}
+        isPanning={isPanning}
+        onPanningChange={setIsPanning}
+        selectionKey={selectionKey}
+        containerRef={containerRef}
+        panelPct={panelInteraction.displayPct} // Use optimistic width
+        isPanelCollapsed={isPanelCollapsed}
+      />
+    );
+  }, [
+    dagVisible,
+    workflow,
+    groupsWithLayout,
+    selectedGroupName,
+    selectedTaskName,
+    selectedTaskRetryId,
+    handleNavigateToGroupWithExpand,
+    handleNavigateToTaskWithExpand,
+    isPanning,
+    selectionKey,
+    containerRef,
+    panelInteraction.displayPct, // Track optimistic width
+    isPanelCollapsed,
+  ]);
+
+  // Memoize panel content
+  const panelElement = useMemo(
+    () => (
+      <>
+        <DetailsPanel
+          {...panelProps}
+          fullWidth={!dagVisible}
+        />
+        {shellContainerProps && <ShellContainer {...shellContainerProps} />}
+      </>
+    ),
+    [panelProps, dagVisible, shellContainerProps],
+  );
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   // New architecture: WorkflowDetailLayout composes the shell (flex container)
@@ -318,35 +400,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
             <WorkflowDetailLayout
               dagVisible={dagVisible}
               containerRef={containerRef}
-              dagContent={
-                dagVisible ? (
-                  <WorkflowDAGContent
-                    key={dagVisible ? "visible" : "hidden"}
-                    workflow={workflow!}
-                    groups={groupsWithLayout}
-                    selectedGroupName={selectedGroupName}
-                    selectedTaskName={selectedTaskName}
-                    selectedTaskRetryId={selectedTaskRetryId}
-                    onSelectGroup={handleNavigateToGroupWithExpand}
-                    onSelectTask={handleNavigateToTaskWithExpand}
-                    isPanning={isPanning}
-                    onPanningChange={setIsPanning}
-                    selectionKey={selectionKey}
-                    containerRef={containerRef}
-                    panelPct={panelPct}
-                    isPanelCollapsed={isPanelCollapsed}
-                  />
-                ) : undefined
-              }
-              panel={
-                <>
-                  <DetailsPanel
-                    {...panelProps}
-                    fullWidth={!dagVisible}
-                  />
-                  {shellContainerProps && <ShellContainer {...shellContainerProps} />}
-                </>
-              }
+              isDragging={isPanelDragging}
+              isTransitioning={panelInteraction.isTransitioning}
+              dagContent={dagContentElement}
+              panel={panelElement}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">

@@ -35,6 +35,10 @@ interface UsePanelPropsOptions extends WorkflowViewCommonProps {
   containerRef: RefObject<HTMLDivElement | null>;
   /** Additional className for the panel */
   className?: string;
+  /** Callback when panel resize drag starts (for snap zone integration) */
+  onDragStart?: () => void;
+  /** Callback when panel resize drag ends (for snap zone integration) */
+  onDragEnd?: () => void;
 }
 
 /**
@@ -93,6 +97,9 @@ export function usePanelProps(options: UsePanelPropsOptions): {
     // Layout
     containerRef,
     className,
+    // Snap zone integration
+    onDragStart,
+    onDragEnd,
   } = options;
 
   // Use provided allGroups or fall back to groups
@@ -128,6 +135,8 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       selectedGroupTab: selectedGroupTab ?? undefined,
       setSelectedGroupTab,
       className,
+      onDragStart,
+      onDragEnd,
     }),
     [
       currentPanelView,
@@ -156,6 +165,8 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       selectedGroupTab,
       setSelectedGroupTab,
       className,
+      onDragStart,
+      onDragEnd,
     ],
   );
 
