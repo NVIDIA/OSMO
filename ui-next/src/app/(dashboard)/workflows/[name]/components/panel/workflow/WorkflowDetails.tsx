@@ -32,7 +32,7 @@
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
-import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History, ListTodo } from "lucide-react";
+import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History, List, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { PanelTabs, LinksSection, EmptyTabPrompt, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
@@ -279,7 +279,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   const tabs = useMemo<PanelTab[]>(
     () => [
       { id: "overview", label: "Overview", icon: Info },
-      { id: "tasks", label: "Tasks", icon: ListTodo },
+      { id: "tasks", label: "Tasks", icon: List },
       { id: "logs", label: "Logs", icon: FileText },
       { id: "events", label: "Events", icon: History },
     ],
@@ -340,8 +340,21 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         <TabPanel
           tab="tasks"
           activeTab={activeTab}
+          scrollable={false}
         >
-          {allGroups && onSelectGroup && onSelectTask ? (
+          {!allGroups ? (
+            <div className="flex h-full items-center justify-center p-4">
+              <Loader2 className="text-muted-foreground size-6 animate-spin" />
+            </div>
+          ) : allGroups.length === 0 ? (
+            <div className="flex h-full items-center justify-center p-4">
+              <p className="text-muted-foreground text-sm">No task groups in this workflow</p>
+            </div>
+          ) : !onSelectGroup || !onSelectTask ? (
+            <div className="flex h-full items-center justify-center p-4">
+              <p className="text-muted-foreground text-sm">Task selection not available</p>
+            </div>
+          ) : (
             <WorkflowTasksTab
               workflow={workflow}
               groups={allGroups}
@@ -350,10 +363,6 @@ export const WorkflowDetails = memo(function WorkflowDetails({
               onSelectGroup={onSelectGroup}
               onSelectTask={onSelectTask}
             />
-          ) : (
-            <div className="flex h-full items-center justify-center p-4">
-              <p className="text-muted-foreground text-sm">No tasks available</p>
-            </div>
           )}
         </TabPanel>
 
