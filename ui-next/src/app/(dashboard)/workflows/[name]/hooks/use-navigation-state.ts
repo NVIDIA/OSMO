@@ -290,7 +290,7 @@ export function useNavigationState({ groups, initialView }: UseNavigationStateOp
 
   // Resolve workflow tab param to WorkflowTab type (defaults to "overview" if null or invalid)
   const selectedWorkflowTab: WorkflowTab = useMemo(() => {
-    if (workflowTabParam === "logs" || workflowTabParam === "events") {
+    if (workflowTabParam === "tasks" || workflowTabParam === "logs" || workflowTabParam === "events") {
       return workflowTabParam;
     }
     return "overview";

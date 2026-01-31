@@ -17,8 +17,8 @@
 /**
  * WorkflowTasksTab Component
  *
- * Embeds the WorkflowTableContent component in the Workflow panel's Tasks tab.
- * This provides a table view of all tasks within the workflow panel itself.
+ * Displays all tasks in the workflow in a table format within the panel.
+ * Provides a simpler, panel-optimized view compared to WorkflowTableContent.
  */
 
 "use client";
@@ -26,7 +26,8 @@
 import { memo } from "react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter";
 import type { GroupWithLayout, TaskQueryResponse } from "../../../lib/workflow-types";
-import { WorkflowTableContent } from "../../WorkflowTableContent";
+import { WorkflowTasksTable } from "../../table/WorkflowTasksTable";
+import { InlineErrorBoundary } from "@/components/error";
 
 export interface WorkflowTasksTabProps {
   workflow: WorkflowQueryResponse;
@@ -38,7 +39,7 @@ export interface WorkflowTasksTabProps {
 }
 
 export const WorkflowTasksTab = memo(function WorkflowTasksTab({
-  workflow,
+  workflow: _workflow,
   groups,
   selectedGroupName,
   selectedTaskName,
@@ -46,15 +47,19 @@ export const WorkflowTasksTab = memo(function WorkflowTasksTab({
   onSelectTask,
 }: WorkflowTasksTabProps) {
   return (
-    <div className="h-full">
-      <WorkflowTableContent
-        workflow={workflow}
-        groups={groups}
-        selectedGroupName={selectedGroupName}
-        selectedTaskName={selectedTaskName}
-        onSelectGroup={onSelectGroup}
-        onSelectTask={onSelectTask}
-      />
+    <div className="flex h-full flex-col overflow-hidden">
+      <InlineErrorBoundary
+        title="Unable to display tasks table"
+        resetKeys={[groups.length]}
+      >
+        <WorkflowTasksTable
+          groups={groups}
+          onSelectGroup={onSelectGroup}
+          onSelectTask={onSelectTask}
+          selectedGroupName={selectedGroupName ?? undefined}
+          selectedTaskName={selectedTaskName ?? undefined}
+        />
+      </InlineErrorBoundary>
     </div>
   );
 });
