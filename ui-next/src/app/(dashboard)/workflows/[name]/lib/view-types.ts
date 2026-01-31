@@ -23,7 +23,7 @@
 
 import type { GroupWithLayout, TaskQueryResponse, WorkflowQueryResponse } from "./workflow-types";
 import type { DetailsPanelView } from "./panel-types";
-import type { WorkflowTab, TaskTab } from "../hooks/use-navigation-state";
+import type { WorkflowTab, TaskTab, GroupTab } from "../hooks/use-navigation-state";
 
 /**
  * Selection state props shared between DAG and Table views.
@@ -91,6 +91,10 @@ export interface ViewTabProps {
   selectedWorkflowTab: WorkflowTab | null;
   /** Update the selected workflow tab */
   setSelectedWorkflowTab: (tab: WorkflowTab) => void;
+  /** Currently selected group tab (URL-synced) */
+  selectedGroupTab: GroupTab | null;
+  /** Update the selected group tab */
+  setSelectedGroupTab: (tab: GroupTab) => void;
   /** Called when shell tab activation changes */
   onShellTabChange: (taskName: string | null) => void;
   /** Currently active shell task name */

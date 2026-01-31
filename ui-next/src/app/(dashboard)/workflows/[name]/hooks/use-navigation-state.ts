@@ -61,10 +61,11 @@ export type TaskTab = "overview" | "shell" | "logs" | "events";
 /**
  * Workflow detail tabs.
  * - "overview": Default tab showing workflow timeline, details, and links
+ * - "tasks": Task list table view
  * - "logs": Workflow logs output
  * - "events": Kubernetes events
  */
-export type WorkflowTab = "overview" | "logs" | "events";
+export type WorkflowTab = "overview" | "tasks" | "logs" | "events";
 
 /**
  * Group detail tabs.

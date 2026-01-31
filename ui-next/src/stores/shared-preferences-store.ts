@@ -60,8 +60,6 @@ import { createHydratedSelector } from "@/hooks/use-hydrated-store";
 
 export type DisplayMode = "free" | "used";
 
-export type WorkflowDetailsView = "dag" | "table";
-
 /** Default panel width percentage (matches PANEL.DEFAULT_WIDTH_PCT) */
 const DEFAULT_PANEL_WIDTH_PCT = 50;
 
@@ -78,8 +76,8 @@ interface SharedPreferencesState {
   sidebarOpen: boolean;
   /** Whether the workflow details panel (right side) is collapsed by default */
   detailsPanelCollapsed: boolean;
-  /** Workflow details view mode: "dag" shows DAG visualization, "table" shows table view */
-  workflowDetailsView: WorkflowDetailsView;
+  /** Whether the DAG is visible in workflow details (when false, panel is full-width) */
+  dagVisible: boolean;
 }
 
 interface SharedPreferencesActions {
@@ -105,10 +103,10 @@ interface SharedPreferencesActions {
   toggleDetailsPanelCollapsed: () => void;
   /** Set details panel collapsed state explicitly */
   setDetailsPanelCollapsed: (collapsed: boolean) => void;
-  /** Toggle workflow details view between DAG and table */
-  toggleWorkflowDetailsView: () => void;
-  /** Set workflow details view explicitly */
-  setWorkflowDetailsView: (view: WorkflowDetailsView) => void;
+  /** Toggle DAG visibility in workflow details */
+  toggleDagVisible: () => void;
+  /** Set DAG visibility explicitly */
+  setDagVisible: (visible: boolean) => void;
   /** Reset to defaults */
   reset: () => void;
 }
@@ -132,7 +130,7 @@ export const initialState: SharedPreferencesState = {
   detailsExpanded: false,
   sidebarOpen: true,
   detailsPanelCollapsed: false,
-  workflowDetailsView: "dag",
+  dagVisible: true,
 };
 
 // =============================================================================
@@ -244,22 +242,30 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
             "setDetailsPanelCollapsed",
           ),
 
-        toggleWorkflowDetailsView: () =>
+        toggleDagVisible: () =>
           set(
             (state) => {
-              state.workflowDetailsView = state.workflowDetailsView === "dag" ? "table" : "dag";
+              state.dagVisible = !state.dagVisible;
+              // When hiding DAG, force panel to expanded state
+              if (!state.dagVisible) {
+                state.detailsPanelCollapsed = false;
+              }
             },
             false,
-            "toggleWorkflowDetailsView",
+            "toggleDagVisible",
           ),
 
-        setWorkflowDetailsView: (view) =>
+        setDagVisible: (visible) =>
           set(
             (state) => {
-              state.workflowDetailsView = view;
+              state.dagVisible = visible;
+              // When hiding DAG, force panel to expanded state
+              if (!visible) {
+                state.detailsPanelCollapsed = false;
+              }
             },
             false,
-            "setWorkflowDetailsView",
+            "setDagVisible",
           ),
 
         reset: () => set(initialState, false, "reset"),
@@ -267,6 +273,22 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
       {
         name: "shared-preferences",
         storage: createJSONStorage(() => localStorage),
+        version: 2,
+        migrate: (persistedState, version) => {
+          const state = persistedState as Record<string, unknown>;
+
+          // v1 -> v2: Migrate workflowDetailsView to dagVisible
+          if (version < 2) {
+            if (state.workflowDetailsView === "table") {
+              state.dagVisible = false;
+            } else {
+              state.dagVisible = true;
+            }
+            delete state.workflowDetailsView;
+          }
+
+          return state as unknown as SharedPreferencesState;
+        },
       },
     ),
     {
@@ -349,11 +371,11 @@ export const usePanelWidthPct = createHydratedSelector(
 );
 
 /**
- * Hydration-safe workflow details view selector.
- * Returns "dag" during SSR, then actual value after hydration.
+ * Hydration-safe DAG visibility selector.
+ * Returns true during SSR, then actual value after hydration.
  */
-export const useWorkflowDetailsView = createHydratedSelector(
+export const useDagVisible = createHydratedSelector<SharedPreferencesStore, boolean>(
   useSharedPreferences,
-  (s) => s.workflowDetailsView,
-  initialState.workflowDetailsView,
+  (s) => s.dagVisible,
+  initialState.dagVisible,
 );
