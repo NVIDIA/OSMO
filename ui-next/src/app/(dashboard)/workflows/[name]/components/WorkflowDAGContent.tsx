@@ -94,7 +94,6 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
 
   // DAG-specific state
   const [showMinimap, setShowMinimap] = useState(true);
-  const [isPanelDragging, _setIsPanelDragging] = useState(false);
   const [reCenterTrigger, setReCenterTrigger] = useState(0);
   const { resolvedTheme } = useTheme();
 
@@ -148,24 +147,19 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
   // ---------------------------------------------------------------------------
 
   const prevPanelCollapsedRef = useRef(isPanelCollapsed);
-  const prevPanelDraggingRef = useRef(isPanelDragging);
   const prevSidebarCollapsedRef = useRef(isSidebarCollapsed);
 
-  // Trigger re-center when panel state changes
+  // Trigger re-center when panel collapse state changes
   useIsomorphicLayoutEffect(() => {
     const prevCollapsed = prevPanelCollapsedRef.current;
-    const prevDragging = prevPanelDraggingRef.current;
-
     prevPanelCollapsedRef.current = isPanelCollapsed;
-    prevPanelDraggingRef.current = isPanelDragging;
 
     const panelCollapsedChanged = prevCollapsed !== isPanelCollapsed;
-    const panelDragEnded = prevDragging === true && isPanelDragging === false;
 
-    if (panelCollapsedChanged || panelDragEnded) {
+    if (panelCollapsedChanged) {
       setReCenterTrigger((t) => t + 1);
     }
-  }, [isPanelCollapsed, isPanelDragging]);
+  }, [isPanelCollapsed]);
 
   // Sidebar changes
   useIsomorphicLayoutEffect(() => {
@@ -176,6 +170,18 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
       setReCenterTrigger((t) => t + 1);
     }
   }, [isSidebarCollapsed]);
+
+  // Panel resize changes (panelPct)
+  const prevPanelPctRef = useRef(panelPct);
+  useIsomorphicLayoutEffect(() => {
+    const prevPct = prevPanelPctRef.current;
+    prevPanelPctRef.current = panelPct;
+
+    // Only trigger on meaningful changes (threshold of 0.5% to avoid noise)
+    if (prevPct !== undefined && Math.abs(prevPct - panelPct) > 0.5) {
+      setReCenterTrigger((t) => t + 1);
+    }
+  }, [panelPct]);
 
   // Selection changes
   const prevSelectionKey = usePrevious(selectionKey);
@@ -213,7 +219,7 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
     getTargetDimensions,
     reCenterTrigger,
     isLayouting,
-    isDragging: isPanelDragging,
+    isDragging: false, // TODO: Wire in Phase 2 with usePanelInteraction hook
   });
 
   // ---------------------------------------------------------------------------
@@ -259,7 +265,7 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
   return (
     <div
       ref={dagContainerRef}
-      className="relative h-full w-full"
+      className="relative h-full w-full contain-strict"
     >
       <main
         id="dag-canvas"
