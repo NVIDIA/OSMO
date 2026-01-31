@@ -269,13 +269,14 @@ export function SidePanel({
   );
 
   // Calculate panel width based on fullWidth, collapsed state
-  const panelWidth = fullWidth
-    ? "100%"
-    : isCollapsed
-      ? typeof collapsedWidth === "number"
-        ? `${collapsedWidth}px`
-        : collapsedWidth
-      : `${width}%`;
+  const getPanelWidth = (): string => {
+    if (fullWidth) return "100%";
+    if (isCollapsed) {
+      return typeof collapsedWidth === "number" ? `${collapsedWidth}px` : collapsedWidth;
+    }
+    return `${width}%`;
+  };
+  const panelWidth = getPanelWidth();
 
   // Default collapsed content
   const defaultCollapsedContent = useMemo(

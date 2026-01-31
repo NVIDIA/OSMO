@@ -27,7 +27,6 @@ import type { RefObject } from "react";
 import type { WorkflowViewCommonProps } from "../lib/view-types";
 import type { DetailsPanelProps } from "../lib/panel-types";
 import type { GroupWithLayout } from "../lib/workflow-types";
-import type { WorkflowTab, TaskTab, GroupTab } from "./use-navigation-state";
 
 interface UsePanelPropsOptions extends WorkflowViewCommonProps {
   /** Optional override for allGroups (DAG view uses dagGroups with layout) */
@@ -123,11 +122,11 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       containerRef,
       onShellTabChange,
       selectedTab: selectedTab ?? undefined,
-      setSelectedTab: (tab: TaskTab) => setSelectedTab(tab),
+      setSelectedTab,
       selectedWorkflowTab: selectedWorkflowTab ?? undefined,
-      setSelectedWorkflowTab: (tab: WorkflowTab) => setSelectedWorkflowTab(tab),
+      setSelectedWorkflowTab,
       selectedGroupTab: selectedGroupTab ?? undefined,
-      setSelectedGroupTab: (tab: GroupTab) => setSelectedGroupTab(tab),
+      setSelectedGroupTab,
       className,
     }),
     [

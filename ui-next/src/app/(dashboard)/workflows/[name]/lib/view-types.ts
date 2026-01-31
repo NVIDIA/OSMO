@@ -17,7 +17,7 @@
 /**
  * Shared View Types
  *
- * Common prop types for WorkflowDAGView and WorkflowTableView components.
+ * Common prop types for WorkflowTableView component and shared interfaces.
  * Consolidates duplicate type definitions into a single source of truth.
  */
 
@@ -102,8 +102,8 @@ export interface ViewTabProps {
 }
 
 /**
- * Common props shared between WorkflowDAGView and WorkflowTableView.
- * Both views receive identical data and share most callbacks.
+ * Common props shared between workflow views.
+ * Views receive identical data and share most callbacks.
  */
 export interface WorkflowViewCommonProps extends ViewSelectionProps, ViewNavigationProps, ViewPanelProps, ViewTabProps {
   /** The workflow data */
@@ -112,18 +112,4 @@ export interface WorkflowViewCommonProps extends ViewSelectionProps, ViewNavigat
   groups: GroupWithLayout[];
   /** Called when cancel workflow button is clicked */
   onCancelWorkflow?: () => void;
-}
-
-/**
- * DAG-specific props that extend the common view props.
- */
-export interface WorkflowDAGViewSpecificProps {
-  /** Retry ID for the selected task (used for uniqueness) */
-  selectedTaskRetryId: number | null;
-  /** Key that changes when selection changes (for panel behavior) */
-  selectionKey: string | null;
-  /** Whether the canvas is being panned */
-  isPanning: boolean;
-  /** Called when panning state changes */
-  onPanningChange: (isPanning: boolean) => void;
 }

@@ -96,7 +96,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 
   // Panning state for tick controller (DAG-specific, but managed here for tick control)
   const [isPanning, setIsPanning] = useState(false);
-  const [_isPanelDragging, setIsPanelDragging] = useState(false);
 
   // Synchronized tick for live durations - only tick when workflow is active
   // PERFORMANCE: Pause ticking during pan/zoom to prevent React re-renders mid-frame
@@ -173,21 +172,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     startTransition(() => navigateBackToGroup());
   });
 
-  const handleToggleDetailsExpanded = useEventCallback(() => {
-    toggleDetailsExpanded();
-  });
-
-  const handleCancel = useEventCallback(() => {
-    // TODO: Implement workflow cancellation
-    console.log("Cancel workflow:", name);
-  });
-
   const handleShellTabChange = useEventCallback((taskName: string | null) => {
     setActiveShellTaskName(taskName);
-  });
-
-  const handlePanelDraggingChange = useEventCallback((dragging: boolean) => {
-    setIsPanelDragging(dragging);
   });
 
   // Determine current panel view from URL navigation state
@@ -278,12 +264,12 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     panelPct,
     onPanelResize: setPanelPct,
     isDetailsExpanded,
-    onToggleDetailsExpanded: handleToggleDetailsExpanded,
+    onToggleDetailsExpanded: toggleDetailsExpanded,
     isPanelCollapsed,
     togglePanelCollapsed,
     expandPanel,
     panelOverrideContent,
-    onCancelWorkflow: handleCancel,
+    onCancelWorkflow: undefined,
     selectedTab,
     setSelectedTab,
     selectedWorkflowTab,
@@ -292,7 +278,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     setSelectedGroupTab,
     onShellTabChange: handleShellTabChange,
     activeShellTaskName,
-    onPanelDraggingChange: handlePanelDraggingChange,
+    onPanelDraggingChange: undefined,
     containerRef,
   });
 
@@ -331,8 +317,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
           {isReady ? (
             <WorkflowDetailLayout
               dagVisible={dagVisible}
-              panelWidthPct={panelPct}
-              isPanelCollapsed={isPanelCollapsed}
               containerRef={containerRef}
               dagContent={
                 dagVisible ? (
@@ -359,7 +343,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
                   <DetailsPanel
                     {...panelProps}
                     fullWidth={!dagVisible}
-                    onDraggingChange={handlePanelDraggingChange}
                   />
                   {shellContainerProps && <ShellContainer {...shellContainerProps} />}
                 </>

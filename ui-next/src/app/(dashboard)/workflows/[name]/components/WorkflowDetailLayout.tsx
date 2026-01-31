@@ -50,12 +50,6 @@ export interface WorkflowDetailLayoutProps {
   /** Whether DAG is visible */
   dagVisible: boolean;
 
-  /** Panel width as percentage (20-80, used when dagVisible) */
-  panelWidthPct: number;
-
-  /** Whether panel is collapsed to edge strip */
-  isPanelCollapsed: boolean;
-
   /** Ref to container for resize calculations */
   containerRef?: RefObject<HTMLDivElement | null>;
 
@@ -63,13 +57,11 @@ export interface WorkflowDetailLayoutProps {
   mainAriaLabel?: string;
 }
 
-// Component (DO NOT wrap in memo() - must update on panelWidthPct change)
+// Component (layout updates via children re-rendering, no memo needed)
 export function WorkflowDetailLayout({
   dagContent,
   panel,
   dagVisible,
-  panelWidthPct: _panelWidthPct,
-  isPanelCollapsed: _isPanelCollapsed,
   containerRef,
   mainAriaLabel,
 }: WorkflowDetailLayoutProps) {
