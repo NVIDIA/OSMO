@@ -310,7 +310,8 @@ export function SidePanel({
         width: panelWidth,
         contain: "layout style paint",
         willChange: isDragging ? "width" : "auto",
-        ...(isCollapsed
+        // Only apply width constraints when not fullWidth and not collapsed
+        ...(isCollapsed || fullWidth
           ? {}
           : {
               maxWidth: `${maxWidth}%`,
