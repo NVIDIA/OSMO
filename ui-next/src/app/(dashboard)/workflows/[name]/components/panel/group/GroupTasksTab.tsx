@@ -94,7 +94,16 @@ export const GroupTasksTab = memo(function GroupTasksTab({
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
   // TanStack column definitions
-  const columns = useMemo(() => createTaskColumns(), []);
+  // Note: Remove custom header padding from name column (it's only needed for tree layout)
+  const columns = useMemo(() => {
+    const cols = createTaskColumns();
+    // Find name column and remove custom headerClassName
+    const nameColumn = cols.find((col) => col.id === "name");
+    if (nameColumn?.meta) {
+      delete nameColumn.meta.headerClassName;
+    }
+    return cols;
+  }, []);
 
   // Fixed columns (not draggable)
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
