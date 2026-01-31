@@ -30,19 +30,26 @@
 
 import { useMemo, useCallback, useState, memo } from "react";
 import { naturalCompare } from "@/lib/utils";
-import { DataTable, type Section, type SortState, getColumnCSSValue } from "@/components/data-table";
+import { DataTable, type Section, type SortState, getColumnCSSValue, TableToolbar } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { useTick } from "@/hooks";
+import { useTick, useResultsCount } from "@/hooks";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
 import { calculateTaskDuration } from "../../lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { computeTaskStats, STATUS_SORT_ORDER } from "../../lib/status";
 import { createTaskColumns } from "../../lib/task-column-defs";
-import { TASK_WITH_TREE_COLUMN_SIZE_CONFIG, MANDATORY_COLUMN_IDS, asTaskColumnIds } from "../../lib/task-columns";
+import {
+  TASK_WITH_TREE_COLUMN_SIZE_CONFIG,
+  MANDATORY_COLUMN_IDS,
+  OPTIONAL_COLUMNS_ALPHABETICAL,
+  asTaskColumnIds,
+} from "../../lib/task-columns";
 import { useTaskTableStore } from "../../stores";
 import { TreeConnector, TreeGroupCell, GroupNameCell } from "./tree";
+import { filterByChips, type SearchChip } from "@/components/filter-bar";
+import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
 
 import type { GroupWithLayout, TaskQueryResponse, TaskWithDuration } from "../../lib/workflow-types";
 
@@ -103,6 +110,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
 }: WorkflowTasksTableProps) {
   // Track which groups are expanded (all expanded by default)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  // Search chips for filtering
+  const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
 
   // Shared preferences (compact mode)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -111,6 +120,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
   const columnOrder = asTaskColumnIds(useTaskTableStore((s) => s.columnOrder));
   const setColumnOrder = useTaskTableStore((s) => s.setColumnOrder);
+  const toggleColumn = useTaskTableStore((s) => s.toggleColumn);
   const sort = useTaskTableStore((s) => s.sort);
   const setSort = useTaskTableStore((s) => s.setSort);
 
@@ -169,9 +179,32 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     }
   }, [sort]);
 
+  // Calculate total task count
+  const totalTasks = useMemo(() => {
+    return groups.reduce((sum, group) => sum + (group.tasks?.length ?? 0), 0);
+  }, [groups]);
+
+  // Flatten all tasks for TableToolbar (needed for data prop)
+  const allTasksWithDuration = useMemo(() => {
+    const tasks: TaskWithDuration[] = [];
+    for (const group of groups) {
+      for (const task of group.tasks || []) {
+        tasks.push({
+          ...task,
+          duration: calculateTaskDuration(task.start_time, task.end_time, task.status as TaskGroupStatus, now),
+        });
+      }
+    }
+    return tasks;
+  }, [groups, now]);
+
   // Transform groups into sections with computed metadata
   // Critical flow: Raw tasks → Filter → Sort → Calculate position (_isLastTask) → Render
-  const sections = useMemo((): Section<TaskWithDuration, GroupSectionMeta>[] => {
+  const { sections, filteredTaskCount } = useMemo((): {
+    sections: Section<TaskWithDuration, GroupSectionMeta>[];
+    filteredTaskCount: number;
+  } => {
+    let totalFiltered = 0;
     const builtSections = groups.map((group) => {
       const taskArray = group.tasks || [];
       const totalTaskCount = taskArray.length;
@@ -189,25 +222,13 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         const singleTask = taskArray[0];
         const taskWithDuration = buildTaskWithDuration(singleTask);
 
-        // Future: Apply filterFn here
-        // const matchesFilter = !filterFn || filterFn(taskWithDuration);
-        const matchesFilter = true; // No filter for now
+        // Apply search filter
+        const filteredArray = filterByChips([taskWithDuration], searchChips, TASK_SEARCH_FIELDS);
+        const matchesFilter = filteredArray.length > 0;
 
         if (!matchesFilter) {
-          // Task filtered out: show group row with no tasks
-          return {
-            id: group.name,
-            label: group.name,
-            items: [],
-            metadata: {
-              group,
-              stats: computeTaskStats([]),
-              taskCount: totalTaskCount,
-              isSingleTask: true,
-              skipGroupRow: false, // Show group row
-              hasVisibleTasks: false,
-            },
-          };
+          // Task filtered out: skip entire group (don't show group header)
+          return null;
         }
 
         // Task visible: skip group row, render task with single-task styling
@@ -217,6 +238,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
           _isLastTask: true, // Only task, so it's last
           _taskIndex: 0,
         };
+
+        totalFiltered += 1; // Count this task
 
         return {
           id: group.name,
@@ -237,9 +260,16 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       const isExpanded = !collapsedGroups.has(group.name);
 
       if (!isExpanded) {
-        // Collapsed: show group row with no tasks
-        // Stats computed on ALL tasks (for progress display)
+        // Collapsed: check if ANY task matches the filter
         const allTasksWithDuration = taskArray.map(buildTaskWithDuration);
+        const matchingTasks = filterByChips(allTasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
+
+        if (matchingTasks.length === 0) {
+          // No matching tasks: skip entire group (don't show group header)
+          return null;
+        }
+
+        // Show group row with no tasks visible (but we know some match the filter)
         return {
           id: group.name,
           label: group.name,
@@ -258,9 +288,13 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       // Expanded: build all tasks with duration
       const tasksWithDuration = taskArray.map(buildTaskWithDuration);
 
-      // Step 1: Apply filtering (no filter for now, structure for later)
-      // Future: const filteredTasks = filterFn ? tasksWithDuration.filter(filterFn) : tasksWithDuration;
-      const filteredTasks = tasksWithDuration;
+      // Step 1: Apply search filtering
+      const filteredTasks = filterByChips(tasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
+
+      if (filteredTasks.length === 0) {
+        // No matching tasks: skip entire group (don't show group header)
+        return null;
+      }
 
       // Step 2: Apply sorting to filtered tasks
       const sortedTasks = sortComparator ? [...filteredTasks].sort(sortComparator) : filteredTasks;
@@ -272,6 +306,9 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         _taskIndex: index,
         _isSingleTaskGroup: false,
       }));
+
+      // Count filtered tasks
+      totalFiltered += visibleTasks.length;
 
       // Compute stats on visible tasks (for accurate progress display)
       const stats = computeTaskStats(visibleTasks);
@@ -291,10 +328,13 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       };
     });
 
+    // Filter out null sections (groups with no matching tasks)
+    const nonNullSections = builtSections.filter((section): section is NonNullable<typeof section> => section !== null);
+
     // Second pass: Calculate visual row index for zebra striping
     // Count visible rows (section headers that aren't skipped + all task rows)
     let visualRowIndex = 0;
-    return builtSections.map((section) => {
+    const finalSections = nonNullSections.map((section) => {
       const skipHeader = section.metadata?.skipGroupRow === true;
 
       // Capture visual row index for section header (before incrementing)
@@ -318,7 +358,16 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         metadata: section.metadata ? { ...section.metadata, _visualRowIndex: sectionVisualRowIndex } : section.metadata,
       };
     });
-  }, [groups, collapsedGroups, sortComparator, now]);
+
+    return { sections: finalSections, filteredTaskCount: totalFiltered };
+  }, [groups, collapsedGroups, sortComparator, searchChips, now]);
+
+  // Results count for FilterBar display
+  const resultsCount = useResultsCount({
+    total: totalTasks,
+    filteredTotal: filteredTaskCount,
+    hasActiveFilters: searchChips.length > 0,
+  });
 
   // TanStack column definitions (tree column + task columns)
   const columns = useMemo(() => {
@@ -547,7 +596,24 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   }, [groups.length]);
 
   return (
-    <div className="table-container border-border bg-card relative flex h-full flex-col rounded-lg border">
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Toolbar: Search + Controls */}
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
+        <TableToolbar
+          data={allTasksWithDuration}
+          searchFields={TASK_SEARCH_FIELDS}
+          columns={OPTIONAL_COLUMNS_ALPHABETICAL}
+          visibleColumnIds={visibleColumnIds}
+          onToggleColumn={toggleColumn}
+          searchChips={searchChips}
+          onSearchChipsChange={setSearchChips}
+          placeholder="Filter by name, status:, ip:, duration:..."
+          searchPresets={TASK_PRESETS}
+          resultsCount={resultsCount}
+        />
+      </div>
+
+      {/* Task List - grouped table with tree view */}
       <DataTable<TaskWithDuration, GroupSectionMeta>
         data={[]}
         sections={sections}
@@ -569,7 +635,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         sectionHeight={rowHeight}
         compact={compactMode}
         className="text-sm"
-        scrollClassName="scrollbar-styled flex-1"
+        scrollClassName="flex-1"
         // State
         emptyContent={emptyContent}
         // Interaction
