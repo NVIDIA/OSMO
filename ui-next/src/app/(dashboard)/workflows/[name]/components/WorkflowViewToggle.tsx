@@ -20,35 +20,35 @@ import { memo } from "react";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import { Network, List } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSharedPreferences, useWorkflowDetailsView } from "@/stores";
+import { useSharedPreferences, useDagVisible } from "@/stores";
 
 /**
- * WorkflowViewToggle - iOS-style sliding switch with icons for DAG/Table view switching.
+ * WorkflowViewToggle - iOS-style sliding switch with icons for DAG visibility toggling.
  *
  * Design:
  * - Uses Radix Switch primitive for full accessibility
- * - Network icon (left) = DAG view, List icon (right) = Table view
+ * - Network icon (left) = DAG visible, List icon (right) = DAG hidden (table-only view)
  * - Larger thumb slides to cover/highlight the active icon
  * - Smooth 300ms transitions for polished UX
  * - Icons dim when inactive, brighten when active (under thumb)
  *
  * Hydration Safety:
- * Uses useWorkflowDetailsView (hydration-safe) to prevent mismatch from
+ * Uses useDagVisible (hydration-safe) to prevent mismatch from
  * Zustand's localStorage persistence returning different values on server vs client.
  */
 export const WorkflowViewToggle = memo(function WorkflowViewToggle() {
   // Hydration-safe: returns initial state during SSR/hydration, then actual value
-  const workflowDetailsView = useWorkflowDetailsView();
-  const toggleWorkflowDetailsView = useSharedPreferences((s) => s.toggleWorkflowDetailsView);
+  const dagVisible = useDagVisible();
+  const toggleDagVisible = useSharedPreferences((s) => s.toggleDagVisible);
 
-  const isTableView = workflowDetailsView === "table";
+  const isDagHidden = !dagVisible;
 
   return (
     <div className="relative inline-flex items-center">
       <SwitchPrimitive.Root
-        checked={isTableView}
-        onCheckedChange={toggleWorkflowDetailsView}
-        aria-label={isTableView ? "Table view active. Switch to DAG view" : "DAG view active. Switch to Table view"}
+        checked={isDagHidden}
+        onCheckedChange={toggleDagVisible}
+        aria-label={isDagHidden ? "DAG hidden. Show DAG view" : "DAG visible. Hide DAG view"}
         className={cn(
           // Base shape and sizing - wider than default for icons
           "relative inline-flex h-8 w-16 shrink-0 cursor-pointer items-center rounded-full",
@@ -70,9 +70,9 @@ export const WorkflowViewToggle = memo(function WorkflowViewToggle() {
           className={cn(
             "absolute left-2 z-10 flex size-4 items-center justify-center",
             "transition-colors duration-300",
-            // When Table view is active (checked), DAG icon is visible and muted
-            // When DAG view is active (unchecked), icon is under thumb - muted too but thumb shows icon
-            isTableView ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-400/50 dark:text-zinc-600",
+            // When DAG hidden (checked), DAG icon is visible and muted
+            // When DAG visible (unchecked), icon is under thumb - muted too but thumb shows icon
+            isDagHidden ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-400/50 dark:text-zinc-600",
           )}
           aria-hidden="true"
         >
@@ -84,9 +84,9 @@ export const WorkflowViewToggle = memo(function WorkflowViewToggle() {
           className={cn(
             "absolute right-2 z-10 flex size-4 items-center justify-center",
             "transition-colors duration-300",
-            // When DAG view is active (unchecked), Table icon is visible and muted
-            // When Table view is active (checked), icon is under thumb - muted too but thumb shows icon
-            isTableView ? "text-zinc-400/50 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400",
+            // When DAG visible (unchecked), Table icon is visible and muted
+            // When DAG hidden (checked), icon is under thumb - muted too but thumb shows icon
+            isDagHidden ? "text-zinc-400/50 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400",
           )}
           aria-hidden="true"
         >
@@ -110,7 +110,7 @@ export const WorkflowViewToggle = memo(function WorkflowViewToggle() {
           )}
         >
           {/* Icon on the thumb - shows the active view */}
-          {isTableView ? (
+          {isDagHidden ? (
             <List className="size-4 text-zinc-700 dark:text-zinc-800" />
           ) : (
             <Network className="size-4 text-zinc-700 dark:text-zinc-800" />

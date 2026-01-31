@@ -32,7 +32,7 @@ import { useState, useMemo, useCallback, memo } from "react";
 import { Check, Loader2, AlertCircle, Clock, Info, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelTabs, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
-import { useWorkflowDetailsView } from "@/stores";
+import { useDagVisible } from "@/stores";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
 import type { GroupDetailsProps } from "../../../lib/panel-types";
@@ -70,9 +70,8 @@ export const GroupDetails = memo(function GroupDetails({
 }: GroupDetailsInternalProps) {
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
-  // Check if we're in table view
-  const workflowView = useWorkflowDetailsView();
-  const isTableView = workflowView === "table";
+  // Check if DAG is visible
+  const dagVisible: boolean = useDagVisible();
 
   // Task table store (column visibility for menu)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
@@ -102,13 +101,13 @@ export const GroupDetails = memo(function GroupDetails({
   const availableTabs = useMemo<PanelTab[]>(() => {
     const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
 
-    // Tasks tab only available in DAG view
-    if (!isTableView) {
+    // Tasks tab only available when DAG is visible
+    if (dagVisible) {
       tabs.push({ id: "tasks", label: "Tasks", icon: List });
     }
 
     return tabs;
-  }, [isTableView]);
+  }, [dagVisible]);
 
   // Derive active tab - fallback to "overview" if current tab unavailable
   const activeTab = useMemo<GroupTab>(() => {
@@ -173,9 +172,9 @@ export const GroupDetails = memo(function GroupDetails({
     </SeparatedParts>
   );
 
-  // Menu content (columns submenu in header dropdown - only shown in DAG view with tasks tab)
+  // Menu content (columns submenu in header dropdown - only shown when DAG visible with tasks tab)
   const menuContent =
-    !isTableView && activeTab === "tasks" ? (
+    dagVisible && activeTab === "tasks" ? (
       <ColumnMenuContent
         columns={OPTIONAL_COLUMNS_ALPHABETICAL}
         visibleColumnIds={visibleColumnIds}
@@ -224,8 +223,8 @@ export const GroupDetails = memo(function GroupDetails({
           />
         </TabPanel>
 
-        {/* Tasks Tab (only in DAG view) */}
-        {!isTableView && (
+        {/* Tasks Tab (only when DAG is visible) */}
+        {dagVisible && (
           <TabPanel
             tab="tasks"
             activeTab={activeTab}

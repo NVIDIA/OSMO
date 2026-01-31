@@ -17,9 +17,10 @@
 /**
  * Workflow Detail Inner Component (Dynamically Loaded)
  *
- * Lightweight orchestrator that conditionally renders DAG or Table view.
+ * Lightweight orchestrator that composes layout, content, panel, and shell.
  * Handles shared logic (data fetching, navigation, panel state) while delegating
- * view-specific concerns to WorkflowDAGView or WorkflowTableView.
+ * rendering to WorkflowDetailLayout (shell) and WorkflowDAGContent/WorkflowTableContent
+ * (visualization-specific logic).
  *
  * ⚠️ IMPORTANT: Do NOT import this file directly in workflow-detail-content.tsx!
  * It must be imported via dynamic() to maintain code splitting.
@@ -27,19 +28,21 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
 import { useTickController, useViewTransition } from "@/hooks";
-import { useSharedPreferences, useWorkflowDetailsView } from "@/stores";
+import { useSharedPreferences, useDagVisible } from "@/stores";
 
 // Route-level components
 import {
   DAGErrorBoundary,
   ShellPortalProvider,
   ShellProvider,
-  WorkflowDAGView,
-  WorkflowTableView,
+  WorkflowDetailLayout,
+  WorkflowDAGContent,
+  DetailsPanel,
   type DetailsPanelView,
 } from "./components";
 
@@ -47,11 +50,20 @@ import {
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
 import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
 import { useNavigationState } from "./hooks/use-navigation-state";
+import { usePanelProps } from "./hooks/use-panel-props";
 
 // Types
 import type { GroupWithLayout, TaskQueryResponse } from "./lib/workflow-types";
 import type { InitialView } from "./workflow-detail-content";
 import { WorkflowStatus } from "@/lib/api/generated";
+
+// Shell container is heavy (xterm.js), load dynamically
+const ShellContainer = dynamic(
+  () => import("./components/shell/ShellContainer").then((m) => ({ default: m.ShellContainer })),
+  {
+    ssr: false,
+  },
+);
 
 // =============================================================================
 // Types
@@ -76,15 +88,15 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const toggleDetailsExpanded = useSharedPreferences((s) => s.toggleDetailsExpanded);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
 
-  // View preference (DAG vs Table)
-  const workflowView = useWorkflowDetailsView();
-  const isTableView = workflowView === "table";
+  // DAG visibility state
+  const dagVisible: boolean = useDagVisible();
 
   // Fetch workflow data
   const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound } = useWorkflowDetail({ name });
 
   // Panning state for tick controller (DAG-specific, but managed here for tick control)
   const [isPanning, setIsPanning] = useState(false);
+  const [_isPanelDragging, setIsPanelDragging] = useState(false);
 
   // Synchronized tick for live durations - only tick when workflow is active
   // PERFORMANCE: Pause ticking during pan/zoom to prevent React re-renders mid-frame
@@ -95,6 +107,9 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     workflowStatus === WorkflowStatus.WAITING;
   const shouldTick = isWorkflowActive && !isPanning;
   useTickController(shouldTick);
+
+  // Container ref for layout and resize calculations
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // URL-synced navigation state (nuqs)
   const {
@@ -136,6 +151,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   } = useSidebarCollapsed({
     hasSelection,
     selectionKey,
+    dagVisible,
   });
 
   const { startTransition } = useViewTransition();
@@ -170,6 +186,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     setActiveShellTaskName(taskName);
   });
 
+  const handlePanelDraggingChange = useEventCallback((dragging: boolean) => {
+    setIsPanelDragging(dragging);
+  });
+
   // Determine current panel view from URL navigation state
   const currentPanelView: DetailsPanelView =
     navView === "task" && selectedTask ? "task" : navView === "group" && selectedGroup ? "group" : "workflow";
@@ -178,7 +198,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const isReady = !isLoading && !error && !isNotFound && workflow;
 
   // Panel override content for loading/error states
-  const renderPanelContent = () => {
+  // Memoized to prevent unnecessary child re-renders when loading/error state hasn't changed
+  const panelOverrideContent = useMemo(() => {
     if (isLoading) {
       return (
         <div className="p-4">
@@ -238,21 +259,18 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
       );
     }
     return null;
-  };
+  }, [isLoading, isNotFound, error, name, refetch]);
 
-  const panelOverrideContent = renderPanelContent();
-
-  // Shared props for both views (with type casts for tab setters)
-  const sharedProps = {
+  // Generate common props for DetailsPanel and ShellContainer
+  // Use groupsWithLayout as allGroups to ensure panel has layout info
+  const { panelProps, shellContainerProps } = usePanelProps({
     workflow: workflow!,
     groups: groupsWithLayout,
-    selectedGroupName,
-    selectedTaskName,
-    selectedTaskRetryId,
     selectedGroup,
     selectedTask,
     currentPanelView,
-    selectionKey,
+    selectedGroupName,
+    selectedTaskName,
     onSelectGroup: handleNavigateToGroup,
     onSelectTask: handleNavigateToTask,
     onBackToGroup: handleNavigateBackToGroup,
@@ -274,22 +292,79 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     setSelectedGroupTab,
     onShellTabChange: handleShellTabChange,
     activeShellTaskName,
-  };
+    onPanelDraggingChange: handlePanelDraggingChange,
+    containerRef,
+  });
+
+  // Wrapped navigation handlers for re-click behavior
+  const handleNavigateToGroupWithExpand = useEventCallback((group: GroupWithLayout) => {
+    const isAlreadySelected = selectedGroupName === group.name && !selectedTaskName;
+    if (isAlreadySelected && isPanelCollapsed) {
+      expandPanel();
+    } else {
+      handleNavigateToGroup(group);
+    }
+  });
+
+  const handleNavigateToTaskWithExpand = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+    const isAlreadySelected = selectedGroupName === group.name && selectedTaskName === task.name;
+    if (isAlreadySelected && isPanelCollapsed) {
+      expandPanel();
+    } else {
+      handleNavigateToTask(task, group);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+  // New architecture: WorkflowDetailLayout composes the shell (flex container)
+  // with visualization content (DAG or Table) and panel/shell slots.
+  //
+  // Stability: All callbacks are stable via useEventCallback, props are memoized.
+  // ---------------------------------------------------------------------------
 
   return (
     <DAGErrorBoundary>
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
           {isReady ? (
-            isTableView ? (
-              <WorkflowTableView {...sharedProps} />
-            ) : (
-              <WorkflowDAGView
-                {...sharedProps}
-                isPanning={isPanning}
-                onPanningChange={setIsPanning}
-              />
-            )
+            <WorkflowDetailLayout
+              dagVisible={dagVisible}
+              panelWidthPct={panelPct}
+              isPanelCollapsed={isPanelCollapsed}
+              containerRef={containerRef}
+              dagContent={
+                dagVisible ? (
+                  <WorkflowDAGContent
+                    key={dagVisible ? "visible" : "hidden"}
+                    workflow={workflow!}
+                    groups={groupsWithLayout}
+                    selectedGroupName={selectedGroupName}
+                    selectedTaskName={selectedTaskName}
+                    selectedTaskRetryId={selectedTaskRetryId}
+                    onSelectGroup={handleNavigateToGroupWithExpand}
+                    onSelectTask={handleNavigateToTaskWithExpand}
+                    isPanning={isPanning}
+                    onPanningChange={setIsPanning}
+                    selectionKey={selectionKey}
+                    containerRef={containerRef}
+                    panelPct={panelPct}
+                    isPanelCollapsed={isPanelCollapsed}
+                  />
+                ) : undefined
+              }
+              panel={
+                <>
+                  <DetailsPanel
+                    {...panelProps}
+                    fullWidth={!dagVisible}
+                    onDraggingChange={handlePanelDraggingChange}
+                  />
+                  {shellContainerProps && <ShellContainer {...shellContainerProps} />}
+                </>
+              }
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
               <div className="text-center text-gray-500 dark:text-zinc-500">
@@ -304,5 +379,5 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   );
 }
 
-// No need for ReactFlowProvider wrapper here - WorkflowDAGView handles it internally
+// No need for ReactFlowProvider wrapper here - WorkflowDAGContent handles it internally
 export { WorkflowDetailInner as WorkflowDetailInnerWithProvider };

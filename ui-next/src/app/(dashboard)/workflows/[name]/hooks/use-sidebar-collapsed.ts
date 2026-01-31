@@ -45,9 +45,11 @@ export interface UseSidebarCollapsedOptions {
   hasSelection: boolean;
   /** Unique key identifying the current selection (changes trigger auto-expand) */
   selectionKey: string | null;
+  /** Whether DAG is visible (when false, panel is always expanded) */
+  dagVisible: boolean;
 }
 
-export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCollapsedOptions) {
+export function useSidebarCollapsed({ hasSelection, selectionKey, dagVisible }: UseSidebarCollapsedOptions) {
   // User preference for default state (used when no selection)
   // Using Zustand shared preferences store for unified localStorage management
   const storePreferredCollapsed = useSharedPreferences((s) => s.detailsPanelCollapsed);
@@ -114,30 +116,43 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
 
   // Toggle collapsed state - stable callback for memoized children
   const toggle = useEventCallback(() => {
-    if (usesSessionState) {
+    if (dagVisible && usesSessionState) {
       setUserCollapsed((prev) => !prev);
-    } else {
+    } else if (dagVisible) {
       togglePreferredCollapsed();
     }
   });
 
   // Expand panel - stable callback for memoized children
   const expand = useEventCallback(() => {
-    if (usesSessionState) {
+    if (dagVisible && usesSessionState) {
       setUserCollapsed(false);
-    } else {
+    } else if (dagVisible) {
       setPreferredCollapsed(false);
     }
   });
 
   // Collapse panel - stable callback for memoized children
   const collapse = useEventCallback(() => {
-    if (usesSessionState) {
+    if (dagVisible && usesSessionState) {
       setUserCollapsed(true);
-    } else {
+    } else if (dagVisible) {
       setPreferredCollapsed(true);
     }
   });
+
+  // When DAG is hidden, panel is always expanded (full-width mode)
+  // Return static values and no-op functions
+  if (!dagVisible) {
+    return {
+      collapsed: false,
+      toggle: () => {},
+      expand: () => {},
+      collapse: () => {},
+      preferredCollapsed: false,
+      setPreferredCollapsed: () => {},
+    };
+  }
 
   return {
     /** Current collapsed state (considering preference and navigation) */
