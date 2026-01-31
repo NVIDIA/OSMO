@@ -60,7 +60,6 @@ export { ShellPortalProvider, ShellProvider, useShellPortal, useShellContext, ty
 export { WorkflowTasksTable, type WorkflowTasksTableProps } from "./table";
 
 // View containers (legacy - deprecated, use content components instead)
-export { WorkflowDAGView, type WorkflowDAGViewProps } from "./WorkflowDAGView";
 export { WorkflowTableView, type WorkflowTableViewProps } from "./WorkflowTableView";
 
 // Content components (new architecture - visualization only, no panel/shell)
