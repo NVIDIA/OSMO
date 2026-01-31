@@ -56,9 +56,6 @@ export {
 // to keep xterm.js out of the main bundle
 export { ShellPortalProvider, ShellProvider, useShellPortal, useShellContext, type ShellContainerProps } from "./shell";
 
-// View toggle component
-export { WorkflowViewToggle } from "./WorkflowViewToggle";
-
 // Table components
 export { WorkflowTasksTable, type WorkflowTasksTableProps } from "./table";
 
