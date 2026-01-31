@@ -40,8 +40,8 @@ export const PANEL = {
   WIDTH_PRESETS: [33, 50, 75] as const,
   /** Minimum width percentage */
   MIN_WIDTH_PCT: 20,
-  /** Maximum width percentage */
-  MAX_WIDTH_PCT: 80,
+  /** Maximum width percentage (100 for auto-snap zones) */
+  MAX_WIDTH_PCT: 100,
   /** Default panel width percentage */
   DEFAULT_WIDTH_PCT: 50,
   /** Width of collapsed panel strip in pixels */

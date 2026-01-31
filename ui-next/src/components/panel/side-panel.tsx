@@ -49,6 +49,10 @@ export interface SidePanelProps {
   focusTargetRef?: React.MutableRefObject<HTMLElement | null | undefined>;
   /** When true, panel spans 100% width with no resize handle */
   fullWidth?: boolean;
+  /** Called when drag starts (for snap zone integration) */
+  onDragStart?: () => void;
+  /** Called when drag ends (for snap zone integration) */
+  onDragEnd?: () => void;
 }
 
 export function SidePanel({
@@ -76,6 +80,9 @@ export function SidePanel({
   onDraggingChange,
   focusTargetRef,
   fullWidth = false,
+  // Snap zone integration
+  onDragStart,
+  onDragEnd,
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
@@ -112,6 +119,8 @@ export function SidePanel({
   // Stable callbacks
   const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
+  const stableOnDragStart = useEventCallback(onDragStart ?? (() => {}));
+  const stableOnDragEnd = useEventCallback(onDragEnd ?? (() => {}));
 
   // Global escape key handler using react-hotkeys-hook
   // Automatically handles: enabled state, form element detection
@@ -154,6 +163,7 @@ export function SidePanel({
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
         startDragging();
+        stableOnDragStart(); // Notify snap zone system
         startWidthRef.current = widthRef.current;
         // Get container width from parent element
         const container = containerRef?.current ?? panelRef.current?.parentElement;
@@ -176,6 +186,7 @@ export function SidePanel({
 
       if (last) {
         stopDragging();
+        stableOnDragEnd(); // Notify snap zone system
       }
     },
     {

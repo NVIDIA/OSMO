@@ -277,6 +277,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   maxWidth,
   className,
   fullWidth = false,
+  onDragStart,
+  onDragEnd,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell, reconnectShell } = useShellContext();
@@ -429,6 +431,8 @@ export const DetailsPanel = memo(function DetailsPanel({
       containerRef={containerRef}
       onDraggingChange={onDraggingChange}
       focusTargetRef={focusTargetRef}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
     >
       {/* Workflow Details (base layer) */}
       {view === "workflow" && workflow && (
