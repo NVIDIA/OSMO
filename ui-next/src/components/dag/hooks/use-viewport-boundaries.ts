@@ -82,7 +82,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useEffectEvent, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type RefObject } from "react";
 import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@xyflow/react";
 import { useResizeObserver } from "usehooks-ts";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
@@ -304,68 +304,94 @@ export function useViewportBoundaries({
   const targetZoomRef = useRef<number>(VIEWPORT.INITIAL_ZOOM);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const animationGenerationRef = useRef(0);
 
   // ---------------------------------------------------------------------------
-  // Viewport Actions (Stable Callbacks)
+  // Viewport Actions (Stable Ref Pattern)
   // ---------------------------------------------------------------------------
+  // STABLE REF PATTERN: Instead of useEffectEvent (which can cause infinite loops
+  // in React 19.2.x), we use refs to hold the latest implementation and expose
+  // stable callback wrappers. The useIsomorphicLayoutEffect ensures refs are
+  // updated synchronously before effects that depend on them run.
+  //
+  // Why NOT useEffectEvent: React 19.2.x has a bug where useEffectEvent can cause
+  // infinite "reconnectPassiveEffects" loops when combined with startTransition
+  // and TanStack Query. The stable ref pattern is safer.
 
-  const performCentering = useEffectEvent((nodeId: string, zoom: number, duration: number) => {
-    const node = nodes.find((n) => n.id === nodeId);
-    if (!node) return;
+  const performCenteringRef = useRef<(nodeId: string, zoom: number, duration: number) => void>(() => {});
+  const performClampingRef = useRef<(duration: number, useTargetDimensions?: boolean) => void>(() => {});
 
-    // Cancel any in-flight animation's cleanup callbacks
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
+  useIsomorphicLayoutEffect(() => {
+    performCenteringRef.current = (nodeId: string, zoom: number, duration: number) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
 
-    // Store the target zoom to avoid drift from interrupted animations
-    targetZoomRef.current = zoom;
-    isCenteringRef.current = true;
+      // Capture current generation for stale callback detection
+      const currentGeneration = animationGenerationRef.current;
 
-    const targetVp = calculateCenteringViewport(node, nodeBounds, targetDims, zoom);
+      // Cancel any in-flight animation's cleanup callbacks
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
 
-    reactFlowInstance.setViewport(targetVp, { duration }).then(() => {
-      // Skip cleanup if animation was cancelled
-      if (signal.aborted) {
-        return;
-      }
+      // Store the target zoom to avoid drift from interrupted animations
+      targetZoomRef.current = zoom;
+      isCenteringRef.current = true;
 
-      // Safety sync to ensure alignment with d3-zoom constraints
-      requestAnimationFrame(() => {
-        // Double-check abort status after RAF
-        if (signal.aborted) return;
+      const targetVp = calculateCenteringViewport(node, nodeBounds, targetDims, zoom);
 
-        const currentVp = reactFlowInstance.getViewport();
-        const finalVp = clampToTranslateExtent(currentVp, targetDims, nodeBounds);
-
-        if (Math.abs(currentVp.x - finalVp.x) > 0.5 || Math.abs(currentVp.y - finalVp.y) > 0.5) {
-          reactFlowInstance.setViewport(finalVp, { duration: 0 });
+      reactFlowInstance.setViewport(targetVp, { duration }).then(() => {
+        // Check BOTH abort AND generation
+        if (signal.aborted || animationGenerationRef.current !== currentGeneration) {
+          return;
         }
 
-        isCenteringRef.current = false;
+        // Safety sync to ensure alignment with d3-zoom constraints
+        requestAnimationFrame(() => {
+          // Double-check abort status and generation after RAF
+          if (signal.aborted || animationGenerationRef.current !== currentGeneration) return;
+
+          const currentVp = reactFlowInstance.getViewport();
+          const finalVp = clampToTranslateExtent(currentVp, targetDims, nodeBounds);
+
+          if (Math.abs(currentVp.x - finalVp.x) > 0.5 || Math.abs(currentVp.y - finalVp.y) > 0.5) {
+            reactFlowInstance.setViewport(finalVp, { duration: 0 });
+          }
+
+          isCenteringRef.current = false;
+        });
       });
-    });
-  });
+    };
 
-  const performClamping = useEffectEvent((duration: number, useTargetDimensions = false) => {
-    const vp = reactFlowInstance.getViewport();
-    // Use targetDims for re-center triggers (responsive to immediate changes)
-    // Use effectiveDims for passive dimension changes (stable during transitions)
-    const dimsForClamping = useTargetDimensions ? targetDims : effectiveDims;
-    const clampedVp = clampToTranslateExtent(vp, dimsForClamping, nodeBounds);
+    performClampingRef.current = (duration: number, useTargetDimensions = false) => {
+      const vp = reactFlowInstance.getViewport();
+      // Use targetDims for re-center triggers (responsive to immediate changes)
+      // Use effectiveDims for passive dimension changes (stable during transitions)
+      const dimsForClamping = useTargetDimensions ? targetDims : effectiveDims;
+      const clampedVp = clampToTranslateExtent(vp, dimsForClamping, nodeBounds);
 
-    // FORCE ZOOM STABILITY: Explicitly set zoom to its current integer/target value
-    // if it's drifting by a tiny amount, or just ensure we pass the current zoom
-    // back in to prevent RF from "guessing" a new one during the transition.
-    const targetZoom = Math.abs(vp.zoom - 1.0) < 0.01 ? 1.0 : vp.zoom;
+      // FORCE ZOOM STABILITY: Explicitly set zoom to its current integer/target value
+      // if it's drifting by a tiny amount, or just ensure we pass the current zoom
+      // back in to prevent RF from "guessing" a new one during the transition.
+      const targetZoom = Math.abs(vp.zoom - 1.0) < 0.01 ? 1.0 : vp.zoom;
 
-    // Check if there's a meaningful position change
-    const positionChanged = Math.abs(vp.x - clampedVp.x) > 0.5 || Math.abs(vp.y - clampedVp.y) > 0.5;
+      // Check if there's a meaningful position change
+      const positionChanged = Math.abs(vp.x - clampedVp.x) > 0.5 || Math.abs(vp.y - clampedVp.y) > 0.5;
 
-    if (positionChanged) {
-      reactFlowInstance.setViewport({ ...clampedVp, zoom: targetZoom }, { duration });
-    }
-  });
+      if (positionChanged) {
+        reactFlowInstance.setViewport({ ...clampedVp, zoom: targetZoom }, { duration });
+      }
+    };
+  }, [nodes, nodeBounds, targetDims, effectiveDims, reactFlowInstance]);
+
+  // Stable callbacks that invoke the latest implementation
+  const performCentering = useCallback((nodeId: string, zoom: number, duration: number) => {
+    performCenteringRef.current(nodeId, zoom, duration);
+  }, []);
+
+  const performClamping = useCallback((duration: number, useTargetDimensions = false) => {
+    performClampingRef.current(duration, useTargetDimensions);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Readiness Barrier (Deterministic Convergence)
@@ -461,11 +487,19 @@ export function useViewportBoundaries({
     reactFlowInstance,
     rootNodeIds,
     selectedNodeId,
+    performCentering,
+    performClamping,
   ]);
 
-  // Cleanup debounce timer on unmount
+  // Increment animation generation on mount/unmount to detect stale callbacks
   useEffect(() => {
+    animationGenerationRef.current++;
     return () => {
+      // Increment generation to invalidate any in-flight callbacks
+      // Note: We intentionally mutate the ref in cleanup - this is the correct pattern
+      // for generation tracking. The warning is a false positive for this use case.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      animationGenerationRef.current++;
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }

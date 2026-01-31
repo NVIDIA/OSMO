@@ -48,16 +48,18 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
-import { FileText, Info, History, ArrowLeftFromLine, ArrowRightFromLine, type LucideIcon } from "lucide-react";
+import { FileText, Info, History, Network, PanelLeftClose, type LucideIcon } from "lucide-react";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
-import { cn, formatHotkey } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
 import { ShellSessionIcon, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
+import { useSharedPreferences, useDagVisible } from "@/stores";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 
 // =============================================================================
 // Direct Imports - Eager loading for instant panel rendering
@@ -89,10 +91,6 @@ interface QuickAction {
 }
 
 interface WorkflowEdgeStripProps {
-  isCollapsed?: boolean;
-  onToggleCollapsed?: () => void;
-  /** Keyboard shortcut for toggle (e.g., "mod+]") - displayed in tooltip */
-  toggleHotkey?: string;
   /** Generic quick actions to display */
   quickActions?: QuickAction[];
   /** Current workflow name - used to filter sessions */
@@ -110,9 +108,6 @@ interface WorkflowEdgeStripProps {
  * Same appearance whether panel is collapsed or expanded - provides consistency.
  */
 const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
-  isCollapsed,
-  onToggleCollapsed,
-  toggleHotkey,
   quickActions,
   workflowName,
   currentTaskId,
@@ -122,6 +117,10 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   onRemoveSession,
 }: WorkflowEdgeStripProps) {
   const allSessions = useShellSessions();
+
+  // DAG visibility toggle state
+  const dagVisible = useDagVisible();
+  const toggleDagVisible = useSharedPreferences((s) => s.toggleDagVisible);
 
   // Filter sessions to only show those belonging to this workflow
   const sessions = workflowName ? allSessions.filter((s) => s.workflowName === workflowName) : allSessions;
@@ -150,69 +149,31 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
     onRemoveSession?.(taskId);
   });
 
-  // Handle keyboard navigation: Enter toggles the panel
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        onToggleCollapsed?.();
-      }
-    },
-    [onToggleCollapsed],
-  );
-
   const hasQuickActions = quickActions && quickActions.length > 0;
   const hasShellSessions = sessions.length > 0;
 
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-full flex-col items-center py-3">
-        {/* Expand/Collapse button */}
-        {onToggleCollapsed && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={onToggleCollapsed}
-                onKeyDown={handleKeyDown}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-lg",
-                  "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-                  "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-                  "transition-colors",
-                  "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-                  "focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900",
-                  "focus-visible:outline-none",
-                  "focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800",
-                )}
-                aria-label={isCollapsed ? "Expand panel (Enter)" : "Collapse panel (Enter)"}
-              >
-                {isCollapsed ? (
-                  <ArrowLeftFromLine
-                    className="size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowRightFromLine
-                    className="size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent
-              side="left"
-              className="flex items-center gap-2"
-            >
-              <span>{isCollapsed ? "Expand panel" : "Collapse panel"}</span>
-              {toggleHotkey && (
-                <kbd className="rounded border border-zinc-600 bg-zinc-700 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">
-                  {formatHotkey(toggleHotkey)}
-                </kbd>
-              )}
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {/* DAG Visibility Toggle */}
+        <SemiStatefulButton
+          onClick={toggleDagVisible}
+          currentStateIcon={dagVisible ? <Network className="size-4" /> : <PanelLeftClose className="size-4" />}
+          nextStateIcon={dagVisible ? <PanelLeftClose className="size-4" /> : <Network className="size-4" />}
+          label={dagVisible ? "Hide DAG" : "Show DAG"}
+          aria-label={dagVisible ? "Currently showing DAG view" : "DAG view is hidden"}
+          tooltipSide="left"
+          className={cn(
+            "flex size-8 items-center justify-center rounded-lg",
+            "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+            "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+            "transition-colors",
+            "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+            "focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900",
+            "focus-visible:outline-none",
+            "focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800",
+          )}
+        />
 
         {/* Quick actions */}
         {hasQuickActions && (
@@ -315,6 +276,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   minWidth,
   maxWidth,
   className,
+  fullWidth = false,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell, reconnectShell } = useShellContext();
@@ -437,12 +399,9 @@ export const DetailsPanel = memo(function DetailsPanel({
   }, [navigateToWorkflowTab]);
 
   // Unified edge strip - always visible on left side
-  // Contains: expand/collapse button, quick actions, shell sessions
+  // Contains: DAG toggle, quick actions, shell sessions
   const edgeContent = (
     <WorkflowEdgeStrip
-      isCollapsed={isCollapsed}
-      onToggleCollapsed={onToggleCollapsed}
-      toggleHotkey={toggleHotkey}
       quickActions={quickActions}
       workflowName={workflow?.name}
       currentTaskId={task?.task_uuid}
@@ -465,6 +424,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       edgeContent={edgeContent}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}
+      fullWidth={fullWidth}
       className={cn("dag-details-panel", className)}
       containerRef={containerRef}
       onDraggingChange={onDraggingChange}
@@ -480,6 +440,11 @@ export const DetailsPanel = memo(function DetailsPanel({
           onToggleDetailsExpanded={onToggleDetailsExpanded}
           selectedTab={selectedWorkflowTab}
           setSelectedTab={setSelectedWorkflowTab}
+          allGroups={allGroups}
+          selectedGroupName={group?.name ?? null}
+          selectedTaskName={task?.name ?? null}
+          onSelectGroup={onSelectGroup}
+          onSelectTask={onSelectTask}
         />
       )}
 
