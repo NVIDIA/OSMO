@@ -118,11 +118,11 @@ export function SidePanel({
     }
   }, [isDragging, width]);
 
-  // Stable callbacks
+  // Stable callbacks - useEventCallback ensures stable reference with latest closure values
   const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
-  const stableOnDragStart = useEventCallback(onDragStart ?? ((_?: number) => {}));
-  const stableOnDragEnd = useEventCallback(onDragEnd ?? (() => {}));
+  const stableOnDragStart = useEventCallback((pct?: number) => onDragStart?.(pct));
+  const stableOnDragEnd = useEventCallback(() => onDragEnd?.());
 
   // Global escape key handler using react-hotkeys-hook
   // Automatically handles: enabled state, form element detection

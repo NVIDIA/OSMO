@@ -35,7 +35,7 @@ import { useSharedPreferences } from "@/stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useTick, useResultsCount } from "@/hooks";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { usePanelTransition } from "../../lib/panel-transition-context";
+import { useIsSuspended, usePanelResizeMachine } from "../../lib/panel-resize-context";
 
 import { calculateTaskDuration } from "../../lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
@@ -114,8 +114,13 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   // Search chips for filtering
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
 
-  // Panel transition state (suspend table resize during panel animations)
-  const { isTransitioning } = usePanelTransition();
+  // Panel resize coordination (suspend during transitions, recalculate on layout stable)
+  const isSuspended = useIsSuspended();
+  const machine = usePanelResizeMachine();
+  const registerLayoutStableCallback = useCallback(
+    (callback: () => void) => machine.registerCallback("onLayoutStable", callback),
+    [machine],
+  );
 
   // Shared preferences (compact mode)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -631,7 +636,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         fixedColumns={fixedColumns}
         // Column sizing (includes tree column + task columns)
         columnSizeConfigs={TASK_WITH_TREE_COLUMN_SIZE_CONFIG}
-        suspendResize={isTransitioning}
+        suspendResize={isSuspended}
+        registerLayoutStableCallback={registerLayoutStableCallback}
         // Sorting
         sorting={tableSorting}
         onSortingChange={handleSortChange}

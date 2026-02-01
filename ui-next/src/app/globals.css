@@ -447,3 +447,22 @@
     }
   }
 }
+
+/* ==========================================================================
+   Workflow Detail Grid Layout
+   ========================================================================== */
+
+@layer components {
+  /* SSR-safe default: 50/50 split with DAG visible.
+     PanelStateManager overrides this via direct DOM updates. */
+  .workflow-detail-grid {
+    grid-template-columns: minmax(0, 1fr) 50%;
+    transition: grid-template-columns 200ms ease-out;
+  }
+
+  /* Disable transitions during drag for 60fps performance.
+     Manager also sets inline style.transition = 'none' for explicit control. */
+  .workflow-detail-grid[data-dragging="true"] {
+    transition: none;
+  }
+}
