@@ -462,13 +462,6 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       const isExpanded = !collapsedGroups.has(section.id);
       const displayTaskCount = taskCount ?? stats?.total ?? 0;
 
-      // Get column IDs for width styling
-      const columnIds = columns.map((col) => {
-        if (typeof col.id === "string") return col.id;
-        if ("accessorKey" in col && col.accessorKey) return String(col.accessorKey);
-        return "";
-      });
-
       return (
         <>
           {/* Tree column cell - TreeGroupCell handles expand/collapse
@@ -490,14 +483,13 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
           </td>
 
           {/* Name column cell - GroupNameCell with badge and count
+              Spans entire table width (except tree column) for group headers
               Uses px-4 to match regular row cells from VirtualTableBody */}
           <td
             role="gridcell"
             className="flex items-center px-4"
             style={{
-              width: getColumnCSSValue(columnIds[1] || "name"),
-              minWidth: getColumnCSSValue(columnIds[1] || "name"),
-              flex: "none",
+              flex: "1",
             }}
             onClick={() => onSelectGroup(group)}
           >
@@ -506,25 +498,10 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
               taskCount={displayTaskCount}
             />
           </td>
-
-          {/* Remaining columns - empty cells to maintain structure */}
-          {columnIds.slice(2).map((colId, i) => (
-            <td
-              key={colId || i}
-              role="gridcell"
-              className="px-4"
-              style={{
-                width: getColumnCSSValue(colId),
-                minWidth: getColumnCSSValue(colId),
-                flex: "none",
-              }}
-              onClick={() => onSelectGroup(group)}
-            />
-          ))}
         </>
       );
     },
-    [collapsedGroups, handleToggleGroup, columns, onSelectGroup],
+    [collapsedGroups, handleToggleGroup, onSelectGroup],
   );
 
   // Handle row click
