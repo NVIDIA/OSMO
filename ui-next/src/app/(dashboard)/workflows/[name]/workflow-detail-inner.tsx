@@ -32,6 +32,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
+import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useTickController, useViewTransition, useAnnouncer } from "@/hooks";
 import { useSharedPreferences, useDagVisible } from "@/stores";
 import { PanelTransitionProvider } from "./lib/panel-transition-context";
@@ -90,8 +91,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const toggleDetailsExpanded = useSharedPreferences((s) => s.toggleDetailsExpanded);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
 
-  // DAG visibility state
-  const dagVisible: boolean = useDagVisible();
+  // DAG visibility from persisted state (used for non-drag scenarios)
+  const persistedDagVisible: boolean = useDagVisible();
 
   // Fetch workflow data
   const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound } = useWorkflowDetail({ name });
@@ -134,6 +135,54 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     return null;
   }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
 
+  // Refs for breaking circular dependency between usePanelInteraction and useSidebarCollapsed
+  // usePanelInteraction needs isPanelCollapsed/expandPanel, but we need displayPct to compute
+  // displayDagVisible which is needed by useSidebarCollapsed.
+  // Solution: Use refs that are updated after useSidebarCollapsed runs, and pass getter functions.
+  const isPanelCollapsedRef = useRef(false);
+  const expandPanelRef = useRef<() => void>(() => {});
+
+  // Stable getter function that reads from ref (for use in usePanelInteraction)
+  const getIsPanelCollapsed = useEventCallback(() => isPanelCollapsedRef.current);
+  // Stable expand function that calls the current ref value
+  const expandPanelFromRef = useEventCallback(() => expandPanelRef.current());
+
+  // Panel interaction (snap zones, drag coordination)
+  // Uses getter function for collapsed state to break circular dependency
+  const panelInteraction = usePanelInteraction({
+    persistedPct: persistedPanelPct,
+    onPersist: setPanelPct,
+    onHideDAG: () => useSharedPreferences.getState().setDagVisible(false),
+    getIsPanelCollapsed,
+    onExpandPanel: expandPanelFromRef,
+  });
+
+  // Compute effective DAG visibility for display purposes:
+  // - During drag: show DAG as soon as displayPct < 100 (revealing gesture)
+  // - During ANY snap animation: keep DAG visible so grid can animate smoothly
+  // - Otherwise: use persisted state
+  //
+  // CRITICAL: During snap animations, the DAG must stay visible until the animation
+  // completes. Without this:
+  // - Soft snap (→80%): DAG would unmount when drag ends (persistedDagVisible still
+  //   false from 100% state), then remount 250ms later when onPersist(80) runs.
+  // - Full snap (→100%): Grid template would instantly change from "minmax(0,1fr) X%"
+  //   to "0fr 1fr" (non-animatable), causing the panel to jump instead of animate.
+  //
+  // By keeping DAG visible during snap, the grid animates smoothly (95%→100% or
+  // 85%→80%), then the DAG hides via WorkflowDetailLayout's delayed unmount pattern.
+  const displayDagVisible = useMemo(() => {
+    if (panelInteraction.isDragging) {
+      return panelInteraction.displayPct < 100;
+    }
+    // During ANY snap animation, keep DAG visible so grid can animate the percentage
+    // change smoothly before transitioning to the hidden state
+    if (panelInteraction.phase.type === "snapping") {
+      return true;
+    }
+    return persistedDagVisible;
+  }, [panelInteraction.isDragging, panelInteraction.displayPct, panelInteraction.phase, persistedDagVisible]);
+
   // Panel collapsed state (reconciles user preference with navigation intent)
   const {
     collapsed: isPanelCollapsed,
@@ -142,18 +191,14 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   } = useSidebarCollapsed({
     hasSelection,
     selectionKey,
-    dagVisible,
+    dagVisible: displayDagVisible,
   });
 
-  // Panel interaction (snap zones, drag coordination)
-  const panelInteraction = usePanelInteraction({
-    persistedPct: persistedPanelPct,
-    onPersist: setPanelPct,
-    dagVisible,
-    onHideDAG: () => useSharedPreferences.getState().setDagVisible(false),
-    isPanelCollapsed,
-    onExpandPanel: expandPanel,
-  });
+  // Sync refs in layout effect (cannot update during render per React Compiler)
+  useIsomorphicLayoutEffect(() => {
+    isPanelCollapsedRef.current = isPanelCollapsed;
+    expandPanelRef.current = expandPanel;
+  }, [isPanelCollapsed, expandPanel]);
 
   // Synchronized tick for live durations - only tick when workflow is active
   // PERFORMANCE: Pause ticking during pan/zoom AND panel drag to prevent React re-renders mid-frame
@@ -305,6 +350,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     containerRef,
     onDragStart: panelInteraction.dragHandlers.onDragStart, // Snap zone integration
     onDragEnd: panelInteraction.dragHandlers.onDragEnd, // Snap zone integration
+    fillContainer: true, // Panel is inside CSS Grid - let grid control sizing
   });
 
   // Wrapped navigation handlers for re-click behavior
@@ -337,8 +383,9 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const stablePanelPct = panelInteraction.isDragging ? persistedPanelPct : panelInteraction.displayPct;
 
   // Memoize DAG content to prevent re-renders during panel drag
+  // Uses displayDagVisible so DAG appears immediately when dragging from 100%
   const dagContentElement = useMemo(() => {
-    if (!dagVisible || !workflow) return undefined;
+    if (!displayDagVisible || !workflow) return undefined;
     return (
       <WorkflowDAGContent
         workflow={workflow}
@@ -358,7 +405,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
       />
     );
   }, [
-    dagVisible,
+    displayDagVisible,
     workflow,
     groupsWithLayout,
     selectedGroupName,
@@ -378,14 +425,11 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const panelElement = useMemo(
     () => (
       <>
-        <DetailsPanel
-          {...panelProps}
-          fullWidth={!dagVisible}
-        />
+        <DetailsPanel {...panelProps} />
         {shellContainerProps && <ShellContainer {...shellContainerProps} />}
       </>
     ),
-    [panelProps, dagVisible, shellContainerProps],
+    [panelProps, shellContainerProps],
   );
 
   // Memoize transition context value to prevent unnecessary re-renders
@@ -410,10 +454,9 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
           <PanelTransitionProvider value={transitionContextValue}>
             {isReady ? (
               <WorkflowDetailLayout
-                dagVisible={dagVisible}
+                dagVisible={displayDagVisible}
                 containerRef={containerRef}
                 isDragging={panelInteraction.isDragging}
-                isTransitioning={panelInteraction.isTransitioning}
                 snapZone={panelInteraction.snapZone}
                 displayPct={panelInteraction.displayPct}
                 dagContent={dagContentElement}

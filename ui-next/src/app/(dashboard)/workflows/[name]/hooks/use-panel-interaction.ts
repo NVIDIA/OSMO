@@ -32,9 +32,16 @@ const PANEL_CSS_TRANSITION_MS = 200;
 interface UsePanelInteractionOptions {
   persistedPct: number;
   onPersist: (pct: number) => void;
-  dagVisible: boolean;
   onHideDAG: () => void;
-  isPanelCollapsed: boolean;
+  /**
+   * Function that returns current collapsed state.
+   * Using a getter allows breaking circular dependencies between hooks.
+   */
+  getIsPanelCollapsed: () => boolean;
+  /**
+   * Function to expand the panel.
+   * Called when drag starts while panel is collapsed.
+   */
   onExpandPanel: () => void;
 }
 
@@ -52,7 +59,7 @@ interface UsePanelInteractionReturn {
 }
 
 export function usePanelInteraction(options: UsePanelInteractionOptions): UsePanelInteractionReturn {
-  const { persistedPct, onPersist, dagVisible: _dagVisible, onHideDAG, isPanelCollapsed, onExpandPanel } = options;
+  const { persistedPct, onPersist, onHideDAG, getIsPanelCollapsed, onExpandPanel } = options;
 
   // State + ref pattern: ref needed for synchronous access in callbacks
   // (useDrag may call onDragStart and onDrag in same event loop)
@@ -88,7 +95,7 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
   };
 
   const handleDragStart = useEventCallback((initialPct?: number) => {
-    if (isPanelCollapsed) onExpandPanel();
+    if (getIsPanelCollapsed()) onExpandPanel();
     // Use provided initial percentage (for revealing from fullWidth) or persisted value
     const startPct = initialPct ?? persistedPct;
     updatePhase({ type: "dragging", startPct, currentPct: startPct, snapZone: null });
@@ -114,16 +121,11 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
       setIsCSSTransitioning(true);
       updatePhase({ type: "snapping", targetPct: SNAP_ZONES.FULL_SNAP_TARGET, snapZone: "full" });
       setTimeout(() => {
-        // CRITICAL: Sequence state updates to prevent clobbering
-        // 1. First transition to idle (stops drag visual feedback)
+        // Transition to idle (stops drag visual feedback)
         updatePhase({ type: "idle" });
-        // 2. Then hide DAG (React will re-render with dagVisible=false)
+        // Hide DAG - this sets panelWidthPct=100, which is the correct persisted state
+        // (DAG visibility is derived from panelWidthPct < 100, so 100 = hidden)
         onHideDAG();
-        // 3. Finally reset persisted percentage for next DAG show
-        //    Using queueMicrotask ensures dagVisible change propagates first
-        queueMicrotask(() => {
-          onPersist(50);
-        });
         // Wait for CSS transition to complete before allowing table recalculation
         cssTransitionTimeoutRef.current = setTimeout(() => {
           setIsCSSTransitioning(false);
