@@ -286,7 +286,6 @@ interface TaskDetailsInternalProps extends TaskDetailsProps {
   allGroups: GroupWithLayout[];
   /** Navigate back to workflow view */
   onBackToWorkflow?: () => void;
-  onPanelResize: (pct: number) => void;
   onSelectGroup?: (group: GroupWithLayout) => void;
   /** Called when shell tab becomes active/inactive. Passes taskName when active, null when inactive. */
   onShellTabChange?: (taskName: string | null) => void;
@@ -305,7 +304,6 @@ export const TaskDetails = memo(function TaskDetails({
   onBackToWorkflow,
   onSelectTask,
   onSelectGroup,
-  onPanelResize,
   onShellTabChange,
   selectedTab: selectedTabProp,
   setSelectedTab: setSelectedTabProp,
@@ -486,7 +484,6 @@ export const TaskDetails = memo(function TaskDetails({
         breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
         title={task.name}
         statusContent={statusContent}
-        onPanelResize={onPanelResize}
         siblingTasks={isFromGroup ? siblingTasks : undefined}
         onSelectSibling={isFromGroup ? handleSelectSibling : undefined}
       />

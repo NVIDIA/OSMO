@@ -39,7 +39,7 @@ export const PANEL = {
   /** Width presets for snap-to menu (percentage) */
   WIDTH_PRESETS: [33, 50, 75] as const,
   /** Minimum width percentage */
-  MIN_WIDTH_PCT: 20,
+  MIN_WIDTH_PCT: 33,
   /** Maximum width percentage (100 for auto-snap zones) */
   MAX_WIDTH_PCT: 100,
   /** Default panel width percentage */

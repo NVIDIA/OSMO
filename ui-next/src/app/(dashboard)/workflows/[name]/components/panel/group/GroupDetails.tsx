@@ -36,15 +36,12 @@ import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
 import type { GroupDetailsProps } from "../../../lib/panel-types";
 import type { TaskWithDuration } from "../../../lib/workflow-types";
-import { DetailsPanelHeader, ColumnMenuContent } from "../shared/DetailsPanelHeader";
+import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { useTick } from "@/hooks";
 import type { BreadcrumbSegment } from "../../../lib/panel-types";
 import { GroupOverviewTab } from "./GroupOverviewTab";
 import { GroupTasksTab } from "./GroupTasksTab";
 import type { GroupTab } from "../../../hooks/use-navigation-state";
-import { OPTIONAL_COLUMNS_ALPHABETICAL } from "../../../lib/task-columns";
-import { asTaskColumnIds } from "../../../lib/task-columns";
-import { useTaskTableStore } from "../../../stores";
 
 // =============================================================================
 // Component
@@ -53,7 +50,6 @@ import { useTaskTableStore } from "../../../stores";
 interface GroupDetailsInternalProps extends GroupDetailsProps {
   /** Navigate back to workflow details */
   onBack?: () => void;
-  onPanelResize: (pct: number) => void;
 }
 
 export const GroupDetails = memo(function GroupDetails({
@@ -62,15 +58,10 @@ export const GroupDetails = memo(function GroupDetails({
   onSelectTask,
   onSelectGroup,
   onBack,
-  onPanelResize,
   selectedGroupTab = "overview",
   setSelectedGroupTab,
 }: GroupDetailsInternalProps) {
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
-
-  // Task table store (column visibility for menu)
-  const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
-  const toggleColumn = useTaskTableStore((s) => s.toggleColumn);
 
   // Synchronized tick for live durations
   const now = useTick();
@@ -161,16 +152,6 @@ export const GroupDetails = memo(function GroupDetails({
     </SeparatedParts>
   );
 
-  // Menu content (columns submenu in header dropdown - only shown on tasks tab)
-  const menuContent =
-    activeTab === "tasks" ? (
-      <ColumnMenuContent
-        columns={OPTIONAL_COLUMNS_ALPHABETICAL}
-        visibleColumnIds={visibleColumnIds}
-        onToggleColumn={toggleColumn}
-      />
-    ) : null;
-
   // Build breadcrumbs for hierarchical navigation (Workflow > Group)
   const breadcrumbs = useMemo((): BreadcrumbSegment[] => {
     if (!onBack) return [];
@@ -186,8 +167,6 @@ export const GroupDetails = memo(function GroupDetails({
         subtitle={`${stats.total} tasks`}
         statusContent={statusContent}
         breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
-        onPanelResize={onPanelResize}
-        menuContent={menuContent}
       />
 
       {/* Tabs */}
