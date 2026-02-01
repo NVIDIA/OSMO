@@ -414,6 +414,12 @@ export const DetailsPanel = memo(function DetailsPanel({
     />
   );
 
+  // Handle drag-to-reveal when panel is fullWidth
+  const handleRevealStart = useCallback(() => {
+    // Show DAG when user starts dragging from fullWidth state
+    useSharedPreferences.getState().setDagVisible(true);
+  }, []);
+
   return (
     <SidePanel
       width={panelPct}
@@ -433,6 +439,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       focusTargetRef={focusTargetRef}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onRevealStart={fullWidth ? handleRevealStart : undefined}
     >
       {/* Workflow Details (base layer) */}
       {view === "workflow" && workflow && (
