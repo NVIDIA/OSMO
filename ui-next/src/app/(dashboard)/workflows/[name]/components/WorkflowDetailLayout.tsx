@@ -41,6 +41,8 @@ export interface WorkflowDetailLayoutProps {
   isDragging?: boolean;
   snapZone?: SnapZone | null;
   displayPct?: number;
+  /** Called when grid-template-columns transition completes */
+  onGridTransitionEnd?: () => void;
 }
 
 export function WorkflowDetailLayout({
@@ -52,12 +54,29 @@ export function WorkflowDetailLayout({
   isDragging = false,
   snapZone = null,
   displayPct = 50,
+  onGridTransitionEnd,
 }: WorkflowDetailLayoutProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRenderDag, setShouldRenderDag] = useState(dagVisible);
   const dagRef = useRef<HTMLElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef ?? internalContainerRef;
+
+  // Listen for grid-template-columns transition completion
+  useEffect(() => {
+    const grid = containerRef.current;
+    if (!grid || !onGridTransitionEnd) return;
+
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      // Only handle grid-template-columns transitions on this element
+      if (e.propertyName === "grid-template-columns" && e.target === grid) {
+        onGridTransitionEnd();
+      }
+    };
+
+    grid.addEventListener("transitionend", handleTransitionEnd);
+    return () => grid.removeEventListener("transitionend", handleTransitionEnd);
+  }, [containerRef, onGridTransitionEnd]);
 
   // Delayed unmount pattern: keep DAG mounted during exit animation.
   // The parent passes `dagVisible` which already accounts for reveal-via-drag
