@@ -69,5 +69,5 @@ export { WorkflowTableContent, type WorkflowTableContentProps } from "./Workflow
 // Layout container
 export { WorkflowDetailLayout, type WorkflowDetailLayoutProps, type LayoutMode } from "./WorkflowDetailLayout";
 
-// Snap zone indicator (visual feedback)
-export { SnapZoneIndicator } from "./SnapZoneIndicator";
+// Snap zone indicators (Windows-style visual feedback)
+export { FullSnapOverlay, SoftSnapIndicator } from "./SnapZoneIndicator";

@@ -97,17 +97,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 
   // Panning state for tick controller (DAG-specific, but managed here for tick control)
   const [isPanning, setIsPanning] = useState(false);
-  const [isPanelDragging, setIsPanelDragging] = useState(false);
-
-  // Synchronized tick for live durations - only tick when workflow is active
-  // PERFORMANCE: Pause ticking during pan/zoom AND panel drag to prevent React re-renders mid-frame
-  const workflowStatus = workflow?.status;
-  const isWorkflowActive =
-    workflowStatus === WorkflowStatus.PENDING ||
-    workflowStatus === WorkflowStatus.RUNNING ||
-    workflowStatus === WorkflowStatus.WAITING;
-  const shouldTick = isWorkflowActive && !isPanning && !isPanelDragging;
-  useTickController(shouldTick);
 
   // Container ref for layout and resize calculations
   const containerRef = useRef<HTMLDivElement>(null);
@@ -164,6 +153,16 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     isPanelCollapsed,
     onExpandPanel: expandPanel,
   });
+
+  // Synchronized tick for live durations - only tick when workflow is active
+  // PERFORMANCE: Pause ticking during pan/zoom AND panel drag to prevent React re-renders mid-frame
+  const workflowStatus = workflow?.status;
+  const isWorkflowActive =
+    workflowStatus === WorkflowStatus.PENDING ||
+    workflowStatus === WorkflowStatus.RUNNING ||
+    workflowStatus === WorkflowStatus.WAITING;
+  const shouldTick = isWorkflowActive && !isPanning && !panelInteraction.isDragging;
+  useTickController(shouldTick);
 
   const { startTransition } = useViewTransition();
 
@@ -302,7 +301,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     setSelectedGroupTab,
     onShellTabChange: handleShellTabChange,
     activeShellTaskName,
-    onPanelDraggingChange: setIsPanelDragging,
     containerRef,
     onDragStart: panelInteraction.dragHandlers.onDragStart, // Snap zone integration
     onDragEnd: panelInteraction.dragHandlers.onDragEnd, // Snap zone integration
@@ -400,8 +398,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
             <WorkflowDetailLayout
               dagVisible={dagVisible}
               containerRef={containerRef}
-              isDragging={isPanelDragging}
+              isDragging={panelInteraction.isDragging}
               isTransitioning={panelInteraction.isTransitioning}
+              snapZone={panelInteraction.snapZone}
+              displayPct={panelInteraction.displayPct}
               dagContent={dagContentElement}
               panel={panelElement}
             />
