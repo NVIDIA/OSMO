@@ -39,14 +39,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
 } from "@/components/shadcn/dropdown-menu";
-import { PanelHeader, PanelBadge, PanelTitle, PanelSubtitle, WidthPresetMenuItems } from "@/components/panel";
+import { PanelHeader, PanelBadge, PanelTitle, PanelSubtitle } from "@/components/panel";
 import { getStatusIcon } from "../../../lib/status";
 import type { DetailsPanelHeaderProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 
@@ -65,8 +64,6 @@ const VIEW_TYPE_LABELS: Record<HeaderViewType, string> = {
 };
 
 interface ExtendedHeaderProps extends DetailsPanelHeaderProps {
-  /** Panel resize callback (for width presets menu) */
-  onPanelResize?: (pct: number) => void;
   /** Toggle the collapsed state of the panel */
   onToggleCollapsed?: () => void;
   /** Multi-level breadcrumb segments */
@@ -220,7 +217,6 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   subtitle,
   statusContent,
   menuContent,
-  onPanelResize,
   breadcrumbs,
   viewType,
   isLead,
@@ -294,8 +290,8 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
       {/* View type badge */}
       {viewType && <PanelBadge label={VIEW_TYPE_LABELS[viewType]} />}
 
-      {/* Menu (optional custom content + width presets) */}
-      {(menuContent || onPanelResize) && (
+      {/* Menu (optional custom content - e.g., column controls) */}
+      {menuContent && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
@@ -307,8 +303,6 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
             className="w-44"
           >
             {menuContent}
-            {menuContent && onPanelResize && <DropdownMenuSeparator />}
-            {onPanelResize && <WidthPresetMenuItems onWidthPreset={onPanelResize} />}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
