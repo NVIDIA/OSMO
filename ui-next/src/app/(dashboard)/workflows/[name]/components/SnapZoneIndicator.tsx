@@ -26,7 +26,8 @@
 import { memo, useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useMounted } from "@/hooks";
-import { SNAP_ZONES } from "../lib/panel-state-machine";
+import { SNAP_ZONES } from "../lib/panel-resize-state-machine";
+import { usePanelWidth } from "../lib/panel-resize-context";
 
 function getOrCreatePortalContainer(): HTMLElement {
   let portalRoot = document.getElementById("snap-zone-portal");
@@ -119,16 +120,14 @@ export const FullSnapOverlay = memo(function FullSnapOverlay({ isActive }: FullS
 
 interface SoftSnapIndicatorProps {
   isActive: boolean;
-  currentPct: number;
   containerRef?: RefObject<HTMLElement | null>;
 }
 
 /** Soft snap indicator (80-90%) showing washout effect + target line via portal */
-export const SoftSnapIndicator = memo(function SoftSnapIndicator({
-  isActive,
-  currentPct,
-  containerRef,
-}: SoftSnapIndicatorProps) {
+export const SoftSnapIndicator = memo(function SoftSnapIndicator({ isActive, containerRef }: SoftSnapIndicatorProps) {
+  // Read current panel width from manager
+  const currentPct = usePanelWidth();
+
   const portalContainer = usePortalContainer();
   const containerBounds = useElementBounds(containerRef, isActive);
 

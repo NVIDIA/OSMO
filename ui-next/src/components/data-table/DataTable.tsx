@@ -86,6 +86,20 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   onColumnSizingPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
   /** Suspend column resize calculations (for external panel transitions) */
   suspendResize?: boolean;
+  /**
+   * Optional window event name to listen for external resize completion.
+   * When this event fires, column sizing will recalculate.
+   * Example: "panel-resize-complete"
+   * @deprecated Prefer registerLayoutStableCallback for callback-based coordination.
+   */
+  resizeCompleteEvent?: string;
+  /**
+   * Register a callback that will be called when the panel layout stabilizes.
+   * Returns an unsubscribe function.
+   * This is the preferred coordination mechanism as it provides synchronous
+   * callback invocation and eliminates event loop timing issues.
+   */
+  registerLayoutStableCallback?: (callback: () => void) => () => void;
 }
 
 export function DataTable<TData, TSectionMeta = unknown>({
@@ -123,6 +137,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
   columnSizingPreferences,
   onColumnSizingPreferenceChange,
   suspendResize,
+  resizeCompleteEvent,
+  registerLayoutStableCallback,
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
@@ -219,6 +235,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
     dataLength: allItems.length,
     isLoading: showSkeleton,
     suspendResize,
+    resizeCompleteEvent,
+    registerLayoutStableCallback,
   });
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design

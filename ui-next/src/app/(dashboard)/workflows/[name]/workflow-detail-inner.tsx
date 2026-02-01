@@ -15,12 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflow Detail Inner Component (Dynamically Loaded)
+ * Workflow Detail Inner Component - Refactored with PanelResizeStateMachine
  *
- * Lightweight orchestrator that composes layout, content, panel, and shell.
- * Handles shared logic (data fetching, navigation, panel state) while delegating
- * rendering to WorkflowDetailLayout (shell) and WorkflowDAGContent/WorkflowTableContent
- * (visualization-specific logic).
+ * Architecture:
+ * - PanelResizeProvider wraps component tree with state machine
+ * - State machine is single source of truth for resize state
+ * - React controls ALL DOM updates (no direct DOM manipulation)
+ * - Callbacks coordinate with column sizing (no events)
  *
  * ⚠️ IMPORTANT: Do NOT import this file directly in workflow-detail-content.tsx!
  * It must be imported via dynamic() to maintain code splitting.
@@ -32,10 +33,21 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
-import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useTickController, useViewTransition, useAnnouncer } from "@/hooks";
-import { useSharedPreferences, useDagVisible } from "@/stores";
-import { PanelTransitionProvider } from "./lib/panel-transition-context";
+import { useSharedPreferences, usePanelWidthPct, useDetailsPanelCollapsed } from "@/stores";
+
+// New state machine provider and hooks
+import {
+  PanelResizeProvider,
+  usePanelResize,
+  usePanelResizeMachine,
+  useDisplayDagVisible,
+  useIsDragging,
+  useSnapZone,
+  useIsPanelCollapsed,
+  usePersistedPanelWidth,
+  usePanelWidth,
+} from "./lib/panel-resize-context";
 
 // Route-level components
 import {
@@ -53,7 +65,6 @@ import { useWorkflowDetail } from "./hooks/use-workflow-detail";
 import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
 import { useNavigationState } from "./hooks/use-navigation-state";
 import { usePanelProps } from "./hooks/use-panel-props";
-import { usePanelInteraction } from "./hooks/use-panel-interaction";
 
 // Types
 import type { GroupWithLayout, TaskQueryResponse } from "./lib/workflow-types";
@@ -62,7 +73,10 @@ import { WorkflowStatus } from "@/lib/api/generated";
 
 // Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(
-  () => import("./components/shell/ShellContainer").then((m) => ({ default: m.ShellContainer })),
+  () =>
+    import("./components/shell/ShellContainer").then((m) => ({
+      default: m.ShellContainer,
+    })),
   {
     ssr: false,
   },
@@ -80,19 +94,66 @@ export interface WorkflowDetailInnerProps {
 }
 
 // =============================================================================
-// Component
+// Provider Component (Outer Layer)
 // =============================================================================
 
 export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerProps) {
-  // Persisted panel preferences from Zustand store
-  const persistedPanelPct = useSharedPreferences((s) => s.panelWidthPct);
+  // Use hydration-safe selectors for initial state (SSR/PPR safe)
+  const persistedPanelPct = usePanelWidthPct() as number;
+  const isPanelCollapsed = useDetailsPanelCollapsed() as boolean;
+
+  // Actions (always safe - no hydration concern)
   const setPanelPct = useSharedPreferences((s) => s.setPanelWidthPct);
+  const setIsPanelCollapsed = useSharedPreferences((s) => s.setDetailsPanelCollapsed);
+  const setDagVisible = useSharedPreferences((s) => s.setDagVisible);
+
+  // CRITICAL: Stabilize initial values to prevent provider remount after hydration.
+  // These values should be captured ONCE and never change - the provider's internal
+  // state will be updated via callbacks (setPanelPct, setIsPanelCollapsed).
+  // Without this, hydration causes values to change (default -> localStorage),
+  // triggering a provider remount that destroys the state machine.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableInitialPct = useMemo(() => persistedPanelPct, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableInitialCollapsed = useMemo(() => isPanelCollapsed, []);
+
+  return (
+    <PanelResizeProvider
+      initialPersistedPct={stableInitialPct}
+      initialCollapsed={stableInitialCollapsed}
+      onPersist={setPanelPct}
+      onPersistCollapsed={setIsPanelCollapsed}
+      onHideDAG={() => setDagVisible(false)}
+    >
+      <WorkflowDetailContent
+        name={name}
+        initialView={initialView}
+      />
+    </PanelResizeProvider>
+  );
+}
+
+// =============================================================================
+// Content Component (Inner Layer - Has State Machine Access)
+// =============================================================================
+
+function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) {
+  // Get state machine and state via hooks
+  const machine = usePanelResizeMachine();
+  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed } = usePanelResize();
+
+  // Subscribe to specific state slices
+  const displayPct = usePanelWidth();
+  const isDragging = useIsDragging();
+  const snapZone = useSnapZone();
+  const displayDagVisible = useDisplayDagVisible();
+  const isPanelCollapsed = useIsPanelCollapsed();
+  const persistedPct = usePersistedPanelWidth();
+
+  // Other state
   const isDetailsExpanded = useSharedPreferences((s) => s.detailsExpanded);
   const toggleDetailsExpanded = useSharedPreferences((s) => s.toggleDetailsExpanded);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
-
-  // DAG visibility from persisted state (used for non-drag scenarios)
-  const persistedDagVisible: boolean = useDagVisible();
 
   // Fetch workflow data
   const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound } = useWorkflowDetail({ name });
@@ -100,7 +161,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // Panning state for tick controller (DAG-specific, but managed here for tick control)
   const [isPanning, setIsPanning] = useState(false);
 
-  // Container ref for layout and resize calculations
+  // Container ref for layout
   const containerRef = useRef<HTMLDivElement>(null);
 
   // URL-synced navigation state (nuqs)
@@ -135,79 +196,29 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     return null;
   }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
 
-  // Refs for breaking circular dependency between usePanelInteraction and useSidebarCollapsed
-  // usePanelInteraction needs isPanelCollapsed/expandPanel, but we need displayPct to compute
-  // displayDagVisible which is needed by useSidebarCollapsed.
-  // Solution: Use refs that are updated after useSidebarCollapsed runs, and pass getter functions.
-  const isPanelCollapsedRef = useRef(false);
-  const expandPanelRef = useRef<() => void>(() => {});
-
-  // Stable getter function that reads from ref (for use in usePanelInteraction)
-  const getIsPanelCollapsed = useEventCallback(() => isPanelCollapsedRef.current);
-  // Stable expand function that calls the current ref value
-  const expandPanelFromRef = useEventCallback(() => expandPanelRef.current());
-
-  // Panel interaction (snap zones, drag coordination)
-  // Uses getter function for collapsed state to break circular dependency
-  const panelInteraction = usePanelInteraction({
-    persistedPct: persistedPanelPct,
-    onPersist: setPanelPct,
-    onHideDAG: () => useSharedPreferences.getState().setDagVisible(false),
-    getIsPanelCollapsed,
-    onExpandPanel: expandPanelFromRef,
-  });
-
-  // Compute effective DAG visibility for display purposes:
-  // - During drag: show DAG as soon as displayPct < 100 (revealing gesture)
-  // - During ANY snap animation: keep DAG visible so grid can animate smoothly
-  // - Otherwise: use persisted state
-  //
-  // CRITICAL: During snap animations, the DAG must stay visible until the animation
-  // completes. Without this:
-  // - Soft snap (→80%): DAG would unmount when drag ends (persistedDagVisible still
-  //   false from 100% state), then remount 250ms later when onPersist(80) runs.
-  // - Full snap (→100%): Grid template would instantly change from "minmax(0,1fr) X%"
-  //   to "0fr 1fr" (non-animatable), causing the panel to jump instead of animate.
-  //
-  // By keeping DAG visible during snap, the grid animates smoothly (95%→100% or
-  // 85%→80%), then the DAG hides via WorkflowDetailLayout's delayed unmount pattern.
-  const displayDagVisible = useMemo(() => {
-    if (panelInteraction.isDragging) {
-      return panelInteraction.displayPct < 100;
-    }
-    // During ANY snap animation, keep DAG visible so grid can animate the percentage
-    // change smoothly before transitioning to the hidden state
-    if (panelInteraction.phase.type === "snapping") {
-      return true;
-    }
-    return persistedDagVisible;
-  }, [panelInteraction.isDragging, panelInteraction.displayPct, panelInteraction.phase, persistedDagVisible]);
-
   // Panel collapsed state (reconciles user preference with navigation intent)
-  const {
-    collapsed: isPanelCollapsed,
-    toggle: togglePanelCollapsed,
-    expand: expandPanel,
-  } = useSidebarCollapsed({
+  const { collapsed: sidebarCollapsed } = useSidebarCollapsed({
     hasSelection,
     selectionKey,
     dagVisible: displayDagVisible,
   });
 
-  // Sync refs in layout effect (cannot update during render per React Compiler)
-  useIsomorphicLayoutEffect(() => {
-    isPanelCollapsedRef.current = isPanelCollapsed;
-    expandPanelRef.current = expandPanel;
-  }, [isPanelCollapsed, expandPanel]);
+  // Sync sidebar collapsed state to state machine (for navigation-aware behavior)
+  useEffect(() => {
+    const currentCollapsed = machine.getState().isCollapsed;
+    if (sidebarCollapsed !== currentCollapsed && phase === "IDLE") {
+      setCollapsed(sidebarCollapsed);
+    }
+  }, [sidebarCollapsed, machine, phase, setCollapsed]);
 
   // Synchronized tick for live durations - only tick when workflow is active
-  // PERFORMANCE: Pause ticking during pan/zoom AND panel drag to prevent React re-renders mid-frame
+  // PERFORMANCE: Pause ticking during pan/zoom AND panel drag
   const workflowStatus = workflow?.status;
   const isWorkflowActive =
     workflowStatus === WorkflowStatus.PENDING ||
     workflowStatus === WorkflowStatus.RUNNING ||
     workflowStatus === WorkflowStatus.WAITING;
-  const shouldTick = isWorkflowActive && !isPanning && !panelInteraction.isDragging;
+  const shouldTick = isWorkflowActive && !isPanning && !isDragging;
   useTickController(shouldTick);
 
   const { startTransition } = useViewTransition();
@@ -236,14 +247,15 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // Screen reader announcements for snap zone transitions
   const announce = useAnnouncer();
   useEffect(() => {
-    if (panelInteraction.phase.type === "snapping") {
-      if (panelInteraction.phase.snapZone === "full") {
-        announce("Hiding DAG view, panel expanding to full width", "polite");
-      } else {
-        announce("Panel snapping to 80%", "polite");
-      }
+    // Only announce during SNAPPING phase
+    if (phase !== "SNAPPING") return;
+
+    if (snapZone === "full") {
+      announce("Hiding DAG view, panel expanding to full width", "polite");
+    } else if (snapZone === "soft") {
+      announce("Panel snapping to 80%", "polite");
     }
-  }, [panelInteraction.phase, announce]);
+  }, [phase, snapZone, announce]);
 
   // Determine current panel view from URL navigation state
   const currentPanelView: DetailsPanelView =
@@ -253,7 +265,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const isReady = !isLoading && !error && !isNotFound && workflow;
 
   // Panel override content for loading/error states
-  // Memoized to prevent unnecessary child re-renders when loading/error state hasn't changed
   const panelOverrideContent = useMemo(() => {
     if (isLoading) {
       return (
@@ -291,7 +302,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
               href="/workflows"
               className="text-blue-600 hover:underline dark:text-blue-400"
             >
-              ← Back to workflows
+              Back to workflows
             </Link>
           </div>
         </div>
@@ -316,22 +327,12 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     return null;
   }, [isLoading, isNotFound, error, name, refetch]);
 
-  // Wrap togglePanelCollapsed to track CSS transition for column sizing suspension
-  const handleTogglePanelCollapsed = useEventCallback(() => {
-    panelInteraction.onTransitionStart();
-    togglePanelCollapsed();
-  });
-
-  // Wrap expandPanel to track CSS transition for column sizing suspension
-  const handleExpandPanel = useEventCallback(() => {
-    if (isPanelCollapsed) {
-      panelInteraction.onTransitionStart();
-    }
-    expandPanel();
-  });
+  // State machine actions are already memoized, use directly
+  // These wrappers using useEventCallback maintain stable references
+  const handleTogglePanelCollapsed = useEventCallback(toggleCollapsed);
+  const handleExpandPanel = useEventCallback(expand);
 
   // Generate common props for DetailsPanel and ShellContainer
-  // Use groupsWithLayout as allGroups to ensure panel has layout info
   const { panelProps, shellContainerProps } = usePanelProps({
     workflow: workflow!,
     groups: groupsWithLayout,
@@ -344,8 +345,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     onSelectTask: handleNavigateToTask,
     onBackToGroup: handleNavigateBackToGroup,
     onBackToWorkflow: handleBackToWorkflow,
-    panelPct: panelInteraction.displayPct, // Use optimistic width during drag
-    onPanelResize: panelInteraction.dragHandlers.onDrag, // Route through snap detection
+    panelPct: displayPct,
+    onPanelResize: updateDrag,
     isDetailsExpanded,
     onToggleDetailsExpanded: toggleDetailsExpanded,
     isPanelCollapsed,
@@ -362,8 +363,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     onShellTabChange: handleShellTabChange,
     activeShellTaskName,
     containerRef,
-    onDragStart: panelInteraction.dragHandlers.onDragStart, // Snap zone integration
-    onDragEnd: panelInteraction.dragHandlers.onDragEnd, // Snap zone integration
+    onDragStart: startDrag,
+    onDragEnd: endDrag,
     fillContainer: true, // Panel is inside CSS Grid - let grid control sizing
   });
 
@@ -371,7 +372,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const handleNavigateToGroupWithExpand = useEventCallback((group: GroupWithLayout) => {
     const isAlreadySelected = selectedGroupName === group.name && !selectedTaskName;
     if (isAlreadySelected && isPanelCollapsed) {
-      expandPanel();
+      handleExpandPanel();
     } else {
       handleNavigateToGroup(group);
     }
@@ -380,7 +381,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   const handleNavigateToTaskWithExpand = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
     const isAlreadySelected = selectedGroupName === group.name && selectedTaskName === task.name;
     if (isAlreadySelected && isPanelCollapsed) {
-      expandPanel();
+      handleExpandPanel();
     } else {
       handleNavigateToTask(task, group);
     }
@@ -389,15 +390,11 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // ---------------------------------------------------------------------------
   // Memoized Content Elements (Performance Optimization)
   // ---------------------------------------------------------------------------
-  // Prevent unnecessary re-renders during panel drag/resize
-  // ---------------------------------------------------------------------------
 
   // Use persisted percentage for DAG memoization (stable during drag)
-  // During drag, DAG uses last committed value. Viewport recalculates on drag end.
-  const stablePanelPct = panelInteraction.isDragging ? persistedPanelPct : panelInteraction.displayPct;
+  const stablePanelPct = isDragging ? persistedPct : displayPct;
 
   // Memoize DAG content to prevent re-renders during panel drag
-  // Uses displayDagVisible so DAG appears immediately when dragging from 100%
   const dagContentElement = useMemo(() => {
     if (!displayDagVisible || !workflow) return undefined;
     return (
@@ -415,7 +412,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
         containerRef={containerRef}
         panelPct={stablePanelPct}
         isPanelCollapsed={isPanelCollapsed}
-        isDragging={panelInteraction.isDragging}
+        isDragging={isDragging}
       />
     );
   }, [
@@ -432,7 +429,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     containerRef,
     stablePanelPct,
     isPanelCollapsed,
-    panelInteraction.isDragging,
+    isDragging,
   ]);
 
   // Memoize panel content
@@ -446,51 +443,32 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     [panelProps, shellContainerProps],
   );
 
-  // Memoize transition context value to prevent unnecessary re-renders
-  const transitionContextValue = useMemo(
-    () => ({ isTransitioning: panelInteraction.isTransitioning }),
-    [panelInteraction.isTransitioning],
-  );
-
   // ---------------------------------------------------------------------------
   // Render
-  // ---------------------------------------------------------------------------
-  // New architecture: WorkflowDetailLayout composes the shell (flex container)
-  // with visualization content (DAG or Table) and panel/shell slots.
-  //
-  // Stability: All callbacks are stable via useEventCallback, props are memoized.
   // ---------------------------------------------------------------------------
 
   return (
     <DAGErrorBoundary>
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
-          <PanelTransitionProvider value={transitionContextValue}>
-            {isReady ? (
-              <WorkflowDetailLayout
-                dagVisible={displayDagVisible}
-                containerRef={containerRef}
-                isDragging={panelInteraction.isDragging}
-                snapZone={panelInteraction.snapZone}
-                displayPct={panelInteraction.displayPct}
-                dagContent={dagContentElement}
-                panel={panelElement}
-                onGridTransitionEnd={panelInteraction.onTransitionComplete}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
-                <div className="text-center text-gray-500 dark:text-zinc-500">
-                  <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
-                  <p>Loading workflow...</p>
-                </div>
+          {isReady ? (
+            <WorkflowDetailLayout
+              containerRef={containerRef}
+              dagContent={dagContentElement}
+              panel={panelElement}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+              <div className="text-center text-gray-500 dark:text-zinc-500">
+                <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+                <p>Loading workflow...</p>
               </div>
-            )}
-          </PanelTransitionProvider>
+            </div>
+          )}
         </ShellPortalProvider>
       </ShellProvider>
     </DAGErrorBoundary>
   );
 }
 
-// No need for ReactFlowProvider wrapper here - WorkflowDAGContent handles it internally
 export { WorkflowDetailInner as WorkflowDetailInnerWithProvider };
