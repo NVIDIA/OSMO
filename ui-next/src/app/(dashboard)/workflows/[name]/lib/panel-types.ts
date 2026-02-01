@@ -152,10 +152,6 @@ export interface DetailsPanelProps {
    */
   className?: string;
   /**
-   * When true, panel spans 100% width with no resize handle (used when DAG is hidden).
-   */
-  fullWidth?: boolean;
-  /**
    * Callback when panel resize drag starts (for snap zone integration).
    */
   onDragStart?: () => void;
@@ -163,6 +159,11 @@ export interface DetailsPanelProps {
    * Callback when panel resize drag ends (for snap zone integration).
    */
   onDragEnd?: () => void;
+  /**
+   * When true, panel fills its container (for use inside CSS Grid).
+   * The grid controls sizing via grid-template-columns, panel just fills its cell.
+   */
+  fillContainer?: boolean;
 }
 
 /**

@@ -17,6 +17,7 @@
 "use client";
 
 import { useRef, useMemo, useEffect, useCallback, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -47,14 +48,16 @@ export interface SidePanelProps {
   containerRef?: RefObject<HTMLDivElement | null>;
   onDraggingChange?: (isDragging: boolean) => void;
   focusTargetRef?: React.MutableRefObject<HTMLElement | null | undefined>;
-  /** When true, panel spans 100% width (but can be dragged to reveal adjacent content) */
-  fullWidth?: boolean;
   /** Called when drag starts (for snap zone integration). Receives initial width percentage. */
   onDragStart?: (initialPct?: number) => void;
   /** Called when drag ends (for snap zone integration) */
   onDragEnd?: () => void;
-  /** Called when user starts dragging from fullWidth state to reveal adjacent content */
-  onRevealStart?: () => void;
+  /**
+   * When true, panel fills its container (for use inside CSS Grid where parent controls sizing).
+   * The panel will NOT set its own width percentage - the grid template handles that.
+   * Only minWidthPx constraint is applied when not collapsed.
+   */
+  fillContainer?: boolean;
 }
 
 export function SidePanel({
@@ -81,17 +84,13 @@ export function SidePanel({
   containerRef: externalContainerRef,
   onDraggingChange,
   focusTargetRef,
-  fullWidth = false,
   // Snap zone integration
   onDragStart,
   onDragEnd,
-  onRevealStart,
+  // Grid container mode
+  fillContainer = false,
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const internalContainerRef = useRef<HTMLDivElement>(null);
-
-  // Use external container ref if provided, otherwise use internal
-  const containerRef = externalContainerRef ?? internalContainerRef;
 
   // Drag state for resize handle
   const { value: isDragging, setTrue: startDragging, setFalse: stopDragging } = useBoolean(false);
@@ -99,8 +98,6 @@ export function SidePanel({
   const startWidthRef = useRef(width);
   // Cache container width at drag start to avoid layout reflows during drag
   const containerWidthRef = useRef(0);
-  // Track if reveal has been triggered (for deferred reveal on fullWidth drag)
-  const hasRevealedRef = useRef(false);
 
   // Refs that MUST be updated synchronously during render (not in effects!)
   const widthRef = useRef(width);
@@ -118,7 +115,6 @@ export function SidePanel({
   useIsomorphicLayoutEffect(() => {
     if (!isDragging) {
       startWidthRef.current = width;
-      hasRevealedRef.current = false; // Reset reveal flag when drag ends
     }
   }, [isDragging, width]);
 
@@ -127,7 +123,6 @@ export function SidePanel({
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
   const stableOnDragStart = useEventCallback(onDragStart ?? ((_?: number) => {}));
   const stableOnDragEnd = useEventCallback(onDragEnd ?? (() => {}));
-  const stableOnRevealStart = useEventCallback(onRevealStart ?? (() => {}));
 
   // Global escape key handler using react-hotkeys-hook
   // Automatically handles: enabled state, form element detection
@@ -169,16 +164,19 @@ export function SidePanel({
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
-        // DON'T call onRevealStart here - defer until user actually moves
-        // This prevents flash from synchronous dagVisible change
-        startDragging();
-        // When revealing from fullWidth, start at maxWidth instead of persisted value
-        const initialWidth = fullWidth ? maxWidthRef.current : widthRef.current;
-        startWidthRef.current = initialWidth;
-        stableOnDragStart(initialWidth); // Notify snap zone system with starting width
-        // Get container width from parent element
-        const container = containerRef?.current ?? panelRef.current?.parentElement;
+        // Capture initial width for delta calculation
+        startWidthRef.current = widthRef.current;
+
+        // Get container width from parent element BEFORE any state updates
+        const container = externalContainerRef?.current ?? panelRef.current?.parentElement;
         containerWidthRef.current = container?.offsetWidth ?? window.innerWidth;
+
+        // Force synchronous re-render to apply transition-none BEFORE width changes
+        // This prevents the CSS transition from briefly animating the width change
+        flushSync(() => {
+          startDragging();
+          stableOnDragStart(widthRef.current);
+        });
       }
 
       if (active) {
@@ -187,13 +185,6 @@ export function SidePanel({
 
         // Movement is negative when dragging left (making panel wider)
         const deltaPct = (-mx / containerWidth) * 100;
-
-        // DEFERRED REVEAL: Only trigger after 1% drag movement
-        // This prevents flash - DAG appears smoothly as user drags
-        if (fullWidth && onRevealStart && !hasRevealedRef.current && Math.abs(deltaPct) > 1) {
-          hasRevealedRef.current = true;
-          stableOnRevealStart();
-        }
 
         const rawWidth = startWidthRef.current + deltaPct;
         const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
@@ -298,11 +289,16 @@ export function SidePanel({
     [focusableSelector, focusTargetRef],
   );
 
-  // Calculate panel width based on fullWidth, collapsed state
+  // Calculate panel width based on collapsed state and container mode
   const getPanelWidth = (): string => {
-    if (fullWidth) return "100%";
     if (isCollapsed) {
       return typeof collapsedWidth === "number" ? `${collapsedWidth}px` : collapsedWidth;
+    }
+    // In fillContainer mode (CSS Grid), panel fills its grid cell.
+    // Grid's grid-template-columns controls the actual column width.
+    // We set 100% to ensure the panel content fills the entire grid cell.
+    if (fillContainer) {
+      return "100%";
     }
     return `${width}%`;
   };
@@ -336,10 +332,13 @@ export function SidePanel({
         // 8px outside via -translate-x-1/2. The inner content wrappers have overflow-hidden.
         "relative z-10 flex h-full shrink-0 border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
         // Disable transitions during drag for smooth 60fps resizing
-        isDragging ? "transition-none" : "transition-[width] duration-200 ease-out",
+        // In fillContainer mode, grid handles width transitions via grid-template-columns
+        isDragging || fillContainer ? "transition-none" : "transition-[width] duration-200 ease-out",
         className,
       )}
       style={{
+        // In fillContainer mode: no width set, panel fills grid cell.
+        // Grid's grid-template-columns controls the actual width.
         width: panelWidth,
         // Note: We use "layout style" instead of "layout style paint" because
         // contain: paint clips content at the boundary, which would hide the
@@ -347,15 +346,16 @@ export function SidePanel({
         // The inner content wrapper has overflow-hidden anyway.
         contain: "layout style",
         willChange: isDragging ? "width" : "auto",
-        // Apply width constraints when not collapsed (even when fullWidth for drag-to-reveal)
-        maxWidth: isCollapsed ? undefined : `${maxWidth}%`,
+        // Apply width constraints when not collapsed.
+        // In fillContainer mode, skip maxWidth (grid controls it) but keep minWidth for usability.
+        maxWidth: isCollapsed || fillContainer ? undefined : `${maxWidth}%`,
         minWidth: isCollapsed ? undefined : `${minWidthPx}px`,
       }}
       role="complementary"
       aria-label={ariaLabel}
     >
       {/* Resize Handle - positioned at panel's left edge (before edge strip) */}
-      {/* Always visible when not collapsed - allows drag-to-reveal when fullWidth */}
+      {/* Always visible when not collapsed */}
       {!isCollapsed && (
         <ResizeHandle
           bindResizeHandle={bindResizeHandle}

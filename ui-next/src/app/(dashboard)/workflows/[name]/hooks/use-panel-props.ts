@@ -39,6 +39,11 @@ interface UsePanelPropsOptions extends WorkflowViewCommonProps {
   onDragStart?: () => void;
   /** Callback when panel resize drag ends (for snap zone integration) */
   onDragEnd?: () => void;
+  /**
+   * When true, panel fills its container (for use inside CSS Grid).
+   * The grid controls sizing via grid-template-columns, panel just fills its cell.
+   */
+  fillContainer?: boolean;
 }
 
 /**
@@ -100,6 +105,8 @@ export function usePanelProps(options: UsePanelPropsOptions): {
     // Snap zone integration
     onDragStart,
     onDragEnd,
+    // Grid container mode
+    fillContainer,
   } = options;
 
   // Use provided allGroups or fall back to groups
@@ -137,6 +144,7 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       className,
       onDragStart,
       onDragEnd,
+      fillContainer,
     }),
     [
       currentPanelView,
@@ -167,6 +175,7 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       className,
       onDragStart,
       onDragEnd,
+      fillContainer,
     ],
   );
 
