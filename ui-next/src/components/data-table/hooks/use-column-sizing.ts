@@ -44,6 +44,31 @@ export interface UseColumnSizingOptions {
   isLoading?: boolean;
   /** When true, ResizeObserver changes are ignored (for external panel transitions) */
   suspendResize?: boolean;
+  /**
+   * Optional window event name to listen for external resize completion.
+   * When this event fires, column sizing will recalculate.
+   *
+   * This provides explicit coordination with external resize systems (e.g., panel resize)
+   * instead of relying on state transition detection.
+   *
+   * Example: "panel-resize-complete"
+   *
+   * @deprecated Prefer using `registerLayoutStableCallback` for callback-based coordination.
+   */
+  resizeCompleteEvent?: string;
+  /**
+   * Register a callback that will be called when the panel layout stabilizes.
+   * Returns an unsubscribe function.
+   *
+   * This is the preferred coordination mechanism as it:
+   * - Provides synchronous callback invocation
+   * - Eliminates event loop timing issues
+   * - Supports proper cleanup via returned unsubscribe function
+   *
+   * @example
+   * registerLayoutStableCallback: (callback) => machine.registerCallback('onLayoutStable', callback)
+   */
+  registerLayoutStableCallback?: (callback: () => void) => () => void;
 }
 
 export interface UseColumnSizingResult {
@@ -99,6 +124,8 @@ export function useColumnSizing({
   dataLength = 0,
   isLoading = false,
   suspendResize = false,
+  resizeCompleteEvent,
+  registerLayoutStableCallback,
 }: UseColumnSizingOptions): UseColumnSizingResult {
   // =========================================================================
   // Core State (simplified from useReducer)
@@ -428,25 +455,58 @@ export function useColumnSizing({
   }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef, suspendResizeRef]);
 
   // =========================================================================
-  // Recalculate When Suspension Ends
+  // Recalculate When External Resize Completes (Callback-based)
   // =========================================================================
-  // When suspendResize transitions from true to false (e.g., after panel
-  // CSS transition completes), we need to recalculate column widths because:
-  // 1. ResizeObserver fired during suspension but was ignored (line 386)
-  // 2. Container is now at final size, but ResizeObserver won't fire again
-  // 3. Without this effect, columns stay at old widths
-  const prevSuspendResize = usePrevious(suspendResize);
+  // Register callback with external resize system (e.g., PanelResizeStateMachine).
+  // This is the preferred coordination mechanism:
+  // - Synchronous callback invocation (no event loop delay)
+  // - Deterministic ordering
+  // - Proper cleanup via returned unsubscribe function
   useEffect(() => {
-    // Skip if not transitioning from suspended to active
-    if (prevSuspendResize !== true || suspendResize !== false) return;
+    if (!registerLayoutStableCallback) return;
 
-    // Use RAF to ensure layout is complete after CSS transition
-    const rafId = requestAnimationFrame(() => {
-      calculateAndApply(false, undefined);
-    });
+    const handleLayoutStable = () => {
+      // Only recalculate if not currently in a user resize operation
+      if (isResizingRef.current) return;
 
-    return () => cancelAnimationFrame(rafId);
-  }, [suspendResize, prevSuspendResize, calculateAndApply]);
+      // Use RAF to ensure layout is complete after CSS transition
+      requestAnimationFrame(() => {
+        calculateAndApply(false, undefined);
+      });
+    };
+
+    return registerLayoutStableCallback(handleLayoutStable);
+  }, [registerLayoutStableCallback, calculateAndApply, isResizingRef]);
+
+  // =========================================================================
+  // Recalculate When External Resize Completes (Event-based - deprecated)
+  // =========================================================================
+  // Listen for explicit resize completion events from external systems.
+  // This is maintained for backward compatibility but callback-based
+  // coordination via registerLayoutStableCallback is preferred.
+  //
+  // When the event fires:
+  // 1. ResizeObserver may have fired during suspension but was ignored
+  // 2. Container is now at final size
+  // 3. We recalculate column widths to match new container size
+  useEffect(() => {
+    if (!resizeCompleteEvent) return;
+
+    const handleResizeComplete = () => {
+      // Only recalculate if not currently in a user resize operation
+      if (isResizingRef.current) return;
+
+      // Use RAF to ensure layout is complete after CSS transition
+      requestAnimationFrame(() => {
+        calculateAndApply(false, undefined);
+      });
+    };
+
+    window.addEventListener(resizeCompleteEvent, handleResizeComplete);
+    return () => {
+      window.removeEventListener(resizeCompleteEvent, handleResizeComplete);
+    };
+  }, [resizeCompleteEvent, calculateAndApply, isResizingRef]);
 
   // =========================================================================
   // Resize Control API
