@@ -71,9 +71,11 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
     setPhase(newPhase);
   };
 
-  const handleDragStart = useEventCallback(() => {
+  const handleDragStart = useEventCallback((initialPct?: number) => {
     if (isPanelCollapsed) onExpandPanel();
-    updatePhase({ type: "dragging", startPct: persistedPct, currentPct: persistedPct, snapZone: null });
+    // Use provided initial percentage (for revealing from fullWidth) or persisted value
+    const startPct = initialPct ?? persistedPct;
+    updatePhase({ type: "dragging", startPct, currentPct: startPct, snapZone: null });
   });
 
   const handleDrag = useEventCallback((pct: number) => {

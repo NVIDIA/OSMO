@@ -47,12 +47,14 @@ export interface SidePanelProps {
   containerRef?: RefObject<HTMLDivElement | null>;
   onDraggingChange?: (isDragging: boolean) => void;
   focusTargetRef?: React.MutableRefObject<HTMLElement | null | undefined>;
-  /** When true, panel spans 100% width with no resize handle */
+  /** When true, panel spans 100% width (but can be dragged to reveal adjacent content) */
   fullWidth?: boolean;
-  /** Called when drag starts (for snap zone integration) */
-  onDragStart?: () => void;
+  /** Called when drag starts (for snap zone integration). Receives initial width percentage. */
+  onDragStart?: (initialPct?: number) => void;
   /** Called when drag ends (for snap zone integration) */
   onDragEnd?: () => void;
+  /** Called when user starts dragging from fullWidth state to reveal adjacent content */
+  onRevealStart?: () => void;
 }
 
 export function SidePanel({
@@ -83,6 +85,7 @@ export function SidePanel({
   // Snap zone integration
   onDragStart,
   onDragEnd,
+  onRevealStart,
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
@@ -119,8 +122,9 @@ export function SidePanel({
   // Stable callbacks
   const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
-  const stableOnDragStart = useEventCallback(onDragStart ?? (() => {}));
+  const stableOnDragStart = useEventCallback(onDragStart ?? ((_?: number) => {}));
   const stableOnDragEnd = useEventCallback(onDragEnd ?? (() => {}));
+  const stableOnRevealStart = useEventCallback(onRevealStart ?? (() => {}));
 
   // Global escape key handler using react-hotkeys-hook
   // Automatically handles: enabled state, form element detection
@@ -162,9 +166,15 @@ export function SidePanel({
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
+        // If in fullWidth mode, reveal adjacent content first
+        if (fullWidth && onRevealStart) {
+          stableOnRevealStart();
+        }
         startDragging();
-        stableOnDragStart(); // Notify snap zone system
-        startWidthRef.current = widthRef.current;
+        // When revealing from fullWidth, start at maxWidth instead of persisted value
+        const initialWidth = fullWidth ? maxWidthRef.current : widthRef.current;
+        startWidthRef.current = initialWidth;
+        stableOnDragStart(initialWidth); // Notify snap zone system with starting width
         // Get container width from parent element
         const container = containerRef?.current ?? panelRef.current?.parentElement;
         containerWidthRef.current = container?.offsetWidth ?? window.innerWidth;
@@ -328,19 +338,16 @@ export function SidePanel({
         // The inner content wrapper has overflow-hidden anyway.
         contain: "layout style",
         willChange: isDragging ? "width" : "auto",
-        // Only apply width constraints when not fullWidth and not collapsed
-        ...(isCollapsed || fullWidth
-          ? {}
-          : {
-              maxWidth: `${maxWidth}%`,
-              minWidth: `${minWidthPx}px`,
-            }),
+        // Apply width constraints when not collapsed (even when fullWidth for drag-to-reveal)
+        maxWidth: isCollapsed ? undefined : `${maxWidth}%`,
+        minWidth: isCollapsed ? undefined : `${minWidthPx}px`,
       }}
       role="complementary"
       aria-label={ariaLabel}
     >
       {/* Resize Handle - positioned at panel's left edge (before edge strip) */}
-      {!isCollapsed && !fullWidth && (
+      {/* Always visible when not collapsed - allows drag-to-reveal when fullWidth */}
+      {!isCollapsed && (
         <ResizeHandle
           bindResizeHandle={bindResizeHandle}
           isDragging={isDragging}
