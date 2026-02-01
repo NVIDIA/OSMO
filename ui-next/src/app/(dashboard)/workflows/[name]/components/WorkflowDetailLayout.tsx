@@ -15,90 +15,57 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * WorkflowDetailLayout Component
- *
- * Unified layout container with smooth DAG slide animations.
- *
- * Architecture (Post-Simplification):
- * - Delayed unmount pattern: DAG stays mounted during exit animation
- * - Transform-based animations: GPU-accelerated slideX for 60fps
- * - Flexbox-based layout (NOT Grid) - ReactFlow compatible
- * - Panel owns drag state, layout just positions
- *
- * Performance:
- * - contain: layout style for reflow isolation
- * - GPU acceleration only during transitions (conditional will-change)
- * - Transitions disabled during drag via CSS
+ * WorkflowDetailLayout - Flexbox layout with GPU-accelerated DAG slide animations.
+ * Uses delayed unmount pattern: DAG stays mounted during exit animation.
  */
 
 "use client";
 
 import { useState, useEffect, useRef, startTransition, type ReactNode, type RefObject } from "react";
 import { cn } from "@/lib/utils";
+import { FullSnapOverlay, SoftSnapIndicator } from "./SnapZoneIndicator";
+import type { SnapZone } from "../lib/panel-state-machine";
 
-// Animation constants
-const DAG_TRANSITION_DURATION = 250; // ms (matches CSS)
+const DAG_TRANSITION_DURATION = 250;
 
-// Types
 export type LayoutMode = "sideBySide" | "panelOnly";
-export type DAGState = "visible" | "exiting" | "hidden";
+type DAGState = "visible" | "exiting" | "hidden";
 
 export interface WorkflowDetailLayoutProps {
-  /** DAG content - managed with delayed unmount for smooth exit animation */
   dagContent?: ReactNode;
-
-  /** Panel content - always rendered */
   panel: ReactNode;
-
-  /** Whether DAG should be visible */
   dagVisible: boolean;
-
-  /** Ref to container for resize calculations */
   containerRef?: RefObject<HTMLDivElement | null>;
-
-  /** Accessible label for main content */
   mainAriaLabel?: string;
-
-  /** Whether panel resize drag is active (disables transitions) */
   isDragging?: boolean;
-
-  /** Whether a layout transition is in progress */
   isTransitioning?: boolean;
+  snapZone?: SnapZone | null;
+  displayPct?: number;
 }
 
 export function WorkflowDetailLayout({
   dagContent,
   panel,
   dagVisible,
-  containerRef,
+  containerRef: externalContainerRef,
   mainAriaLabel,
   isDragging = false,
   isTransitioning: _isTransitioning = false,
+  snapZone = null,
+  displayPct = 50,
 }: WorkflowDetailLayoutProps) {
-  // Track transition state for delayed unmount
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRenderDag, setShouldRenderDag] = useState(dagVisible);
   const dagRef = useRef<HTMLElement>(null);
+  const internalContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = externalContainerRef ?? internalContainerRef;
 
-  // Handle visibility changes with animation
   useEffect(() => {
     if (dagVisible) {
-      // Show immediately, animation happens via CSS
-      // Use startTransition for non-urgent state updates (React Compiler requirement)
-      startTransition(() => {
-        setShouldRenderDag(true);
-      });
-      // Small delay to ensure DOM is ready before animation starts
-      requestAnimationFrame(() => {
-        startTransition(() => {
-          setIsAnimating(false);
-        });
-      });
+      startTransition(() => setShouldRenderDag(true));
+      requestAnimationFrame(() => startTransition(() => setIsAnimating(false)));
     } else {
-      // Start exit animation, delay unmount
-      startTransition(() => {
-        setIsAnimating(true);
-      });
+      startTransition(() => setIsAnimating(true));
       const timer = setTimeout(() => {
         startTransition(() => {
           setShouldRenderDag(false);
@@ -111,16 +78,18 @@ export function WorkflowDetailLayout({
 
   const layoutMode: LayoutMode = dagVisible ? "sideBySide" : "panelOnly";
   const dagState: DAGState = dagVisible ? "visible" : isAnimating ? "exiting" : "hidden";
+  const showSnapIndicators = isDragging && dagVisible;
+  const showFullSnapPreview = showSnapIndicators && snapZone === "full";
+  const showSoftSnapPreview = showSnapIndicators && snapZone === "soft";
 
   return (
     <div
       ref={containerRef}
-      className={cn("flex h-full overflow-hidden", "contain-layout-style", "bg-gray-50 dark:bg-zinc-950")}
+      className={cn("flex h-full overflow-y-hidden", "contain-layout-style", "bg-gray-50 dark:bg-zinc-950")}
       data-layout-mode={layoutMode}
       data-dag-state={dagState}
       data-dragging={isDragging || undefined}
     >
-      {/* DAG Area - always rendered during visible/exiting, hidden after animation */}
       {shouldRenderDag && (
         <main
           ref={dagRef}
@@ -131,10 +100,10 @@ export function WorkflowDetailLayout({
           data-dag-visible={dagVisible}
         >
           {dagContent}
+          <FullSnapOverlay isActive={showFullSnapPreview} />
         </main>
       )}
 
-      {/* Panel Area - always rendered, adapts to available space */}
       {dagVisible || shouldRenderDag ? (
         panel
       ) : (
@@ -146,6 +115,12 @@ export function WorkflowDetailLayout({
           {panel}
         </main>
       )}
+
+      <SoftSnapIndicator
+        isActive={showSoftSnapPreview}
+        currentPct={displayPct}
+        containerRef={containerRef}
+      />
     </div>
   );
 }

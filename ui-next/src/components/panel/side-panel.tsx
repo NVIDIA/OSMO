@@ -313,14 +313,20 @@ export function SidePanel({
     <aside
       ref={panelRef}
       className={cn(
-        "relative flex h-full shrink-0 overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+        // Note: NO overflow-hidden on the aside - it clips the resize handle which extends
+        // 8px outside via -translate-x-1/2. The inner content wrappers have overflow-hidden.
+        "relative z-10 flex h-full shrink-0 border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
         // Disable transitions during drag for smooth 60fps resizing
         isDragging ? "transition-none" : "transition-[width] duration-200 ease-out",
         className,
       )}
       style={{
         width: panelWidth,
-        contain: "layout style paint",
+        // Note: We use "layout style" instead of "layout style paint" because
+        // contain: paint clips content at the boundary, which would hide the
+        // resize handle that extends 8px outside the panel via -translate-x-1/2.
+        // The inner content wrapper has overflow-hidden anyway.
+        contain: "layout style",
         willChange: isDragging ? "width" : "auto",
         // Only apply width constraints when not fullWidth and not collapsed
         ...(isCollapsed || fullWidth
