@@ -478,12 +478,12 @@
 
 :root {
   --snap-primary: rgb(59 130 246);
-  --snap-overlay: rgb(59 130 246 / 0.06);
+  --snap-overlay: rgb(59 130 246 / 0.12);
 }
 
 .dark {
   --snap-primary: rgb(59 130 246);
-  --snap-overlay: rgb(59 130 246 / 0.08);
+  --snap-overlay: rgb(59 130 246 / 0.15);
 }
 
 /* Full Snap Overlay (90%+) */
@@ -491,7 +491,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, oklch(0.98 0 0 / 0) 0%, oklch(0.98 0 0 / 0.5) 30%, oklch(0.98 0 0 / 0.7) 100%);
+  background: linear-gradient(90deg, oklch(0.98 0 0 / 0.2) 0%, oklch(0.98 0 0 / 0.7) 30%, oklch(0.98 0 0 / 0.85) 100%);
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -500,12 +500,12 @@
     transparent 54%
   );
   background-size: 6px 6px;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(3px);
   animation: snap-full-appear 100ms ease-out;
 }
 
 .dark .snap-full-overlay {
-  background: linear-gradient(90deg, oklch(0.15 0 0 / 0) 0%, oklch(0.15 0 0 / 0.5) 30%, oklch(0.15 0 0 / 0.7) 100%);
+  background: linear-gradient(90deg, oklch(0.15 0 0 / 0.2) 0%, oklch(0.15 0 0 / 0.7) 30%, oklch(0.15 0 0 / 0.85) 100%);
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -546,7 +546,7 @@
   bottom: 0;
   right: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, oklch(0.98 0 0 / 0) 0%, oklch(0.98 0 0 / 0.5) 30%, oklch(0.98 0 0 / 0.7) 100%);
+  background: linear-gradient(90deg, oklch(0.98 0 0 / 0.2) 0%, oklch(0.98 0 0 / 0.7) 30%, oklch(0.98 0 0 / 0.85) 100%);
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -555,12 +555,12 @@
     transparent 54%
   );
   background-size: 6px 6px;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(3px);
   animation: snap-soft-washout-appear 100ms ease-out;
 }
 
 .dark .snap-soft-washout {
-  background: linear-gradient(90deg, oklch(0.15 0 0 / 0) 0%, oklch(0.15 0 0 / 0.5) 30%, oklch(0.15 0 0 / 0.7) 100%);
+  background: linear-gradient(90deg, oklch(0.15 0 0 / 0.2) 0%, oklch(0.15 0 0 / 0.5) 30%, oklch(0.15 0 0 / 0.85) 100%);
   background-image: linear-gradient(
     135deg,
     transparent 46%,
