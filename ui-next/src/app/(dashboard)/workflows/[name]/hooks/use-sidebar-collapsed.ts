@@ -35,10 +35,13 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useEventCallback, useIsomorphicLayoutEffect } from "usehooks-ts";
 import { useSharedPreferences, sharedPreferencesInitialState } from "@/stores";
 import { useMounted } from "@/hooks";
+
+// Module-level stable no-op function (created once, never changes)
+const NOOP = () => {};
 
 export interface UseSidebarCollapsedOptions {
   /** Whether there's an active group/task selection from URL */
@@ -141,17 +144,23 @@ export function useSidebarCollapsed({ hasSelection, selectionKey, dagVisible }: 
     }
   });
 
-  // When DAG is hidden, panel is always expanded (full-width mode)
-  // Return static values and no-op functions
-  if (!dagVisible) {
-    return {
+  // Stable return value for fullWidth mode (DAG hidden)
+  // Uses module-level NOOP to maintain referential stability
+  const fullWidthReturn = useMemo(
+    () => ({
       collapsed: false,
-      toggle: () => {},
-      expand: () => {},
-      collapse: () => {},
+      toggle: NOOP,
+      expand: NOOP,
+      collapse: NOOP,
       preferredCollapsed: false,
-      setPreferredCollapsed: () => {},
-    };
+      setPreferredCollapsed: NOOP,
+    }),
+    [],
+  );
+
+  // When DAG is hidden, panel is always expanded (full-width mode)
+  if (!dagVisible) {
+    return fullWidthReturn;
   }
 
   return {
