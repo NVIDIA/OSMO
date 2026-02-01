@@ -25,7 +25,6 @@
 
 import { memo, useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Maximize2 } from "lucide-react";
 import { useMounted } from "@/hooks";
 import { SNAP_ZONES } from "../lib/panel-state-machine";
 
@@ -110,13 +109,10 @@ export const FullSnapOverlay = memo(function FullSnapOverlay({ isActive }: FullS
       aria-live="polite"
       aria-label="Panel will expand to full width, hiding the DAG"
     >
-      <div className="snap-full-label">
-        <Maximize2
-          className="size-4"
-          aria-hidden="true"
-        />
-        <span>Release to hide DAG</span>
-      </div>
+      <div
+        className="snap-full-target-line"
+        style={{ left: 0 }}
+      />
     </div>
   );
 });
