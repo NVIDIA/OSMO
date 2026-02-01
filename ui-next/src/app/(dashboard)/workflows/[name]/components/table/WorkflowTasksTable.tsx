@@ -30,7 +30,7 @@
 
 import { useMemo, useCallback, useState, memo } from "react";
 import { naturalCompare } from "@/lib/utils";
-import { DataTable, type Section, type SortState, getColumnCSSValue, TableToolbar } from "@/components/data-table";
+import { DataTable, type Section, type SortState, TableToolbar } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useTick, useResultsCount } from "@/hooks";
@@ -48,7 +48,7 @@ import {
   asTaskColumnIds,
 } from "../../lib/task-columns";
 import { useTaskTableStore } from "../../stores";
-import { TreeConnector, TreeGroupCell, GroupNameCell } from "./tree";
+import { TreeConnector, SplitGroupHeader } from "./tree";
 import { filterByChips, type SearchChip } from "@/components/filter-bar";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
 
@@ -463,42 +463,20 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       const displayTaskCount = taskCount ?? stats?.total ?? 0;
 
       return (
-        <>
-          {/* Tree column cell - TreeGroupCell handles expand/collapse
-              No padding - cell content is centered within the 2rem column */}
-          <td
-            role="gridcell"
-            className="flex items-center p-0"
-            style={{
-              width: getColumnCSSValue("_tree"),
-              minWidth: getColumnCSSValue("_tree"),
-              flex: "none",
-            }}
-          >
-            <TreeGroupCell
-              isExpanded={isExpanded}
-              hasVisibleTasks={hasVisibleTasks ?? false}
-              onToggle={() => handleToggleGroup(section.id)}
-            />
-          </td>
-
-          {/* Name column cell - GroupNameCell with badge and count
-              Spans entire table width (except tree column) for group headers
-              Uses px-4 to match regular row cells from VirtualTableBody */}
-          <td
-            role="gridcell"
-            className="flex items-center px-4"
-            style={{
-              flex: "1",
-            }}
-            onClick={() => onSelectGroup(group)}
-          >
-            <GroupNameCell
-              name={group.name}
-              taskCount={displayTaskCount}
-            />
-          </td>
-        </>
+        <td
+          role="gridcell"
+          className="flex items-center p-0"
+          style={{ flex: 1 }}
+        >
+          <SplitGroupHeader
+            group={group}
+            isExpanded={isExpanded}
+            hasVisibleTasks={hasVisibleTasks ?? false}
+            taskCount={displayTaskCount}
+            onToggleExpand={() => handleToggleGroup(section.id)}
+            onViewDetails={() => onSelectGroup(group)}
+          />
+        </td>
       );
     },
     [collapsedGroups, handleToggleGroup, onSelectGroup],
