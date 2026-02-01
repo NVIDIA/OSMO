@@ -456,6 +456,7 @@ export const DetailsPanel = memo(function DetailsPanel({
         <GroupDetails
           group={group}
           allGroups={allGroups}
+          workflowName={workflow?.name}
           onSelectTask={onSelectTask}
           onSelectGroup={onSelectGroup}
           onBack={onBackToWorkflow}

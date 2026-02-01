@@ -55,6 +55,7 @@ interface GroupDetailsInternalProps extends GroupDetailsProps {
 export const GroupDetails = memo(function GroupDetails({
   group,
   allGroups,
+  workflowName,
   onSelectTask,
   onSelectGroup,
   onBack,
@@ -155,8 +156,8 @@ export const GroupDetails = memo(function GroupDetails({
   // Build breadcrumbs for hierarchical navigation (Workflow > Group)
   const breadcrumbs = useMemo((): BreadcrumbSegment[] => {
     if (!onBack) return [];
-    return [{ label: "Workflow", onClick: onBack }];
-  }, [onBack]);
+    return [{ label: workflowName ?? "Workflow", onClick: onBack }];
+  }, [onBack, workflowName]);
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
