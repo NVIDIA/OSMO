@@ -428,6 +428,27 @@ export function useColumnSizing({
   }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef, suspendResizeRef]);
 
   // =========================================================================
+  // Recalculate When Suspension Ends
+  // =========================================================================
+  // When suspendResize transitions from true to false (e.g., after panel
+  // CSS transition completes), we need to recalculate column widths because:
+  // 1. ResizeObserver fired during suspension but was ignored (line 386)
+  // 2. Container is now at final size, but ResizeObserver won't fire again
+  // 3. Without this effect, columns stay at old widths
+  const prevSuspendResize = usePrevious(suspendResize);
+  useEffect(() => {
+    // Skip if not transitioning from suspended to active
+    if (prevSuspendResize !== true || suspendResize !== false) return;
+
+    // Use RAF to ensure layout is complete after CSS transition
+    const rafId = requestAnimationFrame(() => {
+      calculateAndApply(false, undefined);
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [suspendResize, prevSuspendResize, calculateAndApply]);
+
+  // =========================================================================
   // Resize Control API
   // =========================================================================
 
