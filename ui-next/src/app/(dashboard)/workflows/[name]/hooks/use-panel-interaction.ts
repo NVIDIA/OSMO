@@ -21,13 +21,10 @@
 
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useEventCallback } from "usehooks-ts";
 import type { PanelPhase, SnapZone } from "../lib/panel-state-machine";
 import { classifySnapZone, SNAP_ZONES } from "../lib/panel-state-machine";
-
-// Panel CSS transition duration (matches transition-[width] duration-200 in side-panel.tsx)
-const PANEL_CSS_TRANSITION_MS = 200;
 
 interface UsePanelInteractionOptions {
   persistedPct: number;
@@ -43,6 +40,11 @@ interface UsePanelInteractionOptions {
    * Called when drag starts while panel is collapsed.
    */
   onExpandPanel: () => void;
+  /**
+   * Called when grid transition completes (via transitionend event).
+   * Used to update isCSSTransitioning state based on actual CSS completion.
+   */
+  onTransitionComplete?: () => void;
 }
 
 interface UsePanelInteractionReturn {
@@ -56,6 +58,16 @@ interface UsePanelInteractionReturn {
     onDrag: (pct: number) => void;
     onDragEnd: () => void;
   };
+  /**
+   * Called when a CSS transition starts (snap, collapse, expand).
+   * Sets isTransitioning=true. Pair with onTransitionComplete.
+   */
+  onTransitionStart: () => void;
+  /**
+   * Called when grid transition completes (via transitionend event).
+   * Sets isTransitioning=false.
+   */
+  onTransitionComplete: () => void;
 }
 
 export function usePanelInteraction(options: UsePanelInteractionOptions): UsePanelInteractionReturn {
@@ -66,18 +78,11 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
   const [phase, setPhase] = useState<PanelPhase>({ type: "idle" });
   const phaseRef = useRef<PanelPhase>(phase);
 
-  // Track CSS transition state (panel has 200ms width transition when not dragging)
+  // Track CSS transition state (grid has 200ms transition when not dragging)
   const [isCSSTransitioning, setIsCSSTransitioning] = useState(false);
-  const cssTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (cssTransitionTimeoutRef.current) {
-        clearTimeout(cssTransitionTimeoutRef.current);
-      }
-    };
-  }, []);
+  // Track pending snap action to execute when transition completes
+  const pendingSnapActionRef = useRef<(() => void) | null>(null);
 
   const displayPct = useMemo(() => {
     if (phase.type === "dragging") return phase.currentPct;
@@ -95,6 +100,9 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
   };
 
   const handleDragStart = useEventCallback((initialPct?: number) => {
+    // Clear any pending snap action from previous interaction
+    pendingSnapActionRef.current = null;
+
     if (getIsPanelCollapsed()) onExpandPanel();
     // Use provided initial percentage (for revealing from fullWidth) or persisted value
     const startPct = initialPct ?? persistedPct;
@@ -111,45 +119,45 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
     const current = phaseRef.current;
     if (current.type !== "dragging") return;
 
-    // Clear any pending CSS transition timeout
-    if (cssTransitionTimeoutRef.current) {
-      clearTimeout(cssTransitionTimeoutRef.current);
-    }
-
     const zone = current.snapZone;
     if (zone === "full") {
+      // Full-width snap: Transition to target, then hide DAG when transition completes
       setIsCSSTransitioning(true);
       updatePhase({ type: "snapping", targetPct: SNAP_ZONES.FULL_SNAP_TARGET, snapZone: "full" });
-      setTimeout(() => {
-        // Transition to idle (stops drag visual feedback)
+      pendingSnapActionRef.current = () => {
         updatePhase({ type: "idle" });
-        // Hide DAG - this sets panelWidthPct=100, which is the correct persisted state
-        // (DAG visibility is derived from panelWidthPct < 100, so 100 = hidden)
         onHideDAG();
-        // Wait for CSS transition to complete before allowing table recalculation
-        cssTransitionTimeoutRef.current = setTimeout(() => {
-          setIsCSSTransitioning(false);
-        }, PANEL_CSS_TRANSITION_MS);
-      }, 250);
+      };
     } else if (zone === "soft") {
+      // Soft snap to 80%: Persist target when transition completes
       setIsCSSTransitioning(true);
       updatePhase({ type: "snapping", targetPct: SNAP_ZONES.SOFT_SNAP_TARGET, snapZone: "soft" });
-      setTimeout(() => {
+      pendingSnapActionRef.current = () => {
         onPersist(SNAP_ZONES.SOFT_SNAP_TARGET);
         updatePhase({ type: "idle" });
-        // Wait for CSS transition to complete before allowing table recalculation
-        cssTransitionTimeoutRef.current = setTimeout(() => {
-          setIsCSSTransitioning(false);
-        }, PANEL_CSS_TRANSITION_MS);
-      }, 250);
+      };
     } else {
-      // Track CSS transition for non-snap drags too
-      setIsCSSTransitioning(true);
+      // No snap: Grid doesn't change (was at currentPct, stays at currentPct),
+      // so no CSS transition occurs. Phase transition to "idle" will trigger
+      // column recalculation via the suspendResize effect in use-column-sizing.
       onPersist(current.currentPct);
       updatePhase({ type: "idle" });
-      cssTransitionTimeoutRef.current = setTimeout(() => {
-        setIsCSSTransitioning(false);
-      }, PANEL_CSS_TRANSITION_MS);
+    }
+  });
+
+  // Called when CSS transition starts (from layout component or collapse/expand toggle)
+  const handleTransitionStart = useEventCallback(() => {
+    setIsCSSTransitioning(true);
+  });
+
+  // Called when CSS transition completes (from transitionend event in layout component)
+  const handleTransitionComplete = useEventCallback(() => {
+    setIsCSSTransitioning(false);
+
+    // Execute any pending snap action (e.g., onHideDAG, onPersist)
+    if (pendingSnapActionRef.current) {
+      pendingSnapActionRef.current();
+      pendingSnapActionRef.current = null;
     }
   });
 
@@ -165,5 +173,7 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
       onDrag: handleDrag,
       onDragEnd: handleDragEnd,
     },
+    onTransitionStart: handleTransitionStart,
+    onTransitionComplete: handleTransitionComplete,
   };
 }
