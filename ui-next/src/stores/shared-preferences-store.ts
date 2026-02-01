@@ -60,15 +60,24 @@ import { createHydratedSelector } from "@/hooks/use-hydrated-store";
 
 export type DisplayMode = "free" | "used";
 
-/** Default panel width percentage (matches PANEL.DEFAULT_WIDTH_PCT) */
+/** Default panel width percentage when DAG is visible (matches PANEL.DEFAULT_WIDTH_PCT) */
 const DEFAULT_PANEL_WIDTH_PCT = 50;
+
+/** Full width percentage (DAG hidden) */
+const FULL_WIDTH_PCT = 100;
 
 interface SharedPreferencesState {
   /** Display mode for capacity values: "free" shows available, "used" shows utilization */
   displayMode: DisplayMode;
   /** Whether tables use compact row height */
   compactMode: boolean;
-  /** Panel width as percentage of container (applies to workflow/pools/resources panels) */
+  /**
+   * Panel width as percentage of container (0-100).
+   * - When < 100: DAG is visible, panel takes this percentage
+   * - When = 100: DAG is hidden, panel is full width
+   *
+   * Single source of truth for both panel width AND DAG visibility.
+   */
   panelWidthPct: number;
   /** Whether panel header details are expanded (unified across workflow/group/task views) */
   detailsExpanded: boolean;
@@ -76,8 +85,6 @@ interface SharedPreferencesState {
   sidebarOpen: boolean;
   /** Whether the workflow details panel (right side) is collapsed by default */
   detailsPanelCollapsed: boolean;
-  /** Whether the DAG is visible in workflow details (when false, panel is full-width) */
-  dagVisible: boolean;
 }
 
 interface SharedPreferencesActions {
@@ -89,7 +96,7 @@ interface SharedPreferencesActions {
   toggleCompactMode: () => void;
   /** Set compact mode explicitly */
   setCompactMode: (compact: boolean) => void;
-  /** Set panel width percentage */
+  /** Set panel width percentage (also controls DAG visibility via < 100 threshold) */
   setPanelWidthPct: (pct: number) => void;
   /** Toggle details expanded state */
   toggleDetailsExpanded: () => void;
@@ -103,9 +110,17 @@ interface SharedPreferencesActions {
   toggleDetailsPanelCollapsed: () => void;
   /** Set details panel collapsed state explicitly */
   setDetailsPanelCollapsed: (collapsed: boolean) => void;
-  /** Toggle DAG visibility in workflow details */
+  /**
+   * Toggle DAG visibility.
+   * - If DAG visible (pct < 100): Sets to 100 (hides DAG)
+   * - If DAG hidden (pct = 100): Sets to 50 (shows DAG)
+   */
   toggleDagVisible: () => void;
-  /** Set DAG visibility explicitly */
+  /**
+   * Set DAG visibility explicitly.
+   * - visible=true: Sets panelWidthPct to 50 (or retains current if < 100)
+   * - visible=false: Sets panelWidthPct to 100
+   */
   setDagVisible: (visible: boolean) => void;
   /** Reset to defaults */
   reset: () => void;
@@ -126,11 +141,10 @@ export type SharedPreferencesStore = SharedPreferencesState & SharedPreferencesA
 export const initialState: SharedPreferencesState = {
   displayMode: "free",
   compactMode: false,
-  panelWidthPct: DEFAULT_PANEL_WIDTH_PCT,
+  panelWidthPct: DEFAULT_PANEL_WIDTH_PCT, // 50 = DAG visible
   detailsExpanded: false,
   sidebarOpen: true,
   detailsPanelCollapsed: false,
-  dagVisible: true,
 };
 
 // =============================================================================
@@ -245,10 +259,15 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
         toggleDagVisible: () =>
           set(
             (state) => {
-              state.dagVisible = !state.dagVisible;
-              // When hiding DAG, force panel to expanded state
-              if (!state.dagVisible) {
+              const isDagCurrentlyVisible = state.panelWidthPct < FULL_WIDTH_PCT;
+              if (isDagCurrentlyVisible) {
+                // Hide DAG: expand panel to full width
+                state.panelWidthPct = FULL_WIDTH_PCT;
+                // When hiding DAG, force panel to expanded state
                 state.detailsPanelCollapsed = false;
+              } else {
+                // Show DAG: restore to default split
+                state.panelWidthPct = DEFAULT_PANEL_WIDTH_PCT;
               }
             },
             false,
@@ -258,9 +277,16 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
         setDagVisible: (visible) =>
           set(
             (state) => {
-              state.dagVisible = visible;
-              // When hiding DAG, force panel to expanded state
-              if (!visible) {
+              if (visible) {
+                // Show DAG: set to default if currently at full width
+                if (state.panelWidthPct >= FULL_WIDTH_PCT) {
+                  state.panelWidthPct = DEFAULT_PANEL_WIDTH_PCT;
+                }
+                // If already < 100, keep current width (DAG is already visible)
+              } else {
+                // Hide DAG: expand panel to full width
+                state.panelWidthPct = FULL_WIDTH_PCT;
+                // When hiding DAG, force panel to expanded state
                 state.detailsPanelCollapsed = false;
               }
             },
@@ -273,7 +299,7 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
       {
         name: "shared-preferences",
         storage: createJSONStorage(() => localStorage),
-        version: 2,
+        version: 3,
         migrate: (persistedState, version) => {
           const state = persistedState as Record<string, unknown>;
 
@@ -285,6 +311,19 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
               state.dagVisible = true;
             }
             delete state.workflowDetailsView;
+          }
+
+          // v2 -> v3: Migrate dagVisible to panelWidthPct
+          if (version < 3) {
+            // If dagVisible is explicitly false, set panel to full width
+            if (state.dagVisible === false) {
+              state.panelWidthPct = FULL_WIDTH_PCT;
+            } else if (typeof state.panelWidthPct !== "number") {
+              // If no panelWidthPct exists, use default
+              state.panelWidthPct = DEFAULT_PANEL_WIDTH_PCT;
+            }
+            // Remove the old dagVisible property
+            delete state.dagVisible;
           }
 
           return state as unknown as SharedPreferencesState;
@@ -372,10 +411,11 @@ export const usePanelWidthPct = createHydratedSelector(
 
 /**
  * Hydration-safe DAG visibility selector.
- * Returns true during SSR, then actual value after hydration.
+ * DAG is visible when panel width is less than 100%.
+ * Returns true during SSR (matches initialState.panelWidthPct = 50 < 100).
  */
 export const useDagVisible = createHydratedSelector<SharedPreferencesStore, boolean>(
   useSharedPreferences,
-  (s) => s.dagVisible,
-  initialState.dagVisible,
+  (s) => s.panelWidthPct < FULL_WIDTH_PCT,
+  initialState.panelWidthPct < FULL_WIDTH_PCT, // true (50 < 100)
 );

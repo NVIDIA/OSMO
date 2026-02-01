@@ -15,13 +15,14 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * WorkflowDetailLayout - Flexbox layout with GPU-accelerated DAG slide animations.
+ * WorkflowDetailLayout - CSS Grid layout with deterministic column sizing.
  * Uses delayed unmount pattern: DAG stays mounted during exit animation.
+ * Grid eliminates flexbox sibling competition for stable right-edge positioning.
  */
 
 "use client";
 
-import { useState, useEffect, useRef, startTransition, type ReactNode, type RefObject } from "react";
+import { useState, useEffect, useRef, startTransition, useMemo, type ReactNode, type RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, SoftSnapIndicator } from "./SnapZoneIndicator";
 import type { SnapZone } from "../lib/panel-state-machine";
@@ -38,7 +39,6 @@ export interface WorkflowDetailLayoutProps {
   containerRef?: RefObject<HTMLDivElement | null>;
   mainAriaLabel?: string;
   isDragging?: boolean;
-  isTransitioning?: boolean;
   snapZone?: SnapZone | null;
   displayPct?: number;
 }
@@ -50,7 +50,6 @@ export function WorkflowDetailLayout({
   containerRef: externalContainerRef,
   mainAriaLabel,
   isDragging = false,
-  isTransitioning: _isTransitioning = false,
   snapZone = null,
   displayPct = 50,
 }: WorkflowDetailLayoutProps) {
@@ -60,11 +59,16 @@ export function WorkflowDetailLayout({
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef ?? internalContainerRef;
 
+  // Delayed unmount pattern: keep DAG mounted during exit animation.
+  // The parent passes `dagVisible` which already accounts for reveal-via-drag
+  // (computed from displayPct < 100 during drag), so we just respond to that prop.
   useEffect(() => {
     if (dagVisible) {
+      // DAG becoming visible: mount immediately, clear animation state
       startTransition(() => setShouldRenderDag(true));
       requestAnimationFrame(() => startTransition(() => setIsAnimating(false)));
     } else {
+      // DAG hiding: start exit animation, unmount after delay
       startTransition(() => setIsAnimating(true));
       const timer = setTimeout(() => {
         startTransition(() => {
@@ -76,30 +80,52 @@ export function WorkflowDetailLayout({
     }
   }, [dagVisible]);
 
+  // Derive visual states
   const layoutMode: LayoutMode = dagVisible ? "sideBySide" : "panelOnly";
   const dagState: DAGState = dagVisible ? "visible" : isAnimating ? "exiting" : "hidden";
   const showSnapIndicators = isDragging && dagVisible;
   const showFullSnapPreview = showSnapIndicators && snapZone === "full";
   const showSoftSnapPreview = showSnapIndicators && snapZone === "soft";
 
+  // Grid column template - deterministic sizing eliminates flexbox competition.
+  // Uses dagVisible (which parent computes from displayPct during drag) for grid behavior.
+  // This ensures the grid responds to displayPct < 100 to reveal the DAG column progressively.
+  const gridTemplateColumns = useMemo(() => {
+    if (!dagVisible) {
+      // DAG hidden: collapse first column to 0fr, panel takes all space (1fr)
+      return "0fr 1fr";
+    }
+    // DAG visible: DAG takes remaining space (minmax allows shrink to 0), panel has explicit percentage
+    return `minmax(0, 1fr) ${displayPct}%`;
+  }, [dagVisible, displayPct]);
+
   return (
     <div
       ref={containerRef}
-      className={cn("flex h-full overflow-y-hidden", "contain-layout-style", "bg-gray-50 dark:bg-zinc-950")}
+      className={cn(
+        // Grid layout (replaces flex) - explicit column sizing eliminates sibling competition
+        "grid h-full overflow-y-hidden",
+        // Containment for performance
+        "contain-layout-style",
+        // Background
+        "bg-gray-50 dark:bg-zinc-950",
+        // Transitions: disable during drag for 60fps, enable otherwise for smooth snap
+        isDragging ? "transition-none" : "transition-[grid-template-columns] duration-200 ease-out",
+      )}
+      style={{ gridTemplateColumns }}
       data-layout-mode={layoutMode}
       data-dag-state={dagState}
       data-dragging={isDragging || undefined}
     >
-      {/* DAG Container - ALWAYS in the tree at this position for stable React reconciliation.
-          CSS controls visibility and layout participation.
-          When hidden: w-0 overflow-hidden collapses it without remounting siblings. */}
+      {/* DAG Column - Grid handles sizing via grid-template-columns.
+          ALWAYS in the tree at this position for stable React reconciliation.
+          When hidden: Grid column is 0fr, allowing graceful collapse. */}
       <main
         ref={dagRef}
         className={cn(
-          "dag-slide-container relative contain-style",
-          // When in layout: flex-1 takes available space
-          // When hidden: collapse to zero width
-          shouldRenderDag ? "min-w-0 flex-1" : "w-0 overflow-hidden",
+          "relative overflow-hidden contain-style",
+          // When DAG hidden, min-w-0 allows grid to shrink column to 0
+          !shouldRenderDag && "min-w-0",
         )}
         role="main"
         aria-label={mainAriaLabel ?? "Workflow DAG view"}
@@ -115,9 +141,9 @@ export function WorkflowDetailLayout({
         )}
       </main>
 
-      {/* Panel Container - ALWAYS at the same tree position.
-          This ensures panel never remounts when dagVisible changes.
-          The panel's SidePanel handles its own width (percentage or fullWidth). */}
+      {/* Panel Column - Grid gives explicit percentage sizing.
+          ALWAYS at the same tree position for stable React reconciliation.
+          SidePanel manages its own internal width constraints. */}
       {panel}
 
       <SoftSnapIndicator
