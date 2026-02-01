@@ -440,9 +440,9 @@ export const TaskDetails = memo(function TaskDetails({
   const breadcrumbs = useMemo((): BreadcrumbSegment[] => {
     const segments: BreadcrumbSegment[] = [];
 
-    // Always add "Workflow" as the first segment if we can navigate back
+    // Always add workflow name as the first segment if we can navigate back
     if (onBackToWorkflow) {
-      segments.push({ label: "Workflow", onClick: onBackToWorkflow });
+      segments.push({ label: workflowName ?? "Workflow", onClick: onBackToWorkflow });
     }
 
     // Add group segment for multi-task groups
@@ -451,7 +451,7 @@ export const TaskDetails = memo(function TaskDetails({
     }
 
     return segments;
-  }, [onBackToWorkflow, onBackToGroup, isFromGroup, group.name]);
+  }, [onBackToWorkflow, onBackToGroup, isFromGroup, group.name, workflowName]);
 
   // Handle tab change - update URL state
   const handleTabChange = useCallback(
