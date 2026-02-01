@@ -276,9 +276,9 @@ export const DetailsPanel = memo(function DetailsPanel({
   minWidth,
   maxWidth,
   className,
-  fullWidth = false,
   onDragStart,
   onDragEnd,
+  fillContainer,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell, reconnectShell } = useShellContext();
@@ -414,12 +414,6 @@ export const DetailsPanel = memo(function DetailsPanel({
     />
   );
 
-  // Handle drag-to-reveal when panel is fullWidth
-  const handleRevealStart = useCallback(() => {
-    // Show DAG when user starts dragging from fullWidth state
-    useSharedPreferences.getState().setDagVisible(true);
-  }, []);
-
   return (
     <SidePanel
       width={panelPct}
@@ -432,14 +426,13 @@ export const DetailsPanel = memo(function DetailsPanel({
       edgeContent={edgeContent}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}
-      fullWidth={fullWidth}
       className={cn("dag-details-panel", className)}
       containerRef={containerRef}
       onDraggingChange={onDraggingChange}
       focusTargetRef={focusTargetRef}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onRevealStart={fullWidth ? handleRevealStart : undefined}
+      fillContainer={fillContainer}
     >
       {/* Workflow Details (base layer) */}
       {view === "workflow" && workflow && (
