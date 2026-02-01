@@ -23,6 +23,8 @@
  *
  * - **TreeConnector**: Task row connector (three modes: single-task, last, middle)
  * - **TreeGroupCell**: Group row expand/collapse control with conditional vertical line
+ * - **TreeExpandIndicator**: Visual-only expand/collapse indicator (extracted from TreeGroupCell)
+ * - **SplitGroupHeader**: Split-button pattern for group headers with expand + details actions
  * - **GroupNameCell**: Group name display with badge and task count
  * - **TaskNameCell**: Task name with optional indentation and Lead badge
  *
@@ -32,6 +34,8 @@
  * import {
  *   TreeConnector,
  *   TreeGroupCell,
+ *   TreeExpandIndicator,
+ *   SplitGroupHeader,
  *   GroupNameCell,
  *   TaskNameCell,
  * } from "./tree";
@@ -40,6 +44,8 @@
 
 export { TreeConnector, type TreeConnectorProps } from "./TreeConnector";
 export { TreeGroupCell, type TreeGroupCellProps } from "./TreeGroupCell";
+export { TreeExpandIndicator, type TreeExpandIndicatorProps } from "./TreeExpandIndicator";
+export { SplitGroupHeader, type SplitGroupHeaderProps } from "./SplitGroupHeader";
 export { GroupNameCell, type GroupNameCellProps } from "./GroupNameCell";
 export { TaskNameCell, type TaskNameCellProps } from "./TaskNameCell";
 export { CORNER_RADIUS, LINE_WIDTH, CIRCLE_SIZE, ICON_SIZE, SINGLE_TASK_CIRCLE_SIZE } from "./tree-constants";
