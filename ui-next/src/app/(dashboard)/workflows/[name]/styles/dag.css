@@ -502,6 +502,9 @@
   background-size: 6px 6px;
   backdrop-filter: blur(3px);
   animation: snap-full-appear 100ms ease-out;
+  contain: strict;
+  will-change: opacity;
+  transform: translateZ(0);
 }
 
 .dark .snap-full-overlay {
