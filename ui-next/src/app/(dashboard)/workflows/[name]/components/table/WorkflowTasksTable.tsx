@@ -35,6 +35,7 @@ import { useSharedPreferences } from "@/stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useTick, useResultsCount } from "@/hooks";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
+import { usePanelTransition } from "../../lib/panel-transition-context";
 
 import { calculateTaskDuration } from "../../lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
@@ -112,6 +113,9 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   // Search chips for filtering
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
+
+  // Panel transition state (suspend table resize during panel animations)
+  const { isTransitioning } = usePanelTransition();
 
   // Shared preferences (compact mode)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -627,6 +631,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         fixedColumns={fixedColumns}
         // Column sizing (includes tree column + task columns)
         columnSizeConfigs={TASK_WITH_TREE_COLUMN_SIZE_CONFIG}
+        suspendResize={isTransitioning}
         // Sorting
         sorting={tableSorting}
         onSortingChange={handleSortChange}

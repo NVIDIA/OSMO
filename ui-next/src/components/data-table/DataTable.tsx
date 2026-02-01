@@ -84,6 +84,8 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   columnSizeConfigs?: readonly ColumnSizeConfig[];
   columnSizingPreferences?: ColumnSizingPreferences;
   onColumnSizingPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
+  /** Suspend column resize calculations (for external panel transitions) */
+  suspendResize?: boolean;
 }
 
 export function DataTable<TData, TSectionMeta = unknown>({
@@ -120,6 +122,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   columnSizeConfigs,
   columnSizingPreferences,
   onColumnSizingPreferenceChange,
+  suspendResize,
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
@@ -215,6 +218,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
     columnResizability,
     dataLength: allItems.length,
     isLoading: showSkeleton,
+    suspendResize,
   });
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design

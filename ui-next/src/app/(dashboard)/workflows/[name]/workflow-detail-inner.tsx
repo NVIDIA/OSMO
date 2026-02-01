@@ -34,6 +34,7 @@ import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
 import { useTickController, useViewTransition, useAnnouncer } from "@/hooks";
 import { useSharedPreferences, useDagVisible } from "@/stores";
+import { PanelTransitionProvider } from "./lib/panel-transition-context";
 
 // Route-level components
 import {
@@ -331,6 +332,10 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // Prevent unnecessary re-renders during panel drag/resize
   // ---------------------------------------------------------------------------
 
+  // Use persisted percentage for DAG memoization (stable during drag)
+  // During drag, DAG uses last committed value. Viewport recalculates on drag end.
+  const stablePanelPct = panelInteraction.isDragging ? persistedPanelPct : panelInteraction.displayPct;
+
   // Memoize DAG content to prevent re-renders during panel drag
   const dagContentElement = useMemo(() => {
     if (!dagVisible || !workflow) return undefined;
@@ -347,8 +352,9 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
         onPanningChange={setIsPanning}
         selectionKey={selectionKey}
         containerRef={containerRef}
-        panelPct={panelInteraction.displayPct} // Use optimistic width
+        panelPct={stablePanelPct}
         isPanelCollapsed={isPanelCollapsed}
+        isDragging={panelInteraction.isDragging}
       />
     );
   }, [
@@ -363,8 +369,9 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     isPanning,
     selectionKey,
     containerRef,
-    panelInteraction.displayPct, // Track optimistic width
+    stablePanelPct,
     isPanelCollapsed,
+    panelInteraction.isDragging,
   ]);
 
   // Memoize panel content
@@ -381,6 +388,12 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     [panelProps, dagVisible, shellContainerProps],
   );
 
+  // Memoize transition context value to prevent unnecessary re-renders
+  const transitionContextValue = useMemo(
+    () => ({ isTransitioning: panelInteraction.isTransitioning }),
+    [panelInteraction.isTransitioning],
+  );
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -394,25 +407,27 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     <DAGErrorBoundary>
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
-          {isReady ? (
-            <WorkflowDetailLayout
-              dagVisible={dagVisible}
-              containerRef={containerRef}
-              isDragging={panelInteraction.isDragging}
-              isTransitioning={panelInteraction.isTransitioning}
-              snapZone={panelInteraction.snapZone}
-              displayPct={panelInteraction.displayPct}
-              dagContent={dagContentElement}
-              panel={panelElement}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
-              <div className="text-center text-gray-500 dark:text-zinc-500">
-                <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
-                <p>Loading workflow...</p>
+          <PanelTransitionProvider value={transitionContextValue}>
+            {isReady ? (
+              <WorkflowDetailLayout
+                dagVisible={dagVisible}
+                containerRef={containerRef}
+                isDragging={panelInteraction.isDragging}
+                isTransitioning={panelInteraction.isTransitioning}
+                snapZone={panelInteraction.snapZone}
+                displayPct={panelInteraction.displayPct}
+                dagContent={dagContentElement}
+                panel={panelElement}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+                <div className="text-center text-gray-500 dark:text-zinc-500">
+                  <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+                  <p>Loading workflow...</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </PanelTransitionProvider>
         </ShellPortalProvider>
       </ShellProvider>
     </DAGErrorBoundary>

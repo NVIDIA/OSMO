@@ -42,6 +42,8 @@ export interface UseColumnSizingOptions {
   resizeDebounceMs?: number;
   dataLength?: number;
   isLoading?: boolean;
+  /** When true, ResizeObserver changes are ignored (for external panel transitions) */
+  suspendResize?: boolean;
 }
 
 export interface UseColumnSizingResult {
@@ -96,6 +98,7 @@ export function useColumnSizing({
   resizeDebounceMs = 150,
   dataLength = 0,
   isLoading = false,
+  suspendResize = false,
 }: UseColumnSizingOptions): UseColumnSizingResult {
   // =========================================================================
   // Core State (simplified from useReducer)
@@ -153,6 +156,7 @@ export function useColumnSizing({
   const onPreferenceChangeRef = useSyncedRef(onPreferenceChange);
   const sizingRef = useSyncedRef(sizing);
   const isResizingRef = useSyncedRef(isResizing);
+  const suspendResizeRef = useSyncedRef(suspendResize);
   const columnSizingInfoRef = useSyncedRef(columnSizingInfo);
 
   // Other refs
@@ -378,8 +382,8 @@ export function useColumnSizing({
     let pendingWidth: number | null = null;
 
     const observer = new ResizeObserver((entries) => {
-      // Ignore container resize during user resize
-      if (isResizingRef.current) return;
+      // Ignore container resize during user resize OR when suspended for external transitions
+      if (isResizingRef.current || suspendResizeRef.current) return;
 
       const entry = entries[0];
       if (!entry) return;
@@ -421,7 +425,7 @@ export function useColumnSizing({
       if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
     };
-  }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef]);
+  }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef, suspendResizeRef]);
 
   // =========================================================================
   // Resize Control API

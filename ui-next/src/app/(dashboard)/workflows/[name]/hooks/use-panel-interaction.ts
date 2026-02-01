@@ -21,10 +21,13 @@
 
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useEventCallback } from "usehooks-ts";
 import type { PanelPhase, SnapZone } from "../lib/panel-state-machine";
 import { classifySnapZone, SNAP_ZONES } from "../lib/panel-state-machine";
+
+// Panel CSS transition duration (matches transition-[width] duration-200 in side-panel.tsx)
+const PANEL_CSS_TRANSITION_MS = 200;
 
 interface UsePanelInteractionOptions {
   persistedPct: number;
@@ -55,6 +58,19 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
   // (useDrag may call onDragStart and onDrag in same event loop)
   const [phase, setPhase] = useState<PanelPhase>({ type: "idle" });
   const phaseRef = useRef<PanelPhase>(phase);
+
+  // Track CSS transition state (panel has 200ms width transition when not dragging)
+  const [isCSSTransitioning, setIsCSSTransitioning] = useState(false);
+  const cssTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (cssTransitionTimeoutRef.current) {
+        clearTimeout(cssTransitionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const displayPct = useMemo(() => {
     if (phase.type === "dragging") return phase.currentPct;
@@ -88,23 +104,50 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
     const current = phaseRef.current;
     if (current.type !== "dragging") return;
 
+    // Clear any pending CSS transition timeout
+    if (cssTransitionTimeoutRef.current) {
+      clearTimeout(cssTransitionTimeoutRef.current);
+    }
+
     const zone = current.snapZone;
     if (zone === "full") {
+      setIsCSSTransitioning(true);
       updatePhase({ type: "snapping", targetPct: SNAP_ZONES.FULL_SNAP_TARGET, snapZone: "full" });
       setTimeout(() => {
-        onHideDAG();
-        onPersist(50);
+        // CRITICAL: Sequence state updates to prevent clobbering
+        // 1. First transition to idle (stops drag visual feedback)
         updatePhase({ type: "idle" });
+        // 2. Then hide DAG (React will re-render with dagVisible=false)
+        onHideDAG();
+        // 3. Finally reset persisted percentage for next DAG show
+        //    Using queueMicrotask ensures dagVisible change propagates first
+        queueMicrotask(() => {
+          onPersist(50);
+        });
+        // Wait for CSS transition to complete before allowing table recalculation
+        cssTransitionTimeoutRef.current = setTimeout(() => {
+          setIsCSSTransitioning(false);
+        }, PANEL_CSS_TRANSITION_MS);
       }, 250);
     } else if (zone === "soft") {
+      setIsCSSTransitioning(true);
       updatePhase({ type: "snapping", targetPct: SNAP_ZONES.SOFT_SNAP_TARGET, snapZone: "soft" });
       setTimeout(() => {
         onPersist(SNAP_ZONES.SOFT_SNAP_TARGET);
         updatePhase({ type: "idle" });
+        // Wait for CSS transition to complete before allowing table recalculation
+        cssTransitionTimeoutRef.current = setTimeout(() => {
+          setIsCSSTransitioning(false);
+        }, PANEL_CSS_TRANSITION_MS);
       }, 250);
     } else {
+      // Track CSS transition for non-snap drags too
+      setIsCSSTransitioning(true);
       onPersist(current.currentPct);
       updatePhase({ type: "idle" });
+      cssTransitionTimeoutRef.current = setTimeout(() => {
+        setIsCSSTransitioning(false);
+      }, PANEL_CSS_TRANSITION_MS);
     }
   });
 
@@ -112,7 +155,8 @@ export function usePanelInteraction(options: UsePanelInteractionOptions): UsePan
     displayPct,
     phase,
     snapZone,
-    isTransitioning: phase.type !== "idle",
+    // isTransitioning now includes both state machine phase AND CSS transitions
+    isTransitioning: phase.type !== "idle" || isCSSTransitioning,
     isDragging: phase.type === "dragging",
     dragHandlers: {
       onDragStart: handleDragStart,
