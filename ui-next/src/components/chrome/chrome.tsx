@@ -47,7 +47,7 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
       <SidebarProvider
         open={sidebarOpen}
         onOpenChange={setSidebarOpen}
-        className="h-screen overflow-hidden"
+        className="h-screen overflow-y-hidden"
         style={SIDEBAR_CSS_VARS as React.CSSProperties}
       >
         {/* Skip to main content link - WCAG 2.1 bypass block */}
@@ -62,7 +62,7 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
         <AppSidebar />
 
         {/* Main area - flex to fill remaining space */}
-        <SidebarInset className="flex flex-col overflow-hidden">
+        <SidebarInset className="flex flex-col overflow-y-hidden">
           {/* Header */}
           <Header />
 
