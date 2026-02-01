@@ -316,6 +316,20 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     return null;
   }, [isLoading, isNotFound, error, name, refetch]);
 
+  // Wrap togglePanelCollapsed to track CSS transition for column sizing suspension
+  const handleTogglePanelCollapsed = useEventCallback(() => {
+    panelInteraction.onTransitionStart();
+    togglePanelCollapsed();
+  });
+
+  // Wrap expandPanel to track CSS transition for column sizing suspension
+  const handleExpandPanel = useEventCallback(() => {
+    if (isPanelCollapsed) {
+      panelInteraction.onTransitionStart();
+    }
+    expandPanel();
+  });
+
   // Generate common props for DetailsPanel and ShellContainer
   // Use groupsWithLayout as allGroups to ensure panel has layout info
   const { panelProps, shellContainerProps } = usePanelProps({
@@ -335,8 +349,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
     isDetailsExpanded,
     onToggleDetailsExpanded: toggleDetailsExpanded,
     isPanelCollapsed,
-    togglePanelCollapsed,
-    expandPanel,
+    togglePanelCollapsed: handleTogglePanelCollapsed,
+    expandPanel: handleExpandPanel,
     panelOverrideContent,
     onCancelWorkflow: undefined,
     selectedTab,
@@ -461,6 +475,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
                 displayPct={panelInteraction.displayPct}
                 dagContent={dagContentElement}
                 panel={panelElement}
+                onGridTransitionEnd={panelInteraction.onTransitionComplete}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
