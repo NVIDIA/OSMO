@@ -99,6 +99,8 @@ export function SidePanel({
   const startWidthRef = useRef(width);
   // Cache container width at drag start to avoid layout reflows during drag
   const containerWidthRef = useRef(0);
+  // Track if reveal has been triggered (for deferred reveal on fullWidth drag)
+  const hasRevealedRef = useRef(false);
 
   // Refs that MUST be updated synchronously during render (not in effects!)
   const widthRef = useRef(width);
@@ -116,6 +118,7 @@ export function SidePanel({
   useIsomorphicLayoutEffect(() => {
     if (!isDragging) {
       startWidthRef.current = width;
+      hasRevealedRef.current = false; // Reset reveal flag when drag ends
     }
   }, [isDragging, width]);
 
@@ -166,10 +169,8 @@ export function SidePanel({
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
-        // If in fullWidth mode, reveal adjacent content first
-        if (fullWidth && onRevealStart) {
-          stableOnRevealStart();
-        }
+        // DON'T call onRevealStart here - defer until user actually moves
+        // This prevents flash from synchronous dagVisible change
         startDragging();
         // When revealing from fullWidth, start at maxWidth instead of persisted value
         const initialWidth = fullWidth ? maxWidthRef.current : widthRef.current;
@@ -186,6 +187,14 @@ export function SidePanel({
 
         // Movement is negative when dragging left (making panel wider)
         const deltaPct = (-mx / containerWidth) * 100;
+
+        // DEFERRED REVEAL: Only trigger after 1% drag movement
+        // This prevents flash - DAG appears smoothly as user drags
+        if (fullWidth && onRevealStart && !hasRevealedRef.current && Math.abs(deltaPct) > 1) {
+          hasRevealedRef.current = true;
+          stableOnRevealStart();
+        }
+
         const rawWidth = startWidthRef.current + deltaPct;
         const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
 

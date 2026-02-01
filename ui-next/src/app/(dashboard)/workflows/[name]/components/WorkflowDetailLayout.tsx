@@ -90,31 +90,35 @@ export function WorkflowDetailLayout({
       data-dag-state={dagState}
       data-dragging={isDragging || undefined}
     >
-      {shouldRenderDag && (
-        <main
-          ref={dagRef}
-          className="dag-slide-container relative min-w-0 flex-1 contain-style"
-          role="main"
-          aria-label={mainAriaLabel ?? "Workflow DAG view"}
-          aria-hidden={!dagVisible}
-          data-dag-visible={dagVisible}
-        >
-          {dagContent}
-          <FullSnapOverlay isActive={showFullSnapPreview} />
-        </main>
-      )}
+      {/* DAG Container - ALWAYS in the tree at this position for stable React reconciliation.
+          CSS controls visibility and layout participation.
+          When hidden: w-0 overflow-hidden collapses it without remounting siblings. */}
+      <main
+        ref={dagRef}
+        className={cn(
+          "dag-slide-container relative contain-style",
+          // When in layout: flex-1 takes available space
+          // When hidden: collapse to zero width
+          shouldRenderDag ? "min-w-0 flex-1" : "w-0 overflow-hidden",
+        )}
+        role="main"
+        aria-label={mainAriaLabel ?? "Workflow DAG view"}
+        aria-hidden={!dagVisible}
+        data-dag-visible={dagVisible}
+      >
+        {/* Only render expensive content when needed */}
+        {shouldRenderDag && (
+          <>
+            {dagContent}
+            <FullSnapOverlay isActive={showFullSnapPreview} />
+          </>
+        )}
+      </main>
 
-      {dagVisible || shouldRenderDag ? (
-        panel
-      ) : (
-        <main
-          className="relative min-w-0 flex-1"
-          role="main"
-          aria-label="Workflow details"
-        >
-          {panel}
-        </main>
-      )}
+      {/* Panel Container - ALWAYS at the same tree position.
+          This ensures panel never remounts when dagVisible changes.
+          The panel's SidePanel handles its own width (percentage or fullWidth). */}
+      {panel}
 
       <SoftSnapIndicator
         isActive={showSoftSnapPreview}
