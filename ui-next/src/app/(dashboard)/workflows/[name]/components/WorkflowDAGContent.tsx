@@ -71,6 +71,8 @@ export interface WorkflowDAGContentProps {
   panelPct: number;
   /** Panel collapsed state (for viewport calculations) */
   isPanelCollapsed: boolean;
+  /** Whether panel is being dragged (suppresses viewport recalculation) */
+  isDragging?: boolean;
 }
 
 // =============================================================================
@@ -90,6 +92,7 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
     selectionKey,
     onSelectGroup,
     onSelectTask,
+    isDragging = false,
   } = props;
 
   // DAG-specific state
@@ -172,8 +175,16 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
   }, [isSidebarCollapsed]);
 
   // Panel resize changes (panelPct)
+  // Skip re-center during drag - will recalculate when drag ends
   const prevPanelPctRef = useRef(panelPct);
   useIsomorphicLayoutEffect(() => {
+    // Don't trigger during drag - causes flickering viewport animations
+    if (isDragging) {
+      // Still update ref so we catch the delta on drag end
+      prevPanelPctRef.current = panelPct;
+      return;
+    }
+
     const prevPct = prevPanelPctRef.current;
     prevPanelPctRef.current = panelPct;
 
@@ -181,7 +192,7 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
     if (prevPct !== undefined && Math.abs(prevPct - panelPct) > 0.5) {
       setReCenterTrigger((t) => t + 1);
     }
-  }, [panelPct]);
+  }, [panelPct, isDragging]);
 
   // Selection changes
   const prevSelectionKey = usePrevious(selectionKey);
@@ -219,7 +230,7 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
     getTargetDimensions,
     reCenterTrigger,
     isLayouting,
-    isDragging: false, // TODO: Wire in Phase 2 with usePanelInteraction hook
+    isDragging, // Wired from panel interaction hook
   });
 
   // ---------------------------------------------------------------------------

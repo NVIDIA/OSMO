@@ -42,6 +42,7 @@ import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-field
 import { useTaskTableStore } from "../../../stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks";
+import { usePanelTransition } from "../../../lib/panel-transition-context";
 
 // =============================================================================
 // Constants
@@ -78,6 +79,9 @@ export const GroupTasksTab = memo(function GroupTasksTab({
   onSelectedTaskNameChange,
 }: GroupTasksTabProps) {
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
+
+  // Panel transition state (suspend table resize during panel animations)
+  const { isTransitioning } = usePanelTransition();
 
   // Shared preferences (compact mode - used for row height calculation)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -250,6 +254,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
         fixedColumns={fixedColumns}
         // Column sizing
         columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
+        suspendResize={isTransitioning}
         // Sorting
         sorting={tableSorting}
         onSortingChange={handleSortChange}
