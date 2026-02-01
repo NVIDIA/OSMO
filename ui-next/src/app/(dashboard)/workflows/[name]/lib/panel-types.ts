@@ -174,6 +174,8 @@ export interface GroupDetailsProps {
   group: GroupWithLayout;
   /** All groups in the workflow (for dependency display) */
   allGroups: GroupWithLayout[];
+  /** Workflow name (for breadcrumb navigation) */
+  workflowName?: string;
   /** Callback when selecting a task */
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
   /** Callback when selecting a different group (for dependency navigation) */
