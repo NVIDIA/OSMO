@@ -624,10 +624,11 @@
 
 /* ==========================================================================
    Disable Transitions During Drag
+   Uses data-phase attribute from PanelResizeStateMachine
    ========================================================================== */
 
-[data-dragging="true"] .panel-snap-transition,
-[data-dragging="true"] .dag-slide-container {
+[data-phase="DRAGGING"] .panel-snap-transition,
+[data-phase="DRAGGING"] .dag-slide-container {
   transition: none !important;
 }
 

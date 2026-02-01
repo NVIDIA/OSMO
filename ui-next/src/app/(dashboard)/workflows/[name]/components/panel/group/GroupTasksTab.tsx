@@ -42,7 +42,7 @@ import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-field
 import { useTaskTableStore } from "../../../stores";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks";
-import { usePanelTransition } from "../../../lib/panel-transition-context";
+import { useIsSuspended, usePanelResizeMachine } from "../../../lib/panel-resize-context";
 
 // =============================================================================
 // Constants
@@ -80,8 +80,13 @@ export const GroupTasksTab = memo(function GroupTasksTab({
 }: GroupTasksTabProps) {
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
 
-  // Panel transition state (suspend table resize during panel animations)
-  const { isTransitioning } = usePanelTransition();
+  // Panel resize coordination (suspend during transitions, recalculate on layout stable)
+  const isSuspended = useIsSuspended();
+  const machine = usePanelResizeMachine();
+  const registerLayoutStableCallback = useCallback(
+    (callback: () => void) => machine.registerCallback("onLayoutStable", callback),
+    [machine],
+  );
 
   // Shared preferences (compact mode - used for row height calculation)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -254,7 +259,8 @@ export const GroupTasksTab = memo(function GroupTasksTab({
         fixedColumns={fixedColumns}
         // Column sizing
         columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
-        suspendResize={isTransitioning}
+        suspendResize={isSuspended}
+        registerLayoutStableCallback={registerLayoutStableCallback}
         // Sorting
         sorting={tableSorting}
         onSortingChange={handleSortChange}
