@@ -68,7 +68,8 @@ export const BarChart = ({
   const total = data.reduce((sum, datum) => sum + datum.value, 0);
   const computedMaxValue = Math.max(1, ...data.map((datum) => datum.value));
   const maxScale = maxValue ?? computedMaxValue;
-  const chartWidth = showAxes ? width - axisLabelWidth - axisBarGap : width;
+  const chartRightPadding = 1;
+  const chartWidth = (showAxes ? width - axisLabelWidth - axisBarGap : width) - chartRightPadding;
   const barWidth =
     data.length > 0
       ? (chartWidth - barGap * (data.length - 1)) / data.length
@@ -100,6 +101,10 @@ export const BarChart = ({
         {`
           .bar-item {
             outline: none;
+          }
+          .bar-item:focus-visible rect {
+            stroke: var(--color-brand, #76b900);
+            stroke-width: 2;
           }
         `}
       </style>
@@ -161,7 +166,7 @@ export const BarChart = ({
             key={datum.id ?? `${datum.label}-${index}`}
             className="bar-item"
             role="button"
-            tabIndex={0}
+            tabIndex={onBarSelect ? 0 : -1}
             aria-label={ariaBarLabel}
             onClick={() => onBarSelect?.(datum, index)}
             onKeyDown={(event) => handleBarKeyDown(event, datum, index)}
