@@ -15,16 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { LogViewerSkeleton } from "@/components/log-viewer";
 import { LogViewerWithData } from "./components/log-viewer-with-data";
 import { WorkflowSelector } from "./components/workflow-selector";
 
 /**
- * Log Viewer Experimental Page (Server Component)
+ * Log Viewer Page (Server Component)
  *
- * A dedicated playground for developing and testing the log viewer component.
- * Uses the reusable LogViewerContainer with scenario-based mock data.
+ * A standalone log viewer for viewing workflow, task group, and task logs.
+ * Uses the reusable LogViewerContainer with server-side data prefetching.
  *
  * PARTIAL PRERENDER (PPR) ARCHITECTURE:
  * 1. Server immediately sends Chrome shell + LogViewerSkeleton (static shell)
@@ -32,7 +31,7 @@ import { WorkflowSelector } from "./components/workflow-selector";
  * 3. When data is ready, React streams the content to replace skeleton
  * 4. Client hydrates with data already in React Query cache (no client fetch!)
  *
- * This pattern mirrors production usage where log-viewer will be used on:
+ * Production usage:
  * - Task logs, Group logs, Workflow logs pages
  * - Static logs (completed workflows) - biggest PPR benefit
  * - Streaming logs (running workflows) - prefetch initial batch
@@ -43,12 +42,7 @@ interface PageProps {
   searchParams: Promise<{ workflow?: string; scenario?: string }>;
 }
 
-export default async function LogViewerExperimentalPage({ searchParams }: PageProps) {
-  // Redirect to home in production (server-side, no client JS needed)
-  if (process.env.NODE_ENV === "production") {
-    redirect("/");
-  }
-
+export default async function LogViewerPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const workflowId = params.workflow;
 
