@@ -251,7 +251,7 @@ export default function Datasets() {
           id="workflows-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-100 border-t-0"
+          className="filter-slideout"
           aria-label="Datasets Filter"
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}

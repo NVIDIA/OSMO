@@ -343,7 +343,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             setShowFilters(false);
           }}
           aria-label="Tasks Filter"
-          className="z-20 border-t-0 w-100"
+          className="z-20 filter-slideout"
         >
           <TasksFilter
             name={nameFilter}

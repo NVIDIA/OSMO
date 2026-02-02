@@ -338,7 +338,7 @@ export default function Tasks() {
           id="tasks-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-100 border-t-0"
+          className="filter-slideout"
           aria-label="Tasks Filter"
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}

@@ -271,6 +271,10 @@ SPDX-License-Identifier: Apache-2.0
     @apply h-full w-80 xl:w-100 3xl:w-140 max-w-[80vw] overflow-y-auto;
   }
 
+  .filter-slideout {
+    @apply w-[80vw] max-w-100 border-t-0;
+  }
+
   .popup-header {
     @apply flex flex-row justify-between items-center px-global py-global gap-global;
 

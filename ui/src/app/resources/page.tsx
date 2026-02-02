@@ -149,7 +149,7 @@ export default function Resources() {
               setShowFilters(false);
             }}
             aria-label="Resources Filter"
-            className="z-40 border-t-0 w-100"
+            className="z-40 filter-slideout"
           >
             <ResourcesFilter
               selectedPools={selectedPools}

@@ -268,13 +268,12 @@ export default function TasksSummary() {
       <PageHeader>
         <h2 className="grow capitalize">
           {`${statusFilterType?.toString() ?? "Current"} Tasks
-          ${
-            userType === UserFilterType.ALL
+          ${userType === UserFilterType.ALL
               ? " for All Users"
               : userFilter && userFilter.split(",").length === 1
                 ? ` for ${userFilter}`
                 : ""
-          }`}
+            }`}
         </h2>
         <IconButton
           className={`btn ${showTotalResources ? "btn-primary" : ""}`}
@@ -299,7 +298,7 @@ export default function TasksSummary() {
           id="tasks-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-100 border-t-0"
+          className="filter-slideout"
           aria-label="Tasks Filter"
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}
