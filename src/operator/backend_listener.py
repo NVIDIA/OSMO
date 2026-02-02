@@ -627,7 +627,7 @@ def update_resource_usage(node_send_queue: helpers.EnqueueCallback,
     non_wf_resource_usage = format_resource_usage(non_wf_requests)
 
     resource_message = backend_messages.MessageBody(
-        type=backend_messages.MessageType.RESOURCE_USAGE,
+        type=backend_messages.MessageType.UPDATE_NODE_USAGE,
         body=backend_messages.UpdateNodeUsageBody(
             hostname=node_name,
             usage_fields=resource_usage,
