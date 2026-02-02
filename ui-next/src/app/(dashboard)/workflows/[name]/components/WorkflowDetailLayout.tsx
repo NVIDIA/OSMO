@@ -86,7 +86,10 @@ export function WorkflowDetailLayout({
 
   // Compute CSS variables from state (React-controlled DOM)
   const gridStyle = useMemo((): CSSProperties => {
-    const columns = dagVisible ? `minmax(0, 1fr) ${widthPct}%` : "0fr 1fr";
+    // Use percentage-based columns for smooth transitions
+    // DAG width = 100 - panel width, Panel width = widthPct
+    const dagWidthPct = 100 - widthPct;
+    const columns = dagVisible ? `${dagWidthPct}% ${widthPct}%` : "0% 100%";
 
     // Disable transitions during drag for 60fps performance
     const transition = phase === "DRAGGING" ? "none" : `grid-template-columns ${TRANSITION_TIMING}`;
@@ -129,7 +132,9 @@ export function WorkflowDetailLayout({
 
   // Derive visual states
   const layoutMode: LayoutMode = dagVisible ? "sideBySide" : "panelOnly";
-  const shouldRenderDag = dagRenderState !== "hidden";
+  // Unmount React Flow immediately when hiding to avoid measurement warnings
+  // Container still animates smoothly via grid transition
+  const shouldRenderDag = dagVisible;
   const showSnapIndicators = isDragging && dagVisible;
   const showFullSnapPreview = showSnapIndicators && snapZone === "full";
   const showSoftSnapPreview = showSnapIndicators && snapZone === "soft";
