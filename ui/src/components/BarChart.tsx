@@ -165,7 +165,7 @@ export const BarChart = ({
           <g
             key={datum.id ?? `${datum.label}-${index}`}
             className="bar-item"
-            role="button"
+            role="listitem"
             tabIndex={onBarSelect ? 0 : -1}
             aria-label={ariaBarLabel}
             onClick={() => onBarSelect?.(datum, index)}
