@@ -36,10 +36,9 @@ import {
   portForwardGenerator,
   ptySimulator,
   type PTYScenario,
-  getLogScenario,
 } from "./generators";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay } from "./utils";
-import { getMockWorkflow } from "./mock-workflows";
+import { getMockWorkflow, getWorkflowLogConfig } from "./mock-workflows";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -329,17 +328,17 @@ export const handlers = [
     const queryPattern = url.searchParams.get("query");
 
     // Dev-only params
-    const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
     const delayOverride = url.searchParams.get("log_delay");
     // tail=true means the client wants to stream continuously (useLogTail)
     // Without tail=true, return finite data even for streaming scenario
     const isTailing = url.searchParams.get("tail") === "true";
 
-    const scenario = getLogScenario(scenarioName);
-
     // Get workflow metadata (check mock workflows first, then generated workflows)
     const mockWorkflow = getMockWorkflow(name);
     const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
+
+    // Get log configuration from workflow (embedded in mock workflows)
+    const logConfig = getWorkflowLogConfig(name);
 
     const taskNames = taskFilter
       ? [taskFilter]
@@ -384,15 +383,15 @@ export const handlers = [
       return lines.join("\n");
     };
 
-    // For streaming scenario with tail=true, return infinite ReadableStream
+    // For streaming workflows with tail=true, return infinite ReadableStream
     // Uses HttpResponse from MSW for proper lifecycle management
     // @see https://mswjs.io/docs/http/mocking-responses/streaming/
     //
     // Only stream infinitely when:
-    // 1. scenario.features.streaming is true (streaming scenario)
+    // 1. logConfig.features.streaming is true (workflow configured for streaming)
     // 2. isTailing is true (client explicitly requested streaming via tail=true)
-    if (scenario.features.streaming && isTailing) {
-      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
+    if (logConfig.features.streaming && isTailing) {
+      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
       const encoder = new TextEncoder();
 
       // Create streaming generator using workflow's time range
@@ -400,7 +399,6 @@ export const handlers = [
       // For completed workflows, this shouldn't be used (streaming only makes sense for running workflows)
       const streamGen = logGenerator.createStream({
         workflowName: name,
-        scenario,
         taskNames,
         continueFrom: workflowStartTime, // Start streaming from workflow start (or MOCK_REFERENCE_DATE if no start)
         streamDelayMs: streamDelay,
@@ -428,7 +426,6 @@ export const handlers = [
           "Content-Type": "text/plain; charset=us-ascii",
           "X-Content-Type-Options": "nosniff",
           "Cache-Control": "no-cache",
-          "X-Log-Scenario": scenarioName,
         },
       });
     }
@@ -436,11 +433,10 @@ export const handlers = [
     // For non-streaming scenarios, apply minimal delay and return all at once
     await delay(MOCK_DELAY);
 
-    // Generate logs (deterministic based on workflow name + scenario)
+    // Generate logs using workflow's embedded configuration
     // Use workflow's actual time range for realistic timestamps
-    let logs = logGenerator.generateForScenario({
+    let logs = logGenerator.generateForWorkflow({
       workflowName: name,
-      scenarioName,
       taskNames,
       startTime: workflowStartTime,
       endTime: workflowEndTime,
@@ -455,7 +451,6 @@ export const handlers = [
       headers: {
         "Content-Type": "text/plain; charset=us-ascii",
         "X-Content-Type-Options": "nosniff",
-        "X-Log-Scenario": scenarioName, // Dev-only header for testing
         "X-Log-Count": logs.split("\n").filter(Boolean).length.toString(),
       },
     });
@@ -588,25 +583,25 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const workflowName = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
     const taskName = pathMatch ? decodeURIComponent(pathMatch[2]) : "unknown";
 
-    // Parse scenario from URL params (for dev testing)
-    const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
+    // Parse params from URL (for dev testing)
     const delayOverride = url.searchParams.get("log_delay");
     const isTailing = url.searchParams.get("tail") === "true";
-
-    const scenario = getLogScenario(scenarioName);
 
     // Get workflow and task metadata (check mock workflows first)
     const mockWorkflow = getMockWorkflow(workflowName);
     const workflow = mockWorkflow ?? workflowGenerator.getByName(workflowName);
     const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
 
+    // Get log configuration from workflow
+    const logConfig = getWorkflowLogConfig(workflowName);
+
     // Extract time range from task metadata for realistic log timestamps
     const taskStartTime = task?.start_time ? new Date(task.start_time) : undefined;
     const taskEndTime = task?.end_time ? new Date(task.end_time) : undefined;
 
-    // For streaming scenario with tail=true, use setInterval pattern (same as workflow logs)
-    if (scenario.features.streaming && isTailing) {
-      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
+    // For streaming workflows with tail=true, use setInterval pattern (same as workflow logs)
+    if (logConfig.features.streaming && isTailing) {
+      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (logConfig.features.streamDelayMs ?? 200);
       const encoder = new TextEncoder();
 
       const levels = ["INFO", "DEBUG", "WARN", "ERROR"];
@@ -650,41 +645,25 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-cache",
-          "X-Log-Scenario": scenarioName,
         },
       });
     }
 
-    // For non-streaming scenarios, use legacy task log generation or scenario-based
+    // For non-streaming workflows, generate logs using workflow config
     await delay(MOCK_DELAY);
 
-    // Generate logs (deterministic based on workflow + task + scenario)
+    // Generate logs using workflow's embedded configuration
     // Use task's actual time range for realistic timestamps
-    let logs: string;
-    if (scenarioName !== "normal") {
-      // Use scenario-based generation with task time range
-      logs = logGenerator.generateForScenario({
-        workflowName,
-        scenarioName,
-        taskNames: [taskName],
-        startTime: taskStartTime,
-        endTime: taskEndTime,
-      });
-    } else {
-      // Use legacy method for backward compatibility in normal case
-      const status = task?.status ?? "RUNNING";
-      const duration =
-        task?.end_time && task?.start_time
-          ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
-          : undefined;
-
-      logs = logGenerator.generateTaskLogs(workflowName, taskName, status, duration);
-    }
+    const logs = logGenerator.generateForWorkflow({
+      workflowName,
+      taskNames: [taskName],
+      startTime: taskStartTime,
+      endTime: taskEndTime,
+    });
 
     return HttpResponse.text(logs, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        ...(scenarioName !== "normal" && { "X-Log-Scenario": scenarioName }),
       },
     });
   }),
