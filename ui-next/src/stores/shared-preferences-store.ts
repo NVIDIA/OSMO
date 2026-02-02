@@ -110,18 +110,6 @@ interface SharedPreferencesActions {
   toggleDetailsPanelCollapsed: () => void;
   /** Set details panel collapsed state explicitly */
   setDetailsPanelCollapsed: (collapsed: boolean) => void;
-  /**
-   * Toggle DAG visibility.
-   * - If DAG visible (pct < 100): Sets to 100 (hides DAG)
-   * - If DAG hidden (pct = 100): Sets to 50 (shows DAG)
-   */
-  toggleDagVisible: () => void;
-  /**
-   * Set DAG visibility explicitly.
-   * - visible=true: Sets panelWidthPct to 50 (or retains current if < 100)
-   * - visible=false: Sets panelWidthPct to 100
-   */
-  setDagVisible: (visible: boolean) => void;
   /** Reset to defaults */
   reset: () => void;
 }
@@ -254,44 +242,6 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
             },
             false,
             "setDetailsPanelCollapsed",
-          ),
-
-        toggleDagVisible: () =>
-          set(
-            (state) => {
-              const isDagCurrentlyVisible = state.panelWidthPct < FULL_WIDTH_PCT;
-              if (isDagCurrentlyVisible) {
-                // Hide DAG: expand panel to full width
-                state.panelWidthPct = FULL_WIDTH_PCT;
-                // When hiding DAG, force panel to expanded state
-                state.detailsPanelCollapsed = false;
-              } else {
-                // Show DAG: restore to default split
-                state.panelWidthPct = DEFAULT_PANEL_WIDTH_PCT;
-              }
-            },
-            false,
-            "toggleDagVisible",
-          ),
-
-        setDagVisible: (visible) =>
-          set(
-            (state) => {
-              if (visible) {
-                // Show DAG: set to default if currently at full width
-                if (state.panelWidthPct >= FULL_WIDTH_PCT) {
-                  state.panelWidthPct = DEFAULT_PANEL_WIDTH_PCT;
-                }
-                // If already < 100, keep current width (DAG is already visible)
-              } else {
-                // Hide DAG: expand panel to full width
-                state.panelWidthPct = FULL_WIDTH_PCT;
-                // When hiding DAG, force panel to expanded state
-                state.detailsPanelCollapsed = false;
-              }
-            },
-            false,
-            "setDagVisible",
           ),
 
         reset: () => set(initialState, false, "reset"),

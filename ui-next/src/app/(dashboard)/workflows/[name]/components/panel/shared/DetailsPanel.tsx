@@ -58,8 +58,9 @@ import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
 import { ShellSessionIcon, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
-import { useSharedPreferences, useDagVisible } from "@/stores";
+import { useDagVisible } from "@/stores";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
+import { usePanelResize } from "../../../lib/panel-resize-context";
 
 // =============================================================================
 // Direct Imports - Eager loading for instant panel rendering
@@ -120,7 +121,15 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
 
   // DAG visibility toggle state
   const dagVisible = useDagVisible();
-  const toggleDagVisible = useSharedPreferences((s) => s.toggleDagVisible);
+  const { showDAG, hideDAG } = usePanelResize();
+
+  const handleToggleDAG = useEventCallback(() => {
+    if (dagVisible) {
+      hideDAG();
+    } else {
+      showDAG();
+    }
+  });
 
   // Filter sessions to only show those belonging to this workflow
   const sessions = workflowName ? allSessions.filter((s) => s.workflowName === workflowName) : allSessions;
@@ -157,7 +166,7 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
       <div className="flex h-full flex-col items-center py-3">
         {/* DAG Visibility Toggle */}
         <SemiStatefulButton
-          onClick={toggleDagVisible}
+          onClick={handleToggleDAG}
           currentStateIcon={dagVisible ? <Network className="size-4" /> : <PanelLeftClose className="size-4" />}
           nextStateIcon={dagVisible ? <PanelLeftClose className="size-4" /> : <Network className="size-4" />}
           label={dagVisible ? "Hide DAG" : "Show DAG"}
