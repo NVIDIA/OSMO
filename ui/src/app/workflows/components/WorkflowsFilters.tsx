@@ -208,7 +208,7 @@ export const WorkflowsFilters = ({
         />
         <fieldset className="flex flex-col gap-1 mb-2">
           <legend>Priority</legend>
-          <div className="flex flex-row gap-7">
+          <div className="flex flex-row flex-wrap gap-radios">
             <label className="flex items-center gap-1">
               <input
                 type="radio"
@@ -287,7 +287,7 @@ export const WorkflowsFilters = ({
           </InlineBanner>
         )}
       </div>
-      <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
+      <div className="flex flex-row gap-global justify-between body-footer p-global sm:sticky sm:bottom-0">
         {onReset && (
           <button
             type="button"
