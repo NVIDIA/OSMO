@@ -32,6 +32,9 @@ import { cookies } from "next/headers";
  *
  * On the server, we connect directly to the backend (no proxy needed).
  * This uses the same env vars as the client config.
+ *
+ * MOCK MODE: The dev:mock script sets NEXT_PUBLIC_OSMO_API_HOSTNAME=localhost:3000
+ * so all SSR requests stay local and MSW can intercept them.
  */
 export function getServerApiBaseUrl(): string {
   const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
