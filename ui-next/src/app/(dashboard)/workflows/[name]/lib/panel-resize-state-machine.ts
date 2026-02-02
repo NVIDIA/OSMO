@@ -107,8 +107,6 @@ export interface PanelResizeStateMachineOptions {
   onPersist: (pct: number) => void;
   /** Callback to persist collapsed state to storage */
   onPersistCollapsed: (collapsed: boolean) => void;
-  /** Callback when DAG should be hidden (full snap) */
-  onHideDAG: () => void;
   /** Minimum width percentage */
   minPct?: number;
   /** Maximum width percentage */
@@ -179,7 +177,6 @@ export class PanelResizeStateMachine {
   private readonly maxPct: number;
   private readonly onPersist: (pct: number) => void;
   private readonly onPersistCollapsed: (collapsed: boolean) => void;
-  private readonly onHideDAG: () => void;
 
   constructor(options: PanelResizeStateMachineOptions) {
     this.state = createInitialState(options.initialPersistedPct, options.initialCollapsed);
@@ -188,7 +185,6 @@ export class PanelResizeStateMachine {
     this.maxPct = options.maxPct ?? 100;
     this.onPersist = options.onPersist;
     this.onPersistCollapsed = options.onPersistCollapsed;
-    this.onHideDAG = options.onHideDAG;
   }
 
   // ===========================================================================
@@ -249,11 +245,23 @@ export class PanelResizeStateMachine {
       return;
     }
 
-    this.setState({
+    const updates: Partial<ResizeState> = {
       widthPct: clampedPct,
       snapZone: newSnapZone,
       dagVisible: clampedPct < 100,
-    });
+    };
+
+    // CRITICAL: Only update persistedPct when BELOW soft snap zone (< 80%)
+    // When in ANY snap zone (soft or full), freeze persistedPct:
+    // - Soft snap will set persistedPct=80 in onTransitionComplete()
+    // - Full snap will preserve persistedPct in onTransitionComplete()
+    if (clampedPct < SNAP_ZONES.SOFT_SNAP_START) {
+      // < 80%
+      updates.persistedPct = clampedPct;
+    }
+    // When 80% <= x < 100%: persistedPct unchanged (snap zone active)
+
+    this.setState(updates);
   }
 
   /**
@@ -313,16 +321,15 @@ export class PanelResizeStateMachine {
 
     this.setState({
       phase: "SETTLING",
-      persistedPct: targetPct,
+      // Only update persistedPct for soft snap (80%)
+      // For full snap (100%), preserve the last non-100% width
+      persistedPct: targetPct >= 100 ? this.state.persistedPct : targetPct,
       snapZone: null,
       snapTarget: null,
     });
 
-    // Persist and trigger callbacks
+    // Persist display width
     this.onPersist(targetPct);
-    if (targetPct >= 100) {
-      this.onHideDAG();
-    }
 
     // Schedule layout stable notification
     this.scheduleLayoutStable();
@@ -387,24 +394,26 @@ export class PanelResizeStateMachine {
   // ===========================================================================
 
   /**
-   * Hide DAG (set width to 100%).
+   * Hide DAG (set width to 100% with animation).
    */
   hideDAG(): void {
     if (this.disposed) return;
     if (this.state.phase !== "IDLE") return;
 
+    // Don't update persistedPct - preserve last non-100% width
+    // Use SNAPPING phase for smooth animation
     this.setState({
-      phase: "SETTLING",
+      phase: "SNAPPING",
       widthPct: 100,
-      persistedPct: 100,
+      snapTarget: 100,
       dagVisible: false,
     });
 
-    this.scheduleLayoutStable();
+    // Note: onPersist() will be called in onTransitionComplete() after animation
   }
 
   /**
-   * Show DAG (restore to previous width or default 50%).
+   * Show DAG (restore to previous width or default 50% with animation).
    */
   showDAG(): void {
     if (this.disposed) return;
@@ -412,14 +421,17 @@ export class PanelResizeStateMachine {
 
     const targetPct = this.state.persistedPct < 100 ? this.state.persistedPct : 50;
 
+    // Use SNAPPING phase for smooth animation
+    // Note: dagVisible is derived from widthPct < 100, will update automatically
     this.setState({
-      phase: "SETTLING",
+      phase: "SNAPPING",
       widthPct: targetPct,
+      snapTarget: targetPct,
       persistedPct: targetPct,
-      dagVisible: true,
+      dagVisible: targetPct < 100, // Explicitly set for consistency
     });
 
-    this.scheduleLayoutStable();
+    // Note: onPersist() will be called in onTransitionComplete() after animation
   }
 
   // ===========================================================================
