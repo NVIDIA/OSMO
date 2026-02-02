@@ -31,12 +31,16 @@ from src.utils import connectors
 oauth2_scheme = security.HTTPBearer(auto_error=False)
 
 
-class SCIMAuthError(Exception):
-    """Exception raised for SCIM authentication errors"""
-    def __init__(self, detail: str, status_code: int = 401):
-        self.detail = detail
-        self.status_code = status_code
-        super().__init__(detail)
+def _create_scim_auth_error(detail: str, status_code: int = 401) -> fastapi.HTTPException:
+    """Create a SCIM-compliant authentication error"""
+    return fastapi.HTTPException(
+        status_code=status_code,
+        detail={
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            "status": str(status_code),
+            "detail": detail
+        }
+    )
 
 
 def validate_scim_token(
@@ -54,25 +58,25 @@ def validate_scim_token(
         AccessToken object if valid
 
     Raises:
-        SCIMAuthError: If token is invalid, expired, or missing
+        HTTPException: If token is invalid, expired, or missing
     """
     if not credentials:
-        raise SCIMAuthError("Missing authorization header", 401)
+        raise _create_scim_auth_error("Missing authorization header", 401)
 
     if credentials.scheme.lower() != "bearer":
-        raise SCIMAuthError("Invalid authentication scheme. Use Bearer token.", 401)
+        raise _create_scim_auth_error("Invalid authentication scheme. Use Bearer token.", 401)
 
     token = credentials.credentials
     access_token = auth_objects.AccessToken.validate_access_token(postgres, token)
 
     if not access_token:
         logging.warning("SCIM auth failed: Invalid token provided")
-        raise SCIMAuthError("Invalid or unknown token", 401)
+        raise _create_scim_auth_error("Invalid or unknown token", 401)
 
     # Check expiration
     if access_token.expires_at.date() <= datetime.datetime.utcnow().date():
         logging.warning("SCIM auth failed: Token expired for user %s", access_token.user_name)
-        raise SCIMAuthError("Token has expired", 401)
+        raise _create_scim_auth_error("Token has expired", 401)
 
     # Verify this is a service token (SCIM should use service tokens)
     if access_token.access_type != auth_objects.AccessTokenType.SERVICE:
@@ -102,15 +106,3 @@ async def scim_auth_dependency(
     """
     postgres = connectors.PostgresConnector.get_instance()
     return validate_scim_token(credentials, postgres)
-
-
-def create_scim_error_response(error: SCIMAuthError) -> fastapi.responses.JSONResponse:
-    """Create a SCIM-compliant error response"""
-    return fastapi.responses.JSONResponse(
-        status_code=error.status_code,
-        content={
-            "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
-            "status": str(error.status_code),
-            "detail": error.detail
-        }
-    )
