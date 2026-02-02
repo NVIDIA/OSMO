@@ -9,7 +9,7 @@
     "dev:local": "NEXT_PUBLIC_OSMO_API_HOSTNAME=localhost:8000 NEXT_PUBLIC_OSMO_SSL_ENABLED=false next dev --turbopack",
     "dev:mock": "NEXT_PUBLIC_MOCK_API=true next dev --turbopack",
     "dev:mock-ws": "node scripts/mock-ws-server.mjs",
-    "build": "next build && pnpm compress",
+    "build": "next build --turbo && pnpm compress",
     "compress": "node scripts/compress-assets.mjs",
     "start": "next start",
     "lint": "eslint",

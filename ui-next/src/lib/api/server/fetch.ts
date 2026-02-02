@@ -75,7 +75,7 @@ function generateRequestId(): string {
  * @param request - The request to handle
  * @returns Response from matching handler, or null if no handler matches
  */
-async function invokeHandler(request: Request): Promise<Response | null> {
+async function handleMockRequest(request: Request): Promise<Response | null> {
   const requestId = generateRequestId();
 
   for (const handler of handlers) {
@@ -89,8 +89,6 @@ async function invokeHandler(request: Request): Promise<Response | null> {
         return result.response;
       }
     } catch (error) {
-      // Handler threw an error - this shouldn't happen for normal requests
-      // Log and continue to next handler
       console.error("[serverFetch] Handler error:", error);
     }
   }
@@ -146,7 +144,8 @@ export async function serverFetch(input: RequestInfo | URL, init?: RequestInit):
     const request = new Request(input, init);
 
     // Try to invoke a mock handler
-    const mockResponse = await invokeHandler(request);
+    // In production, this entire module is aliased to fetch.production.ts
+    const mockResponse = await handleMockRequest(request);
     if (mockResponse) {
       return mockResponse;
     }
