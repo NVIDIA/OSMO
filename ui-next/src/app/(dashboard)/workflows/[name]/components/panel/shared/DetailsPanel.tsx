@@ -48,7 +48,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
-import { FileText, Info, History, Network, PanelLeftClose, type LucideIcon } from "lucide-react";
+import { FileText, Info, History, Network, PanelLeftClose, List, type LucideIcon } from "lucide-react";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
@@ -395,6 +395,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   const quickActions: QuickAction[] = useMemo(() => {
     return [
       { id: "overview", icon: Info, label: "Workflow Overview", onClick: () => navigateToWorkflowTab("overview") },
+      { id: "tasks", icon: List, label: "Workflow Tasks", onClick: () => navigateToWorkflowTab("tasks") },
       { id: "logs", icon: FileText, label: "Workflow Logs", onClick: () => navigateToWorkflowTab("logs") },
       { id: "events", icon: History, label: "Workflow Events", onClick: () => navigateToWorkflowTab("events") },
     ];
