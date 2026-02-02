@@ -37,9 +37,19 @@ export interface TasksFiltersDataProps {
 
 interface TasksFiltersProps extends TasksFiltersDataProps {
   updateUrl: (params: ToolParamUpdaterProps) => void;
-  validateFilters: (props: TasksFiltersDataProps) => string[];
   availableNodes: string[];
 }
+
+export const validateFilters = (props: TasksFiltersDataProps) => {
+  const errors: string[] = [];
+  if (!props.allNodes && props.nodes.length === 0) {
+    errors.push("Please select at least one node");
+  }
+  if (props.statusFilterType === StatusFilterType.CUSTOM && !props.statuses?.length) {
+    errors.push("Please select at least one status");
+  }
+  return errors;
+};
 
 export const TasksFilter = ({
   name,
@@ -50,7 +60,6 @@ export const TasksFilter = ({
   pod_ip,
   availableNodes,
   updateUrl,
-  validateFilters,
 }: TasksFiltersProps) => {
   const [localStatusMap, setLocalStatusMap] = useState<Map<TaskStatusType, boolean>>(new Map());
   const [localStatusFilterType, setLocalStatusFilterType] = useState<StatusFilterType | undefined>(statusFilterType);

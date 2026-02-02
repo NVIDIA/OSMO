@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "~/components/AuthProvider";
-import { allDateRange, customDateRange } from "~/components/DateRangePicker";
+import { allDateRange } from "~/components/DateRangePicker";
 import { FilterButton } from "~/components/FilterButton";
 import { FilledIcon } from "~/components/Icon";
 import { IconButton } from "~/components/IconButton";
@@ -37,7 +37,7 @@ import { api } from "~/trpc/react";
 
 import { TasksTable } from "./components/TasksTable";
 import { getTaskStatusArray } from "../tasks/components/StatusFilter";
-import { TasksFilters, type TasksFiltersDataProps } from "../tasks/components/TasksFilters";
+import { TasksFilters, validateFilters } from "../tasks/components/TasksFilters";
 import { ToolsModal } from "../workflows/components/ToolsModal";
 import WorkflowDetails from "../workflows/components/WorkflowDetails";
 import { useWorkflow } from "../workflows/components/WorkflowLoader";
@@ -146,36 +146,6 @@ export default function TasksSummary() {
     }
   }, [tool, selectedWorkflow]);
 
-  const validateFilters = useCallback(
-    ({
-      isSelectAllPoolsChecked,
-      selectedPools,
-      dateRange,
-      startedAfter,
-      startedBefore,
-      statusFilterType,
-      statuses,
-      nodes,
-      isSelectAllNodesChecked,
-    }: TasksFiltersDataProps): string[] => {
-      const errors: string[] = [];
-      if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
-        errors.push("Please select at least one pool");
-      }
-      if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
-        errors.push("Please select a date range");
-      }
-      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
-        errors.push("Please select at least one status");
-      }
-      if (!isSelectAllNodesChecked && nodes.length === 0) {
-        errors.push("Please select at least one node");
-      }
-      return errors;
-    },
-    [],
-  );
-
   useEffect(() => {
     if (
       validateFilters({
@@ -203,7 +173,6 @@ export default function TasksSummary() {
     dateRange,
     dateAfterFilter,
     dateBeforeFilter,
-    validateFilters,
     nameFilter,
     username,
     nodes,
@@ -310,7 +279,6 @@ export default function TasksSummary() {
               isSelectAllPoolsChecked={isSelectAllPoolsChecked}
               currentUserName={username}
               onRefresh={forceRefetch}
-              validateFilters={validateFilters}
               priority={priority}
               workflowId={nameFilter ?? ""}
               updateUrl={updateUrl}

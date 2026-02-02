@@ -131,10 +131,6 @@ export default function Home() {
     setEditingWidget(undefined);
   };
 
-  const validateWidget = (data: WorkflowsFiltersDataProps) => {
-    return [];
-  };
-
   useEffect(() => {
     const storedWidgets = localStorage.getItem("widgets");
 
@@ -271,6 +267,7 @@ export default function Home() {
           }}
         />
         <WorkflowsFilters
+          hideNameFilter={true}
           name={""}
           userType={editingWidget?.userType ?? UserFilterType.ALL}
           selectedUsers={editingWidget?.selectedUsers ?? ""}
@@ -283,7 +280,6 @@ export default function Home() {
           currentUserName={username}
           priority={editingWidget?.priority ?? undefined}
           onSave={onSaveWidget}
-          validateFilters={validateWidget}
           saveButtonText="Save"
           saveButtonIcon="save"
         />

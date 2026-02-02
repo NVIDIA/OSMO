@@ -27,6 +27,18 @@ import { api } from "~/trpc/react";
 
 import useToolParamUpdater from "../hooks/useToolParamUpdater";
 
+export const validateFilters =
+  ({ selectedBuckets, dateRange, createdAfter, createdBefore }: DatasetsFilterDataProps): string[] => {
+    const errors: string[] = [];
+    if (selectedBuckets.length === 0) {
+      errors.push("Please select at least one bucket");
+    }
+    if (dateRange === customDateRange && (createdAfter === undefined || createdBefore === undefined)) {
+      errors.push("Please select a date range");
+    }
+    return errors;
+  };
+
 export interface DatasetsFilterDataProps {
   userType: UserFilterType;
   selectedUsers: string;
@@ -41,7 +53,6 @@ interface DatasetsFilterProps extends DatasetsFilterDataProps {
   datasetsType?: DatasetTypesSchema;
   currentUserName: string;
   onRefresh: () => void;
-  validateFilters: (props: DatasetsFilterDataProps) => string[];
 }
 
 export const DatasetsFilter = ({
@@ -55,7 +66,6 @@ export const DatasetsFilter = ({
   currentUserName,
   datasetsType,
   onRefresh,
-  validateFilters,
 }: DatasetsFilterProps) => {
   const toolParamUpdater = useToolParamUpdater(UrlTypes.Datasets);
   const [localName, setLocalName] = useState<string>(name);

@@ -38,7 +38,7 @@ import { getWorkflowStatusArray } from "./components/StatusFilter";
 import { ToolsModal } from "./components/ToolsModal";
 import WorkflowDetails from "./components/WorkflowDetails";
 import { useWorkflow } from "./components/WorkflowLoader";
-import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./components/WorkflowsFilters";
+import { validateFilters, WorkflowsFilters, type WorkflowsFiltersDataProps } from "./components/WorkflowsFilters";
 import { getActionId, WorkflowsTable } from "./components/WorkflowsTable";
 import useToolParamUpdater, { type ToolType } from "./hooks/useToolParamUpdater";
 
@@ -109,31 +109,6 @@ export default function Workflows() {
     }
   }, [selectedWorkflow.data, selectedTaskName, retryId]);
 
-  const validateFilters = useCallback(
-    ({
-      isSelectAllPoolsChecked,
-      selectedPools,
-      dateRange,
-      submittedAfter,
-      submittedBefore,
-      statusFilterType,
-      statuses,
-    }: WorkflowsFiltersDataProps): string[] => {
-      const errors: string[] = [];
-      if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
-        errors.push("Please select at least one pool");
-      }
-      if (dateRange === customDateRange && (submittedAfter === undefined || submittedBefore === undefined)) {
-        errors.push("Please select a date range");
-      }
-      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
-        errors.push("Please select at least one status");
-      }
-      return errors;
-    },
-    [],
-  );
-
   // Show filters if the params are not valid
   useEffect(() => {
     if (statusFilterType === undefined) {
@@ -167,7 +142,6 @@ export default function Workflows() {
     nameFilter,
     statusFilterType,
     statusFilter,
-    validateFilters,
     updateUrl,
   ]);
   const { setSafeTimeout } = useSafeTimeout();
@@ -294,7 +268,7 @@ export default function Workflows() {
           id="workflows-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-[80vw] max-w-100 border-t-0"
+          className="filter-slideout"
           aria-label="Workflows Filter"
         >
           <WorkflowsFilters
@@ -309,7 +283,6 @@ export default function Workflows() {
             isSelectAllPoolsChecked={isSelectAllPoolsChecked}
             name={nameFilter}
             currentUserName={username}
-            validateFilters={validateFilters}
             onSave={onSaveFilters}
             onReset={onResetFilters}
             priority={priority}

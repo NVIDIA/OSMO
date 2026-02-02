@@ -70,7 +70,7 @@ export const WorkflowsWidget = ({ filters, onEdit, onDelete, isEditing }: { filt
           counts={currentWorkflows ?? {}}
           size={160}
           innerRadius={40}
-          ariaLabel="My Current Workflows"
+          ariaLabel={filters.name}
         />
         {filters.description && <p className="text-sm text-gray-500 text-center">{filters.description}</p>}
       </div>

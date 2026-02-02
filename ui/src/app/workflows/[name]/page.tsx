@@ -36,7 +36,7 @@ import { type Task, type WorkflowSlugParams } from "~/models/workflows-model";
 
 import DirectedAcyclicGraph from "../components/DAG";
 import TaskDetails from "../components/TaskDetails";
-import { TasksFilter, type TasksFiltersDataProps } from "../components/TasksFilter";
+import { TasksFilter } from "../components/TasksFilter";
 import { TasksTable } from "../components/TasksTable";
 import { ToolsModal } from "../components/ToolsModal";
 import WorkflowDetails from "../components/WorkflowDetails";
@@ -193,17 +193,6 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     return tasks.some((task: Task) => task.retry_id && task.retry_id > 0);
   }, [selectedWorkflow.data]);
 
-  const validateFilters = useCallback((props: TasksFiltersDataProps) => {
-    const errors: string[] = [];
-    if (!props.allNodes && props.nodes.length === 0) {
-      errors.push("Please select at least one node");
-    }
-    if (props.statusFilterType === StatusFilterType.CUSTOM && !props.statuses?.length) {
-      errors.push("Please select at least one status");
-    }
-    return errors;
-  }, []);
-
   if (selectedWorkflow.error) {
     return (
       <PageError
@@ -354,7 +343,6 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             pod_ip={podIp}
             availableNodes={availableNodes}
             updateUrl={updateUrl}
-            validateFilters={validateFilters}
           />
         </SlideOut>
         {showWF && (

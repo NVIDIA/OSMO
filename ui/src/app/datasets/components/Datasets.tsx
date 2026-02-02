@@ -21,7 +21,6 @@ import { useSearchParams } from "next/navigation";
 
 import { useAuth } from "~/components/AuthProvider";
 import {
-  customDateRange,
   type DateRange,
   defaultDateRange,
   getBestDateRange,
@@ -38,7 +37,7 @@ import { type DataListEntry, type DatasetTypesSchema } from "~/models";
 import { api } from "~/trpc/react";
 
 import { CreateCollection, type DatasetInfo } from "./CreateCollection";
-import { DatasetsFilter, type DatasetsFilterDataProps } from "./DatasetsFilter";
+import { DatasetsFilter, validateFilters } from "./DatasetsFilter";
 import DatasetsTable from "./DatasetsTable";
 import { PARAM_KEYS } from "../hooks/useToolParamUpdater";
 
@@ -167,20 +166,6 @@ export default function Datasets() {
     }
   }, [isSelectAllUsersChecked, userFilter, username]);
 
-  const validateFilters = useCallback(
-    ({ selectedBuckets, dateRange, createdAfter, createdBefore }: DatasetsFilterDataProps): string[] => {
-      const errors: string[] = [];
-      if (selectedBuckets.length === 0) {
-        errors.push("Please select at least one bucket");
-      }
-      if (dateRange === customDateRange && (createdAfter === undefined || createdBefore === undefined)) {
-        errors.push("Please select a date range");
-      }
-      return errors;
-    },
-    [],
-  );
-
   useEffect(() => {
     if (
       bucketFilter &&
@@ -196,7 +181,7 @@ export default function Datasets() {
     ) {
       setShowFilters(true);
     }
-  }, [userFilter, bucketFilter, dateRange, createdAfter, createdBefore, name, userType, validateFilters]);
+  }, [userFilter, bucketFilter, dateRange, createdAfter, createdBefore, name, userType]);
 
   useEffect(() => {
     setDateRangeDates(getDateFromValues(dateRange, createdAfter, createdBefore));
@@ -267,7 +252,6 @@ export default function Datasets() {
               name={name ?? ""}
               currentUserName={username}
               onRefresh={forceRefetch}
-              validateFilters={validateFilters}
             />
           )}
         </SlideOut>

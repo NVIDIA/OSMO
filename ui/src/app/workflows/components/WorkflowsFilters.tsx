@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState } from "react";
 
-import { DateRangePicker } from "~/components/DateRangePicker";
+import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
@@ -39,16 +39,39 @@ export interface WorkflowsFiltersDataProps {
   isSelectAllPoolsChecked: boolean;
   name: string;
   priority?: PriorityType;
+  hideNameFilter?: boolean;
 }
 
 interface WorkflowsFiltersProps extends WorkflowsFiltersDataProps {
   currentUserName: string;
-  validateFilters: (props: WorkflowsFiltersDataProps) => string[];
   onSave: (props: WorkflowsFiltersDataProps) => void;
   onReset?: () => void;
   saveButtonText?: string;
   saveButtonIcon?: string;
 }
+
+export const validateFilters =
+  ({
+    isSelectAllPoolsChecked,
+    selectedPools,
+    dateRange,
+    submittedAfter,
+    submittedBefore,
+    statusFilterType,
+    statuses,
+  }: WorkflowsFiltersDataProps): string[] => {
+    const errors: string[] = [];
+    if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
+      errors.push("Please select at least one pool");
+    }
+    if (dateRange === customDateRange && (submittedAfter === undefined || submittedBefore === undefined)) {
+      errors.push("Please select a date range");
+    }
+    if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
+      errors.push("Please select at least one status");
+    }
+    return errors;
+  };
 
 export const WorkflowsFilters = ({
   userType,
@@ -63,11 +86,11 @@ export const WorkflowsFilters = ({
   name,
   priority,
   currentUserName,
-  validateFilters,
   onSave,
   onReset,
   saveButtonText = "Refresh",
   saveButtonIcon = "refresh",
+  hideNameFilter = false,
 }: WorkflowsFiltersProps) => {
   const [localName, setLocalName] = useState<string>(name);
   const [localDateRange, setLocalDateRange] = useState(dateRange);
@@ -193,19 +216,20 @@ export const WorkflowsFilters = ({
           setSelectedUsers={setLocalUsers}
           currentUserName={currentUserName}
         />
-        <TextInput
-          id="search-text"
-          label="Workflow Name"
-          placeholder="Filter by workflow name..."
-          className="w-full"
-          containerClassName="w-full mb-2"
-          value={localName}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setLocalName(event.target.value);
-          }}
-          slotLeft={<OutlinedIcon name="search" />}
-          autoComplete="off"
-        />
+        {!hideNameFilter && (
+          <TextInput
+            id="search-text"
+            label="Workflow Name"
+            placeholder="Filter by workflow name..."
+            className="w-full"
+            containerClassName="w-full mb-2"
+            value={localName}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setLocalName(event.target.value);
+            }}
+            slotLeft={<OutlinedIcon name="search" />}
+            autoComplete="off"
+          />)}
         <fieldset className="flex flex-col gap-1 mb-2">
           <legend>Priority</legend>
           <div className="flex flex-row flex-wrap gap-radios">

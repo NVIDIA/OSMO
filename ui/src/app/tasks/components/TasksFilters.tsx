@@ -29,6 +29,34 @@ import { api } from "~/trpc/react";
 
 import { getMapFromStatusArray, getTaskStatusArray, StatusFilter } from "./StatusFilter";
 
+export const validateFilters =
+  ({
+    isSelectAllPoolsChecked,
+    selectedPools,
+    dateRange,
+    startedAfter,
+    startedBefore,
+    statusFilterType,
+    statuses,
+    nodes,
+    isSelectAllNodesChecked,
+  }: TasksFiltersDataProps): string[] => {
+    const errors: string[] = [];
+    if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
+      errors.push("Please select at least one pool");
+    }
+    if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
+      errors.push("Please select a date range");
+    }
+    if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
+      errors.push("Please select at least one status");
+    }
+    if (!isSelectAllNodesChecked && nodes.length === 0) {
+      errors.push("Please select at least one node");
+    }
+    return errors;
+  };
+
 export interface TasksFiltersDataProps {
   userType: UserFilterType;
   selectedUsers: string;
@@ -48,7 +76,6 @@ export interface TasksFiltersDataProps {
 interface TasksFiltersProps extends TasksFiltersDataProps {
   currentUserName: string;
   onRefresh: () => void;
-  validateFilters: (props: TasksFiltersDataProps) => string[];
   updateUrl: (params: ToolParamUpdaterProps) => void;
 }
 
@@ -94,7 +121,6 @@ export const TasksFilters = ({
   priority,
   currentUserName,
   onRefresh,
-  validateFilters,
   workflowId,
   updateUrl,
   nodes,
@@ -206,8 +232,8 @@ export const TasksFilters = ({
     const nodes = localAllNodes
       ? []
       : Array.from(localNodes.entries())
-          .filter(([_, enabled]) => enabled)
-          .map(([node]) => node);
+        .filter(([_, enabled]) => enabled)
+        .map(([node]) => node);
 
     const formErrors = validateFilters({
       userType: localUserType,
