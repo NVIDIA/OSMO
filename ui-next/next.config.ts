@@ -159,22 +159,30 @@ const nextConfig: NextConfig = {
     resolveAlias:
       process.env.NODE_ENV === "production"
         ? {
-            // Replace debug utilities with no-op stubs in production
-            // This eliminates all debug code from the production bundle
-            "./utils/debug": "./utils/debug.production",
-            // Replace MockProvider with production stub to eliminate faker/msw from CLIENT bundle
-            // This completely removes dev dependencies from the production client bundle
+            // ============================================================
+            // CLIENT-SIDE MOCKING
+            // ============================================================
+            // Eliminates MSW, faker, and all mock code from client bundle
             "@/mocks/MockProvider": "@/mocks/MockProvider.production",
-            // Replace MSW server with production stub to eliminate faker/msw from SERVER bundle
-            // This ensures instrumentation.ts doesn't pull in any mock code
-            "@/mocks/server": "@/mocks/server.production",
-            // Replace mock utilities with no-op stubs in production
-            "@/mocks/inject-auth": "@/mocks/inject-auth.production",
-            // Replace server fetch with production passthrough (native fetch)
-            // This is the PRIMARY mechanism for mock interception in server-side code
+
+            // ============================================================
+            // SERVER-SIDE MOCKING
+            // ============================================================
+            // Single entry point - aliases entire fetch module
+            // Automatically treeshakes: handlers, generators, faker, msw/node
             "@/lib/api/server/fetch": "@/lib/api/server/fetch.production",
-            // Replace JWT helper with production version (removes cookie parsing for security)
-            // Production version ONLY trusts Envoy's Authorization header
+
+            // Prevents instrumentation.ts from starting MSW in production
+            "@/mocks/server": "@/mocks/server.production",
+
+            // For /experimental pages (still bundled even though they redirect)
+            "@/mocks/generators": "@/mocks/generators/index.production",
+
+            // ============================================================
+            // UTILITIES
+            // ============================================================
+            // Auth helpers (cookie parsing, JWT decode)
+            "@/mocks/inject-auth": "@/mocks/inject-auth.production",
             "@/lib/auth/jwt-helper": "@/lib/auth/jwt-helper.production",
           }
         : {},
