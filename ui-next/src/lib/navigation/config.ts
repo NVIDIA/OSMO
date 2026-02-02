@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LayoutDashboard, Workflow, Layers, Server, Settings, Shield, Key, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Workflow, Layers, Server, Logs, Settings, Shield, Key, type LucideIcon } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -43,6 +43,7 @@ const userNav: NavItem[] = [
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
   { name: "Resources", href: "/resources", icon: Server },
+  { name: "Log Viewer", href: "/log-viewer", icon: Logs },
 ];
 
 /** Bottom navigation - empty now (profile is in top-right header) */
