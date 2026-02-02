@@ -172,15 +172,13 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
           label={dagVisible ? "Hide DAG" : "Show DAG"}
           aria-label={dagVisible ? "Currently showing DAG view" : "DAG view is hidden"}
           tooltipSide="left"
+          variant="ghost"
+          size="icon-sm"
           className={cn(
-            "flex size-8 items-center justify-center rounded-lg",
-            "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-            "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            "transition-colors",
-            "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-            "focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900",
-            "focus-visible:outline-none",
-            "focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800",
+            "rounded-lg border-0 bg-transparent shadow-none",
+            "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
+            "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
+            "focus-visible:ring-0 focus-visible:ring-offset-0",
           )}
         />
 
