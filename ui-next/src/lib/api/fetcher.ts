@@ -88,11 +88,18 @@ function getDevAuthToken(): string | null {
 export const customFetch = async <T>(config: RequestConfig, options?: RequestInit): Promise<T> => {
   const { url, method, headers, data, params, signal } = config;
 
-  // Build URL with query params (always relative - routing layer handles backend)
-  // Prepend basePath to ensure basePath-aware URLs
-  // Note: Next.js rewrites handle /api/* routes before basePath is applied,
-  // but being explicit here makes the code more maintainable and basePath-agnostic
+  // Build URL with query params
+  // Server-side: Must use absolute URL (Node.js fetch requires full URL)
+  // Client-side: Can use relative URL
   let fullUrl = getBasePathUrl(url);
+
+  // On server, convert relative URLs to absolute URLs
+  if (typeof window === "undefined" && fullUrl.startsWith("/")) {
+    const { getServerApiBaseUrl } = await import("@/lib/api/server/config");
+    const baseUrl = getServerApiBaseUrl();
+    fullUrl = `${baseUrl}${fullUrl}`;
+  }
+
   if (params) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

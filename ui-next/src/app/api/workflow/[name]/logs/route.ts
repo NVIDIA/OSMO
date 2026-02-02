@@ -19,17 +19,11 @@
  *
  * Proxies log requests to the backend and streams the response.
  *
- * Mock Mode:
- * - Uses serverFetch which transparently routes to MSW handlers in development
- * - In production, serverFetch is aliased to native fetch (zero overhead)
- * - This file has NO knowledge of mock mode - it's completely agnostic
- *
  * @see https://nextjs.org/docs/app/building-your-application/routing/route-handlers
  */
 
 import { NextRequest } from "next/server";
 import { getServerApiBaseUrl } from "@/lib/api/server/config";
-import { serverFetch } from "@/lib/api/server/fetch";
 
 /**
  * GET /api/workflow/[name]/logs
@@ -63,9 +57,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   headers.set("Accept", "text/plain");
 
   try {
-    // Uses serverFetch which transparently routes to MSW in mock mode
-    // In production, serverFetch is aliased to native fetch (no overhead)
-    const response = await serverFetch(url.toString(), {
+    // Use native fetch for simple proxy
+    const response = await fetch(url.toString(), {
       method: "GET",
       headers,
     });

@@ -23,15 +23,6 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import {
-  getServerApiBaseUrl,
-  getServerFetchHeaders,
-  handleResponse,
-  EXPENSIVE_REVALIDATE,
-  type ServerFetchOptions,
-} from "./config";
-import { serverFetch } from "./fetch";
-import { transformAllResourcesResponse, transformResourcesResponse } from "../adapter/transforms";
 import type { AllResourcesResponse, PoolResourcesResponse } from "../adapter/types";
 
 // =============================================================================
@@ -43,55 +34,38 @@ import type { AllResourcesResponse, PoolResourcesResponse } from "../adapter/typ
  *
  * Uses React's cache() for request deduplication within a single render.
  *
- * @param options - Fetch options (revalidate, tags)
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
+ *
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  * @returns Transformed resources data
  */
-export const fetchResources = cache(async (options: ServerFetchOptions = {}): Promise<AllResourcesResponse> => {
-  const { revalidate = EXPENSIVE_REVALIDATE, tags = ["resources"] } = options;
+export const fetchResources = cache(async (): Promise<AllResourcesResponse> => {
+  const { getResourcesApiResourcesGet } = await import("../generated");
+  const { transformAllResourcesResponse } = await import("../adapter/transforms");
 
-  const baseUrl = getServerApiBaseUrl();
-  const headers = await getServerFetchHeaders();
-  const url = `${baseUrl}/api/resources?all_pools=true`;
-
-  const response = await serverFetch(url, {
-    headers,
-    next: {
-      revalidate,
-      tags,
-    },
-  });
-
-  const rawData = await handleResponse<unknown>(response, url);
+  const rawData = await getResourcesApiResourcesGet({ all_pools: true });
   return transformAllResourcesResponse(rawData);
 });
 
 /**
  * Fetch resources for a specific pool.
  *
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
+ *
  * @param poolName - The pool to fetch resources for
- * @param options - Fetch options
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  * @returns Resources for the pool
  */
-export const fetchResourcesByPool = cache(
-  async (poolName: string, options: ServerFetchOptions = {}): Promise<PoolResourcesResponse> => {
-    const { revalidate = EXPENSIVE_REVALIDATE, tags = ["resources", `resources-${poolName}`] } = options;
+export const fetchResourcesByPool = cache(async (poolName: string): Promise<PoolResourcesResponse> => {
+  const { getResourcesApiResourcesGet } = await import("../generated");
+  const { transformResourcesResponse } = await import("../adapter/transforms");
 
-    const baseUrl = getServerApiBaseUrl();
-    const headers = await getServerFetchHeaders();
-    const url = `${baseUrl}/api/resources?pools=${encodeURIComponent(poolName)}&all_pools=false`;
-
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
-    });
-
-    const rawData = await handleResponse<unknown>(response, url);
-    return transformResourcesResponse(rawData, poolName);
-  },
-);
+  const rawData = await getResourcesApiResourcesGet({
+    pools: [poolName],
+    all_pools: false,
+  });
+  return transformResourcesResponse(rawData, poolName);
+});
 
 // =============================================================================
 // Prefetch for TanStack Query Hydration
@@ -103,10 +77,10 @@ export const fetchResourcesByPool = cache(
  * @param queryClient - The QueryClient to prefetch into
  * @param options - Fetch options
  */
-export async function prefetchResources(queryClient: QueryClient, options: ServerFetchOptions = {}): Promise<void> {
+export async function prefetchResources(queryClient: QueryClient): Promise<void> {
   await queryClient.prefetchQuery({
     queryKey: ["resources", "all"],
-    queryFn: () => fetchResources(options),
+    queryFn: () => fetchResources(),
   });
 }
 

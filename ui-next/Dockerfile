@@ -133,7 +133,7 @@ ENV NODE_ENV=production
 # Build Next.js application
 # =============================================================================
 # BuildKit cache mount persists .next/cache between builds for faster rebuilds
-RUN --mount=type=cache,target=/app/.next/cache \
+RUN --mount=type=cache,target=/app/.next/cache-turbo \
     pnpm build
 
 # =============================================================================
