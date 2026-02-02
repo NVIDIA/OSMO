@@ -268,7 +268,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .workflow-details-slideout {
-    @apply h-full w-[25vw] overflow-y-auto;
+    @apply h-full w-80 xl:w-100 3xl:w-140 max-w-[80vw] overflow-y-auto;
   }
 
   .popup-header {

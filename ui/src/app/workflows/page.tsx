@@ -294,7 +294,7 @@ export default function Workflows() {
           id="workflows-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-100 border-t-0"
+          className="w-[80vw] max-w-100 border-t-0"
           aria-label="Workflows Filter"
         >
           <WorkflowsFilters
