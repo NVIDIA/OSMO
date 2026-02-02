@@ -23,6 +23,7 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { getServerApiBaseUrl, getServerFetchHeaders, handleResponse, type ServerFetchOptions } from "./config";
+import { serverFetch } from "./fetch";
 import { transformVersionResponse } from "../adapter/transforms";
 import type { Version } from "../adapter/types";
 
@@ -43,7 +44,7 @@ export const fetchVersion = cache(async (options: ServerFetchOptions = {}): Prom
   const url = `${baseUrl}/api/version`;
 
   try {
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,
@@ -75,7 +76,7 @@ const fetchVersionRaw = cache(async (options: ServerFetchOptions = {}): Promise<
   const url = `${baseUrl}/api/version`;
 
   try {
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,

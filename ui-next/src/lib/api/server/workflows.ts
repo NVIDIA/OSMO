@@ -30,6 +30,7 @@ import {
   DEFAULT_REVALIDATE,
   type ServerFetchOptions,
 } from "./config";
+import { serverFetch } from "./fetch";
 import { normalizeWorkflowTimestamps } from "../adapter/utils";
 import { getGetWorkflowApiWorkflowNameGetQueryKey } from "../generated";
 import type {
@@ -115,7 +116,7 @@ export const fetchWorkflows = cache(
     const queryString = queryParams.toString();
     const url = `${baseUrl}/api/workflow${queryString ? `?${queryString}` : ""}`;
 
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,
@@ -148,7 +149,7 @@ export const fetchWorkflowByName = cache(
     const headers = await getServerFetchHeaders();
     const url = `${baseUrl}/api/workflow/${encodeURIComponent(name)}?verbose=${verbose}`;
 
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,
@@ -182,7 +183,7 @@ const fetchWorkflowByNameRaw = cache(
     const headers = await getServerFetchHeaders();
     const url = `${baseUrl}/api/workflow/${encodeURIComponent(name)}?verbose=${verbose}`;
 
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,
