@@ -15,52 +15,53 @@ import { getWorkflowStatusArray } from "../workflows/components/StatusFilter";
 import { type WorkflowsFiltersDataProps } from "../workflows/components/WorkflowsFilters";
 import useToolParamUpdater from "../workflows/hooks/useToolParamUpdater";
 
-export interface WorkflowWidgetDataProps extends WorkflowsFiltersDataProps {
+export interface WorkflowWidgetDataProps {
   id: string;
   name: string;
   description?: string;
+  filters: WorkflowsFiltersDataProps;
 }
 
-export const WorkflowsWidget = ({ filters, onEdit, onDelete, isEditing }: { filters: WorkflowWidgetDataProps, onEdit: (widget: WorkflowWidgetDataProps) => void, onDelete: (widget: WorkflowWidgetDataProps) => void, isEditing: boolean }) => {
+export const WorkflowsWidget = ({ widget, onEdit, onDelete, isEditing }: { widget: WorkflowWidgetDataProps, onEdit: (widget: WorkflowWidgetDataProps) => void, onDelete: (widget: WorkflowWidgetDataProps) => void, isEditing: boolean }) => {
   const { getUrlParams } = useToolParamUpdater();
-  const dateRangeDates = getDateFromValues(filters.dateRange, filters.submittedAfter, filters.submittedBefore);
+  const dateRangeDates = getDateFromValues(widget.filters.dateRange, widget.filters.submittedAfter, widget.filters.submittedBefore);
 
   const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery({
-    all_users: filters.userType === UserFilterType.ALL,
-    users: filters.userType === UserFilterType.CUSTOM ? (filters.selectedUsers?.split(",") ?? []) : [],
-    all_pools: filters.isSelectAllPoolsChecked,
-    pools: filters.isSelectAllPoolsChecked ? [] : filters.selectedPools.split(","),
+    all_users: widget.filters.userType === UserFilterType.ALL,
+    users: widget.filters.userType === UserFilterType.CUSTOM ? (widget.filters.selectedUsers?.split(",") ?? []) : [],
+    all_pools: widget.filters.isSelectAllPoolsChecked,
+    pools: widget.filters.isSelectAllPoolsChecked ? [] : widget.filters.selectedPools.split(","),
     submitted_after: dateRangeDates.fromDate?.toISOString(),
     submitted_before: dateRangeDates.toDate?.toISOString(),
     statuses:
-      filters.statusFilterType === StatusFilterType.CUSTOM
-        ? (filters.statuses?.split(",") as WorkflowStatusType[])
-        : getWorkflowStatusArray(filters.statusFilterType),
-    priority: filters.priority,
+      widget.filters.statusFilterType === StatusFilterType.CUSTOM
+        ? (widget.filters.statuses?.split(",") as WorkflowStatusType[])
+        : getWorkflowStatusArray(widget.filters.statusFilterType),
+    priority: widget.filters.priority,
   }, {
     refetchOnWindowFocus: true,
     refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000
   });
 
   const detailsUrl = useMemo(() => {
-    return `/workflows?${getUrlParams(filters, undefined).toString()}`;
-  }, [filters, getUrlParams]);
+    return `/workflows?${getUrlParams(widget.filters, undefined).toString()}`;
+  }, [widget, getUrlParams]);
 
   return (
     <section className="card flex flex-col" aria-labelledby="current-workflows-title">
       <div className="popup-header body-header">
-        <h2 id="current-workflows-title">{filters.name}</h2>
+        <h2 id="current-workflows-title">{widget.name}</h2>
         {isEditing ? (
           <div className="flex flex-row gap-global">
-            <button className="btn btn-secondary" onClick={() => onEdit(filters)}>
+            <button className="btn btn-secondary" onClick={() => onEdit(widget)}>
               <OutlinedIcon name="edit" />
             </button>
-            <button className="btn btn-secondary" onClick={() => onDelete(filters)}>
+            <button className="btn btn-secondary" onClick={() => onDelete(widget)}>
               <OutlinedIcon name="delete" />
             </button>
           </div>
         ) : (
-          <Link href={detailsUrl} className="btn btn-secondary" title="View All Current Workflows">
+          <Link href={detailsUrl} className="btn btn-secondary" title={`View All ${widget.name}`}>
             <OutlinedIcon name="list_alt" />
           </Link>
         )}
@@ -70,9 +71,9 @@ export const WorkflowsWidget = ({ filters, onEdit, onDelete, isEditing }: { filt
           counts={currentWorkflows ?? {}}
           size={160}
           innerRadius={40}
-          ariaLabel={filters.name}
+          ariaLabel={widget.name}
         />
-        {filters.description && <p className="text-sm text-gray-500 text-center">{filters.description}</p>}
+        {widget.description && <p className="text-sm text-gray-500 text-center">{widget.description}</p>}
       </div>
     </section>
   );
