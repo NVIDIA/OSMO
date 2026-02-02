@@ -111,17 +111,8 @@ const nextConfig: NextConfig = {
     // Note: lucide-react is auto-optimized by Next.js
     // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/optimizePackageImports
     optimizePackageImports: [
-      // Radix UI components (many named exports per package)
-      "@radix-ui/react-collapsible",
-      "@radix-ui/react-dialog",
-      "@radix-ui/react-dropdown-menu",
-      "@radix-ui/react-progress",
-      "@radix-ui/react-select",
-      "@radix-ui/react-separator",
-      "@radix-ui/react-slot",
-      "@radix-ui/react-tabs",
-      "@radix-ui/react-toggle",
-      "@radix-ui/react-tooltip",
+      // Radix UI components (wildcard covers all packages)
+      "@radix-ui/*",
       // TanStack libraries
       "@tanstack/react-table",
       // DAG visualization (large library with many exports)
@@ -133,6 +124,8 @@ const nextConfig: NextConfig = {
       // Hooks libraries
       "usehooks-ts",
       "@react-hookz/web",
+      "react-hotkeys-hook",
+      "react-error-boundary",
       // Other utilities
       "cmdk",
       "nuqs",
