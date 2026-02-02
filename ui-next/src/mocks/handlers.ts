@@ -219,6 +219,88 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
 
+  // ==========================================================================
+  // Workflow Actions (cancel, retry, delete)
+  // ==========================================================================
+
+  // Cancel workflow
+  http.post("*/api/workflow/:name/cancel", async ({ params }) => {
+    await delay(MOCK_DELAY);
+    const name = params.name as string;
+    const workflow = workflowGenerator.getByName(name);
+
+    if (!workflow) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    // In mock mode, just return success (no actual state change persisted)
+    return HttpResponse.json({ message: `Workflow ${name} cancelled` });
+  }),
+
+  // Retry workflow
+  http.post("*/api/workflow/:name/retry", async ({ params }) => {
+    await delay(MOCK_DELAY);
+    const name = params.name as string;
+    const workflow = workflowGenerator.getByName(name);
+
+    if (!workflow) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    return HttpResponse.json({ message: `Workflow ${name} retry initiated` });
+  }),
+
+  // Delete workflow
+  http.delete("*/api/workflow/:name", async ({ params }) => {
+    await delay(MOCK_DELAY);
+    const name = params.name as string;
+    const workflow = workflowGenerator.getByName(name);
+
+    if (!workflow) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    return HttpResponse.json({ message: `Workflow ${name} deleted` });
+  }),
+
+  // Cancel task group
+  http.post("*/api/workflow/:name/groups/:groupName/cancel", async ({ params }) => {
+    await delay(MOCK_DELAY);
+    const name = params.name as string;
+    const groupName = params.groupName as string;
+    const workflow = workflowGenerator.getByName(name);
+
+    if (!workflow) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    const group = workflow.groups.find((g) => g.name === groupName);
+    if (!group) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    return HttpResponse.json({ message: `Group ${groupName} in workflow ${name} cancelled` });
+  }),
+
+  // Retry task group
+  http.post("*/api/workflow/:name/groups/:groupName/retry", async ({ params }) => {
+    await delay(MOCK_DELAY);
+    const name = params.name as string;
+    const groupName = params.groupName as string;
+    const workflow = workflowGenerator.getByName(name);
+
+    if (!workflow) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    const group = workflow.groups.find((g) => g.name === groupName);
+    if (!group) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    return HttpResponse.json({ message: `Group ${groupName} in workflow ${name} retry initiated` });
+  }),
+
   // Workflow logs (with scenario and streaming support)
   // Matches real backend: /api/workflow/{name}/logs from workflow_service.py:711-749
   //
