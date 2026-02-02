@@ -3401,6 +3401,17 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
             raise osmo_errors.OSMOUsageError(
                 f'Default platform {self.default_platform} not in platforms')
 
+        # Validate topology_keys is only set for schedulers that support it
+        if self.topology_keys:
+            backend = Backend.fetch_from_db(database, self.backend)
+            from src.utils.job import kb_objects
+            factory = kb_objects.get_k8s_object_factory(backend)
+            if not factory.topology_supported():
+                raise osmo_errors.OSMOUsageError(
+                    f'Topology keys cannot be set for pool "{name}" because backend '
+                    f'"{self.backend}" uses scheduler "{backend.scheduler_settings.scheduler_type}" '
+                    f'which does not support topology constraints')
+
         insert_cmd = '''
             INSERT INTO pools
             (name, description, backend, download_type, default_platform, platforms,

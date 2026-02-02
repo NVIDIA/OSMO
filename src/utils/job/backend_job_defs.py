@@ -74,7 +74,7 @@ class BackendSynchronizeQueuesMixin(pydantic.BaseModel):
     Reconciles scheduler K8s objects (queues, topologies, etc.) in the backend
     with the provided list.
     - Objects matching cleanup_specs but not in k8s_resources will be deleted
-    - Objects in both cleanup_specs and k8s_resources will be updated
+    - Objects in both cleanup_specs and k8s_resources will be updated (or recreated if immutable)
     - Objects in k8s_resources not matching cleanup_specs will be created
     """
     # Search for objects using these specs (one per object type)
@@ -82,6 +82,10 @@ class BackendSynchronizeQueuesMixin(pydantic.BaseModel):
     # The k8s specs for all objects to create/update in the backend
     # Can contain mixed types (Queues, Topologies, etc.)
     k8s_resources: List[Dict]
+    # List of K8s kinds that have immutable fields and should be deleted/recreated
+    # instead of updated (e.g., ['Topology'] for kai.scheduler Topology CRD)
+    # Defaults to empty list for backwards compatibility
+    immutable_kinds: List[str] = []
 
 
 class BackendSynchronizeBackendTestMixin(pydantic.BaseModel):

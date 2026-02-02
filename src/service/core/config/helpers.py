@@ -84,7 +84,9 @@ def update_backend_queues(current_backend: connectors.Backend,
         backend=current_backend.name,
         k8s_resources=objects_list,  # Contains both Queue and Topology CRDs
         # Specs for both object types (including old scheduler if switching)
-        cleanup_specs=cleanup_specs
+        cleanup_specs=cleanup_specs,
+        # Topology CRD has immutable fields (spec.levels), must be recreated instead of updated
+        immutable_kinds=['Topology']
     )
     job.send_job_to_queue()
 

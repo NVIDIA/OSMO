@@ -503,11 +503,19 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
         custom_api = kb_client.CustomObjectsApi(api)
         if cleanup_spec.custom_api is None:
             raise osmo_errors.OSMOError(f'Custom API not provided for {cleanup_spec.resource_type}')
-        return custom_api.list_cluster_custom_object(
-            cleanup_spec.custom_api.api_major,
-            cleanup_spec.custom_api.api_minor,
-            cleanup_spec.custom_api.path,
-            label_selector=cleanup_spec.k8s_selector)['items']
+        try:
+            return custom_api.list_cluster_custom_object(
+                cleanup_spec.custom_api.api_major,
+                cleanup_spec.custom_api.api_minor,
+                cleanup_spec.custom_api.path,
+                label_selector=cleanup_spec.k8s_selector)['items']
+        except kb_exceptions.ApiException as e:
+            # If CRD is not installed (404), return empty list
+            if e.status == 404:
+                logging.info(
+                    f'CRD {cleanup_spec.resource_type} not installed in cluster, skipping sync')
+                return []
+            raise
 
     def _apply_object(self, context: BackendJobExecutionContext,
                       cleanup_spec: backend_job_defs.BackendCleanupSpec,
@@ -560,11 +568,24 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
 
         # Create/Update objects
         for obj in target_objects:
-            resource_version = None
-            if obj['metadata']['name'] in all_objects:
-                original = all_objects[obj['metadata']['name']]
-                resource_version = original['metadata']['resourceVersion']
-            self._apply_object(context, cleanup_spec, obj, resource_version)
+            obj_name = obj['metadata']['name']
+            obj_kind = obj['kind']
+
+            if obj_name in all_objects:
+                # Object exists - check if it needs to be recreated (immutable) or updated
+                if obj_kind in self.immutable_kinds:
+                    # Delete and recreate for immutable kinds
+                    logging.info(f'Recreating immutable {obj_kind} object: {obj_name}')
+                    self._delete_object(context, cleanup_spec, obj_name)
+                    self._apply_object(context, cleanup_spec, obj, resource_version=None)
+                else:
+                    # Update existing object
+                    original = all_objects[obj_name]
+                    resource_version = original['metadata']['resourceVersion']
+                    self._apply_object(context, cleanup_spec, obj, resource_version)
+            else:
+                # Object doesn't exist - create it
+                self._apply_object(context, cleanup_spec, obj, resource_version=None)
 
         # Delete orphaned objects
         target_names: Set[str] = {obj['metadata']['name'] for obj in target_objects}

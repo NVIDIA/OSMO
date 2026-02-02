@@ -20,6 +20,7 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import hashlib
 import json
+import logging
 import os
 from typing import Any, Dict, List
 
@@ -327,6 +328,10 @@ class K8sObjectFactory:
         """Whether this scheduler supports priority"""
         return False
 
+    def topology_supported(self) -> bool:
+        """Whether this scheduler supports topology constraints"""
+        return False
+
 
 class KaiK8sObjectFactory(K8sObjectFactory):
     """Define a k8s object factory for the KAI scheduler"""
@@ -408,21 +413,33 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                         else:  # preferred
                             top_level_constraint = {
                                 'topology': topology_name,
-                                'requiredTopologyLevel': coarsest_constraint.label,
                                 'preferredTopologyLevel': coarsest_constraint.label
                             }
 
             # Create subgroups for each unique constraint set
+            logging.info(f'Creating subgroups from {len(constraint_groups)} constraint groups')
             for idx, (constraint_key, group_tasks) in enumerate(constraint_groups.items()):
+                logging.info(f'Processing constraint group {idx}: {constraint_key} with {len(group_tasks)} tasks')
                 if not group_tasks:
                     continue
 
                 # Get the first (finest-grained) constraint
                 _, first_task_constraints = group_tasks[0]
                 if not first_task_constraints.constraints:
+                    logging.info(f'Skipping group {idx}: no constraints')
                     continue
 
                 finest_constraint = first_task_constraints.constraints[0]
+                logging.info(f'Group {idx} finest constraint: label={finest_constraint.label}, subgroup={finest_constraint.subgroup}')
+
+                # Skip creating subgroup if finest constraint matches top-level constraint
+                # (subgroup would be redundant)
+                if (top_level_constraint and
+                    finest_constraint.label == coarsest_constraint.label and
+                    finest_constraint.subgroup == coarsest_constraint.subgroup):
+                    logging.info(f'Skipping subgroup for group {idx}: matches top-level constraint')
+                    continue
+
                 subgroup_name = f'{finest_constraint.subgroup}-subgroup-{idx}'
 
                 # Create subgroup
@@ -434,6 +451,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                         'requiredTopologyLevel': finest_constraint.label
                     }
                 }
+                logging.info(f'Created subgroup: {subgroup_name} with {len(group_tasks)} tasks, topology level: {finest_constraint.label}')
                 subgroups.append(subgroup)
 
                 # Map tasks to subgroups - we need to map pod names to subgroups
@@ -441,9 +459,10 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                     # Find the pod with this task name
                     for pod in pods:
                         # Task name is stored in pod metadata labels
-                        if pod['metadata']['labels'].get('osmo.task') == task_name:
+                        if pod['metadata']['labels'].get('osmo.task_name') == task_name:
                             pod_name = pod['metadata']['name']
                             pod_subgroups[pod_name] = subgroup_name
+                            logging.info(f'Mapped pod {pod_name} (task {task_name}) to subgroup {subgroup_name}')
                             break
 
         # Apply pod-level configuration
@@ -459,7 +478,11 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             # Add subgroup label if topology is used
             pod_name = pod['metadata']['name']
             if pod_name in pod_subgroups:
-                pod['metadata']['labels']['kai.scheduler/subgroup-name'] = pod_subgroups[pod_name]
+                subgroup_name = pod_subgroups[pod_name]
+                logging.info(f'Setting kai.scheduler/subgroup-name={subgroup_name} on pod {pod_name}')
+                pod['metadata']['labels']['kai.scheduler/subgroup-name'] = subgroup_name
+            else:
+                logging.info(f'Pod {pod_name} not in any subgroup')
 
         pod_group_labels = {
             'kai.scheduler/queue': queue,
@@ -477,8 +500,12 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         # Add topology constraints if present
         if top_level_constraint:
             pod_group_spec['topologyConstraint'] = top_level_constraint
+        logging.info(f'About to add subgroups to PodGroup spec. subgroups list has {len(subgroups)} items: {subgroups}')
         if subgroups:
-            pod_group_spec['subgroups'] = subgroups
+            logging.info(f'Adding {len(subgroups)} subgroups to PodGroup spec')
+            pod_group_spec['subGroups'] = subgroups  # Note: capital G to match CRD field name
+        else:
+            logging.info('Subgroups list is empty, not adding to PodGroup spec')
 
         return [{
             'apiVersion': 'scheduling.run.ai/v2alpha2',
@@ -645,6 +672,10 @@ class KaiK8sObjectFactory(K8sObjectFactory):
 
     def priority_supported(self) -> bool:
         """Whether this scheduler supports priority"""
+        return True
+
+    def topology_supported(self) -> bool:
+        """Whether this scheduler supports topology constraints"""
         return True
 
 
