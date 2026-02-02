@@ -256,7 +256,7 @@
           "delete": false,
           "conditions": ["Ready"],
           "allocatable_fields": {
-            "cpu": "4000",
+            "cpu": "4",
             "memory": "8388608Ki",
             "ephemeral-storage": "104857600Ki"
           }
@@ -402,7 +402,7 @@
           "available": true,
           "delete": false,
           "allocatable_fields": {
-            "cpu": "8000",
+            "cpu": "8",
             "memory": "16777216Ki",
             "nvidia.com/gpu": "2",
             "hugepages-2Mi": "1Gi"
