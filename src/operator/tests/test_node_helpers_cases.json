@@ -1,0 +1,460 @@
+{
+  "version": "1.0",
+  "description": "Test cases for node_helpers functions - shared between test implementations",
+  "test_suites": {
+    "get_node_hostname": [
+      {
+        "name": "node_with_hostname_label",
+        "description": "Node with kubernetes.io/hostname label",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "worker-01"
+          }
+        },
+        "expected": {
+          "hostname": "worker-01"
+        }
+      },
+      {
+        "name": "node_without_hostname_label",
+        "description": "Node without hostname label returns dash",
+        "input": {
+          "labels": {}
+        },
+        "expected": {
+          "hostname": "-"
+        }
+      },
+      {
+        "name": "node_with_other_labels_no_hostname",
+        "description": "Node with other labels but no hostname",
+        "input": {
+          "labels": {
+            "node-role.kubernetes.io/worker": "true",
+            "topology.kubernetes.io/zone": "us-west-1a"
+          }
+        },
+        "expected": {
+          "hostname": "-"
+        }
+      }
+    ],
+    "is_node_available": [
+      {
+        "name": "ready_not_unschedulable",
+        "description": "Ready node that is not unschedulable",
+        "input": {
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ]
+        },
+        "expected": {
+          "available": true
+        }
+      },
+      {
+        "name": "ready_but_unschedulable",
+        "description": "Ready node marked as unschedulable",
+        "input": {
+          "unschedulable": true,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ]
+        },
+        "expected": {
+          "available": false
+        }
+      },
+      {
+        "name": "not_ready",
+        "description": "Node with Ready=False",
+        "input": {
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "False"
+            }
+          ]
+        },
+        "expected": {
+          "available": false
+        }
+      },
+      {
+        "name": "unknown_ready_status",
+        "description": "Node with Ready=Unknown",
+        "input": {
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "Unknown"
+            }
+          ]
+        },
+        "expected": {
+          "available": false
+        }
+      },
+      {
+        "name": "no_ready_condition",
+        "description": "Node without Ready condition",
+        "input": {
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "MemoryPressure",
+              "status": "False"
+            }
+          ]
+        },
+        "expected": {
+          "available": false
+        }
+      },
+      {
+        "name": "multiple_conditions_ready_true",
+        "description": "Node with multiple conditions, Ready is True",
+        "input": {
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "MemoryPressure",
+              "status": "False"
+            },
+            {
+              "type": "DiskPressure",
+              "status": "False"
+            },
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ]
+        },
+        "expected": {
+          "available": true
+        }
+      }
+    ],
+    "to_ki": [
+      {
+        "name": "1024_bytes_equals_1_ki",
+        "description": "1024 bytes should equal 1 Ki",
+        "input": {
+          "bytes": 1024
+        },
+        "expected": {
+          "ki": 1
+        }
+      },
+      {
+        "name": "2048_bytes_equals_2_ki",
+        "description": "2048 bytes should equal 2 Ki",
+        "input": {
+          "bytes": 2048
+        },
+        "expected": {
+          "ki": 2
+        }
+      },
+      {
+        "name": "1_byte_rounds_up_to_1_ki",
+        "description": "1 byte should round up to 1 Ki",
+        "input": {
+          "bytes": 1
+        },
+        "expected": {
+          "ki": 1
+        }
+      },
+      {
+        "name": "1025_bytes_rounds_up_to_2_ki",
+        "description": "1025 bytes should round up to 2 Ki",
+        "input": {
+          "bytes": 1025
+        },
+        "expected": {
+          "ki": 2
+        }
+      },
+      {
+        "name": "1_mib_equals_1024_ki",
+        "description": "1 MiB = 1024 Ki",
+        "input": {
+          "bytes": 1048576
+        },
+        "expected": {
+          "ki": 1024
+        }
+      },
+      {
+        "name": "1_gib_equals_1048576_ki",
+        "description": "1 GiB = 1048576 Ki",
+        "input": {
+          "bytes": 1073741824
+        },
+        "expected": {
+          "ki": 1048576
+        }
+      },
+      {
+        "name": "zero_bytes_equals_zero_ki",
+        "description": "0 bytes = 0 Ki",
+        "input": {
+          "bytes": 0
+        },
+        "expected": {
+          "ki": 0
+        }
+      },
+      {
+        "name": "1500_bytes_rounds_up_to_2_ki",
+        "description": "1500 bytes should round up to 2 Ki",
+        "input": {
+          "bytes": 1500
+        },
+        "expected": {
+          "ki": 2
+        }
+      }
+    ],
+    "build_resource_body": [
+      {
+        "name": "basic_node_available",
+        "description": "Basic node with hostname and available status",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "worker-01"
+          },
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ],
+          "allocatable": {
+            "cpu": "4000m",
+            "memory": "8Gi",
+            "ephemeral-storage": "100Gi"
+          },
+          "taints": [],
+          "is_delete": false
+        },
+        "expected": {
+          "hostname": "worker-01",
+          "available": true,
+          "delete": false,
+          "conditions": ["Ready"],
+          "allocatable_fields": {
+            "cpu": "4",
+            "memory": "8388608Ki",
+            "ephemeral-storage": "104857600Ki"
+          }
+        }
+      },
+      {
+        "name": "multiple_conditions_only_true_included",
+        "description": "Node with multiple conditions - only True status included",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "worker-02"
+          },
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            },
+            {
+              "type": "MemoryPressure",
+              "status": "False"
+            },
+            {
+              "type": "DiskPressure",
+              "status": "True"
+            },
+            {
+              "type": "PIDPressure",
+              "status": "False"
+            }
+          ],
+          "allocatable": {},
+          "taints": [],
+          "is_delete": false
+        },
+        "expected": {
+          "hostname": "worker-02",
+          "available": true,
+          "delete": false,
+          "conditions": ["Ready", "DiskPressure"]
+        }
+      },
+      {
+        "name": "node_with_taints",
+        "description": "Node with taints including TimeAdded",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "worker-04"
+          },
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ],
+          "allocatable": {},
+          "taints": [
+            {
+              "key": "nvidia.com/gpu",
+              "value": "true",
+              "effect": "NoSchedule",
+              "time_added": "2024-01-15T10:30:00Z"
+            },
+            {
+              "key": "node.kubernetes.io/disk-pressure",
+              "value": "",
+              "effect": "NoExecute"
+            }
+          ],
+          "is_delete": false
+        },
+        "expected": {
+          "hostname": "worker-04",
+          "available": true,
+          "delete": false,
+          "taints_count": 2,
+          "taints": [
+            {
+              "key": "nvidia.com/gpu",
+              "value": "true",
+              "effect": "NoSchedule",
+              "has_time_added": true
+            },
+            {
+              "key": "node.kubernetes.io/disk-pressure",
+              "value": "",
+              "effect": "NoExecute",
+              "has_time_added": false
+            }
+          ]
+        }
+      },
+      {
+        "name": "node_marked_for_deletion",
+        "description": "Node with delete flag set to true",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "worker-05"
+          },
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ],
+          "allocatable": {},
+          "taints": [],
+          "is_delete": true
+        },
+        "expected": {
+          "hostname": "worker-05",
+          "available": true,
+          "delete": true
+        }
+      },
+      {
+        "name": "node_with_gpu_resources",
+        "description": "Node with custom GPU resources",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "gpu-worker-01"
+          },
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ],
+          "allocatable": {
+            "cpu": "8000m",
+            "memory": "16Gi",
+            "nvidia.com/gpu": "2",
+            "hugepages-2Mi": "1Gi"
+          },
+          "taints": [],
+          "is_delete": false
+        },
+        "expected": {
+          "hostname": "gpu-worker-01",
+          "available": true,
+          "delete": false,
+          "allocatable_fields": {
+            "cpu": "8",
+            "memory": "16777216Ki",
+            "nvidia.com/gpu": "2",
+            "hugepages-2Mi": "1Gi"
+          }
+        }
+      },
+      {
+        "name": "node_unavailable_unschedulable",
+        "description": "Node marked as unschedulable is unavailable",
+        "input": {
+          "labels": {
+            "kubernetes.io/hostname": "worker-06"
+          },
+          "unschedulable": true,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ],
+          "allocatable": {},
+          "taints": [],
+          "is_delete": false
+        },
+        "expected": {
+          "hostname": "worker-06",
+          "available": false,
+          "delete": false
+        }
+      },
+      {
+        "name": "node_no_hostname_label",
+        "description": "Node without hostname label gets dash",
+        "input": {
+          "labels": {},
+          "unschedulable": false,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            }
+          ],
+          "allocatable": {},
+          "taints": [],
+          "is_delete": false
+        },
+        "expected": {
+          "hostname": "-",
+          "available": true,
+          "delete": false
+        }
+      }
+    ]
+  }
+}

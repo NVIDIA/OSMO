@@ -47,8 +47,8 @@ message ListenerMessage {
   oneof body {
     UpdatePodBody update_pod = 3;
     LoggingBody logging = 4;
-    UpdateNodeBody resource = 5;
-    UpdateNodeUsageBody resource_usage = 6;
+    UpdateNodeBody update_node = 5;
+    UpdateNodeUsageBody update_node_usage = 6;
   }
 }
 

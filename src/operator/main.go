@@ -20,6 +20,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -31,17 +35,22 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
+// Listener interface defines the common contract for all listener types
+type Listener interface {
+	Run(ctx context.Context) error
+}
+
 func main() {
 	cmdArgs := utils.ListenerParse()
 
 	log.Printf(
-		"Starting Workflow Listener: backend=%s, namespace=%s",
+		"Starting Operator Listeners: backend=%s, namespace=%s",
 		cmdArgs.Backend, cmdArgs.Namespace,
 	)
 
-	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Set up context with signal handling for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Add backend-name to metadata
 	md := metadata.Pairs("backend-name", cmdArgs.Backend)
@@ -51,32 +60,60 @@ func main() {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
 
+	// Create both listeners
 	workflowListener := NewWorkflowListener(cmdArgs)
+	resourceListener := NewResourceListener(cmdArgs)
 
-	// Run the listener client with automatic reconnection
-	// On each reconnection attempt:
-	// - Establish new gRPC stream
-	// - Resend all unacked messages before watching new events
-	// - Resume normal operation
+	var wg sync.WaitGroup
+
+	// Launch both listeners in parallel
+	wg.Add(2)
+	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
+	go runListenerWithRetry(ctx, resourceListener, "ResourceListener", &wg)
+
+	// Wait for both listeners to complete
+	wg.Wait()
+
+	log.Println("Operator Listeners stopped gracefully")
+}
+
+// runListenerWithRetry runs a listener with automatic reconnection on failure.
+// It retries indefinitely on connection errors until context is cancelled.
+func runListenerWithRetry(
+	ctx context.Context,
+	listener Listener,
+	name string,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+
+	log.Printf("[%s] Starting listener", name)
+
 	retryCount := 0
 	for {
-		err := workflowListener.Run(ctx)
+		err := listener.Run(ctx)
 		if err != nil {
 			if err == context.Canceled || err == context.DeadlineExceeded {
-				log.Printf("Context cancelled, shutting down: %v", err)
-				break
+				log.Printf("[%s] Context cancelled, shutting down: %v", name, err)
+				return
 			}
 			retryCount++
 			backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-			log.Printf("Connection lost: %v. Reconnecting in %v...", err, backoff)
-			time.Sleep(backoff)
-			continue
+			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoff)
+
+			// Wait for backoff or context cancellation
+			select {
+			case <-ctx.Done():
+				log.Printf("[%s] Context cancelled during backoff, shutting down", name)
+				return
+			case <-time.After(backoff):
+				continue
+			}
 		}
 		// Clean exit
-		break
+		log.Printf("[%s] Listener exited cleanly", name)
+		return
 	}
-
-	log.Println("Workflow Listener stopped gracefully")
 }
 
 // initializeBackend sends the initial backend registration to the operator service

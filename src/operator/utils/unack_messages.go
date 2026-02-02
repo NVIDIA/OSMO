@@ -66,7 +66,7 @@ func NewUnackMessages(maxUnackedMessages int) *UnackMessages {
 
 // AddMessage adds a message to the unacked queue
 func (um *UnackMessages) AddMessage(ctx context.Context, msg *pb.ListenerMessage) error {
-	// Wait until ready to send
+	// Wait for flow control signal (non-blocking if not at capacity)
 	select {
 	case <-um.readyToSend:
 		// Got the ready signal, proceed
@@ -80,7 +80,7 @@ func (um *UnackMessages) AddMessage(ctx context.Context, msg *pb.ListenerMessage
 	um.messages[msg.Uuid] = msg
 	queueSize := len(um.messages)
 
-	// Check if we've reached the limit
+	// Check if we've reached the limit after adding
 	if um.maxUnackedMessages > 0 && queueSize >= um.maxUnackedMessages {
 		log.Printf("Warning: Reached max unacked message count of %d", um.maxUnackedMessages)
 		// Don't put back the ready signal - we're at capacity
