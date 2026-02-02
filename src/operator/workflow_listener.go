@@ -54,7 +54,6 @@ func (wl *WorkflowListener) Run(ctx context.Context) error {
 		ctx,
 		"Connected to operator service, stream established",
 		wl.sendMessages,
-		wl.BaseListener.CloseStream,
 		"workflow",
 	)
 }

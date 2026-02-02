@@ -56,7 +56,6 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 		ctx,
 		"Connected to operator service, resource stream established",
 		rl.sendMessages,
-		rl.BaseListener.CloseStream,
 		"resource",
 	)
 }

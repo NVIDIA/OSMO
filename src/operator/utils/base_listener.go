@@ -51,9 +51,10 @@ type BaseListener struct {
 	stream pb.ListenerService_ListenerStreamClient
 
 	// Stream coordination
-	mu        sync.RWMutex // Protects stream field access
-	wg        sync.WaitGroup
-	closeOnce sync.Once
+	mu            sync.RWMutex // Protects stream field access
+	wg            sync.WaitGroup
+	closeOnce     sync.Once // Ensures stream is closed only once
+	connCloseOnce sync.Once // Ensures connection is closed only once
 
 	// Configuration
 	args ListenerArgs
@@ -140,7 +141,7 @@ func (bl *BaseListener) ReceiveAcks(ctx context.Context, cancel context.CancelCa
 }
 
 // WaitForCompletion waits for goroutines to finish
-func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context.Context, closeStreamFunc func()) error {
+func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context.Context) error {
 	// Wait for context cancellation (from parent or goroutines)
 	<-streamCtx.Done()
 
@@ -154,9 +155,7 @@ func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context
 		finalErr = ctx.Err()
 	}
 
-	// Close stream and wait for goroutines with timeout
-	closeStreamFunc()
-
+	// Wait for goroutines with timeout
 	shutdownComplete := make(chan struct{})
 	go func() {
 		bl.wg.Wait()
@@ -173,31 +172,39 @@ func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context
 	return finalErr
 }
 
-// CloseStream ensures stream is closed only once
-func (bl *BaseListener) CloseStream() {
+// Close cleans up all resources including stream and connection.
+// It is safe to call multiple times due to sync.Once protection.
+func (bl *BaseListener) Close() error {
+	var streamErr, connErr error
+
+	// Close stream (idempotent via sync.Once)
 	bl.closeOnce.Do(func() {
 		bl.mu.RLock()
 		stream := bl.stream
 		bl.mu.RUnlock()
 		if stream != nil {
-			if err := stream.CloseSend(); err != nil {
-				log.Printf("Error closing stream: %v", err)
+			streamErr = stream.CloseSend()
+			if streamErr != nil {
+				log.Printf("Error closing stream: %v", streamErr)
 			}
 		}
 	})
-}
 
-// Close cleans up all resources including stream and connection
-func (bl *BaseListener) Close() {
-	bl.CloseStream()
-	bl.CloseConnection()
-}
+	// Close connection (idempotent via sync.Once)
+	bl.connCloseOnce.Do(func() {
+		if bl.conn != nil {
+			connErr = bl.conn.Close()
+			if connErr != nil {
+				log.Printf("Error closing connection: %v", connErr)
+			}
+		}
+	})
 
-// CloseConnection cleans up resources
-func (bl *BaseListener) CloseConnection() {
-	if bl.conn != nil {
-		bl.conn.Close()
+	// Return combined errors if any occurred
+	if streamErr != nil || connErr != nil {
+		return fmt.Errorf("close errors: stream=%v, conn=%v", streamErr, connErr)
 	}
+	return nil
 }
 
 // GetUnackedMessages returns the unacked messages queue
@@ -230,9 +237,10 @@ func (bl *BaseListener) Run(
 	ctx context.Context,
 	logMessage string,
 	sendMessages MessageSenderFunc,
-	closeStream func(),
 	streamName string,
 ) error {
+	// Ensure cleanup on exit
+	defer bl.Close()
 	// Initialize the base connection
 	if err := bl.InitConnection(ctx, bl.args.ServiceURL); err != nil {
 		return err
@@ -255,8 +263,6 @@ func (bl *BaseListener) Run(
 	bl.mu.Unlock()
 
 	log.Printf("%s", logMessage)
-
-	defer closeStream()
 
 	// Resend all unacked messages from previous connection (if any)
 	if err := bl.unackedMessages.ResendAll(bl.stream); err != nil {
@@ -288,7 +294,7 @@ func (bl *BaseListener) Run(
 	}()
 
 	// Wait for completion
-	return bl.WaitForCompletion(ctx, streamCtx, closeStream)
+	return bl.WaitForCompletion(ctx, streamCtx)
 }
 
 // GetStream returns the gRPC stream
