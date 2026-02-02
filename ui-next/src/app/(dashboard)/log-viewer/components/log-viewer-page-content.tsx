@@ -61,10 +61,7 @@ export function LogViewerPageContent({ workflowId, workflowMetadata }: LogViewer
   // Register page with workflow name in breadcrumbs
   usePage({
     title: workflowMetadata?.name ?? workflowId,
-    breadcrumbs: [
-      { label: "Experimental", href: "/experimental" },
-      { label: "Log Viewer", href: "/experimental/log-viewer" },
-    ],
+    breadcrumbs: [{ label: "Log Viewer", href: "/log-viewer" }],
     headerActions,
   });
 
