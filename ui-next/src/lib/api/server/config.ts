@@ -33,16 +33,11 @@ import { cookies } from "next/headers";
  * On the server, we connect directly to the backend (no proxy needed).
  * This uses the same env vars as the client config.
  *
- * MOCK MODE: When NEXT_PUBLIC_MOCK_API=true, uses localhost with the current
- * Next.js port (from PORT env var, defaults to 3000) so MSW can intercept.
+ * MOCK MODE: serverFetch() from @/lib/api/server/fetch handles interception
+ * transparently by checking the URL path (not hostname), so this function
+ * is completely agnostic of mock mode.
  */
 export function getServerApiBaseUrl(): string {
-  // In mock mode, use localhost with the actual Next.js port
-  if (process.env.NEXT_PUBLIC_MOCK_API === "true") {
-    const port = process.env.PORT || "3000";
-    return `http://localhost:${port}`;
-  }
-
   const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
   const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
 

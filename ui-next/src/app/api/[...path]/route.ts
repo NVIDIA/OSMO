@@ -30,6 +30,11 @@
  * - In local dev: Forwards any auth headers from client
  * - This proxy simply forwards headers to backend
  *
+ * Mock Mode:
+ * - Uses serverFetch which transparently routes to MSW handlers in development
+ * - In production, serverFetch is aliased to native fetch (zero overhead)
+ * - This file has NO knowledge of mock mode - it's completely agnostic
+ *
  * This catches all /api/* routes EXCEPT:
  * - /api/health - Handled by app/api/health/route.ts
  * - /api/workflow/[name]/logs - Handled by app/api/workflow/[name]/logs/route.ts
@@ -39,6 +44,7 @@
 
 import { type NextRequest } from "next/server";
 import { getServerApiBaseUrl } from "@/lib/api/server/config";
+import { serverFetch } from "@/lib/api/server/fetch";
 
 /**
  * Proxy all API requests to backend.
@@ -89,7 +95,9 @@ async function proxyRequest(request: NextRequest, method: string) {
 
   try {
     // Proxy request to backend
-    const response = await fetch(fullUrl, {
+    // Uses serverFetch which transparently routes to MSW in mock mode
+    // In production, serverFetch is aliased to native fetch (no overhead)
+    const response = await serverFetch(fullUrl, {
       method,
       headers,
       body,

@@ -30,6 +30,7 @@ import {
   DEFAULT_REVALIDATE,
   type ServerFetchOptions,
 } from "./config";
+import { serverFetch } from "./fetch";
 import { transformPoolsResponse, transformPoolDetail } from "../adapter/transforms";
 import type { Pool, PoolsResponse } from "../adapter/types";
 
@@ -71,7 +72,7 @@ export const fetchPools = cache(async (options: ServerFetchOptions = {}): Promis
   const headers = await getServerFetchHeaders();
   const url = `${baseUrl}/api/pool_quota?all_pools=true`;
 
-  const response = await fetch(url, {
+  const response = await serverFetch(url, {
     headers,
     next: {
       revalidate,
@@ -103,7 +104,7 @@ export const fetchPoolByName = cache(
     const headers = await getServerFetchHeaders();
     const url = `${baseUrl}/api/pool_quota?pools=${encodeURIComponent(poolName)}&all_pools=false`;
 
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,
