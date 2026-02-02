@@ -417,14 +417,3 @@ async def patch_group(
     except osmo_errors.OSMOUserError as e:
         raise fastapi.HTTPException(status_code=404, detail=str(e)) from e
 
-
-# =============================================================================
-# Error Handlers
-# =============================================================================
-
-@router.exception_handler(scim_auth.SCIMAuthError)
-async def scim_auth_error_handler(
-    request: fastapi.Request, exc: scim_auth.SCIMAuthError
-):
-    """Handle SCIM authentication errors with proper SCIM error format"""
-    return scim_auth.create_scim_error_response(exc)
