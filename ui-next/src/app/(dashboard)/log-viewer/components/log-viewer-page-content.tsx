@@ -20,7 +20,7 @@ import { useEffect } from "react";
 import { usePage } from "@/components/chrome";
 import { LogViewerContainer } from "@/components/log-viewer";
 import { addRecentWorkflow } from "../lib/recent-workflows";
-import type { WorkflowStatus } from "@/lib/api/generated";
+import { WorkflowStatus } from "@/lib/api/generated";
 
 /**
  * Workflow metadata for timeline bounds
