@@ -16,10 +16,9 @@
 
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useEffect } from "react";
 import { usePage } from "@/components/chrome";
 import { LogViewerContainer } from "@/components/log-viewer";
-import { ScenarioSelector, useScenario } from "./scenario-selector";
 import { addRecentWorkflow } from "../lib/recent-workflows";
 import type { WorkflowStatus } from "@/lib/api/generated";
 
@@ -46,23 +45,15 @@ interface LogViewerPageContentProps {
  * Wrapped in Suspense by the parent Server Component page.
  */
 export function LogViewerPageContent({ workflowId, workflowMetadata }: LogViewerPageContentProps) {
-  // Read scenario from URL (ScenarioSelector writes to same URL param)
-  const { devParams, liveDevParams } = useScenario();
-
   // Save workflow to recent workflows on mount
   useEffect(() => {
     addRecentWorkflow(workflowId);
   }, [workflowId]);
 
-  // Memoize header actions to prevent infinite re-render loop
-  // usePage uses headerActions as a dependency, so a new JSX element triggers updates
-  const headerActions = useMemo(() => <ScenarioSelector />, []);
-
   // Register page with workflow name in breadcrumbs
   usePage({
     title: workflowMetadata?.name ?? workflowId,
     breadcrumbs: [{ label: "Log Viewer", href: "/log-viewer" }],
-    headerActions,
   });
 
   return (
@@ -71,8 +62,6 @@ export function LogViewerPageContent({ workflowId, workflowMetadata }: LogViewer
         <LogViewerContainer
           workflowId={workflowId}
           workflowMetadata={workflowMetadata}
-          devParams={devParams}
-          liveDevParams={liveDevParams}
           scope="workflow"
           className="h-full"
           viewerClassName="h-full"
