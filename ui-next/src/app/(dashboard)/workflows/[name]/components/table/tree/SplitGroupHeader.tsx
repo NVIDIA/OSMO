@@ -111,7 +111,7 @@ export const SplitGroupHeader = memo(function SplitGroupHeader({
       </div>
 
       {/* Group name, badge, count */}
-      <div className="flex min-w-0 flex-1 items-center px-4">
+      <div className="flex min-w-0 flex-1 items-center pr-4">
         <GroupNameCell
           name={group.name}
           taskCount={taskCount}
