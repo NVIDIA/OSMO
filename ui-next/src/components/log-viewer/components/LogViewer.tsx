@@ -9,6 +9,7 @@
 "use client";
 
 import { memo, useRef, useCallback, useEffect, startTransition, useDeferredValue } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
@@ -24,6 +25,7 @@ import { LogList } from "./LogList";
 import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
 import { useLogViewerStore } from "../store/log-viewer-store";
+import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "../lib/constants";
 
 // =============================================================================
 // Helpers
@@ -218,66 +220,107 @@ const LOG_FILTER_PRESETS: {
 // Types
 // =============================================================================
 
-export interface LogViewerProps {
+/**
+ * Histogram data structure for timeline display.
+ */
+export interface HistogramData {
+  buckets: HistogramBucket[];
+  intervalMs: number;
+}
+
+/**
+ * Data-related props for LogViewer.
+ * Contains all log entries, loading states, and data refresh handlers.
+ */
+export interface LogViewerDataProps {
   /** Log entries to display (already filtered by Container) */
   entries: LogEntry[];
   /** Total count of entries before filtering */
-  totalCount?: number;
+  totalCount: number;
   /** Whether entries are currently loading (initial load) */
-  isLoading?: boolean;
+  isLoading: boolean;
   /** Whether data is being refetched in background */
-  isFetching?: boolean;
+  isFetching: boolean;
   /** Error state */
-  error?: Error | null;
-  /** Histogram data */
-  histogram?: {
-    buckets: HistogramBucket[];
-    intervalMs: number;
-  };
+  error: Error | null;
+  /** Histogram data for timeline visualization */
+  histogram: HistogramData | undefined;
   /** Pending histogram data (for real-time pan/zoom feedback) */
-  pendingHistogram?: {
-    buckets: HistogramBucket[];
-    intervalMs: number;
-  };
+  pendingHistogram: HistogramData | undefined;
+  /** Whether live mode is active (streaming new entries) */
+  isLiveMode: boolean;
   /** Callback to refetch data */
-  onRefetch?: () => void;
+  onRefetch: () => void;
+}
+
+/**
+ * Filter-related props for LogViewer.
+ * Contains current filter state and change handlers.
+ */
+export interface LogViewerFilterProps {
   /** Current filter chips (controlled by parent) */
   filterChips: SearchChip[];
   /** Callback when user changes filter chips */
   onFilterChipsChange: (chips: SearchChip[]) => void;
-  /** Scope of the log viewer */
-  scope?: "workflow" | "group" | "task";
-  /** Additional CSS classes */
-  className?: string;
+  /** Scope of the log viewer (workflow, group, or task level) */
+  scope: "workflow" | "group" | "task";
+}
+
+/**
+ * Timeline-related props for LogViewer.
+ * Contains time range state, presets, and all time-related handlers.
+ */
+export interface LogViewerTimelineProps {
   /** USER INTENT: Filter start time (undefined = from beginning) */
-  filterStartTime?: Date;
+  filterStartTime: Date | undefined;
   /** USER INTENT: Filter end time (undefined = live mode/NOW) */
-  filterEndTime?: Date;
-  /** Display range start (with padding) */
-  displayStart?: Date;
-  /** Display range end (with padding) */
-  displayEnd?: Date;
-  /** Active time range preset */
-  activePreset?: TimeRangePreset;
+  filterEndTime: Date | undefined;
+  /** Display range start (with padding for visual context) */
+  displayStart: Date;
+  /** Display range end (with padding for visual context) */
+  displayEnd: Date;
+  /** Active time range preset (all, 5m, 15m, 1h, 6h, 24h, custom) */
+  activePreset: TimeRangePreset | undefined;
   /** Callback to set filter start time */
-  onFilterStartTimeChange?: (time: Date | undefined) => void;
+  onFilterStartTimeChange: (time: Date | undefined) => void;
   /** Callback to set filter end time */
-  onFilterEndTimeChange?: (time: Date | undefined) => void;
+  onFilterEndTimeChange: (time: Date | undefined) => void;
   /** Callback to apply a time range preset */
-  onPresetSelect?: (preset: TimeRangePreset) => void;
-  /** Callback when display range changes (for pending histogram) */
-  onDisplayRangeChange?: (start: Date, end: Date) => void;
-  /** Callback to clear pending display state */
-  onClearPendingDisplay?: () => void;
-  /** Entity start time (workflow/group/task start) - GUARANTEED (parent must guard before rendering LogViewer) */
+  onPresetSelect: (preset: TimeRangePreset) => void;
+  /** Callback when display range changes (for pending histogram during pan/zoom) */
+  onDisplayRangeChange: (start: Date, end: Date) => void;
+  /** Callback to clear pending display state (on Apply or Cancel) */
+  onClearPendingDisplay: () => void;
+  /** Entity start time (workflow/group/task start) - GUARANTEED by parent guard */
   entityStartTime: Date;
   /** Entity end time (completion timestamp) - undefined if still running */
-  entityEndTime?: Date;
+  entityEndTime: Date | undefined;
   /**
    * REFERENCE: Synchronized "NOW" timestamp (milliseconds since epoch) from useTick().
    * REQUIRED for time consistency across all timeline calculations.
    */
   now: number;
+}
+
+/**
+ * LogViewer props with grouped interfaces.
+ *
+ * Groups 24+ individual props into 3 logical categories:
+ * - data: Log entries, loading states, histograms, refetch
+ * - filter: Filter chips and scope
+ * - timeline: Time range, presets, entity boundaries
+ *
+ * This reduces coupling and makes the interface more maintainable.
+ */
+export interface LogViewerProps {
+  /** Data-related props (entries, loading, histogram, refetch) */
+  data: LogViewerDataProps;
+  /** Filter-related props (chips, scope) */
+  filter: LogViewerFilterProps;
+  /** Timeline-related props (time range, presets, entity boundaries) */
+  timeline: LogViewerTimelineProps;
+  /** Additional CSS classes */
+  className?: string;
 }
 
 // =============================================================================
@@ -311,50 +354,50 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 // Main Component
 // =============================================================================
 
-function LogViewerInner({
-  entries,
-  totalCount,
-  isLoading = false,
-  isFetching = false,
-  error = null,
-  histogram,
-  pendingHistogram,
-  onRefetch,
-  filterChips,
-  onFilterChipsChange,
-  // Reserved props for future scope-aware features (e.g., showing group/task context).
-  // Kept in the interface to maintain API stability.
-  scope: _scope = "workflow",
-  className,
-  filterStartTime,
-  filterEndTime,
-  displayStart,
-  displayEnd,
-  activePreset,
-  onFilterStartTimeChange,
-  onFilterEndTimeChange,
-  onPresetSelect,
-  onDisplayRangeChange,
-  onClearPendingDisplay,
-  entityStartTime,
-  entityEndTime,
-  now,
-}: LogViewerProps) {
-  const { clipboard, announcer } = useServices();
+function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
+  // Destructure data props
+  const { entries, totalCount, isLoading, isFetching, error, histogram, pendingHistogram, isLiveMode, onRefetch } =
+    data;
 
-  // Store state - only UI preferences
-  const timelineCollapsed = useLogViewerStore((s) => s.timelineCollapsed);
-  const wrapLines = useLogViewerStore((s) => s.wrapLines);
+  // Destructure filter props
+  // Note: scope is reserved for future scope-aware features (e.g., showing group/task context)
+  const { filterChips, onFilterChipsChange, scope: _scope } = filter;
+
+  // Destructure timeline props
+  const {
+    filterStartTime,
+    filterEndTime,
+    displayStart,
+    displayEnd,
+    activePreset,
+    onFilterStartTimeChange,
+    onFilterEndTimeChange,
+    onPresetSelect,
+    onDisplayRangeChange,
+    onClearPendingDisplay,
+    entityStartTime,
+    entityEndTime,
+    now,
+  } = timeline;
+  const { announcer } = useServices();
+
+  // Store state - group related values to minimize re-renders
+  // Using useShallow to batch multiple state values into one subscription
+  const { timelineCollapsed, wrapLines, showTask } = useLogViewerStore(
+    useShallow((s) => ({
+      timelineCollapsed: s.timelineCollapsed,
+      wrapLines: s.wrapLines,
+      showTask: s.showTask,
+    })),
+  );
+
+  // Keep actions as separate subscriptions (they're stable and don't cause re-renders)
   const toggleWrapLinesRaw = useLogViewerStore((s) => s.toggleWrapLines);
-  const showTask = useLogViewerStore((s) => s.showTask);
   const toggleShowTaskRaw = useLogViewerStore((s) => s.toggleShowTask);
+  const reset = useLogViewerStore((s) => s.reset);
 
   // Ref to timeline container for imperative zoom controls
   const timelineRef = useRef<TimelineContainerHandle>(null);
-
-  // Derive live mode: requires BOTH filterEndTime undefined (user wants NOW)
-  // AND entityEndTime undefined (workflow still running)
-  const isLiveMode = filterEndTime === undefined && entityEndTime === undefined;
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
@@ -364,8 +407,6 @@ function LogViewerInner({
   const toggleShowTask = useCallback(() => {
     withViewTransition(toggleShowTaskRaw);
   }, [toggleShowTaskRaw]);
-
-  const reset = useLogViewerStore((s) => s.reset);
 
   // Reset store on unmount
   useEffect(() => {
@@ -398,13 +439,10 @@ function LogViewerInner({
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
     (bucket: HistogramBucket) => {
-      if (!onFilterStartTimeChange || !onFilterEndTimeChange) return;
-      // Set time range around the clicked bucket
-      // Show ±5 minutes around the bucket
+      // Set time range around the clicked bucket using constant for window size
       const bucketTime = bucket.timestamp.getTime();
-      const fiveMinutes = 5 * 60 * 1000;
-      onFilterStartTimeChange(new Date(bucketTime - fiveMinutes));
-      onFilterEndTimeChange(new Date(bucketTime + fiveMinutes));
+      onFilterStartTimeChange(new Date(bucketTime - HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
+      onFilterEndTimeChange(new Date(bucketTime + HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
       announcer.announce("Time range updated", "polite");
     },
     [onFilterStartTimeChange, onFilterEndTimeChange, announcer],
@@ -413,7 +451,6 @@ function LogViewerInner({
   // Handle preset selection
   const handlePresetSelect = useCallback(
     (preset: TimeRangePreset) => {
-      if (!onPresetSelect) return;
       onPresetSelect(preset);
       const message = preset === "all" ? "all logs" : preset === "custom" ? "custom time range" : `last ${preset}`;
       announcer.announce(`Showing ${message}`, "polite");
@@ -424,16 +461,16 @@ function LogViewerInner({
   // Wrap time change handlers to clear pending display
   const handleStartTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onFilterStartTimeChange?.(time);
-      onClearPendingDisplay?.();
+      onFilterStartTimeChange(time);
+      onClearPendingDisplay();
     },
     [onFilterStartTimeChange, onClearPendingDisplay],
   );
 
   const handleEndTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onFilterEndTimeChange?.(time);
-      onClearPendingDisplay?.();
+      onFilterEndTimeChange(time);
+      onClearPendingDisplay();
     },
     [onFilterEndTimeChange, onClearPendingDisplay],
   );
@@ -464,15 +501,6 @@ function LogViewerInner({
     announcer.announce("Zoomed out", "polite");
   }, [announcer]);
 
-  // Handle copy
-  const handleCopy = useCallback(
-    async (entry: LogEntry) => {
-      await clipboard.copy(formatLogLine(entry));
-      announcer.announce("Copied to clipboard", "polite");
-    },
-    [clipboard, announcer],
-  );
-
   // Handle download
   const handleDownload = useCallback(() => {
     const content = deferredEntries.map((e) => formatLogLine(e)).join("\n");
@@ -489,7 +517,7 @@ function LogViewerInner({
   // Handle scroll away from bottom - pauses live mode by setting end time to current time
   // User can re-enable by clicking "Jump to Now" or selecting NOW in time range
   const handleScrollAwayFromBottom = useCallback(() => {
-    if (isLiveMode && onFilterEndTimeChange) {
+    if (isLiveMode) {
       onFilterEndTimeChange(new Date());
       announcer.announce("Live mode paused", "polite");
     }
@@ -594,7 +622,6 @@ function LogViewerInner({
       <div className="min-h-0 flex-1 overflow-hidden">
         <LogList
           entries={deferredEntries}
-          onCopy={handleCopy}
           isLiveMode={isLiveMode}
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}

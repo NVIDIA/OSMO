@@ -20,6 +20,10 @@
  * Manages all log viewer filter and time range state via URL query parameters.
  * This enables shareable/bookmarkable log views.
  *
+ * This hook composes two focused hooks:
+ * - `useFilterChipsUrlState` - Filter chips (level, task, retry, source)
+ * - `useTimeRangeUrlState` - Time range with presets and live mode
+ *
  * ## URL Parameter Format
  *
  * - `f` - Filter chips (repeated): `?f=level:error&f=task:train`
@@ -66,11 +70,10 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
-import { useQueryState, useQueryStates, parseAsArrayOf, parseAsString, parseAsIsoDateTime } from "nuqs";
 import type { SearchChip } from "@/components/filter-bar";
 import type { TimeRangePreset } from "../components/timeline";
-import { parseUrlChips } from "@/lib/url-utils";
+import { useFilterChipsUrlState } from "./use-filter-chips-url-state";
+import { useTimeRangeUrlState } from "./use-time-range-url-state";
 
 // =============================================================================
 // Types
@@ -121,38 +124,62 @@ export interface UseLogViewerUrlStateOptions {
 }
 
 // =============================================================================
-// Helper Functions
+// Helper Functions (exported for use by useTimeRangeUrlState)
 // =============================================================================
 
 /**
- * Derive the active preset from current start/end times.
- * Returns the matching preset or "custom" if times don't match any preset.
+ * Validate and clamp time range to entity boundaries.
  *
- * @param start - Start time from URL
- * @param end - End time from URL
- * @param nowMs - Synchronized NOW timestamp in milliseconds (from useTick)
+ * Enforces three guarantees:
+ * 1. filterStartTime >= entityStartTime (clamped to entity bounds)
+ * 2. filterStartTime < filterEndTime (minimum separation enforced)
+ * 3. filterEndTime <= entityEndTime ?? now (clamped to max bound)
+ *
+ * @param start - Proposed start time
+ * @param end - Proposed end time
+ * @param entityStart - Hard lower bound (workflow start time)
+ * @param entityEnd - Hard upper bound (workflow end time, if completed)
+ * @param now - Current time reference (for upper bound if workflow still running)
+ * @returns Validated times and whether correction was needed
  */
-function deriveActivePreset(start: Date | null, end: Date | null, nowMs: number): TimeRangePreset {
-  // All time
-  if (!start && !end) {
-    return "all";
+export function validateTimeRange(
+  start: Date | undefined | null,
+  end: Date | undefined | null,
+  entityStart: Date | undefined,
+  entityEnd: Date | undefined,
+  now: Date,
+): {
+  start: Date | undefined;
+  end: Date | undefined;
+  needsCorrection: boolean;
+} {
+  let validStart = start ?? undefined;
+  let validEnd = end ?? undefined;
+  let needsCorrection = false;
+
+  // GUARANTEE 1: filterStartTime >= entityStartTime
+  if (entityStart) {
+    const entityStartMs = entityStart.getTime();
+    if (!validStart || validStart.getTime() < entityStartMs) {
+      validStart = entityStart;
+      needsCorrection = true;
+    }
   }
 
-  // Live mode (no end time) - check if start matches a preset
-  if (!end && start) {
-    const diffMs = nowMs - start.getTime();
-    const toleranceMs = 10000; // 10 second tolerance for "now"
-
-    // Check each preset duration
-    if (Math.abs(diffMs - 5 * 60 * 1000) < toleranceMs) return "5m";
-    if (Math.abs(diffMs - 15 * 60 * 1000) < toleranceMs) return "15m";
-    if (Math.abs(diffMs - 60 * 60 * 1000) < toleranceMs) return "1h";
-    if (Math.abs(diffMs - 6 * 60 * 60 * 1000) < toleranceMs) return "6h";
-    if (Math.abs(diffMs - 24 * 60 * 60 * 1000) < toleranceMs) return "24h";
+  // GUARANTEE 3: filterEndTime <= entityEndTime ?? now
+  const maxEnd = entityEnd ?? now;
+  if (validEnd && validEnd.getTime() > maxEnd.getTime()) {
+    validEnd = maxEnd;
+    needsCorrection = true;
   }
 
-  // Custom range
-  return "custom";
+  // GUARANTEE 2: filterStartTime < filterEndTime (minimum 1ms separation)
+  if (validStart && validEnd && validStart.getTime() >= validEnd.getTime()) {
+    validEnd = new Date(validStart.getTime() + 1);
+    needsCorrection = true;
+  }
+
+  return { start: validStart, end: validEnd, needsCorrection };
 }
 
 // =============================================================================
@@ -161,6 +188,9 @@ function deriveActivePreset(start: Date | null, end: Date | null, nowMs: number)
 
 /**
  * URL-synced state for log viewer filters and time range.
+ *
+ * This hook composes useFilterChipsUrlState and useTimeRangeUrlState
+ * to provide a unified interface for all URL-synced state.
  *
  * Presets are resolved to actual start/end times in the URL.
  * For example, "last 5m" becomes: ?start=2026-01-24T19:11:00Z (with no end = live mode)
@@ -175,243 +205,20 @@ export function useLogViewerUrlState(options?: UseLogViewerUrlStateOptions): Use
   if (!nowMs) {
     throw new Error("useLogViewerUrlState: 'now' parameter is required");
   }
-  const synchronizedNowMs = nowMs;
-  // ───────────────────────────────────────────────────────────────────────────
-  // Filter Chips (repeated param: ?f=level:error&f=task:train)
-  // ───────────────────────────────────────────────────────────────────────────
 
-  const [filterStrings, setFilterStrings] = useQueryState(
-    "f",
-    parseAsArrayOf(parseAsString).withOptions({
-      shallow: true,
-      history: "replace",
-      clearOnDefault: true,
-    }),
-  );
+  // Delegate to focused hooks
+  const { filterChips, setFilterChips } = useFilterChipsUrlState();
 
-  // Parse filter strings to SearchChip format
-  const filterChips = useMemo<SearchChip[]>(() => parseUrlChips(filterStrings ?? []), [filterStrings]);
+  const timeRangeState = useTimeRangeUrlState({
+    now: nowMs,
+    entityStartTime,
+    entityEndTime,
+  });
 
-  // Convert chips back to filter strings for URL
-  const setFilterChips = useCallback(
-    (chips: SearchChip[]) => {
-      if (chips.length === 0) {
-        setFilterStrings(null);
-      } else {
-        setFilterStrings(chips.map((c) => `${c.field}:${c.value}`));
-      }
-    },
-    [setFilterStrings],
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Time Range (ISO datetime strings)
-  // Using useQueryStates for atomic updates to prevent losing other URL params
-  // ───────────────────────────────────────────────────────────────────────────
-
-  const [timeRange, setTimeRange] = useQueryStates(
-    {
-      start: parseAsIsoDateTime.withOptions({
-        shallow: true,
-        history: "replace",
-        clearOnDefault: true,
-      }),
-      end: parseAsIsoDateTime.withOptions({
-        shallow: true,
-        history: "replace",
-        clearOnDefault: true,
-      }),
-    },
-    {
-      // Ensure atomic updates - all params change together
-      shallow: true,
-      history: "replace",
-    },
-  );
-
-  let startTime = timeRange.start;
-  let endTime = timeRange.end;
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Validation & Backfill
-  // Enforce guarantees: entityStartTime <= filterStartTime < filterEndTime <= entityEndTime/Now
-  // ───────────────────────────────────────────────────────────────────────────
-
-  let needsUpdate = false;
-  const updates: { start?: Date | null; end?: Date | null } = {};
-
-  if (entityStartTime) {
-    const entityStartMs = entityStartTime.getTime();
-    // Upper bound: entityEndTime (if completed) or NOW (if running)
-    const effectiveMaxMs = (entityEndTime ?? new Date(synchronizedNowMs)).getTime();
-
-    // GUARANTEE 1: filterStartTime >= entityStartTime
-    // Case 1a: No start time in URL → backfill with entityStartTime
-    if (!startTime) {
-      startTime = entityStartTime;
-      updates.start = entityStartTime;
-      needsUpdate = true;
-    }
-    // Case 1b: Start time < entityStartTime → clamp to entityStartTime
-    else if (startTime.getTime() < entityStartMs) {
-      startTime = entityStartTime;
-      updates.start = entityStartTime;
-      needsUpdate = true;
-    }
-
-    // GUARANTEE 2: filterStartTime < filterEndTime (if both exist)
-    // If endTime exists and is <= startTime, clamp endTime to startTime + 1ms
-    if (endTime && startTime && endTime.getTime() <= startTime.getTime()) {
-      endTime = new Date(startTime.getTime() + 1);
-      updates.end = endTime;
-      needsUpdate = true;
-    }
-
-    // GUARANTEE 3: filterEndTime <= entityEndTime ?? now
-    // If endTime exceeds max bound, clamp to max
-    if (endTime && endTime.getTime() > effectiveMaxMs) {
-      const maxTime = entityEndTime ?? new Date(synchronizedNowMs);
-      endTime = maxTime;
-      updates.end = maxTime;
-      needsUpdate = true;
-    }
-
-    // Apply all updates atomically
-    if (needsUpdate) {
-      void setTimeRange(updates);
-    }
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Derived Preset (computed from start/end, not stored in URL)
-  // ───────────────────────────────────────────────────────────────────────────
-
-  const activePreset = useMemo<TimeRangePreset>(
-    () => deriveActivePreset(startTime, endTime, synchronizedNowMs),
-    [startTime, endTime, synchronizedNowMs],
-  );
-
-  // Helper to set preset by resolving to actual start/end times
-  // Uses atomic update to preserve other URL params (like scenario)
-  // CRITICAL: Uses synchronized NOW for consistency
-  const setPreset = useCallback(
-    (preset: TimeRangePreset) => {
-      const now = synchronizedNowMs;
-
-      switch (preset) {
-        case "all":
-          setTimeRange({ start: null, end: null });
-          break;
-        case "5m":
-          setTimeRange({
-            start: new Date(now - 5 * 60 * 1000),
-            end: null, // NOW = live mode
-          });
-          break;
-        case "15m":
-          setTimeRange({
-            start: new Date(now - 15 * 60 * 1000),
-            end: null,
-          });
-          break;
-        case "1h":
-          setTimeRange({
-            start: new Date(now - 60 * 60 * 1000),
-            end: null,
-          });
-          break;
-        case "6h":
-          setTimeRange({
-            start: new Date(now - 6 * 60 * 60 * 1000),
-            end: null,
-          });
-          break;
-        case "24h":
-          setTimeRange({
-            start: new Date(now - 24 * 60 * 60 * 1000),
-            end: null,
-          });
-          break;
-        case "custom":
-          // Custom preset doesn't change start/end - they're set manually
-          // This case is for completeness but shouldn't be called in practice
-          break;
-      }
-    },
-    [setTimeRange, synchronizedNowMs],
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Derived State
-  // ───────────────────────────────────────────────────────────────────────────
-
-  const isLiveMode = endTime === null || endTime === undefined;
-
-  // Wrap setters to convert undefined to null for nuqs
-  // Use atomic updates to preserve other URL params
-  // VALIDATION: Enforce time ordering guarantees
-  const setStartTimeWrapped = useCallback(
-    (time: Date | undefined) => {
-      const updates: { start?: Date | null; end?: Date | null } = {};
-      let validatedTime = time;
-
-      // GUARANTEE 1: filterStartTime >= entityStartTime
-      if (entityStartTime && time) {
-        const entityStartMs = entityStartTime.getTime();
-        if (time.getTime() < entityStartMs) {
-          validatedTime = entityStartTime;
-        }
-      }
-
-      updates.start = validatedTime ?? null;
-
-      // GUARANTEE 2: filterStartTime < filterEndTime
-      // If new start >= current end, push end forward
-      if (validatedTime && endTime && validatedTime.getTime() >= endTime.getTime()) {
-        updates.end = new Date(validatedTime.getTime() + 1);
-      }
-
-      setTimeRange(updates);
-    },
-    [setTimeRange, entityStartTime, endTime],
-  );
-
-  const setEndTimeWrapped = useCallback(
-    (time: Date | undefined) => {
-      const updates: { start?: Date | null; end?: Date | null } = {};
-      let validatedTime = time;
-
-      // GUARANTEE 3: filterEndTime <= entityEndTime ?? now
-      if (time) {
-        const maxTime = entityEndTime ?? new Date(synchronizedNowMs);
-        const effectiveMaxMs = maxTime.getTime();
-        if (time.getTime() > effectiveMaxMs) {
-          validatedTime = maxTime;
-        }
-      }
-
-      updates.end = validatedTime ?? null;
-
-      // GUARANTEE 2: filterStartTime < filterEndTime
-      // If new end <= current start, pull start back
-      if (validatedTime && startTime && validatedTime.getTime() <= startTime.getTime()) {
-        updates.start = new Date(validatedTime.getTime() - 1);
-      }
-
-      setTimeRange(updates);
-    },
-    [setTimeRange, entityEndTime, synchronizedNowMs, startTime],
-  );
-
+  // Combine results from both hooks
   return {
     filterChips,
     setFilterChips,
-    startTime: startTime ?? undefined,
-    setStartTime: setStartTimeWrapped,
-    endTime: endTime ?? undefined,
-    setEndTime: setEndTimeWrapped,
-    activePreset,
-    setPreset,
-    isLiveMode,
+    ...timeRangeState,
   };
 }

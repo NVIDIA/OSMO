@@ -23,8 +23,8 @@
  * approach. Uses useMemo for efficient recalculation only when inputs change.
  *
  * Features:
- * - O(k) incremental appending for new live entries (via internal tracking)
- * - Automatic deduplication based on timestamp
+ * - O(n+k) deduplication using entry ID Set for exact matching
+ * - Handles query refetches during streaming without duplicates
  * - Clean React patterns without refs during render
  * - Reset on query data change
  *
@@ -40,6 +40,7 @@
 import { useMemo } from "react";
 import type { LogEntry } from "@/lib/api/log-adapter";
 import { filterEntries, type FilterParams } from "@/lib/api/log-adapter/adapters/compute";
+import { debugWarn } from "./debug";
 
 /**
  * Combines query entries with live streaming entries.
@@ -67,17 +68,20 @@ export function useCombinedEntries(
       return filterParams ? filterEntries(liveEntries, filterParams) : liveEntries;
     }
 
-    // Find the latest timestamp from query entries
-    let queryLatestTime = 0;
+    // Build a Set of query entry IDs for O(1) lookup during deduplication
+    // Use entry ID if available, otherwise fall back to timestamp string
+    // This handles cases where query refetches during streaming would cause duplicates
+    const queryIds = new Set<string>();
     for (const e of queryEntries) {
-      const t = e.timestamp.getTime();
-      if (t > queryLatestTime) queryLatestTime = t;
+      const entryId = e.id ?? e.timestamp.getTime().toString();
+      queryIds.add(entryId);
     }
 
-    // Filter live entries that are newer than the latest query entry
+    // Filter live entries that aren't already in query results
     let newLiveEntries: LogEntry[] = [];
     for (const entry of liveEntries) {
-      if (entry.timestamp.getTime() > queryLatestTime) {
+      const entryId = entry.id ?? entry.timestamp.getTime().toString();
+      if (!queryIds.has(entryId)) {
         newLiveEntries.push(entry);
       }
     }
@@ -96,8 +100,8 @@ export function useCombinedEntries(
     return [...queryEntries, ...newLiveEntries];
   }, [queryEntries, liveEntries, filterParams]);
 
-  // DEBUG: Check ordering of combined entries
-  if (process.env.NODE_ENV === "development" && combined.length > 1) {
+  // DEBUG: Check ordering of combined entries (tree-shaken in production)
+  if (combined.length > 1) {
     let outOfOrder = 0;
     for (let i = 1; i < Math.min(combined.length, 10); i++) {
       if (combined[i].timestamp < combined[i - 1].timestamp) {
@@ -105,7 +109,7 @@ export function useCombinedEntries(
       }
     }
     if (outOfOrder > 0) {
-      console.warn(
+      debugWarn(
         `[useCombinedEntries] Combined entries have ${outOfOrder} out-of-order in first 10. ` +
           `Query: ${queryEntries.length}, Live: ${liveEntries.length}. ` +
           `First 3 dates: ${combined

@@ -35,10 +35,6 @@ export interface LogListProps {
   entries: LogEntry[];
   /** Additional CSS classes */
   className?: string;
-  /** Callback when copy is clicked */
-  onCopy?: (entry: LogEntry) => void;
-  /** Callback when link is clicked */
-  onCopyLink?: (entry: LogEntry) => void;
   /**
    * Whether live mode is enabled (auto-scroll to bottom).
    * In the upcoming time range selector, this will be true when end time = "NOW".
@@ -136,8 +132,6 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
 function LogListInner({
   entries,
   className,
-  onCopy: _onCopy,
-  onCopyLink: _onCopyLink,
   isLiveMode = false,
   onScrollAwayFromBottom,
   isStale = false,
@@ -152,20 +146,20 @@ function LogListInner({
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
   const { items: flatItems, separators, resetCount } = useIncrementalFlatten(entries);
 
-  // Estimate size callback
-  const estimateSize = useCallback(
-    (index: number): number => {
-      const item = flatItems[index];
-      if (!item) return ROW_HEIGHT_ESTIMATE;
+  // Keep flatItems in a ref to allow stable estimateSize callback
+  // This prevents virtualizer from resetting on every flatItems change
+  const flatItemsRef = useRef(flatItems);
+  useLayoutEffect(() => {
+    flatItemsRef.current = flatItems;
+  });
 
-      if (item.type === "separator") {
-        return DATE_SEPARATOR_HEIGHT;
-      }
-
-      return ROW_HEIGHT_ESTIMATE;
-    },
-    [flatItems],
-  );
+  // Estimate size callback - uses ref to access current flatItems
+  // without recreating the callback on every change
+  const estimateSize = useCallback((index: number): number => {
+    const item = flatItemsRef.current[index];
+    if (!item) return ROW_HEIGHT_ESTIMATE;
+    return item.type === "separator" ? DATE_SEPARATOR_HEIGHT : ROW_HEIGHT_ESTIMATE;
+  }, []);
 
   // Single virtualizer for entire list
   const virtualizer = useVirtualizerCompat({

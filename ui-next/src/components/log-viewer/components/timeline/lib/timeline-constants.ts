@@ -28,11 +28,11 @@
 /** Default height of the histogram in pixels */
 export const DEFAULT_HEIGHT = 80;
 
-/** Padding ratio for display range (7.5% on each side) */
-export const DISPLAY_PADDING_RATIO = 0.075;
+/** Padding ratio for display range (10% on each side to ensure invalid zones are visible) */
+export const DISPLAY_PADDING_RATIO = 0.1;
 
-/** Minimum padding in milliseconds (30 seconds) */
-export const MIN_PADDING_MS = 30_000;
+/** Minimum padding in milliseconds (10 seconds to ensure invalid zone visibility) */
+export const MIN_PADDING_MS = 10_000;
 
 /** Default fallback duration when no data (1 hour in milliseconds) */
 export const DEFAULT_DURATION_MS = 60 * 60 * 1000;
