@@ -21,8 +21,6 @@
  * These values are used by all server fetch functions.
  */
 
-import { cookies } from "next/headers";
-
 // =============================================================================
 // Environment Configuration
 // =============================================================================
@@ -33,20 +31,30 @@ import { cookies } from "next/headers";
  * On the server, we connect directly to the backend (no proxy needed).
  * This uses the same env vars as the client config.
  *
- * MOCK MODE: serverFetch() from @/lib/api/server/fetch handles interception
- * transparently by checking the URL path (not hostname), so this function
- * is completely agnostic of mock mode.
+ * MOCK MODE: In mock mode + dev mode + no explicit hostname, returns localhost:PORT
+ * to allow MSW server instrumentation to intercept requests. Otherwise uses configured hostname.
  */
 export function getServerApiBaseUrl(): string {
-  const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
+  const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME;
+  const mockMode = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
+  const devMode = process.env.NODE_ENV === "development";
+
+  // Use localhost ONLY if: mock mode + dev mode + no explicit hostname
+  if (mockMode && devMode && !hostname) {
+    const port = process.env.PORT || "3000";
+    return `http://localhost:${port}`;
+  }
+
+  // Otherwise use configured hostname (or default)
+  const actualHostname = hostname || "localhost:8080";
   const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
 
   // Default: disable SSL for localhost, enable for everything else
-  const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
+  const isLocalhost = actualHostname.startsWith("localhost") || actualHostname.startsWith("127.0.0.1");
   const useSSL = sslEnabled && !isLocalhost;
 
   const scheme = useSSL ? "https" : "http";
-  return `${scheme}://${hostname}`;
+  return `${scheme}://${actualHostname}`;
 }
 
 // =============================================================================
@@ -64,6 +72,7 @@ const BEARER_TOKEN_KEY = "BearerToken";
  * and forwards it to the backend API.
  */
 export async function getServerAuthToken(): Promise<string | null> {
+  const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
   return cookieStore.get(ID_TOKEN_KEY)?.value || cookieStore.get(BEARER_TOKEN_KEY)?.value || null;
 }

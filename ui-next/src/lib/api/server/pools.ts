@@ -23,15 +23,6 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import {
-  getServerApiBaseUrl,
-  getServerFetchHeaders,
-  handleResponse,
-  DEFAULT_REVALIDATE,
-  type ServerFetchOptions,
-} from "./config";
-import { serverFetch } from "./fetch";
-import { transformPoolsResponse, transformPoolDetail } from "../adapter/transforms";
 import type { Pool, PoolsResponse } from "../adapter/types";
 
 // =============================================================================
@@ -53,7 +44,9 @@ interface PoolsResult extends PoolsResponse {
  * Uses React's cache() for request deduplication within a single render.
  * Multiple components calling this in the same request will share the result.
  *
- * @param options - Fetch options (revalidate, tags)
+ * CLEAN PATH: Uses adapter → generated client → customFetch (no MSW imports)
+ *
+ * @param options - Fetch options (revalidate, tags) - DEPRECATED: Not used with adapter
  * @returns Transformed pools data
  *
  * @example
@@ -65,61 +58,42 @@ interface PoolsResult extends PoolsResponse {
  * }
  * ```
  */
-export const fetchPools = cache(async (options: ServerFetchOptions = {}): Promise<PoolsResult> => {
-  const { revalidate = DEFAULT_REVALIDATE, tags = ["pools"] } = options;
-
-  const baseUrl = getServerApiBaseUrl();
-  const headers = await getServerFetchHeaders();
-  const url = `${baseUrl}/api/pool_quota?all_pools=true`;
-
-  const response = await serverFetch(url, {
-    headers,
-    next: {
-      revalidate,
-      tags,
-    },
-  });
-
-  const rawData = await handleResponse<unknown>(response, url);
-  const transformed = transformPoolsResponse(rawData);
+export const fetchPools = cache(async (): Promise<PoolsResult> => {
+  // Import adapter dynamically to use clean generated client path
+  const { fetchPools: adapterFetchPools } = await import("../adapter/hooks");
+  const result = await adapterFetchPools();
 
   return {
-    ...transformed,
-    _raw: rawData,
+    ...result,
+    _raw: result, // For compatibility with existing code
   };
 });
 
 /**
  * Fetch a single pool by name.
  *
+ * CLEAN PATH: Uses adapter → generated client → customFetch (no MSW imports)
+ *
  * @param poolName - The pool name to fetch
- * @param options - Fetch options
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  * @returns Pool data or null if not found
  */
-export const fetchPoolByName = cache(
-  async (poolName: string, options: ServerFetchOptions = {}): Promise<Pool | null> => {
-    const { revalidate = DEFAULT_REVALIDATE, tags = ["pools", `pool-${poolName}`] } = options;
+export const fetchPoolByName = cache(async (poolName: string): Promise<Pool | null> => {
+  // Import generated client for clean fetch path
+  const { getPoolQuotasApiPoolQuotaGet } = await import("../generated");
+  const { transformPoolDetail } = await import("../adapter/transforms");
 
-    const baseUrl = getServerApiBaseUrl();
-    const headers = await getServerFetchHeaders();
-    const url = `${baseUrl}/api/pool_quota?pools=${encodeURIComponent(poolName)}&all_pools=false`;
-
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
+  try {
+    const rawData = await getPoolQuotasApiPoolQuotaGet({
+      pools: [poolName],
+      all_pools: false,
     });
-
-    if (response.status === 404) {
-      return null;
-    }
-
-    const rawData = await handleResponse<unknown>(response, url);
     return transformPoolDetail(rawData, poolName);
-  },
-);
+  } catch (_error) {
+    // 404 or other errors - return null
+    return null;
+  }
+});
 
 // =============================================================================
 // Prefetch for TanStack Query Hydration
@@ -131,8 +105,10 @@ export const fetchPoolByName = cache(
  * Use this in Server Components to prefetch data that will be
  * hydrated into TanStack Query on the client.
  *
+ * CLEAN PATH: Uses adapter → generated client → customFetch (no MSW imports)
+ *
  * @param queryClient - The QueryClient to prefetch into
- * @param options - Fetch options
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  *
  * @example
  * ```tsx
@@ -151,12 +127,15 @@ export const fetchPoolByName = cache(
  * }
  * ```
  */
-export async function prefetchPools(queryClient: QueryClient, options: ServerFetchOptions = {}): Promise<void> {
+export async function prefetchPools(queryClient: QueryClient): Promise<void> {
+  // Import adapter for clean path
+  const { fetchPools: adapterFetchPools } = await import("../adapter/hooks");
+
   await queryClient.prefetchQuery({
     queryKey: ["pools", "all"],
     queryFn: async () => {
-      const result = await fetchPools(options);
-      // Return the transformed data (without _raw for cleaner cache)
+      const result = await adapterFetchPools();
+      // Return the transformed data
       return {
         pools: result.pools,
         sharingGroups: result.sharingGroups,
@@ -171,20 +150,21 @@ export async function prefetchPools(queryClient: QueryClient, options: ServerFet
  * The Dashboard uses usePools() which calls the generated useGetPoolQuotasApiPoolQuotaGet hook.
  * This prefetch uses the same query key format as the generated hook.
  *
+ * CLEAN PATH: Uses adapter → generated client → customFetch (no MSW imports)
+ *
  * @param queryClient - The QueryClient to prefetch into
- * @param options - Fetch options
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  */
-export async function prefetchPoolsForDashboard(
-  queryClient: QueryClient,
-  options: ServerFetchOptions = {},
-): Promise<void> {
+export async function prefetchPoolsForDashboard(queryClient: QueryClient): Promise<void> {
+  // Import generated client for clean path
+  const { getPoolQuotasApiPoolQuotaGet } = await import("../generated");
+
   // Query key matches generated: ["/api/pool_quota", { all_pools: true }]
   await queryClient.prefetchQuery({
     queryKey: ["/api/pool_quota", { all_pools: true }],
     queryFn: async () => {
-      const result = await fetchPools(options);
       // Return raw response format that generated hook expects
-      return result._raw;
+      return getPoolQuotasApiPoolQuotaGet({ all_pools: true });
     },
   });
 }

@@ -22,41 +22,22 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import { getServerApiBaseUrl, getServerFetchHeaders, handleResponse, type ServerFetchOptions } from "./config";
-import { serverFetch } from "./fetch";
-import { transformVersionResponse } from "../adapter/transforms";
 import type { Version } from "../adapter/types";
-
-// Version rarely changes, cache for 10 minutes
-const VERSION_REVALIDATE = 600;
 
 /**
  * Fetch OSMO version info from the server.
  *
- * @param options - Fetch options
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
+ *
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  * @returns Version info or null if unavailable
  */
-export const fetchVersion = cache(async (options: ServerFetchOptions = {}): Promise<Version | null> => {
-  const { revalidate = VERSION_REVALIDATE, tags = ["version"] } = options;
-
-  const baseUrl = getServerApiBaseUrl();
-  const headers = await getServerFetchHeaders();
-  const url = `${baseUrl}/api/version`;
-
+export const fetchVersion = cache(async (): Promise<Version | null> => {
   try {
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
-    });
+    const { getVersionApiVersionGet } = await import("../generated");
+    const { transformVersionResponse } = await import("../adapter/transforms");
 
-    if (!response.ok) {
-      return null;
-    }
-
-    const rawData = await handleResponse<unknown>(response, url);
+    const rawData = await getVersionApiVersionGet();
     return transformVersionResponse(rawData);
   } catch {
     // Version endpoint may not be available
@@ -67,28 +48,13 @@ export const fetchVersion = cache(async (options: ServerFetchOptions = {}): Prom
 /**
  * Fetch raw version response for prefetching.
  * Returns the raw response that the generated hook expects.
+ *
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
  */
-const fetchVersionRaw = cache(async (options: ServerFetchOptions = {}): Promise<unknown> => {
-  const { revalidate = VERSION_REVALIDATE, tags = ["version"] } = options;
-
-  const baseUrl = getServerApiBaseUrl();
-  const headers = await getServerFetchHeaders();
-  const url = `${baseUrl}/api/version`;
-
+const fetchVersionRaw = cache(async (): Promise<unknown> => {
   try {
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return handleResponse<unknown>(response, url);
+    const { getVersionApiVersionGet } = await import("../generated");
+    return await getVersionApiVersionGet();
   } catch {
     return null;
   }
@@ -100,10 +66,10 @@ const fetchVersionRaw = cache(async (options: ServerFetchOptions = {}): Promise<
  * @param queryClient - The QueryClient to prefetch into
  * @param options - Fetch options
  */
-export async function prefetchVersion(queryClient: QueryClient, options: ServerFetchOptions = {}): Promise<void> {
+export async function prefetchVersion(queryClient: QueryClient): Promise<void> {
   // Query key matches generated: ["/api/version"]
   await queryClient.prefetchQuery({
     queryKey: ["/api/version"],
-    queryFn: () => fetchVersionRaw(options),
+    queryFn: () => fetchVersionRaw(),
   });
 }
