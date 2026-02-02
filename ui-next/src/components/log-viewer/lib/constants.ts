@@ -63,3 +63,10 @@ export const HISTOGRAM_MIN_BAR_WIDTH = 4;
  * Avoids Math.random() during render for deterministic output.
  */
 export const SKELETON_WIDTHS = ["85%", "72%", "90%", "65%", "78%", "82%", "70%", "88%"] as const;
+
+// =============================================================================
+// Histogram Interaction
+// =============================================================================
+
+/** Time window (in ms) to show around a clicked histogram bucket (5 minutes each side) */
+export const HISTOGRAM_BUCKET_JUMP_WINDOW_MS = 5 * 60 * 1000;

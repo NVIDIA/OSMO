@@ -202,10 +202,10 @@ describe("calculateDisplayRangeWithPadding", () => {
   it("should use default padding values", () => {
     const result = calculateDisplayRangeWithPadding(new Date(1000), new Date(2000), new Date(0), new Date(3000));
 
-    // Default: 7.5% padding, min 30s
-    // Range = 1000ms, 7.5% = 75ms, but min is 30000ms
-    expect(result.displayStart.getTime()).toBe(1000 - 30000);
-    expect(result.displayEnd.getTime()).toBe(2000 + 30000);
+    // Default: 10% padding (DISPLAY_PADDING_RATIO), min 10s (MIN_PADDING_MS)
+    // Range = 1000ms, 10% = 100ms, but min is 10000ms
+    expect(result.displayStart.getTime()).toBe(1000 - 10000);
+    expect(result.displayEnd.getTime()).toBe(2000 + 10000);
   });
 
   it("should handle large ranges with default padding", () => {
@@ -216,9 +216,9 @@ describe("calculateDisplayRangeWithPadding", () => {
       new Date(0),
     );
 
-    // 7.5% of 1000000ms = 75000ms > 30000ms min
-    expect(result.displayStart.getTime()).toBe(0 - 75000);
-    expect(result.displayEnd.getTime()).toBe(1_000_000 + 75000);
+    // 10% of 1000000ms = 100000ms > 10000ms min
+    expect(result.displayStart.getTime()).toBe(0 - 100000);
+    expect(result.displayEnd.getTime()).toBe(1_000_000 + 100000);
   });
 });
 

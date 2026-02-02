@@ -79,6 +79,460 @@ import {
 export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
 
 // =============================================================================
+// Types for Helper Functions
+// =============================================================================
+
+/**
+ * Common context needed by zoom/pan gesture handlers.
+ */
+interface GestureContext {
+  displayStartMs: number;
+  displayEndMs: number;
+  displayRangeMs: number;
+  bucketTimestamps: Date[];
+  entityStartTime: Date;
+  entityEndTime?: Date;
+  now: number;
+  actions: {
+    setPendingDisplay: (start: Date, end: Date) => void;
+  };
+  onDisplayRangeChange: (start: Date, end: Date) => void;
+}
+
+/**
+ * Debug logging context for wheel events.
+ */
+interface WheelLoggingContext {
+  dx: number;
+  dy: number;
+  effectiveDelta: number;
+  beforeContext: DebugContext | undefined;
+  buildDebugContext: (startMs?: number, endMs?: number, skipDom?: boolean) => DebugContext | undefined;
+  logEventAfterRender: (event: Omit<WheelDebugEvent, "afterContext">, newStartMs: number, newEndMs: number) => void;
+}
+
+// =============================================================================
+// Zoom In Handler
+// =============================================================================
+
+/**
+ * Handle zoom in gesture (Cmd/Ctrl + wheel up).
+ *
+ * Validates constraints (min range, min bucket count, invalid zone limits)
+ * and applies symmetric zoom from center.
+ *
+ * @returns true if zoom was applied, false if blocked
+ */
+function handleZoomIn(ctx: GestureContext, newRangeMs: number, logging: WheelLoggingContext): boolean {
+  const {
+    displayStartMs,
+    displayEndMs,
+    bucketTimestamps,
+    entityStartTime,
+    entityEndTime,
+    now,
+    actions,
+    onDisplayRangeChange,
+  } = ctx;
+  const { dx, dy, effectiveDelta, beforeContext, buildDebugContext, logEventAfterRender } = logging;
+
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+  // Validate zoom in constraints (MIN_RANGE_MS, MIN_BUCKET_COUNT)
+  const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
+  if (zoomInValidation.blocked) {
+    logTimelineEvent({
+      timestamp: Date.now(),
+      dx,
+      dy,
+      effectiveDelta,
+      isZoom: true,
+      wasBlocked: true,
+      blockReason: zoomInValidation.reason,
+      oldRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      newRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      beforeContext,
+      afterContext: beforeContext, // Blocked - no change
+    });
+    return false;
+  }
+
+  // Calculate symmetric zoom using pure function
+  const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
+
+  // CRITICAL: Validate invalid zone constraints for zoom in
+  // When zooming in near invalid zones, the percentage of invalid zone
+  // INCREASES (relative to the smaller viewport), potentially violating limits
+  const validation = validateInvalidZoneLimits(
+    newStartMs,
+    newEndMs,
+    entityStartTime,
+    entityEndTime,
+    now,
+    bucketTimestamps,
+  );
+
+  if (validation.blocked) {
+    logTimelineEvent({
+      timestamp: Date.now(),
+      dx,
+      dy,
+      effectiveDelta,
+      isZoom: true,
+      wasBlocked: true,
+      blockReason: validation.reason,
+      oldRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      newRange: {
+        start: new Date(newStartMs).toISOString(),
+        end: new Date(newEndMs).toISOString(),
+      },
+      beforeContext,
+      afterContext: buildDebugContext(newStartMs, newEndMs), // Show what it would have been
+    });
+    return false;
+  }
+
+  const newStart = new Date(newStartMs);
+  const newEnd = new Date(newEndMs);
+
+  // Apply state changes first, then log after React re-renders
+  actions.setPendingDisplay(newStart, newEnd);
+  onDisplayRangeChange(newStart, newEnd);
+
+  // Log with deferred DOM measurement (after React paints)
+  logEventAfterRender(
+    {
+      timestamp: Date.now(),
+      dx,
+      dy,
+      effectiveDelta,
+      isZoom: true,
+      wasBlocked: false,
+      oldRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      newRange: {
+        start: newStart.toISOString(),
+        end: newEnd.toISOString(),
+      },
+      beforeContext,
+    },
+    newStartMs,
+    newEndMs,
+  );
+  return true;
+}
+
+// =============================================================================
+// Zoom Out Handler
+// =============================================================================
+
+/**
+ * Handle zoom out gesture (Cmd/Ctrl + wheel down).
+ *
+ * Validates constraints (max range, max bucket count) and applies
+ * asymmetric zoom if needed to stay within invalid zone limits.
+ *
+ * @returns true if zoom was applied, false if blocked
+ */
+function handleZoomOut(ctx: GestureContext, newRangeMs: number, logging: WheelLoggingContext): boolean {
+  const {
+    displayStartMs,
+    displayEndMs,
+    bucketTimestamps,
+    entityStartTime,
+    entityEndTime,
+    now,
+    actions,
+    onDisplayRangeChange,
+  } = ctx;
+  const { dx, dy, effectiveDelta, beforeContext, buildDebugContext } = logging;
+
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+
+  // Validate zoom out constraints (MAX_RANGE_MS, MAX_BUCKET_COUNT)
+  const zoomOutValidation = validateZoomOutConstraints(newRangeMs, bucketWidthMs);
+  if (zoomOutValidation.blocked) {
+    logTimelineEvent({
+      timestamp: Date.now(),
+      dx,
+      dy,
+      effectiveDelta,
+      isZoom: true,
+      wasBlocked: true,
+      blockReason: zoomOutValidation.reason,
+      oldRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      newRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      beforeContext,
+      afterContext: beforeContext, // Blocked - no change
+    });
+    return false;
+  }
+
+  // For zoom out, use asymmetric zoom calculation
+  // This tries symmetric first, then shifts to one side if needed
+  const asymmetricResult = calculateAsymmetricZoom(
+    displayStartMs,
+    displayEndMs,
+    newRangeMs,
+    entityStartTime,
+    entityEndTime,
+    now,
+    bucketTimestamps,
+    validateInvalidZoneLimits,
+  );
+
+  if (asymmetricResult.blocked) {
+    logTimelineEvent({
+      timestamp: Date.now(),
+      dx,
+      dy,
+      effectiveDelta,
+      isZoom: true,
+      wasBlocked: true,
+      blockReason: asymmetricResult.reason,
+      oldRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      newRange: {
+        start: new Date(displayStartMs).toISOString(),
+        end: new Date(displayEndMs).toISOString(),
+      },
+      beforeContext,
+      afterContext: beforeContext, // Blocked - no change
+    });
+    return false;
+  }
+
+  const newStart = new Date(asymmetricResult.newStartMs!);
+  const newEnd = new Date(asymmetricResult.newEndMs!);
+
+  logTimelineEvent({
+    timestamp: Date.now(),
+    dx,
+    dy,
+    effectiveDelta,
+    isZoom: true,
+    wasBlocked: false,
+    asymmetricApplied: asymmetricResult.wasAsymmetric,
+    oldRange: {
+      start: new Date(displayStartMs).toISOString(),
+      end: new Date(displayEndMs).toISOString(),
+    },
+    newRange: {
+      start: newStart.toISOString(),
+      end: newEnd.toISOString(),
+    },
+    beforeContext,
+    afterContext: buildDebugContext(asymmetricResult.newStartMs, asymmetricResult.newEndMs),
+  });
+
+  actions.setPendingDisplay(newStart, newEnd);
+  onDisplayRangeChange(newStart, newEnd);
+  return true;
+}
+
+// =============================================================================
+// Pan Handler
+// =============================================================================
+
+/**
+ * Handle pan gesture (wheel without modifier keys).
+ *
+ * Pans the display range left or right, constraining to invalid zone limits.
+ * If the requested pan would violate limits, constrains to maximum allowed amount.
+ *
+ * @returns true if pan was applied (even if constrained), false if completely blocked
+ */
+function handlePan(ctx: GestureContext, effectiveDelta: number, logging: WheelLoggingContext): boolean {
+  const {
+    displayStartMs,
+    displayEndMs,
+    displayRangeMs,
+    bucketTimestamps,
+    entityStartTime,
+    entityEndTime,
+    now,
+    actions,
+    onDisplayRangeChange,
+  } = ctx;
+  const { dx, dy, beforeContext, buildDebugContext } = logging;
+
+  // Calculate pan amount proportional to bucket size
+  // Pan by 2 buckets per wheel event (or 10% of viewport, whichever is smaller)
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+  const bucketsPerWheelEvent = 2;
+  const bucketBasedPanMs = bucketWidthMs * bucketsPerWheelEvent;
+  const percentageBasedPanMs = displayRangeMs * PAN_FACTOR;
+  const panAmountMs = Math.min(bucketBasedPanMs, percentageBasedPanMs);
+
+  let deltaMs = effectiveDelta < 0 ? -panAmountMs : panAmountMs;
+
+  let newStart = new Date(displayStartMs + deltaMs);
+  let newEnd = new Date(displayEndMs + deltaMs);
+
+  // Validate invalid zone limits
+  const validation = validateInvalidZoneLimits(
+    newStart.getTime(),
+    newEnd.getTime(),
+    entityStartTime,
+    entityEndTime,
+    now,
+    bucketTimestamps,
+  );
+
+  // If blocked, try to constrain pan to maximum allowed amount
+  let wasConstrained = false;
+  if (validation.blocked) {
+    if (bucketWidthMs === 0) {
+      logTimelineEvent({
+        timestamp: Date.now(),
+        dx,
+        dy,
+        effectiveDelta,
+        isZoom: false,
+        wasBlocked: true,
+        blockReason: "zero-bucket-width",
+        oldRange: {
+          start: new Date(displayStartMs).toISOString(),
+          end: new Date(displayEndMs).toISOString(),
+        },
+        newRange: {
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+        },
+        beforeContext,
+        afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
+      });
+      return false;
+    }
+
+    // Calculate CURRENT invalid zones (before pan)
+    const currentInvalidZones = calculateInvalidZonePositions(
+      entityStartTime.getTime(),
+      entityEndTime?.getTime(),
+      now,
+      displayStartMs,
+      displayEndMs,
+      bucketWidthMs,
+      bucketTimestamps.length,
+    );
+
+    const currentLeftInvalidMs = (currentInvalidZones.leftInvalidWidth / 100) * displayRangeMs;
+    const currentRightInvalidMs = (currentInvalidZones.rightInvalidWidth / 100) * displayRangeMs;
+
+    // Calculate maximum allowed invalid zone using fractional percentage
+    const maxInvalidZoneMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * displayRangeMs;
+
+    // Determine which side is being constrained and calculate headroom
+    let maxAllowedDeltaMs = 0;
+
+    if (validation.reason === "left-invalid-zone-limit") {
+      // Panning left - constrain by left invalid zone limit
+      // Available headroom = maxMs - currentMs
+      const availableMs = Math.max(0, maxInvalidZoneMs - currentLeftInvalidMs);
+      maxAllowedDeltaMs = -availableMs;
+    } else if (validation.reason === "right-invalid-zone-limit") {
+      // Panning right - constrain by right invalid zone limit
+      const availableMs = Math.max(0, maxInvalidZoneMs - currentRightInvalidMs);
+      maxAllowedDeltaMs = availableMs;
+    } else {
+      // Combined limit or unknown - block entirely
+      logTimelineEvent({
+        timestamp: Date.now(),
+        dx,
+        dy,
+        effectiveDelta,
+        isZoom: false,
+        wasBlocked: true,
+        blockReason: validation.reason,
+        oldRange: {
+          start: new Date(displayStartMs).toISOString(),
+          end: new Date(displayEndMs).toISOString(),
+        },
+        newRange: {
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+        },
+        beforeContext,
+        afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
+      });
+      return false;
+    }
+
+    // Apply constrained delta (may be zero if already at limit)
+    if (Math.abs(maxAllowedDeltaMs) < 1) {
+      logTimelineEvent({
+        timestamp: Date.now(),
+        dx,
+        dy,
+        effectiveDelta,
+        isZoom: false,
+        wasBlocked: true,
+        blockReason: "at-limit: no headroom available",
+        oldRange: {
+          start: new Date(displayStartMs).toISOString(),
+          end: new Date(displayEndMs).toISOString(),
+        },
+        newRange: {
+          start: new Date(displayStartMs).toISOString(),
+          end: new Date(displayEndMs).toISOString(),
+        },
+        beforeContext,
+        afterContext: beforeContext, // Blocked - no change
+      });
+      return false;
+    }
+
+    deltaMs = maxAllowedDeltaMs;
+    newStart = new Date(displayStartMs + deltaMs);
+    newEnd = new Date(displayEndMs + deltaMs);
+    wasConstrained = true;
+  }
+
+  logTimelineEvent({
+    timestamp: Date.now(),
+    dx,
+    dy,
+    effectiveDelta,
+    isZoom: false,
+    wasBlocked: false,
+    wasConstrained,
+    oldRange: {
+      start: new Date(displayStartMs).toISOString(),
+      end: new Date(displayEndMs).toISOString(),
+    },
+    newRange: {
+      start: newStart.toISOString(),
+      end: newEnd.toISOString(),
+    },
+    beforeContext,
+    afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
+  });
+
+  actions.setPendingDisplay(newStart, newEnd);
+  onDisplayRangeChange(newStart, newEnd);
+  return true;
+}
+
+// =============================================================================
 // Asymmetric Zoom Calculation
 // =============================================================================
 
@@ -432,6 +886,19 @@ export function useTimelineWheelGesture(
       // Capture "before" state for debug logging (skip DOM measurements - they'll be stale)
       const beforeContext = buildDebugContext(undefined, undefined, true);
 
+      // Build common context for gesture handlers
+      const gestureCtx: GestureContext = {
+        displayStartMs,
+        displayEndMs,
+        displayRangeMs,
+        bucketTimestamps,
+        entityStartTime: debugContext.entityStartTime,
+        entityEndTime: debugContext.entityEndTime,
+        now: debugContext.now,
+        actions,
+        onDisplayRangeChange,
+      };
+
       // ========================================================================
       // BEHAVIOR 1: ZOOM (Cmd/Ctrl + wheel)
       // ========================================================================
@@ -446,198 +913,22 @@ export function useTimelineWheelGesture(
         const factor = isZoomingIn ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
         const newRangeMs = displayRangeMs * factor;
 
-        // Calculate bucket width for bucket count constraints
-        const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-
-        // ====================================================================
-        // ZOOM IN constraints
-        // ====================================================================
-        if (isZoomingIn) {
-          // Validate zoom in constraints (MIN_RANGE_MS, MIN_BUCKET_COUNT)
-          const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
-          if (zoomInValidation.blocked) {
-            logTimelineEvent({
-              timestamp: Date.now(),
-              dx,
-              dy,
-              effectiveDelta: primaryDelta,
-              isZoom: true,
-              wasBlocked: true,
-              blockReason: zoomInValidation.reason,
-              oldRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              newRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              beforeContext,
-              afterContext: beforeContext, // Blocked - no change
-            });
-            return;
-          }
-
-          // Calculate symmetric zoom using pure function
-          const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
-
-          // CRITICAL: Validate invalid zone constraints for zoom in
-          // When zooming in near invalid zones, the percentage of invalid zone
-          // INCREASES (relative to the smaller viewport), potentially violating limits
-          const validation = validateInvalidZoneLimits(
-            newStartMs,
-            newEndMs,
-            debugContext.entityStartTime,
-            debugContext.entityEndTime,
-            debugContext.now,
-            bucketTimestamps,
-          );
-
-          if (validation.blocked) {
-            logTimelineEvent({
-              timestamp: Date.now(),
-              dx,
-              dy,
-              effectiveDelta: primaryDelta,
-              isZoom: true,
-              wasBlocked: true,
-              blockReason: validation.reason,
-              oldRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              newRange: {
-                start: new Date(newStartMs).toISOString(),
-                end: new Date(newEndMs).toISOString(),
-              },
-              beforeContext,
-              afterContext: buildDebugContext(newStartMs, newEndMs), // Show what it would have been
-            });
-            return;
-          }
-
-          const newStart = new Date(newStartMs);
-          const newEnd = new Date(newEndMs);
-
-          // Apply state changes first, then log after React re-renders
-          actions.setPendingDisplay(newStart, newEnd);
-          onDisplayRangeChange(newStart, newEnd);
-
-          // Log with deferred DOM measurement (after React paints)
-          logEventAfterRender(
-            {
-              timestamp: Date.now(),
-              dx,
-              dy,
-              effectiveDelta: primaryDelta,
-              isZoom: true,
-              wasBlocked: false,
-              oldRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              newRange: {
-                start: newStart.toISOString(),
-                end: newEnd.toISOString(),
-              },
-              beforeContext,
-            },
-            newStartMs,
-            newEndMs,
-          );
-          return;
-        }
-
-        // ====================================================================
-        // ZOOM OUT constraints
-        // ====================================================================
-
-        // Validate zoom out constraints (MAX_RANGE_MS, MAX_BUCKET_COUNT)
-        const zoomOutValidation = validateZoomOutConstraints(newRangeMs, bucketWidthMs);
-        if (zoomOutValidation.blocked) {
-          logTimelineEvent({
-            timestamp: Date.now(),
-            dx,
-            dy,
-            effectiveDelta: primaryDelta,
-            isZoom: true,
-            wasBlocked: true,
-            blockReason: zoomOutValidation.reason,
-            oldRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            newRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            beforeContext,
-            afterContext: beforeContext, // Blocked - no change
-          });
-          return;
-        }
-
-        // For zoom out, use asymmetric zoom calculation
-        // This tries symmetric first, then shifts to one side if needed
-        const asymmetricResult = calculateAsymmetricZoom(
-          displayStartMs,
-          displayEndMs,
-          newRangeMs,
-          debugContext.entityStartTime,
-          debugContext.entityEndTime,
-          debugContext.now,
-          bucketTimestamps,
-          validateInvalidZoneLimits,
-        );
-
-        if (asymmetricResult.blocked) {
-          logTimelineEvent({
-            timestamp: Date.now(),
-            dx,
-            dy,
-            effectiveDelta: primaryDelta,
-            isZoom: true,
-            wasBlocked: true,
-            blockReason: asymmetricResult.reason,
-            oldRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            newRange: {
-              start: new Date(displayStartMs).toISOString(),
-              end: new Date(displayEndMs).toISOString(),
-            },
-            beforeContext,
-            afterContext: beforeContext, // Blocked - no change
-          });
-          return;
-        }
-
-        const newStart = new Date(asymmetricResult.newStartMs!);
-        const newEnd = new Date(asymmetricResult.newEndMs!);
-
-        logTimelineEvent({
-          timestamp: Date.now(),
+        // Build logging context
+        const loggingCtx: WheelLoggingContext = {
           dx,
           dy,
           effectiveDelta: primaryDelta,
-          isZoom: true,
-          wasBlocked: false,
-          asymmetricApplied: asymmetricResult.wasAsymmetric,
-          oldRange: {
-            start: new Date(displayStartMs).toISOString(),
-            end: new Date(displayEndMs).toISOString(),
-          },
-          newRange: {
-            start: newStart.toISOString(),
-            end: newEnd.toISOString(),
-          },
           beforeContext,
-          afterContext: buildDebugContext(asymmetricResult.newStartMs, asymmetricResult.newEndMs),
-        });
+          buildDebugContext,
+          logEventAfterRender,
+        };
 
-        actions.setPendingDisplay(newStart, newEnd);
-        onDisplayRangeChange(newStart, newEnd);
+        // Delegate to appropriate zoom handler
+        if (isZoomingIn) {
+          handleZoomIn(gestureCtx, newRangeMs, loggingCtx);
+        } else {
+          handleZoomOut(gestureCtx, newRangeMs, loggingCtx);
+        }
       }
       // ========================================================================
       // BEHAVIOR 2: PAN (simple wheel, no modifiers)
@@ -657,162 +948,18 @@ export function useTimelineWheelGesture(
         // Skip if no effective delta (prevents spurious pan when delta=0)
         if (effectiveDelta === 0) return;
 
-        // Calculate pan amount proportional to bucket size
-        // Pan by 2 buckets per wheel event (or 10% of viewport, whichever is smaller)
-        const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-        const bucketsPerWheelEvent = 2;
-        const bucketBasedPanMs = bucketWidthMs * bucketsPerWheelEvent;
-        const percentageBasedPanMs = displayRangeMs * PAN_FACTOR;
-        const panAmountMs = Math.min(bucketBasedPanMs, percentageBasedPanMs);
-
-        let deltaMs = effectiveDelta < 0 ? -panAmountMs : panAmountMs;
-
-        let newStart = new Date(displayStartMs + deltaMs);
-        let newEnd = new Date(displayEndMs + deltaMs);
-
-        // Validate invalid zone limits
-        const validation = validateInvalidZoneLimits(
-          newStart.getTime(),
-          newEnd.getTime(),
-          debugContext.entityStartTime,
-          debugContext.entityEndTime,
-          debugContext.now,
-          bucketTimestamps,
-        );
-
-        // If blocked, try to constrain pan to maximum allowed amount
-        let wasConstrained = false;
-        if (validation.blocked) {
-          const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-          if (bucketWidthMs === 0) {
-            logTimelineEvent({
-              timestamp: Date.now(),
-              dx,
-              dy,
-              effectiveDelta,
-              isZoom: false,
-              wasBlocked: true,
-              blockReason: "zero-bucket-width",
-              oldRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              newRange: {
-                start: newStart.toISOString(),
-                end: newEnd.toISOString(),
-              },
-              beforeContext,
-              afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
-            });
-            return;
-          }
-
-          // Calculate CURRENT invalid zones (before pan)
-          const currentInvalidZones = calculateInvalidZonePositions(
-            debugContext.entityStartTime.getTime(),
-            debugContext.entityEndTime?.getTime(),
-            debugContext.now,
-            displayStartMs,
-            displayEndMs,
-            bucketWidthMs,
-            bucketTimestamps.length,
-          );
-
-          const displayRangeMs = displayEndMs - displayStartMs;
-          const currentLeftInvalidMs = (currentInvalidZones.leftInvalidWidth / 100) * displayRangeMs;
-          const currentRightInvalidMs = (currentInvalidZones.rightInvalidWidth / 100) * displayRangeMs;
-
-          // Calculate maximum allowed invalid zone using fractional percentage
-          const maxInvalidZoneMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * displayRangeMs;
-
-          // Determine which side is being constrained and calculate headroom
-          let maxAllowedDeltaMs = 0;
-
-          if (validation.reason === "left-invalid-zone-limit") {
-            // Panning left - constrain by left invalid zone limit
-            // Available headroom = maxMs - currentMs
-            const availableMs = Math.max(0, maxInvalidZoneMs - currentLeftInvalidMs);
-            maxAllowedDeltaMs = -availableMs;
-          } else if (validation.reason === "right-invalid-zone-limit") {
-            // Panning right - constrain by right invalid zone limit
-            const availableMs = Math.max(0, maxInvalidZoneMs - currentRightInvalidMs);
-            maxAllowedDeltaMs = availableMs;
-          } else {
-            // Combined limit or unknown - block entirely
-            logTimelineEvent({
-              timestamp: Date.now(),
-              dx,
-              dy,
-              effectiveDelta,
-              isZoom: false,
-              wasBlocked: true,
-              blockReason: validation.reason,
-              oldRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              newRange: {
-                start: newStart.toISOString(),
-                end: newEnd.toISOString(),
-              },
-              beforeContext,
-              afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
-            });
-            return;
-          }
-
-          // Apply constrained delta (may be zero if already at limit)
-          if (Math.abs(maxAllowedDeltaMs) < 1) {
-            logTimelineEvent({
-              timestamp: Date.now(),
-              dx,
-              dy,
-              effectiveDelta,
-              isZoom: false,
-              wasBlocked: true,
-              blockReason: "at-limit: no headroom available",
-              oldRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              newRange: {
-                start: new Date(displayStartMs).toISOString(),
-                end: new Date(displayEndMs).toISOString(),
-              },
-              beforeContext,
-              afterContext: beforeContext, // Blocked - no change
-            });
-            return;
-          }
-
-          deltaMs = maxAllowedDeltaMs;
-          newStart = new Date(displayStartMs + deltaMs);
-          newEnd = new Date(displayEndMs + deltaMs);
-          wasConstrained = true;
-        }
-
-        logTimelineEvent({
-          timestamp: Date.now(),
+        // Build logging context
+        const loggingCtx: WheelLoggingContext = {
           dx,
           dy,
           effectiveDelta,
-          isZoom: false,
-          wasBlocked: false,
-          wasConstrained,
-          oldRange: {
-            start: new Date(displayStartMs).toISOString(),
-            end: new Date(displayEndMs).toISOString(),
-          },
-          newRange: {
-            start: newStart.toISOString(),
-            end: newEnd.toISOString(),
-          },
           beforeContext,
-          afterContext: buildDebugContext(newStart.getTime(), newEnd.getTime()),
-        });
+          buildDebugContext,
+          logEventAfterRender,
+        };
 
-        actions.setPendingDisplay(newStart, newEnd);
-        onDisplayRangeChange(newStart, newEnd);
+        // Delegate to pan handler
+        handlePan(gestureCtx, effectiveDelta, loggingCtx);
       }
     },
     {
