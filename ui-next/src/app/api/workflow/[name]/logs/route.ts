@@ -23,6 +23,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { getServerApiBaseUrl } from "@/lib/api/server/config";
 
 /**
  * GET /api/workflow/[name]/logs
@@ -32,10 +33,7 @@ import { NextRequest } from "next/server";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
 
-  const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
-  const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-  const scheme = sslEnabled ? "https" : "http";
-  const backendUrl = `${scheme}://${apiHostname}`;
+  const backendUrl = getServerApiBaseUrl();
 
   const url = new URL(`${backendUrl}/api/workflow/${encodeURIComponent(name)}/logs`);
 

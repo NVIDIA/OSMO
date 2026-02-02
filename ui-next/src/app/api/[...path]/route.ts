@@ -38,18 +38,7 @@
  */
 
 import { type NextRequest } from "next/server";
-
-// Get backend API URL from environment at RUNTIME
-function getBackendApiUrl(): string {
-  const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
-  const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-
-  const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
-  const useSSL = sslEnabled && !isLocalhost;
-  const scheme = useSSL ? "https" : "http";
-
-  return `${scheme}://${hostname}`;
-}
+import { getServerApiBaseUrl } from "@/lib/api/server/config";
 
 /**
  * Proxy all API requests to backend.
@@ -61,7 +50,7 @@ async function proxyRequest(request: NextRequest, method: string) {
   // Build backend URL
   // pathname is like: /api/workflow
   // We forward as-is to backend: http://backend/api/workflow
-  const backendUrl = getBackendApiUrl();
+  const backendUrl = getServerApiBaseUrl();
   const backendPath = pathname; // Already has /api prefix
   const queryString = searchParams.toString();
   const fullUrl = queryString ? `${backendUrl}${backendPath}?${queryString}` : `${backendUrl}${backendPath}`;
