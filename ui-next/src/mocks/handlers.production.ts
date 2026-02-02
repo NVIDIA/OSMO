@@ -15,24 +15,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Production Server Fetch Stub
+ * Production MSW Handlers Stub
  *
- * This module is aliased in production builds via Turbopack:
- * - turbopack.resolveAlias["@/lib/api/server/fetch"] = "@/lib/api/server/fetch.production"
+ * This is a no-op version that's swapped in during production builds.
+ * It ensures zero MSW/mock code is included in the production bundle.
  *
- * In production, serverFetch is just native fetch with zero overhead.
- * All mock-related code from fetch.ts is completely excluded from the bundle.
+ * The swap is configured in next.config.ts via turbopack.resolveAlias.
  *
- * IMPORTANT: This module's API MUST match fetch.ts exactly.
+ * IMPORTANT: This file must NOT import from 'msw' or any mock-related modules
+ * to ensure proper tree-shaking. We use 'unknown[]' instead of 'HttpHandler[]'
+ * to avoid pulling in the msw dependency.
  */
 
-/**
- * In production, serverFetch is just native fetch.
- * No mock logic, no handler invocation, zero overhead.
- */
-export const serverFetch = fetch;
-
-/**
- * Type-safe wrapper (same as serverFetch in production).
- */
-export const serverFetchWithCache = fetch;
+// Empty handlers array - no mock interception in production
+// Using unknown[] to avoid importing msw types
+export const handlers: unknown[] = [];

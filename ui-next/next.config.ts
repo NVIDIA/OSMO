@@ -160,29 +160,34 @@ const nextConfig: NextConfig = {
       process.env.NODE_ENV === "production"
         ? {
             // ============================================================
-            // CLIENT-SIDE MOCKING
+            // MOCK CODE ELIMINATION
             // ============================================================
-            // Eliminates MSW, faker, and all mock code from client bundle
+            // These aliases replace mock modules with production stubs.
+            // This completely eliminates MSW, faker, and all mock generators
+            // from the production bundle.
+            //
+            // IMPORTANT: Use @/ path aliases to match import specifiers.
+            // Turbopack resolveAlias matches the IMPORT SPECIFIER, not file paths.
+            // ============================================================
+
+            // MSW handlers - the root of all mock code
+            // fetch.ts imports handlers -> handlers imports generators -> generators imports faker
+            // Aliasing handlers eliminates the entire mock dependency tree
+            "@/mocks/handlers": "@/mocks/handlers.production",
+
+            // Client-side mock provider
             "@/mocks/MockProvider": "@/mocks/MockProvider.production",
 
-            // ============================================================
-            // SERVER-SIDE MOCKING
-            // ============================================================
-            // Single entry point - aliases entire fetch module
-            // Automatically treeshakes: handlers, generators, faker, msw/node
-            "@/lib/api/server/fetch": "@/lib/api/server/fetch.production",
-
-            // Prevents instrumentation.ts from starting MSW in production
+            // Server-side MSW server (used in instrumentation.ts)
             "@/mocks/server": "@/mocks/server.production",
 
-            // For /experimental pages (still bundled even though they redirect)
+            // Mock generators (used in /experimental pages)
             "@/mocks/generators": "@/mocks/generators/index.production",
 
-            // ============================================================
-            // UTILITIES
-            // ============================================================
-            // Auth helpers (cookie parsing, JWT decode)
+            // Auth helpers (cookie parsing for mock JWT injection)
             "@/mocks/inject-auth": "@/mocks/inject-auth.production",
+
+            // JWT helper (production version only trusts Envoy Authorization header)
             "@/lib/auth/jwt-helper": "@/lib/auth/jwt-helper.production",
           }
         : {},

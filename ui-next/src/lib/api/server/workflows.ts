@@ -23,15 +23,6 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import {
-  getServerApiBaseUrl,
-  getServerFetchHeaders,
-  handleResponse,
-  DEFAULT_REVALIDATE,
-  type ServerFetchOptions,
-} from "./config";
-import { serverFetch } from "./fetch";
-import { normalizeWorkflowTimestamps } from "../adapter/utils";
 import { getGetWorkflowApiWorkflowNameGetQueryKey } from "../generated";
 import type {
   WorkflowQueryResponse,
@@ -75,129 +66,71 @@ export interface WorkflowsQueryParams {
  *
  * Uses React's cache() for request deduplication within a single render.
  *
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
+ *
  * @param params - Query parameters for filtering
- * @param options - Fetch options (revalidate, tags)
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  * @returns Workflows list response
  */
-export const fetchWorkflows = cache(
-  async (params: WorkflowsQueryParams = {}, options: ServerFetchOptions = {}): Promise<WorkflowsListResponse> => {
-    const { revalidate = DEFAULT_REVALIDATE, tags = ["workflows"] } = options;
+export const fetchWorkflows = cache(async (params: WorkflowsQueryParams = {}): Promise<WorkflowsListResponse> => {
+  // Import generated client for clean path
+  const { listWorkflowApiWorkflowGet } = await import("../generated");
 
-    const baseUrl = getServerApiBaseUrl();
-    const headers = await getServerFetchHeaders();
+  // Map params to generated API format
+  const apiParams = {
+    statuses: params.status,
+    priority: params.priority ? [params.priority] : undefined,
+    pools: params.pools || (params.pool ? [params.pool] : undefined),
+    users: params.users,
+    name: params.search,
+    limit: params.limit,
+    offset: params.offset,
+  };
 
-    // Build query string
-    const queryParams = new URLSearchParams();
-    if (params.status) {
-      params.status.forEach((s) => queryParams.append("statuses", s));
-    }
-    if (params.priority) {
-      queryParams.append("priority", params.priority);
-    }
-    if (params.pools) {
-      params.pools.forEach((p) => queryParams.append("pools", p));
-    } else if (params.pool) {
-      // Backwards compat: map singular pool to pools array
-      queryParams.append("pools", params.pool);
-    }
-    if (params.users) {
-      params.users.forEach((u) => queryParams.append("users", u));
-    }
-    if (params.search) {
-      queryParams.append("name", params.search);
-    }
-    if (params.limit !== undefined) {
-      queryParams.append("limit", String(params.limit));
-    }
-    if (params.offset !== undefined) {
-      queryParams.append("offset", String(params.offset));
-    }
+  const rawData = await listWorkflowApiWorkflowGet(apiParams);
 
-    const queryString = queryParams.toString();
-    const url = `${baseUrl}/api/workflow${queryString ? `?${queryString}` : ""}`;
+  // Parse string response if needed (backend quirk)
+  const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
 
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
-    });
-
-    const rawData = await handleResponse<unknown>(response, url);
-
-    // Parse string response if needed (backend quirk)
-    const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-
-    return parsed as WorkflowsListResponse;
-  },
-);
+  return parsed as WorkflowsListResponse;
+});
 
 /**
  * Fetch a single workflow by name.
  *
+ * CLEAN PATH: Uses adapter → generated client → customFetch (no MSW imports)
+ *
  * @param name - Workflow name
  * @param verbose - Whether to include full task details
- * @param options - Fetch options
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
  * @returns Workflow data or null if not found
  */
 export const fetchWorkflowByName = cache(
-  async (name: string, verbose = true, options: ServerFetchOptions = {}): Promise<WorkflowQueryResponse | null> => {
-    const { revalidate = DEFAULT_REVALIDATE, tags = ["workflows", `workflow-${name}`] } = options;
+  async (name: string, verbose = true): Promise<WorkflowQueryResponse | null> => {
+    // Import adapter for clean path
+    const { fetchWorkflowByName: adapterFetch } = await import("../adapter/hooks");
 
-    const baseUrl = getServerApiBaseUrl();
-    const headers = await getServerFetchHeaders();
-    const url = `${baseUrl}/api/workflow/${encodeURIComponent(name)}?verbose=${verbose}`;
-
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
-    });
-
-    if (response.status === 404) {
-      return null;
-    }
-
-    const rawData = await handleResponse<unknown>(response, url);
-
-    // Parse string response if needed (backend quirk)
-    const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-
-    // Normalize timestamps at the API boundary
-    return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
+    return adapterFetch(name, verbose) as Promise<WorkflowQueryResponse | null>;
   },
 );
 
 /**
  * Fetch raw workflow response for prefetching (without timestamp normalization).
  * The client hook will normalize timestamps after hydration.
+ *
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
  */
-const fetchWorkflowByNameRaw = cache(
-  async (name: string, verbose = true, options: ServerFetchOptions = {}): Promise<unknown> => {
-    const { revalidate = DEFAULT_REVALIDATE, tags = ["workflows", `workflow-${name}`] } = options;
+const fetchWorkflowByNameRaw = cache(async (name: string, verbose = true): Promise<unknown> => {
+  // Import generated client for clean path
+  const { getWorkflowApiWorkflowNameGet } = await import("../generated");
 
-    const baseUrl = getServerApiBaseUrl();
-    const headers = await getServerFetchHeaders();
-    const url = `${baseUrl}/api/workflow/${encodeURIComponent(name)}?verbose=${verbose}`;
-
-    const response = await serverFetch(url, {
-      headers,
-      next: {
-        revalidate,
-        tags,
-      },
-    });
-
-    if (response.status === 404) {
-      return null;
-    }
-
-    return handleResponse<unknown>(response, url);
-  },
-);
+  try {
+    return await getWorkflowApiWorkflowNameGet(name, { verbose });
+  } catch (_error) {
+    // 404 or other errors - return null
+    return null;
+  }
+});
 
 /**
  * Prefetch a single workflow by name for hydration.
@@ -208,18 +141,14 @@ const fetchWorkflowByNameRaw = cache(
  * @param name - Workflow name
  * @param options - Fetch options
  */
-export async function prefetchWorkflowByName(
-  queryClient: QueryClient,
-  name: string,
-  options: ServerFetchOptions = {},
-): Promise<void> {
+export async function prefetchWorkflowByName(queryClient: QueryClient, name: string): Promise<void> {
   // Use the generated query key helper to ensure perfect consistency with client hooks
   // This ensures a cache hit during hydration.
   const queryKey = getGetWorkflowApiWorkflowNameGetQueryKey(name, { verbose: true });
 
   await queryClient.prefetchQuery({
     queryKey,
-    queryFn: () => fetchWorkflowByNameRaw(name, true, options),
+    queryFn: () => fetchWorkflowByNameRaw(name, true),
   });
 }
 
@@ -234,14 +163,10 @@ export async function prefetchWorkflowByName(
  * @param params - Query parameters
  * @param options - Fetch options
  */
-export async function prefetchWorkflows(
-  queryClient: QueryClient,
-  params: WorkflowsQueryParams = {},
-  options: ServerFetchOptions = {},
-): Promise<void> {
+export async function prefetchWorkflows(queryClient: QueryClient, params: WorkflowsQueryParams = {}): Promise<void> {
   await queryClient.prefetchQuery({
     queryKey: ["workflows", params],
-    queryFn: () => fetchWorkflows(params, options),
+    queryFn: () => fetchWorkflows(params),
   });
 }
 
@@ -289,11 +214,7 @@ import { chipsToKeyString } from "@/lib/url-utils";
  * @param filterChips - Filter chips from URL (optional, for nuqs compatibility)
  * @param options - Fetch options
  */
-export async function prefetchWorkflowsList(
-  queryClient: QueryClient,
-  filterChips: SearchChip[] = [],
-  options: ServerFetchOptions = {},
-): Promise<void> {
+export async function prefetchWorkflowsList(queryClient: QueryClient, filterChips: SearchChip[] = []): Promise<void> {
   // Build query key with chips string matching client format
   const chipsString = chipsToKeyString(filterChips);
   const queryKey = buildServerWorkflowsQueryKey(chipsString, false, "DESC");
@@ -306,16 +227,13 @@ export async function prefetchWorkflowsList(
   await queryClient.prefetchInfiniteQuery({
     queryKey,
     queryFn: async () => {
-      const response = await fetchWorkflows(
-        {
-          limit: 50,
-          offset: 0,
-          status: statusFilters.length > 0 ? statusFilters : undefined,
-          pools: poolFilters.length > 0 ? poolFilters : undefined,
-          users: userFilters.length > 0 ? userFilters : undefined,
-        },
-        options,
-      );
+      const response = await fetchWorkflows({
+        limit: 50,
+        offset: 0,
+        status: statusFilters.length > 0 ? statusFilters : undefined,
+        pools: poolFilters.length > 0 ? poolFilters : undefined,
+        users: userFilters.length > 0 ? userFilters : undefined,
+      });
 
       // Parse the response (backend returns string)
       const workflows = response?.workflows ?? [];

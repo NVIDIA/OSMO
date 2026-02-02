@@ -40,8 +40,8 @@
 "use server";
 
 import { revalidatePath, updateTag, refresh } from "next/cache";
-import { getServerApiBaseUrl, getServerFetchHeaders, ServerApiError } from "@/lib/api/server/config";
-import { serverFetch } from "@/lib/api/server/fetch";
+import { ServerApiError } from "@/lib/api/server/config";
+import { customFetch } from "@/lib/api/fetcher";
 
 // =============================================================================
 // Types
@@ -57,20 +57,12 @@ export interface ActionResult {
 // =============================================================================
 
 async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = "POST"): Promise<ActionResult> {
-  const baseUrl = getServerApiBaseUrl();
-  const headers = await getServerFetchHeaders();
-  const url = `${baseUrl}${endpoint}`;
-
   try {
-    const response = await serverFetch(url, {
+    // Use customFetch which calls the clean fetch path (no MSW imports)
+    await customFetch({
+      url: endpoint,
       method,
-      headers,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "Unknown error");
-      throw new ServerApiError(`Action failed: ${errorText}`, response.status, url);
-    }
 
     return { success: true };
   } catch (error) {
