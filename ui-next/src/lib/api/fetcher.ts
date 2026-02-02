@@ -93,11 +93,15 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
   // Client-side: Can use relative URL
   let fullUrl = getBasePathUrl(url);
 
-  // On server, convert relative URLs to absolute URLs
+  // On server, we need both absolute URL and auth headers from incoming request
+  let serverAuthHeaders: HeadersInit = {};
   if (typeof window === "undefined" && fullUrl.startsWith("/")) {
-    const { getServerApiBaseUrl } = await import("@/lib/api/server/config");
+    const { getServerApiBaseUrl, getServerFetchHeaders } = await import("@/lib/api/server/config");
     const baseUrl = getServerApiBaseUrl();
     fullUrl = `${baseUrl}${fullUrl}`;
+    // Get auth headers from incoming request cookies
+    // This forwards the user's auth token to backend API
+    serverAuthHeaders = await getServerFetchHeaders();
   }
 
   if (params) {
@@ -117,8 +121,9 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     }
   }
 
-  // In production, Envoy adds auth headers automatically
-  // In local dev, check if we have a token to forward
+  // In production, Envoy adds auth headers automatically (client-side)
+  // In local dev, check if we have a token to forward (client-side)
+  // In server-side renders, auth is handled via serverAuthHeaders above
   const devToken = getDevAuthToken();
 
   let response: Response;
@@ -128,8 +133,10 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
       method,
       headers: {
         "Content-Type": "application/json",
-        // Only add auth header in local dev if we have a token
-        // In production, Envoy handles this
+        // Server-side: forward auth from incoming request cookies
+        ...serverAuthHeaders,
+        // Client-side local dev: use localStorage token if available
+        // Client-side production: Envoy handles this automatically
         ...(devToken ? { "x-osmo-auth": devToken } : {}),
         ...headers,
       },

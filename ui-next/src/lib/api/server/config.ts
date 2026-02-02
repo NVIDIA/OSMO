@@ -79,13 +79,38 @@ export async function getServerAuthToken(): Promise<string | null> {
 
 /**
  * Build headers for server-side API requests.
+ *
+ * Auth flow:
+ * - Production: Envoy injects Authorization header with Bearer token
+ * - Local dev: Uses cookies (IdToken/BearerToken) if available
+ *
+ * This function checks both sources and forwards the appropriate headers.
  */
 export async function getServerFetchHeaders(): Promise<HeadersInit> {
-  const token = await getServerAuthToken();
+  const { headers: getHeaders } = await import("next/headers");
+  const requestHeaders = await getHeaders();
 
+  // Priority 1: Check for Authorization header (production with Envoy)
+  const authHeader = requestHeaders.get("Authorization");
+  if (authHeader) {
+    return {
+      "Content-Type": "application/json",
+      Authorization: authHeader,
+    };
+  }
+
+  // Priority 2: Check for auth in cookies (local dev)
+  const token = await getServerAuthToken();
+  if (token) {
+    return {
+      "Content-Type": "application/json",
+      [AUTH_HEADER]: token,
+    };
+  }
+
+  // No auth available
   return {
     "Content-Type": "application/json",
-    ...(token ? { [AUTH_HEADER]: token } : {}),
   };
 }
 

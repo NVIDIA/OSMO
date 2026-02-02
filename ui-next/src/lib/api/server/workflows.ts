@@ -126,9 +126,18 @@ const fetchWorkflowByNameRaw = cache(async (name: string, verbose = true): Promi
 
   try {
     return await getWorkflowApiWorkflowNameGet(name, { verbose });
-  } catch (_error) {
-    // 404 or other errors - return null
-    return null;
+  } catch (error) {
+    // Log server-side prefetch errors for debugging production issues
+    // Note: In development, this helps diagnose auth/network issues
+    // In production, these logs appear in server logs (not browser console)
+    console.error(
+      `[Server Prefetch] Failed to fetch workflow "${name}":`,
+      error instanceof Error ? error.message : error,
+    );
+
+    // Re-throw the error so TanStack Query can handle it properly
+    // This prevents caching null and allows client-side retry with proper error state
+    throw error;
   }
 });
 
