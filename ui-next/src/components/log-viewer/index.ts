@@ -21,13 +21,13 @@
  *
  * Direct usage (for custom data sources):
  * ```tsx
- * import { LogViewer } from "@/components/log-viewer";
+ * import { LogViewer, LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "@/components/log-viewer";
  *
+ * // Props are grouped into logical categories for maintainability
  * <LogViewer
- *   entries={entries}
- *   filterChips={filterChips}
- *   onFilterChipsChange={setFilterChips}
- *   scope="workflow"
+ *   data={dataProps}     // entries, loading states, histogram, refetch
+ *   filter={filterProps} // chips, onChipsChange, scope
+ *   timeline={timelineProps} // time range, presets, entity boundaries
  * />
  * ```
  */
@@ -37,7 +37,13 @@
 // =============================================================================
 
 export { LogViewer } from "./components/LogViewer";
-export type { LogViewerProps } from "./components/LogViewer";
+export type {
+  LogViewerProps,
+  LogViewerDataProps,
+  LogViewerFilterProps,
+  LogViewerTimelineProps,
+  HistogramData,
+} from "./components/LogViewer";
 
 export { LogViewerContainer } from "./components/LogViewerContainer";
 export type { LogViewerContainerProps } from "./components/LogViewerContainer";

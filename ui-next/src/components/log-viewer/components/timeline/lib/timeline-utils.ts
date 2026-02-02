@@ -22,6 +22,7 @@
  */
 
 import { calculateInvalidZonePositions, calculateBucketWidth } from "./invalid-zones";
+import { NOW_THRESHOLD_MS, DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "./timeline-constants";
 
 // =============================================================================
 // Pure Calculation Functions
@@ -89,8 +90,8 @@ export function isZoomGesture(newRangeMs: number, currentRangeMs: number, tolera
  * @param effectiveEnd - Effective end time (can be undefined)
  * @param fallbackStart - Fallback start if effective start is undefined
  * @param fallbackEnd - Fallback end if effective end is undefined
- * @param paddingRatio - Padding as ratio of range (default: 0.075 = 7.5%)
- * @param minPaddingMs - Minimum padding in milliseconds (default: 30000 = 30s)
+ * @param paddingRatio - Padding as ratio of range (uses DISPLAY_PADDING_RATIO from constants)
+ * @param minPaddingMs - Minimum padding in milliseconds (uses MIN_PADDING_MS from constants)
  * @returns Display start and end with padding applied
  */
 export function calculateDisplayRangeWithPadding(
@@ -98,8 +99,8 @@ export function calculateDisplayRangeWithPadding(
   effectiveEnd: Date | undefined,
   fallbackStart: Date,
   fallbackEnd: Date,
-  paddingRatio: number = 0.075,
-  minPaddingMs: number = 30_000,
+  paddingRatio: number = DISPLAY_PADDING_RATIO,
+  minPaddingMs: number = MIN_PADDING_MS,
 ): { displayStart: Date; displayEnd: Date } {
   const startMs = effectiveStart?.getTime() ?? fallbackStart.getTime();
   const endMs = effectiveEnd?.getTime() ?? fallbackEnd.getTime();
@@ -167,10 +168,10 @@ export function calculateOverlayPositions(
  *
  * @param endTime - End time to check (undefined means NOW)
  * @param now - Synchronized NOW timestamp from useTick()
- * @param thresholdMs - Threshold for considering as NOW (default: 60000ms = 1 minute)
+ * @param thresholdMs - Threshold for considering as NOW (uses NOW_THRESHOLD_MS from constants)
  * @returns True if end time is undefined or within threshold of current time
  */
-export function isEndTimeNow(endTime: Date | undefined, now: number, thresholdMs: number = 60_000): boolean {
+export function isEndTimeNow(endTime: Date | undefined, now: number, thresholdMs: number = NOW_THRESHOLD_MS): boolean {
   if (!endTime) return true;
   const diffMs = Math.abs(now - endTime.getTime());
   return diffMs < thresholdMs;
