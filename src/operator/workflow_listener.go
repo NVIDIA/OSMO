@@ -61,20 +61,29 @@ func (wl *WorkflowListener) Run(ctx context.Context) error {
 
 // receiveMessages handles receiving ACK messages from the server
 // sendMessages consumes pod updates from a channel and sends them to the server
-func (wl *WorkflowListener) sendMessages() {
+func (wl *WorkflowListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
+	// Capture done channel once for performance
+	done := ctx.Done()
+
 	// Create a channel to receive pod updates (with pre-calculated status) from the watcher
 	podUpdateChan := make(chan podWithStatus, wl.args.PodUpdateChanSize)
 
 	// Create a channel to signal if watchPod exits unexpectedly
 	watcherDone := make(chan struct{})
 
-	streamCtx := wl.GetStreamContext()
-	streamCancel := wl.GetStreamCancel()
-
 	// Start pod watcher in a separate goroutine
+	wl.AddToWaitGroup(1)
 	go func() {
+		defer wl.WaitGroupDone()
 		defer close(watcherDone)
-		watchPod(streamCtx, wl.args, podUpdateChan)
+		defer close(podUpdateChan)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in watchPod goroutine: %v", r)
+				cancel(fmt.Errorf("panic in pod watcher: %v", r))
+			}
+		}()
+		watchPod(ctx, wl.args, podUpdateChan)
 	}()
 
 	// Ticker to report progress when idle
@@ -84,14 +93,19 @@ func (wl *WorkflowListener) sendMessages() {
 	// Send pod updates to the server
 	for {
 		select {
-		case <-streamCtx.Done():
+		case <-done:
 			log.Println("Stopping message sender, draining channel...")
 			wl.drainChannel(podUpdateChan)
 			return
 		case <-watcherDone:
+			// Check if this was due to context cancellation (expected) vs unexpected stop
+			if ctx.Err() != nil {
+				log.Println("Pod watcher stopped due to context cancellation")
+				return
+			}
 			log.Println("Pod watcher stopped unexpectedly, draining channel...")
 			wl.drainChannel(podUpdateChan)
-			streamCancel(fmt.Errorf("pod watcher stopped"))
+			cancel(fmt.Errorf("pod watcher stopped"))
 			return
 		case <-progressTicker.C:
 			// Report progress periodically even when idle
@@ -102,8 +116,8 @@ func (wl *WorkflowListener) sendMessages() {
 				}
 			}
 		case update := <-podUpdateChan:
-			if err := wl.sendPodUpdate(update); err != nil {
-				streamCancel(fmt.Errorf("failed to send message: %w", err))
+			if err := wl.sendPodUpdate(ctx, update); err != nil {
+				cancel(fmt.Errorf("failed to send message: %w", err))
 				return
 			}
 		}
@@ -111,7 +125,7 @@ func (wl *WorkflowListener) sendMessages() {
 }
 
 // sendPodUpdate sends a single pod update message
-func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
+func (wl *WorkflowListener) sendPodUpdate(ctx context.Context, update podWithStatus) error {
 	// Use pre-calculated status result from the channel to avoid duplicate calculation
 	msg, err := createPodUpdateMessage(update.pod, update.statusResult, wl.args.Backend)
 	if err != nil {
@@ -119,11 +133,10 @@ func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
 		return nil // Don't fail the stream for one message
 	}
 
-	streamCtx := wl.GetStreamContext()
 	unackedMessages := wl.GetUnackedMessages()
 
 	// Add message to unacked queue before sending
-	if err := unackedMessages.AddMessage(streamCtx, msg); err != nil {
+	if err := unackedMessages.AddMessage(ctx, msg); err != nil {
 		log.Printf("Failed to add message to unacked queue: %v", err)
 		return nil // Don't fail the stream
 	}
