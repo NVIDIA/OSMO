@@ -36,7 +36,7 @@
  */
 export function getServerApiBaseUrl(): string {
   const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME;
-  const mockMode = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
+  const mockMode = process.env.NEXT_PUBLIC_MOCK_API === "true";
   const devMode = process.env.NODE_ENV === "development";
 
   // Use localhost ONLY if: mock mode + dev mode + no explicit hostname
