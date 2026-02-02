@@ -47,7 +47,7 @@ export const WorkflowsWidget = ({ filters, onEdit, onDelete, isEditing }: { filt
   }, [filters, getUrlParams]);
 
   return (
-    <section className="card w-100" aria-labelledby="current-workflows-title">
+    <section className="card flex flex-col" aria-labelledby="current-workflows-title">
       <div className="popup-header body-header">
         <h2 id="current-workflows-title">{filters.name}</h2>
         {isEditing ? (
@@ -65,7 +65,7 @@ export const WorkflowsWidget = ({ filters, onEdit, onDelete, isEditing }: { filt
           </Link>
         )}
       </div>
-      <div className={`flex flex-col gap-global p-global h-70 w-full justify-between ${isEditing ? "opacity-40" : ""}`}>
+      <div className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-40" : ""}`}>
         <WorkflowPieChart
           counts={currentWorkflows ?? {}}
           size={160}

@@ -189,11 +189,11 @@ export default function Home() {
         <IconButton icon="edit" text="Edit" className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`} onClick={() => setIsEditing(!isEditing)} />
       </PageHeader>
       <div className="h-full w-full flex justify-center items-baseline">
-        <div className="flex flex-row flex-wrap gap-global p-global">
+        <div className="md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-6 gap-global p-global">
           {widgets.map((widget) => (
             <WorkflowsWidget key={widget.name} filters={widget} onEdit={setEditingWidget} onDelete={setEditingWidget} isEditing={isEditing} />
           ))}
-          <section className="card w-100 h-100" aria-labelledby="current-tasks-title">
+          <section className="card" aria-labelledby="current-tasks-title">
             <div className="popup-header body-header">
               <h2 id="current-tasks-title">Current Tasks</h2>
               <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&statusType=current`} className="btn btn-secondary" title="View All Current Tasks">
@@ -204,7 +204,7 @@ export default function Home() {
               <TaskPieChart counts={currentTasks ?? {}} size={160} innerRadius={40} ariaLabel="Current Tasks" />
             </div>
           </section>
-          <section className="card w-100 h-100" aria-labelledby="todays-tasks-title">
+          <section className="card" aria-labelledby="todays-tasks-title">
             <div className="popup-header body-header">
               <h2 id="todays-tasks-title">Today&apos;s Tasks</h2>
               <Link href={`/tasks?allUsers=false&allPools=true&users=${encodeURIComponent(username)}&dateRange=${currentDays}&statusType=all`} className="btn btn-secondary" title="View All Today&apos;s Tasks">
@@ -215,7 +215,7 @@ export default function Home() {
               <TaskPieChart counts={todaysTasks ?? {}} size={160} innerRadius={40} ariaLabel="Today&apos;s Tasks" />
             </div>
           </section>
-          <section className="card w-100 h-100" aria-labelledby="resources-title">
+          <section className="card" aria-labelledby="resources-title">
             <div className="popup-header body-header">
               <h2>{profile?.profile.pool ?? "Default Pool"}</h2>
               {profile?.profile.pool ? (
@@ -233,7 +233,7 @@ export default function Home() {
               isShowingUsed={isShowingUsed}
             />
           </section>
-          <section className="card w-100 h-100 p-global">
+          <section className="card p-global">
             <button className="btn btn-secondary border-dashed w-full h-full justify-center items-center text-[10rem] opacity-30 hover:opacity-100 hover:cursor-pointer focus:opacity-100"><OutlinedIcon name="add" className="text-[7rem]!" /></button>
           </section>
         </div>

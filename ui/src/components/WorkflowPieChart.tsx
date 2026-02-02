@@ -74,7 +74,7 @@ export const WorkflowPieChart = ({
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
 
   return (
-    <div className="flex gap-global">
+    <div className="flex xxs:flex-row flex-col gap-global">
       <PieChart
         slices={slices}
         size={size}
