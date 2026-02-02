@@ -619,10 +619,10 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     queue_update_group_job(message_body.update_pod)
                 elif message_body.monitor_pod:
                     create_monitor_job(message_body.monitor_pod)
-                elif message_body.resource:
-                    update_resource(name, message_body.resource)
-                elif message_body.resource_usage:
-                    update_resource_usage(name, message_body.resource_usage)
+                elif message_body.update_node:
+                    update_resource(name, message_body.update_node)
+                elif message_body.update_node_usage:
+                    update_resource_usage(name, message_body.update_node_usage)
                 elif message_body.node_hash:
                     clean_resources(name, message_body.node_hash)
                 elif message_body.task_list:
