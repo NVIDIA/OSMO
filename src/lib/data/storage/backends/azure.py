@@ -24,9 +24,11 @@ import logging
 import os
 import re
 from typing import Any, Callable, Generator, Iterator, List, Tuple, Type
+
 from typing_extensions import assert_never, override
 
 from azure.core import exceptions
+from azure.identity import DefaultAzureCredential
 from azure.storage import blob
 
 from .. import credentials
@@ -271,7 +273,22 @@ class AzureBlobStorageResumableStream(client.ResumableStream):
         return chunk
 
 
-def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClient:
+def _extract_account_key_from_connection_string(connection_string: str) -> str:
+    """Extract AccountKey from Azure Storage connection string.
+
+    Connection strings use semicolon-delimited key=value format:
+    DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=...
+    """
+    for part in connection_string.split(';'):
+        if part.startswith('AccountKey='):
+            return part[len('AccountKey='):]
+    raise ValueError('AccountKey not found in connection string')
+
+
+def create_client(
+    data_cred: credentials.DataCredential,
+    account_url: str | None = None,
+) -> blob.BlobServiceClient:
     """
     Creates a new Azure Blob Storage client.
     """
@@ -281,8 +298,12 @@ def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClie
                 conn_str=data_cred.access_key.get_secret_value(),
             )
         case credentials.DefaultDataCredential():
-            raise NotImplementedError(
-                'Default data credentials are not supported yet')
+            if account_url is None:
+                raise ValueError('account_url required for DefaultDataCredential')
+            return blob.BlobServiceClient(
+                account_url=account_url,
+                credential=DefaultAzureCredential(),
+            )
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -292,15 +313,17 @@ class AzureBlobStorageClient(client.StorageClient):
     A concrete implementation of the StorageClient interface for Azure Blob Storage.
     """
     _azure_client: blob.BlobServiceClient
-
+    _data_cred: credentials.DataCredential
     _azure_error_handler: AzureErrorHandler
 
     def __init__(
         self,
         azure_client_factory: Callable[[], blob.BlobServiceClient],
+        data_cred: credentials.DataCredential,
     ):
         super().__init__()
         self._azure_client = azure_client_factory()
+        self._data_cred = data_cred
         self._azure_error_handler = AzureErrorHandler()
 
     @override
@@ -715,22 +738,47 @@ class AzureBlobStorageClient(client.StorageClient):
         Raises:
             src.lib.utils.data.client.OSMODataStorageClientError
         """
-        def _get_sas_url_for_copy(source_blob_client: blob.BlobClient) -> str:
+        def _get_sas_url_for_copy(
+            source_blob_client: blob.BlobClient,
+            service_client: blob.BlobServiceClient,
+        ) -> str:
             """
             Generate a SAS URL for the source blob that can be used for copy operations.
 
-            This is necessary to authorize the copy operation.
+            Uses account key for static credentials, user delegation key for token credentials.
             """
-            assert hasattr(source_blob_client.credential, 'account_key')
+            key_start_time = common.current_time().replace(tzinfo=datetime.timezone.utc)
+            key_expiry_time = key_start_time + _get_copy_sas_expiry_time()
 
-            sas_token = blob.generate_blob_sas(
-                account_name=source_blob_client.account_name,
-                container_name=source_blob_client.container_name,
-                blob_name=source_blob_client.blob_name,
-                account_key=source_blob_client.credential.account_key,
-                permission=blob.BlobSasPermissions(read=True),
-                expiry=common.current_time() + _get_copy_sas_expiry_time(),
-            )
+            match self._data_cred:
+                case credentials.StaticDataCredential():
+                    account_key = _extract_account_key_from_connection_string(
+                        self._data_cred.access_key.get_secret_value(),
+                    )
+                    sas_token = blob.generate_blob_sas(
+                        account_name=source_blob_client.account_name,
+                        container_name=source_blob_client.container_name,
+                        blob_name=source_blob_client.blob_name,
+                        account_key=account_key,
+                        permission=blob.BlobSasPermissions(read=True),
+                        expiry=key_expiry_time,
+                    )
+                case credentials.DefaultDataCredential():
+                    user_delegation_key = service_client.get_user_delegation_key(
+                        key_start_time=key_start_time,
+                        key_expiry_time=key_expiry_time,
+                    )
+                    sas_token = blob.generate_blob_sas(
+                        account_name=source_blob_client.account_name,
+                        container_name=source_blob_client.container_name,
+                        blob_name=source_blob_client.blob_name,
+                        user_delegation_key=user_delegation_key,
+                        permission=blob.BlobSasPermissions(read=True),
+                        expiry=key_expiry_time,
+                    )
+                case _ as unreachable:
+                    assert_never(unreachable)
+
             return f'{source_blob_client.url}?{sas_token}'
 
         def _call_api() -> client.CopyResponse:
@@ -745,7 +793,7 @@ class AzureBlobStorageClient(client.StorageClient):
 
             # Copy source blob to destination blob.
             destination_blob_client.upload_blob_from_url(
-                _get_sas_url_for_copy(source_blob_client),
+                _get_sas_url_for_copy(source_blob_client, self._azure_client),
             )
 
             blob_properties = destination_blob_client.get_blob_properties()
@@ -831,9 +879,14 @@ class AzureBlobStorageClientFactory(provider.StorageClientFactory):
     """
 
     data_cred: credentials.DataCredential
+    account_url: str
 
     @override
     def create(self) -> AzureBlobStorageClient:
         return AzureBlobStorageClient(
-            lambda: create_client(self.data_cred),
+            azure_client_factory=lambda: create_client(
+                self.data_cred,
+                account_url=self.account_url,
+            ),
+            data_cred=self.data_cred,
         )

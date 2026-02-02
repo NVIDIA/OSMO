@@ -88,12 +88,27 @@ class DefaultDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
     Data credential that delegates resolution to the underlying SDK.
 
     Uses the SDK's default credential chain (e.g., Azure's DefaultAzureCredential,
-    boto3's credential resolution) which may include environment variables, 
+    boto3's credential resolution) which may include environment variables,
     workload identity, instance metadata, and other provider-specific methods.
 
     Intentionally left empty as all credential resolution is handled by the SDK.
     """
-    pass
+
+    def to_decrypted_dict(self) -> dict[str, str]:
+        """Return credential dict for SDK-based authentication.
+
+        For DefaultDataCredential, only endpoint and region are provided.
+        The actual credential resolution occurs at runtime via the SDK's
+        default credential chain (workload identity, managed identity, etc.).
+        """
+        output = {
+            'endpoint': self.endpoint,
+        }
+
+        if self.region:
+            output['region'] = self.region
+
+        return output
 
 
 DataCredential = Union[

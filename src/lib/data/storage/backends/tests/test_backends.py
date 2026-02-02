@@ -22,10 +22,11 @@ import unittest
 from typing import cast
 from unittest import mock
 
-from src.lib.data.storage.backends import backends, s3
+from src.lib.data.storage.backends import azure, backends, s3
 from src.lib.data.storage.credentials import credentials
 from src.lib.data.storage.core import header
 from src.lib.utils import osmo_errors
+from src.utils.connectors import postgres
 
 
 class TestBackends(unittest.TestCase):
@@ -221,6 +222,109 @@ class TestBackends(unittest.TestCase):
 
                     self.assertIn('Data credential not found', str(context.exception))
                     self.assertIn(expected_profile, str(context.exception))
+
+
+class AzureDefaultDataCredentialTest(unittest.TestCase):
+    """Tests for Azure DefaultDataCredential support."""
+
+    @mock.patch('src.lib.data.storage.backends.azure.DefaultAzureCredential')
+    @mock.patch('src.lib.data.storage.backends.azure.blob.BlobServiceClient')
+    def test_create_client_with_default_credential(
+        self,
+        mock_blob_client,
+        mock_azure_cred,
+    ):
+        """Test create_client uses DefaultAzureCredential."""
+        # Arrange
+        mock_credential_instance = mock.Mock()
+        mock_azure_cred.return_value = mock_credential_instance
+
+        data_cred = credentials.DefaultDataCredential(
+            endpoint='azure://mystorageaccount',
+            region=None,
+        )
+
+        # Act
+        azure.create_client(
+            data_cred,
+            account_url='https://mystorageaccount.blob.core.windows.net',
+        )
+
+        # Assert
+        mock_azure_cred.assert_called_once()
+        mock_blob_client.assert_called_once_with(
+            account_url='https://mystorageaccount.blob.core.windows.net',
+            credential=mock_credential_instance,
+        )
+
+
+class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
+    """Tests for account key extraction from Azure connection strings."""
+
+    def test_standard_connection_string(self):
+        """Test extraction from standard Azure Storage connection string."""
+        conn_str = (
+            'DefaultEndpointsProtocol=https;'
+            'AccountName=mystorageaccount;'
+            'AccountKey=abc123def456ghi789;'
+            'EndpointSuffix=core.windows.net'
+        )
+        # pylint: disable=protected-access
+        result = azure._extract_account_key_from_connection_string(conn_str)
+        self.assertEqual(result, 'abc123def456ghi789')
+
+    def test_connection_string_with_base64_key(self):
+        """Test extraction when key contains base64 characters including equals."""
+        conn_str = (
+            'DefaultEndpointsProtocol=https;'
+            'AccountName=mystorageaccount;'
+            'AccountKey=abc123+def/456==;'
+            'EndpointSuffix=core.windows.net'
+        )
+        # pylint: disable=protected-access
+        result = azure._extract_account_key_from_connection_string(conn_str)
+        self.assertEqual(result, 'abc123+def/456==')
+
+    def test_missing_account_key_raises(self):
+        """Test that missing AccountKey raises ValueError."""
+        conn_str = 'DefaultEndpointsProtocol=https;AccountName=mystorageaccount'
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            azure._extract_account_key_from_connection_string(conn_str)
+        self.assertIn('AccountKey not found', str(context.exception))
+
+
+class WorkflowConfigCredentialTest(unittest.TestCase):
+    """Tests for WorkflowConfig credential type support."""
+
+    def test_workflow_config_with_static_credential(self):
+        """Test WorkflowConfig accepts StaticDataCredential."""
+        static_cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket.io/workflows',
+            access_key_id='mykey',
+            access_key='mysecret',
+            region='us-east-1',
+        )
+
+        # Act
+        config = postgres.WorkflowConfig(
+            workflow_data=postgres.DataConfig(credential=static_cred),
+        )
+
+        # Assert
+        self.assertIsInstance(
+            config.workflow_data.credential,
+            credentials.StaticDataCredential,
+        )
+
+    def test_workflow_config_with_null_credential(self):
+        """Test WorkflowConfig accepts None credential."""
+        config = postgres.WorkflowConfig(
+            workflow_data=postgres.DataConfig(credential=None),
+        )
+
+        # Assert
+        self.assertIsNone(config.workflow_data.credential)
 
 
 if __name__ == '__main__':

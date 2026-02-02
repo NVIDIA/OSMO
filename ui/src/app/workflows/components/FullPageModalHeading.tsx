@@ -109,7 +109,7 @@ const FullPageModalHeading = ({
             if (params.task) {
               updateUrl({ ...params, tool: ToolType.TaskEvents });
             } else {
-              updateUrl({ tool: ToolType.WorkflowEvents, retry_id: null });
+              updateUrl({ tool: ToolType.WorkflowEvents });
             }
           }}
           workflow={workflow}

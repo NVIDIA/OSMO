@@ -17,26 +17,23 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "postgres",
+    name = "redis",
     srcs = [
-        "postgres_client.go",
+        "redis_client.go",
     ],
-    importpath = "go.corp.nvidia.com/osmo/utils/postgres",
+    importpath = "go.corp.nvidia.com/osmo/utils/redis",
     visibility = ["//visibility:public"],
     deps = [
-<<<<<<< HEAD
-=======
         "//src/utils",
-        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+        "@com_github_redis_go_redis_v9//:go_default_library",
     ],
 )
 
 go_test(
-    name = "postgres_test",
-    srcs = ["postgres_client_test.go"],
-    embed = [":postgres"],
+    name = "redis_test",
+    srcs = ["redis_client_test.go"],
+    embed = [":redis"],
     deps = [
->>>>>>> origin/main
-        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+        "//src/utils",
     ],
 )

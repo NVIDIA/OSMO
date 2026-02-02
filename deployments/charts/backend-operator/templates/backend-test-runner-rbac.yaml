@@ -89,6 +89,7 @@ roleRef:
 {{- end }}
 
 {{- if .Values.backendTestRunner.extraRoles }}
+---
 {{- range $roleObj := .Values.backendTestRunner.extraRoles }}
 {{- toYaml $roleObj | nindent 0 }}
 ---

@@ -908,7 +908,10 @@ class AzureBlobStorageBackend(common.StorageBackend):
             data_cred = self.resolved_data_credential
 
         def _validate_auth():
-            with azure.create_client(data_cred) as service_client:
+            with azure.create_client(
+                data_cred,
+                account_url=self.auth_endpoint,
+            ) as service_client:
                 if self.container:
                     with service_client.get_container_client(self.container) as container_client:
                         container_client.get_container_properties()
@@ -954,7 +957,10 @@ class AzureBlobStorageBackend(common.StorageBackend):
         if data_cred is None:
             data_cred = self.resolved_data_credential
 
-        return azure.AzureBlobStorageClientFactory(data_cred=data_cred)
+        return azure.AzureBlobStorageClientFactory(
+            data_cred=data_cred,
+            account_url=self.auth_endpoint,
+        )
 
 
 def construct_storage_backend(
