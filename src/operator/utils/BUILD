@@ -48,6 +48,8 @@ go_library(
         "helpers.go",
         "k8s_helpers.go",
         "listener_args.go",
+        "node_helpers.go",
+        "node_usage_aggregator.go",
         "task_status.go",
         "unack_messages.go",
     ],
@@ -58,7 +60,9 @@ go_library(
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource:resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types:types",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//rest",
         "@io_k8s_client_go//tools/clientcmd",
@@ -90,3 +94,4 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )
+

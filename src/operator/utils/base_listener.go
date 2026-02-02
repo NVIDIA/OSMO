@@ -37,6 +37,9 @@ type MessageReceiver interface {
 	Recv() (*pb.AckMessage, error)
 }
 
+// MessageSenderFunc is a function type for sending messages
+type MessageSenderFunc func(ctx context.Context, cancel context.CancelCauseFunc)
+
 // BaseListener contains common functionality for all listeners
 type BaseListener struct {
 	unackedMessages *UnackMessages
@@ -45,12 +48,13 @@ type BaseListener struct {
 	// Connection state
 	conn   *grpc.ClientConn
 	client pb.ListenerServiceClient
+	stream pb.ListenerService_ListenerStreamClient
 
 	// Stream coordination
-	streamCtx    context.Context
-	streamCancel context.CancelCauseFunc
-	wg           sync.WaitGroup
-	closeOnce    sync.Once
+	mu            sync.RWMutex // Protects stream field access
+	wg            sync.WaitGroup
+	closeOnce     sync.Once // Ensures stream is closed only once
+	connCloseOnce sync.Once // Ensures connection is closed only once
 
 	// Configuration
 	args ListenerArgs
@@ -98,13 +102,8 @@ func (bl *BaseListener) InitConnection(ctx context.Context, serviceURL string) e
 	return nil
 }
 
-// InitStreamContext sets up the stream context for coordinated shutdown
-func (bl *BaseListener) InitStreamContext(ctx context.Context) {
-	bl.streamCtx, bl.streamCancel = context.WithCancelCause(ctx)
-}
-
 // ReceiveAcks handles receiving ACK messages from the server
-func (bl *BaseListener) ReceiveAcks(stream MessageReceiver, streamName string) {
+func (bl *BaseListener) ReceiveAcks(ctx context.Context, cancel context.CancelCauseFunc, stream MessageReceiver, streamName string) {
 	// Rate limit progress reporting
 	lastProgressReport := time.Now()
 	progressInterval := time.Duration(bl.args.ProgressFrequencySec) * time.Second
@@ -113,16 +112,16 @@ func (bl *BaseListener) ReceiveAcks(stream MessageReceiver, streamName string) {
 		msg, err := stream.Recv()
 		if err != nil {
 			// Check if context was cancelled
-			if bl.streamCtx.Err() != nil {
+			if ctx.Err() != nil {
 				log.Printf("Stopping %s message receiver (context cancelled)...", streamName)
 				return
 			}
 			if err == io.EOF {
 				log.Printf("Server closed the %s stream", streamName)
-				bl.streamCancel(io.EOF)
+				cancel(io.EOF)
 				return
 			}
-			bl.streamCancel(fmt.Errorf("failed to receive message: %w", err))
+			cancel(fmt.Errorf("failed to receive message: %w", err))
 			return
 		}
 
@@ -142,13 +141,13 @@ func (bl *BaseListener) ReceiveAcks(stream MessageReceiver, streamName string) {
 }
 
 // WaitForCompletion waits for goroutines to finish
-func (bl *BaseListener) WaitForCompletion(ctx context.Context, closeStreamFunc func()) error {
+func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context.Context) error {
 	// Wait for context cancellation (from parent or goroutines)
-	<-bl.streamCtx.Done()
+	<-streamCtx.Done()
 
 	// Check if error came from a goroutine or parent context
 	var finalErr error
-	if cause := context.Cause(bl.streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
+	if cause := context.Cause(streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
 		log.Printf("Error from goroutine: %v", cause)
 		finalErr = fmt.Errorf("stream error: %w", cause)
 	} else if ctx.Err() != nil {
@@ -156,9 +155,7 @@ func (bl *BaseListener) WaitForCompletion(ctx context.Context, closeStreamFunc f
 		finalErr = ctx.Err()
 	}
 
-	// Close stream and wait for goroutines with timeout
-	closeStreamFunc()
-
+	// Wait for goroutines with timeout
 	shutdownComplete := make(chan struct{})
 	go func() {
 		bl.wg.Wait()
@@ -175,14 +172,39 @@ func (bl *BaseListener) WaitForCompletion(ctx context.Context, closeStreamFunc f
 	return finalErr
 }
 
-// CloseConnection cleans up resources
-func (bl *BaseListener) CloseConnection() {
-	if bl.streamCancel != nil {
-		bl.streamCancel(nil)
+// Close cleans up all resources including stream and connection.
+// It is safe to call multiple times due to sync.Once protection.
+func (bl *BaseListener) Close() error {
+	var streamErr, connErr error
+
+	// Close stream (idempotent via sync.Once)
+	bl.closeOnce.Do(func() {
+		bl.mu.RLock()
+		stream := bl.stream
+		bl.mu.RUnlock()
+		if stream != nil {
+			streamErr = stream.CloseSend()
+			if streamErr != nil {
+				log.Printf("Error closing stream: %v", streamErr)
+			}
+		}
+	})
+
+	// Close connection (idempotent via sync.Once)
+	bl.connCloseOnce.Do(func() {
+		if bl.conn != nil {
+			connErr = bl.conn.Close()
+			if connErr != nil {
+				log.Printf("Error closing connection: %v", connErr)
+			}
+		}
+	})
+
+	// Return combined errors if any occurred
+	if streamErr != nil || connErr != nil {
+		return fmt.Errorf("close errors: stream=%v, conn=%v", streamErr, connErr)
 	}
-	if bl.conn != nil {
-		bl.conn.Close()
-	}
+	return nil
 }
 
 // GetUnackedMessages returns the unacked messages queue
@@ -200,16 +222,6 @@ func (bl *BaseListener) GetClient() pb.ListenerServiceClient {
 	return bl.client
 }
 
-// GetStreamContext returns the stream context
-func (bl *BaseListener) GetStreamContext() context.Context {
-	return bl.streamCtx
-}
-
-// GetStreamCancel returns the stream cancel function
-func (bl *BaseListener) GetStreamCancel() context.CancelCauseFunc {
-	return bl.streamCancel
-}
-
 // AddToWaitGroup adds delta to the wait group
 func (bl *BaseListener) AddToWaitGroup(delta int) {
 	bl.wg.Add(delta)
@@ -218,4 +230,76 @@ func (bl *BaseListener) AddToWaitGroup(delta int) {
 // WaitGroupDone marks a wait group item as done
 func (bl *BaseListener) WaitGroupDone() {
 	bl.wg.Done()
+}
+
+// Run manages the bidirectional streaming lifecycle
+func (bl *BaseListener) Run(
+	ctx context.Context,
+	logMessage string,
+	sendMessages MessageSenderFunc,
+	streamName string,
+) error {
+	// Ensure cleanup on exit
+	defer bl.Close()
+	// Initialize the base connection
+	if err := bl.InitConnection(ctx, bl.args.ServiceURL); err != nil {
+		return err
+	}
+
+	// Create stream context FIRST (before stream creation)
+	streamCtx, streamCancel := context.WithCancelCause(ctx)
+	defer streamCancel(nil) // Ensure cleanup
+
+	// Establish the bidirectional stream using the derived context
+	var err error
+	stream, err := bl.client.ListenerStream(streamCtx)
+	if err != nil {
+		return fmt.Errorf("failed to create stream: %w", err)
+	}
+
+	// Set stream with mutex protection
+	bl.mu.Lock()
+	bl.stream = stream
+	bl.mu.Unlock()
+
+	log.Printf("%s", logMessage)
+
+	// Resend all unacked messages from previous connection (if any)
+	if err := bl.unackedMessages.ResendAll(bl.stream); err != nil {
+		return err
+	}
+
+	// Launch goroutines for send and receive
+	bl.AddToWaitGroup(2)
+	go func() {
+		defer bl.WaitGroupDone()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in ReceiveAcks goroutine: %v", r)
+				streamCancel(fmt.Errorf("panic in receiver: %v", r))
+			}
+		}()
+		bl.ReceiveAcks(streamCtx, streamCancel, bl.stream, streamName)
+	}()
+
+	go func() {
+		defer bl.WaitGroupDone()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in sendMessages goroutine: %v", r)
+				streamCancel(fmt.Errorf("panic in sender: %v", r))
+			}
+		}()
+		sendMessages(streamCtx, streamCancel)
+	}()
+
+	// Wait for completion
+	return bl.WaitForCompletion(ctx, streamCtx)
+}
+
+// GetStream returns the gRPC stream
+func (bl *BaseListener) GetStream() pb.ListenerService_ListenerStreamClient {
+	bl.mu.RLock()
+	defer bl.mu.RUnlock()
+	return bl.stream
 }

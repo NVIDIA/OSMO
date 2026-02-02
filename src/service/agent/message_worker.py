@@ -132,12 +132,12 @@ class MessageWorker:
             if 'update_pod' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_POD
                 body_data = protobuf_msg['update_pod']
-            elif 'resource' in protobuf_msg:
-                message_type = backend_messages.MessageType.RESOURCE
-                body_data = protobuf_msg['resource']
-            elif 'resource_usage' in protobuf_msg:
-                message_type = backend_messages.MessageType.RESOURCE_USAGE
-                body_data = protobuf_msg['resource_usage']
+            elif 'update_node' in protobuf_msg:
+                message_type = backend_messages.MessageType.UPDATE_NODE
+                body_data = protobuf_msg['update_node']
+            elif 'update_node_usage' in protobuf_msg:
+                message_type = backend_messages.MessageType.UPDATE_NODE_USAGE
+                body_data = protobuf_msg['update_node_usage']
             elif 'logging' in protobuf_msg:
                 # Check if this is a backend operation notification
                 logging_text = protobuf_msg['logging'].get('text', '')
@@ -174,6 +174,8 @@ class MessageWorker:
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack invalid message to prevent infinite retries
+                logging.info('Message type: %s', message_type)
+                logging.info('Message body: %s', body_data)
                 self.redis_client.xack(self.stream_name, self.group_name, message_id)
                 return
 
@@ -195,11 +197,11 @@ class MessageWorker:
 
             if message_body.update_pod:
                 helpers.queue_update_group_job(message_body.update_pod)
-            elif message_body.resource:
-                helpers.update_resource(backend_name, message_body.resource)
-            elif message_body.resource_usage:
+            elif message_body.update_node:
+                helpers.update_resource(backend_name, message_body.update_node)
+            elif message_body.update_node_usage:
                 helpers.update_resource_usage(
-                    backend_name, message_body.resource_usage)
+                    backend_name, message_body.update_node_usage)
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)
