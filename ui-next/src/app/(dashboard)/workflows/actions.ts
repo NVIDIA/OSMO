@@ -41,6 +41,7 @@
 
 import { revalidatePath, updateTag, refresh } from "next/cache";
 import { getServerApiBaseUrl, getServerFetchHeaders, ServerApiError } from "@/lib/api/server/config";
+import { serverFetch } from "@/lib/api/server/fetch";
 
 // =============================================================================
 // Types
@@ -61,7 +62,7 @@ async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = 
   const url = `${baseUrl}${endpoint}`;
 
   try {
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       method,
       headers,
     });

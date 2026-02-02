@@ -30,6 +30,7 @@ import {
   EXPENSIVE_REVALIDATE,
   type ServerFetchOptions,
 } from "./config";
+import { serverFetch } from "./fetch";
 import { transformAllResourcesResponse, transformResourcesResponse } from "../adapter/transforms";
 import type { AllResourcesResponse, PoolResourcesResponse } from "../adapter/types";
 
@@ -52,7 +53,7 @@ export const fetchResources = cache(async (options: ServerFetchOptions = {}): Pr
   const headers = await getServerFetchHeaders();
   const url = `${baseUrl}/api/resources?all_pools=true`;
 
-  const response = await fetch(url, {
+  const response = await serverFetch(url, {
     headers,
     next: {
       revalidate,
@@ -79,7 +80,7 @@ export const fetchResourcesByPool = cache(
     const headers = await getServerFetchHeaders();
     const url = `${baseUrl}/api/resources?pools=${encodeURIComponent(poolName)}&all_pools=false`;
 
-    const response = await fetch(url, {
+    const response = await serverFetch(url, {
       headers,
       next: {
         revalidate,

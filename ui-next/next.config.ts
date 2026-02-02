@@ -170,6 +170,9 @@ const nextConfig: NextConfig = {
             "@/mocks/server": "@/mocks/server.production",
             // Replace mock utilities with no-op stubs in production
             "@/mocks/inject-auth": "@/mocks/inject-auth.production",
+            // Replace server fetch with production passthrough (native fetch)
+            // This is the PRIMARY mechanism for mock interception in server-side code
+            "@/lib/api/server/fetch": "@/lib/api/server/fetch.production",
             // Replace JWT helper with production version (removes cookie parsing for security)
             // Production version ONLY trusts Envoy's Authorization header
             "@/lib/auth/jwt-helper": "@/lib/auth/jwt-helper.production",
