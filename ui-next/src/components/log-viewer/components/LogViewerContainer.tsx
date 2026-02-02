@@ -54,19 +54,30 @@
  * ```
  */
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
 import { LogViewer } from "./LogViewer";
+import type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
 import { chipsToLogQuery } from "../lib/chips-to-log-query";
 import { useCombinedEntries } from "../lib/use-combined-entries";
 import { useLogViewerUrlState } from "../lib/use-log-viewer-url-state";
 import { useTick, useTickController } from "@/hooks/use-tick";
+import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "./timeline/lib/timeline-constants";
 
 // =============================================================================
 // Types
 // =============================================================================
+
+/**
+ * Pending display range for real-time pan/zoom feedback.
+ * Combined into single state to prevent race conditions between start/end updates.
+ */
+interface PendingDisplayRange {
+  start: Date;
+  end: Date;
+}
 
 export interface WorkflowMetadata {
   name: string;
@@ -182,8 +193,8 @@ function LogViewerContainerInner({
   });
 
   // Pending display range state (for real-time pan/zoom without committing)
-  const [pendingDisplayStart, setPendingDisplayStart] = useState<Date | undefined>(undefined);
-  const [pendingDisplayEnd, setPendingDisplayEnd] = useState<Date | undefined>(undefined);
+  // Combined into single state to prevent race conditions between start/end updates
+  const [pendingDisplay, setPendingDisplay] = useState<PendingDisplayRange | null>(null);
 
   // Convert filter chips to query params
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
@@ -233,17 +244,36 @@ function LogViewerContainerInner({
     devParams: stableLiveDevParams,
   });
 
+  // Memoize filter params for useCombinedEntries to prevent unnecessary recomputation
+  // Each property is listed individually in deps to ensure stable reference when values don't change
+  const filterParams = useMemo(
+    () => ({
+      levels: queryFilters.levels,
+      tasks: queryFilters.tasks,
+      retries: queryFilters.retries,
+      sources: queryFilters.sources,
+      search: queryFilters.search,
+      start: startTime,
+      end: endTime,
+    }),
+    [
+      queryFilters.levels,
+      queryFilters.tasks,
+      queryFilters.retries,
+      queryFilters.sources,
+      queryFilters.search,
+      startTime,
+      endTime,
+    ],
+  );
+
   // Combine query entries with live streaming entries
   // Applies current filters to live entries to ensure visual consistency
-  const combinedEntries = useCombinedEntries(queryEntries, liveEntries, {
-    levels: queryFilters.levels,
-    tasks: queryFilters.tasks,
-    retries: queryFilters.retries,
-    sources: queryFilters.sources,
-    search: queryFilters.search,
-    start: startTime,
-    end: endTime,
-  });
+  const combinedEntries = useCombinedEntries(queryEntries, liveEntries, filterParams);
+
+  // Debounce histogram recomputation during live streaming
+  // This prevents expensive histogram recalculation from blocking UI updates
+  const deferredCombinedEntries = useDeferredValue(combinedEntries);
 
   // Extract stable timestamp primitives to prevent recalculation when arrays get new references
   const firstLogTimeMs = combinedEntries[0]?.timestamp.getTime();
@@ -251,10 +281,8 @@ function LogViewerContainerInner({
   const workflowStartTimeMs = workflowMetadata?.startTime?.getTime();
   const workflowEndTimeMs = workflowMetadata?.endTime?.getTime();
 
-  // Compute display range with padding (10% on each side to ensure invalid zones are visible)
+  // Compute display range with padding to ensure invalid zones are visible
   const { displayStart, displayEnd } = useMemo(() => {
-    const PADDING_RATIO = 0.1; // Increased from 7.5% to ensure invalid zones are visible
-
     // Determine data boundaries with proper fallback hierarchy
     // For start: use query startTime, or entity start time, or first log timestamp, or 1 hour before NOW
     const firstLogTime = firstLogTimeMs ? new Date(firstLogTimeMs) : undefined;
@@ -266,9 +294,9 @@ function LogViewerContainerInner({
     const entityEndTime = workflowEndTimeMs ? new Date(workflowEndTimeMs) : undefined;
     const dataEnd = endTime ?? entityEndTime ?? lastLogTime ?? new Date(now);
 
-    // Calculate padding (minimum 10 seconds to ensure invalid zone visibility)
+    // Calculate padding using constants from timeline-constants (SSOT)
     const rangeMs = dataEnd.getTime() - dataStart.getTime();
-    const paddingMs = Math.max(rangeMs * PADDING_RATIO, 10_000); // Min 10 seconds padding
+    const paddingMs = Math.max(rangeMs * DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
 
     return {
       displayStart: new Date(dataStart.getTime() - paddingMs),
@@ -276,46 +304,119 @@ function LogViewerContainerInner({
     };
   }, [startTime, endTime, firstLogTimeMs, lastLogTimeMs, workflowStartTimeMs, workflowEndTimeMs, now]);
 
-  // Recompute histogram from combined entries to stay in sync with visible log entries
+  // Recompute histogram from deferred entries to prevent blocking UI during streaming
+  // Uses useDeferredValue to allow React to prioritize user interactions over histogram updates
   // This ensures:
   // - Buckets adjust dynamically based on the current time range
-  // - Histogram includes new live entries
+  // - Histogram includes new live entries (with slight delay during rapid updates)
   // - Bucket intervals adapt as the effective time range changes
   // - Buckets are marked as in/out of effective range for visual dimming
   const histogram = useMemo(() => {
-    return computeHistogram(combinedEntries, {
+    return computeHistogram(deferredCombinedEntries, {
       numBuckets: 50,
       displayStart,
       displayEnd,
       effectiveStart: startTime,
       effectiveEnd: endTime,
     });
-  }, [combinedEntries, displayStart, displayEnd, startTime, endTime]);
+  }, [deferredCombinedEntries, displayStart, displayEnd, startTime, endTime]);
 
   // Pending histogram (computed with pending display range for real-time pan/zoom feedback)
+  // Uses deferred entries to prevent blocking during pan/zoom gestures
   const pendingHistogram = useMemo(() => {
-    if (!pendingDisplayStart || !pendingDisplayEnd) return undefined;
+    if (!pendingDisplay) return undefined;
 
-    return computeHistogram(combinedEntries, {
+    return computeHistogram(deferredCombinedEntries, {
       numBuckets: 50,
-      displayStart: pendingDisplayStart,
-      displayEnd: pendingDisplayEnd,
+      displayStart: pendingDisplay.start,
+      displayEnd: pendingDisplay.end,
       effectiveStart: startTime,
       effectiveEnd: endTime,
     });
-  }, [combinedEntries, pendingDisplayStart, pendingDisplayEnd, startTime, endTime]);
+  }, [deferredCombinedEntries, pendingDisplay, startTime, endTime]);
 
   // Handle display range change from pan/zoom (before Apply)
   const handleDisplayRangeChange = useCallback((newDisplayStart: Date, newDisplayEnd: Date) => {
-    setPendingDisplayStart(newDisplayStart);
-    setPendingDisplayEnd(newDisplayEnd);
+    setPendingDisplay({ start: newDisplayStart, end: newDisplayEnd });
   }, []);
 
   // Clear pending state (called by LogViewer on Apply or Cancel)
   const handleClearPendingDisplay = useCallback(() => {
-    setPendingDisplayStart(undefined);
-    setPendingDisplayEnd(undefined);
+    setPendingDisplay(null);
   }, []);
+
+  // ==========================================================================
+  // Grouped Props with Memoization
+  // ==========================================================================
+  // These objects are memoized to prevent unnecessary re-renders in LogViewer.
+  // Each group contains logically related props.
+  // NOTE: Hooks must be called before any early returns (Rules of Hooks).
+
+  // Group data props (entries, loading states, histogram, refetch)
+  const dataProps = useMemo<LogViewerDataProps>(
+    () => ({
+      entries: combinedEntries,
+      totalCount: stats.totalCount,
+      isLoading,
+      isFetching,
+      error,
+      histogram,
+      pendingHistogram,
+      isLiveMode,
+      onRefetch: refetch,
+    }),
+    [combinedEntries, stats.totalCount, isLoading, isFetching, error, histogram, pendingHistogram, isLiveMode, refetch],
+  );
+
+  // Group filter props (chips, scope)
+  const filterProps = useMemo<LogViewerFilterProps>(
+    () => ({
+      filterChips,
+      onFilterChipsChange: setFilterChips,
+      scope: scope ?? "workflow",
+    }),
+    [filterChips, setFilterChips, scope],
+  );
+
+  // Extract entity times for timeline props (may be undefined before workflow starts)
+  const entityStartTime = workflowMetadata?.startTime;
+  const entityEndTime = workflowMetadata?.endTime;
+
+  // Group timeline props (time range, presets, entity boundaries)
+  // Note: entityStartTime is typed as optional here but will be guaranteed by guards below
+  const timelineProps = useMemo<LogViewerTimelineProps | null>(() => {
+    // Can't construct valid timeline props without entityStartTime
+    if (!entityStartTime) return null;
+    return {
+      filterStartTime: startTime,
+      filterEndTime: endTime,
+      displayStart,
+      displayEnd,
+      activePreset,
+      onFilterStartTimeChange: setStartTime,
+      onFilterEndTimeChange: setEndTime,
+      onPresetSelect: setPreset,
+      onDisplayRangeChange: handleDisplayRangeChange,
+      onClearPendingDisplay: handleClearPendingDisplay,
+      entityStartTime,
+      entityEndTime,
+      now,
+    };
+  }, [
+    startTime,
+    endTime,
+    displayStart,
+    displayEnd,
+    activePreset,
+    setStartTime,
+    setEndTime,
+    setPreset,
+    handleDisplayRangeChange,
+    handleClearPendingDisplay,
+    entityStartTime,
+    entityEndTime,
+    now,
+  ]);
 
   // Check if workflow has started - if not, show a message
   const workflowNotStarted = workflowMetadata && !workflowMetadata.startTime;
@@ -367,7 +468,7 @@ function LogViewerContainerInner({
 
   // GUARD: Workflow must have started before rendering LogViewer
   // entityStartTime is guaranteed for LogViewer to function properly
-  if (!workflowMetadata?.startTime) {
+  if (!workflowMetadata?.startTime || !timelineProps) {
     return (
       <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
         <div className="text-muted-foreground p-4 text-center text-sm">Workflow has not started yet</div>
@@ -378,31 +479,10 @@ function LogViewerContainerInner({
   return (
     <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
       <LogViewer
-        entries={combinedEntries}
-        totalCount={stats.totalCount}
-        isLoading={isLoading}
-        isFetching={isFetching}
-        error={error}
-        histogram={histogram}
-        pendingHistogram={pendingHistogram}
-        onRefetch={refetch}
-        filterChips={filterChips}
-        onFilterChipsChange={setFilterChips}
-        scope={scope}
+        data={dataProps}
+        filter={filterProps}
+        timeline={timelineProps}
         className={viewerClassName}
-        filterStartTime={startTime}
-        filterEndTime={endTime}
-        displayStart={displayStart}
-        displayEnd={displayEnd}
-        activePreset={activePreset}
-        onFilterStartTimeChange={setStartTime}
-        onFilterEndTimeChange={setEndTime}
-        onPresetSelect={setPreset}
-        onDisplayRangeChange={handleDisplayRangeChange}
-        onClearPendingDisplay={handleClearPendingDisplay}
-        entityStartTime={workflowMetadata.startTime}
-        entityEndTime={workflowMetadata.endTime}
-        now={now}
       />
     </div>
   );
