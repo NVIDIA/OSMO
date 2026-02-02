@@ -55,12 +55,6 @@ export { setBucketTotal, getBucketTotal } from "./bucket-generator";
 export { setDatasetTotal, getDatasetTotal } from "./dataset-generator";
 
 // =============================================================================
-// Log Scenarios (used by handlers and scenario-selector UI)
-// =============================================================================
-
-export { getLogScenario, getLogScenarioNames, type LogScenarioName } from "./log-scenarios";
-
-// =============================================================================
 // Configuration (used by generators internally)
 // =============================================================================
 

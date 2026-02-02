@@ -30,7 +30,7 @@
 import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
-import { getLogScenario, getActiveScenario, type LogScenarioConfig } from "./log-scenarios";
+import { getWorkflowLogConfig, type WorkflowLogConfig } from "../mock-workflows";
 import { hashString } from "../utils";
 
 // ============================================================================
@@ -167,36 +167,35 @@ export class LogGenerator {
   // ==========================================================================
 
   /**
-   * Generate logs for a workflow using a specific scenario.
-   * This is the primary entry point for scenario-based log generation.
+   * Generate logs for a workflow using its embedded log configuration.
+   * This is the primary entry point for workflow log generation.
    */
-  generateForScenario(options: {
+  generateForWorkflow(options: {
     workflowName: string;
-    scenarioName?: string;
     taskNames?: string[];
     startTime?: Date;
     endTime?: Date;
   }): string {
-    const { workflowName, scenarioName, taskNames, startTime: requestedStartTime, endTime: requestedEndTime } = options;
-    const scenario = getLogScenario(scenarioName ?? getActiveScenario());
+    const { workflowName, taskNames, startTime: requestedStartTime, endTime: requestedEndTime } = options;
+    const config = getWorkflowLogConfig(workflowName);
 
-    // Handle empty scenario
-    if (scenario.volume.max === 0) {
+    // Handle empty config
+    if (config.volume.max === 0) {
       return "";
     }
 
-    faker.seed(this.baseSeed + hashString(workflowName + scenario.name));
+    faker.seed(this.baseSeed + hashString(workflowName));
 
     const numLines = faker.number.int({
-      min: scenario.volume.min,
-      max: scenario.volume.max,
+      min: config.volume.min,
+      max: config.volume.max,
     });
 
     // Generate task names if not provided
-    const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
+    const tasks = taskNames ?? this.generateTaskNames(config.features.taskCount ?? 3);
 
     // Build task contexts with optional retry info
-    const taskContexts = this.buildTaskContexts(tasks, scenario);
+    const taskContexts = this.buildTaskContexts(tasks, config);
 
     // Generate log lines
     const lines: GeneratedLogLine[] = [];
@@ -237,18 +236,18 @@ export class LogGenerator {
 
       const timestamp = new Date(startTime.getTime() + timeProgress * durationMs);
       const taskCtx = faker.helpers.arrayElement(taskContexts);
-      const level = this.pickLevel(scenario.levelDistribution);
-      const ioType = this.pickIOType(scenario.ioTypeDistribution);
+      const level = this.pickLevel(config.levelDistribution);
+      const ioType = this.pickIOType(config.ioTypeDistribution);
 
-      let message = this.generateMessage(level, ioType, i, numLines, scenario);
+      let message = this.generateMessage(level, ioType, i, numLines, config);
 
       // Optionally add ANSI codes
-      if (scenario.features.ansiCodes) {
+      if (config.features.ansiCodes) {
         message = this.addAnsiCodes(message, level);
       }
 
       // Optionally make it multiline - format each line as a separate log entry
-      if (scenario.features.multiLine && faker.number.float() < 0.1) {
+      if (config.features.multiLine && faker.number.float() < 0.1) {
         const contentLines = this.generateMultilineContentLines(level);
 
         // Format each line as a separate log entry with same timestamp
@@ -292,59 +291,61 @@ export class LogGenerator {
    * Yields log lines with configurable delay for tailing simulation.
    *
    * @param options.workflowName - Workflow name for seeding
-   * @param options.scenario - Log scenario configuration
    * @param options.taskNames - Optional task names to use
    * @param options.continueFrom - Timestamp to continue from (for chronological streaming)
-   * @param options.streamDelayMs - Delay between stream entries in milliseconds (default: 200)
+   * @param options.streamDelayMs - Delay between stream entries in milliseconds (optional, uses workflow config default)
    */
   async *createStream(options: {
     workflowName: string;
-    scenario: LogScenarioConfig;
     taskNames?: string[];
     continueFrom?: Date;
     streamDelayMs?: number;
   }): AsyncGenerator<string, void, unknown> {
-    const { workflowName, scenario, taskNames, continueFrom, streamDelayMs = 200 } = options;
+    const { workflowName, taskNames, continueFrom, streamDelayMs } = options;
+    const config = getWorkflowLogConfig(workflowName);
 
-    faker.seed(this.baseSeed + hashString(workflowName + scenario.name));
+    // Use provided streamDelayMs or workflow config default
+    const delay = streamDelayMs ?? config.features.streamDelayMs ?? 200;
 
-    const tasks = taskNames ?? this.generateTaskNames(scenario.features.taskCount ?? 3);
-    const taskContexts = this.buildTaskContexts(tasks, scenario);
+    faker.seed(this.baseSeed + hashString(workflowName));
+
+    const tasks = taskNames ?? this.generateTaskNames(config.features.taskCount ?? 3);
+    const taskContexts = this.buildTaskContexts(tasks, config);
 
     // Start from continueFrom timestamp if provided, otherwise use reference date
     // Using reference date ensures chronological continuity with static logs
     let currentTime = continueFrom ? new Date(continueFrom.getTime()) : new Date(MOCK_REFERENCE_DATE);
 
     // For infinite streaming, loop forever. Otherwise use configured volume.
-    const isInfinite = scenario.features.infinite === true;
+    const isInfinite = config.features.infinite === true;
     const numLines = isInfinite
       ? Infinity
       : faker.number.int({
-          min: scenario.volume.min,
-          max: scenario.volume.max,
+          min: config.volume.min,
+          max: config.volume.max,
         });
 
     for (let i = 0; i < numLines; i++) {
       // Advance time by configured delay with millisecond jitter to prevent collisions
       // IMPORTANT: Add millisecond jitter to prevent timestamp collisions
       const jitter = faker.number.int({ min: 0, max: 50 }); // 0-50ms variance
-      currentTime = new Date(currentTime.getTime() + streamDelayMs + jitter);
+      currentTime = new Date(currentTime.getTime() + delay + jitter);
 
       // Pick task context (varies tasks and retries)
       const taskCtx = faker.helpers.arrayElement(taskContexts);
 
-      // Use scenario distributions (not hardcoded patterns)
-      const level = this.pickLevel(scenario.levelDistribution);
-      const ioType = this.pickIOType(scenario.ioTypeDistribution);
+      // Use config distributions (not hardcoded patterns)
+      const level = this.pickLevel(config.levelDistribution);
+      const ioType = this.pickIOType(config.ioTypeDistribution);
 
-      let message = this.generateMessage(level, ioType, i, numLines, scenario);
+      let message = this.generateMessage(level, ioType, i, numLines, config);
 
-      if (scenario.features.ansiCodes) {
+      if (config.features.ansiCodes) {
         message = this.addAnsiCodes(message, level);
       }
 
       // Optionally make it multiline - format each line as a separate log entry
-      if (scenario.features.multiLine && faker.number.float() < 0.1) {
+      if (config.features.multiLine && faker.number.float() < 0.1) {
         const contentLines = this.generateMultilineContentLines(level);
 
         // Yield each line as a separate log entry with same timestamp
@@ -354,7 +355,7 @@ export class LogGenerator {
         }
 
         // Add actual delay between yields
-        await new Promise((resolve) => setTimeout(resolve, streamDelayMs));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         continue; // Skip the normal single-line yield below
       }
 
@@ -363,7 +364,7 @@ export class LogGenerator {
       yield line + "\n";
 
       // Add actual delay between yields
-      await new Promise((resolve) => setTimeout(resolve, streamDelayMs));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -419,14 +420,14 @@ export class LogGenerator {
     return names;
   }
 
-  private buildTaskContexts(taskNames: string[], scenario: LogScenarioConfig): TaskContext[] {
+  private buildTaskContexts(taskNames: string[], config: WorkflowLogConfig): TaskContext[] {
     const contexts: TaskContext[] = [];
 
     for (const name of taskNames) {
-      if (scenario.features.retries) {
+      if (config.features.retries) {
         // Add base task and retry attempts
         contexts.push({ name });
-        const maxRetry = scenario.features.maxRetryAttempt ?? 2;
+        const maxRetry = config.features.maxRetryAttempt ?? 2;
         for (let r = 1; r <= faker.number.int({ min: 1, max: maxRetry }); r++) {
           contexts.push({ name, retryAttempt: r });
         }
@@ -467,7 +468,7 @@ export class LogGenerator {
     ioType: LogIOType,
     index: number,
     total: number,
-    _scenario: LogScenarioConfig,
+    _config: WorkflowLogConfig,
   ): string {
     // IO type specific messages
     if (ioType === "osmo_ctrl") {

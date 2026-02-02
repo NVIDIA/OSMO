@@ -185,30 +185,80 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
 
         {/* Helper Text */}
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Mock Workflows for Testing</h3>
+          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Available Test Workflows</h3>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Use these mock workflow IDs to test different scenarios:
+            Each workflow includes different log characteristics for testing:
           </p>
-          <ul className="mt-3 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
-            <li>
-              <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono dark:bg-zinc-800 dark:text-zinc-200">
-                mock-workflow-1
-              </code>{" "}
-              - Completed workflow
-            </li>
-            <li>
-              <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono dark:bg-zinc-800 dark:text-zinc-200">
-                mock-workflow-2
-              </code>{" "}
-              - Running workflow
-            </li>
-            <li>
-              <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono dark:bg-zinc-800 dark:text-zinc-200">
-                mock-workflow-3
-              </code>{" "}
-              - Failed workflow
-            </li>
-          </ul>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Completed</h4>
+              <ul className="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-typical-completed
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Standard 3-stage training (2k lines)
+                  </span>
+                </li>
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-empty-completed
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Instant completion (no logs)</span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Running</h4>
+              <ul className="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-typical-running
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Standard 2-stage job (2k lines)</span>
+                </li>
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-streaming-running
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Live tailing (infinite)</span>
+                </li>
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-large-running
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Performance test (50k lines)</span>
+                </li>
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-multi-task
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Complex DAG (8 groups)</span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Failed</h4>
+              <ul className="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-typical-failed
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">CUDA OOM with retries</span>
+                </li>
+                <li>
+                  <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
+                    mock-high-error-failed
+                  </code>
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Extreme error spam (30%)</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
