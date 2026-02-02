@@ -105,7 +105,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // Actions (always safe - no hydration concern)
   const setPanelPct = useSharedPreferences((s) => s.setPanelWidthPct);
   const setIsPanelCollapsed = useSharedPreferences((s) => s.setDetailsPanelCollapsed);
-  const setDagVisible = useSharedPreferences((s) => s.setDagVisible);
 
   // CRITICAL: Stabilize initial values to prevent provider remount after hydration.
   // These values should be captured ONCE and never change - the provider's internal
@@ -123,7 +122,6 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
       initialCollapsed={stableInitialCollapsed}
       onPersist={setPanelPct}
       onPersistCollapsed={setIsPanelCollapsed}
-      onHideDAG={() => setDagVisible(false)}
     >
       <WorkflowDetailContent
         name={name}
