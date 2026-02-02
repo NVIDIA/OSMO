@@ -41,7 +41,6 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { getServerApiBaseUrl, getServerFetchHeaders } from "./config";
-import { serverFetch } from "./fetch";
 import {
   parseLogBatch,
   computeHistogram,
@@ -157,8 +156,8 @@ export const fetchLogData = cache(async (params: PrefetchLogDataParams): Promise
     url += `?${searchParams.toString()}`;
   }
 
-  // Fetch logs
-  const response = await serverFetch(url, {
+  // Fetch logs - uses native fetch (clean path, no MSW)
+  const response = await fetch(url, {
     headers: {
       ...headers,
       Accept: "text/plain",

@@ -94,6 +94,15 @@ export function useFilteredPools(params: PoolFilterParams = {}) {
   };
 }
 
+/**
+ * Fetch pools for server-side use (SSR/prefetching).
+ * Uses the generated API client with clean customFetch (no serverFetch/MSW).
+ */
+export async function fetchPools() {
+  const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
+  return transformPoolsResponse(rawResponse);
+}
+
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
 
 export function usePool(poolName: string) {
@@ -400,6 +409,23 @@ export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWor
     refetch,
     isNotFound,
   };
+}
+
+/**
+ * Fetch a single workflow by name for server-side use (SSR/prefetching).
+ * Uses the generated API client with clean customFetch (no serverFetch/MSW).
+ */
+export async function fetchWorkflowByName(name: string, verbose = true) {
+  const { getWorkflowApiWorkflowNameGet } = await import("../generated");
+
+  try {
+    const rawData = await getWorkflowApiWorkflowNameGet(name, { verbose });
+    const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+    return normalizeWorkflowTimestamps(parsed);
+  } catch (_error) {
+    // 404 or other errors - return null
+    return null;
+  }
 }
 
 // =============================================================================
