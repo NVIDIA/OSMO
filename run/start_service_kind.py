@@ -274,7 +274,7 @@ def _install_osmo_services(image_location: str, image_tag: str, detected_platfor
     logger.info('✅ All OSMO services installed successfully')
 
 
-def start_service_kind(args: argparse.Namespace) -> None:
+def start_service_kind(args: argparse.Namespace, print_next_steps_action: bool = True) -> None:
     """Start the OSMO service using KIND."""
     start_time = time.time()
 
@@ -313,7 +313,8 @@ def start_service_kind(args: argparse.Namespace) -> None:
         logger.info('\n🎉 OSMO service setup complete in %.2fs!', total_time)
         logger.info('=' * 50)
 
-        print_next_steps(mode='kind', show_start_backend=True, show_update_configs=True)
+        if print_next_steps_action:
+            print_next_steps(mode='kind', show_start_backend=True, show_update_configs=True)
     except Exception as e:
         logger.error('❌ Error setting up services: %s', e)
         raise SystemExit(1) from e

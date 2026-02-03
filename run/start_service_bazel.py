@@ -429,7 +429,7 @@ def _start_router_service():
         raise RuntimeError('Router service failed to become ready')
 
 
-def start_service_bazel():
+def start_service_bazel(wait: bool = True, print_next_steps_action: bool = True):
     """Start the OSMO service using bazel."""
     check_required_tools(['bazel', 'docker', 'npm', 'aws'])
 
@@ -451,15 +451,16 @@ def start_service_bazel():
         logger.info('📊 Core API: http://%s:8000/api/docs', host_ip)
         logger.info('🌐 UI: http://%s:3000', host_ip)
         logger.info('🔀 Router: http://%s:8001/api/router/docs\n', host_ip)
-        logger.info('💡 Press Ctrl+C to stop all services\n')
 
-        print_next_steps(mode='bazel', show_start_backend=True, show_update_configs=True,
-                         host_ip=host_ip, port=8000)
+        if print_next_steps_action:
+            print_next_steps(mode='bazel', show_start_backend=True, show_update_configs=True,
+                             host_ip=host_ip, port=8000)
 
-        logger.info('\n%s', '=' * 50)
-
-        # Keep the script running while services are running
-        wait_for_all_processes()
+        if wait:
+            logger.info('💡 Press Ctrl+C to stop all services\n')
+            logger.info('\n%s', '=' * 50)
+            # Keep the script running while services are running
+            wait_for_all_processes()
 
     except KeyboardInterrupt:
         logger.info('\n🛑 Ctrl+C pressed, shutting down...')

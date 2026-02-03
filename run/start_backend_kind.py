@@ -186,7 +186,7 @@ stringData:
         raise RuntimeError(f'Unexpected error setting up backend operators: {e}') from e
 
 
-def start_backend_kind(args: argparse.Namespace) -> None:
+def start_backend_kind(args: argparse.Namespace, print_next_steps_action: bool = True) -> None:
     """Start the OSMO backend using KIND."""
     check_required_tools(['docker', 'kind', 'kubectl', 'helm'])
 
@@ -223,7 +223,8 @@ def start_backend_kind(args: argparse.Namespace) -> None:
             logout_osmo()
 
         logger.info('\n🎉 OSMO backend setup complete!')
-        print_next_steps(mode='kind', show_start_backend=False, show_update_configs=True)
+        if print_next_steps_action:
+            print_next_steps(mode='kind', show_start_backend=False, show_update_configs=True)
     except Exception as e:
         logger.error('❌ Error setting up backend: %s', e)
         raise SystemExit(1) from e
