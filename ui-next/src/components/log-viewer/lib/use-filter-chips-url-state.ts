@@ -70,7 +70,6 @@ export function useFilterChipsUrlState(): UseFilterChipsUrlStateReturn {
     "f",
     parseAsArrayOf(parseAsString).withOptions({
       shallow: true,
-      history: "replace",
       clearOnDefault: true,
     }),
   );
@@ -79,12 +78,16 @@ export function useFilterChipsUrlState(): UseFilterChipsUrlStateReturn {
   const filterChips = useMemo<SearchChip[]>(() => parseUrlChips(filterStrings ?? []), [filterStrings]);
 
   // Convert chips back to filter strings for URL
+  // Use history: "push" so filter changes create history entries
   const setFilterChips = useCallback(
     (chips: SearchChip[]) => {
       if (chips.length === 0) {
-        setFilterStrings(null);
+        setFilterStrings(null, { history: "push" });
       } else {
-        setFilterStrings(chips.map((c) => `${c.field}:${c.value}`));
+        setFilterStrings(
+          chips.map((c) => `${c.field}:${c.value}`),
+          { history: "push" },
+        );
       }
     },
     [setFilterStrings],

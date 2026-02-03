@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, FormEvent, useId, MouseEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Search, Clock, AlertCircle, X, ArrowRight } from "lucide-react";
 import { usePage } from "@/components/chrome";
 import { getRecentWorkflows, clearRecentWorkflows, removeRecentWorkflow } from "../lib/recent-workflows";
@@ -16,7 +16,6 @@ interface WorkflowSelectorProps {
 
 export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSelectorProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [workflowId, setWorkflowId] = useState(initialWorkflowId);
   const [recentWorkflows, setRecentWorkflows] = useState<string[]>(() => getRecentWorkflows());
   const workflowInputId = useId();
@@ -38,15 +37,11 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
     setRecentWorkflows((prev) => prev.filter((id) => id !== wfId));
   }, []);
 
-  // Helper to build URL with preserved params
-  const buildUrl = useCallback(
-    (workflow: string) => {
-      const params = new URLSearchParams(searchParams);
-      params.set("workflow", workflow);
-      return `/log-viewer?${params.toString()}`;
-    },
-    [searchParams],
-  );
+  // Helper to build URL - clear workflow-specific params when selecting a new workflow
+  // (start, end, filter chips are workflow-specific and should not carry over)
+  const buildUrl = useCallback((workflow: string) => {
+    return `/log-viewer?workflow=${encodeURIComponent(workflow)}`;
+  }, []);
 
   const handleSubmit = useCallback(
     (e: FormEvent) => {

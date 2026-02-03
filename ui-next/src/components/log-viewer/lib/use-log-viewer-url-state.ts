@@ -157,23 +157,25 @@ export function validateTimeRange(
   let validEnd = end ?? undefined;
   let needsCorrection = false;
 
-  // GUARANTEE 1: filterStartTime >= entityStartTime
-  if (entityStart) {
+  // GUARANTEE 1: If filterStartTime is SET, it must be >= entityStartTime
+  // Missing start = no filter = valid (don't backfill)
+  if (entityStart && validStart) {
     const entityStartMs = entityStart.getTime();
-    if (!validStart || validStart.getTime() < entityStartMs) {
+    if (validStart.getTime() < entityStartMs) {
       validStart = entityStart;
       needsCorrection = true;
     }
   }
 
-  // GUARANTEE 3: filterEndTime <= entityEndTime ?? now
+  // GUARANTEE 2: If filterEndTime is SET, it must be <= entityEndTime ?? now
+  // Missing end = no filter = valid (don't backfill)
   const maxEnd = entityEnd ?? now;
   if (validEnd && validEnd.getTime() > maxEnd.getTime()) {
     validEnd = maxEnd;
     needsCorrection = true;
   }
 
-  // GUARANTEE 2: filterStartTime < filterEndTime (minimum 1ms separation)
+  // GUARANTEE 3: If BOTH are set, filterStartTime < filterEndTime
   if (validStart && validEnd && validStart.getTime() >= validEnd.getTime()) {
     validEnd = new Date(validStart.getTime() + 1);
     needsCorrection = true;
