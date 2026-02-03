@@ -8,7 +8,16 @@
 
 "use client";
 
-import { memo, useRef, useCallback, useEffect, startTransition, useDeferredValue } from "react";
+import {
+  memo,
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  useLayoutEffect,
+  startTransition,
+  useDeferredValue,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -247,8 +256,10 @@ export interface LogViewerDataProps {
   histogram: HistogramData | undefined;
   /** Pending histogram data (for real-time pan/zoom feedback) */
   pendingHistogram: HistogramData | undefined;
-  /** Whether live mode is active (streaming new entries) */
-  isLiveMode: boolean;
+  /** Whether streaming is active (receiving new log entries) */
+  isStreaming: boolean;
+  /** URL to open raw logs in new tab (direct to backend, bypassing UI proxy) */
+  externalLogUrl?: string;
   /** Callback to refetch data */
   onRefetch: () => void;
 }
@@ -356,8 +367,18 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 
 function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
   // Destructure data props
-  const { entries, totalCount, isLoading, isFetching, error, histogram, pendingHistogram, isLiveMode, onRefetch } =
-    data;
+  const {
+    entries,
+    totalCount,
+    isLoading,
+    isFetching,
+    error,
+    histogram,
+    pendingHistogram,
+    isStreaming,
+    externalLogUrl,
+    onRefetch,
+  } = data;
 
   // Destructure filter props
   // Note: scope is reserved for future scope-aware features (e.g., showing group/task context)
@@ -398,6 +419,25 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
 
   // Ref to timeline container for imperative zoom controls
   const timelineRef = useRef<TimelineContainerHandle>(null);
+
+  // Ref to log list for imperative scroll control
+  const logListRef = useRef<{ scrollToBottom: () => void }>(null);
+
+  // Local pin state (ephemeral UI state, not persisted)
+  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
+
+  // Auto-pin when streaming starts (transition detection)
+  const prevIsStreamingRef = useRef(false);
+  useLayoutEffect(() => {
+    const wasStreaming = prevIsStreamingRef.current;
+    prevIsStreamingRef.current = isStreaming;
+
+    if (isStreaming && !wasStreaming) {
+      startTransition(() => {
+        setIsPinnedToBottom(true);
+      });
+    }
+  }, [isStreaming]);
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
@@ -514,14 +554,27 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
     announcer.announce("Logs downloaded", "polite");
   }, [deferredEntries, announcer]);
 
-  // Handle scroll away from bottom - pauses live mode by setting end time to current time
-  // User can re-enable by clicking "Jump to Now" or selecting NOW in time range
+  // Handle scroll away from bottom - unpins auto-scroll, does NOT stop streaming
   const handleScrollAwayFromBottom = useCallback(() => {
-    if (isLiveMode) {
-      onFilterEndTimeChange(new Date());
-      announcer.announce("Live mode paused", "polite");
+    if (isPinnedToBottom) {
+      setIsPinnedToBottom(false);
+      announcer.announce("Auto-scroll paused", "polite");
     }
-  }, [isLiveMode, onFilterEndTimeChange, announcer]);
+  }, [isPinnedToBottom, announcer]);
+
+  // Handle toggle pin (for footer button)
+  const handleTogglePin = useCallback(() => {
+    const wasEnabled = isPinnedToBottom;
+    setIsPinnedToBottom(!wasEnabled);
+    announcer.announce(wasEnabled ? "Auto-scroll disabled" : "Auto-scroll enabled", "polite");
+  }, [isPinnedToBottom, announcer]);
+
+  // Handle jump to bottom + enable pin
+  const handleJumpToBottom = useCallback(() => {
+    logListRef.current?.scrollToBottom();
+    setIsPinnedToBottom(true);
+    announcer.announce("Jumped to latest logs", "polite");
+  }, [announcer]);
 
   // Loading state
   if (isLoading && entries.length === 0) {
@@ -621,8 +674,9 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
       {/* Section 3: LogList (full width) */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <LogList
+          ref={logListRef}
           entries={deferredEntries}
-          isLiveMode={isLiveMode}
+          isPinnedToBottom={isPinnedToBottom}
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}
         />
@@ -635,11 +689,16 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
           onToggleWrapLines={toggleWrapLines}
           showTask={showTask}
           onToggleShowTask={toggleShowTask}
+          externalLogUrl={externalLogUrl}
           onDownload={handleDownload}
           onRefresh={onRefetch}
           isLoading={isLoading || isStale}
           filteredCount={entries.length}
           totalCount={totalCount ?? entries.length}
+          isStreaming={isStreaming}
+          isPinnedToBottom={isPinnedToBottom}
+          onScrollToBottom={handleJumpToBottom}
+          onTogglePinnedToBottom={handleTogglePin}
         />
       </div>
     </div>
