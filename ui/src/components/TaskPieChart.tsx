@@ -29,7 +29,7 @@ interface TaskPieChartProps {
   showLegend?: boolean;
 }
 
-const statusColorMap: Record<string, { color: string, borderColor?: string }> = {
+const statusColorMap: Record<string, { color: string; borderColor?: string }> = {
   COMPLETED: { color: "var(--color-tag-bg-completed)" },
   FAILED: { color: "var(--color-error-bg-reversed)" },
   PENDING: { color: "var(--color-pending-bg-reversed)", borderColor: "var(--color-pending-text-reversed)" },
@@ -43,7 +43,7 @@ const statusColorMap: Record<string, { color: string, borderColor?: string }> = 
   DEFAULT: { color: "var(--color-tag-bg)" },
 };
 
-export const getTaskStatusColor = (status: TaskStatusType): { color: string, borderColor?: string } => {
+export const getTaskStatusColor = (status: TaskStatusType): { color: string; borderColor?: string } => {
   if (status.startsWith("FAILED")) {
     return statusColorMap.FAILED!;
   }
@@ -91,12 +91,15 @@ export const TaskPieChart = ({
             {slices.map((slice) => (
               <div
                 key={slice.label}
-                className={`flex items-center gap-1 text-xs rounded px-1 ${selectedLabel === slice.label ? "bg-headerbg font-semibold" : ""
-                  }`}
+                className="flex items-center gap-1 text-xs rounded px-1"
               >
                 <span
                   className="inline-block h-3 w-3 rounded-sm"
-                  style={{ backgroundColor: slice.color, borderColor: slice.borderColor ?? slice.color ?? "black", borderWidth: 1 }}
+                  style={{
+                    backgroundColor: slice.color,
+                    borderColor: slice.borderColor ?? slice.color ?? "black",
+                    borderWidth: 1,
+                  }}
                 />
                 <span>{slice.label}</span>
                 <span>{slice.value}</span>
