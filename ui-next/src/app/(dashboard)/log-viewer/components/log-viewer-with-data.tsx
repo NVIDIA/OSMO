@@ -39,7 +39,6 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchLogData, fetchWorkflowByName } from "@/lib/api/server";
 import { LogViewerPageContent } from "./log-viewer-page-content";
 import { createQueryClient } from "@/lib/query-client";
-import { WorkflowSelector } from "./workflow-selector";
 
 /**
  * Mock workflow ID for the playground.
@@ -72,19 +71,14 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
   const queryClient = createQueryClient();
 
   // Fetch and validate workflow metadata
+  // For SSR: Try to prefetch metadata, but if it fails (e.g., mock workflows in dev),
+  // continue anyway and let client-side fetch handle it
   let workflowMetadata = null;
-  let workflowError = null;
 
   try {
     const workflow = await fetchWorkflowByName(workflowId, true);
 
-    if (!workflow) {
-      // Workflow not found
-      workflowError = {
-        message: `Workflow "${workflowId}" not found. Please check the workflow ID and try again.`,
-        isTransient: false,
-      };
-    } else {
+    if (workflow) {
       // Extract metadata for timeline bounds
       workflowMetadata = {
         name: workflow.name,
@@ -94,22 +88,11 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
         endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
       };
     }
+    // If workflow is null, metadata remains null and client will fetch it
   } catch (_err) {
-    // Transient error (network, server error, etc.)
-    workflowError = {
-      message: `Failed to load workflow "${workflowId}". This may be a temporary issue.`,
-      isTransient: true,
-    };
-  }
-
-  // Return error component if there was an error
-  if (workflowError) {
-    return (
-      <WorkflowSelector
-        error={workflowError}
-        initialWorkflowId={workflowId}
-      />
-    );
+    // Server-side fetch failed (e.g., mock workflows, network issues)
+    // This is okay - metadata remains null and client will fetch it
+    // No need to show error since client-side fetching might succeed
   }
 
   // Build dev params matching what the client uses
