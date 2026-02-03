@@ -21,10 +21,11 @@ import Link from "next/link";
 
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
 import { useAuth } from "~/components/AuthProvider";
-import { allDateRange, getDateFromValues } from "~/components/DateRangePicker";
+import { allDateRange } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
 import { IconButton } from "~/components/IconButton";
+import { MultiselectWithAll } from "~/components/MultiselectWithAll";
 import PageHeader from "~/components/PageHeader";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
@@ -33,6 +34,7 @@ import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
 import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
+import { TasksFilters, type TasksFiltersDataProps } from "./tasks/components/TasksFilters";
 import { TasksWidget, type TaskWidgetDataProps } from "./widgets/tasks";
 import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
 import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/components/WorkflowsFilters";
@@ -47,12 +49,14 @@ interface WidgetDataProps {
 export default function Home() {
   const currentDays = 365;
   const { username } = useAuth();
-  const todayDateRange = getDateFromValues(currentDays);
   const [isEditing, setIsEditing] = useState(false);
   const [widgetName, setWidgetName] = useState("");
   const [widgetDescription, setWidgetDescription] = useState("");
+  const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
+  const [allPools, setAllPools] = useState(true);
   const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
+  const [editingPool, setEditingPool] = useState(false);
 
   const createWidgetId = () => crypto.randomUUID();
   const [widgets, setWidgets] = useState<WidgetDataProps>({
@@ -61,9 +65,7 @@ export default function Home() {
     allPools: true,
     pools: [],
   });
-  const updateWidgets = (
-    updater: WidgetDataProps | ((prev: WidgetDataProps) => WidgetDataProps),
-  ) => {
+  const updateWidgets = (updater: WidgetDataProps | ((prev: WidgetDataProps) => WidgetDataProps)) => {
     setWidgets((prevWidgets) => {
       const nextWidgets = typeof updater === "function" ? updater(prevWidgets) : updater;
 
@@ -102,20 +104,44 @@ export default function Home() {
 
   const aggregateTotals = useMemo(() => calcAggregateTotals(processResources), [processResources]);
 
-  console.log(aggregateTotals);
   const onSaveWorkflowWidget = (data: WorkflowsFiltersDataProps) => {
     if (!editingWorkflowWidget) {
       return;
     }
-    updateWidgets(prevWidgets => ({
-      ...prevWidgets, workflows: prevWidgets.workflows.map(widget => widget.id === editingWorkflowWidget.id ? {
-        id: editingWorkflowWidget.id,
-        name: widgetName,
-        description: widgetDescription,
-        filters: data,
-      } : widget)
+    updateWidgets((prevWidgets) => ({
+      ...prevWidgets,
+      workflows: prevWidgets.workflows.map((widget) =>
+        widget.id === editingWorkflowWidget.id
+          ? {
+              id: editingWorkflowWidget.id,
+              name: widgetName,
+              description: widgetDescription,
+              filters: data,
+            }
+          : widget,
+      ),
     }));
     setEditingWorkflowWidget(undefined);
+  };
+
+  const onSaveTaskWidget = (data: TasksFiltersDataProps) => {
+    if (!editingTaskWidget) {
+      return;
+    }
+    updateWidgets((prevWidgets) => ({
+      ...prevWidgets,
+      tasks: prevWidgets.tasks.map((widget) =>
+        widget.id === editingTaskWidget.id
+          ? {
+              id: editingTaskWidget.id,
+              name: widgetName,
+              description: widgetDescription,
+              filters: data,
+            }
+          : widget,
+      ),
+    }));
+    setEditingTaskWidget(undefined);
   };
 
   useEffect(() => {
@@ -138,7 +164,7 @@ export default function Home() {
               dateRange: -2,
               statusFilterType: StatusFilterType.CURRENT,
               name: "",
-            }
+            },
           },
           {
             id: createWidgetId(),
@@ -152,7 +178,7 @@ export default function Home() {
               dateRange: 365,
               statusFilterType: StatusFilterType.ALL,
               name: "",
-            }
+            },
           },
           {
             id: createWidgetId(),
@@ -167,7 +193,7 @@ export default function Home() {
               statusFilterType: StatusFilterType.ALL,
               name: "",
               priority: "LOW",
-            }
+            },
           },
         ],
         tasks: [
@@ -196,9 +222,10 @@ export default function Home() {
               dateRange: currentDays,
               statusFilterType: StatusFilterType.ALL,
             },
-          }],
+          },
+        ],
         allPools: true,
-        pools: [profile?.profile.pool ?? ""]
+        pools: [profile?.profile.pool ?? ""],
       });
     }
   }, [username, currentDays, profile?.profile.pool]);
@@ -206,42 +233,106 @@ export default function Home() {
   return (
     <>
       <PageHeader>
-        <IconButton icon="edit" text="Edit" className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`} onClick={() => setIsEditing(!isEditing)} />
+        <IconButton
+          icon="edit"
+          text="Edit"
+          className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`}
+          onClick={() => setIsEditing(!isEditing)}
+        />
       </PageHeader>
       <div className="h-full w-full flex justify-center items-baseline">
         <div className="md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-6 gap-global p-global">
           {widgets.workflows.map((widget) => (
-            <WorkflowsWidget key={widget.name} widget={widget} onEdit={setEditingWorkflowWidget} onDelete={setEditingWorkflowWidget} isEditing={isEditing} />
+            <WorkflowsWidget
+              key={widget.name}
+              widget={widget}
+              onEdit={(widget) => {
+                setEditingWorkflowWidget(widget);
+                setWidgetName(widget.name);
+                setWidgetDescription(widget.description ?? "");
+                setEditingTaskWidget(undefined);
+              }}
+              onDelete={setEditingWorkflowWidget}
+              isEditing={isEditing}
+            />
           ))}
           {widgets.tasks.map((widget) => (
-            <TasksWidget key={widget.id} widget={widget} onEdit={setEditingTaskWidget} onDelete={setEditingTaskWidget} isEditing={isEditing} />
+            <TasksWidget
+              key={widget.id}
+              widget={widget}
+              onEdit={(widget) => {
+                setEditingTaskWidget(widget);
+                setWidgetName(widget.name);
+                setWidgetDescription(widget.description ?? "");
+                setEditingWorkflowWidget(undefined);
+              }}
+              onDelete={(widget) => {
+                setEditingTaskWidget(undefined);
+                setEditingWorkflowWidget(undefined);
+              }}
+              isEditing={isEditing}
+            />
           ))}
-          {aggregateTotals.byPool && Object.entries(aggregateTotals.byPool).map(([pool, totals]) => (
-            <section key={pool} className="card" aria-labelledby={pool}>
-              <div className="popup-header body-header">
-                <h2 id={pool}>{pool}</h2>
-                <Link href={`/resources?pools=${pool}`} className="btn btn-secondary" title={`View Resources for ${pool}`}><OutlinedIcon name="list_alt" /></Link>
-              </div>
-              <ResourcesGraph
-                {...totals}
-                isLoading={isResourcesFetching}
-                isShowingUsed={false}
-                width={200}
-                height={150}
-              />
-            </section>
-          ))}
+          {aggregateTotals.byPool &&
+            Object.entries(aggregateTotals.byPool).map(([pool, totals]) => (
+              <section
+                key={pool}
+                className="card"
+                aria-labelledby={pool}
+              >
+                <div className="popup-header body-header">
+                  <h2 id={pool}>{pool}</h2>
+                  {isEditing ? (
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setEditingWorkflowWidget(undefined);
+                        setEditingTaskWidget(undefined);
+                        setEditingPool(true);
+                      }}
+                    >
+                      <OutlinedIcon name="edit" />
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/resources?pools=${pool}`}
+                      className="btn btn-secondary"
+                      title={`View Resources for ${pool}`}
+                    >
+                      <OutlinedIcon name="list_alt" />
+                    </Link>
+                  )}
+                </div>
+                <ResourcesGraph
+                  {...totals}
+                  isLoading={isResourcesFetching}
+                  isShowingUsed={false}
+                  width={200}
+                  height={150}
+                />
+              </section>
+            ))}
           <section className="card p-global">
-            <button className="btn btn-secondary border-dashed w-full h-full justify-center items-center text-[10rem] opacity-30 hover:opacity-100 hover:cursor-pointer focus:opacity-100" aria-label="Add Widget"><OutlinedIcon name="add" className="text-[7rem]!" /></button>
+            <button
+              className="btn btn-secondary border-dashed w-full h-full justify-center items-center text-[10rem] opacity-30 hover:opacity-100 hover:cursor-pointer focus:opacity-100"
+              aria-label="Add Widget"
+            >
+              <OutlinedIcon
+                name="add"
+                className="text-[7rem]!"
+              />
+            </button>
           </section>
         </div>
       </div>
       <FullPageModal
-        open={!!editingWorkflowWidget}
+        open={!!editingWorkflowWidget || !!editingTaskWidget || editingPool}
         onClose={() => {
           setEditingWorkflowWidget(undefined);
+          setEditingTaskWidget(undefined);
+          setEditingPool(false);
         }}
-        headerChildren={<h2 id="edit-header">Edit</h2>}
+        headerChildren={<h2 id="edit-header">{editingWorkflowWidget ? "Edit Workflow" : "Edit Task"}</h2>}
         aria-labelledby="edit-header"
         size="md"
       >
@@ -268,23 +359,56 @@ export default function Home() {
             setWidgetDescription(event.target.value);
           }}
         />
-        <WorkflowsFilters
-          hideNameFilter={true}
-          name={""}
-          userType={editingWorkflowWidget?.filters.userType ?? UserFilterType.ALL}
-          selectedUsers={editingWorkflowWidget?.filters.selectedUsers ?? ""}
-          selectedPools={editingWorkflowWidget?.filters.selectedPools ?? ""}
-          dateRange={editingWorkflowWidget?.filters.dateRange ?? 30}
-          statusFilterType={editingWorkflowWidget?.filters.statusFilterType ?? StatusFilterType.CURRENT}
-          submittedAfter={editingWorkflowWidget?.filters.submittedAfter ?? todayDateRange.fromDate?.toISOString()}
-          submittedBefore={editingWorkflowWidget?.filters.submittedBefore ?? todayDateRange.toDate?.toISOString()}
-          isSelectAllPoolsChecked={editingWorkflowWidget?.filters.isSelectAllPoolsChecked ?? true}
-          currentUserName={username}
-          priority={editingWorkflowWidget?.filters.priority}
-          onSave={onSaveWorkflowWidget}
-          saveButtonText="Save"
-          saveButtonIcon="save"
-        />
+        {editingPool ? (
+          <MultiselectWithAll
+            id="pools"
+            label="All Pools"
+            placeholder="Filter by pool name..."
+            aria-label="Filter by pool name"
+            filter={localPools}
+            setFilter={setLocalPools}
+            onSelectAll={setAllPools}
+            isSelectAllChecked={allPools}
+            showAll
+          />
+        ) : editingWorkflowWidget ? (
+          <WorkflowsFilters
+            hideNameFilter={true}
+            name={""}
+            userType={editingWorkflowWidget.filters.userType}
+            selectedUsers={editingWorkflowWidget.filters.selectedUsers}
+            selectedPools={editingWorkflowWidget.filters.selectedPools}
+            dateRange={editingWorkflowWidget.filters.dateRange}
+            statusFilterType={editingWorkflowWidget.filters.statusFilterType}
+            submittedAfter={editingWorkflowWidget.filters.submittedAfter}
+            submittedBefore={editingWorkflowWidget.filters.submittedBefore}
+            isSelectAllPoolsChecked={editingWorkflowWidget.filters.isSelectAllPoolsChecked}
+            currentUserName={username}
+            priority={editingWorkflowWidget.filters.priority}
+            onSave={onSaveWorkflowWidget}
+            saveButtonText="Save"
+            saveButtonIcon="save"
+          />
+        ) : editingTaskWidget ? (
+          <TasksFilters
+            userType={editingTaskWidget.filters.userType}
+            selectedUsers={editingTaskWidget.filters.selectedUsers}
+            dateRange={editingTaskWidget.filters.dateRange}
+            startedAfter={editingTaskWidget.filters.startedAfter}
+            startedBefore={editingTaskWidget.filters.startedBefore}
+            statusFilterType={editingTaskWidget.filters.statusFilterType}
+            statuses={editingTaskWidget.filters.statuses}
+            selectedPools={editingTaskWidget.filters.selectedPools}
+            isSelectAllPoolsChecked={editingTaskWidget.filters.isSelectAllPoolsChecked}
+            currentUserName={username}
+            isSelectAllNodesChecked={true}
+            nodes=""
+            workflowId=""
+            onSave={onSaveTaskWidget}
+            saveButtonText="Save"
+            saveButtonIcon="save"
+          />
+        ) : undefined}
       </FullPageModal>
     </>
   );

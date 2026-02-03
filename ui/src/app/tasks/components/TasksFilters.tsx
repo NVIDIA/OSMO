@@ -15,7 +15,6 @@
 //SPDX-License-Identifier: Apache-2.0
 import { useEffect, useMemo, useState } from "react";
 
-import { type ToolParamUpdaterProps } from "~/app/workflows/hooks/useToolParamUpdater";
 import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
@@ -29,33 +28,32 @@ import { api } from "~/trpc/react";
 
 import { getMapFromStatusArray, getTaskStatusArray, StatusFilter } from "./StatusFilter";
 
-export const validateFilters =
-  ({
-    isSelectAllPoolsChecked,
-    selectedPools,
-    dateRange,
-    startedAfter,
-    startedBefore,
-    statusFilterType,
-    statuses,
-    nodes,
-    isSelectAllNodesChecked,
-  }: TasksFiltersDataProps): string[] => {
-    const errors: string[] = [];
-    if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
-      errors.push("Please select at least one pool");
-    }
-    if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
-      errors.push("Please select a date range");
-    }
-    if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
-      errors.push("Please select at least one status");
-    }
-    if (!isSelectAllNodesChecked && nodes.length === 0) {
-      errors.push("Please select at least one node");
-    }
-    return errors;
-  };
+export const validateFilters = ({
+  isSelectAllPoolsChecked,
+  selectedPools,
+  dateRange,
+  startedAfter,
+  startedBefore,
+  statusFilterType,
+  statuses,
+  nodes,
+  isSelectAllNodesChecked,
+}: TasksFiltersDataProps): string[] => {
+  const errors: string[] = [];
+  if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
+    errors.push("Please select at least one pool");
+  }
+  if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
+    errors.push("Please select a date range");
+  }
+  if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
+    errors.push("Please select at least one status");
+  }
+  if (!isSelectAllNodesChecked && nodes.length === 0) {
+    errors.push("Please select at least one node");
+  }
+  return errors;
+};
 
 export interface TasksFiltersDataProps {
   userType: UserFilterType;
@@ -75,8 +73,10 @@ export interface TasksFiltersDataProps {
 
 interface TasksFiltersProps extends TasksFiltersDataProps {
   currentUserName: string;
-  onRefresh: () => void;
-  updateUrl: (params: ToolParamUpdaterProps) => void;
+  onSave: (params: TasksFiltersDataProps) => void;
+  onReset?: () => void;
+  saveButtonText?: string;
+  saveButtonIcon?: string;
 }
 
 export const initNodes = (nodes: string, poolNodes: string[]) => {
@@ -120,9 +120,11 @@ export const TasksFilters = ({
   isSelectAllPoolsChecked,
   priority,
   currentUserName,
-  onRefresh,
   workflowId,
-  updateUrl,
+  onSave,
+  onReset,
+  saveButtonText = "Refresh",
+  saveButtonIcon = "refresh",
   nodes,
   isSelectAllNodesChecked,
 }: TasksFiltersProps) => {
@@ -232,8 +234,8 @@ export const TasksFilters = ({
     const nodes = localAllNodes
       ? []
       : Array.from(localNodes.entries())
-        .filter(([_, enabled]) => enabled)
-        .map(([node]) => node);
+          .filter(([_, enabled]) => enabled)
+          .map(([node]) => node);
 
     const formErrors = validateFilters({
       userType: localUserType,
@@ -256,23 +258,20 @@ export const TasksFilters = ({
       return;
     }
 
-    updateUrl({
+    onSave({
+      userType: localUserType,
+      selectedUsers: localUsers,
+      selectedPools: pools.join(","),
+      isSelectAllPoolsChecked: localAllPools,
       dateRange: localDateRange,
-      dateAfter: localDateRange === customDateRange ? localStartedAfter : null,
-      dateBefore: localDateRange === customDateRange ? localStartedBefore : null,
+      startedAfter: localStartedAfter,
+      startedBefore: localStartedBefore,
       statusFilterType: localStatusFilterType,
-      status: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : null,
-      allPools: localAllPools,
-      pools: localAllPools ? null : pools,
-      allUsers: localUserType === UserFilterType.ALL,
-      users: localUserType === UserFilterType.ALL ? null : localUsers.split(","),
-      priority: priorityFilter ?? null,
-      filterName: localWorkflowId ?? null,
-      nodes: nodes.length > 0 ? nodes.join(",") : undefined,
-      allNodes: localAllNodes,
+      statuses: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : undefined,
+      workflowId: localWorkflowId,
+      nodes: nodes.join(","),
+      isSelectAllNodesChecked: localAllNodes,
     });
-
-    onRefresh();
   };
 
   const handleReset = () => {
@@ -287,22 +286,7 @@ export const TasksFilters = ({
     setLocalNodes(initNodes(nodes, poolNodes ?? []));
     setLocalAllNodes(true);
 
-    updateUrl({
-      status: null,
-      statusFilterType: StatusFilterType.CURRENT,
-      allPools: true,
-      allUsers: false,
-      users: [currentUserName],
-      dateRange: null,
-      dateAfter: null,
-      dateBefore: null,
-      priority: null,
-      filterName: null,
-      nodes: undefined,
-      allNodes: true,
-    });
-
-    onRefresh();
+    onReset?.();
   };
 
   return (
@@ -414,20 +398,22 @@ export const TasksFilters = ({
         </div>
       </InlineBanner>
       <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
-        <button
-          type="button"
-          className="btn"
-          onClick={handleReset}
-        >
-          <OutlinedIcon name="undo" />
-          Reset
-        </button>
+        {onReset && (
+          <button
+            type="button"
+            className="btn"
+            onClick={handleReset}
+          >
+            <OutlinedIcon name="undo" />
+            Reset
+          </button>
+        )}
         <button
           type="submit"
           className="btn btn-primary"
         >
-          <OutlinedIcon name="refresh" />
-          Refresh
+          <OutlinedIcon name={saveButtonIcon} />
+          {saveButtonText}
         </button>
       </div>
     </form>
