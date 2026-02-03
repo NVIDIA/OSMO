@@ -144,7 +144,7 @@ bazel run @osmo_workspace//src/service/operator:operator_service_push_x86_64    
 bazel run @osmo_workspace//src/service/router:router_push_x86_64                           # Image name: router
 bazel run @osmo_workspace//src/service/worker:worker_push_x86_64                           # Image name: worker
 # OSMO Backend Operators
-bazel run @osmo_workspace//src/operator:backend_listener_push_x86_64                       # Image name: backend-listener
+bazel run @osmo_workspace//src/operator:listener_push_x86_64                               # Image name: backend-listener
 bazel run @osmo_workspace//src/operator:backend_worker_push_x86_64                         # Image name: backend-worker
 # OSMO UI (built via Docker)
 bazel run @osmo_workspace//src/ui:build_push_web_ui_x86_64                                 # Image name: web-ui
@@ -167,7 +167,7 @@ bazel run @osmo_workspace//src/service/operator:operator_service_push_arm64     
 bazel run @osmo_workspace//src/service/router:router_push_arm64                           # Image name: router
 bazel run @osmo_workspace//src/service/worker:worker_push_arm64                           # Image name: worker
 # OSMO Backend Operators
-bazel run @osmo_workspace//src/operator:backend_listener_push_arm64                       # Image name: backend-listener
+bazel run @osmo_workspace//src/operator:listener_push_arm64                               # Image name: backend-listener
 bazel run @osmo_workspace//src/operator:backend_worker_push_arm64                         # Image name: backend-worker
 # OSMO UI (built via Docker)
 bazel run @osmo_workspace//src/ui:build_push_web_ui_arm64                                 # Image name: web-ui

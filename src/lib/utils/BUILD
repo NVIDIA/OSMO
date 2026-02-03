@@ -30,8 +30,9 @@ exports_files(
 go_library(
     name = "utils",
     srcs = ["version.go"],
-    data = ["version.yaml"],
+    embedsrcs = ["version.yaml"],
     importpath = "go.corp.nvidia.com/osmo/lib/utils",
+    visibility = ["//visibility:public"],
     deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
 )
 

@@ -19,8 +19,13 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
+	"log"
 	"net/url"
+	"strings"
 	"time"
+
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ParseServiceURL extracts host:port from a URL string (supports both "host:port" and "scheme://host:port")
@@ -34,6 +39,21 @@ func ParseServiceURL(serviceURL string) (string, error) {
 
 	// If no scheme or parsing failed, assume it's already in "host:port" format
 	return serviceURL, nil
+}
+
+// GetTransportCredentials returns appropriate gRPC transport credentials based on service URL
+// Uses TLS for https:// URLs, insecure for http:// or plain host:port
+func GetTransportCredentials(serviceURL string) credentials.TransportCredentials {
+	// Try parsing as URL to check for https scheme
+	parsedURL, err := url.Parse(serviceURL)
+	if err == nil && strings.ToLower(parsedURL.Scheme) == "https" {
+		// Use system TLS certificates for HTTPS with server name from URL
+		log.Printf("Using TLS credentials for HTTPS connection (server name: %s)", parsedURL.Host)
+		return credentials.NewClientTLSFromCert(nil, parsedURL.Host)
+	}
+	// Use insecure credentials for http or plain host:port
+	log.Printf("Using insecure credentials for connection")
+	return insecure.NewCredentials()
 }
 
 // CalculateBackoff calculates exponential backoff duration with a maximum cap
