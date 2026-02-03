@@ -66,6 +66,9 @@ def main():
     cluster_group.add_argument(
         '--image-tag', default='latest',
         help='OSMO image tag (default: latest)')
+    cluster_group.add_argument(
+        '--load-local-images', action='store_true',
+        help='Build and load images directly into KIND cluster without a remote registry')
 
     args = parser.parse_args()
 

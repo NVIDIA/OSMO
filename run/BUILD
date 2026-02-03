@@ -113,6 +113,17 @@ osmo_py_binary(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_binary(
+    name = "load_images",
+    main = "load_images.py",
+    srcs = ["load_images.py"],
+    deps = [
+        ":utils",
+        "@osmo_workspace//src/lib/utils:logging",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 genrule(
     name = "ca_certs_entrypoint_script",
     outs = ["entrypoint-ca-certs.sh"],
