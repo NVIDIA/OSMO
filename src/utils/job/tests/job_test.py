@@ -31,10 +31,10 @@ REDIS_PORT = 5556
 def get_workflow_spec():
     spec_dict = yaml.safe_load('''
       name: test_workflow
+      pool: default-pool
       resources:
         default:
-          cpu:
-            count: 1
+          cpu: 1
           memory: 1Gi
           storage: 1Gi
 
@@ -49,7 +49,7 @@ def get_workflow_spec():
         - task: task1
     ''')
     spec = workflow.WorkflowSpec(**spec_dict)
-    return spec.convert_to_workflow_spec()
+    return spec
 
 class MockContext:
     def __init__(self, redis_config):
@@ -58,6 +58,8 @@ class MockContext:
         self.backend_k8s_timeout = 60
 
 class JobTest(unittest.TestCase):
+    harness: test_harness.TestHarness
+
     @classmethod
     def setUpClass(cls):
         cls.harness = test_harness.TestHarness(postgres_port=POSTGRES_PORT, redis_port=REDIS_PORT)
@@ -70,10 +72,10 @@ class JobTest(unittest.TestCase):
             self.assertEqual(group.status, status,
                 f"Status for group {group} in workflow {workflow_id}")
 
-    def create_update_job(self, workflow_id, workflow_uuid, group_name, status):
+    def create_update_job(self, workflow_id, workflow_uuid, group_name, status, task_name=None, retry_id=None):
         update_job = jobs.UpdateGroup(workflow_id=workflow_id, workflow_uuid=workflow_uuid,
-            group_name=group_name, status=status, user='user')
-        update_job.send_job_to_queue(self.harness.config)
+            group_name=group_name, status=status, user='user', task_name=task_name, retry_id=retry_id)
+        update_job.send_job_to_queue()
 
     def test_run_serial_workflow(self):
         """ Runs a simple serial workflow """
@@ -86,17 +88,27 @@ class JobTest(unittest.TestCase):
     def run_serial_workflow(self, workflow_id, workflow_uuid, repeat=1):
         # Submit, fetch, and execute a submit workflow job
         spec = get_workflow_spec()
+        group_and_task_uuids = {
+            'task1': common.generate_unique_id(),
+            'task2': common.generate_unique_id(),
+            'task1-group': common.generate_unique_id(),
+            'task2-group': common.generate_unique_id(),
+        }
         submit_job = jobs.SubmitWorkflow(
             workflow_id=workflow_id, workflow_uuid=workflow_uuid,
             user='user', spec=spec,
-            original_spec={'version': 2, 'workflow': {}})
+            original_spec={'version': 2, 'workflow': {}},
+            group_and_task_uuids=group_and_task_uuids)
         submit_job.send_job_to_queue()
-        self.harness.get_and_run_job('SubmitWorkflow')
+        
+        # Execute SubmitWorkflow and capture the dynamic workflow ID
+        executed_job = self.harness.get_and_run_job('SubmitWorkflow')
+        real_workflow_id = executed_job.workflow_id
 
         # Make sure the task/workflow are created and in PENDING state
-        self.assert_wf_status(workflow_id, workflow.WorkflowStatus.PENDING, group_statuses={
+        self.assert_wf_status(real_workflow_id, workflow.WorkflowStatus.PENDING, group_statuses={
             'task1-group': task.TaskGroupStatus.PROCESSING,
-            'task2-group': task.TaskGroupStatus.PROCESSING,
+            'task2-group': task.TaskGroupStatus.WAITING,
         })
 
         # We should get a submit task, run the submit task
@@ -104,19 +116,19 @@ class JobTest(unittest.TestCase):
         self.harness.get_job('CreateGroup')
 
         # Now send an update task, make sure the workflow and task are running
-        self.create_update_job(workflow_id, workflow_uuid, 'task1-group',
-                               task.TaskGroupStatus.RUNNING)
+        self.create_update_job(real_workflow_id, workflow_uuid, 'task1-group',
+                               task.TaskGroupStatus.RUNNING, task_name='task1', retry_id=0)
         self.harness.get_and_run_job('UpdateGroup')
-        self.assert_wf_status(workflow_id, workflow.WorkflowStatus.RUNNING, group_statuses={
+        self.assert_wf_status(real_workflow_id, workflow.WorkflowStatus.RUNNING, group_statuses={
             'task1-group': task.TaskGroupStatus.RUNNING,
-            'task2-group': task.TaskGroupStatus.PROCESSING,
+            'task2-group': task.TaskGroupStatus.WAITING,
         })
 
         # Send another update task for completed
-        self.create_update_job(workflow_id, workflow_uuid, 'task1-group',
-                               task.TaskGroupStatus.COMPLETED)
+        self.create_update_job(real_workflow_id, workflow_uuid, 'task1-group',
+                               task.TaskGroupStatus.COMPLETED, task_name='task1', retry_id=0)
         self.harness.get_and_run_job('UpdateGroup')
-        self.assert_wf_status(workflow_id, workflow.WorkflowStatus.RUNNING, group_statuses={
+        self.assert_wf_status(real_workflow_id, workflow.WorkflowStatus.RUNNING, group_statuses={
             'task1-group': task.TaskGroupStatus.COMPLETED,
             'task2-group': task.TaskGroupStatus.PROCESSING,
         })
@@ -125,19 +137,19 @@ class JobTest(unittest.TestCase):
         submit_task_job = self.harness.get_job('CreateGroup')
 
         # Send an update task for group2
-        self.create_update_job(workflow_id, workflow_uuid, 'task2-group',
-                               task.TaskGroupStatus.RUNNING)
+        self.create_update_job(real_workflow_id, workflow_uuid, 'task2-group',
+                               task.TaskGroupStatus.RUNNING, task_name='task2', retry_id=0)
         self.harness.get_and_run_job('UpdateGroup')
-        self.assert_wf_status(workflow_id, workflow.WorkflowStatus.RUNNING, group_statuses={
+        self.assert_wf_status(real_workflow_id, workflow.WorkflowStatus.RUNNING, group_statuses={
             'task1-group': task.TaskGroupStatus.COMPLETED,
             'task2-group': task.TaskGroupStatus.RUNNING,
         })
 
         # Send another update task for completed
-        self.create_update_job(workflow_id, workflow_uuid, 'task2-group',
-                               task.TaskGroupStatus.COMPLETED)
+        self.create_update_job(real_workflow_id, workflow_uuid, 'task2-group',
+                               task.TaskGroupStatus.COMPLETED, task_name='task2', retry_id=0)
         self.harness.get_and_run_job('UpdateGroup')
-        self.assert_wf_status(workflow_id, workflow.WorkflowStatus.COMPLETED, group_statuses={
+        self.assert_wf_status(real_workflow_id, workflow.WorkflowStatus.COMPLETED, group_statuses={
             'task1-group': task.TaskGroupStatus.COMPLETED,
             'task2-group': task.TaskGroupStatus.COMPLETED,
         })
