@@ -125,11 +125,7 @@ METRIC 2: CROSS-IMPLEMENTATION DETECTION LATENCY
     Python detected first: 0 times
 
   Time Difference Statistics:
-<<<<<<< HEAD
   (For Go it takes around 8 ms from creating an Message to getting an ACK)
-=======
-  (For Go it takes around 20 ms from creating an Message to getting an ACK)
->>>>>>> origin/main
     Average:           29.42ms
     Median:            24.48ms
     Min:                4.76ms
@@ -170,11 +166,7 @@ DETECTION SPEED (for 951 common events):
 Go implementation has smaller round-trip latency, but has more bursts in sending out messages, requiring larger un-ack message limit.
 ```
 ================================================================================
-<<<<<<< HEAD
 LATENCY COMPARISON: Python vs Go
-=======
-ROUNDTRIP LATENCY COMPARISON: Python vs Go
->>>>>>> origin/main
 ================================================================================
 
 Sample Size: 951 messages each
@@ -206,7 +198,6 @@ Peak 1-Second Burst             77.0 msg/sec    951.0 msg/sec   12.4x faster
 CONCURRENCY ANALYSIS
 ================================================================================
 
-<<<<<<< HEAD
 Python:
   - Sequential processing with minimal overlap
   - Limited parallelism
@@ -214,19 +205,6 @@ Python:
 Go:
   - Full parallel processing
   - Non-blocking message transmission
-=======
-Assuming 20ms roundtrip latency:
-
-Python: 3 messages in-flight concurrently
-  - Sequential processing with minimal overlap
-  - Limited parallelism
-
-Go: 951 messages in-flight concurrently
-  - Full parallel processing
-  - Non-blocking message transmission
-
-This represents a 317x difference in concurrency capability!
->>>>>>> origin/main
 ```
 
 ## Message Queue and Asynchronous Worker
@@ -253,11 +231,7 @@ This captures:
 **Test Configuration:**
 - Single workflow submitted to the backend
 - Python implementation is a simplified version of the current system, with other backend event types removed
-<<<<<<< HEAD
 - Go implementation is a draft version of the proposed design, with workflow_listener, operator service, Redis message queue, and a python message_worker to process update pod messages from the queue.
-=======
-- Go implementation is a draft version of the proposed design, with workflow_listener, operator service, Redis message queue, and a python agent_worker to process update pod messages from the queue.
->>>>>>> origin/main
 
 #### Python Implementation:
 ```
