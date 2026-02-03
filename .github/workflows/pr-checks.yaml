@@ -157,7 +157,7 @@ jobs:
         env:
           DOCKER_TLS_CERTDIR: ""
           DOCKER_DRIVER: overlay2
-        options: --privileged
+        options: --privileged --memory=4g --cpus=2
         ports:
           - 2375:2375
     steps:
