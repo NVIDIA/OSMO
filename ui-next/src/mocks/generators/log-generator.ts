@@ -210,8 +210,10 @@ export class LogGenerator {
       endTime = new Date(requestedEndTime);
     } else if (requestedStartTime) {
       // Start time provided, end is now
+      // CRITICAL: Use Date.now() not MOCK_REFERENCE_DATE for running workflows
+      // MOCK_REFERENCE_DATE is rounded to the hour and may be BEFORE the workflow started
       startTime = new Date(requestedStartTime);
-      endTime = new Date(MOCK_REFERENCE_DATE);
+      endTime = new Date();
     } else if (requestedEndTime) {
       // End time provided, start is 24h before
       endTime = new Date(requestedEndTime);
