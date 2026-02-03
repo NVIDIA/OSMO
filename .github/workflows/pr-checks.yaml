@@ -140,6 +140,9 @@ jobs:
     runs-on: self-hosted
     environment:
       name: internal-ci
+    concurrency:
+      group: ci-internal-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
     container:
       # python:3.10.18-bullseye pinned to digest for security
       image: python:3.10.18-bullseye@sha256:ff2d497e208802e4a7e5f7f3cea019aa96a02469f160bc23f7466a6522b26abd
@@ -182,6 +185,26 @@ jobs:
             -- \
             //... \
             -//ui/...
+
+      - name: Bazel cache cleanup
+        if: always()
+        run: |
+          echo "=== Bazel Cache Cleanup ==="
+
+          # Clean up local build outputs but keep remote cache references
+          bazel clean || true
+
+      - name: Workspace cleanup
+        if: always()
+        run: |
+          echo "=== Workspace Cleanup ==="
+
+          # Remove test outputs and temporary files
+          rm -rf /tmp/pytest-* /tmp/tmp* || true
+
+          # Show remaining disk usage
+          echo "Disk usage summary:"
+          df -h / || true
 
   #######################
   #    Docs Build       #
