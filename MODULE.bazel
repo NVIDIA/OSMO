@@ -18,6 +18,7 @@
 BASE_DISTROLESS_IMAGE_URL = "nvcr.io/nvidia/distroless/"
 
 BASE_IMAGE_URL = "nvcr.io/nvidia/osmo/"
+
 IMAGE_TAG = ""
 
 ################
@@ -218,18 +219,18 @@ use_repo(
     "com_github_jackc_pgx_v5",
     "com_github_redis_go_redis_v9",
     "in_gopkg_yaml_v3",
+    "org_golang_google_grpc",
+    "org_golang_google_protobuf",
 
     # Dependencies for building rsync for CLI distribution
     "com_github_burntsushi_toml",
     "com_github_coreos_go_systemd",
     "org_golang_x_crypto",
 
-    # Kubernetes and gRPC dependencies for workflow_listener
+    # Kubernetes dependencies for backend_listener
     "io_k8s_api",
     "io_k8s_apimachinery",
     "io_k8s_client_go",
-    "org_golang_google_grpc",
-    "org_golang_google_protobuf",
 )
 
 ################
