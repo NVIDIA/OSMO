@@ -227,12 +227,10 @@ use_repo(
     "com_github_coreos_go_systemd",
     "org_golang_x_crypto",
 
-    # Kubernetes and gRPC dependencies for workflow_listener
+    # Kubernetes dependencies for backend_listener
     "io_k8s_api",
     "io_k8s_apimachinery",
     "io_k8s_client_go",
-    "org_golang_google_grpc",
-    "org_golang_google_protobuf",
 )
 
 ################
