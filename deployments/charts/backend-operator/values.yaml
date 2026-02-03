@@ -252,7 +252,7 @@ services:
 
     ## Maximum number of unacknowledged messages
     ##
-    max_unacked_messages: 100
+    maxUnackedMessages: 100
 
     ## Resync period in seconds for Kubernetes informer
     ##
@@ -264,7 +264,7 @@ services:
 
     ## Usage flush interval in seconds for resource usage updates
     ##
-    usageFlushIntervalSec: 60
+    usageFlushIntervalSec: 15
 
     ## Directory to write progress timestamps to (for liveness/startup probes)
     ##

@@ -99,7 +99,7 @@ spec:
         - --nodeConditionPrefix
         - '{{ .Values.global.nodeConditionPrefix }}'
         - --maxUnackedMessages
-        - '{{ .Values.services.backendListener.max_unacked_messages }}'
+        - '{{ .Values.services.backendListener.maxUnackedMessages }}'
         - --resyncPeriodSec
         - '{{ .Values.services.backendListener.resyncPeriodSec }}'
         - --stateCacheTTLMin
