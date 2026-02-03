@@ -67,8 +67,9 @@ export default function Home() {
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
   const [editingPool, setEditingPool] = useState(false);
   const [dashboardName, setDashboardName] = useState("default");
-  const [newDashboardName, setNewDashboardName] = useState("");
   const [showNewDashboard, setShowNewDashboard] = useState(false);
+  const [newDashboardName, setNewDashboardName] = useState("");
+  const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
 
   const createWidgetId = () => crypto.randomUUID();
   const [dashboards, setDashboards] = useState<DashboardList>({
@@ -312,9 +313,16 @@ export default function Home() {
     });
   }, [profile?.profile.pool, dashboardName, dashboards.widgets, updateCurrentDashboard]);
 
-  const addDashboard = () => {
+  const addDashboard = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     const trimmedName = newDashboardName.trim();
-    if (!trimmedName || dashboards.widgets[trimmedName]) {
+    if (!trimmedName) {
+      return;
+    }
+
+    if (dashboards.widgets[trimmedName]) {
+      setNewDashboardNameError("Dashboard name already exists");
       return;
     }
 
@@ -333,6 +341,8 @@ export default function Home() {
 
     setDashboardName(trimmedName);
     setNewDashboardName("");
+    setNewDashboardNameError(undefined);
+    setShowNewDashboard(false);
   };
 
   return (
@@ -598,30 +608,38 @@ export default function Home() {
       <SlideOut
         id="new-dashboard"
         open={showNewDashboard}
-        onClose={() => setShowNewDashboard(false)}
-        header="Create New Dashboard"
+        onClose={() => {
+          setShowNewDashboard(false);
+          setNewDashboardNameError(undefined);
+          setNewDashboardName("");
+        }}
         bodyClassName="p-global"
+        className="border-t-0"
       >
-        <div className="flex flex-row gap-2 items-end">
-          <TextInput
-            id="dashboard-name"
-            label="New dashboard"
-            className="w-full"
-            containerClassName="min-w-[12rem]"
-            value={newDashboardName}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setNewDashboardName(event.target.value);
-            }}
-          />
-          <button
-            className="btn btn-secondary"
-            onClick={addDashboard}
-            disabled={!newDashboardName.trim()}
-          >
-            <OutlinedIcon name="add" />
-            Add
-          </button>
-        </div>
+        <form onSubmit={addDashboard}>
+          <div className="flex flex-row gap-global">
+            <TextInput
+              id="dashboard-name"
+              label="Name"
+              className="w-full"
+              value={newDashboardName}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setNewDashboardName(event.target.value);
+                setNewDashboardNameError(undefined);
+              }}
+              errorText={newDashboardNameError}
+              required
+            />
+            <button
+              className="btn btn-secondary mt-5 h-8"
+              type="submit"
+              aria-disabled={!newDashboardName.trim()}
+            >
+              <OutlinedIcon name="add" />
+              Add
+            </button>
+          </div>
+        </form>
       </SlideOut>
     </>
   );
