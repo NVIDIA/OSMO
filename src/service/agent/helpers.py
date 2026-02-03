@@ -331,7 +331,7 @@ def delete_resource(backend: str,
 
 
 def clean_resources(backend: str,
-                    message: backend_messages.NodeBody):
+                    message: backend_messages.NodeInventoryBody):
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
 
@@ -341,7 +341,7 @@ def clean_resources(backend: str,
     db_node_names = set(resource['name'] for resource in resources_table)
 
     # Find nodes that exist in the database but not in the message
-    stale_nodes = db_node_names - set(message.node_hashes)
+    stale_nodes = db_node_names - set(message.hostnames)
     if stale_nodes:
         commit_cmd = 'DELETE FROM resources WHERE name IN %s and backend = %s'
         postgres.execute_commit_command(commit_cmd, (tuple(stale_nodes), backend))
@@ -623,8 +623,8 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     update_resource(name, message_body.update_node)
                 elif message_body.update_node_usage:
                     update_resource_usage(name, message_body.update_node_usage)
-                elif message_body.node_hash:
-                    clean_resources(name, message_body.node_hash)
+                elif message_body.node_inventory:
+                    clean_resources(name, message_body.node_inventory)
                 elif message_body.task_list:
                     clean_tasks(name, message_body.task_list)
                 elif message_body.heartbeat:

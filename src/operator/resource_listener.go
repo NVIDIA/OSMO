@@ -72,7 +72,7 @@ func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.Can
 	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
 
-	// Start node node watcher goroutine
+	// Start node watcher goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -86,7 +86,7 @@ func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.Can
 		rl.watchNodes(ctx, cancel, nodeChan)
 	}()
 
-	// Start pod watcher goroutine (handles node usageaggregation)
+	// Start pod watcher goroutine (handles node usage aggregation)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -193,7 +193,11 @@ func (rl *ResourceListener) sendResourceMessage(ctx context.Context, msg *pb.Lis
 
 // watchNodes starts node informer and processes node events
 // This function focuses only on node resource messages
-func (rl *ResourceListener) watchNodes(ctx context.Context, cancel context.CancelCauseFunc, nodeChan chan<- *pb.ListenerMessage) {
+func (rl *ResourceListener) watchNodes(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	nodeChan chan<- *pb.ListenerMessage,
+) {
 	// Capture done channel once for performance
 	done := ctx.Done()
 
@@ -271,6 +275,10 @@ func (rl *ResourceListener) watchNodes(ctx context.Context, cancel context.Cance
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
 		rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
+
+		// Send NodeInventory after rebuilding from watch gap
+		log.Println("Sending NODE_INVENTORY after watch gap recovery")
+		rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 	})
 
 	// Start the informer
@@ -286,6 +294,10 @@ func (rl *ResourceListener) watchNodes(ctx context.Context, cancel context.Cance
 
 	// Initial rebuild from store after sync
 	rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
+
+	// Send initial NodeInventory after all nodes are rebuilt
+	log.Println("Sending initial NODE_INVENTORY after cache sync")
+	rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 
 	// Wait for context cancellation
 	<-done
@@ -556,4 +568,50 @@ func (rl *ResourceListener) buildNodeUsageMessage(hostname string) *pb.ListenerM
 	}
 
 	return msg
+}
+
+// sendNodeInventory builds and sends a NODE_INVENTORY message with all current node hostnames.
+func (rl *ResourceListener) sendNodeInventory(
+	ctx context.Context,
+	nodeInformer cache.SharedIndexInformer,
+	nodeChan chan<- *pb.ListenerMessage,
+) {
+	if nodeInformer == nil {
+		log.Println("sendNodeInventory: informer is nil, skipping")
+		return
+	}
+
+	// Collect all node hostnames from the informer store
+	nodes := nodeInformer.GetStore().List()
+	hostnames := make([]string, 0, len(nodes))
+
+	for _, obj := range nodes {
+		node, ok := obj.(*corev1.Node)
+		if !ok {
+			continue
+		}
+		hostname := utils.GetNodeHostname(node)
+		hostnames = append(hostnames, hostname)
+	}
+
+	// Build NODE_INVENTORY message
+	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
+	msg := &pb.ListenerMessage{
+		Uuid:      messageUUID,
+		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
+		Body: &pb.ListenerMessage_NodeInventory{
+			NodeInventory: &pb.NodeInventoryBody{
+				Hostnames: hostnames,
+			},
+		},
+	}
+
+	// Send through nodeChan with proper shutdown coordination
+	select {
+	case nodeChan <- msg:
+		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
+	case <-ctx.Done():
+		log.Println("sendNodeInventory: context cancelled while sending")
+		return
+	}
 }
