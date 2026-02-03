@@ -112,6 +112,8 @@ spec:
         - '{{ .Values.services.backendListener.max_unacked_messages }}'
         - --pod_event_cache_ttl
         - {{ .Values.services.backendListener.podCacheTtl | quote }}
+        - --node_event_cache_ttl
+        - {{ .Values.services.backendListener.nodeCacheTtl | quote }}
         - --include_namespace_usage
         - {{ .Values.global.includeNamespaceUsage | quote }}
         - --api_qps
