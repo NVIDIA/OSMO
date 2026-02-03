@@ -3,9 +3,39 @@ import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/gen
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 
 /**
- * Mock workflows for log-viewer experimental page.
- * Each workflow embeds its log generation configuration, eliminating the need
- * for separate scenario selection.
+ * Mock Workflows for Log Viewer
+ *
+ * Each workflow embeds its log generation configuration via _logConfig.
+ * This eliminates separate scenario selection - just use the workflow ID.
+ *
+ * WORKFLOW NAMING CONVENTION: mock-{scenario}-{status}
+ *
+ * Available Mock Workflows:
+ * - mock-typical-completed: Standard 3-stage training (500-2000 lines)
+ * - mock-typical-running: Standard 2-stage job in progress
+ * - mock-typical-failed: CUDA OOM with 3 retries
+ * - mock-streaming-running: Infinite log stream (100ms delay)
+ * - mock-high-error-failed: 30% error rate for error handling testing
+ * - mock-large-running: 50k-75k lines for performance testing
+ * - mock-empty-completed: No logs (edge case testing)
+ * - mock-multi-task: Complex 8-task DAG
+ *
+ * HOW TO ADD A NEW SCENARIO:
+ * 1. Add entry to MOCK_WORKFLOWS with descriptive ID
+ * 2. Embed _logConfig with desired characteristics
+ * 3. MSW handler automatically uses it via getWorkflowLogConfig()
+ * 4. Production code just passes workflow ID - zero scenario awareness!
+ *
+ * EXAMPLE USAGE:
+ * ```typescript
+ * // In test or dev:
+ * <LogViewerContainer workflowId="mock-high-error-failed" />
+ *
+ * // URL:
+ * /log-viewer?workflow=mock-high-error-failed
+ *
+ * // MSW automatically generates 28% error logs!
+ * ```
  */
 
 // =============================================================================

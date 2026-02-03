@@ -61,8 +61,6 @@ export interface LogDataQueryKeyParams {
   histogramBuckets?: number;
   /** Fields to compute facets for (default: FACETABLE_FIELDS) */
   facetFields?: string[];
-  /** Optional dev params for mock scenarios */
-  devParams?: Record<string, string>;
 }
 
 // =============================================================================
@@ -97,7 +95,6 @@ export function createLogDataQueryKey(params: LogDataQueryKeyParams): readonly u
       end: params.end?.toISOString(),
       histogramBuckets: params.histogramBuckets,
       facetFields: params.facetFields,
-      devParams: params.devParams,
     },
   ] as const;
 }

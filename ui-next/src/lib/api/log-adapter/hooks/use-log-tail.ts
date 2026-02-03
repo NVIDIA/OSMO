@@ -14,13 +14,6 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * useLogTail Hook
- *
- * Provides live log tailing via HTTP streaming.
- * Uses ReadableStream for efficient streaming without WebSocket overhead.
- */
-
 "use client";
 
 import { useCallback, useEffect, useRef, useState, startTransition } from "react";
@@ -29,71 +22,29 @@ import { useRafCallback } from "@react-hookz/web";
 import type { LogEntry, TailStatus } from "../types";
 import { parseLogLine } from "../adapters/log-parser";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-/**
- * Parameters for the useLogTail hook.
- */
 export interface UseLogTailParams {
-  /** Workflow ID to tail logs for */
   workflowId: string;
-  /** Task group ID for group-scoped tailing (optional) */
   groupId?: string;
-  /** Task ID for task-scoped tailing (optional) */
   taskId?: string;
-  /** Whether tailing is enabled */
   enabled?: boolean;
-  /** Base URL for API requests */
   baseUrl?: string;
-  /** Callback when new entries arrive */
   onEntries?: (entries: LogEntry[]) => void;
-  /** Maximum entries to buffer */
   maxBufferSize?: number;
-  /** Optional URL params to append to requests */
-  devParams?: Record<string, string>;
 }
 
-/**
- * Return value from useLogTail.
- */
 export interface UseLogTailReturn {
-  /** Entries from tailing */
   entries: LogEntry[];
-  /** Current tail status */
   status: TailStatus;
-  /** Error if tailing failed */
   error: Error | null;
-  /** Start tailing */
   start: () => void;
-  /** Stop tailing and close connection */
   stop: () => void;
-  /** Clear entries */
   clearEntries: () => void;
 }
 
-// =============================================================================
-// Constants
-// =============================================================================
-
 const DEFAULT_MAX_BUFFER_SIZE = 10_000;
 
-// =============================================================================
-// Hook Implementation
-// =============================================================================
-
 /**
- * Hook for live log tailing via HTTP streaming.
- *
- * Features:
- * - Uses fetch with ReadableStream for efficient streaming
- * - Automatic reconnection on disconnect
- * - Non-blocking updates via startTransition
- * - RAF batching for consistent 60fps updates
- *
- * @param params - Tail parameters
- * @returns Tail state and control functions
+ * Live log tailing via HTTP streaming with RAF batching for 60fps updates.
  */
 export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
   const {
@@ -104,49 +55,34 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
     baseUrl = "",
     onEntries,
     maxBufferSize = DEFAULT_MAX_BUFFER_SIZE,
-    devParams,
   } = params;
-
-  // Extract primitive values from devParams to avoid object reference instability
-  // This ensures the effect only re-runs when actual values change, not when the object reference changes
-  const logScenario = devParams?.log_scenario;
 
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [status, setStatus] = useState<TailStatus>("disconnected");
   const [error, setError] = useState<Error | null>(null);
 
-  // Use refs to track state without re-renders
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // RAF batching: Accumulate entries between frames for consistent 60fps updates
   const pendingEntriesRef = useRef<LogEntry[]>([]);
   const onEntriesCallbackRef = useRef(onEntries);
   onEntriesCallbackRef.current = onEntries;
 
-  // RAF-batched state update - runs at most once per animation frame
+  // RAF-batched state update for consistent 60fps
   const [flushPendingEntries] = useRafCallback(() => {
     const pending = pendingEntriesRef.current;
     if (pending.length === 0) return;
 
-    // Clear pending before processing to avoid races
     pendingEntriesRef.current = [];
 
     startTransition(() => {
       setEntries((prev) => {
         const combined = [...prev, ...pending];
-        // Keep buffer within limits
         return combined.length > maxBufferSize ? combined.slice(-maxBufferSize) : combined;
       });
     });
 
-    // Notify callback with all batched entries
     onEntriesCallbackRef.current?.(pending);
   });
 
-  /**
-   * Processes incoming text chunk into log entries.
-   * Uses RAF batching for consistent 60fps updates during high-throughput streaming.
-   */
   const processChunk = useCallback(
     (text: string) => {
       const lines = text.split("\n");
@@ -155,19 +91,12 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       for (const line of lines) {
         if (line.trim()) {
           const entry = parseLogLine(line, workflowId);
-          if (entry) {
-            newEntries.push(entry);
-          }
+          if (entry) newEntries.push(entry);
         }
       }
 
       if (newEntries.length > 0) {
-        // Add to pending buffer and schedule RAF flush
-        // This batches rapid updates to run at 60fps max
-        for (const entry of newEntries) {
-          pendingEntriesRef.current.push(entry);
-        }
-        // Trim pending if too large (should rarely happen at 60fps)
+        pendingEntriesRef.current.push(...newEntries);
         if (pendingEntriesRef.current.length > maxBufferSize) {
           pendingEntriesRef.current = pendingEntriesRef.current.slice(-maxBufferSize);
         }
@@ -177,16 +106,8 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
     [workflowId, maxBufferSize, flushPendingEntries],
   );
 
-  /**
-   * Starts the streaming connection.
-   * Uses primitive logScenario value instead of full devParams object to avoid
-   * restarting the stream when devParams object reference changes but values are identical.
-   */
   const startStreaming = useCallback(async () => {
-    // Abort any existing connection
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    abortControllerRef.current?.abort();
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -195,30 +116,14 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
     setError(null);
 
     try {
-      // Build URL - reconstruct devParams from primitive value
       const urlObj = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
-
-      // Mark this as a tailing request (for MSW to know to stream infinitely)
       urlObj.searchParams.set("tail", "true");
-
-      // Add scope parameters if provided
-      if (groupId) {
-        urlObj.searchParams.set("group_id", groupId);
-      }
-      if (taskId) {
-        urlObj.searchParams.set("task_id", taskId);
-      }
-
-      // Apply optional URL params (reconstruct from primitive)
-      if (logScenario) {
-        urlObj.searchParams.set("log_scenario", logScenario);
-      }
+      if (groupId) urlObj.searchParams.set("group_id", groupId);
+      if (taskId) urlObj.searchParams.set("task_id", taskId);
 
       const response = await fetch(urlObj.toString(), {
         method: "GET",
-        headers: {
-          Accept: "text/plain",
-        },
+        headers: { Accept: "text/plain" },
         signal: controller.signal,
       });
 
@@ -230,7 +135,6 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         throw new Error("Response body is not readable");
       }
 
-      // If we were aborted during the fetch, stop here
       if (controller.signal.aborted) return;
 
       setStatus("streaming");
@@ -239,29 +143,22 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Read stream
       try {
         while (true) {
           const { done, value } = await reader.read();
 
           if (done) {
-            // Process any remaining buffer
-            if (buffer.trim()) {
-              processChunk(buffer);
-            }
+            if (buffer.trim()) processChunk(buffer);
             setStatus("disconnected");
             break;
           }
 
-          // Decode and process
           buffer += decoder.decode(value, { stream: true });
 
-          // Process complete lines
           const lastNewline = buffer.lastIndexOf("\n");
           if (lastNewline !== -1) {
-            const complete = buffer.slice(0, lastNewline);
+            processChunk(buffer.slice(0, lastNewline));
             buffer = buffer.slice(lastNewline + 1);
-            processChunk(complete);
           }
         }
       } finally {
@@ -269,58 +166,32 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
       }
     } catch (err) {
       if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
-        // Intentional abort, not an error
         setStatus("disconnected");
       } else {
         setError(err instanceof Error ? err : new Error(String(err)));
         setStatus("error");
       }
     }
-  }, [baseUrl, workflowId, groupId, taskId, logScenario, processChunk]);
+  }, [baseUrl, workflowId, groupId, taskId, processChunk]);
 
-  /**
-   * Starts tailing.
-   */
-  const start = useCallback(() => {
-    startStreaming();
-  }, [startStreaming]);
+  const start = useCallback(() => startStreaming(), [startStreaming]);
 
-  /**
-   * Stops tailing and closes connection.
-   */
   const stop = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setStatus("disconnected");
   }, []);
 
-  /**
-   * Clears entries.
-   */
-  const clearEntries = useCallback(() => {
-    setEntries([]);
-  }, []);
+  const clearEntries = useCallback(() => setEntries([]), []);
 
-  // Start/stop based on enabled prop
-  // Uses primitive logScenario value to prevent restarts on object reference changes
   useEffect(() => {
     if (enabled && workflowId) {
       start();
     } else {
       stop();
     }
-
-    return () => {
-      stop();
-    };
+    return stop;
   }, [enabled, workflowId, start, stop]);
 
-  return {
-    entries,
-    status,
-    error,
-    start,
-    stop,
-    clearEntries,
-  };
+  return { entries, status, error, start, stop, clearEntries };
 }
