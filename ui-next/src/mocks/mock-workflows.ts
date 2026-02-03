@@ -278,7 +278,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: true,
         ansiCodes: false,
-        streaming: false,
+        streaming: true, // Enable streaming for testing
+        streamDelayMs: 200,
+        infinite: true,
         taskCount: 4,
       },
     },
