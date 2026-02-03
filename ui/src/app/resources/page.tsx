@@ -180,6 +180,7 @@ export default function Resources() {
               </div>
               <ResourceGraph
                 {...aggregateTotals.total}
+                isEditing={false}
                 isLoading={isFetching}
                 isShowingUsed={isShowingUsed}
                 width={200}
@@ -201,9 +202,9 @@ export default function Resources() {
                           updateUrl({
                             pools: selectedPools.split(",").includes(pool)
                               ? selectedPools
-                                .split(",")
-                                .filter((p) => p !== pool)
-                                .join(",")
+                                  .split(",")
+                                  .filter((p) => p !== pool)
+                                  .join(",")
                               : [...selectedPools, pool].join(","),
                             allPools: false,
                           })
@@ -218,6 +219,7 @@ export default function Resources() {
                   <ResourceGraph
                     {...totals}
                     isLoading={isFetching}
+                    isEditing={false}
                     isShowingUsed={isShowingUsed}
                     width={200}
                     height={150}
