@@ -48,7 +48,7 @@ class MessageType(enum.Enum):
     UPDATE_NODE = 'update_node'
     UPDATE_NODE_USAGE = 'update_node_usage'
     DELETE_RESOURCE = 'delete_resource'
-    NODE_HASH = 'node_hash'
+    NODE_INVENTORY = 'node_inventory'
     TASK_LIST = 'task_list'
     CONTAINER_NODE = 'container_node'
     MONITOR_POD = 'monitor_pod'
@@ -142,9 +142,9 @@ class DeleteResourceBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     resource: str
 
 
-class NodeBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
-    """ Represents the node body. """
-    node_hashes: List[str]
+class NodeInventoryBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    """ Represents the node inventory body. """
+    hostnames: List[str]
 
 
 class TaskListBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
@@ -220,7 +220,7 @@ class MessageOptions(pydantic.BaseModel):
         description='Message for resource usage change')
     delete_resource: Optional[DeleteResourceBody] = pydantic.Field(
         description='Message for resource change')
-    node_hash: Optional[NodeBody] = pydantic.Field(
+    node_inventory: Optional[NodeInventoryBody] = pydantic.Field(
         description='Message for list of current nodes')
     task_list: Optional[TaskListBody] = pydantic.Field(
         description='Message for list of current pods in backend based on the task_uuids')

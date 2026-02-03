@@ -49,6 +49,7 @@ message ListenerMessage {
     LoggingBody logging = 4;
     UpdateNodeBody update_node = 5;
     UpdateNodeUsageBody update_node_usage = 6;
+    NodeInventoryBody node_inventory = 7;
   }
 }
 
@@ -116,4 +117,10 @@ message UpdateNodeUsageBody {
   string hostname = 1;
   map<string, string> usage_fields = 2;
   map<string, string> non_workflow_usage_fields = 3;
+}
+
+// NodeInventoryBody represents a complete list of all current node hostnames
+// Used for reconciliation to allow the service to clean up stale nodes
+message NodeInventoryBody {
+  repeated string hostnames = 1;
 }

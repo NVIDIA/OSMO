@@ -728,8 +728,8 @@ def refresh_resource_database(node_send_queue: helpers.EnqueueCallback,
 
     # Send the nodes that are still in the cluster
     node_message = backend_messages.MessageBody(
-        type=backend_messages.MessageType.NODE_HASH,
-        body=backend_messages.NodeBody(node_hashes=node_names))
+        type=backend_messages.MessageType.NODE_INVENTORY,
+        body=backend_messages.NodeInventoryBody(hostnames=node_names))
     node_send_queue(node_message)
     send_backend_message_count(event_type='node')
     return pod_list_aggregated, all_pods
