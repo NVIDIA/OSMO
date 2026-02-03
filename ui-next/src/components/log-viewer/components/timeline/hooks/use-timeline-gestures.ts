@@ -657,24 +657,38 @@ function calculateAsymmetricZoom(
     return { blocked: true, reason: "no-buckets: cannot calculate invalid zone positioning" };
   }
 
-  // Calculate constrained edge positions using fractional limit (exactly 10% of new range)
-  const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
   const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
   const entityStartMs = entityStartTime.getTime();
   const rightBoundaryMs = entityEndTime?.getTime() ?? now;
 
   // Determine which side is constrained and calculate bounds
+  // CRITICAL: Asymmetric zoom pins one side and expands to achieve the target range
+  // The constrained side stays at exactly 10% of the NEW range
   let constrainedStart: number;
   let constrainedEnd: number;
 
   if (reason === "left-invalid-zone-limit") {
-    // Pin left at limit, transfer deficit to right
+    // Pin left at exactly 10% of NEW range
+    //
+    // leftInvalid = (entityStart - gap) - constrainedStart = 10% × newRange
+    // constrainedStart = entityStart - gap - (10% × newRange)
+    //
+    // Then place right to achieve the full new range:
+    // constrainedEnd = constrainedStart + newRange
+    const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
     constrainedStart = entityStartMs - gapMs - fractionalLimitMs;
-    constrainedEnd = symmetricEnd + (constrainedStart - symmetricStart);
+    constrainedEnd = constrainedStart + newRangeMs;
   } else if (reason === "right-invalid-zone-limit") {
-    // Pin right at limit, transfer deficit to left
+    // Pin right at exactly 10% of NEW range
+    //
+    // rightInvalid = constrainedEnd - (rightBoundary + gap) = 10% × newRange
+    // constrainedEnd = rightBoundary + gap + (10% × newRange)
+    //
+    // Then place left to achieve the full new range:
+    // constrainedStart = constrainedEnd - newRange
+    const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
     constrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
-    constrainedStart = symmetricStart - (constrainedEnd - symmetricEnd);
+    constrainedStart = constrainedEnd - newRangeMs;
   } else {
     return { blocked: true, reason: `unknown-validation-reason: ${reason}` };
   }
