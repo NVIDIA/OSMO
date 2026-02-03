@@ -222,12 +222,22 @@ function LogViewerContainerInner({
     setStartTime,
     setEndTime,
     setPreset,
-    isLiveMode,
+    isLiveMode: isLiveModeFromUrl,
   } = useLogViewerUrlState({
     entityStartTime: workflowMetadata?.startTime, // REALITY: Hard lower bound
     entityEndTime: workflowMetadata?.endTime, // REALITY: Hard upper bound (if completed)
     now, // REFERENCE: Synchronized NOW from useTick()
   });
+
+  // Effective live mode: Only true when URL allows it AND workflow is still running.
+  // This prevents auto-scroll and "pause live mode" behaviors for completed workflows.
+  // Without this, visiting a completed workflow without an end filter would:
+  // 1. Trigger auto-scroll to bottom (useLayoutEffect in LogList)
+  // 2. Fire scroll event before settling at bottom
+  // 3. Trigger "scroll away from bottom" handler
+  // 4. Set endTime to new Date(), which gets clamped to entityEndTime
+  // 5. Mutate URL with unwanted &end= parameter
+  const isLiveMode = isLiveModeFromUrl && workflowMetadata?.endTime === undefined;
 
   // Pending display range state (for real-time pan/zoom without committing)
   // Combined into single state to prevent race conditions between start/end updates
