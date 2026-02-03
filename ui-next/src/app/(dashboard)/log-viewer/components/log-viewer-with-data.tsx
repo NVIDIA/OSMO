@@ -40,32 +40,19 @@ import { prefetchLogData, fetchWorkflowByName } from "@/lib/api/server";
 import { LogViewerPageContent } from "./log-viewer-page-content";
 import { createQueryClient } from "@/lib/query-client";
 
-/**
- * Mock workflow ID for the playground.
- */
-const MOCK_WORKFLOW_ID = "log-viewer-playground";
-
-/**
- * Valid scenario values matching the client-side parser.
- */
-type LogScenario = "normal" | "error-heavy" | "high-volume" | "empty" | "streaming";
-
-const VALID_SCENARIOS: readonly LogScenario[] = ["normal", "error-heavy", "high-volume", "empty", "streaming"];
-
-function isValidScenario(value: unknown): value is LogScenario {
-  return typeof value === "string" && VALID_SCENARIOS.includes(value as LogScenario);
-}
-
 interface LogViewerWithDataProps {
   /** URL search params passed from page */
-  searchParams: Promise<{ workflow?: string; scenario?: string }>;
+  searchParams: Promise<{ workflow?: string }>;
 }
 
 export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps) {
   // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;
-  const workflowId = params.workflow ?? MOCK_WORKFLOW_ID;
-  const scenario: LogScenario = isValidScenario(params.scenario) ? params.scenario : "normal";
+  const workflowId = params.workflow;
+
+  if (!workflowId) {
+    throw new Error("Missing required parameter: workflow");
+  }
 
   // Create QueryClient for this request using shared factory
   const queryClient = createQueryClient();
@@ -95,14 +82,10 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
     // No need to show error since client-side fetching might succeed
   }
 
-  // Build dev params matching what the client uses
-  const devParams = { log_scenario: scenario };
-
   // Prefetch log data - this await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
   await prefetchLogData(queryClient, {
     workflowId,
-    devParams,
   });
 
   // Wrap in HydrationBoundary so client gets the cached data

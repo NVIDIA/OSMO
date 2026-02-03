@@ -16,44 +16,6 @@
 
 "use client";
 
-/**
- * Log Viewer Container
- *
- * A ready-to-use component that wires together data fetching (useLogData),
- * live streaming (useLogTail), and the LogViewer presentation component.
- *
- * This is the recommended way to add a log viewer to a page - just provide
- * a workflowId and the container handles everything else.
- *
- * ## Live Mode
- *
- * When `enableLiveMode` is true and the store's `isLiveMode` is active:
- * - New log entries are streamed in real-time
- * - Auto-scroll to bottom is enabled
- * - User scrolling away from bottom pauses live mode
- *
- * In the upcoming time range selector, live mode will be enabled when
- * the user selects "NOW" as the end time.
- *
- * @example
- * ```tsx
- * // Basic usage
- * <LogViewerContainer workflowId="my-workflow" />
- *
- * // With dev scenario (for playground)
- * <LogViewerContainer
- *   workflowId="my-workflow"
- *   devParams={{ log_scenario: "error-heavy" }}
- * />
- *
- * // Disable live streaming
- * <LogViewerContainer
- *   workflowId="my-workflow"
- *   enableLiveMode={false}
- * />
- * ```
- */
-
 import { useMemo, useState, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
@@ -67,14 +29,6 @@ import { useLogViewerUrlState } from "../lib/use-log-viewer-url-state";
 import { useTick, useTickController } from "@/hooks/use-tick";
 import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "./timeline/lib/timeline-constants";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-/**
- * Pending display range for real-time pan/zoom feedback.
- * Combined into single state to prevent race conditions between start/end updates.
- */
 interface PendingDisplayRange {
   start: Date;
   end: Date;
@@ -89,113 +43,62 @@ export interface WorkflowMetadata {
 }
 
 export interface LogViewerContainerProps {
-  /** Workflow ID to fetch logs for */
   workflowId: string;
-  /** Optional workflow metadata for timeline bounds */
   workflowMetadata?: WorkflowMetadata | null;
-  /** Optional dev params (for playground scenarios) */
-  devParams?: Record<string, string>;
-  /** Dev params for live streaming (defaults to devParams if not specified) */
-  liveDevParams?: Record<string, string>;
-  /** Scope for filtering (workflow, group, task) */
   scope?: "workflow" | "group" | "task";
-  /** Additional class names for the container wrapper */
   className?: string;
-  /** Additional class names for the LogViewer */
   viewerClassName?: string;
-  /**
-   * Enable live mode capability (default: true).
-   * When true, logs can stream in real-time when isLiveMode is active in store.
-   * In the upcoming time range selector, this will be tied to end time = "NOW".
-   */
   enableLiveMode?: boolean;
-  /** Show border around the container (default: true) */
   showBorder?: boolean;
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
 /**
- * Container component that handles data fetching and wires up LogViewer.
+ * Log viewer container that handles data fetching, live streaming, and URL state.
+ * Uses key-based remounting to reset state when workflowId changes.
  */
-export function LogViewerContainer({
+export function LogViewerContainer(props: LogViewerContainerProps) {
+  return (
+    <LogViewerContainerImpl
+      key={props.workflowId}
+      {...props}
+    />
+  );
+}
+
+function LogViewerContainerImpl({
   workflowId,
-  workflowMetadata,
-  devParams,
-  liveDevParams,
+  workflowMetadata: workflowMetadataFromSSR,
   scope = "workflow",
   className,
   viewerClassName,
   enableLiveMode = true,
   showBorder = true,
 }: LogViewerContainerProps) {
-  // Extract primitive values from devParams to create a stable key
-  // This prevents remounting when devParams object reference changes but values are identical
-  const logScenario = devParams?.log_scenario;
-
-  // Remount when workflowId or log scenario changes to reset all state
-  const key = useMemo(() => `${workflowId}-${logScenario ?? ""}`, [workflowId, logScenario]);
-
-  return (
-    <LogViewerContainerInner
-      key={key}
-      workflowId={workflowId}
-      workflowMetadata={workflowMetadata}
-      devParams={devParams}
-      liveDevParams={liveDevParams}
-      scope={scope}
-      className={className}
-      viewerClassName={viewerClassName}
-      enableLiveMode={enableLiveMode}
-      showBorder={showBorder}
-    />
-  );
-}
-
-/**
- * Inner implementation that handles all the data fetching logic.
- * Separated to allow key-based remounting on prop changes.
- */
-function LogViewerContainerInner({
-  workflowId,
-  workflowMetadata: workflowMetadataFromSSR,
-  devParams,
-  liveDevParams: liveDevParamsProp,
-  scope,
-  className,
-  viewerClassName,
-  enableLiveMode,
-  showBorder,
-}: LogViewerContainerProps) {
   // Fetch workflow metadata on client if not provided via SSR
-  // This handles cases where SSR fetch failed (e.g., mock workflows)
-  // We'll need to use the generated hook directly to access the enabled option
+  const selectWorkflow = useCallback((rawData: unknown) => {
+    if (!rawData) return null;
+    try {
+      const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+      return parsed as WorkflowQueryResponse;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const { data: workflowFromClient, isLoading: isLoadingWorkflow } = useGetWorkflowApiWorkflowNameGet(
     workflowId,
     { verbose: true },
     {
       query: {
-        enabled: !workflowMetadataFromSSR, // Only fetch if SSR didn't provide it
-        select: useCallback((rawData: unknown) => {
-          if (!rawData) return null;
-          try {
-            const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-            return parsed as WorkflowQueryResponse;
-          } catch {
-            return null;
-          }
-        }, []),
+        enabled: !workflowMetadataFromSSR,
+        select: selectWorkflow,
       },
     },
   );
 
-  // Use SSR metadata if available, otherwise build from client fetch
   const workflowMetadata = useMemo(() => {
     if (workflowMetadataFromSSR) return workflowMetadataFromSSR;
     if (!workflowFromClient) return null;
-
     return {
       name: workflowFromClient.name,
       status: workflowFromClient.status,
@@ -205,14 +108,11 @@ function LogViewerContainerInner({
     };
   }, [workflowMetadataFromSSR, workflowFromClient]);
 
-  // Enable synchronized ticking when workflow is running (no endTime)
+  // Synchronized time for running workflows
   useTickController(workflowMetadata?.endTime === undefined);
-
-  // Get synchronized "NOW" timestamp across all components
   const now = useTick();
 
-  // URL-synced state for filters and time range
-  // Pass entity boundaries and synchronized NOW for validation/backfill
+  // URL-synced state
   const {
     filterChips,
     setFilterChips,
@@ -224,75 +124,20 @@ function LogViewerContainerInner({
     setPreset,
     isLiveMode: isLiveModeFromUrl,
   } = useLogViewerUrlState({
-    entityStartTime: workflowMetadata?.startTime, // REALITY: Hard lower bound
-    entityEndTime: workflowMetadata?.endTime, // REALITY: Hard upper bound (if completed)
-    now, // REFERENCE: Synchronized NOW from useTick()
+    entityStartTime: workflowMetadata?.startTime,
+    entityEndTime: workflowMetadata?.endTime,
+    now,
   });
 
-  // Effective live mode: Only true when URL allows it AND workflow is still running.
-  // This prevents auto-scroll and "pause live mode" behaviors for completed workflows.
-  // Without this, visiting a completed workflow without an end filter would:
-  // 1. Trigger auto-scroll to bottom (useLayoutEffect in LogList)
-  // 2. Fire scroll event before settling at bottom
-  // 3. Trigger "scroll away from bottom" handler
-  // 4. Set endTime to new Date(), which gets clamped to entityEndTime
-  // 5. Mutate URL with unwanted &end= parameter
+  // Only enable live mode for running workflows
   const isLiveMode = isLiveModeFromUrl && workflowMetadata?.endTime === undefined;
 
-  // Pending display range state (for real-time pan/zoom without committing)
-  // Combined into single state to prevent race conditions between start/end updates
+  // Pending display range for pan/zoom preview
   const [pendingDisplay, setPendingDisplay] = useState<PendingDisplayRange | null>(null);
 
-  // Convert filter chips to query params
+  // Convert chips to query filters and build unified params object
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
 
-  // Extract primitive value from devParams for stable memoization
-  // This prevents refetches when devParams object reference changes but values are identical
-  const logScenario = devParams?.log_scenario;
-
-  // Reconstruct devParams from primitive to ensure stable reference
-  const stableDevParams = useMemo(() => (logScenario ? { log_scenario: logScenario } : undefined), [logScenario]);
-
-  // Memoize the entire params object to prevent unnecessary refetches
-  // This ensures the params object reference is stable when values don't change
-  const logDataParams = useMemo(
-    () => ({
-      workflowId,
-      devParams: stableDevParams,
-      levels: queryFilters.levels,
-      tasks: queryFilters.tasks,
-      retries: queryFilters.retries,
-      sources: queryFilters.sources,
-      search: queryFilters.search,
-      start: startTime,
-      end: endTime,
-      // Keep previous data visible while fetching to prevent flickering
-      keepPrevious: true,
-    }),
-    [workflowId, stableDevParams, queryFilters, startTime, endTime],
-  );
-
-  // Unified data hook - returns entries, histogram, facets together
-  const { entries: queryEntries, stats, isLoading, isFetching, error, refetch } = useLogData(logDataParams);
-
-  // Live streaming dev params (defaults to main devParams if not specified)
-  // Extract primitive and reconstruct to ensure stability
-  const liveLogScenario = liveDevParamsProp?.log_scenario ?? logScenario;
-  const stableLiveDevParams = useMemo(
-    () => (liveLogScenario ? { log_scenario: liveLogScenario } : undefined),
-    [liveLogScenario],
-  );
-
-  // Live streaming hook - appends new entries as they stream in
-  // Active when live mode is enabled and the capability is allowed
-  const { entries: liveEntries } = useLogTail({
-    workflowId,
-    enabled: enableLiveMode && isLiveMode,
-    devParams: stableLiveDevParams,
-  });
-
-  // Memoize filter params for useCombinedEntries to prevent unnecessary recomputation
-  // Each property is listed individually in deps to ensure stable reference when values don't change
   const filterParams = useMemo(
     () => ({
       levels: queryFilters.levels,
@@ -303,45 +148,40 @@ function LogViewerContainerInner({
       start: startTime,
       end: endTime,
     }),
-    [
-      queryFilters.levels,
-      queryFilters.tasks,
-      queryFilters.retries,
-      queryFilters.sources,
-      queryFilters.search,
-      startTime,
-      endTime,
-    ],
+    [queryFilters, startTime, endTime],
   );
 
-  // Combine query entries with live streaming entries
-  // Applies current filters to live entries to ensure visual consistency
-  const combinedEntries = useCombinedEntries(queryEntries, liveEntries, filterParams);
+  const logDataParams = useMemo(
+    () => ({ workflowId, ...filterParams, keepPrevious: true }),
+    [workflowId, filterParams],
+  );
 
-  // Debounce histogram recomputation during live streaming
-  // This prevents expensive histogram recalculation from blocking UI updates
+  // Data fetching
+  const { entries: queryEntries, stats, isLoading, isFetching, error, refetch } = useLogData(logDataParams);
+
+  const { entries: liveEntries } = useLogTail({
+    workflowId,
+    enabled: enableLiveMode && isLiveMode,
+  });
+
+  const combinedEntries = useCombinedEntries(queryEntries, liveEntries, filterParams);
   const deferredCombinedEntries = useDeferredValue(combinedEntries);
 
-  // Extract stable timestamp primitives to prevent recalculation when arrays get new references
+  // Compute display range with padding
   const firstLogTimeMs = combinedEntries[0]?.timestamp.getTime();
   const lastLogTimeMs = combinedEntries[combinedEntries.length - 1]?.timestamp.getTime();
   const workflowStartTimeMs = workflowMetadata?.startTime?.getTime();
   const workflowEndTimeMs = workflowMetadata?.endTime?.getTime();
 
-  // Compute display range with padding to ensure invalid zones are visible
   const { displayStart, displayEnd } = useMemo(() => {
-    // Determine data boundaries with proper fallback hierarchy
-    // For start: use query startTime, or entity start time, or first log timestamp, or 1 hour before NOW
     const firstLogTime = firstLogTimeMs ? new Date(firstLogTimeMs) : undefined;
     const entityStartTime = workflowStartTimeMs ? new Date(workflowStartTimeMs) : undefined;
     const dataStart = startTime ?? entityStartTime ?? firstLogTime ?? new Date(now - 60 * 60 * 1000);
 
-    // For end: use query endTime, or entity end time, or last log timestamp, or NOW
     const lastLogTime = lastLogTimeMs ? new Date(lastLogTimeMs) : undefined;
     const entityEndTime = workflowEndTimeMs ? new Date(workflowEndTimeMs) : undefined;
     const dataEnd = endTime ?? entityEndTime ?? lastLogTime ?? new Date(now);
 
-    // Calculate padding using constants from timeline-constants (SSOT)
     const rangeMs = dataEnd.getTime() - dataStart.getTime();
     const paddingMs = Math.max(rangeMs * DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
 
@@ -351,28 +191,21 @@ function LogViewerContainerInner({
     };
   }, [startTime, endTime, firstLogTimeMs, lastLogTimeMs, workflowStartTimeMs, workflowEndTimeMs, now]);
 
-  // Recompute histogram from deferred entries to prevent blocking UI during streaming
-  // Uses useDeferredValue to allow React to prioritize user interactions over histogram updates
-  // This ensures:
-  // - Buckets adjust dynamically based on the current time range
-  // - Histogram includes new live entries (with slight delay during rapid updates)
-  // - Bucket intervals adapt as the effective time range changes
-  // - Buckets are marked as in/out of effective range for visual dimming
-  const histogram = useMemo(() => {
-    return computeHistogram(deferredCombinedEntries, {
-      numBuckets: 50,
-      displayStart,
-      displayEnd,
-      effectiveStart: startTime,
-      effectiveEnd: endTime,
-    });
-  }, [deferredCombinedEntries, displayStart, displayEnd, startTime, endTime]);
+  // Histogram computation (deferred for performance)
+  const histogram = useMemo(
+    () =>
+      computeHistogram(deferredCombinedEntries, {
+        numBuckets: 50,
+        displayStart,
+        displayEnd,
+        effectiveStart: startTime,
+        effectiveEnd: endTime,
+      }),
+    [deferredCombinedEntries, displayStart, displayEnd, startTime, endTime],
+  );
 
-  // Pending histogram (computed with pending display range for real-time pan/zoom feedback)
-  // Uses deferred entries to prevent blocking during pan/zoom gestures
   const pendingHistogram = useMemo(() => {
     if (!pendingDisplay) return undefined;
-
     return computeHistogram(deferredCombinedEntries, {
       numBuckets: 50,
       displayStart: pendingDisplay.start,
@@ -382,24 +215,15 @@ function LogViewerContainerInner({
     });
   }, [deferredCombinedEntries, pendingDisplay, startTime, endTime]);
 
-  // Handle display range change from pan/zoom (before Apply)
-  const handleDisplayRangeChange = useCallback((newDisplayStart: Date, newDisplayEnd: Date) => {
-    setPendingDisplay({ start: newDisplayStart, end: newDisplayEnd });
+  const handleDisplayRangeChange = useCallback((newStart: Date, newEnd: Date) => {
+    setPendingDisplay({ start: newStart, end: newEnd });
   }, []);
 
-  // Clear pending state (called by LogViewer on Apply or Cancel)
   const handleClearPendingDisplay = useCallback(() => {
     setPendingDisplay(null);
   }, []);
 
-  // ==========================================================================
-  // Grouped Props with Memoization
-  // ==========================================================================
-  // These objects are memoized to prevent unnecessary re-renders in LogViewer.
-  // Each group contains logically related props.
-  // NOTE: Hooks must be called before any early returns (Rules of Hooks).
-
-  // Group data props (entries, loading states, histogram, refetch)
+  // Grouped props for LogViewer (memoized to prevent re-renders)
   const dataProps = useMemo<LogViewerDataProps>(
     () => ({
       entries: combinedEntries,
@@ -415,24 +239,19 @@ function LogViewerContainerInner({
     [combinedEntries, stats.totalCount, isLoading, isFetching, error, histogram, pendingHistogram, isLiveMode, refetch],
   );
 
-  // Group filter props (chips, scope)
   const filterProps = useMemo<LogViewerFilterProps>(
     () => ({
       filterChips,
       onFilterChipsChange: setFilterChips,
-      scope: scope ?? "workflow",
+      scope,
     }),
     [filterChips, setFilterChips, scope],
   );
 
-  // Extract entity times for timeline props (may be undefined before workflow starts)
   const entityStartTime = workflowMetadata?.startTime;
   const entityEndTime = workflowMetadata?.endTime;
 
-  // Group timeline props (time range, presets, entity boundaries)
-  // Note: entityStartTime is typed as optional here but will be guaranteed by guards below
   const timelineProps = useMemo<LogViewerTimelineProps | null>(() => {
-    // Can't construct valid timeline props without entityStartTime
     if (!entityStartTime) return null;
     return {
       filterStartTime: startTime,
@@ -465,12 +284,12 @@ function LogViewerContainerInner({
     now,
   ]);
 
-  // Check if workflow has started - if not, show a message
-  const workflowNotStarted = workflowMetadata && !workflowMetadata.startTime;
+  // Render states
+  const containerClasses = cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className);
 
-  if (workflowNotStarted) {
+  if (workflowMetadata && !workflowMetadata.startTime) {
     return (
-      <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
+      <div className={containerClasses}>
         <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
           <div className="bg-muted text-muted-foreground rounded-full p-4">
             <svg
@@ -501,31 +320,24 @@ function LogViewerContainerInner({
     );
   }
 
-  // Show skeleton during initial load and when refetching without data
-  // Also show skeleton when fetching workflow metadata on client side
-  // User preference: show skeleton instead of stale data for correctness
-  const showSkeleton = (isLoading && combinedEntries.length === 0) || isLoadingWorkflow;
-
-  if (showSkeleton) {
+  if ((isLoading && combinedEntries.length === 0) || isLoadingWorkflow) {
     return (
-      <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
+      <div className={containerClasses}>
         <LogViewerSkeleton className={viewerClassName} />
       </div>
     );
   }
 
-  // GUARD: Workflow must have started before rendering LogViewer
-  // entityStartTime is guaranteed for LogViewer to function properly
   if (!workflowMetadata?.startTime || !timelineProps) {
     return (
-      <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
+      <div className={containerClasses}>
         <div className="text-muted-foreground p-4 text-center text-sm">Workflow has not started yet</div>
       </div>
     );
   }
 
   return (
-    <div className={cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className)}>
+    <div className={containerClasses}>
       <LogViewer
         data={dataProps}
         filter={filterProps}

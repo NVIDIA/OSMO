@@ -119,7 +119,6 @@ export {
   computeFacets,
   // Plain Text Adapter
   PlainTextAdapter,
-  createPlainTextAdapter,
 } from "./adapters";
 
 export type { FilterParams, ComputeHistogramOptions, PlainTextAdapterConfig, QueryAllParams } from "./adapters";

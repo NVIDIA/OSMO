@@ -28,5 +28,5 @@ export { filterEntries, computeHistogram, computeFacets } from "./compute";
 export type { FilterParams, ComputeHistogramOptions } from "./compute";
 
 // Plain Text Adapter
-export { PlainTextAdapter, createPlainTextAdapter } from "./plain-text-adapter";
+export { PlainTextAdapter } from "./plain-text-adapter";
 export type { PlainTextAdapterConfig, QueryAllParams } from "./plain-text-adapter";
