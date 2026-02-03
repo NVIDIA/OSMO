@@ -22,51 +22,83 @@ export interface WorkflowWidgetDataProps {
   filters: WorkflowsFiltersDataProps;
 }
 
-export const WorkflowsWidget = ({ widget, onEdit, onDelete, isEditing }: { widget: WorkflowWidgetDataProps, onEdit: (widget: WorkflowWidgetDataProps) => void, onDelete: (widget: WorkflowWidgetDataProps) => void, isEditing: boolean }) => {
+export const WorkflowsWidget = ({
+  widget,
+  onEdit,
+  onDelete,
+  isEditing,
+}: {
+  widget: WorkflowWidgetDataProps;
+  onEdit: (widget: WorkflowWidgetDataProps) => void;
+  onDelete: (widget: WorkflowWidgetDataProps) => void;
+  isEditing: boolean;
+}) => {
   const { getUrlParams } = useToolParamUpdater();
-  const dateRangeDates = getDateFromValues(widget.filters.dateRange, widget.filters.submittedAfter, widget.filters.submittedBefore);
+  const dateRangeDates = getDateFromValues(
+    widget.filters.dateRange,
+    widget.filters.submittedAfter,
+    widget.filters.submittedBefore,
+  );
 
-  const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery({
-    all_users: widget.filters.userType === UserFilterType.ALL,
-    users: widget.filters.userType === UserFilterType.CUSTOM ? (widget.filters.selectedUsers?.split(",") ?? []) : [],
-    all_pools: widget.filters.isSelectAllPoolsChecked,
-    pools: widget.filters.isSelectAllPoolsChecked ? [] : widget.filters.selectedPools.split(","),
-    submitted_after: dateRangeDates.fromDate?.toISOString(),
-    submitted_before: dateRangeDates.toDate?.toISOString(),
-    statuses:
-      widget.filters.statusFilterType === StatusFilterType.CUSTOM
-        ? (widget.filters.statuses?.split(",") as WorkflowStatusType[])
-        : getWorkflowStatusArray(widget.filters.statusFilterType),
-    priority: widget.filters.priority,
-  }, {
-    refetchOnWindowFocus: true,
-    refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000
-  });
+  const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery(
+    {
+      all_users: widget.filters.userType === UserFilterType.ALL,
+      users: widget.filters.userType === UserFilterType.CUSTOM ? (widget.filters.selectedUsers?.split(",") ?? []) : [],
+      all_pools: widget.filters.isSelectAllPoolsChecked,
+      pools: widget.filters.isSelectAllPoolsChecked ? [] : widget.filters.selectedPools.split(","),
+      submitted_after: dateRangeDates.fromDate?.toISOString(),
+      submitted_before: dateRangeDates.toDate?.toISOString(),
+      statuses:
+        widget.filters.statusFilterType === StatusFilterType.CUSTOM
+          ? (widget.filters.statuses?.split(",") as WorkflowStatusType[])
+          : getWorkflowStatusArray(widget.filters.statusFilterType),
+      priority: widget.filters.priority,
+    },
+    {
+      refetchOnWindowFocus: true,
+      refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000,
+    },
+  );
 
   const detailsUrl = useMemo(() => {
     return `/workflows?${getUrlParams(widget.filters, undefined).toString()}`;
   }, [widget, getUrlParams]);
 
   return (
-    <section className="card flex flex-col" aria-labelledby="current-workflows-title">
+    <section
+      className="card flex flex-col"
+      aria-labelledby="current-workflows-title"
+    >
       <div className="popup-header body-header">
         <h2 id="current-workflows-title">{widget.name}</h2>
         {isEditing ? (
           <div className="flex flex-row gap-global">
-            <button className="btn btn-secondary" onClick={() => onEdit(widget)}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => onEdit(widget)}
+            >
               <OutlinedIcon name="edit" />
             </button>
-            <button className="btn btn-secondary" onClick={() => onDelete(widget)}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => onDelete(widget)}
+            >
               <OutlinedIcon name="delete" />
             </button>
           </div>
         ) : (
-          <Link href={detailsUrl} className="btn btn-secondary" title={`View All ${widget.name}`}>
+          <Link
+            href={detailsUrl}
+            className="btn btn-secondary"
+            title={`View All ${widget.name}`}
+          >
             <OutlinedIcon name="list_alt" />
           </Link>
         )}
       </div>
-      <div className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-40" : ""}`}>
+      <div
+        className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-40" : ""}`}
+      >
         <WorkflowPieChart
           counts={currentWorkflows ?? {}}
           size={160}

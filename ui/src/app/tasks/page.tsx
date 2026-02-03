@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "~/components/AuthProvider";
-import { allDateRange } from "~/components/DateRangePicker";
+import { allDateRange, customDateRange } from "~/components/DateRangePicker";
 import { FilterButton } from "~/components/FilterButton";
 import { FilledIcon } from "~/components/Icon";
 import { IconButton } from "~/components/IconButton";
@@ -39,7 +39,7 @@ import { api } from "~/trpc/react";
 import { formatForWrapping } from "~/utils/string";
 
 import { getTaskStatusArray } from "./components/StatusFilter";
-import { TasksFilters, validateFilters } from "./components/TasksFilters";
+import { TasksFilters, type TasksFiltersDataProps, validateFilters } from "./components/TasksFilters";
 import { TasksTable } from "./components/TasksTable";
 import { getActionId } from "./components/TasksTable";
 import TaskDetails from "../workflows/components/TaskDetails";
@@ -281,6 +281,45 @@ export default function Tasks() {
     }, 500);
   }, [refetch, isLoading, setSafeTimeout]);
 
+  const onSaveFilters = useCallback(
+    (data: TasksFiltersDataProps) => {
+      updateUrl({
+        dateRange: data.dateRange,
+        dateAfter: data.dateRange === customDateRange ? data.startedAfter : null,
+        dateBefore: data.dateRange === customDateRange ? data.startedBefore : null,
+        statusFilterType: data.statusFilterType,
+        status: data.statusFilterType === StatusFilterType.CUSTOM ? data.statuses : null,
+        allPools: data.isSelectAllPoolsChecked,
+        pools: data.isSelectAllPoolsChecked ? null : data.selectedPools.split(","),
+        allUsers: data.userType === UserFilterType.ALL,
+        users: data.userType === UserFilterType.ALL ? null : data.selectedUsers.split(","),
+        priority: data.priority ?? null,
+      });
+
+      forceRefetch();
+    },
+    [updateUrl, forceRefetch],
+  );
+
+  const onResetFilters = useCallback(() => {
+    updateUrl({
+      status: null,
+      statusFilterType: StatusFilterType.CURRENT,
+      allPools: true,
+      allUsers: false,
+      users: [username],
+      dateRange: null,
+      dateAfter: null,
+      dateBefore: null,
+      priority: null,
+      filterName: null,
+      nodes: undefined,
+      allNodes: true,
+    });
+
+    forceRefetch();
+  }, [updateUrl, forceRefetch, username]);
+
   return (
     <>
       <PageHeader>
@@ -323,10 +362,10 @@ export default function Tasks() {
               selectedPools={poolFilter}
               isSelectAllPoolsChecked={isSelectAllPoolsChecked}
               currentUserName={username}
-              onRefresh={forceRefetch}
               priority={priority}
               workflowId={nameFilter ?? ""}
-              updateUrl={updateUrl}
+              onSave={onSaveFilters}
+              onReset={onResetFilters}
               nodes={nodes ?? ""}
               isSelectAllNodesChecked={isSelectAllNodesChecked ?? true}
             />

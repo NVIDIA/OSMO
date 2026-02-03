@@ -49,62 +49,99 @@ export interface TaskWidgetDataProps {
   filters: TaskWidgetFilters;
 }
 
-export const TasksWidget = ({ widget, onEdit, onDelete, isEditing }: { widget: TaskWidgetDataProps, onEdit: (widget: TaskWidgetDataProps) => void, onDelete: (widget: TaskWidgetDataProps) => void, isEditing: boolean }) => {
+export const TasksWidget = ({
+  widget,
+  onEdit,
+  onDelete,
+  isEditing,
+}: {
+  widget: TaskWidgetDataProps;
+  onEdit: (widget: TaskWidgetDataProps) => void;
+  onDelete: (widget: TaskWidgetDataProps) => void;
+  isEditing: boolean;
+}) => {
   const { getUrlParams } = useToolParamUpdater();
-  const dateRangeDates = getDateFromValues(widget.filters.dateRange, widget.filters.startedAfter, widget.filters.startedBefore);
+  const dateRangeDates = getDateFromValues(
+    widget.filters.dateRange,
+    widget.filters.startedAfter,
+    widget.filters.startedBefore,
+  );
 
-  const users = widget.filters.userType === UserFilterType.ALL
-    ? []
-    : widget.filters.selectedUsers?.split(",") ?? [];
+  const users = widget.filters.userType === UserFilterType.ALL ? [] : (widget.filters.selectedUsers?.split(",") ?? []);
 
-  const { data: currentTasks } = api.tasks.getStatusTotals.useQuery({
-    all_users: widget.filters.userType === UserFilterType.ALL,
-    users: users,
-    all_pools: widget.filters.isSelectAllPoolsChecked,
-    pools: widget.filters.isSelectAllPoolsChecked ? [] : widget.filters.selectedPools.split(","),
-    started_after: dateRangeDates.fromDate?.toISOString(),
-    started_before: dateRangeDates.toDate?.toISOString(),
-    statuses:
-      widget.filters.statusFilterType === StatusFilterType.CUSTOM
-        ? (widget.filters.statuses?.split(",") as TaskStatusType[])
-        : getTaskStatusArray(widget.filters.statusFilterType),
-  }, {
-    refetchOnWindowFocus: true,
-    refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000
-  });
+  const { data: currentTasks } = api.tasks.getStatusTotals.useQuery(
+    {
+      all_users: widget.filters.userType === UserFilterType.ALL,
+      users: users,
+      all_pools: widget.filters.isSelectAllPoolsChecked,
+      pools: widget.filters.isSelectAllPoolsChecked ? [] : widget.filters.selectedPools.split(","),
+      started_after: dateRangeDates.fromDate?.toISOString(),
+      started_before: dateRangeDates.toDate?.toISOString(),
+      statuses:
+        widget.filters.statusFilterType === StatusFilterType.CUSTOM
+          ? (widget.filters.statuses?.split(",") as TaskStatusType[])
+          : getTaskStatusArray(widget.filters.statusFilterType),
+    },
+    {
+      refetchOnWindowFocus: true,
+      refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000,
+    },
+  );
 
   const detailsUrl = useMemo(() => {
-    const params = getUrlParams({
-      statusFilterType: widget.filters.statusFilterType,
-      status: widget.filters.statusFilterType === StatusFilterType.CUSTOM ? widget.filters.statuses ?? null : null,
-      allPools: widget.filters.isSelectAllPoolsChecked,
-      pools: widget.filters.isSelectAllPoolsChecked ? null : widget.filters.selectedPools.split(","),
-      allUsers: widget.filters.userType === UserFilterType.ALL,
-      users: widget.filters.userType === UserFilterType.ALL ? null : widget.filters.selectedUsers.split(","),
-      dateRange: widget.filters.dateRange,
-      dateAfter: widget.filters.startedAfter ?? null,
-      dateBefore: widget.filters.startedBefore ?? null,
-    }, undefined).toString();
+    const params = getUrlParams(
+      {
+        statusFilterType: widget.filters.statusFilterType,
+        status: widget.filters.statusFilterType === StatusFilterType.CUSTOM ? (widget.filters.statuses ?? null) : null,
+        allPools: widget.filters.isSelectAllPoolsChecked,
+        pools: widget.filters.isSelectAllPoolsChecked ? null : widget.filters.selectedPools.split(","),
+        allUsers: widget.filters.userType === UserFilterType.ALL,
+        users: widget.filters.userType === UserFilterType.ALL ? null : widget.filters.selectedUsers.split(","),
+        dateRange: widget.filters.dateRange,
+        dateAfter: widget.filters.startedAfter ?? null,
+        dateBefore: widget.filters.startedBefore ?? null,
+      },
+      undefined,
+    ).toString();
 
     return `/tasks?${params}`;
   }, [widget, getUrlParams]);
 
   return (
-    <section className="card flex flex-col" aria-labelledby="tasks-widget-title">
+    <section
+      className="card flex flex-col"
+      aria-labelledby="tasks-widget-title"
+    >
       <div className="popup-header body-header">
         <h2 id="tasks-widget-title">{widget.name}</h2>
         {isEditing ? (
           <div className="flex gap-global">
-            <button className="btn btn-secondary" onClick={() => onEdit(widget)}><OutlinedIcon name="edit" /></button>
-            <button className="btn btn-secondary" onClick={() => onDelete(widget)}><OutlinedIcon name="delete" /></button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => onEdit(widget)}
+            >
+              <OutlinedIcon name="edit" />
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => onDelete(widget)}
+            >
+              <OutlinedIcon name="delete" />
+            </button>
           </div>
         ) : (
-          <Link href={detailsUrl} className="btn btn-secondary" title={`View All ${widget.name}`}>
+          <Link
+            href={detailsUrl}
+            className="btn btn-secondary"
+            title={`View All ${widget.name}`}
+          >
             <OutlinedIcon name="list_alt" />
           </Link>
         )}
       </div>
-      <div className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-40" : ""}`}>
+      <div
+        className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-40" : ""}`}
+      >
         <TaskPieChart
           counts={currentTasks ?? {}}
           size={160}
