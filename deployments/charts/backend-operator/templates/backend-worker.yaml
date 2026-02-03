@@ -115,7 +115,7 @@ spec:
         - "/tmp/backend-test-runner/spec.yaml"
         {{- end }}
         {{- range $arg := .Values.services.backendWorker.extraArgs }}
-        - {{$arg}}
+        - {{$arg | quote}}
         {{- end }}
         env:
         {{- with .Values.services.backendWorker.extraEnvs }}

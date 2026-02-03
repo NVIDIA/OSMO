@@ -103,9 +103,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end}}
-        {{- range .Values.services.worker.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -121,7 +118,7 @@ spec:
         - worker
         {{- end }}
         {{- range $arg := .Values.services.worker.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         {{- include "osmo.extra-env" .Values.services.worker | nindent 8 }}
