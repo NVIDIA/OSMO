@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useRef, useCallback, memo, useLayoutEffect } from "react";
+import { useRef, useCallback, memo, useLayoutEffect, forwardRef, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter";
@@ -30,17 +30,21 @@ import { useIncrementalFlatten } from "../lib/use-incremental-flatten";
 // Types
 // =============================================================================
 
+export interface LogListHandle {
+  scrollToBottom: () => void;
+}
+
 export interface LogListProps {
   /** Log entries to display */
   entries: LogEntry[];
   /** Additional CSS classes */
   className?: string;
   /**
-   * Whether live mode is enabled (auto-scroll to bottom).
-   * In the upcoming time range selector, this will be true when end time = "NOW".
+   * Whether auto-scroll to bottom is enabled (pinned to bottom).
+   * When true, automatically scrolls to show latest entries.
    */
-  isLiveMode?: boolean;
-  /** Callback when user scrolls away from bottom (pauses live mode) */
+  isPinnedToBottom?: boolean;
+  /** Callback when user scrolls away from bottom (unpins auto-scroll) */
   onScrollAwayFromBottom?: () => void;
   /**
    * Whether the displayed data is stale (background refetch in progress).
@@ -129,13 +133,10 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
 // Main Component
 // =============================================================================
 
-function LogListInner({
-  entries,
-  className,
-  isLiveMode = false,
-  onScrollAwayFromBottom,
-  isStale = false,
-}: LogListProps) {
+const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInner(
+  { entries, className, isPinnedToBottom = false, onScrollAwayFromBottom, isStale = false },
+  ref,
+) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Get store values at parent level - avoid per-row subscriptions
@@ -179,28 +180,40 @@ function LogListInner({
     }
   }, [resetCount, virtualizer]);
 
-  // Auto-scroll to bottom when in live mode (end time = NOW).
+  // Expose scrollToBottom method via ref
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToBottom: () => {
+        if (flatItems.length === 0) return;
+        virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
+      },
+    }),
+    [virtualizer, flatItems.length],
+  );
+
+  // Auto-scroll to bottom when pinned.
   // Uses the virtualizer's scrollToIndex for stable positioning - no manual
   // scroll calculations that can race with virtualizer updates.
   useLayoutEffect(() => {
-    if (!isLiveMode || flatItems.length === 0) return;
+    if (!isPinnedToBottom || flatItems.length === 0) return;
 
     // Use the virtualizer's built-in scrollToIndex for consistent positioning.
     // align: 'end' ensures the last item is fully visible at the bottom.
     virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
-  }, [isLiveMode, flatItems.length, virtualizer]);
+  }, [isPinnedToBottom, flatItems.length, virtualizer]);
 
-  // Detect scroll away from bottom - pauses live mode when user scrolls up
+  // Detect scroll away from bottom - unpins when user scrolls up
   const handleScroll = useCallback(() => {
     if (!parentRef.current || !onScrollAwayFromBottom) return;
 
     const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < SCROLL_BOTTOM_THRESHOLD;
 
-    if (!isAtBottom && isLiveMode) {
+    if (!isAtBottom && isPinnedToBottom) {
       onScrollAwayFromBottom();
     }
-  }, [isLiveMode, onScrollAwayFromBottom]);
+  }, [isPinnedToBottom, onScrollAwayFromBottom]);
 
   // Empty state
   if (entries.length === 0) {
@@ -340,6 +353,6 @@ function LogListInner({
       </div>
     </div>
   );
-}
+});
 
 export const LogList = memo(LogListInner);
