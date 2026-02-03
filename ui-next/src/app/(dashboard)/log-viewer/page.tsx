@@ -39,7 +39,7 @@ import { WorkflowSelector } from "./components/workflow-selector";
  */
 
 interface PageProps {
-  searchParams: Promise<{ workflow?: string; scenario?: string }>;
+  searchParams: Promise<{ workflow?: string }>;
 }
 
 export default async function LogViewerPage({ searchParams }: PageProps) {
