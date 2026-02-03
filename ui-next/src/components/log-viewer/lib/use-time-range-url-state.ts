@@ -167,19 +167,16 @@ export function useTimeRangeUrlState(options: UseTimeRangeUrlStateOptions): UseT
     {
       start: parseAsIsoDateTime.withOptions({
         shallow: true,
-        history: "replace",
         clearOnDefault: true,
       }),
       end: parseAsIsoDateTime.withOptions({
         shallow: true,
-        history: "replace",
         clearOnDefault: true,
       }),
     },
     {
       // Ensure atomic updates - all params change together
       shallow: true,
-      history: "replace",
     },
   );
 
@@ -196,8 +193,8 @@ export function useTimeRangeUrlState(options: UseTimeRangeUrlStateOptions): UseT
   const startTime = validated.start ?? timeRange.start;
   const endTime = validated.end ?? timeRange.end;
 
-  // Effect to update URL state when validation requires corrections
-  // This runs AFTER render, which is the correct time to update state
+  // Effect to correct invalid URL params (e.g., user manually edited URL to out-of-bounds values)
+  // Only corrects INVALID values, never backfills MISSING values
   useEffect(() => {
     if (!entityStartTime) return;
 
@@ -210,18 +207,15 @@ export function useTimeRangeUrlState(options: UseTimeRangeUrlStateOptions): UseT
       nowDate,
     );
 
-    // Apply all updates atomically
     if (needsCorrection) {
-      const updates: { start?: Date | null; end?: Date | null } = {};
-      if (start !== undefined && start?.getTime() !== timeRange.start?.getTime()) {
-        updates.start = start;
-      }
-      if (end !== undefined && end?.getTime() !== timeRange.end?.getTime()) {
-        updates.end = end;
-      }
-      if (Object.keys(updates).length > 0) {
-        void setTimeRange(updates);
-      }
+      // useQueryStates handles atomic updates - just pass both values
+      void setTimeRange(
+        {
+          start: start ?? null,
+          end: end ?? null,
+        },
+        { history: "push" },
+      );
     }
   }, [entityStartTime, entityEndTime, synchronizedNowMs, timeRange.start, timeRange.end, setTimeRange]);
 
@@ -240,40 +234,56 @@ export function useTimeRangeUrlState(options: UseTimeRangeUrlStateOptions): UseT
   const setPreset = useCallback(
     (preset: TimeRangePreset) => {
       const nowVal = synchronizedNowMs;
+      const historyMode = { history: "push" as const };
 
       switch (preset) {
         case "all":
-          setTimeRange({ start: null, end: null });
+          setTimeRange({ start: null, end: null }, historyMode);
           break;
         case "5m":
-          setTimeRange({
-            start: new Date(nowVal - 5 * 60 * 1000),
-            end: null, // NOW = live mode
-          });
+          setTimeRange(
+            {
+              start: new Date(nowVal - 5 * 60 * 1000),
+              end: null, // NOW = live mode
+            },
+            historyMode,
+          );
           break;
         case "15m":
-          setTimeRange({
-            start: new Date(nowVal - 15 * 60 * 1000),
-            end: null,
-          });
+          setTimeRange(
+            {
+              start: new Date(nowVal - 15 * 60 * 1000),
+              end: null,
+            },
+            historyMode,
+          );
           break;
         case "1h":
-          setTimeRange({
-            start: new Date(nowVal - 60 * 60 * 1000),
-            end: null,
-          });
+          setTimeRange(
+            {
+              start: new Date(nowVal - 60 * 60 * 1000),
+              end: null,
+            },
+            historyMode,
+          );
           break;
         case "6h":
-          setTimeRange({
-            start: new Date(nowVal - 6 * 60 * 60 * 1000),
-            end: null,
-          });
+          setTimeRange(
+            {
+              start: new Date(nowVal - 6 * 60 * 60 * 1000),
+              end: null,
+            },
+            historyMode,
+          );
           break;
         case "24h":
-          setTimeRange({
-            start: new Date(nowVal - 24 * 60 * 60 * 1000),
-            end: null,
-          });
+          setTimeRange(
+            {
+              start: new Date(nowVal - 24 * 60 * 60 * 1000),
+              end: null,
+            },
+            historyMode,
+          );
           break;
         case "custom":
           // Custom preset doesn't change start/end - they're set manually
@@ -304,15 +314,14 @@ export function useTimeRangeUrlState(options: UseTimeRangeUrlStateOptions): UseT
         nowDate,
       );
 
-      const updates: { start?: Date | null; end?: Date | null } = {
-        start: validatedStart ?? null,
-      };
-      // Only update end if it changed (e.g., pushed forward to maintain start < end)
-      if (validatedEnd?.getTime() !== endTime?.getTime()) {
-        updates.end = validatedEnd ?? null;
-      }
-
-      setTimeRange(updates);
+      // Always update both - validation may have adjusted end to maintain start < end
+      setTimeRange(
+        {
+          start: validatedStart ?? null,
+          end: validatedEnd ?? null,
+        },
+        { history: "push" },
+      );
     },
     [setTimeRange, entityStartTime, entityEndTime, synchronizedNowMs, endTime],
   );
@@ -328,15 +337,14 @@ export function useTimeRangeUrlState(options: UseTimeRangeUrlStateOptions): UseT
         nowDate,
       );
 
-      const updates: { start?: Date | null; end?: Date | null } = {
-        end: validatedEnd ?? null,
-      };
-      // Only update start if it changed (e.g., pulled back to maintain start < end)
-      if (validatedStart?.getTime() !== startTime?.getTime()) {
-        updates.start = validatedStart ?? null;
-      }
-
-      setTimeRange(updates);
+      // Always update both - validation may have adjusted start to maintain start < end
+      setTimeRange(
+        {
+          start: validatedStart ?? null,
+          end: validatedEnd ?? null,
+        },
+        { history: "push" },
+      );
     },
     [setTimeRange, entityStartTime, entityEndTime, synchronizedNowMs, startTime],
   );
