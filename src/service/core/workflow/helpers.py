@@ -229,14 +229,6 @@ def get_tasks(workflow_id: str | None = None,
     return context.database.execute_fetch_command(fetch_cmd, tuple(fetch_input), return_raw)
 
 
-def get_resource_node_hash(resource_node: List[Tuple[str, str]]):
-    """ Calculate a hash value based on a node's resources. """
-    resource_node_str = ''
-    for resource in resource_node:
-        resource_node_str += ':'.join(resource) + ','
-    return hashlib.sha256((resource_node_str).encode()).hexdigest()
-
-
 def get_pool_resources(pools: List[str] | None = None,
                        platforms: List[str] | None = None) -> objects.PoolResourcesResponse:
     context = objects.WorkflowServiceContext.get()
