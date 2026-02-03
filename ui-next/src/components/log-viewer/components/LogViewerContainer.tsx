@@ -18,6 +18,7 @@
 
 import { useMemo, useState, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
+import { getApiHostname } from "@/lib/config";
 import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
 import { LogViewer } from "./LogViewer";
@@ -46,6 +47,10 @@ export interface LogViewerContainerProps {
   workflowId: string;
   workflowMetadata?: WorkflowMetadata | null;
   scope?: "workflow" | "group" | "task";
+  /** Group ID (required when scope is "group" or "task") */
+  groupId?: string;
+  /** Task ID (required when scope is "task") */
+  taskId?: string;
   className?: string;
   viewerClassName?: string;
   enableLiveMode?: boolean;
@@ -69,6 +74,8 @@ function LogViewerContainerImpl({
   workflowId,
   workflowMetadata: workflowMetadataFromSSR,
   scope = "workflow",
+  groupId,
+  taskId,
   className,
   viewerClassName,
   enableLiveMode = true,
@@ -129,8 +136,11 @@ function LogViewerContainerImpl({
     now,
   });
 
-  // Only enable live mode for running workflows
-  const isLiveMode = isLiveModeFromUrl && workflowMetadata?.endTime === undefined;
+  // Separate streaming (data layer) from tailing/pinning (UI layer)
+  // isStreaming = actively streaming new entries
+  // Requires: workflow running + no filter end time + live mode enabled
+  const workflowStillRunning = workflowMetadata?.endTime === undefined;
+  const isStreaming = enableLiveMode && isLiveModeFromUrl && workflowStillRunning;
 
   // Pending display range for pan/zoom preview
   const [pendingDisplay, setPendingDisplay] = useState<PendingDisplayRange | null>(null);
@@ -161,7 +171,7 @@ function LogViewerContainerImpl({
 
   const { entries: liveEntries } = useLogTail({
     workflowId,
-    enabled: enableLiveMode && isLiveMode,
+    enabled: isStreaming,
   });
 
   const combinedEntries = useCombinedEntries(queryEntries, liveEntries, filterParams);
@@ -223,6 +233,22 @@ function LogViewerContainerImpl({
     setPendingDisplay(null);
   }, []);
 
+  // Construct external log URL (direct to backend, bypassing UI proxy)
+  const externalLogUrl = useMemo(() => {
+    const hostname = getApiHostname();
+    // Ensure protocol is included (assume https if no protocol specified)
+    const baseUrl = hostname.startsWith("http") ? hostname : `https://${hostname}`;
+    const basePath = `${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
+
+    // Add query parameters for group/task scope
+    const params = new URLSearchParams();
+    if (groupId) params.set("group_id", groupId);
+    if (taskId) params.set("task_id", taskId);
+
+    const queryString = params.toString();
+    return queryString ? `${basePath}?${queryString}` : basePath;
+  }, [workflowId, groupId, taskId]);
+
   // Grouped props for LogViewer (memoized to prevent re-renders)
   const dataProps = useMemo<LogViewerDataProps>(
     () => ({
@@ -233,10 +259,22 @@ function LogViewerContainerImpl({
       error,
       histogram,
       pendingHistogram,
-      isLiveMode,
+      isStreaming,
+      externalLogUrl,
       onRefetch: refetch,
     }),
-    [combinedEntries, stats.totalCount, isLoading, isFetching, error, histogram, pendingHistogram, isLiveMode, refetch],
+    [
+      combinedEntries,
+      stats.totalCount,
+      isLoading,
+      isFetching,
+      error,
+      histogram,
+      pendingHistogram,
+      isStreaming,
+      externalLogUrl,
+      refetch,
+    ],
   );
 
   const filterProps = useMemo<LogViewerFilterProps>(

@@ -17,9 +17,10 @@
 "use client";
 
 import { memo } from "react";
-import { Download, RefreshCcw, Tag, WrapText } from "lucide-react";
+import { Download, ExternalLink, RefreshCcw, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { ScrollPinControl } from "./ScrollPinControl";
 
 // =============================================================================
 // Types
@@ -34,6 +35,8 @@ export interface FooterProps {
   showTask: boolean;
   /** Callback to toggle task suffix */
   onToggleShowTask: () => void;
+  /** URL to open raw logs in new tab (direct to backend) */
+  externalLogUrl?: string;
   /** Callback to download logs */
   onDownload?: () => void;
   /** Callback to refresh logs */
@@ -46,6 +49,14 @@ export interface FooterProps {
   totalCount: number;
   /** Additional CSS classes */
   className?: string;
+  /** Whether streaming is active (shows pin option when true) */
+  isStreaming?: boolean;
+  /** Whether pinned to bottom (auto-scrolls on new entries) */
+  isPinnedToBottom?: boolean;
+  /** Callback to scroll to bottom immediately */
+  onScrollToBottom?: () => void;
+  /** Callback to toggle pin state */
+  onTogglePinnedToBottom?: () => void;
 }
 
 // =============================================================================
@@ -57,12 +68,17 @@ function FooterInner({
   onToggleWrapLines,
   showTask,
   onToggleShowTask,
+  externalLogUrl,
   onDownload,
   onRefresh,
   isLoading = false,
   filteredCount,
   totalCount,
   className,
+  isStreaming = false,
+  isPinnedToBottom = false,
+  onScrollToBottom,
+  onTogglePinnedToBottom,
 }: FooterProps) {
   const isFiltered = filteredCount !== totalCount;
 
@@ -71,6 +87,24 @@ function FooterInner({
       <div className="flex items-center justify-between text-xs">
         {/* Left: Action buttons */}
         <div className="flex items-center gap-2">
+          {/* External link - opens raw logs in new tab */}
+          {externalLogUrl && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href={externalLogUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:bg-accent rounded p-1"
+                >
+                  <ExternalLink className="size-4" />
+                  <span className="sr-only">Open raw logs in new tab</span>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="top">Open raw logs in new tab</TooltipContent>
+            </Tooltip>
+          )}
+
           {/* Download button */}
           {onDownload && (
             <Tooltip>
@@ -92,7 +126,10 @@ function FooterInner({
             <TooltipTrigger asChild>
               <button
                 onClick={onToggleWrapLines}
-                className={cn("rounded p-1", wrapLines ? "bg-accent" : "hover:bg-accent")}
+                className={cn(
+                  "rounded p-1 transition-colors",
+                  wrapLines ? "bg-foreground text-background" : "hover:bg-accent",
+                )}
               >
                 <WrapText className="size-4" />
                 <span className="sr-only">{wrapLines ? "Disable" : "Enable"} line wrap</span>
@@ -106,7 +143,10 @@ function FooterInner({
             <TooltipTrigger asChild>
               <button
                 onClick={onToggleShowTask}
-                className={cn("rounded p-1", showTask ? "bg-accent" : "hover:bg-accent")}
+                className={cn(
+                  "rounded p-1 transition-colors",
+                  showTask ? "bg-foreground text-background" : "hover:bg-accent",
+                )}
               >
                 <Tag className="size-4" />
                 <span className="sr-only">{showTask ? "Hide" : "Show"} task</span>
@@ -114,6 +154,16 @@ function FooterInner({
             </TooltipTrigger>
             <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
           </Tooltip>
+
+          {/* Scroll/Pin controls */}
+          {onScrollToBottom && onTogglePinnedToBottom && (
+            <ScrollPinControl
+              isStreaming={isStreaming}
+              isPinned={isPinnedToBottom}
+              onScrollToBottom={onScrollToBottom}
+              onTogglePin={onTogglePinnedToBottom}
+            />
+          )}
         </div>
 
         {/* Right: Entry count and refresh */}
