@@ -300,7 +300,7 @@ export const handlers = [
     return HttpResponse.json({ message: `Group ${groupName} in workflow ${name} retry initiated` });
   }),
 
-  // Workflow logs (with scenario and streaming support)
+  // Workflow logs (with streaming support)
   // Matches real backend: /api/workflow/{name}/logs from workflow_service.py:711-749
   //
   // Real backend params:
@@ -308,10 +308,11 @@ export const handlers = [
   //   - task_name: str - filter to specific task
   //   - retry_id: int - filter to specific retry
   //   - query: str - regex filter pattern
+  //   - tail: bool - enable streaming mode
   //
-  // Dev-only params (for testing):
-  //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
-  //   - log_delay: Override streaming delay (ms)
+  // Scenario detection: Based on workflow ID pattern
+  //   - Embedded in mock-workflows.ts _logConfig
+  //   - getWorkflowLogConfig(workflowName) returns scenario config
   //
   // Uses RegExp for reliable matching of both relative paths and absolute URLs
   // This ensures server-side fetch (Next.js API routes) is properly intercepted
@@ -327,8 +328,6 @@ export const handlers = [
     const retryId = url.searchParams.get("retry_id");
     const queryPattern = url.searchParams.get("query");
 
-    // Dev-only params
-    const delayOverride = url.searchParams.get("log_delay");
     // tail=true means the client wants to stream continuously (useLogTail)
     // Without tail=true, return finite data even for streaming scenario
     const isTailing = url.searchParams.get("tail") === "true";
@@ -391,7 +390,6 @@ export const handlers = [
     // 1. logConfig.features.streaming is true (workflow configured for streaming)
     // 2. isTailing is true (client explicitly requested streaming via tail=true)
     if (logConfig.features.streaming && isTailing) {
-      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
       const encoder = new TextEncoder();
 
       // Create streaming generator using workflow's time range
@@ -401,7 +399,6 @@ export const handlers = [
         workflowName: name,
         taskNames,
         continueFrom: workflowStartTime, // Start streaming from workflow start (or MOCK_REFERENCE_DATE if no start)
-        streamDelayMs: streamDelay,
       });
 
       const stream = new ReadableStream<Uint8Array>({
