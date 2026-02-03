@@ -52,12 +52,10 @@ export interface TaskWidgetDataProps {
 export const TasksWidget = ({
   widget,
   onEdit,
-  onDelete,
   isEditing,
 }: {
   widget: TaskWidgetDataProps;
   onEdit: (widget: TaskWidgetDataProps) => void;
-  onDelete: (widget: TaskWidgetDataProps) => void;
   isEditing: boolean;
 }) => {
   const { getUrlParams } = useToolParamUpdater();
@@ -115,20 +113,13 @@ export const TasksWidget = ({
       <div className="popup-header body-header">
         <h2 id="tasks-widget-title">{widget.name}</h2>
         {isEditing ? (
-          <div className="flex gap-global">
-            <button
-              className="btn btn-secondary"
-              onClick={() => onEdit(widget)}
-            >
-              <OutlinedIcon name="edit" />
-            </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => onDelete(widget)}
-            >
-              <OutlinedIcon name="delete" />
-            </button>
-          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={() => onEdit(widget)}
+            title={`Edit ${widget.name}`}
+          >
+            <OutlinedIcon name="edit" />
+          </button>
         ) : (
           <Link
             href={detailsUrl}
@@ -140,7 +131,7 @@ export const TasksWidget = ({
         )}
       </div>
       <div
-        className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-40" : ""}`}
+        className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-60" : ""}`}
       >
         <TaskPieChart
           counts={currentTasks ?? {}}
@@ -148,8 +139,8 @@ export const TasksWidget = ({
           innerRadius={40}
           ariaLabel={widget.name}
         />
-        {widget.description && <p className="text-sm text-gray-500 text-center">{widget.description}</p>}
       </div>
+      {widget.description && <p className="text-sm text-center p-global text-gray-500">{widget.description}</p>}
     </section>
   );
 };

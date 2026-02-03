@@ -75,9 +75,13 @@ interface TasksFiltersProps extends TasksFiltersDataProps {
   currentUserName: string;
   onSave: (params: TasksFiltersDataProps) => void;
   onReset?: () => void;
+  onDelete?: () => void;
+  fields?: Fields[];
   saveButtonText?: string;
   saveButtonIcon?: string;
 }
+
+export type Fields = "user" | "date" | "status" | "pool" | "node" | "priority" | "workflow";
 
 export const initNodes = (nodes: string, poolNodes: string[]) => {
   const map = new Map<string, boolean>(poolNodes.map((hostname) => [hostname, false]));
@@ -123,8 +127,10 @@ export const TasksFilters = ({
   workflowId,
   onSave,
   onReset,
+  onDelete,
   saveButtonText = "Refresh",
   saveButtonIcon = "refresh",
+  fields = ["user", "date", "status", "pool", "node", "priority", "node", "workflow"],
   nodes,
   isSelectAllNodesChecked,
 }: TasksFiltersProps) => {
@@ -292,103 +298,117 @@ export const TasksFilters = ({
   return (
     <form onSubmit={handleSubmit}>
       <div className="p-global flex flex-col gap-global">
-        <UserFilter
-          userType={localUserType}
-          setUserType={setLocalUserType}
-          selectedUsers={localUsers}
-          setSelectedUsers={setLocalUsers}
-          currentUserName={currentUserName}
-        />
-        <fieldset className="flex flex-col gap-1 mb-2">
-          <legend>Priority</legend>
-          <div className="flex flex-row gap-radios">
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value=""
-                checked={priorityFilter === undefined}
-                onChange={() => setPriorityFilter(undefined)}
-              />
-              All
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value={"HIGH"}
-                checked={priorityFilter === "HIGH"}
-                onChange={() => setPriorityFilter("HIGH")}
-              />
-              HIGH
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value={"NORMAL"}
-                checked={priorityFilter === "NORMAL"}
-                onChange={() => setPriorityFilter("NORMAL")}
-              />
-              NORMAL
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value={"LOW"}
-                checked={priorityFilter === "LOW"}
-                onChange={() => setPriorityFilter("LOW")}
-              />
-              LOW
-            </label>
-          </div>
-        </fieldset>
-        <TextInput
-          id="workflowId"
-          label="Workflow ID"
-          value={localWorkflowId ?? ""}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalWorkflowId(e.target.value)}
-          className="w-full"
-        />
-        <StatusFilter
-          statusFilterType={localStatusFilterType}
-          setStatusFilterType={setLocalStatusFilterType}
-          statusMap={localStatusMap}
-          setStatusMap={setLocalStatusMap}
-        />
-        <MultiselectWithAll
-          id="pools"
-          label="All Pools"
-          placeholder="Filter by pool name..."
-          aria-label="Filter by pool name"
-          filter={localPools}
-          setFilter={setLocalPools}
-          onSelectAll={setLocalAllPools}
-          isSelectAllChecked={localAllPools}
-          showAll
-        />
+        {fields.includes("user") && (
+          <UserFilter
+            userType={localUserType}
+            setUserType={setLocalUserType}
+            selectedUsers={localUsers}
+            setSelectedUsers={setLocalUsers}
+            currentUserName={currentUserName}
+          />
+        )}
+        {fields.includes("priority") && (
+          <fieldset className="flex flex-col gap-1 mb-2">
+            <legend>Priority</legend>
+            <div className="flex flex-row gap-radios">
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value=""
+                  checked={priorityFilter === undefined}
+                  onChange={() => setPriorityFilter(undefined)}
+                />
+                All
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={"HIGH"}
+                  checked={priorityFilter === "HIGH"}
+                  onChange={() => setPriorityFilter("HIGH")}
+                />
+                HIGH
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={"NORMAL"}
+                  checked={priorityFilter === "NORMAL"}
+                  onChange={() => setPriorityFilter("NORMAL")}
+                />
+                NORMAL
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={"LOW"}
+                  checked={priorityFilter === "LOW"}
+                  onChange={() => setPriorityFilter("LOW")}
+                />
+                LOW
+              </label>
+            </div>
+          </fieldset>
+        )}
+        {fields.includes("workflow") && (
+          <TextInput
+            id="workflowId"
+            label="Workflow ID"
+            value={localWorkflowId ?? ""}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalWorkflowId(e.target.value)}
+            className="w-full"
+          />
+        )}
+        {fields.includes("status") && (
+          <StatusFilter
+            statusFilterType={localStatusFilterType}
+            setStatusFilterType={setLocalStatusFilterType}
+            statusMap={localStatusMap}
+            setStatusMap={setLocalStatusMap}
+          />
+        )}
+        {fields.includes("pool") && (
+          <MultiselectWithAll
+            id="pools"
+            label="All Pools"
+            placeholder="Filter by pool name..."
+            aria-label="Filter by pool name"
+            filter={localPools}
+            setFilter={setLocalPools}
+            onSelectAll={setLocalAllPools}
+            isSelectAllChecked={localAllPools}
+            showAll
+          />
+        )}
         {isLoadingPools && !localAllPools && <Spinner size="small" />}
-        <MultiselectWithAll
-          id="nodes"
-          label="All Nodes"
-          placeholder="Filter by node name..."
-          aria-label="Filter by node name"
-          filter={localNodes}
-          setFilter={setLocalNodes}
-          onSelectAll={setLocalAllNodes}
-          isSelectAllChecked={localAllNodes}
-        />
+        {fields.includes("node") && (
+          <MultiselectWithAll
+            id="nodes"
+            label="All Nodes"
+            placeholder="Filter by node name..."
+            aria-label="Filter by node name"
+            filter={localNodes}
+            setFilter={setLocalNodes}
+            onSelectAll={setLocalAllNodes}
+            isSelectAllChecked={localAllNodes}
+          />
+        )}
         {isLoadingNodes && !localAllNodes && <Spinner size="small" />}
-        <DateRangePicker
-          selectedRange={localDateRange}
-          setSelectedRange={setLocalDateRange}
-          fromDate={localStartedAfter}
-          setFromDate={setLocalStartedAfter}
-          toDate={localStartedBefore}
-          setToDate={setLocalStartedBefore}
-          className="flex flex-col gap-global mt-2"
-        />
+        {fields.includes("date") && (
+          <DateRangePicker
+            selectedRange={localDateRange}
+            setSelectedRange={setLocalDateRange}
+            fromDate={localStartedAfter}
+            setFromDate={setLocalStartedAfter}
+            toDate={localStartedBefore}
+            setToDate={setLocalStartedBefore}
+            className="flex flex-col gap-global mt-2"
+          />
+        )}
       </div>
       <InlineBanner status={errors.length > 0 ? "error" : "none"}>
         <div className="flex flex-col">
@@ -406,6 +426,16 @@ export const TasksFilters = ({
           >
             <OutlinedIcon name="undo" />
             Reset
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            className="btn"
+            onClick={onDelete}
+          >
+            <OutlinedIcon name="delete" />
+            Delete
           </button>
         )}
         <button

@@ -39,39 +39,41 @@ export interface WorkflowsFiltersDataProps {
   isSelectAllPoolsChecked: boolean;
   name: string;
   priority?: PriorityType;
-  hideNameFilter?: boolean;
 }
 
 interface WorkflowsFiltersProps extends WorkflowsFiltersDataProps {
   currentUserName: string;
   onSave: (props: WorkflowsFiltersDataProps) => void;
   onReset?: () => void;
+  onDelete?: () => void;
   saveButtonText?: string;
   saveButtonIcon?: string;
+  fields?: Fields[];
 }
 
-export const validateFilters =
-  ({
-    isSelectAllPoolsChecked,
-    selectedPools,
-    dateRange,
-    submittedAfter,
-    submittedBefore,
-    statusFilterType,
-    statuses,
-  }: WorkflowsFiltersDataProps): string[] => {
-    const errors: string[] = [];
-    if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
-      errors.push("Please select at least one pool");
-    }
-    if (dateRange === customDateRange && (submittedAfter === undefined || submittedBefore === undefined)) {
-      errors.push("Please select a date range");
-    }
-    if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
-      errors.push("Please select at least one status");
-    }
-    return errors;
-  };
+export const validateFilters = ({
+  isSelectAllPoolsChecked,
+  selectedPools,
+  dateRange,
+  submittedAfter,
+  submittedBefore,
+  statusFilterType,
+  statuses,
+}: WorkflowsFiltersDataProps): string[] => {
+  const errors: string[] = [];
+  if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
+    errors.push("Please select at least one pool");
+  }
+  if (dateRange === customDateRange && (submittedAfter === undefined || submittedBefore === undefined)) {
+    errors.push("Please select a date range");
+  }
+  if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
+    errors.push("Please select at least one status");
+  }
+  return errors;
+};
+
+export type Fields = "name" | "date" | "status" | "pool" | "priority" | "user";
 
 export const WorkflowsFilters = ({
   userType,
@@ -88,9 +90,10 @@ export const WorkflowsFilters = ({
   currentUserName,
   onSave,
   onReset,
+  onDelete,
   saveButtonText = "Refresh",
   saveButtonIcon = "refresh",
-  hideNameFilter = false,
+  fields = ["name", "date", "status", "pool", "priority"],
 }: WorkflowsFiltersProps) => {
   const [localName, setLocalName] = useState<string>(name);
   const [localDateRange, setLocalDateRange] = useState(dateRange);
@@ -179,7 +182,7 @@ export const WorkflowsFilters = ({
       name: localName,
       statusFilterType: localStatusFilterType,
       statuses: statuses.join(","),
-      priority: priorityFilter
+      priority: priorityFilter,
     };
     const formErrors = validateFilters(data);
 
@@ -209,14 +212,16 @@ export const WorkflowsFilters = ({
   return (
     <form onSubmit={handleSubmit}>
       <div className="body-component p-global flex flex-col gap-global">
-        <UserFilter
-          userType={localUserType}
-          setUserType={setLocalUserType}
-          selectedUsers={localUsers}
-          setSelectedUsers={setLocalUsers}
-          currentUserName={currentUserName}
-        />
-        {!hideNameFilter && (
+        {fields.includes("user") && (
+          <UserFilter
+            userType={localUserType}
+            setUserType={setLocalUserType}
+            selectedUsers={localUsers}
+            setSelectedUsers={setLocalUsers}
+            currentUserName={currentUserName}
+          />
+        )}
+        {fields.includes("name") && (
           <TextInput
             id="search-text"
             label="Workflow Name"
@@ -229,78 +234,87 @@ export const WorkflowsFilters = ({
             }}
             slotLeft={<OutlinedIcon name="search" />}
             autoComplete="off"
-          />)}
-        <fieldset className="flex flex-col gap-1 mb-2">
-          <legend>Priority</legend>
-          <div className="flex flex-row flex-wrap gap-radios">
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value=""
-                checked={priorityFilter === undefined}
-                onChange={() => setPriorityFilter(undefined)}
-              />
-              All
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value={"HIGH"}
-                checked={priorityFilter === "HIGH"}
-                onChange={() => setPriorityFilter("HIGH")}
-              />
-              HIGH
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value={"NORMAL"}
-                checked={priorityFilter === "NORMAL"}
-                onChange={() => setPriorityFilter("NORMAL")}
-              />
-              NORMAL
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name="priority"
-                value={"LOW"}
-                checked={priorityFilter === "LOW"}
-                onChange={() => setPriorityFilter("LOW")}
-              />
-              LOW
-            </label>
-          </div>
-        </fieldset>
-        <StatusFilter
-          statusMap={localStatusMap}
-          setStatusMap={setLocalStatusMap}
-          statusFilterType={localStatusFilterType}
-          setStatusFilterType={setLocalStatusFilterType}
-        />
-        <MultiselectWithAll
-          id="pools"
-          label="All Pools"
-          placeholder="Filter by pool name..."
-          aria-label="Filter by pool name"
-          filter={localPools}
-          setFilter={setLocalPools}
-          onSelectAll={setAllPools}
-          isSelectAllChecked={allPools}
-          showAll
-        />
-        <DateRangePicker
-          selectedRange={localDateRange}
-          setSelectedRange={setLocalDateRange}
-          fromDate={localSubmittedAfter}
-          setFromDate={setLocalSubmittedAfter}
-          toDate={localSubmittedBefore}
-          setToDate={setLocalSubmittedBefore}
-          className="flex flex-col gap-global mt-2"
-        />
+          />
+        )}
+        {fields.includes("priority") && (
+          <fieldset className="flex flex-col gap-1 mb-2">
+            <legend>Priority</legend>
+            <div className="flex flex-row flex-wrap gap-radios">
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value=""
+                  checked={priorityFilter === undefined}
+                  onChange={() => setPriorityFilter(undefined)}
+                />
+                All
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={"HIGH"}
+                  checked={priorityFilter === "HIGH"}
+                  onChange={() => setPriorityFilter("HIGH")}
+                />
+                HIGH
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={"NORMAL"}
+                  checked={priorityFilter === "NORMAL"}
+                  onChange={() => setPriorityFilter("NORMAL")}
+                />
+                NORMAL
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={"LOW"}
+                  checked={priorityFilter === "LOW"}
+                  onChange={() => setPriorityFilter("LOW")}
+                />
+                LOW
+              </label>
+            </div>
+          </fieldset>
+        )}
+        {fields.includes("status") && (
+          <StatusFilter
+            statusMap={localStatusMap}
+            setStatusMap={setLocalStatusMap}
+            statusFilterType={localStatusFilterType}
+            setStatusFilterType={setLocalStatusFilterType}
+          />
+        )}
+        {fields.includes("pool") && (
+          <MultiselectWithAll
+            id="pools"
+            label="All Pools"
+            placeholder="Filter by pool name..."
+            aria-label="Filter by pool name"
+            filter={localPools}
+            setFilter={setLocalPools}
+            onSelectAll={setAllPools}
+            isSelectAllChecked={allPools}
+            showAll
+          />
+        )}
+        {fields.includes("date") && (
+          <DateRangePicker
+            selectedRange={localDateRange}
+            setSelectedRange={setLocalDateRange}
+            fromDate={localSubmittedAfter}
+            setFromDate={setLocalSubmittedAfter}
+            toDate={localSubmittedBefore}
+            setToDate={setLocalSubmittedBefore}
+            className="flex flex-col gap-global mt-2"
+          />
+        )}
         {errors.length > 0 && (
           <InlineBanner status="error">
             <div className="flex flex-col gap-global">
@@ -320,6 +334,16 @@ export const WorkflowsFilters = ({
           >
             <OutlinedIcon name="undo" />
             Reset
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            className="btn"
+            onClick={onDelete}
+          >
+            <OutlinedIcon name="delete" />
+            Delete
           </button>
         )}
         <button

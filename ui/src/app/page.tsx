@@ -274,8 +274,8 @@ export default function Home() {
                 setWidgetName(widget.name);
                 setWidgetDescription(widget.description ?? "");
                 setEditingTaskWidget(undefined);
+                setEditingPool(false);
               }}
-              onDelete={setEditingWorkflowWidget}
               isEditing={isEditing}
             />
           ))}
@@ -288,10 +288,7 @@ export default function Home() {
                 setWidgetName(widget.name);
                 setWidgetDescription(widget.description ?? "");
                 setEditingWorkflowWidget(undefined);
-              }}
-              onDelete={(widget) => {
-                setEditingTaskWidget(undefined);
-                setEditingWorkflowWidget(undefined);
+                setEditingPool(false);
               }}
               isEditing={isEditing}
             />
@@ -313,6 +310,7 @@ export default function Home() {
                         setEditingTaskWidget(undefined);
                         setEditingPool(true);
                       }}
+                      title="Edit Pools"
                     >
                       <OutlinedIcon name="edit" />
                     </button>
@@ -390,7 +388,6 @@ export default function Home() {
             <TextInput
               id="widget-description"
               label="Description"
-              helperText="Optional"
               className="w-full"
               containerClassName="w-full p-global"
               value={widgetDescription}
@@ -439,7 +436,7 @@ export default function Home() {
           </div>
         ) : editingWorkflowWidget ? (
           <WorkflowsFilters
-            hideNameFilter={true}
+            fields={["user", "date", "status", "pool", "priority"]}
             name={""}
             userType={editingWorkflowWidget.filters.userType}
             selectedUsers={editingWorkflowWidget.filters.selectedUsers}
@@ -452,11 +449,19 @@ export default function Home() {
             currentUserName={username}
             priority={editingWorkflowWidget.filters.priority}
             onSave={onSaveWorkflowWidget}
+            onDelete={() => {
+              updateWidgets((prevWidgets) => ({
+                ...prevWidgets,
+                workflows: prevWidgets.workflows.filter((widget) => widget.id !== editingWorkflowWidget?.id),
+              }));
+              setEditingWorkflowWidget(undefined);
+            }}
             saveButtonText="Save"
             saveButtonIcon="save"
           />
         ) : editingTaskWidget ? (
           <TasksFilters
+            fields={["user", "date", "status", "pool", "priority", "workflow"]}
             userType={editingTaskWidget.filters.userType}
             selectedUsers={editingTaskWidget.filters.selectedUsers}
             dateRange={editingTaskWidget.filters.dateRange}
@@ -471,6 +476,13 @@ export default function Home() {
             nodes=""
             workflowId=""
             onSave={onSaveTaskWidget}
+            onDelete={() => {
+              updateWidgets((prevWidgets) => ({
+                ...prevWidgets,
+                tasks: prevWidgets.tasks.filter((widget) => widget.id !== editingTaskWidget?.id),
+              }));
+              setEditingTaskWidget(undefined);
+            }}
             saveButtonText="Save"
             saveButtonIcon="save"
           />

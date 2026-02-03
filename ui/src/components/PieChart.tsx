@@ -106,6 +106,7 @@ export const PieChart = ({
 }: PieChartProps) => {
   const normalizedSlices = slices.filter((slice) => slice.value > 0);
   const isEmpty = normalizedSlices.length === 0;
+  const isSingleSlice = normalizedSlices.length === 1;
   const displaySlices = isEmpty ? [{ label: "Empty", value: 1 }] : normalizedSlices;
   const total = displaySlices.reduce((sum, slice) => sum + slice.value, 0);
   const radius = size / 2;
@@ -149,14 +150,16 @@ export const PieChart = ({
         const endAngle = currentAngle + sliceAngle;
         currentAngle = endAngle;
 
-        const path = isEmpty
-          ? describeFullCircle(center, center, radius, innerRadius)
-          : describeArc(center, center, radius, startAngle, endAngle, innerRadius);
+        const path =
+          isEmpty || isSingleSlice
+            ? describeFullCircle(center, center, radius, innerRadius)
+            : describeArc(center, center, radius, startAngle, endAngle, innerRadius);
         const hoverOuterRadius = radius + hoverOffset;
         const hoverInnerRadius = Math.max(0, innerRadius - hoverOffset);
-        const hoverPath = isEmpty
-          ? describeFullCircle(center, center, hoverOuterRadius, hoverInnerRadius)
-          : describeArc(center, center, hoverOuterRadius, startAngle, endAngle, hoverInnerRadius);
+        const hoverPath =
+          isEmpty || isSingleSlice
+            ? describeFullCircle(center, center, hoverOuterRadius, hoverInnerRadius)
+            : describeArc(center, center, hoverOuterRadius, startAngle, endAngle, hoverInnerRadius);
         const displayValue = isEmpty ? 0 : slice.value;
         const percent = isEmpty ? 100 : (slice.value / total) * 100;
         const ariaSliceLabel = defaultAriaLabel({ ...slice, value: displayValue }, percent);

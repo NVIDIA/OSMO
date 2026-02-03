@@ -110,7 +110,7 @@ export const ResourcesGraph = ({
   return (
     <>
       <div
-        className={`p-global box-border flex w-full h-full items-center justify-center ${isLoading || isEditing ? "opacity-40" : ""}`}
+        className={`p-global box-border flex w-full h-full items-center justify-center ${isLoading || isEditing ? "opacity-60" : ""}`}
       >
         <BarChart
           data={data}
