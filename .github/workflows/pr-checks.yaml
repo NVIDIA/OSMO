@@ -38,12 +38,12 @@ jobs:
       ui: ${{ steps.filter.outputs.ui }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0  # Fetch all history for accurate diffing
 
       - name: Check which paths changed
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           # Use empty token to force git-based detection
@@ -100,7 +100,7 @@ jobs:
           df -h
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
@@ -141,13 +141,15 @@ jobs:
     environment:
       name: internal-ci
     container:
-      image: python:3.10-bullseye
+      # python:3.10.18-bullseye pinned to digest for security
+      image: python:3.10.18-bullseye@sha256:ff2d497e208802e4a7e5f7f3cea019aa96a02469f160bc23f7466a6522b26abd
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
     services:
       docker:
-        image: docker:dind
+        # docker:29.2.1-dind pinned to digest for security
+        image: docker:29.2.1-dind@sha256:2658fda9e8779b94ea1581f4d25214dac9ed144b407902842e5328cce8f861f5
         env:
           DOCKER_TLS_CERTDIR: ""
           DOCKER_DRIVER: overlay2
@@ -161,7 +163,7 @@ jobs:
           apt-get install -y git-lfs
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
@@ -190,13 +192,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
       - name: Setup Python
         if: github.event.action != 'closed'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.10.18'
 
@@ -217,7 +219,7 @@ jobs:
           fi
 
       - name: Deploy preview
-        uses: rossjrw/pr-preview-action@v1
+        uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
         with:
           source-dir: ./docs/public/
           preview-branch: gh-pages/documentation
@@ -236,7 +238,7 @@ jobs:
 
       - name: Restore lychee cache
         if: github.event.action != 'closed'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .lycheecache
           key: cache-lychee-pr-${{ github.event.pull_request.number }}
@@ -245,13 +247,13 @@ jobs:
       - name: Link Checker
         id: link-checker
         if: github.event.action != 'closed'
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2.7.0
         with:
           args: --config docs/lychee.toml --no-progress '**/*.html' docs/public
           output: docs/link_check_error_logs/lychee-report.md
 
       - name: Save lychee cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         if: github.event.action != 'closed' && steps.link-checker.outcome == 'success'
         with:
           path: .lycheecache
@@ -270,7 +272,7 @@ jobs:
 
       - name: Upload build artifacts
         if: always() && github.event.action != 'closed'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: documentation-build
           path: |
@@ -291,7 +293,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
