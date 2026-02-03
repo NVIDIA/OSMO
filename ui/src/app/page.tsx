@@ -25,6 +25,7 @@ import { allDateRange } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
 import { IconButton } from "~/components/IconButton";
+import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
 import PageHeader from "~/components/PageHeader";
 import { StatusFilterType } from "~/components/StatusFilter";
@@ -65,6 +66,7 @@ export default function Home() {
     allPools: true,
     pools: [],
   });
+
   const updateWidgets = (updater: WidgetDataProps | ((prev: WidgetDataProps) => WidgetDataProps)) => {
     setWidgets((prevWidgets) => {
       const nextWidgets = typeof updater === "function" ? updater(prevWidgets) : updater;
@@ -74,6 +76,8 @@ export default function Home() {
       return nextWidgets;
     });
   };
+
+  console.log(widgets);
 
   const { data: profile } = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
     refetchOnWindowFocus: false,
@@ -243,7 +247,7 @@ export default function Home() {
             },
           },
         ],
-        allPools: true,
+        allPools: false,
         pools: [profile?.profile.pool ?? ""],
       });
     }
@@ -253,9 +257,9 @@ export default function Home() {
     <>
       <PageHeader>
         <IconButton
-          icon="edit"
-          text="Edit"
-          className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`}
+          icon={isEditing ? "done" : "edit"}
+          text={isEditing ? "Done" : "Edit"}
+          className={"btn btn-secondary"}
           onClick={() => setIsEditing(!isEditing)}
         />
       </PageHeader>
@@ -336,6 +340,7 @@ export default function Home() {
                 <ResourcesGraph
                   {...totals}
                   isLoading={isResourcesFetching}
+                  isEditing={isEditing}
                   isShowingUsed={false}
                   width={200}
                   height={150}
@@ -362,46 +367,75 @@ export default function Home() {
           setEditingTaskWidget(undefined);
           setEditingPool(false);
         }}
-        headerChildren={<h2 id="edit-header">{editingWorkflowWidget ? "Edit Workflow" : "Edit Task"}</h2>}
+        headerChildren={
+          <h2 id="edit-header">{editingPool ? "Edit Pools" : editingWorkflowWidget ? "Edit Workflow" : "Edit Task"}</h2>
+        }
         aria-labelledby="edit-header"
         size="md"
       >
-        <TextInput
-          id="widget-name"
-          label="Name"
-          helperText="Name of the widget (unique)"
-          className="w-full"
-          required
-          containerClassName="w-full p-global"
-          value={widgetName}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetName(event.target.value);
-          }}
-        />
-        <TextInput
-          id="widget-description"
-          label="Description"
-          helperText="Optional"
-          className="w-full"
-          containerClassName="w-full p-global"
-          value={widgetDescription}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetDescription(event.target.value);
-          }}
-        />
-        {editingPool ? (
-          <div className="p-global">
-            <MultiselectWithAll
-              id="pools"
-              label="All Pools"
-              placeholder="Filter by pool name..."
-              aria-label="Filter by pool name"
-              filter={localPools}
-              setFilter={setLocalPools}
-              onSelectAll={setAllPools}
-              isSelectAllChecked={allPools}
-              showAll
+        {(editingWorkflowWidget ?? editingTaskWidget) && (
+          <>
+            <TextInput
+              id="widget-name"
+              label="Name"
+              helperText="Name of the widget (unique)"
+              className="w-full"
+              required
+              containerClassName="w-full p-global"
+              value={widgetName}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setWidgetName(event.target.value);
+              }}
             />
+            <TextInput
+              id="widget-description"
+              label="Description"
+              helperText="Optional"
+              className="w-full"
+              containerClassName="w-full p-global"
+              value={widgetDescription}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setWidgetDescription(event.target.value);
+              }}
+            />
+          </>
+        )}
+        {editingPool ? (
+          <div className="flex flex-col gap-global">
+            <InlineBanner status="info">Select the pools to include in the widget</InlineBanner>
+            <div className="p-global">
+              <MultiselectWithAll
+                id="pools"
+                label="All Pools"
+                placeholder="Filter by pool name..."
+                aria-label="Filter by pool name"
+                filter={localPools}
+                setFilter={setLocalPools}
+                onSelectAll={setAllPools}
+                isSelectAllChecked={allPools}
+                showAll
+              />
+            </div>
+            <div className="flex flex-row gap-global justify-between body-footer p-global sm:sticky sm:bottom-0">
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const pools = Array.from(localPools.entries())
+                    .filter(([_, enabled]) => enabled)
+                    .map(([pool]) => pool);
+
+                  updateWidgets((prevWidgets) => ({
+                    ...prevWidgets,
+                    pools,
+                    allPools,
+                  }));
+                  setEditingPool(false);
+                }}
+              >
+                <OutlinedIcon name="save" />
+                Save
+              </button>
+            </div>
           </div>
         ) : editingWorkflowWidget ? (
           <WorkflowsFilters

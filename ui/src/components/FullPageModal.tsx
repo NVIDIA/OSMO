@@ -41,7 +41,7 @@ const FullPageModal = ({ open, onClose, children, headerChildren, size = "lg", .
       >
         <div className="p-global w-full h-full flex items-center justify-center">
           <div
-            className={`flex flex-col body-component shadow-xl shadow-black/50 ${size === "none" ? "" : size === "sm" ? "w-1/4 h-1/2" : size === "md" ? "w-1/2 h-3/4" : "w-full h-full"} max-h-screen max-w-screen`}
+            className={`flex flex-col body-component shadow-xl shadow-black/50 ${size === "md" ? "md:w-1/2 md:h-auto md:max-h-3/4" : size === "sm" ? "md:w-1/4 md:h-auto md:max-h-1/2" : ""} w-full h-full max-h-screen max-w-screen`}
             aria-modal="true"
             role="dialog"
             {...props}
