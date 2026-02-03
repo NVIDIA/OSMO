@@ -57,6 +57,7 @@
 import { useMemo, useState, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
+import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
 import { LogViewer } from "./LogViewer";
 import type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "./LogViewer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";
@@ -159,7 +160,7 @@ export function LogViewerContainer({
  */
 function LogViewerContainerInner({
   workflowId,
-  workflowMetadata,
+  workflowMetadata: workflowMetadataFromSSR,
   devParams,
   liveDevParams: liveDevParamsProp,
   scope,
@@ -168,6 +169,42 @@ function LogViewerContainerInner({
   enableLiveMode,
   showBorder,
 }: LogViewerContainerProps) {
+  // Fetch workflow metadata on client if not provided via SSR
+  // This handles cases where SSR fetch failed (e.g., mock workflows)
+  // We'll need to use the generated hook directly to access the enabled option
+  const { data: workflowFromClient, isLoading: isLoadingWorkflow } = useGetWorkflowApiWorkflowNameGet(
+    workflowId,
+    { verbose: true },
+    {
+      query: {
+        enabled: !workflowMetadataFromSSR, // Only fetch if SSR didn't provide it
+        select: useCallback((rawData: unknown) => {
+          if (!rawData) return null;
+          try {
+            const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+            return parsed as WorkflowQueryResponse;
+          } catch {
+            return null;
+          }
+        }, []),
+      },
+    },
+  );
+
+  // Use SSR metadata if available, otherwise build from client fetch
+  const workflowMetadata = useMemo(() => {
+    if (workflowMetadataFromSSR) return workflowMetadataFromSSR;
+    if (!workflowFromClient) return null;
+
+    return {
+      name: workflowFromClient.name,
+      status: workflowFromClient.status,
+      submitTime: workflowFromClient.submit_time ? new Date(workflowFromClient.submit_time) : undefined,
+      startTime: workflowFromClient.start_time ? new Date(workflowFromClient.start_time) : undefined,
+      endTime: workflowFromClient.end_time ? new Date(workflowFromClient.end_time) : undefined,
+    };
+  }, [workflowMetadataFromSSR, workflowFromClient]);
+
   // Enable synchronized ticking when workflow is running (no endTime)
   useTickController(workflowMetadata?.endTime === undefined);
 
@@ -455,8 +492,9 @@ function LogViewerContainerInner({
   }
 
   // Show skeleton during initial load and when refetching without data
+  // Also show skeleton when fetching workflow metadata on client side
   // User preference: show skeleton instead of stale data for correctness
-  const showSkeleton = isLoading && combinedEntries.length === 0;
+  const showSkeleton = (isLoading && combinedEntries.length === 0) || isLoadingWorkflow;
 
   if (showSkeleton) {
     return (
