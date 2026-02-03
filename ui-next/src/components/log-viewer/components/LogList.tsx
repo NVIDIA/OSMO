@@ -139,6 +139,9 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
 
+  // Track programmatic scrolls to avoid unpinning during auto-scroll
+  const isAutoScrollingRef = useRef(false);
+
   // Get store values at parent level - avoid per-row subscriptions
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
   const showTask = useLogViewerStore((s) => s.showTask);
@@ -186,7 +189,13 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
     () => ({
       scrollToBottom: () => {
         if (flatItems.length === 0) return;
+        // Mark as programmatic scroll to avoid unpinning
+        isAutoScrollingRef.current = true;
         virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
+        // Clear flag after scroll events
+        setTimeout(() => {
+          isAutoScrollingRef.current = false;
+        }, 150);
       },
     }),
     [virtualizer, flatItems.length],
@@ -198,14 +207,28 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   useLayoutEffect(() => {
     if (!isPinnedToBottom || flatItems.length === 0) return;
 
+    // Mark that we're programmatically scrolling to avoid unpinning
+    isAutoScrollingRef.current = true;
+
     // Use the virtualizer's built-in scrollToIndex for consistent positioning.
     // align: 'end' ensures the last item is fully visible at the bottom.
     virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
+
+    // Clear the flag after scroll events have fired (typically < 100ms)
+    const timer = setTimeout(() => {
+      isAutoScrollingRef.current = false;
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, [isPinnedToBottom, flatItems.length, virtualizer]);
 
   // Detect scroll away from bottom - unpins when user scrolls up
   const handleScroll = useCallback(() => {
     if (!parentRef.current || !onScrollAwayFromBottom) return;
+
+    // Ignore scroll events triggered by programmatic auto-scroll
+    // This prevents the auto-scroll itself from unpinning the auto-scroll
+    if (isAutoScrollingRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < SCROLL_BOTTOM_THRESHOLD;
