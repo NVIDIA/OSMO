@@ -30,7 +30,7 @@ import PageHeader from "~/components/PageHeader";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
 import { UserFilterType } from "~/components/UserFilter";
-import { type ProfileResponse } from "~/models";
+import { PoolsListResponseSchema, type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
 import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
@@ -76,6 +76,10 @@ export default function Home() {
   };
 
   const { data: profile } = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const pools = api.resources.getPools.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
 
@@ -143,6 +147,21 @@ export default function Home() {
     }));
     setEditingTaskWidget(undefined);
   };
+
+  useEffect(() => {
+    const parsedData = PoolsListResponseSchema.safeParse(pools.data);
+    const availablePools = parsedData.success ? parsedData.data.pools : [];
+
+    const filters = new Map<string, boolean>(Object.keys(availablePools).map((pool) => [pool, false]));
+
+    if (widgets.pools.length) {
+      widgets.pools.forEach((pool) => {
+        filters.set(pool, true);
+      });
+    }
+
+    setLocalPools(filters);
+  }, [pools.data, widgets.pools]);
 
   useEffect(() => {
     const storedWidgets = localStorage.getItem("widgets");
@@ -241,7 +260,7 @@ export default function Home() {
         />
       </PageHeader>
       <div className="h-full w-full flex justify-center items-baseline">
-        <div className="md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-6 gap-global p-global">
+        <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-6 gap-global p-global">
           {widgets.workflows.map((widget) => (
             <WorkflowsWidget
               key={widget.name}
@@ -294,13 +313,24 @@ export default function Home() {
                       <OutlinedIcon name="edit" />
                     </button>
                   ) : (
-                    <Link
-                      href={`/resources?pools=${pool}`}
-                      className="btn btn-secondary"
-                      title={`View Resources for ${pool}`}
-                    >
-                      <OutlinedIcon name="list_alt" />
-                    </Link>
+                    <div className="flex flex-row gap-global">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          void refetchResources();
+                        }}
+                        title="Refresh"
+                      >
+                        <OutlinedIcon name="refresh" />
+                      </button>
+                      <Link
+                        href={`/resources?pools=${pool}`}
+                        className="btn btn-secondary"
+                        title={`View Resources for ${pool}`}
+                      >
+                        <OutlinedIcon name="list_alt" />
+                      </Link>
+                    </div>
                   )}
                 </div>
                 <ResourcesGraph
