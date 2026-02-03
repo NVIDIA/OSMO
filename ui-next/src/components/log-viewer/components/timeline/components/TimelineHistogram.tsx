@@ -240,7 +240,10 @@ function StackedBar({ bucket, maxTotal, onClick }: StackedBarProps) {
           </div>
         </div>
       </TooltipTrigger>
-      <TooltipContent side="top">
+      <TooltipContent
+        side="top"
+        className="pointer-events-none"
+      >
         <BucketTooltipContent bucket={bucket} />
       </TooltipContent>
     </Tooltip>
