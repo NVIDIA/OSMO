@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
@@ -90,7 +89,7 @@ func (bl *BaseListener) InitConnection(ctx context.Context, serviceURL string) e
 	// Connect to the gRPC server
 	bl.conn, err = grpc.NewClient(
 		serviceAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(GetTransportCredentials(serviceURL)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to connect to service: %w", err)

@@ -67,6 +67,7 @@ go_library(
         "@io_k8s_client_go//rest",
         "@io_k8s_client_go//tools/clientcmd",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
     ],
 )
