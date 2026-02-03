@@ -193,16 +193,10 @@ func (rl *ResourceListener) sendResourceMessage(ctx context.Context, msg *pb.Lis
 
 // watchNodes starts node informer and processes node events
 // This function focuses only on node resource messages
-func (rl *ResourceListener) watchNodes(ctx context.Context, cancel context.CancelCauseFunc, nodeChan chan<- *pb.ListenerMessage) {
-	rl.watchNodesWithCallback(ctx, cancel, nodeChan, nil)
-}
-
-// watchNodesWithCallback is like watchNodes but calls onSynced after cache sync.
-func (rl *ResourceListener) watchNodesWithCallback(
+func (rl *ResourceListener) watchNodes(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
 	nodeChan chan<- *pb.ListenerMessage,
-	onSynced func(cache.SharedIndexInformer),
 ) {
 	// Capture done channel once for performance
 	done := ctx.Done()
@@ -304,11 +298,6 @@ func (rl *ResourceListener) watchNodesWithCallback(
 	// Send initial NodeInventory after all nodes are rebuilt
 	log.Println("Sending initial NODE_INVENTORY after cache sync")
 	rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
-
-	// Notify caller that sync is complete and provide informer reference
-	if onSynced != nil {
-		onSynced(nodeInformer)
-	}
 
 	// Wait for context cancellation
 	<-done

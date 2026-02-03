@@ -35,10 +35,10 @@ type ListenerArgs struct {
 	ResyncPeriodSec       int
 	StateCacheTTLMin      int
 	MaxUnackedMessages    int
-	NodeConditionPrefix      string
-	ProgressDir              string
-	ProgressFrequencySec     int
-	UsageFlushIntervalSec    int // Interval for flushing resource usage updates (ResourceListener)
+	NodeConditionPrefix   string
+	ProgressDir           string
+	ProgressFrequencySec  int
+	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -86,19 +86,19 @@ func ListenerParse() ListenerArgs {
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL:                 *serviceURL,
-		Backend:                    *backend,
-		Namespace:                  *namespace,
-		PodUpdateChanSize:          *podUpdateChanSize,
-		NodeUpdateChanSize:         *nodeUpdateChanSize,
-		UsageChanSize:              *usageChanSize,
-		ResyncPeriodSec:            *resyncPeriodSec,
-		StateCacheTTLMin:           *stateCacheTTLMin,
-		MaxUnackedMessages:         *maxUnackedMessages,
-		NodeConditionPrefix:        *nodeConditionPrefix,
-		ProgressDir:                *progressDir,
-		ProgressFrequencySec:       *progressFrequencySec,
-		UsageFlushIntervalSec:      *usageFlushIntervalSec,
+		ServiceURL:            *serviceURL,
+		Backend:               *backend,
+		Namespace:             *namespace,
+		PodUpdateChanSize:     *podUpdateChanSize,
+		NodeUpdateChanSize:    *nodeUpdateChanSize,
+		UsageChanSize:         *usageChanSize,
+		ResyncPeriodSec:       *resyncPeriodSec,
+		StateCacheTTLMin:      *stateCacheTTLMin,
+		MaxUnackedMessages:    *maxUnackedMessages,
+		NodeConditionPrefix:   *nodeConditionPrefix,
+		ProgressDir:           *progressDir,
+		ProgressFrequencySec:  *progressFrequencySec,
+		UsageFlushIntervalSec: *usageFlushIntervalSec,
 	}
 }
 
