@@ -360,17 +360,19 @@ export default function Home() {
           }}
         />
         {editingPool ? (
-          <MultiselectWithAll
-            id="pools"
-            label="All Pools"
-            placeholder="Filter by pool name..."
-            aria-label="Filter by pool name"
-            filter={localPools}
-            setFilter={setLocalPools}
-            onSelectAll={setAllPools}
-            isSelectAllChecked={allPools}
-            showAll
-          />
+          <div className="p-global">
+            <MultiselectWithAll
+              id="pools"
+              label="All Pools"
+              placeholder="Filter by pool name..."
+              aria-label="Filter by pool name"
+              filter={localPools}
+              setFilter={setLocalPools}
+              onSelectAll={setAllPools}
+              isSelectAllChecked={allPools}
+              showAll
+            />
+          </div>
         ) : editingWorkflowWidget ? (
           <WorkflowsFilters
             hideNameFilter={true}
