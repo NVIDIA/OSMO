@@ -64,7 +64,7 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 // sendMessages starts informers and processes resource events
 func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
 	// Create channels for different message types
-	// nodeChan: node resource messages (from watchNodes and periodicNodeInventory)
+	// nodeChan: node resource messages (from watchNodes)
 	// usageChan: pod resource usage messages (from watchPods)
 	nodeChan := make(chan *pb.ListenerMessage, rl.args.NodeUpdateChanSize)
 	usageChan := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
@@ -72,34 +72,18 @@ func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.Can
 	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
 
-	// Channel to signal that initial node sync is complete
-	initialSyncDone := make(chan struct{})
-
-	// Channel to signal periodicNodeInventory to stop before nodeChan is closed
-	inventoryDone := make(chan struct{})
-
-	// Shared node informer reference for periodic inventory generation
-	var nodeInformer cache.SharedIndexInformer
-	var nodeInformerMu sync.Mutex
-
 	// Start node watcher goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer close(nodeChan)       // Close channel LAST
-		defer close(inventoryDone)  // Signal inventory goroutine to stop FIRST
+		defer close(nodeChan)
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Panic in watchNodes goroutine: %v", r)
 				cancel(fmt.Errorf("panic in node watcher: %v", r))
 			}
 		}()
-		rl.watchNodesWithCallback(ctx, cancel, nodeChan, func(informer cache.SharedIndexInformer) {
-			nodeInformerMu.Lock()
-			nodeInformer = informer
-			nodeInformerMu.Unlock()
-			close(initialSyncDone) // Signal sync complete
-		})
+		rl.watchNodes(ctx, cancel, nodeChan)
 	}()
 
 	// Start pod watcher goroutine (handles node usage aggregation)
@@ -114,19 +98,6 @@ func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.Can
 			}
 		}()
 		rl.watchPods(ctx, cancel, usageChan)
-	}()
-
-	// Start periodic NODE_INVENTORY sender goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in periodicNodeInventory goroutine: %v", r)
-				cancel(fmt.Errorf("panic in periodic inventory: %v", r))
-			}
-		}()
-		rl.periodicNodeInventory(ctx, initialSyncDone, inventoryDone, &nodeInformerMu, &nodeInformer, nodeChan)
 	}()
 
 	// Start message sender goroutine (handles both node and usage channels)
@@ -310,6 +281,10 @@ func (rl *ResourceListener) watchNodesWithCallback(
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
 		rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
+
+		// Send NodeInventory after rebuilding from watch gap
+		log.Println("Sending NODE_INVENTORY after watch gap recovery")
+		rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 	})
 
 	// Start the informer
@@ -325,6 +300,10 @@ func (rl *ResourceListener) watchNodesWithCallback(
 
 	// Initial rebuild from store after sync
 	rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
+
+	// Send initial NodeInventory after all nodes are rebuilt
+	log.Println("Sending initial NODE_INVENTORY after cache sync")
+	rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 
 	// Notify caller that sync is complete and provide informer reference
 	if onSynced != nil {
@@ -603,10 +582,8 @@ func (rl *ResourceListener) buildNodeUsageMessage(hostname string) *pb.ListenerM
 }
 
 // sendNodeInventory builds and sends a NODE_INVENTORY message with all current node hostnames.
-// The inventoryDone channel signals when to stop sending (before nodeChan is closed).
 func (rl *ResourceListener) sendNodeInventory(
 	ctx context.Context,
-	inventoryDone <-chan struct{},
 	nodeInformer cache.SharedIndexInformer,
 	nodeChan chan<- *pb.ListenerMessage,
 ) {
@@ -644,75 +621,8 @@ func (rl *ResourceListener) sendNodeInventory(
 	select {
 	case nodeChan <- msg:
 		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
-	case <-inventoryDone:
-		log.Println("sendNodeInventory: inventoryDone signaled, stopping before send")
 	case <-ctx.Done():
 		log.Println("sendNodeInventory: context cancelled while sending")
-	}
-}
-
-// periodicNodeInventory sends NODE_INVENTORY messages periodically after initial sync.
-// It waits for the node informer to complete its initial sync before starting,
-// then sends a NODE_INVENTORY immediately and periodically thereafter.
-// The inventoryDone channel signals when to stop sending (before nodeChan is closed).
-func (rl *ResourceListener) periodicNodeInventory(
-	ctx context.Context,
-	initialSyncDone <-chan struct{},
-	inventoryDone <-chan struct{},
-	informerMu *sync.Mutex,
-	informerPtr *cache.SharedIndexInformer,
-	nodeChan chan<- *pb.ListenerMessage,
-) {
-	// Wait for initial sync or context cancellation
-	select {
-	case <-ctx.Done():
-		log.Println("periodicNodeInventory: context cancelled before initial sync")
 		return
-	case <-inventoryDone:
-		log.Println("periodicNodeInventory: inventory goroutine stopped before initial sync")
-		return
-	case <-initialSyncDone:
-		log.Println("periodicNodeInventory: initial sync complete, starting periodic NODE_INVENTORY")
-	}
-
-	// Get informer reference (safe after sync is done)
-	informerMu.Lock()
-	nodeInformer := *informerPtr
-	informerMu.Unlock()
-
-	if nodeInformer == nil {
-		log.Println("periodicNodeInventory: node informer is nil, exiting")
-		return
-	}
-
-	// Send initial NODE_INVENTORY immediately after sync
-	rl.sendNodeInventory(ctx, inventoryDone, nodeInformer, nodeChan)
-
-	// Skip periodic refresh if disabled
-	if rl.args.RefreshResourceIntervalSec <= 0 {
-		log.Println("periodicNodeInventory: periodic refresh disabled, only initial NODE_INVENTORY sent")
-		select {
-		case <-ctx.Done():
-		case <-inventoryDone:
-		}
-		return
-	}
-
-	// Start periodic ticker
-	interval := time.Duration(rl.args.RefreshResourceIntervalSec) * time.Second
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("periodicNodeInventory: stopping due to context cancellation")
-			return
-		case <-inventoryDone:
-			log.Println("periodicNodeInventory: stopping due to inventoryDone signal")
-			return
-		case <-ticker.C:
-			rl.sendNodeInventory(ctx, inventoryDone, nodeInformer, nodeChan)
-		}
 	}
 }

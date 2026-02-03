@@ -16,10 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
-import hashlib
 import http
 import os
-from typing import Any, List, Tuple
+from typing import Any, List
 import urllib
 
 import fastapi

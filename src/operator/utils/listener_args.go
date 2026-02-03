@@ -39,7 +39,6 @@ type ListenerArgs struct {
 	ProgressDir              string
 	ProgressFrequencySec     int
 	UsageFlushIntervalSec    int // Interval for flushing resource usage updates (ResourceListener)
-	RefreshResourceIntervalSec int // Interval for sending NODE_HASH messages (ResourceListener). Set to 0 to disable periodic refresh.
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -83,9 +82,6 @@ func ListenerParse() ListenerArgs {
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
 		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
-	refreshResourceIntervalSec := flag.Int("refreshResourceIntervalSec",
-		getEnvInt("REFRESH_RESOURCE_INTERVAL_SEC", 300),
-		"Interval for sending NODE_HASH messages (ResourceListener). Set to 0 to disable periodic refresh.")
 
 	flag.Parse()
 
@@ -103,7 +99,6 @@ func ListenerParse() ListenerArgs {
 		ProgressDir:                *progressDir,
 		ProgressFrequencySec:       *progressFrequencySec,
 		UsageFlushIntervalSec:      *usageFlushIntervalSec,
-		RefreshResourceIntervalSec: *refreshResourceIntervalSec,
 	}
 }
 
