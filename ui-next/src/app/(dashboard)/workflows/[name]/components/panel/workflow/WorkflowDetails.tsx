@@ -68,6 +68,7 @@ import { parseTime } from "../shared/Timeline";
 import { useTick } from "@/hooks";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { WorkflowTasksTab } from "./WorkflowTasksTab";
+import { WorkflowSpecViewer } from "./spec";
 
 // =============================================================================
 // Styling Constants (Single Source of Truth)
@@ -438,15 +439,9 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         <TabPanel
           tab="spec"
           activeTab={activeTab}
-          centered
-          className="p-4"
+          scrollable={false}
         >
-          <EmptyTabPrompt
-            icon={FileCode}
-            title="Workflow Spec"
-            description="View workflow YAML specification and Jinja template"
-            emptyText="Spec not available yet"
-          />
+          <WorkflowSpecViewer workflowId={workflow.name} />
         </TabPanel>
       </div>
     </div>
