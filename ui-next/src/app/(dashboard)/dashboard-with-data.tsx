@@ -40,7 +40,16 @@ export async function DashboardWithData() {
   // This await causes the component to suspend
   // Parallel prefetch - all APIs called simultaneously for fastest loading
   // Note: Version is NOT prefetched - it's static metadata fetched client-side only
-  await Promise.all([prefetchPoolsForDashboard(queryClient), prefetchWorkflowsList(queryClient)]);
+  try {
+    await Promise.all([prefetchPoolsForDashboard(queryClient), prefetchWorkflowsList(queryClient)]);
+  } catch (error) {
+    // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
+    // Page will still render - client will fetch on hydration if cache is empty
+    console.debug(
+      "[Server Prefetch] Could not prefetch dashboard data:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+  }
 
   // Wrap in HydrationBoundary so client gets the cached data
   return (
