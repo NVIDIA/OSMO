@@ -296,7 +296,7 @@ def _get_user_from_db(postgres: connectors.PostgresConnector,
                       user_id: str) -> Optional[dict]:
     """Fetch a user record from the database."""
     fetch_cmd = '''
-        SELECT id, created_at, created_by, updated_at, last_seen_at
+        SELECT id, created_at, created_by, last_seen_at
         FROM users WHERE id = %s;
     '''
     rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
@@ -406,8 +406,7 @@ def list_users(
 
         # Fetch query with role filter
         fetch_cmd = f'''
-            SELECT DISTINCT u.id, u.created_at, u.created_by,
-                   u.updated_at, u.last_seen_at
+            SELECT DISTINCT u.id, u.created_at, u.created_by, u.last_seen_at
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
             WHERE ur.role_name IN ({role_placeholders}){where_clause}
@@ -422,8 +421,7 @@ def list_users(
 
         count_cmd = f'SELECT COUNT(*) as total FROM users u{where_clause};'
         fetch_cmd = f'''
-            SELECT u.id, u.created_at, u.created_by,
-                   u.updated_at, u.last_seen_at
+            SELECT u.id, u.created_at, u.created_by, u.last_seen_at
             FROM users u{where_clause}
             ORDER BY u.created_at DESC
             LIMIT %s OFFSET %s;
@@ -444,7 +442,6 @@ def list_users(
         id=row['id'],
         created_at=row['created_at'],
         created_by=row['created_by'],
-        updated_at=row['updated_at'],
         last_seen_at=row['last_seen_at']
     ) for row in rows]
 
@@ -487,13 +484,13 @@ def create_user(
 
     # Insert user
     insert_cmd = '''
-        INSERT INTO users (id, created_at, created_by, updated_at)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id, created_at, created_by, updated_at;
+        INSERT INTO users (id, created_at, created_by)
+        VALUES (%s, %s, %s)
+        RETURNING id, created_at, created_by;
     '''
     result = postgres.execute_fetch_command(
         insert_cmd,
-        (request.id, now, created_by, now),
+        (request.id, now, created_by),
         True
     )
 
@@ -516,7 +513,6 @@ def create_user(
         id=row['id'],
         created_at=row['created_at'],
         created_by=row['created_by'],
-        updated_at=row['updated_at'],
         last_seen_at=None
     )
 
@@ -544,7 +540,6 @@ def get_user(user_id: str) -> objects.UserWithRoles:
         id=user_row['id'],
         created_at=user_row['created_at'],
         created_by=user_row['created_by'],
-        updated_at=user_row['updated_at'],
         last_seen_at=user_row['last_seen_at'],
         roles=roles
     )
@@ -555,43 +550,28 @@ def update_user(user_id: str, request: objects.UpdateUserRequest) -> objects.Use
     """
     Update a user (full replace of mutable fields).
 
+    Currently there are no mutable user fields. This endpoint is reserved for future use.
+
     Args:
         user_id: The user ID to update
         request: UpdateUserRequest with new values
 
     Returns:
-        Updated User object
+        Current User object
     """
+    # pylint: disable=unused-argument
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Check if user exists
-    _validate_user_exists(postgres, user_id)
+    # Check if user exists and return current user
+    user_row = _get_user_from_db(postgres, user_id)
+    if not user_row:
+        raise osmo_errors.OSMOUserError(f'User {user_id} not found')
 
-    # No mutable fields - just update timestamp and return user
-    now = datetime.datetime.now(datetime.timezone.utc)
-
-    update_cmd = '''
-        UPDATE users
-        SET updated_at = %s
-        WHERE id = %s
-        RETURNING id, created_at, created_by, updated_at, last_seen_at;
-    '''
-    result = postgres.execute_fetch_command(
-        update_cmd,
-        (now, user_id),
-        True
-    )
-
-    if not result:
-        raise osmo_errors.OSMODatabaseError('Failed to update user')
-
-    row = result[0]
     return objects.User(
-        id=row['id'],
-        created_at=row['created_at'],
-        created_by=row['created_by'],
-        updated_at=row['updated_at'],
-        last_seen_at=row['last_seen_at']
+        id=user_row['id'],
+        created_at=user_row['created_at'],
+        created_by=user_row['created_by'],
+        last_seen_at=user_row['last_seen_at']
     )
 
 

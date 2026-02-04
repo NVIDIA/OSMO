@@ -118,21 +118,14 @@ CREATE TABLE users (
     -- Primary identifier (IDP username or service account name)
     id TEXT PRIMARY KEY,
 
-    -- External IDP identifier (for SCIM sync)
-    external_id TEXT,
-
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_by TEXT,  -- Username of who created this record
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    last_seen_at TIMESTAMP WITH TIME ZONE  -- Last activity timestamp
+    last_seen_at TIMESTAMP WITH TIME ZONE  -- Last activity timestamp (auto-updated on profile access)
 );
-
--- Index for external ID lookups (SCIM sync)
-CREATE INDEX idx_users_external_id ON users(external_id);
 ```
 
-> **Note**: The `display_name` and `email` fields were removed from the implementation as user identity information is managed by the IDP.
+> **Note**: The `display_name`, `email`, `external_id`, and `updated_at` fields were removed from the implementation. User identity information is managed by the IDP. The `last_seen_at` field is automatically updated when a user's profile is accessed via the `upsert_user` function.
 
 ### User Roles Table
 
@@ -307,8 +300,7 @@ CREATE TABLE ueks (
        │                        users                         │
        ├──────────────────────────────────────────────────────┤
        │ id (PK)                                              │
-       │ external_id                                          │
-       │ created_at, created_by, updated_at, last_seen_at     │
+       │ created_at, created_by, last_seen_at                 │
        └──────────────────────────────────────────────────────┘
               ▲                                        ▲
               │ 1:1                                    │ 1:1
@@ -339,7 +331,6 @@ Service accounts (for CI/CD pipelines, automation, etc.) follow the same pattern
     POST /api/auth/users
     {
       "id": "ci-pipeline@myorg.local",
-      "external_id": "ci-pipeline-external",
       "roles": ["osmo-user", "osmo-ml-team"]  // Optional: assign roles during creation
     }
 
@@ -399,9 +390,10 @@ GET /api/auth/users
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `filter` | string | SCIM-style filter (e.g., `id eq "user@example.com"`, `external_id eq "abc"`) |
 | `start_index` | integer | Pagination start (1-based, default: 1) |
 | `count` | integer | Results per page (default: 100, max: 1000) |
+| `id_prefix` | string | Filter users whose ID starts with this prefix |
+| `roles` | list | Filter users who have ANY of these roles (use multiple params: `?roles=admin&roles=user`) |
 
 **Response:**
 ```json
@@ -412,10 +404,8 @@ GET /api/auth/users
   "users": [
     {
       "id": "user@example.com",
-      "external_id": "abc123",
       "created_at": "2026-01-15T10:30:00Z",
       "created_by": "admin@example.com",
-      "updated_at": "2026-02-01T08:00:00Z",
       "last_seen_at": "2026-02-01T08:00:00Z"
     }
   ]
@@ -432,7 +422,6 @@ POST /api/auth/users
 ```json
 {
   "id": "newuser@example.com",
-  "external_id": "idp-user-123",
   "roles": ["osmo-user"]
 }
 ```
@@ -443,10 +432,8 @@ The `roles` field is optional and provides a convenient way to assign initial ro
 ```json
 {
   "id": "newuser@example.com",
-  "external_id": "idp-user-123",
   "created_at": "2026-02-03T14:30:00Z",
   "created_by": "admin@example.com",
-  "updated_at": "2026-02-03T14:30:00Z",
   "last_seen_at": null
 }
 ```
@@ -461,10 +448,8 @@ GET /api/auth/users/{id}
 ```json
 {
   "id": "user@example.com",
-  "external_id": "abc123",
   "created_at": "2026-01-15T10:30:00Z",
   "created_by": "system",
-  "updated_at": "2026-02-01T08:00:00Z",
   "last_seen_at": "2026-02-01T08:00:00Z",
   "roles": [
     {
@@ -482,14 +467,14 @@ GET /api/auth/users/{id}
 PUT /api/auth/users/{id}
 ```
 
-Replaces all mutable fields. Fields not provided are set to null/default.
+Returns the current user. Currently there are no mutable user fields.
 
 **Request Body:**
 ```json
-{
-  "external_id": "new-idp-id"
-}
+{}
 ```
+
+> **Note**: The user model currently has no mutable fields. This endpoint is reserved for future use.
 
 ### Update User (Partial)
 
@@ -497,14 +482,14 @@ Replaces all mutable fields. Fields not provided are set to null/default.
 PATCH /api/auth/users/{id}
 ```
 
-Updates only the provided fields.
+Returns the current user. Currently there are no mutable user fields.
 
 **Request Body:**
 ```json
-{
-  "external_id": "updated-external-id"
-}
+{}
 ```
+
+> **Note**: The user model currently has no mutable fields. This endpoint is reserved for future use.
 
 ### Delete User
 
@@ -658,14 +643,22 @@ These APIs manage Personal Access Tokens. All endpoints are under the `/api/auth
 | `/api/auth/access_token/{token_name}` | DELETE | Delete a PAT |
 | `/api/auth/access_token` | GET | List all PATs for the authenticated user |
 | `/api/auth/users/{user_id}/access_token/{token_name}` | POST | **Admin API**: Create a PAT for any user |
+| `/api/auth/users/{user_id}/access_token` | GET | **Admin API**: List all PATs for any user |
+| `/api/auth/users/{user_id}/access_token/{token_name}` | DELETE | **Admin API**: Delete any user's PAT |
 
 ### Create Access Token (Self)
 
 ```
-POST /api/auth/access_token/{token_name}?expires_at=YYYY-MM-DD&description=...
+POST /api/auth/access_token/{token_name}?expires_at=YYYY-MM-DD&description=...&roles=role1&roles=role2
 ```
 
-Creates a PAT for the authenticated user. The token automatically inherits all of the user's current roles.
+Creates a PAT for the authenticated user.
+
+**Role Assignment Behavior:**
+- If `roles` is not specified: The token inherits **all** of the user's current roles from `user_roles`
+- If `roles` is specified: The token is assigned only the specified roles (must be a subset of the user's roles)
+- At least one role must be assigned to the token
+- Role validation is atomic — if any specified role is not assigned to the user, the entire operation fails
 
 **Query Parameters:**
 
@@ -673,8 +666,13 @@ Creates a PAT for the authenticated user. The token automatically inherits all o
 |-----------|------|----------|-------------|
 | `expires_at` | string | Yes | Expiration date in YYYY-MM-DD format |
 | `description` | string | No | Optional description for the token |
+| `roles` | list | No | Roles to assign (multiple params: `?roles=admin&roles=user`). If omitted, inherits all user roles. |
 
 **Response:** The generated access token string (store securely, shown only once)
+
+**Error Cases:**
+- `400 Bad Request` — If any specified role is not assigned to the user
+- `400 Bad Request` — If the resulting role list is empty
 
 ### Create Access Token (Admin)
 
@@ -697,10 +695,11 @@ Admin API to create a PAT for any user. The token inherits the target user's rol
 |-----------|------|----------|-------------|
 | `expires_at` | string | Yes | Expiration date in YYYY-MM-DD format |
 | `description` | string | No | Optional description for the token |
+| `roles` | list | No | Roles to assign (multiple params: `?roles=admin&roles=user`). If omitted, inherits all target user's roles. |
 
 **Response:** The generated access token string
 
-### Delete Access Token
+### Delete Access Token (Self)
 
 ```
 DELETE /api/auth/access_token/{token_name}
@@ -710,7 +709,24 @@ Deletes a PAT owned by the authenticated user.
 
 **Response:** `204 No Content`
 
-### List Access Tokens
+### Delete Access Token (Admin)
+
+```
+DELETE /api/auth/users/{user_id}/access_token/{token_name}
+```
+
+Admin API to delete any user's PAT.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_id` | string | The user ID who owns the token |
+| `token_name` | string | Name of the access token to delete |
+
+**Response:** `204 No Content`
+
+### List Access Tokens (Self)
 
 ```
 GET /api/auth/access_token
@@ -726,6 +742,32 @@ Lists all PATs owned by the authenticated user.
     "token_name": "my-token",
     "expires_at": "2027-01-01T00:00:00Z",
     "description": "CI Pipeline Token"
+  }
+]
+```
+
+### List Access Tokens (Admin)
+
+```
+GET /api/auth/users/{user_id}/access_token
+```
+
+Admin API to list all PATs for any user.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_id` | string | The user ID to list tokens for |
+
+**Response:**
+```json
+[
+  {
+    "user_name": "target-user@example.com",
+    "token_name": "user-token",
+    "expires_at": "2027-01-01T00:00:00Z",
+    "description": "User's token"
   }
 ]
 ```
@@ -829,36 +871,25 @@ When SCIM is implemented, it will be available under `/scim/v2/`:
   "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
   "id": "user@example.com",
   "userName": "user@example.com",
-  "displayName": "John Doe",
-  "emails": [
-    {
-      "value": "user@example.com",
-      "primary": true
-    }
-  ],
   "active": true,
-  "externalId": "idp-user-123",
   "meta": {
     "resourceType": "User",
-    "created": "2026-01-15T10:30:00Z",
-    "lastModified": "2026-02-01T08:00:00Z"
+    "created": "2026-01-15T10:30:00Z"
   }
 }
 ```
 
-> **Note**: The `active` field is always `true` for existing users. OSMO does not support deactivating users; to revoke access, delete the user.
+> **Note**: The `active` field is always `true` for existing users. OSMO does not support deactivating users; to revoke access, delete the user. Fields like `displayName`, `emails`, `externalId`, and `lastModified` are not stored in OSMO as user identity information is managed by the IDP. The `last_seen_at` field tracks the last time a user accessed the system but is not exposed in SCIM.
 
 ### Design Decisions for SCIM Compatibility
 
 1. **User ID as username** — SCIM uses `id` as the primary identifier. By using the IDP username as our `users.id`, we maintain consistency.
 
-2. **External ID** — The `external_id` field stores the IDP's internal user identifier, enabling bi-directional sync.
+2. **Idempotent operations** — SCIM requires idempotent PUT operations, which our API supports.
 
-3. **Idempotent operations** — SCIM requires idempotent PUT operations, which our API supports.
+3. **Filtering** — The `id_prefix` and `roles` query parameters enable common filtering operations.
 
-4. **Filtering** — The `filter` query parameter supports SCIM filter syntax for common operations.
-
-5. **Active field** — SCIM's `active` boolean will always be `true` for existing users. To deactivate a user, delete them from OSMO.
+4. **Active field** — SCIM's `active` boolean will always be `true` for existing users. To deactivate a user, delete them from OSMO.
 
 ---
 
@@ -888,13 +919,10 @@ BEGIN;
 -- Step 1: Create the users table
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    external_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_by TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     last_seen_at TIMESTAMP WITH TIME ZONE
 );
-CREATE INDEX IF NOT EXISTS idx_users_external_id ON users (external_id);
 
 -- Step 2: Populate users from existing profile and access_token data
 INSERT INTO users (id, created_at, created_by)
@@ -1060,4 +1088,28 @@ This design has been implemented:
 1. **Update authorization middleware** for new role resolution with sync_mode
 2. **Add tests** for all new APIs
 3. **Document** user-facing APIs and migration guide
-4. **Implement just-in-time user provisioning** on first IDP login
+
+## Implementation Notes
+
+### Just-in-Time User Provisioning
+
+Users are automatically provisioned on first profile access via the `upsert_user` function in `postgres.py`. This function:
+
+- Creates a new user record if the user doesn't exist
+- Updates the `last_seen_at` timestamp if the user already exists
+
+This is called from `UserProfile.insert_into_db`, ensuring users are created when their profile is first accessed (typically on first login via IDP).
+
+### CLI Commands
+
+The `osmo user` CLI provides the following commands:
+
+- `osmo user list` — List all users with optional filtering
+- `osmo user create <user_id>` — Create a new user with optional roles
+- `osmo user get <user_id>` — Get user details including roles
+- `osmo user update <user_id>` — Update user (add/remove roles)
+- `osmo user delete <user_id>` — Delete a user
+
+The `osmo token` CLI has been updated:
+- Removed service token functionality
+- Added `--user` flag for admin operations on other users' tokens

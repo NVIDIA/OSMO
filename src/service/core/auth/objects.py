@@ -197,7 +197,6 @@ class User(pydantic.BaseModel):
     id: str
     created_at: Optional[datetime.datetime] = None
     created_by: Optional[str] = None
-    updated_at: Optional[datetime.datetime] = None
     last_seen_at: Optional[datetime.datetime] = None
 
 

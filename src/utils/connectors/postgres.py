@@ -1090,7 +1090,6 @@ class PostgresConnector:
                 id TEXT PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 created_by TEXT,
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 last_seen_at TIMESTAMP WITH TIME ZONE
             );
         '''
@@ -1597,8 +1596,8 @@ def upsert_user(database: PostgresConnector, user_name: str):
     If the user already exists, update the last_seen_at field.
     """
     upsert_cmd = '''
-        INSERT INTO users (id, created_at, created_by, updated_at, last_seen_at)
-        VALUES (%s, NOW(), %s, NOW(), NOW())
+        INSERT INTO users (id, created_at, created_by, last_seen_at)
+        VALUES (%s, NOW(), %s, NOW())
         ON CONFLICT (id) DO UPDATE SET
             last_seen_at = NOW();
     '''
