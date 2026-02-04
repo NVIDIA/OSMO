@@ -115,7 +115,7 @@ spec:
         - --operator-progress-frequency-sec
         - {{ .Values.services.operator.progressFrequencySec | quote }}
         {{- range $arg := .Values.services.operator.extraArgs }}
-        - {{$arg}}
+        - {{$arg | quote}}
         {{- end }}
         env:
         {{- include "osmo.extra-env" .Values.services.operator | nindent 8 }}
