@@ -624,10 +624,18 @@ function CredentialItem({
     >
       <div className={cn("overflow-hidden rounded-md border transition-colors", isDirty && "border-nvidia")}>
         {/* Header */}
-        <button
-          type="button"
-          className="hover:bg-accent/50 flex w-full items-center justify-between px-4 py-3 text-left transition-colors"
+        <div
+          className="hover:bg-accent/50 flex w-full cursor-pointer items-center justify-between px-4 py-3 transition-colors"
           onClick={onToggleExpand}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onToggleExpand();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-expanded={isExpanded}
         >
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium">{credential.name}</span>
@@ -679,7 +687,7 @@ function CredentialItem({
               <ChevronDown className="text-muted-foreground size-4" />
             )}
           </div>
-        </button>
+        </div>
 
         {/* Expanded content - only show fields if editing */}
         <CollapsibleContent>
