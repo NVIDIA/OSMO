@@ -48,8 +48,6 @@ export interface SpecToolbarProps {
   content: string | null;
   /** Workflow name for download filename */
   workflowName: string;
-  /** Whether Template view is available */
-  templateAvailable?: boolean;
   /** Whether content is loading */
   isLoading?: boolean;
 }
@@ -63,7 +61,6 @@ export const SpecToolbar = memo(function SpecToolbar({
   onViewChange,
   content,
   workflowName,
-  templateAvailable = true,
   isLoading = false,
 }: SpecToolbarProps) {
   const { copied, copy } = useCopy();
@@ -138,7 +135,7 @@ export const SpecToolbar = memo(function SpecToolbar({
           className="h-7 gap-1.5 px-2.5"
           role="radio"
           aria-checked={activeView === "jinja"}
-          disabled={isLoading || !templateAvailable}
+          disabled={isLoading}
         >
           <Braces className="size-3.5" />
           Template
