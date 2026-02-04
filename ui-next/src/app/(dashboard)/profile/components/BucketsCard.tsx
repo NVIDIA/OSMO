@@ -17,7 +17,8 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/shadcn/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/shadcn/card";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,14 +31,14 @@ interface BucketEdits {
   bucket?: string;
 }
 
-interface DefaultBucketCardProps {
+interface BucketsCardProps {
   profile: UserProfile;
   updateProfile: (data: ProfileUpdate) => Promise<void>;
   isUpdating: boolean;
   announcer: AnnouncerService;
 }
 
-export function DefaultBucketCard({ profile, updateProfile, isUpdating, announcer }: DefaultBucketCardProps) {
+export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: BucketsCardProps) {
   // Store only the user's edits (delta from profile)
   const [bucketEdits, setBucketEdits] = useState<BucketEdits>({});
 
@@ -89,17 +90,21 @@ export function DefaultBucketCard({ profile, updateProfile, isUpdating, announce
   }, [profile.bucket.accessible]);
 
   return (
-    <Card className={cn(bucketDirty && "border-nvidia")}>
-      <CardHeader className="border-b">
+    <Card className={cn("flex h-[600px] flex-col", bucketDirty && "border-nvidia")}>
+      <CardHeader className="shrink-0 border-b">
         <CardTitle className="flex items-center gap-2 text-lg">
           <FolderOpen className="size-5" />
-          Default Data Bucket
+          Data Buckets
+          <Badge
+            variant="secondary"
+            className="bg-nvidia-bg text-nvidia-dark ml-1 text-xs"
+          >
+            {profile.bucket.accessible?.length ?? 0} accessible
+          </Badge>
         </CardTitle>
+        <CardDescription>Select the default S3/GCS/Azure bucket for dataset storage.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground mb-4 text-sm">
-          Select the default S3/GCS/Azure bucket for dataset storage.
-        </p>
+      <CardContent className="flex-1 overflow-hidden">
         <SelectableList
           items={bucketItems}
           selectedValue={stagedBucket}
@@ -108,7 +113,7 @@ export function DefaultBucketCard({ profile, updateProfile, isUpdating, announce
           emptyMessage="No accessible buckets"
         />
       </CardContent>
-      <CardFooter className="border-t">
+      <CardFooter className="shrink-0 border-t">
         <div className="flex w-full items-center justify-end gap-3">
           <Button
             variant="secondary"

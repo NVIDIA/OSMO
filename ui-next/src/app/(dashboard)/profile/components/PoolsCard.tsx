@@ -90,8 +90,8 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
   }, [profile.pool.accessible]);
 
   return (
-    <Card className={cn(poolDirty && "border-nvidia")}>
-      <CardHeader className="border-b">
+    <Card className={cn("flex h-[600px] flex-col", poolDirty && "border-nvidia")}>
+      <CardHeader className="shrink-0 border-b">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Server className="size-5" />
           Pools
@@ -99,12 +99,12 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
             variant="secondary"
             className="bg-nvidia-bg text-nvidia-dark ml-1 text-xs"
           >
-            {profile.pool.accessible.length} accessible
+            {profile.pool.accessible?.length ?? 0} accessible
           </Badge>
         </CardTitle>
         <CardDescription>Select your default compute pool for workflow execution.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 overflow-hidden">
         <SelectableList
           items={poolItems}
           selectedValue={stagedPool}
@@ -113,7 +113,7 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
           emptyMessage="No accessible pools"
         />
       </CardContent>
-      <CardFooter className="border-t">
+      <CardFooter className="shrink-0 border-t">
         <div className="flex w-full items-center justify-end gap-3">
           <Button
             variant="secondary"

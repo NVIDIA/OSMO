@@ -27,7 +27,7 @@ import { useServices } from "@/contexts";
 
 import { UserInfoCard } from "./UserInfoCard";
 import { NotificationsCard } from "./NotificationsCard";
-import { DefaultBucketCard } from "./DefaultBucketCard";
+import { BucketsCard } from "./BucketsCard";
 import { PoolsCard } from "./PoolsCard";
 import { CredentialsCard } from "./CredentialsCard";
 
@@ -105,7 +105,7 @@ export function ProfileLayout() {
 
       {/* Second Row: Default Bucket & Pools */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <DefaultBucketCard
+        <BucketsCard
           profile={profile}
           updateProfile={updateProfile}
           isUpdating={isUpdatingProfile}
