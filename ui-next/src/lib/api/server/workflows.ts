@@ -127,10 +127,10 @@ const fetchWorkflowByNameRaw = cache(async (name: string, verbose = true): Promi
   try {
     return await getWorkflowApiWorkflowNameGet(name, { verbose });
   } catch (error) {
-    // Log server-side prefetch errors for debugging production issues
-    // Note: In development, this helps diagnose auth/network issues
+    // Log server-side prefetch errors for debugging (debug level since errors are now handled gracefully)
+    // Note: In development, this helps diagnose auth/network issues during HMR
     // In production, these logs appear in server logs (not browser console)
-    console.error(
+    console.debug(
       `[Server Prefetch] Failed to fetch workflow "${name}":`,
       error instanceof Error ? error.message : error,
     );
