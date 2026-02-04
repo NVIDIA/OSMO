@@ -117,6 +117,7 @@ export class PlainTextAdapter implements LogAdapter {
       method: "GET",
       headers: { Accept: "text/plain" },
       signal,
+      credentials: "include", // Forward cookies (Envoy session) for authentication
     });
 
     if (!response.ok) {
