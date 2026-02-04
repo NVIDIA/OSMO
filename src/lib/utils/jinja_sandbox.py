@@ -172,6 +172,20 @@ class SandboxedWorker:
         # Otherwise, return the result
         return result.result
 
+    def shutdown(self):
+        """Terminate the worker process and close connections"""
+        try:
+            self._parent_conn.close()
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+        if self._process and self._process.is_alive():
+            self._process.terminate()
+            self._process.join(timeout=1)
+            if self._process.is_alive():
+                self._process.kill()
+                self._process.join(timeout=1)
+
 
 class SandboxedWorkerPool:
     """A pool of sandboxed workers that can run the given function in a sandboxed subprocess"""
@@ -192,6 +206,15 @@ class SandboxedWorkerPool:
             return worker.run(*args, **kwargs)
         finally:
             self._workers.put(worker)
+
+    def shutdown(self):
+        """Shutdown all workers in the pool"""
+        while not self._workers.empty():
+            try:
+                worker = self._workers.get_nowait()
+                worker.shutdown()
+            except queue.Empty:
+                break
 
 
 class SandboxedJinjaRenderer:
@@ -233,6 +256,12 @@ class SandboxedJinjaRenderer:
 
     def substitute(self, template: str, data: Dict) -> str:
         return self._pool.run(template, data)
+
+    def shutdown(self):
+        """Shutdown the worker pool and reset singleton"""
+        if self._pool:
+            self._pool.shutdown()
+        self.__class__._instance = None
 
 
 def sandboxed_jinja_substitute(
