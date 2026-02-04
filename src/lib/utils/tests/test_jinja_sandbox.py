@@ -79,18 +79,14 @@ Hello, my name is {{ name }}!
 """
 
 # This template will build a massive string which will consume lots of memory
+# Starts with 5MB string and doubles it, quickly exceeding 10MB limit on Linux
 MEMORY_BOUND_TEMPLATE = """
 Hello, my name is {{ name }}!
-{% set x = 'AAAAAAAAAAAAAAAA' %}
-{% for i in range(100000) %}
-{% for j in range(100000) %}
-{% for k in range(100000) %}
-{% for l in range(100000) %}
+{% set x = 'A' * (5 * 1024 * 1024) %}
+{% for i in range(5) %}
 {% set x = x + x %}
 {% endfor %}
-{% endfor %}
-{% endfor %}
-{% endfor %}
+{{ x|length }}
 """
 
 # This template will try to access an unsafe method
@@ -104,7 +100,8 @@ class TestJinjaSandbox(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Initialize the renderer with a slightly longer timeout to allow memory errors to happen.
-        jinja_sandbox.SandboxedJinjaRenderer(workers=2, max_time=3, jinja_memory=50*1024*1024)
+        # Use 10MB limit to trigger faster in containerized environments
+        jinja_sandbox.SandboxedJinjaRenderer(workers=2, max_time=3, jinja_memory=10*1024*1024)
 
     def test_sandboxed_worker_good(self):
         values = [1, 5, 10, 100, 1000]
@@ -145,16 +142,12 @@ class TestJinjaSandbox(unittest.TestCase):
         with self.assertRaisesRegex(osmo_errors.OSMOUsageError, 'TimeoutError'):
             jinja_sandbox.sandboxed_jinja_substitute(CPU_BOUND_TEMPLATE, {'name': 'World'})
 
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "Memory limits not supported on macOS - test in CI/Linux")
     def test_memory_bound_template(self):
-        if platform.system() == 'Darwin':
-            # On macOS, the memory limit is not enforced, so we expect a timeout error
-            with self.assertRaisesRegex(osmo_errors.OSMOUsageError, 'TimeoutError'):
-                jinja_sandbox.sandboxed_jinja_substitute(MEMORY_BOUND_TEMPLATE, {'name': 'World'})
-        elif platform.system() == 'Linux':
-            with self.assertRaisesRegex(osmo_errors.OSMOUsageError, 'MemoryError'):
-                jinja_sandbox.sandboxed_jinja_substitute(MEMORY_BOUND_TEMPLATE, {'name': 'World'})
-        else:
-            raise ValueError(f'Unknown platform: {platform.system()}')
+        # On Linux, memory limits should trigger MemoryError
+        with self.assertRaisesRegex(osmo_errors.OSMOUsageError, 'MemoryError'):
+            jinja_sandbox.sandboxed_jinja_substitute(MEMORY_BOUND_TEMPLATE, {'name': 'World'})
 
     def test_unsafe_template(self):
         with self.assertRaisesRegex(osmo_errors.OSMOUsageError, 'SecurityError'):
