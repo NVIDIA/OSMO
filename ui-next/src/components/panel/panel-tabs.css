@@ -1,0 +1,120 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* =============================================================================
+   PANEL TABS
+   Styling for panel tab navigation with hover states and active indicators
+   ============================================================================= */
+
+@layer components {
+  /* Panel tabs background color - used by active tab curves */
+  .panel-tabs {
+    --panel-tabs-bg: white;
+  }
+  .dark .panel-tabs {
+    --panel-tabs-bg: theme(colors.zinc.900);
+  }
+
+  /* ==========================================================================
+     Hover pill for inactive tabs
+     ========================================================================== */
+  .panel-tabs .panel-tab[data-active="false"] {
+    isolation: isolate;
+  }
+
+  .panel-tabs .panel-tab[data-active="false"]::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(100% - 12px);
+    height: calc(100% - 8px);
+    border-radius: 6px;
+    background: transparent;
+    transition: background-color 150ms ease-out;
+    z-index: -1;
+  }
+
+  .panel-tabs .panel-tab[data-active="false"]:hover::before {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .dark .panel-tabs .panel-tab[data-active="false"]:hover::before {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* ==========================================================================
+     Curve pseudo-elements on active tab
+     Creates rounded corners that blend into the content area
+     ========================================================================== */
+  .panel-tabs .panel-tab[data-active="true"]::before,
+  .panel-tabs .panel-tab[data-active="true"]::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    width: 6px;
+    height: 6px;
+    pointer-events: none;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: opacity;
+    opacity: 0;
+  }
+
+  .panel-tabs .panel-tab[data-active="true"]::before {
+    left: -6px;
+    background: radial-gradient(
+      circle at 0% 0%,
+      transparent 6px,
+      var(--panel-tabs-bg) 6px
+    );
+  }
+
+  .panel-tabs .panel-tab[data-active="true"]::after {
+    right: -6px;
+    background: radial-gradient(
+      circle at 100% 0%,
+      transparent 6px,
+      var(--panel-tabs-bg) 6px
+    );
+  }
+
+  /* Show curves only when not first/last tab (to avoid clipping issues) */
+  .panel-tabs .panel-tab[data-active="true"]:not([data-first="true"])::before,
+  .panel-tabs .panel-tab[data-active="true"]:not([data-last="true"])::after {
+    opacity: 1;
+  }
+
+  /* ==========================================================================
+     View Transitions
+     Smooth tab switching animations
+     ========================================================================== */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 100ms;
+    animation-timing-function: ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none;
+    }
+  }
+}
