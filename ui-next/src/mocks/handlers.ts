@@ -1332,6 +1332,46 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   }),
 
   // ==========================================================================
+  // Credentials
+  // ==========================================================================
+
+  // Get credentials list
+  http.get("*/api/credentials", async () => {
+    await delay(MOCK_DELAY);
+
+    const credentials = profileGenerator.generateCredentials(5);
+    return HttpResponse.json(credentials);
+  }),
+
+  // Create or update credential (POST /api/credentials/{name})
+  http.post("*/api/credentials/:name", async ({ params, request }) => {
+    await delay(MOCK_DELAY);
+
+    const name = params.name as string;
+    const body = (await request.json()) as Record<string, unknown>;
+
+    // Return the credential with the provided data
+    const credential = {
+      id: faker.string.uuid(),
+      name,
+      type: body.type || "generic",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...body,
+    };
+
+    return HttpResponse.json(credential);
+  }),
+
+  // Delete credential
+  http.delete("*/api/credentials/:name", async ({ params }) => {
+    await delay(MOCK_DELAY);
+
+    const name = params.name as string;
+    return HttpResponse.json({ message: `Credential ${name} deleted` });
+  }),
+
+  // ==========================================================================
   // Auth
   // ==========================================================================
   //
