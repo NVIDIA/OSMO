@@ -87,11 +87,14 @@ aws_run_helm() {
 }
 
 # Run helm with values file
+# Usage: aws_run_helm_with_values <base_values_file> "<helm_command>" [extra_values_args]
+# The base_values_file is applied first, then extra_values_args (user overrides) are applied last
 aws_run_helm_with_values() {
     local values_file="$1"
     local helm_cmd="$2"
+    local extra_values="${3:-}"
     # The helm command comes as a single string, so use eval to expand it
-    eval helm $helm_cmd -f "$values_file"
+    eval helm $helm_cmd -f "$values_file"$extra_values
 }
 
 ###############################################################################

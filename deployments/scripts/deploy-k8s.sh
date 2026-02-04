@@ -32,6 +32,12 @@
 #
 # Usage:
 #   ./deploy-k8s.sh --provider azure|aws --outputs-file <path> [options]
+#
+# Options:
+#   --service-values-file <path>   Additional values file for OSMO service (can be repeated)
+#   --ui-values-file <path>        Additional values file for OSMO UI (can be repeated)
+#   --router-values-file <path>    Additional values file for OSMO router (can be repeated)
+#   --backend-values-file <path>   Additional values file for backend operator (can be repeated)
 ###############################################################################
 
 set -euo pipefail
@@ -60,6 +66,12 @@ OUTPUTS_FILE=""
 VALUES_DIR=""
 DRY_RUN=false
 POSTGRES_PASSWORD=""
+
+# Component-specific values files
+SERVICE_VALUES_FILES=()
+UI_VALUES_FILES=()
+ROUTER_VALUES_FILES=()
+BACKEND_VALUES_FILES=()
 
 # Function references for provider-specific commands
 RUN_KUBECTL="kubectl"
@@ -93,6 +105,22 @@ parse_k8s_args() {
             --dry-run)
                 DRY_RUN=true
                 shift
+                ;;
+            --service-values-file)
+                SERVICE_VALUES_FILES+=("$2")
+                shift 2
+                ;;
+            --ui-values-file)
+                UI_VALUES_FILES+=("$2")
+                shift 2
+                ;;
+            --router-values-file)
+                ROUTER_VALUES_FILES+=("$2")
+                shift 2
+                ;;
+            --backend-values-file)
+                BACKEND_VALUES_FILES+=("$2")
+                shift 2
                 ;;
             *)
                 shift
@@ -290,6 +318,21 @@ data:
 # Helm Functions
 ###############################################################################
 
+get_component_values_args() {
+    local component="$1"
+    local args=""
+    local values_files_var="${component}_VALUES_FILES[@]"
+
+    for values_file in "${!values_files_var}"; do
+        if [[ -f "$values_file" ]]; then
+            args="$args -f $values_file"
+        else
+            log_warning "Values file not found for $component: $values_file"
+        fi
+    done
+    echo "$args"
+}
+
 add_helm_repos() {
     log_info "Adding Helm repositories..."
 
@@ -474,8 +517,10 @@ deploy_osmo_service() {
         return
     fi
 
+    local user_values_args=$(get_component_values_args "SERVICE")
     $RUN_HELM_WITH_VALUES "$VALUES_DIR/service_values.yaml" \
-        "upgrade --install osmo-minimal osmo/service --namespace $OSMO_NAMESPACE --wait --timeout 10m"
+        "upgrade --install osmo-minimal osmo/service --namespace $OSMO_NAMESPACE --wait --timeout 10m" \
+        "$user_values_args"
 
     log_success "OSMO service deployed"
 }
@@ -488,8 +533,10 @@ deploy_osmo_ui() {
         return
     fi
 
+    local user_values_args=$(get_component_values_args "UI")
     $RUN_HELM_WITH_VALUES "$VALUES_DIR/ui_values.yaml" \
-        "upgrade --install ui-minimal osmo/web-ui --namespace $OSMO_NAMESPACE --wait --timeout 5m"
+        "upgrade --install ui-minimal osmo/web-ui --namespace $OSMO_NAMESPACE --wait --timeout 5m" \
+        "$user_values_args"
 
     log_success "OSMO UI deployed"
 }
@@ -502,8 +549,10 @@ deploy_osmo_router() {
         return
     fi
 
+    local user_values_args=$(get_component_values_args "ROUTER")
     $RUN_HELM_WITH_VALUES "$VALUES_DIR/router_values.yaml" \
-        "upgrade --install router-minimal osmo/router --namespace $OSMO_NAMESPACE --wait --timeout 5m"
+        "upgrade --install router-minimal osmo/router --namespace $OSMO_NAMESPACE --wait --timeout 5m" \
+        "$user_values_args"
 
     log_success "OSMO Router deployed"
 }
@@ -562,8 +611,10 @@ setup_backend_operator() {
 
     # Deploy backend operator
     log_info "Deploying Backend Operator..."
+    local user_values_args=$(get_component_values_args "BACKEND")
     $RUN_HELM_WITH_VALUES "$VALUES_DIR/backend_operator_values.yaml" \
-        "upgrade --install osmo-operator osmo/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout 5m"
+        "upgrade --install osmo-operator osmo/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout 5m" \
+        "$user_values_args"
 
     log_success "Backend Operator deployed"
 }

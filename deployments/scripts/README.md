@@ -74,6 +74,10 @@ The main entry point for deploying OSMO. This script orchestrates:
 | `--destroy` | Destroy all resources |
 | `--dry-run` | Show what would be done without making changes |
 | `--non-interactive` | Fail if required parameters are missing (for CI/CD) |
+| `--service-values-file FILE` | Additional Helm values file for OSMO service (can be repeated) |
+| `--ui-values-file FILE` | Additional Helm values file for OSMO UI (can be repeated) |
+| `--router-values-file FILE` | Additional Helm values file for OSMO router (can be repeated) |
+| `--backend-values-file FILE` | Additional Helm values file for backend operator (can be repeated) |
 | `-h, --help` | Show help message |
 
 #### Azure-specific Options
@@ -117,6 +121,12 @@ This script is typically called by `deploy-osmo-minimal.sh` but can be used stan
 
 ```bash
 ./deploy-k8s.sh --provider azure --outputs-file .azure_outputs.env --postgres-password 'YourPassword'
+
+# With custom values files for specific components
+./deploy-k8s.sh --provider azure --outputs-file .azure_outputs.env \
+  --postgres-password 'YourPassword' \
+  --service-values-file service-overrides.yaml \
+  --ui-values-file ui-overrides.yaml
 ```
 
 ### `common.sh`
@@ -192,6 +202,28 @@ The script will prompt for:
 
 ```bash
 ./deploy-osmo-minimal.sh --provider azure --dry-run
+```
+
+### Custom Helm Values
+
+Use component-specific values file options to override Helm defaults for each component:
+
+```bash
+# Override service values
+./deploy-osmo-minimal.sh --provider azure \
+  --service-values-file service-overrides.yaml
+
+# Override multiple components
+./deploy-osmo-minimal.sh --provider azure \
+  --service-values-file service-overrides.yaml \
+  --ui-values-file ui-overrides.yaml \
+  --router-values-file router-overrides.yaml \
+  --backend-values-file backend-overrides.yaml
+
+# Multiple values files for a single component (later files take precedence)
+./deploy-osmo-minimal.sh --provider azure \
+  --service-values-file base-service.yaml \
+  --service-values-file prod-service.yaml
 ```
 
 ### Destroy All Resources

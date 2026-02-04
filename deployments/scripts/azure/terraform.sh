@@ -119,10 +119,12 @@ azure_run_helm() {
 }
 
 # Run helm with values file
+# Usage: azure_run_helm_with_values <base_values_file> "<helm_command>" [extra_values_args]
+# The base_values_file is applied first, then extra_values_args (user overrides) are applied last
 azure_run_helm_with_values() {
     local values_file="$1"
-    shift
-    local cmd="$*"
+    local cmd="$2"
+    local extra_values="${3:-}"
 
     if [[ "$IS_PRIVATE_CLUSTER" == true ]]; then
         local temp_dir=$(mktemp -d)
@@ -131,13 +133,13 @@ azure_run_helm_with_values() {
         az aks command invoke \
             --resource-group "$RESOURCE_GROUP_NAME" \
             --name "$AKS_CLUSTER_NAME" \
-            --command "helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo && helm repo update && helm $cmd -f values.yaml" \
+            --command "helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo && helm repo update && helm $cmd -f values.yaml$extra_values" \
             --file "$temp_dir/values.yaml" \
             2>&1
 
         rm -rf "$temp_dir"
     else
-        helm $cmd -f "$values_file"
+        helm $cmd -f "$values_file"$extra_values
     fi
 }
 

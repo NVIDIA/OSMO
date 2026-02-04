@@ -105,6 +105,12 @@ General Options:
   --non-interactive      Fail if required parameters are missing (for CI/CD)
   -h, --help             Show this help message
 
+Helm Values Options (can be specified multiple times):
+  --service-values-file FILE   Additional values file for OSMO service
+  --ui-values-file FILE        Additional values file for OSMO UI
+  --router-values-file FILE    Additional values file for OSMO router
+  --backend-values-file FILE   Additional values file for backend operator
+
 Azure-specific Options:
   --subscription-id ID   Azure subscription ID
   --resource-group NAME  Existing Azure resource group name
@@ -190,7 +196,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         # Pass through other arguments (handled by provider scripts)
-        --subscription-id|--resource-group|--postgres-password|--cluster-name|--region|--environment|--k8s-version|--aws-region|--aws-profile)
+        --subscription-id|--resource-group|--postgres-password|--cluster-name|--region|--environment|--k8s-version|--aws-region|--aws-profile|--service-values-file|--ui-values-file|--router-values-file|--backend-values-file)
             shift 2
             ;;
         *)
@@ -385,6 +391,36 @@ deploy_osmo() {
     local saved_values_dir="$VALUES_DIR"
     local saved_dry_run="$DRY_RUN"
 
+    # Parse component-specific values file arguments from ALL_ARGS
+    local saved_service_values_files=()
+    local saved_ui_values_files=()
+    local saved_router_values_files=()
+    local saved_backend_values_files=()
+    local i=0
+    while [[ $i -lt ${#ALL_ARGS[@]} ]]; do
+        case "${ALL_ARGS[$i]}" in
+            --service-values-file)
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_service_values_files+=("${ALL_ARGS[$((i+1))]}")
+                i=$((i+2))
+                ;;
+            --ui-values-file)
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_ui_values_files+=("${ALL_ARGS[$((i+1))]}")
+                i=$((i+2))
+                ;;
+            --router-values-file)
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_router_values_files+=("${ALL_ARGS[$((i+1))]}")
+                i=$((i+2))
+                ;;
+            --backend-values-file)
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_backend_values_files+=("${ALL_ARGS[$((i+1))]}")
+                i=$((i+2))
+                ;;
+            *)
+                i=$((i+1))
+                ;;
+        esac
+    done
+
     # Get passwords
     local postgres_password="${TF_POSTGRES_PASSWORD:-}"
     local redis_password="${TF_REDIS_PASSWORD:-}"
@@ -405,6 +441,28 @@ deploy_osmo() {
     POSTGRES_PASSWORD="$postgres_password"
     REDIS_PASSWORD="$redis_password"
     DRY_RUN="$saved_dry_run"
+
+    # Restore component-specific values files
+    if [[ ${#saved_service_values_files[@]} -gt 0 ]]; then
+        SERVICE_VALUES_FILES=("${saved_service_values_files[@]}")
+    else
+        SERVICE_VALUES_FILES=()
+    fi
+    if [[ ${#saved_ui_values_files[@]} -gt 0 ]]; then
+        UI_VALUES_FILES=("${saved_ui_values_files[@]}")
+    else
+        UI_VALUES_FILES=()
+    fi
+    if [[ ${#saved_router_values_files[@]} -gt 0 ]]; then
+        ROUTER_VALUES_FILES=("${saved_router_values_files[@]}")
+    else
+        ROUTER_VALUES_FILES=()
+    fi
+    if [[ ${#saved_backend_values_files[@]} -gt 0 ]]; then
+        BACKEND_VALUES_FILES=("${saved_backend_values_files[@]}")
+    else
+        BACKEND_VALUES_FILES=()
+    fi
 
     # Source the outputs file
     if [[ -f "$OUTPUTS_FILE" ]]; then
