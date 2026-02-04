@@ -32,9 +32,7 @@
 "use client";
 
 import { memo, useMemo, useRef, useEffect } from "react";
-import { createRoot } from "react-dom/client";
 import { useTheme } from "next-themes";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
@@ -71,9 +69,8 @@ export interface SpecCodePanelProps {
 // =============================================================================
 
 /**
- * Creates a Lucide chevron icon for fold markers.
- * Using Lucide icons ensures consistent styling with the rest of the app
- * and perfect vertical alignment.
+ * Creates a native SVG chevron icon for fold markers.
+ * Using native SVG avoids React root creation/cleanup overhead and memory leaks.
  */
 function createChevronMarker(open: boolean): HTMLElement {
   const container = document.createElement("div");
@@ -81,15 +78,21 @@ function createChevronMarker(open: boolean): HTMLElement {
   container.style.alignItems = "center";
   container.style.justifyContent = "center";
 
-  const root = createRoot(container);
-  const Icon = open ? ChevronDown : ChevronRight;
-  root.render(
-    <Icon
-      size={14}
-      strokeWidth={2}
-    />,
-  );
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
 
+  const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  polyline.setAttribute("points", open ? "6 9 12 15 18 9" : "9 18 15 12 9 6");
+  svg.appendChild(polyline);
+
+  container.appendChild(svg);
   return container;
 }
 
