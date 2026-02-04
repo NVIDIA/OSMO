@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Collapsible, CollapsibleContent } from "@/components/shadcn/collapsible";
-import { Key, Database, Lock, Package, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Key, Database, Lock, Package, Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { useServices } from "@/contexts";
 import { useMounted } from "@/hooks";
 import { useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter";
@@ -624,19 +624,7 @@ function CredentialItem({
     >
       <div className={cn("overflow-hidden rounded-md border transition-colors", isDirty && "border-nvidia")}>
         {/* Header */}
-        <div
-          className="hover:bg-accent/50 flex w-full cursor-pointer items-center justify-between px-4 py-3 transition-colors"
-          onClick={onToggleExpand}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onToggleExpand();
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          aria-expanded={isExpanded}
-        >
+        <div className="flex w-full items-center justify-between px-4 py-3">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium">{credential.name}</span>
             <div className="text-muted-foreground flex items-center gap-3 text-xs">
@@ -651,41 +639,30 @@ function CredentialItem({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {!isExpanded && !isEditing && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Edit credential"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStartEdit();
-                    onToggleExpand();
-                  }}
-                  disabled={isSaving}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Delete credential"
-                  className="text-destructive hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                  disabled={isSaving}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </>
-            )}
-            {isExpanded ? (
-              <ChevronUp className="text-muted-foreground size-4" />
-            ) : (
-              <ChevronDown className="text-muted-foreground size-4" />
-            )}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Edit credential"
+              onClick={() => {
+                if (!isExpanded) {
+                  onStartEdit();
+                  onToggleExpand();
+                }
+              }}
+              disabled={isSaving}
+            >
+              <Pencil className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Delete credential"
+              className="text-destructive hover:text-destructive"
+              onClick={onDelete}
+              disabled={isSaving}
+            >
+              <Trash2 className="size-4" />
+            </Button>
           </div>
         </div>
 
