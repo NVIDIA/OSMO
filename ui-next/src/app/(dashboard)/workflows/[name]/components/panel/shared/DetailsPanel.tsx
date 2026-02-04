@@ -58,7 +58,6 @@ import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
 import { ShellSessionIcon, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
-import { useDagVisible } from "@/stores";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import { usePanelResize } from "../../../lib/panel-resize-context";
 
@@ -119,9 +118,8 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
 }: WorkflowEdgeStripProps) {
   const allSessions = useShellSessions();
 
-  // DAG visibility toggle state
-  const dagVisible = useDagVisible();
-  const { showDAG, hideDAG } = usePanelResize();
+  // DAG visibility toggle state - use state machine's value, not store
+  const { dagVisible, showDAG, hideDAG } = usePanelResize();
 
   const handleToggleDAG = useEventCallback(() => {
     if (dagVisible) {
