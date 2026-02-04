@@ -70,9 +70,9 @@ export function SelectableList({
         />
       </div>
 
-      {/* List container with scrollable area */}
-      <div className={`border-border bg-muted relative flex-1 overflow-y-auto rounded-md border ${className}`}>
-        {filteredItems.length > 0 ? (
+      {/* List container - shrinks to content size */}
+      {filteredItems.length > 0 ? (
+        <div className={`border-border bg-muted max-h-full overflow-y-auto rounded-md border ${className}`}>
           <div className="flex flex-col">
             {filteredItems.map((item) => {
               const isSelected = item.value === selectedValue;
@@ -110,12 +110,12 @@ export function SelectableList({
               );
             })}
           </div>
-        ) : (
-          <div className="text-muted-foreground absolute inset-0 flex items-center justify-center p-8 text-sm">
-            {searchQuery ? `No items match "${searchQuery}"` : emptyMessage}
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="text-muted-foreground flex items-center justify-center rounded-md border p-8 text-sm">
+          {searchQuery ? `No items match "${searchQuery}"` : emptyMessage}
+        </div>
+      )}
     </div>
   );
 }

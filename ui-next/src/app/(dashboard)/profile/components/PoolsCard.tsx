@@ -80,14 +80,23 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
   }, [stagedPool, poolDirty, updateProfile, announcer]);
 
   // Convert accessible pools to SelectableListItem format
+  // Show default first, then others in original order
   const poolItems: SelectableListItem[] = useMemo(() => {
     if (!profile.pool.accessible) return [];
-    return profile.pool.accessible.map((pool) => ({
+
+    const defaultPool = profile.pool.default;
+    const items = profile.pool.accessible.map((pool) => ({
       value: pool,
       label: pool,
       subtitle: "8 GPUs available - A100", // Placeholder until real data available
     }));
-  }, [profile.pool.accessible]);
+
+    // Sort so default is first, maintaining original order for rest
+    const defaultItem = items.find((item) => item.value === defaultPool);
+    const otherItems = items.filter((item) => item.value !== defaultPool);
+
+    return defaultItem ? [defaultItem, ...otherItems] : items;
+  }, [profile.pool.accessible, profile.pool.default]);
 
   return (
     <Card className={cn("flex h-[600px] flex-col", poolDirty && "border-nvidia")}>
