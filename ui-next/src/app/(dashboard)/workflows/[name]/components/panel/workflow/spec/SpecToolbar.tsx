@@ -26,13 +26,13 @@
 "use client";
 
 import { memo, useCallback } from "react";
-import { Copy, Download, Check, FileCode, Braces } from "lucide-react";
+import { Copy, Download, Check, FileCode, Braces, ExternalLink } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import { Separator } from "@/components/shadcn/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useCopy } from "@/hooks";
 import { useServices } from "@/contexts";
 import { toast } from "sonner";
+import { getBasePathUrl } from "@/lib/config";
 import type { SpecView } from "./hooks/useSpecData";
 
 // =============================================================================
@@ -87,7 +87,7 @@ export const SpecToolbar = memo(function SpecToolbar({
   const handleDownload = useCallback(() => {
     if (!content) return;
 
-    const extension = activeView === "yaml" ? "yaml" : "j2";
+    const extension = activeView === "yaml" ? "yaml" : "jinja";
     const filename = `${workflowName}-${activeView === "yaml" ? "spec" : "template"}.${extension}`;
     const mimeType = activeView === "yaml" ? "text/yaml" : "text/plain";
 
@@ -162,11 +162,6 @@ export const SpecToolbar = memo(function SpecToolbar({
           <TooltipContent>{copied ? "Copied!" : "Copy to clipboard"}</TooltipContent>
         </Tooltip>
 
-        <Separator
-          orientation="vertical"
-          className="mx-1 h-5"
-        />
-
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -179,7 +174,30 @@ export const SpecToolbar = memo(function SpecToolbar({
               <Download className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Download as {activeView === "yaml" ? ".yaml" : ".j2"}</TooltipContent>
+          <TooltipContent>Download as {activeView === "yaml" ? ".yaml" : ".jinja"}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              asChild
+              disabled={!hasContent || isLoading}
+              aria-label={`Open raw ${activeView === "yaml" ? "spec" : "template"} in new tab`}
+            >
+              <a
+                href={getBasePathUrl(
+                  `/api/workflow/${encodeURIComponent(workflowName)}/spec${activeView === "jinja" ? "?use_template=true" : ""}`,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="size-4" />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Open raw {activeView === "yaml" ? "spec" : "template"} in new tab</TooltipContent>
         </Tooltip>
       </div>
     </div>
