@@ -48,17 +48,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
-import {
-  FileText,
-  TextSearch,
-  Info,
-  History,
-  Network,
-  PanelLeftClose,
-  List,
-  FileCode,
-  type LucideIcon,
-} from "lucide-react";
+import { TextSearch, Info, History, Network, PanelLeftClose, List, FileCode, type LucideIcon } from "lucide-react";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";

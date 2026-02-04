@@ -17,7 +17,7 @@
 /**
  * useSpecViewState - URL-synced state for spec view toggle
  *
- * Manages the active spec view (yaml/jinja) via URL query parameter.
+ * Manages the active spec view (yaml/template) via URL query parameter.
  * Uses `history: "replace"` so view changes don't pollute browser history.
  *
  * @example
@@ -42,7 +42,7 @@ export interface UseSpecViewStateReturn {
   activeView: SpecView;
   /** Set the active view */
   setActiveView: (view: SpecView) => void;
-  /** Toggle between yaml and jinja */
+  /** Toggle between yaml and template */
   toggleView: () => void;
 }
 

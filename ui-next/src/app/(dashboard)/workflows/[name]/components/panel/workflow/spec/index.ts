@@ -17,7 +17,7 @@
 /**
  * Spec Viewer Components
  *
- * CodeMirror-based YAML/Jinja spec viewer for workflow details panel.
+ * CodeMirror-based YAML/template spec viewer for workflow details panel.
  *
  * @example
  * ```tsx

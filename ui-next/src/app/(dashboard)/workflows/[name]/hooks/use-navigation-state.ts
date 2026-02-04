@@ -64,7 +64,7 @@ export type TaskTab = "overview" | "shell" | "logs" | "events";
  * - "tasks": Task list table view
  * - "logs": Workflow logs output
  * - "events": Kubernetes events
- * - "spec": Workflow YAML spec and template Jinja spec
+ * - "spec": Workflow YAML spec and template spec
  */
 export type WorkflowTab = "overview" | "tasks" | "logs" | "events" | "spec";
 
