@@ -20,7 +20,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
-import { Server, Loader2 } from "lucide-react";
+import { Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter";
 import type { AnnouncerService } from "@/contexts";
@@ -73,8 +73,8 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
       await updateProfile({
         pool: { default: stagedPool },
       });
-      // Clear edits after successful save - profile will refetch with new values
-      setPoolEdits({});
+      // Don't clear edits - profile will refetch and poolDirty will become false automatically
+      // This prevents flashing during the refetch
       announcer.announce("Default pool saved successfully", "polite");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save default pool";
@@ -139,14 +139,7 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
             onClick={handlePoolSave}
             disabled={!poolDirty || isUpdating}
           >
-            {isUpdating ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save"
-            )}
+            Save
           </Button>
         </div>
       </CardFooter>

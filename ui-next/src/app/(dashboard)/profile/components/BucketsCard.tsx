@@ -20,7 +20,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
-import { FolderOpen, Loader2 } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter";
 import type { AnnouncerService } from "@/contexts";
@@ -73,8 +73,8 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
       await updateProfile({
         bucket: { default: stagedBucket },
       });
-      // Clear edits after successful save - profile will refetch with new values
-      setBucketEdits({});
+      // Don't clear edits - profile will refetch and bucketDirty will become false automatically
+      // This prevents flashing during the refetch
       announcer.announce("Default bucket saved successfully", "polite");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save default bucket";
@@ -139,14 +139,7 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
             onClick={handleBucketSave}
             disabled={!bucketDirty || isUpdating}
           >
-            {isUpdating ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save"
-            )}
+            Save
           </Button>
         </div>
       </CardFooter>

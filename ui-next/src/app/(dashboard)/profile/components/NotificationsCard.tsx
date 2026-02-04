@@ -20,7 +20,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Button } from "@/components/shadcn/button";
 import { Switch } from "@/components/shadcn/switch";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter";
 import type { AnnouncerService } from "@/contexts";
@@ -150,14 +150,7 @@ export function NotificationsCard({ profile, updateProfile, isUpdating, announce
             onClick={handleNotificationsSave}
             disabled={!notificationsDirty || isUpdating}
           >
-            {isUpdating ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save"
-            )}
+            Save
           </Button>
         </div>
       </CardFooter>
