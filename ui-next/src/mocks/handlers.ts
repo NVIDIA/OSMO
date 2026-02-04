@@ -1331,7 +1331,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
     const userProfile = profileGenerator.generateProfile("current.user");
     const settings = profileGenerator.generateSettings("current.user");
-    const pools = poolGenerator.getPoolNames();
+    // Use all pool names from patterns, not limited by volume config
+    const pools = MOCK_CONFIG.pools.names;
     const buckets = profileGenerator.getBucketNames();
 
     // Merge stored settings with generated defaults
