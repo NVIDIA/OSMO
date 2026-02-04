@@ -80,6 +80,7 @@ export function DefaultBucketCard({ profile, updateProfile, isUpdating, announce
 
   // Convert accessible buckets to SelectableListItem format
   const bucketItems: SelectableListItem[] = useMemo(() => {
+    if (!profile.bucket.accessible) return [];
     return profile.bucket.accessible.map((bucket) => ({
       value: bucket,
       label: bucket,
@@ -127,7 +128,7 @@ export function DefaultBucketCard({ profile, updateProfile, isUpdating, announce
                 Saving...
               </>
             ) : (
-              "Save Changes"
+              "Save"
             )}
           </Button>
         </div>

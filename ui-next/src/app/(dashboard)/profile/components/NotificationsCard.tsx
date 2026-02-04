@@ -156,7 +156,7 @@ export function NotificationsCard({ profile, updateProfile, isUpdating, announce
                 Saving...
               </>
             ) : (
-              "Save Changes"
+              "Save"
             )}
           </Button>
         </div>
