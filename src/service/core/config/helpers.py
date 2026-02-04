@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -85,8 +84,7 @@ def update_backend_queues(current_backend: connectors.Backend,
         k8s_resources=objects_list,  # Contains both Queue and Topology CRDs
         # Specs for both object types (including old scheduler if switching)
         cleanup_specs=cleanup_specs,
-        # Topology CRD has immutable fields (spec.levels), must be recreated instead of updated
-        immutable_kinds=['Topology']
+        immutable_kinds=kb_factory.list_immutable_scheduler_resources()
     )
     job.send_job_to_queue()
 

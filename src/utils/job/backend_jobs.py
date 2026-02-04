@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -283,6 +282,12 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
         need_retry = False
         err_message = None
 
+        # Normalize cleanup_specs to always be a list (backwards compatibility)
+        cleanup_specs_list = (
+            self.cleanup_specs if isinstance(self.cleanup_specs, list)
+            else [self.cleanup_specs]
+        )
+
         def create_cleanup_message(before: bool, resources: Any, error: str | None = None):
             resources_list = [resource.metadata.name for resource in resources.items] \
                              if resources else []
@@ -292,7 +297,7 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
                     f'{"before" if before else "after"} deletion. '\
                     f'{error_message}'
 
-        for cleanup in self.cleanup_specs:
+        for cleanup in cleanup_specs_list:
             last_timestamp = jobs_base.update_progress_writer(
                 progress_writer,
                 last_timestamp,
@@ -601,9 +606,15 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
         """
         Executes the job. Synchronizes all scheduler K8s objects.
         """
+        # Normalize cleanup_specs to always be a list (backwards compatibility)
+        cleanup_specs_list = (
+            self.cleanup_specs if isinstance(self.cleanup_specs, list)
+            else [self.cleanup_specs]
+        )
+
         try:
             # Handle each cleanup spec (for queues, topologies, etc.)
-            for cleanup_spec in self.cleanup_specs:
+            for cleanup_spec in cleanup_specs_list:
                 self._sync_objects_for_spec(context, cleanup_spec)
 
         except urllib3.exceptions.MaxRetryError as error:

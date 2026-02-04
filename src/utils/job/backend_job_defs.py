@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pydantic
 
@@ -76,9 +75,13 @@ class BackendSynchronizeQueuesMixin(pydantic.BaseModel):
     - Objects matching cleanup_specs but not in k8s_resources will be deleted
     - Objects in both cleanup_specs and k8s_resources will be updated (or recreated if immutable)
     - Objects in k8s_resources not matching cleanup_specs will be created
+
+    NOTE: cleanup_specs Union type can be removed after the next release. This is for
+    backwards compatibility with existing BackendSynchronizeQueuesMixin jobs that might
+    be enqueued when OSMO is redeployed with a new version.
     """
     # Search for objects using these specs (one per object type)
-    cleanup_specs: List[BackendCleanupSpec]
+    cleanup_specs: Union[List[BackendCleanupSpec], BackendCleanupSpec]
     # The k8s specs for all objects to create/update in the backend
     # Can contain mixed types (Queues, Topologies, etc.)
     k8s_resources: List[Dict]

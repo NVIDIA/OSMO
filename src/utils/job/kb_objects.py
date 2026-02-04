@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -333,6 +332,14 @@ class K8sObjectFactory:
         # pylint: disable=unused-argument
         return []
 
+    def list_immutable_scheduler_resources(self) -> List[str]:
+        """
+        Return list of K8s resource kinds that have immutable fields and must be
+        deleted/recreated instead of updated (e.g., ['Topology'] for kai.scheduler).
+        Returns empty list if no immutable resources.
+        """
+        return []
+
     def get_scheduler_resources_spec(
             self, backend: connectors.Backend,
             pools: List[connectors.Pool]) -> List[Dict] | None:
@@ -506,6 +513,10 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                 ))
         ]
         return specs
+
+    def list_immutable_scheduler_resources(self) -> List[str]:
+        """Topology CRD has immutable fields (spec.levels), must be recreated instead of updated"""
+        return ['Topology']
 
     def get_scheduler_resources_spec(
             self, backend: connectors.Backend,

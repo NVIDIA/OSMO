@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,9 +20,9 @@ import copy
 import datetime
 import enum
 import hashlib
+from itertools import chain
 import logging
 import re
-from itertools import chain
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse
 
@@ -355,7 +354,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 resource.platform = pool_info.default_platform
 
         # Validate topology requirements
-        available_keys = {tk.key for tk in pool_info.topology_keys}
+        available_keys = {topology_key.key for topology_key in pool_info.topology_keys}
         for resource_name, resource_spec in self.resources.items():
             for topo_req in resource_spec.topology:
                 if topo_req.key not in available_keys:

@@ -529,9 +529,9 @@ For the below examples, assume the pool has the following `topology_keys` config
 ```yaml
 {
   "topology_keys": [
-    {"key": "zone", "label": "nvidia.com/zone"},
-    {"key": "spine", "label": "nvidia.com/spine"},
-    {"key": "rack", "label": "nvidia.com/rack"},
+    {"key": "zone", "label": "topology.kubernetes.io/zone"},
+    {"key": "spine", "label": "topology.kubernetes.io/spine"},
+    {"key": "rack", "label": "topology.kubernetes.io/rack"},
     {"key": "gpu-clique", "label": "nvidia.com/gpu-clique"},
   ]
 }
@@ -791,7 +791,7 @@ spec:
   # Note: minMember is NOT set at top level when subgroups are present
   topologyConstraint:
     topology: "osmo-pool-my-pool-topology"
-    requiredTopologyLevel: "nvidia.com/zone"
+    requiredTopologyLevel: "topology.kubernetes.io/zone"
   subgroups:
     # Subgroup for model 1 - all shards must be on same gpu-clique
     - name: model-1-subgroup
