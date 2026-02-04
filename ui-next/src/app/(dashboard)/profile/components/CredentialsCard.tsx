@@ -564,6 +564,7 @@ function CredentialItem({
   onFormChange,
   onSave,
   onReset,
+  onCancel,
   isSaving,
   showPassword,
   onTogglePassword,
@@ -579,6 +580,7 @@ function CredentialItem({
   onFormChange: (data: CredentialFormData) => void;
   onSave: () => void;
   onReset: () => void;
+  onCancel: () => void;
   isSaving: boolean;
   showPassword: boolean;
   onTogglePassword: () => void;
@@ -699,8 +701,15 @@ function CredentialItem({
                 />
               )}
 
-              {/* Save/Reset buttons */}
+              {/* Cancel/Reset/Save buttons */}
               <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={onCancel}
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={onReset}
@@ -907,6 +916,27 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
     [credentials],
   );
 
+  const handleCancelEdit = useCallback((credentialId: string) => {
+    // Clear editing state
+    setEditingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(credentialId);
+      return next;
+    });
+    // Clear edits
+    setCredentialEdits((prev) => {
+      const next = { ...prev };
+      delete next[credentialId];
+      return next;
+    });
+    // Collapse the credential
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(credentialId);
+      return next;
+    });
+  }, []);
+
   // Handlers for deleting credential
   const handleStartDelete = useCallback((credentialName: string) => {
     setDeleteConfirmName(credentialName);
@@ -1024,6 +1054,7 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
                       onFormChange={(data) => handleFormChange(cred.id, data)}
                       onSave={() => handleSaveEdit(cred.id)}
                       onReset={() => handleResetEdit(cred.id)}
+                      onCancel={() => handleCancelEdit(cred.id)}
                       isSaving={isUpserting}
                       showPassword={passwordVisibility[cred.id] ?? false}
                       onTogglePassword={() => handleTogglePassword(cred.id)}
@@ -1055,6 +1086,7 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
                       onFormChange={(data) => handleFormChange(cred.id, data)}
                       onSave={() => handleSaveEdit(cred.id)}
                       onReset={() => handleResetEdit(cred.id)}
+                      onCancel={() => handleCancelEdit(cred.id)}
                       isSaving={isUpserting}
                       showPassword={passwordVisibility[cred.id] ?? false}
                       onTogglePassword={() => handleTogglePassword(cred.id)}
@@ -1086,6 +1118,7 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
                       onFormChange={(data) => handleFormChange(cred.id, data)}
                       onSave={() => handleSaveEdit(cred.id)}
                       onReset={() => handleResetEdit(cred.id)}
+                      onCancel={() => handleCancelEdit(cred.id)}
                       isSaving={isUpserting}
                       showPassword={passwordVisibility[cred.id] ?? false}
                       onTogglePassword={() => handleTogglePassword(cred.id)}
