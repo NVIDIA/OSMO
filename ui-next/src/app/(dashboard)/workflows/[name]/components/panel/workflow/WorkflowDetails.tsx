@@ -32,10 +32,31 @@
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
-import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History, List, Loader2 } from "lucide-react";
+import {
+  FileText,
+  BarChart3,
+  Activity,
+  Package,
+  XCircle,
+  Tag,
+  Info,
+  History,
+  List,
+  Loader2,
+  RotateCw,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
-import { PanelTabs, LinksSection, EmptyTabPrompt, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
+import {
+  PanelTabs,
+  LinksSection,
+  ActionsSection,
+  EmptyTabPrompt,
+  TabPanel,
+  SeparatedParts,
+  type PanelTab,
+  type ActionItem,
+} from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter";
 import { formatDuration } from "../../../lib/workflow-types";
 import { getStatusIcon } from "../../../lib/status";
@@ -74,6 +95,7 @@ const STYLES = {
 export interface WorkflowDetailsProps {
   workflow: WorkflowQueryResponse;
   onCancel?: () => void;
+  onResubmit?: () => void;
   /** Whether the header details section is expanded (global for page) */
   isDetailsExpanded?: boolean;
   /** Toggle the details expansion state (global for page) */
@@ -215,9 +237,37 @@ interface OverviewTabProps {
   workflow: WorkflowQueryResponse;
   canCancel: boolean;
   onCancel?: () => void;
+  onResubmit?: () => void;
 }
 
-const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }: OverviewTabProps) {
+const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel, onResubmit }: OverviewTabProps) {
+  // Build actions array
+  const actions: ActionItem[] = [];
+
+  // Cancel button - always present but conditionally enabled
+  if (onCancel) {
+    actions.push({
+      id: "cancel",
+      label: "Cancel Workflow",
+      description: canCancel ? "Stop the workflow execution" : "Workflow has already terminated",
+      onClick: onCancel,
+      icon: XCircle,
+      variant: "destructive",
+      disabled: !canCancel,
+    });
+  }
+
+  // Resubmit button - always enabled
+  if (onResubmit) {
+    actions.push({
+      id: "resubmit",
+      label: "Resubmit Workflow",
+      description: "Create a new workflow with the same configuration",
+      onClick: onResubmit,
+      icon: RotateCw,
+    });
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Timeline section */}
@@ -237,24 +287,11 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }:
       />
 
       {/* Actions section */}
-      {canCancel && onCancel && (
-        <section>
-          <h3 className={STYLES.sectionHeader}>Actions</h3>
-          <button
-            type="button"
-            onClick={onCancel}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
-              "text-red-600 ring-1 ring-red-200 ring-inset",
-              "hover:bg-red-50 hover:text-red-700",
-              "dark:text-red-400 dark:ring-red-800",
-              "dark:hover:bg-red-950/50 dark:hover:text-red-300",
-            )}
-          >
-            <XCircle className="size-4" />
-            Cancel Workflow
-          </button>
-        </section>
+      {actions.length > 0 && (
+        <ActionsSection
+          title="Actions"
+          actions={actions}
+        />
       )}
     </div>
   );
@@ -263,6 +300,7 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }:
 export const WorkflowDetails = memo(function WorkflowDetails({
   workflow,
   onCancel,
+  onResubmit,
   isDetailsExpanded,
   onToggleDetailsExpanded,
   selectedTab: selectedTabProp,
@@ -331,6 +369,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
             workflow={workflow}
             canCancel={canCancel}
             onCancel={onCancel}
+            onResubmit={onResubmit}
           />
         </TabPanel>
 

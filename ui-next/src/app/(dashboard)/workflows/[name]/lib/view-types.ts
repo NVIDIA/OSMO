@@ -112,4 +112,6 @@ export interface WorkflowViewCommonProps extends ViewSelectionProps, ViewNavigat
   groups: GroupWithLayout[];
   /** Called when cancel workflow button is clicked */
   onCancelWorkflow?: () => void;
+  /** Called when resubmit workflow button is clicked */
+  onResubmitWorkflow?: () => void;
 }

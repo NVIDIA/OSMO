@@ -85,6 +85,8 @@ export interface DetailsPanelProps {
   toggleHotkey?: string;
   /** Callback when workflow cancel is requested */
   onCancelWorkflow?: () => void;
+  /** Callback when workflow resubmit is requested */
+  onResubmitWorkflow?: () => void;
   /**
    * Fallback content to render in the panel when no view matches.
    * Used for loading skeletons, error states, etc.
