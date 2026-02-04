@@ -31,7 +31,7 @@
 
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { useTheme } from "next-themes";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -40,7 +40,7 @@ import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { foldGutter } from "@codemirror/language";
-import { search, searchKeymap } from "@codemirror/search";
+import { search, searchKeymap, closeSearchPanel } from "@codemirror/search";
 import { keymap } from "@codemirror/view";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { createSpecViewerExtension } from "./lib/theme";
@@ -162,12 +162,22 @@ export const SpecCodePanel = memo(function SpecCodePanel({
   const mounted = useMounted();
   const { theme, resolvedTheme } = useTheme();
 
+  // Store editor view reference to close search panel when view changes
+  const viewRef = useRef<EditorView | null>(null);
+
   // Default to dark during SSR, then use actual theme after hydration
   // This prevents hydration mismatch and ensures consistent rendering
   const isDark = !mounted ? true : (resolvedTheme ?? theme ?? "dark") === "dark";
 
   // Memoize extensions to prevent unnecessary CodeMirror re-renders
   const extensions = useMemo(() => createExtensions(language, readOnly, isDark), [language, readOnly, isDark]);
+
+  // Close search panel when switching between YAML/Template views
+  useEffect(() => {
+    if (viewRef.current) {
+      closeSearchPanel(viewRef.current);
+    }
+  }, [language]);
 
   return (
     <div
@@ -180,6 +190,9 @@ export const SpecCodePanel = memo(function SpecCodePanel({
         theme={isDark ? "dark" : "light"}
         extensions={extensions}
         readOnly={readOnly}
+        onCreateEditor={(view) => {
+          viewRef.current = view;
+        }}
         basicSetup={{
           lineNumbers: true,
           highlightActiveLineGutter: false,
