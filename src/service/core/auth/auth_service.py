@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ SPDX-License-Identifier: Apache-2.0
 import datetime
 import secrets
 import time
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import fastapi
 
-from src.lib.utils import common, login, osmo_errors
+from src.lib.utils import common, osmo_errors
 from src.utils.job import task as task_lib
 from src.service.core.auth import objects
 from src.utils import auth, connectors
@@ -152,8 +152,7 @@ def create_access_token(token_name: str,
                         expires_at: str,
                         description: str = '',
                         roles: Optional[List[str]] = fastapi.Query(default=None),
-                        user_header: Optional[str] =
-                            fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
+                        user_name: str = fastapi.Depends(connectors.parse_username)):
     """
     API to create a new access token (PAT).
 
@@ -164,7 +163,6 @@ def create_access_token(token_name: str,
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    user_name = connectors.parse_username(user_header)
     access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
@@ -183,25 +181,22 @@ def create_access_token(token_name: str,
 
 @router.delete('/api/auth/access_token/{token_name}')
 def delete_access_token(token_name: str,
-                        user_header: Optional[str] =
-                            fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
+                        user_name: str = fastapi.Depends(connectors.parse_username)):
     """
     API to delete an access token.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    user_name = connectors.parse_username(user_header)
     objects.AccessToken.delete_from_db(postgres, token_name, user_name)
 
 
 @router.get('/api/auth/access_token')
-def list_access_tokens(user_header: Optional[str] =
-                           fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)) \
-                       -> List[objects.AccessToken]:
+def list_access_tokens(
+        user_name: str = fastapi.Depends(connectors.parse_username)
+) -> List[objects.AccessToken]:
     """
     API to list all access tokens for a user.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    user_name = connectors.parse_username(user_header)
     return objects.AccessToken.list_from_db(postgres, user_name)
 
 
@@ -212,7 +207,7 @@ def admin_create_access_token(
     expires_at: str,
     description: str = '',
     roles: Optional[List[str]] = fastapi.Query(default=None),
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+    admin_user: str = fastapi.Depends(connectors.parse_username),
 ):
     """
     Admin API to create a PAT for a specific user.
@@ -231,13 +226,12 @@ def admin_create_access_token(
         expires_at: Expiration date in YYYY-MM-DD format
         description: Optional description for the token
         roles: Optional list of roles to assign (must all be assigned to user)
-        user_header: Authenticated admin user making the request
+        admin_user: Authenticated admin user making the request
 
     Returns:
         The generated access token string
     """
     postgres = connectors.PostgresConnector.get_instance()
-    admin_user = connectors.parse_username(user_header)
 
     # Validate the target user exists
     _validate_user_exists(postgres, user_id)
@@ -259,16 +253,12 @@ def admin_create_access_token(
 
 
 @router.get('/api/auth/users/{user_id}/access_tokens')
-def admin_list_access_tokens(
-    user_id: str,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-) -> List[objects.AccessToken]:
+def admin_list_access_tokens(user_id: str) -> List[objects.AccessToken]:
     """
     Admin API to list all access tokens for a specific user.
 
     Args:
         user_id: The user ID to list tokens for
-        user_header: Authenticated admin user making the request
 
     Returns:
         List of AccessToken objects
@@ -282,18 +272,13 @@ def admin_list_access_tokens(
 
 
 @router.delete('/api/auth/users/{user_id}/access_token/{token_name}')
-def admin_delete_access_token(
-    user_id: str,
-    token_name: str,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-):
+def admin_delete_access_token(user_id: str, token_name: str):
     """
     Admin API to delete an access token for a specific user.
 
     Args:
         user_id: The user ID who owns the token
         token_name: Name of the token to delete
-        user_header: Authenticated admin user making the request
     """
     postgres = connectors.PostgresConnector.get_instance()
 
@@ -385,12 +370,9 @@ def list_users(
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate pagination parameters
-    if start_index < 1:
-        start_index = 1
-    if count < 1:
-        count = 1
-    if count > 1000:
-        count = 1000
+    start_index = max(start_index, 1)
+    count = max(count, 1)
+    count = min(count, 1000)
 
     # Build WHERE clause and args
     where_conditions = []
@@ -478,20 +460,19 @@ def list_users(
 @router.post('/api/auth/users', response_model=objects.User, status_code=201)
 def create_user(
     request: objects.CreateUserRequest,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+    created_by: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.User:
     """
     Create a new user.
 
     Args:
         request: CreateUserRequest with user details
-        user_header: Authenticated user making the request
+        created_by: Authenticated user making the request
 
     Returns:
         Created User object
     """
     postgres = connectors.PostgresConnector.get_instance()
-    created_by = connectors.parse_username(user_header)
 
     # Check if user already exists
     existing_user = _get_user_from_db(postgres, request.id)
@@ -573,18 +554,13 @@ def get_user(user_id: str) -> objects.UserWithRoles:
 
 
 @router.put('/api/auth/users/{user_id}', response_model=objects.User)
-def update_user(
-    user_id: str,
-    request: objects.UpdateUserRequest,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-) -> objects.User:
+def update_user(user_id: str, request: objects.UpdateUserRequest) -> objects.User:
     """
     Update a user (full replace of mutable fields).
 
     Args:
         user_id: The user ID to update
         request: UpdateUserRequest with new values
-        user_header: Authenticated user making the request
 
     Returns:
         Updated User object
@@ -624,18 +600,13 @@ def update_user(
 
 
 @router.patch('/api/auth/users/{user_id}', response_model=objects.User)
-def patch_user(
-    user_id: str,
-    request: objects.UpdateUserRequest,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-) -> objects.User:
+def patch_user(user_id: str, request: objects.UpdateUserRequest) -> objects.User:
     """
     Partially update a user.
 
     Args:
         user_id: The user ID to update
         request: UpdateUserRequest with fields to update
-        user_header: Authenticated user making the request
 
     Returns:
         Updated User object
@@ -647,7 +618,7 @@ def patch_user(
 
     # Build dynamic update query for only provided fields
     updates = []
-    values = []
+    values: List[Any] = []
 
     if request.external_id is not None:
         updates.append('external_id = %s')
@@ -685,16 +656,12 @@ def patch_user(
 
 
 @router.delete('/api/auth/users/{user_id}', status_code=204)
-def delete_user(
-    user_id: str,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-):
+def delete_user(user_id: str):
     """
     Delete a user and all associated role assignments and PATs.
 
     Args:
         user_id: The user ID to delete
-        user_header: Authenticated user making the request
     """
     postgres = connectors.PostgresConnector.get_instance()
 
@@ -740,7 +707,7 @@ def list_user_roles(user_id: str) -> objects.UserRolesResponse:
 def assign_role_to_user(
     user_id: str,
     request: objects.AssignRoleRequest,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+    assigned_by: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.UserRoleAssignment:
     """
     Assign a role to a user.
@@ -748,13 +715,12 @@ def assign_role_to_user(
     Args:
         user_id: The user ID
         request: AssignRoleRequest with role_name
-        user_header: Authenticated user making the request
+        assigned_by: Authenticated user making the request
 
     Returns:
         UserRoleAssignment with assignment details
     """
     postgres = connectors.PostgresConnector.get_instance()
-    assigned_by = connectors.parse_username(user_header)
 
     # Validate user and role exist
     _validate_user_exists(postgres, user_id)
@@ -785,18 +751,13 @@ def assign_role_to_user(
 
 
 @router.delete('/api/auth/users/{user_id}/roles/{role_name}', status_code=204)
-def remove_role_from_user(
-    user_id: str,
-    role_name: str,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
-):
+def remove_role_from_user(user_id: str, role_name: str):
     """
     Remove a role from a user.
 
     Args:
         user_id: The user ID
         role_name: The role to remove
-        user_header: Authenticated user making the request
     """
     postgres = connectors.PostgresConnector.get_instance()
 
@@ -850,7 +811,7 @@ def list_users_with_role(role_name: str) -> objects.RoleUsersResponse:
 def bulk_assign_role(
     role_name: str,
     request: objects.BulkAssignRequest,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+    assigned_by: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.BulkAssignResponse:
     """
     Bulk assign a role to multiple users.
@@ -858,13 +819,12 @@ def bulk_assign_role(
     Args:
         role_name: The role to assign
         request: BulkAssignRequest with list of user_ids
-        user_header: Authenticated user making the request
+        assigned_by: Authenticated user making the request
 
     Returns:
         BulkAssignResponse with results
     """
     postgres = connectors.PostgresConnector.get_instance()
-    assigned_by = connectors.parse_username(user_header)
 
     # Validate role exists
     _validate_role_exists(postgres, role_name)
@@ -917,20 +877,19 @@ def bulk_assign_role(
             response_model=objects.PATRolesResponse)
 def list_pat_roles(
     token_name: str,
-    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+    user_name: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.PATRolesResponse:
     """
     List all roles assigned to a PAT.
 
     Args:
         token_name: The token name
-        user_header: Authenticated user (owner of the token)
+        user_name: Authenticated user (owner of the token)
 
     Returns:
         PATRolesResponse with list of role assignments
     """
     postgres = connectors.PostgresConnector.get_instance()
-    user_name = connectors.parse_username(user_header)
 
     # Verify token exists and belongs to user
     fetch_token_cmd = '''

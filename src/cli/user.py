@@ -201,23 +201,17 @@ def _update_user(service_client: client.ServiceClient, args: argparse.Namespace)
     if args.add_roles:
         for role_name in args.add_roles:
             payload = {'role_name': role_name}
-            try:
-                service_client.request(client.RequestMethod.POST,
-                                       f'api/auth/users/{user_id}/roles',
-                                       payload=payload)
-                print(f'Added role: {role_name}')
-            except Exception as e:
-                print(f'Failed to add role {role_name}: {e}')
+            service_client.request(client.RequestMethod.POST,
+                                    f'api/auth/users/{user_id}/roles',
+                                    payload=payload)
+            print(f'Added role: {role_name}')
 
     # Remove roles
     if args.remove_roles:
         for role_name in args.remove_roles:
-            try:
-                service_client.request(client.RequestMethod.DELETE,
-                                       f'api/auth/users/{user_id}/roles/{role_name}')
-                print(f'Removed role: {role_name}')
-            except Exception as e:
-                print(f'Failed to remove role {role_name}: {e}')
+            service_client.request(client.RequestMethod.DELETE,
+                                    f'api/auth/users/{user_id}/roles/{role_name}')
+            print(f'Removed role: {role_name}')
 
     # Get updated user info
     if args.format_type == 'json':

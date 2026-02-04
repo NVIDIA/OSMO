@@ -1599,6 +1599,23 @@ class PostgresConnector:
         return [user_row['user_name'] for user_row in user_rows]
 
 
+def insert_user(database: PostgresConnector, user_name: str):
+    """
+    Create a user in the users table if they don't exist.
+    If the user already exists, this is a no-op.
+    """
+    insert_cmd = '''
+        INSERT INTO users (id, created_at, created_by, updated_at, last_seen_at)
+        VALUES (%s, NOW(), %s, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING;
+    '''
+    try:
+        database.execute_commit_command(insert_cmd, (user_name, user_name))
+    except Exception:  # pylint: disable=broad-except
+        # Silently ignore errors to not break the request flow
+        pass
+
+
 class UserProfile(pydantic.BaseModel):
     """ Provides all User Profile Information """
     username: str | None = None
@@ -1624,6 +1641,9 @@ class UserProfile(pydantic.BaseModel):
     def insert_into_db(cls, database: PostgresConnector,
                        user_name: str,
                        setting: Dict[str, Any]):
+        # Ensure user exists in users table before creating profile
+        insert_user(database, user_name)
+
         fields: List[str] = ['user_name']
         values: List = [user_name]
         for key, value in setting.items():
