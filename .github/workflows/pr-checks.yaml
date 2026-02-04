@@ -150,6 +150,7 @@ jobs:
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
+      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096
     services:
       docker:
         # docker:29.2.1-dind pinned to digest for security
@@ -187,6 +188,26 @@ jobs:
             -- \
             //... \
             -//ui/...
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          echo "=== Docker Cleanup ==="
+
+          # Stop all running containers
+          docker ps -q | xargs -r docker stop --time=5 || true
+
+          # Remove all containers
+          docker ps -aq | xargs -r docker rm -f || true
+
+          # Remove all volumes
+          docker volume ls -q | xargs -r docker volume rm -f || true
+
+          # Remove custom networks
+          docker network ls --filter type=custom -q | xargs -r docker network rm || true
+
+          echo "Docker disk usage after cleanup:"
+          docker system df || true
 
       - name: Bazel cache cleanup
         if: always()
