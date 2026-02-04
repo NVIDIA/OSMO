@@ -42,6 +42,9 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
   // Store only the user's edits (delta from profile)
   const [poolEdits, setPoolEdits] = useState<PoolEdits>({});
 
+  // Track initial default for stable sorting (only sort once on mount)
+  const [initialDefault] = useState(profile.pool.default);
+
   // Compute effective staged pool: profile value with edits applied
   const stagedPool = useMemo(() => {
     return poolEdits.pool ?? profile.pool.default;
@@ -80,23 +83,23 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
   }, [stagedPool, poolDirty, updateProfile, announcer]);
 
   // Convert accessible pools to SelectableListItem format
-  // Show default first, then others in original order
+  // Show initial default first, then others in original order
+  // Only sort once on mount - don't re-sort when default changes
   const poolItems: SelectableListItem[] = useMemo(() => {
     if (!profile.pool.accessible) return [];
 
-    const defaultPool = profile.pool.default;
     const items = profile.pool.accessible.map((pool) => ({
       value: pool,
       label: pool,
       subtitle: "8 GPUs available - A100", // Placeholder until real data available
     }));
 
-    // Sort so default is first, maintaining original order for rest
-    const defaultItem = items.find((item) => item.value === defaultPool);
-    const otherItems = items.filter((item) => item.value !== defaultPool);
+    // Sort so initial default is first, maintaining original order for rest
+    const defaultItem = items.find((item) => item.value === initialDefault);
+    const otherItems = items.filter((item) => item.value !== initialDefault);
 
     return defaultItem ? [defaultItem, ...otherItems] : items;
-  }, [profile.pool.accessible, profile.pool.default]);
+  }, [profile.pool.accessible, initialDefault]);
 
   return (
     <Card className={cn("flex h-[600px] flex-col", poolDirty && "border-nvidia")}>

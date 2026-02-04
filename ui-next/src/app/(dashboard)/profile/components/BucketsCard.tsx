@@ -42,6 +42,9 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
   // Store only the user's edits (delta from profile)
   const [bucketEdits, setBucketEdits] = useState<BucketEdits>({});
 
+  // Track initial default for stable sorting (only sort once on mount)
+  const [initialDefault] = useState(profile.bucket.default);
+
   // Compute effective staged bucket: profile value with edits applied
   const stagedBucket = useMemo(() => {
     return bucketEdits.bucket ?? profile.bucket.default;
@@ -80,23 +83,23 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
   }, [stagedBucket, bucketDirty, updateProfile, announcer]);
 
   // Convert accessible buckets to SelectableListItem format
-  // Show default first, then others in original order
+  // Show initial default first, then others in original order
+  // Only sort once on mount - don't re-sort when default changes
   const bucketItems: SelectableListItem[] = useMemo(() => {
     if (!profile.bucket.accessible) return [];
 
-    const defaultBucket = profile.bucket.default;
     const items = profile.bucket.accessible.map((bucket) => ({
       value: bucket,
       label: bucket,
       subtitle: `s3://${bucket}`,
     }));
 
-    // Sort so default is first, maintaining original order for rest
-    const defaultItem = items.find((item) => item.value === defaultBucket);
-    const otherItems = items.filter((item) => item.value !== defaultBucket);
+    // Sort so initial default is first, maintaining original order for rest
+    const defaultItem = items.find((item) => item.value === initialDefault);
+    const otherItems = items.filter((item) => item.value !== initialDefault);
 
     return defaultItem ? [defaultItem, ...otherItems] : items;
-  }, [profile.bucket.accessible, profile.bucket.default]);
+  }, [profile.bucket.accessible, initialDefault]);
 
   return (
     <Card className={cn("flex h-[600px] flex-col", bucketDirty && "border-nvidia")}>
