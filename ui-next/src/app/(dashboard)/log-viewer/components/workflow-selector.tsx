@@ -3,6 +3,7 @@
 import { useState, useCallback, FormEvent, useId, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, AlertCircle, X, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { usePage } from "@/components/chrome";
 import { getRecentWorkflows, clearRecentWorkflows, removeRecentWorkflow } from "../lib/recent-workflows";
 
@@ -93,9 +94,10 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
               value={workflowId}
               onChange={(e) => setWorkflowId(e.target.value)}
               placeholder="Enter workflow ID or name..."
-              className={`w-full rounded-lg border border-zinc-300 bg-white py-3 pl-10 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20 ${
-                workflowId.trim() ? "pr-20" : "pr-12"
-              }`}
+              className={cn(
+                "w-full rounded-lg border border-zinc-300 bg-white py-3 pl-10 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20",
+                workflowId.trim() ? "pr-20" : "pr-12",
+              )}
             />
             {workflowId.trim() && (
               <button

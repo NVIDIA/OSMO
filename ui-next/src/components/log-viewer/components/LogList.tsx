@@ -57,12 +57,6 @@ export interface LogListProps {
 // Date Separator (Inlined)
 // =============================================================================
 
-const dashedLineStyle = {
-  backgroundImage: "linear-gradient(to right, transparent 50%, var(--border) 50%)",
-  backgroundSize: "6px 1px",
-  opacity: 0.4,
-};
-
 interface DateSeparatorProps {
   date: Date;
   className?: string;
@@ -70,6 +64,7 @@ interface DateSeparatorProps {
 
 /**
  * A subtle date separator row for providing date context in log lists.
+ * Uses .dashed-line-separator utility from src/styles/utilities.css
  */
 const DateSeparator = memo(function DateSeparator({ date, className }: DateSeparatorProps) {
   const formattedDate = formatDateShort(date);
@@ -80,15 +75,9 @@ const DateSeparator = memo(function DateSeparator({ date, className }: DateSepar
       role="separator"
       aria-label={`Logs from ${formattedDate}`}
     >
-      <div
-        className="h-px flex-1"
-        style={dashedLineStyle}
-      />
+      <div className="dashed-line-separator h-px flex-1" />
       <span className="text-muted-foreground/50 shrink-0 text-[10px] tracking-wider uppercase">{formattedDate}</span>
-      <div
-        className="h-px flex-1"
-        style={dashedLineStyle}
-      />
+      <div className="dashed-line-separator h-px flex-1" />
     </div>
   );
 });
@@ -293,14 +282,9 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
         // Smooth opacity transition for stale state (GPU-accelerated)
         "transition-opacity duration-150 ease-out",
         isStale && "opacity-70",
+        "contain-size-layout-style gpu-layer",
         className,
       )}
-      style={{
-        contain: "size layout style",
-        // GPU layer promotion for smoother scrolling
-        transform: "translateZ(0)",
-        backfaceVisibility: "hidden",
-      }}
       onScroll={handleScroll}
     >
       {/* CSS sticky header - simple date display, swaps instantly */}
@@ -308,14 +292,10 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
       {/* Virtual list container */}
       <div
-        className="relative z-10 w-full"
+        className="gpu-layer relative z-10 w-full contain-layout"
         style={{
           // Use ceil to ensure container fits all content - floor could clip the last row
           height: `${Math.ceil(virtualizer.getTotalSize())}px`,
-          // Contain layout to prevent position recalculations from propagating
-          contain: "layout",
-          // GPU layer for stable compositing of child transforms
-          transform: "translateZ(0)",
         }}
       >
         {virtualItems.map((virtualRow) => {

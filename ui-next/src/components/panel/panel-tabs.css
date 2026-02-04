@@ -79,20 +79,12 @@
 
   .panel-tabs .panel-tab[data-active="true"]::before {
     left: -6px;
-    background: radial-gradient(
-      circle at 0% 0%,
-      transparent 6px,
-      var(--panel-tabs-bg) 6px
-    );
+    background: radial-gradient(circle at 0% 0%, transparent 6px, var(--panel-tabs-bg) 6px);
   }
 
   .panel-tabs .panel-tab[data-active="true"]::after {
     right: -6px;
-    background: radial-gradient(
-      circle at 100% 0%,
-      transparent 6px,
-      var(--panel-tabs-bg) 6px
-    );
+    background: radial-gradient(circle at 100% 0%, transparent 6px, var(--panel-tabs-bg) 6px);
   }
 
   /* Show curves only when not first/last tab (to avoid clipping issues) */

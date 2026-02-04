@@ -161,16 +161,21 @@
   }
 
   /* ==========================================================================
+     Portal Containers
+     ========================================================================== */
+
+  /* Snap zone portal - fixed overlay for drag/drop indicators */
+  .snap-zone-portal {
+    @apply pointer-events-none fixed inset-0 z-[5] overflow-hidden;
+  }
+
+  /* ==========================================================================
      Log Viewer Utilities
      ========================================================================== */
 
   /* Dashed line separator for log entries */
   .dashed-line-separator {
-    background-image: linear-gradient(
-      to right,
-      transparent 50%,
-      var(--border) 50%
-    );
+    background-image: linear-gradient(to right, transparent 50%, var(--border) 50%);
     background-size: 6px 1px;
     opacity: 0.4;
   }
