@@ -641,30 +641,34 @@ function CredentialItem({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Edit credential"
-              onClick={() => {
-                if (!isExpanded) {
-                  onStartEdit();
-                  onToggleExpand();
-                }
-              }}
-              disabled={isSaving}
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Delete credential"
-              className="text-destructive hover:text-destructive"
-              onClick={onDelete}
-              disabled={isSaving}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {!isEditing && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Edit credential"
+                  onClick={() => {
+                    if (!isExpanded) {
+                      onStartEdit();
+                      onToggleExpand();
+                    }
+                  }}
+                  disabled={isSaving}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Delete credential"
+                  className="text-destructive hover:text-destructive"
+                  onClick={onDelete}
+                  disabled={isSaving}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
