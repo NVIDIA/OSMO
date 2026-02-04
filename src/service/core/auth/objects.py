@@ -195,7 +195,6 @@ class UserRole(pydantic.BaseModel):
 class User(pydantic.BaseModel):
     """User record."""
     id: str
-    external_id: Optional[str] = None
     created_at: Optional[datetime.datetime] = None
     created_by: Optional[str] = None
     updated_at: Optional[datetime.datetime] = None
@@ -210,13 +209,12 @@ class UserWithRoles(User):
 class CreateUserRequest(pydantic.BaseModel):
     """Request to create a new user."""
     id: str
-    external_id: Optional[str] = None
     roles: Optional[List[str]] = None
 
 
 class UpdateUserRequest(pydantic.BaseModel):
     """Request to update a user."""
-    external_id: Optional[str] = None
+    pass  # Reserved for future mutable fields
 
 
 class AssignRoleRequest(pydantic.BaseModel):

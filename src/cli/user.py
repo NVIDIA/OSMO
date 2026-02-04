@@ -64,8 +64,6 @@ def setup_parser(parser: argparse._SubParsersAction):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     create_parser.add_argument('user_id',
                                help='User ID (e.g., email or username).')
-    create_parser.add_argument('--external-id', '-e',
-                               help='External IDP identifier.')
     create_parser.add_argument('--roles', '-r', nargs='+',
                                help='Initial roles to assign to the user.')
     create_parser.add_argument('--format-type', '-t',
@@ -88,8 +86,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                help='Roles to add to the user.')
     update_parser.add_argument('--remove-roles', '-r', nargs='+',
                                help='Roles to remove from the user.')
-    update_parser.add_argument('--external-id', '-e',
-                               help='Update the external IDP identifier.')
     update_parser.add_argument('--format-type', '-t',
                                choices=('json', 'text'), default='text',
                                help='Specify the output format type (Default text).')
@@ -146,7 +142,7 @@ def _list_users(service_client: client.ServiceClient, args: argparse.Namespace):
     else:
         print(f'Total users: {result.get("total_results", len(users))}')
         print()
-        collection_header = ['User ID', 'External ID', 'Created At', 'Last Seen']
+        collection_header = ['User ID', 'Created At', 'Last Seen']
         table = common.osmo_table(header=collection_header)
         for user in users:
             created_at = user.get('created_at', '-')
@@ -157,7 +153,6 @@ def _list_users(service_client: client.ServiceClient, args: argparse.Namespace):
                 last_seen = last_seen.split('T')[0]
             table.add_row([
                 user.get('id', '-'),
-                user.get('external_id') or '-',
                 created_at,
                 last_seen
             ])
@@ -167,9 +162,6 @@ def _list_users(service_client: client.ServiceClient, args: argparse.Namespace):
 def _create_user(service_client: client.ServiceClient, args: argparse.Namespace):
     """Create a new user."""
     payload = {'id': args.user_id}
-
-    if args.external_id:
-        payload['external_id'] = args.external_id
 
     if args.roles:
         payload['roles'] = args.roles
@@ -188,14 +180,6 @@ def _create_user(service_client: client.ServiceClient, args: argparse.Namespace)
 def _update_user(service_client: client.ServiceClient, args: argparse.Namespace):
     """Update a user (add/remove roles)."""
     user_id = args.user_id
-
-    # Update external_id if provided
-    if args.external_id:
-        payload = {'external_id': args.external_id}
-        service_client.request(client.RequestMethod.PATCH,
-                               f'api/auth/users/{user_id}',
-                               payload=payload)
-        print(f'Updated external_id for user {user_id}')
 
     # Add roles
     if args.add_roles:
@@ -218,8 +202,8 @@ def _update_user(service_client: client.ServiceClient, args: argparse.Namespace)
         result = service_client.request(client.RequestMethod.GET,
                                         f'api/auth/users/{user_id}')
         print(json.dumps(result, indent=2, default=str))
-    elif not args.add_roles and not args.remove_roles and not args.external_id:
-        print('No updates specified. Use --add-roles, --remove-roles, or --external-id.')
+    elif not args.add_roles and not args.remove_roles:
+        print('No updates specified. Use --add-roles or --remove-roles.')
 
 
 def _delete_user(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -248,7 +232,6 @@ def _get_user(service_client: client.ServiceClient, args: argparse.Namespace):
         print(json.dumps(result, indent=2, default=str))
     else:
         print(f'User ID: {result.get("id")}')
-        print(f'External ID: {result.get("external_id") or "-"}')
         created_at = result.get('created_at', '-')
         if created_at and created_at != '-':
             created_at = created_at.split('T')[0]

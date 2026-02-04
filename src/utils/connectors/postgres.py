@@ -1088,7 +1088,6 @@ class PostgresConnector:
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
-                external_id TEXT,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 created_by TEXT,
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -1096,13 +1095,6 @@ class PostgresConnector:
             );
         '''
         self.execute_commit_command(create_cmd, ())
-
-        # Create indices for users table
-        create_cmd = '''
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_external_id
-                ON users (external_id);
-        '''
-        self.execute_autocommit_command(create_cmd, ())
 
         # Creates table for User profile
         create_cmd = '''
@@ -1599,21 +1591,18 @@ class PostgresConnector:
         return [user_row['user_name'] for user_row in user_rows]
 
 
-def insert_user(database: PostgresConnector, user_name: str):
+def upsert_user(database: PostgresConnector, user_name: str):
     """
     Create a user in the users table if they don't exist.
-    If the user already exists, this is a no-op.
+    If the user already exists, update the last_seen_at field.
     """
-    insert_cmd = '''
+    upsert_cmd = '''
         INSERT INTO users (id, created_at, created_by, updated_at, last_seen_at)
         VALUES (%s, NOW(), %s, NOW(), NOW())
-        ON CONFLICT (id) DO NOTHING;
+        ON CONFLICT (id) DO UPDATE SET
+            last_seen_at = NOW();
     '''
-    try:
-        database.execute_commit_command(insert_cmd, (user_name, user_name))
-    except Exception:  # pylint: disable=broad-except
-        # Silently ignore errors to not break the request flow
-        pass
+    database.execute_commit_command(upsert_cmd, (user_name, user_name))
 
 
 class UserProfile(pydantic.BaseModel):
@@ -1642,7 +1631,7 @@ class UserProfile(pydantic.BaseModel):
                        user_name: str,
                        setting: Dict[str, Any]):
         # Ensure user exists in users table before creating profile
-        insert_user(database, user_name)
+        upsert_user(database, user_name)
 
         fields: List[str] = ['user_name']
         values: List = [user_name]
@@ -4354,7 +4343,9 @@ class AccessControlMiddleware:
         # Add user profile if it doesn't exist
         username = request_headers.get(login.OSMO_USER_HEADER)
         if username:
-            UserProfile.fetch_from_db(PostgresConnector.get_instance(), username)
+            connector = PostgresConnector.get_instance()
+            upsert_user(connector, username)
+            UserProfile.fetch_from_db(connector, username)
         if response is not None:
             return await response(scope, receive, send)
         return await self.app(scope, receive, send)

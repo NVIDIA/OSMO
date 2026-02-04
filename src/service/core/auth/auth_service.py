@@ -296,7 +296,7 @@ def _get_user_from_db(postgres: connectors.PostgresConnector,
                       user_id: str) -> Optional[dict]:
     """Fetch a user record from the database."""
     fetch_cmd = '''
-        SELECT id, external_id, created_at, created_by, updated_at, last_seen_at
+        SELECT id, created_at, created_by, updated_at, last_seen_at
         FROM users WHERE id = %s;
     '''
     rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
@@ -406,7 +406,7 @@ def list_users(
 
         # Fetch query with role filter
         fetch_cmd = f'''
-            SELECT DISTINCT u.id, u.external_id, u.created_at, u.created_by,
+            SELECT DISTINCT u.id, u.created_at, u.created_by,
                    u.updated_at, u.last_seen_at
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
@@ -422,7 +422,7 @@ def list_users(
 
         count_cmd = f'SELECT COUNT(*) as total FROM users u{where_clause};'
         fetch_cmd = f'''
-            SELECT u.id, u.external_id, u.created_at, u.created_by,
+            SELECT u.id, u.created_at, u.created_by,
                    u.updated_at, u.last_seen_at
             FROM users u{where_clause}
             ORDER BY u.created_at DESC
@@ -442,7 +442,6 @@ def list_users(
 
     users = [objects.User(
         id=row['id'],
-        external_id=row['external_id'],
         created_at=row['created_at'],
         created_by=row['created_by'],
         updated_at=row['updated_at'],
@@ -488,13 +487,13 @@ def create_user(
 
     # Insert user
     insert_cmd = '''
-        INSERT INTO users (id, external_id, created_at, created_by, updated_at)
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING id, external_id, created_at, created_by, updated_at;
+        INSERT INTO users (id, created_at, created_by, updated_at)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id, created_at, created_by, updated_at;
     '''
     result = postgres.execute_fetch_command(
         insert_cmd,
-        (request.id, request.external_id, now, created_by, now),
+        (request.id, now, created_by, now),
         True
     )
 
@@ -515,7 +514,6 @@ def create_user(
     row = result[0]
     return objects.User(
         id=row['id'],
-        external_id=row['external_id'],
         created_at=row['created_at'],
         created_by=row['created_by'],
         updated_at=row['updated_at'],
@@ -544,7 +542,6 @@ def get_user(user_id: str) -> objects.UserWithRoles:
 
     return objects.UserWithRoles(
         id=user_row['id'],
-        external_id=user_row['external_id'],
         created_at=user_row['created_at'],
         created_by=user_row['created_by'],
         updated_at=user_row['updated_at'],
@@ -570,18 +567,18 @@ def update_user(user_id: str, request: objects.UpdateUserRequest) -> objects.Use
     # Check if user exists
     _validate_user_exists(postgres, user_id)
 
+    # No mutable fields - just update timestamp and return user
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    # Full replace - set all mutable fields (null if not provided)
     update_cmd = '''
         UPDATE users
-        SET external_id = %s, updated_at = %s
+        SET updated_at = %s
         WHERE id = %s
-        RETURNING id, external_id, created_at, created_by, updated_at, last_seen_at;
+        RETURNING id, created_at, created_by, updated_at, last_seen_at;
     '''
     result = postgres.execute_fetch_command(
         update_cmd,
-        (request.external_id, now, user_id),
+        (now, user_id),
         True
     )
 
@@ -591,7 +588,6 @@ def update_user(user_id: str, request: objects.UpdateUserRequest) -> objects.Use
     row = result[0]
     return objects.User(
         id=row['id'],
-        external_id=row['external_id'],
         created_at=row['created_at'],
         created_by=row['created_by'],
         updated_at=row['updated_at'],
@@ -611,48 +607,9 @@ def patch_user(user_id: str, request: objects.UpdateUserRequest) -> objects.User
     Returns:
         Updated User object
     """
-    postgres = connectors.PostgresConnector.get_instance()
-
-    # Check if user exists
-    _validate_user_exists(postgres, user_id)
-
-    # Build dynamic update query for only provided fields
-    updates = []
-    values: List[Any] = []
-
-    if request.external_id is not None:
-        updates.append('external_id = %s')
-        values.append(request.external_id)
-
-    if not updates:
-        # No fields to update, just return current user
-        return get_user(user_id)
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    updates.append('updated_at = %s')
-    values.append(now)
-    values.append(user_id)
-
-    update_cmd = f'''
-        UPDATE users
-        SET {', '.join(updates)}
-        WHERE id = %s
-        RETURNING id, external_id, created_at, created_by, updated_at, last_seen_at;
-    '''
-    result = postgres.execute_fetch_command(update_cmd, tuple(values), True)
-
-    if not result:
-        raise osmo_errors.OSMODatabaseError('Failed to update user')
-
-    row = result[0]
-    return objects.User(
-        id=row['id'],
-        external_id=row['external_id'],
-        created_at=row['created_at'],
-        created_by=row['created_by'],
-        updated_at=row['updated_at'],
-        last_seen_at=row['last_seen_at']
-    )
+    # No mutable fields currently - just return the user
+    _ = request  # Reserved for future mutable fields
+    return get_user(user_id)
 
 
 @router.delete('/api/auth/users/{user_id}', status_code=204)
