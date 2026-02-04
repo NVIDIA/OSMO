@@ -32,13 +32,16 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { createRoot } from "react-dom/client";
 import { useTheme } from "next-themes";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { foldGutter } from "@codemirror/language";
 import { search } from "@codemirror/search";
+import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { createSpecViewerExtension } from "./lib/theme";
 import { useMounted } from "@/hooks";
 import type { SpecView } from "./hooks/useSpecData";
@@ -65,6 +68,29 @@ export interface SpecCodePanelProps {
 // =============================================================================
 
 /**
+ * Creates a Lucide chevron icon for fold markers.
+ * Using Lucide icons ensures consistent styling with the rest of the app
+ * and perfect vertical alignment.
+ */
+function createChevronMarker(open: boolean): HTMLElement {
+  const container = document.createElement("div");
+  container.style.display = "flex";
+  container.style.alignItems = "center";
+  container.style.justifyContent = "center";
+
+  const root = createRoot(container);
+  const Icon = open ? ChevronDown : ChevronRight;
+  root.render(
+    <Icon
+      size={14}
+      strokeWidth={2}
+    />,
+  );
+
+  return container;
+}
+
+/**
  * Create CodeMirror extensions for the spec viewer.
  * Memoized per language and theme to avoid recreating on every render.
  */
@@ -76,10 +102,23 @@ function createExtensions(language: SpecView, readOnly: boolean, isDark: boolean
     // Language support (YAML for both - Jinja mixed mode is Phase 2)
     yaml(),
 
-    // Code folding
+    // Indentation markers (VS Code-style vertical guides)
+    indentationMarkers({
+      highlightActiveBlock: false, // Disable for performance
+      hideFirstIndent: false,
+      markerType: "fullScope",
+      thickness: 1,
+      colors: {
+        light: "rgba(0, 0, 0, 0.08)",
+        dark: "rgba(255, 255, 255, 0.08)",
+        activeLight: "rgba(0, 0, 0, 0.12)",
+        activeDark: "rgba(255, 255, 255, 0.12)",
+      },
+    }),
+
+    // Code folding with SVG chevron markers
     foldGutter({
-      openText: "\u25BC", // Down arrow
-      closedText: "\u25B6", // Right arrow
+      markerDOM: (open) => createChevronMarker(open),
     }),
 
     // Search support (Cmd+F)
@@ -94,7 +133,7 @@ function createExtensions(language: SpecView, readOnly: boolean, isDark: boolean
     }),
 
     // Scroll margin for virtualization
-    EditorView.scrollMargins.of(() => ({ top: 50, bottom: 50 })),
+    EditorView.scrollMargins.of(() => ({ top: 50, bottom: 50 })), // px values are OK here (not CSS)
   ];
 
   return extensions;
@@ -135,7 +174,7 @@ export const SpecCodePanel = memo(function SpecCodePanel({
         readOnly={readOnly}
         basicSetup={{
           lineNumbers: true,
-          highlightActiveLineGutter: true,
+          highlightActiveLineGutter: false,
           highlightActiveLine: true,
           foldGutter: false, // We use our own fold gutter
           dropCursor: false,

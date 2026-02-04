@@ -34,19 +34,19 @@ import { tags } from "@lezer/highlight";
 // =============================================================================
 
 const darkColors = {
-  // Backgrounds
-  bg: "#1e1e1e",
-  gutterBg: "#252526",
+  // Backgrounds - use CSS variables from globals.css
+  bg: "var(--table-header)", // #18181b (zinc-900) - matches activity strip
+  gutterBg: "var(--table-header)",
   activeLineBg: "rgba(255, 255, 255, 0.05)",
-  selectionBg: "rgba(118, 185, 0, 0.2)", // NVIDIA green
+  selectionBg: "var(--nvidia-green-bg-dark)", // NVIDIA green from globals.css
 
-  // Text
-  text: "#d4d4d4",
-  lineNumber: "#858585",
-  lineNumberActive: "#c6c6c6",
+  // Text - use CSS variables
+  text: "hsl(var(--foreground))",
+  lineNumber: "hsl(var(--muted-foreground))",
+  lineNumberActive: "hsl(var(--foreground))",
 
   // Cursor
-  cursor: "#aeafad",
+  cursor: "hsl(var(--foreground))",
   matchingBracket: "rgba(255, 255, 255, 0.1)",
 
   // Syntax (VS Code Dark+)
@@ -56,27 +56,27 @@ const darkColors = {
   boolean: "#569cd6",
   property: "#9cdcfe",
   comment: "#6a9955",
-  operator: "#d4d4d4",
-  punctuation: "#d4d4d4",
+  operator: "hsl(var(--foreground))",
+  punctuation: "hsl(var(--foreground))",
   function: "#dcdcaa",
   variable: "#9cdcfe",
   tag: "#569cd6",
 };
 
 const lightColors = {
-  // Backgrounds
-  bg: "#ffffff",
-  gutterBg: "#f5f5f5",
+  // Backgrounds - use CSS variables from globals.css
+  bg: "hsl(var(--background))", // Maps to white in light mode
+  gutterBg: "hsl(var(--background))",
   activeLineBg: "rgba(0, 0, 0, 0.03)",
-  selectionBg: "rgba(118, 185, 0, 0.15)", // NVIDIA green
+  selectionBg: "var(--nvidia-green-bg)", // NVIDIA green from globals.css
 
-  // Text
-  text: "#000000",
-  lineNumber: "#6e7681",
-  lineNumberActive: "#24292f",
+  // Text - use CSS variables
+  text: "hsl(var(--foreground))",
+  lineNumber: "hsl(var(--muted-foreground))",
+  lineNumberActive: "hsl(var(--foreground))",
 
   // Cursor
-  cursor: "#24292f",
+  cursor: "hsl(var(--foreground))",
   matchingBracket: "rgba(0, 0, 0, 0.1)",
 
   // Syntax (VS Code Light+)
@@ -86,8 +86,8 @@ const lightColors = {
   boolean: "#0000ff",
   property: "#001080",
   comment: "#008000",
-  operator: "#000000",
-  punctuation: "#000000",
+  operator: "hsl(var(--foreground))",
+  punctuation: "hsl(var(--foreground))",
   function: "#795e26",
   variable: "#001080",
   tag: "#0000ff",
@@ -103,8 +103,8 @@ const lightColors = {
  */
 export function createSpecViewerTheme(isDark: boolean) {
   const colors = isDark ? darkColors : lightColors;
-  const borderColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)";
-  const outlineColor = isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)";
+  const borderColor = "hsl(var(--border))";
+  const outlineColor = "hsl(var(--border))";
 
   return EditorView.theme(
     {
@@ -112,20 +112,25 @@ export function createSpecViewerTheme(isDark: boolean) {
       "&": {
         backgroundColor: colors.bg,
         color: colors.text,
-        fontSize: "13px",
-        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+        fontSize: "0.8125rem", // 13px - use rem for scaling
+        fontFamily: "var(--font-mono)",
+      },
+
+      // Editor wrapper
+      ".cm-editor": {
+        backgroundColor: colors.bg,
       },
 
       // Content area
       ".cm-content": {
         caretColor: colors.cursor,
-        padding: "8px 0",
+        padding: "0.5rem 0", // 8px in rem
       },
 
       // Cursor
       ".cm-cursor, .cm-dropCursor": {
         borderLeftColor: colors.cursor,
-        borderLeftWidth: "2px",
+        borderLeftWidth: "0.125rem", // 2px in rem
       },
 
       // Selection
@@ -133,9 +138,9 @@ export function createSpecViewerTheme(isDark: boolean) {
         backgroundColor: colors.selectionBg,
       },
 
-      // Active line
+      // Active line - no background (VS Code behavior)
       ".cm-activeLine": {
-        backgroundColor: colors.activeLineBg,
+        backgroundColor: "transparent",
       },
 
       // Gutter
@@ -143,36 +148,58 @@ export function createSpecViewerTheme(isDark: boolean) {
         backgroundColor: colors.gutterBg,
         color: colors.lineNumber,
         border: "none",
-        borderRight: `1px solid ${borderColor}`,
       },
 
       // Line numbers
-      ".cm-lineNumbers .cm-gutterElement": {
-        padding: "0 12px 0 8px",
-        minWidth: "40px",
+      ".cm-lineNumbers": {
+        backgroundColor: colors.gutterBg,
       },
 
-      // Active line number
+      ".cm-lineNumbers .cm-gutterElement": {
+        padding: "0 0.75rem 0 0.5rem", // 0 12px 0 8px in rem
+        minWidth: "2.5rem", // 40px in rem
+        backgroundColor: colors.gutterBg,
+      },
+
+      // Active line number - only brighten text, no background (VS Code behavior)
       ".cm-activeLineGutter": {
-        backgroundColor: colors.activeLineBg,
+        backgroundColor: "transparent",
         color: colors.lineNumberActive,
       },
 
-      // Fold gutter
+      // Fold gutter - hidden by default, fades in on hover
+      ".cm-foldGutter": {
+        backgroundColor: colors.gutterBg,
+      },
+
       ".cm-foldGutter .cm-gutterElement": {
-        padding: "0 4px",
+        padding: "0 0 0 0.25rem", // Reduced right padding for tighter spacing
         cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        lineHeight: "1",
+        opacity: "0",
+        transition: "opacity 150ms ease-in-out", // Use standard duration
+        backgroundColor: colors.gutterBg,
+      },
+
+      // Show fold icons on gutter hover (VS Code behavior)
+      ".cm-gutters:hover .cm-foldGutter .cm-gutterElement": {
+        opacity: "1",
       },
 
       // Matching bracket
       "&.cm-focused .cm-matchingBracket": {
         backgroundColor: colors.matchingBracket,
-        outline: `1px solid ${outlineColor}`,
+        outline: `1px solid ${borderColor}`,
       },
 
       // Scrollbar
       ".cm-scroller": {
         overflow: "auto",
+        backgroundColor: colors.bg,
       },
 
       // Fold placeholder
@@ -180,8 +207,8 @@ export function createSpecViewerTheme(isDark: boolean) {
         backgroundColor: borderColor,
         border: "none",
         color: colors.lineNumber,
-        padding: "0 4px",
-        borderRadius: "2px",
+        padding: "0 0.25rem", // 4px in rem
+        borderRadius: "var(--radius-sm)",
       },
     },
     { dark: isDark },

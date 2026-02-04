@@ -96,7 +96,7 @@ function injectStyles() {
       --panel-tabs-bg: white;
     }
     .dark .panel-tabs {
-      --panel-tabs-bg: rgb(24, 24, 27);
+      --panel-tabs-bg: theme(colors.zinc.900);
     }
     
     /* View Transitions */
