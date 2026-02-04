@@ -55,19 +55,19 @@ test --output_groups=+mypy
 # Environment: Docker container, 4 CPUs, 8GB RAM, Docker-in-Docker
 
 # Resource Management (critical for containerized CI)
-build:ci --local_cpu_resources=4
-build:ci --local_ram_resources=6144
+build:ci --local_resources=cpu=4
+build:ci --local_resources=memory=6144
 build:ci --jobs=4
 
 # Worker Optimization (Bazel 8.0+)
 build:ci --worker_max_instances=2
 build:ci --worker_multiplex
 
-# JVM Memory Limit
-startup:ci --host_jvm_args=-Xmx4g
+# JVM Memory Limit (startup options can't be config-specific, applied globally for CI environments)
+startup --host_jvm_args=-Xmx4g
 
 # Remote Cache Optimization
-build:ci --experimental_remote_cache_async
+build:ci --remote_cache_async
 build:ci --remote_upload_local_results
 
 # CI-Specific Settings
