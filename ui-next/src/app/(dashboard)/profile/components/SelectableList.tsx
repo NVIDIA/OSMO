@@ -46,7 +46,7 @@ export function SelectableList({
   onSelect,
   searchPlaceholder = "Search...",
   emptyMessage = "No items found",
-  className = "max-h-[400px]",
+  className = "",
 }: SelectableListProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -57,9 +57,9 @@ export function SelectableList({
   }, [items, searchQuery]);
 
   return (
-    <>
+    <div className="flex h-full flex-col">
       {/* Search input */}
-      <div className="relative mb-4">
+      <div className="relative mb-4 shrink-0">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
           type="text"
@@ -71,7 +71,7 @@ export function SelectableList({
       </div>
 
       {/* List container with scrollable area */}
-      <div className={`border-border bg-muted relative overflow-y-auto rounded-md border ${className}`}>
+      <div className={`border-border bg-muted relative flex-1 overflow-y-auto rounded-md border ${className}`}>
         {filteredItems.length > 0 ? (
           <div className="flex flex-col">
             {filteredItems.map((item) => {
@@ -116,6 +116,6 @@ export function SelectableList({
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
