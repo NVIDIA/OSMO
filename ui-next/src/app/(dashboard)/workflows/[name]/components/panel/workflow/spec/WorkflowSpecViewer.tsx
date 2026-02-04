@@ -181,7 +181,7 @@ export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflowId 
         onViewChange={setActiveView}
         content={content}
         workflowName={workflowId}
-        jinjaAvailable={jinjaSpec !== null || activeView === "jinja"}
+        templateAvailable={jinjaSpec !== null || activeView === "jinja"}
         isLoading={isLoading}
       />
 
