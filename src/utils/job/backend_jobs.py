@@ -477,7 +477,6 @@ class LabelNode(BackendWorkflowJob):
         return JobResult()
 
 
-
 class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, BackendJob):
     """Synchronizes scheduler K8s objects (queues, topologies, etc.)
     in the backend to match configuration"""

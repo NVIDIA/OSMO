@@ -17,12 +17,11 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import base64
-import dataclasses
 import hashlib
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pydantic
 
@@ -31,24 +30,6 @@ from src.utils import connectors
 from src.utils.job import backend_job_defs, common, topology
 
 DATA_LOCATION = '/osmo/data'
-
-
-@dataclasses.dataclass
-class TopologyTreeNode:
-    """Represents a node in the topology constraint tree."""
-    label: Optional[str]  # Kubernetes label (e.g., "nvidia.com/rack"), None for root
-    subgroup: Optional[str]  # Subgroup identifier (e.g., "model-1-group")
-    required: bool  # Whether this is a required or preferred constraint
-    children: List['TopologyTreeNode'] = dataclasses.field(default_factory=list)
-    tasks: List[str] = dataclasses.field(default_factory=list)  # Task names at this leaf
-
-
-@dataclasses.dataclass
-class TopologyTreeResult:
-    """Result from building the topology constraint tree."""
-    top_level_constraint: Optional[Dict[str, str]]  # Top-level PodGroup topology constraint
-    subgroups: List[Dict[str, Any]]  # List of subgroup specs for PodGroup
-    pod_subgroups: Dict[str, str]  # Mapping from pod name to subgroup name
 
 
 def k8s_name(name: str) -> str:
@@ -93,17 +74,21 @@ class K8sObjectFactory:
             self, group_uuid: str, pods: List[Dict],
             labels: Dict[str, str], pool_name: str,
             priority: wf_priority.WorkflowPriority,
-            topology_constraints: topology.GroupTopologyConstraints
+            topology_name: str,
+            topology_keys: List[topology.TopologyKey],
+            task_infos: List[topology.TaskInfo]
     ) -> List[Dict[str, Any]]:
         """
-        Given the target pod specs, this returns the k8s resources needed to create tme as a gang
+        Given the target pod specs, this returns the k8s resources needed to create them as a gang
         scheduled group.
 
         Args:
             group_uuid (str): The group uuid.
             pods (List[Dict]): The list of pod specs to create in the backend.
             labels (Dict[str, str]): OSMO labels.
-            topology_constraints: Topology constraints for the PodGroup
+            topology_name: Name of the Topology CRD
+            topology_keys: Ordered list of topology keys (coarsest → finest)
+            task_infos: Task information with topology requirements
 
         Returns:
             List[Dict]: A list of k8s objects to create in the cluster.
@@ -369,7 +354,9 @@ class KaiK8sObjectFactory(K8sObjectFactory):
     def create_group_k8s_resources(self, group_uuid: str,
         pods: List[Dict], labels: Dict[str, str], pool_name: str,
         priority: wf_priority.WorkflowPriority,
-        topology_constraints: topology.GroupTopologyConstraints) -> List[Dict]:
+        topology_name: str,
+        topology_keys: List[topology.TopologyKey],
+        task_infos: List[topology.TaskInfo]) -> List[Dict]:
         """
         Given the target pod specs, this returns the k8s resources needed to create them as a gang
         scheduled group.
@@ -381,28 +368,32 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             group_uuid (str): The group uuid.
             pods (List[Dict]): The list of pod specs to create in the backend.
             labels (Dict[str, str]): OSMO labels.
-            topology_constraints: Topology constraints for the PodGroup
+            topology_name: Name of the Topology CRD
+            topology_keys: Ordered list of topology keys (coarsest → finest)
+            task_infos: Task information with topology requirements
 
         Returns:
             List[Dict]: A list of k8s objects to create in the cluster.
         """
         queue = f'osmo-pool-{self._namespace}-{pool_name}'
         priority_class = f'osmo-{priority.value.lower()}'
-        topology_name = f'osmo-pool-{self._namespace}-{pool_name}-topology'
 
-        # Convert topology constraints to PodGroup spec format using tree-based algorithm
-        top_level_constraint = None
-        subgroups = []
+        # Build topology tree using unified builder
+        builder = topology.PodGroupTopologyBuilder(topology_name, topology_keys)
+        tree_result = builder.build(task_infos)
+
+        top_level_constraint = tree_result.top_level_constraint
+        subgroups = tree_result.subgroups
+        task_subgroups = tree_result.task_subgroups
+
+        # Convert task_subgroups to pod_subgroups
+        # Create task_name -> pod_name mapping
         pod_subgroups = {}
-
-        if topology_constraints.task_topology_constraints:
-            # Build tree and create PodGroup structure
-            tree_result = self._build_topology_tree(
-                topology_constraints, topology_name, pods
-            )
-            top_level_constraint = tree_result.top_level_constraint
-            subgroups = tree_result.subgroups
-            pod_subgroups = tree_result.pod_subgroups
+        for pod in pods:
+            task_name = pod['metadata']['labels'].get('osmo.task_name', '')
+            if task_name in task_subgroups:
+                pod_name = pod['metadata']['name']
+                pod_subgroups[pod_name] = task_subgroups[task_name]
 
         # Apply pod-level configuration
         for pod in pods:
@@ -620,265 +611,6 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                     }
                 })
         return topology_crds
-
-    def _build_topology_tree(
-        self,
-        topology_constraints: topology.GroupTopologyConstraints,
-        topology_name: str,
-        pods: List[Dict]
-    ) -> TopologyTreeResult:
-        """
-        Builds a tree structure from topology constraints and creates PodGroup subgroups.
-
-        Algorithm:
-        1. Determine topology levels at play (which appear in task requirements)
-        2. Sort from coarsest to finest
-        3. Build tree: root -> coarsest level groups -> finer levels -> leaf nodes (tasks)
-        4. Walk down tree through single-node layers (shared topology)
-        5. Create subgroups for multi-node layers with hierarchical parent relationships
-        6. Add minMember only to leaf subgroups
-        7. IMPORTANT: All leaf nodes must be at the same level. Tasks without topology
-           constraints are placed in a catch-all subgroup with "preferred" constraint.
-
-        Returns:
-            TopologyTreeResult with top_level_constraint, subgroups, and pod_subgroups
-        """
-        # Collect all task names from pods
-        all_task_names = {
-            pod['metadata']['labels'].get('osmo.task_name')
-            for pod in pods
-            if pod['metadata']['labels'].get('osmo.task_name')
-        }
-
-        # Step 1: Collect all topology levels used and organize tasks by their constraints
-        # Map: (label, subgroup, required) -> list of task names
-        constraint_to_tasks: Dict[tuple, List[str]] = {}
-
-        # Separate tasks with and without topology constraints
-        constrained_tasks = set()
-        for task_name, task_constraints in topology_constraints.task_topology_constraints.items():
-            if not task_constraints.constraints:
-                continue
-
-            constrained_tasks.add(task_name)
-
-            # Group by the tuple of all constraints (label, subgroup, required)
-            constraint_key = tuple(
-                (c.label, c.subgroup, c.required) for c in task_constraints.constraints
-            )
-
-            if constraint_key not in constraint_to_tasks:
-                constraint_to_tasks[constraint_key] = []
-            constraint_to_tasks[constraint_key].append(task_name)
-
-        # Find tasks without topology constraints
-        unconstrained_tasks = list(all_task_names - constrained_tasks)
-
-        if not constraint_to_tasks and not unconstrained_tasks:
-            return TopologyTreeResult(
-                top_level_constraint=None,
-                subgroups=[],
-                pod_subgroups={}
-            )
-
-        # Step 2: Determine all topology levels in play and the deepest level used
-        # The constraints are already in coarsest-to-finest order from the pool config
-        all_levels_used = set()
-        max_depth = 0
-        deepest_constraint_tuple = None
-
-        for constraint_tuple in constraint_to_tasks:
-            if len(constraint_tuple) > max_depth:
-                max_depth = len(constraint_tuple)
-                deepest_constraint_tuple = constraint_tuple
-            for label, _, _ in constraint_tuple:
-                all_levels_used.add(label)
-
-        # Get ordering of levels from the deepest constraint tuple
-        if deepest_constraint_tuple:
-            levels_in_order = [label for label, _, _ in deepest_constraint_tuple]
-        else:
-            levels_in_order = []
-
-        # Step 2.5: Pad tasks to same depth - all leaf nodes must be at the same level
-        if max_depth > 1 and deepest_constraint_tuple:
-            # Pad constraint tuples that are shorter than max_depth
-            padded_constraint_to_tasks = {}
-            for constraint_tuple, task_list in constraint_to_tasks.items():
-                if len(constraint_tuple) < max_depth:
-                    # Pad with preferred constraints at finer levels
-                    padded_tuple = list(constraint_tuple)
-                    # Get the subgroup name from the existing constraints for continuity
-                    base_subgroup = constraint_tuple[-1][1] if constraint_tuple else 'default'
-                    for i in range(len(constraint_tuple), max_depth):
-                        label = levels_in_order[i]
-                        padded_tuple.append((label, f'{base_subgroup}-padded-{i}', False))
-                    padded_constraint_to_tasks[tuple(padded_tuple)] = task_list
-                else:
-                    padded_constraint_to_tasks[constraint_tuple] = task_list
-            constraint_to_tasks = padded_constraint_to_tasks
-
-        # Pad unconstrained tasks to same depth as other tasks
-        if unconstrained_tasks and deepest_constraint_tuple:
-            # Create a constraint tuple with all levels marked as "preferred" with a default group
-            padded_constraint_tuple = tuple(
-                (label, 'default-unconstrained', False)  # False = preferred
-                for label, _, _ in deepest_constraint_tuple
-            )
-            constraint_to_tasks[padded_constraint_tuple] = unconstrained_tasks
-        elif unconstrained_tasks and not deepest_constraint_tuple:
-            # No constrained tasks, only unconstrained tasks - no subgroups needed
-            return TopologyTreeResult(
-                top_level_constraint=None,
-                subgroups=[],
-                pod_subgroups={}
-            )
-
-        # Step 3: Build tree structure using TopologyTreeNode
-        root = TopologyTreeNode(label=None, subgroup=None, required=True)
-
-        # Build tree by grouping tasks at each level
-        for constraint_tuple, task_list in constraint_to_tasks.items():
-            # Navigate/create path in tree for this constraint set
-            current_node = root
-            for label, subgroup, required in constraint_tuple:
-                # Find or create child node for this (label, subgroup, required)
-                child_node = None
-                for child in current_node.children:
-                    if (child.label == label and
-                        child.subgroup == subgroup and
-                        child.required == required):
-                        child_node = child
-                        break
-
-                if child_node is None:
-                    child_node = TopologyTreeNode(
-                        label=label,
-                        subgroup=subgroup,
-                        required=required
-                    )
-                    current_node.children.append(child_node)
-
-                current_node = child_node
-
-            # Add tasks to the leaf node
-            current_node.tasks.extend(task_list)
-
-        # Step 4: Walk down tree to find shared topology levels
-        top_level_constraint = None
-        subgroup_creation_root = root
-
-        # Walk down while there's only one child (shared topology)
-        current_level = root
-        while len(current_level.children) == 1:
-            single_child = current_level.children[0]
-            # This level is shared by all tasks
-            top_level_constraint = {
-                'topology': topology_name,
-                ('requiredTopologyLevel' if single_child.required
-                 else 'preferredTopologyLevel'): single_child.label
-            }
-            current_level = single_child
-
-        # Start creating subgroups from this level
-        subgroup_creation_root = current_level
-
-        # Step 5: Create subgroups with hierarchical relationships
-        subgroups = []
-        pod_subgroups = {}
-        subgroup_counter = [0]  # Use list to allow modification in nested function
-
-        def create_subgroups_recursive(node: TopologyTreeNode, parent_name=None):
-            """Recursively create subgroups for tree nodes"""
-            if not node.children:
-                # Leaf node - create subgroup for tasks
-                if node.tasks:
-                    subgroup_counter[0] += 1
-                    subgroup_name = f'{node.subgroup}-sg-{subgroup_counter[0]}'
-
-                    subgroup = {
-                        'name': subgroup_name,
-                        'minMember': len(node.tasks),
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            ('requiredTopologyLevel' if node.required
-                             else 'preferredTopologyLevel'): node.label
-                        }
-                    }
-
-                    if parent_name:
-                        subgroup['parent'] = parent_name
-
-                    subgroups.append(subgroup)
-
-                    # Map pods to this subgroup
-                    for task_name in node.tasks:
-                        for pod in pods:
-                            if pod['metadata']['labels'].get('osmo.task_name') == task_name:
-                                pod_subgroups[pod['metadata']['name']] = subgroup_name
-                                break
-
-                    return subgroup_name
-                return None
-
-            # Non-leaf node - create subgroup and recurse
-            if len(node.children) > 1 or parent_name is not None:
-                # Create intermediate subgroup only if there are multiple children
-                # or if we already have a parent (to maintain hierarchy)
-                subgroup_counter[0] += 1
-                subgroup_name = f'{node.subgroup}-sg-{subgroup_counter[0]}'
-
-                # For non-leaf subgroups, minMember is sum of children
-                # But we'll compute this after creating children
-                subgroup = {
-                    'name': subgroup_name,
-                    'topologyConstraint': {
-                        'topology': topology_name,
-                        ('requiredTopologyLevel' if node.required
-                         else 'preferredTopologyLevel'): node.label
-                    }
-                }
-
-                if parent_name:
-                    subgroup['parent'] = parent_name
-
-                # Placeholder for minMember - will be computed from children
-                placeholder_idx = len(subgroups)
-                subgroups.append(subgroup)
-
-                # Recurse into children
-                total_tasks = 0
-                for child in node.children:
-                    create_subgroups_recursive(child, subgroup_name)
-                    # Count tasks from child
-                    total_tasks += _count_tasks_in_tree(child)
-
-                # Update minMember with total from children (only for non-leaf subgroups)
-                subgroups[placeholder_idx]['minMember'] = total_tasks
-
-                return subgroup_name
-
-            # Single child and no parent - pass through
-            return create_subgroups_recursive(node.children[0], parent_name)
-
-        def _count_tasks_in_tree(node: TopologyTreeNode):
-            """Count total tasks in a tree node"""
-            count = len(node.tasks)
-            for child in node.children:
-                count += _count_tasks_in_tree(child)
-            return count
-
-        # Create subgroups starting from where tree branches
-        if subgroup_creation_root.children:
-            for child in subgroup_creation_root.children:
-                create_subgroups_recursive(child)
-
-        logging.info('Built topology tree with %d subgroups', len(subgroups))
-        return TopologyTreeResult(
-            top_level_constraint=top_level_constraint,
-            subgroups=subgroups,
-            pod_subgroups=pod_subgroups
-        )
 
     def priority_supported(self) -> bool:
         """Whether this scheduler supports priority"""

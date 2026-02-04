@@ -38,7 +38,7 @@ from src.lib.data.storage import constants
 from src.lib.utils import (cache, common, credentials, jinja_sandbox, osmo_errors,
                         priority as wf_priority)
 from src.utils import auth, connectors
-from src.utils.job import common as task_common, kb_objects
+from src.utils.job import common as task_common, kb_objects, topology as topology_module
 from src.utils.progress_check import progress
 
 
@@ -1967,26 +1967,36 @@ class TaskGroup(pydantic.BaseModel):
         )
 
         # Build topology constraints if pool has topology enabled
-        # pylint: disable=import-outside-toplevel
-        from src.utils.job import topology as topology_module
         pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
 
-        builder = topology_module.TopologyConstraintBuilder(pool_obj)
+        # Build topology configuration
+        topology_name = f'osmo-pool-{backend_config.k8s_namespace}-{pool}-topology'
+        topology_keys = [
+            topology_module.TopologyKey(key=tk.key, label=tk.label)
+            for tk in pool_obj.topology_keys
+        ] if pool_obj.topology_keys else []
 
-        # Validate all tasks' topology requirements
+        # Convert tasks to TaskInfo with topology requirements
+        task_infos = []
         for task_obj in self.spec.tasks:
-            builder.validate_topology_requirements(task_obj.resources)
-
-        # Build constraints (always returns a valid object, never None)
-        topology_constraints = builder.build_constraints(
-            self.spec.tasks,
-            pods,
-            pool,
-            backend_config.k8s_namespace
-        )
+            topology_reqs = []
+            if task_obj.resources.topology:
+                for req in task_obj.resources.topology:
+                    is_required = (
+                        req.requirementType == connectors.TopologyRequirementType.REQUIRED
+                    )
+                    topology_reqs.append(topology_module.TopologyRequirement(
+                        key=req.key,
+                        group=req.group,
+                        required=is_required
+                    ))
+            task_infos.append(topology_module.TaskInfo(
+                name=task_obj.name,
+                topology_requirements=topology_reqs
+            ))
 
         group_objects = k8s_factory.create_group_k8s_resources(
-            group_uid, pods, labels, pool, priority, topology_constraints)
+            group_uid, pods, labels, pool, priority, topology_name, topology_keys, task_infos)
 
         pod_specs = dict(zip(task_names, pods))
 

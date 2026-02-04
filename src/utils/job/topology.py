@@ -18,117 +18,376 @@ SPDX-License-Identifier: Apache-2.0
 Topology constraint building logic for KAI scheduler.
 """
 
-from typing import Dict, List
+import dataclasses
+import logging
+from typing import Any, Dict, List, Optional
 
-import pydantic
-
-from src.utils import connectors
+from src.lib.utils import osmo_errors
 
 
-class TaskTopologyConstraint(pydantic.BaseModel, extra=pydantic.Extra.forbid):
-    """
-    Represents a single topology constraint for a task.
+@dataclasses.dataclass
+class TopologyKey:
+    """Single topology key definition from pool configuration."""
+    key: str  # User-friendly key (e.g., "z", "r")
+    label: str  # K8s label (e.g., "topology.kubernetes.io/zone")
 
-    Things with the same subgroup for the same label must be matched
-    on a label that has the same value.
-    """
-    label: str  # The Kubernetes label (e.g., k8s.io/hostname)
-    subgroup: str  # Subgroup identifier for grouping constraints
+
+@dataclasses.dataclass
+class TopologyRequirement:
+    """Single topology requirement from workflow."""
+    key: str  # Topology key (e.g., "z", "r")
+    group: str  # Subgroup name (e.g., "model-1")
     required: bool  # Whether the constraint is required or preferred
 
 
-class TaskTopologyConstraints(pydantic.BaseModel, extra=pydantic.Extra.forbid):
-    """Contains all topology constraints for a single task"""
-    constraints: List[TaskTopologyConstraint] = []
+@dataclasses.dataclass
+class TaskInfo:
+    """Task information for topology building."""
+    name: str  # Task name
+    topology_requirements: List[TopologyRequirement]  # Empty if no requirements
 
 
-class GroupTopologyConstraints(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+@dataclasses.dataclass
+class TopologyTreeNode:
+    """Represents a node in the topology constraint tree."""
+    label: Optional[str]  # Kubernetes label (e.g., "topology.kubernetes.io/zone"), None for root
+    subgroup: Optional[str]  # Subgroup identifier (e.g., "model-1-group")
+    required: bool  # Whether this is a required or preferred constraint
+    children: List['TopologyTreeNode'] = dataclasses.field(default_factory=list)
+    tasks: List[str] = dataclasses.field(default_factory=list)  # Task names at this leaf
+
+
+@dataclasses.dataclass
+class TopologyTreeResult:
+    """Result from building the topology constraint tree."""
+    top_level_constraint: Optional[Dict[str, str]]  # Top-level PodGroup topology constraint
+    subgroups: List[Dict[str, Any]]  # List of subgroup specs for PodGroup
+    task_subgroups: Dict[str, str]  # Mapping from task name to subgroup name
+
+
+def validate_topology_requirements(
+    tasks: List[TaskInfo],
+    topology_keys: List[TopologyKey]
+) -> None:
     """
-    Maps task names to their topology constraints.
-    Used as input to kb_objects.py create_group_k8s_resources.
+    Validates topology requirements at workflow submission time.
+    Raises OSMOResourceError if validation fails.
+
+    This should be called early (during workflow submission) so users get
+    immediate feedback on invalid topology specifications.
+
+    Args:
+        tasks: List of tasks with topology requirements
+        topology_keys: Available topology keys from pool configuration
+
+    Raises:
+        OSMOResourceError: If validation fails (uniform keys or invalid keys)
     """
-    task_topology_constraints: Dict[str, TaskTopologyConstraints]
+    # Build key mappings
+    available_keys = {topology_key.key for topology_key in topology_keys}
 
+    # Collect unique key sets from tasks
+    key_sets = set()
+    for task in tasks:
+        if task.topology_requirements:
+            keys = tuple(sorted(req.key for req in task.topology_requirements))
+            key_sets.add(keys)
 
-class TopologyConstraintBuilder:
-    """Builds topology constraints for PodGroups from workflow specs"""
-
-    def __init__(self, pool: connectors.Pool):
-        """
-        Args:
-            pool: Pool configuration containing topology_keys
-        """
-        self.pool = pool
-        self.key_to_label = {
-            topology_key.key: topology_key.label for topology_key in pool.topology_keys
-        }
-        # Create mapping from label to position (for sorting coarsest to finest)
-        self.label_to_position = {
-            topology_key.label: idx for idx, topology_key in enumerate(pool.topology_keys)
-        }
-
-    def build_constraints(self, tasks: List, pods: List[Dict],
-                         pool_name: str, namespace: str) -> GroupTopologyConstraints:
-        """
-        Builds topology constraints for a task group.
-
-        Algorithm:
-        1. Collect all topology requirements from all tasks
-        2. For each task, create TaskTopologyConstraint objects
-        3. Build a GroupTopologyConstraints mapping task names to their constraints
-
-        Args:
-            tasks: List of tasks in the group
-            pods: List of pod specs (in same order as tasks)
-            pool_name: Name of the pool
-            namespace: K8s namespace for the backend
-
-        Returns:
-            GroupTopologyConstraints with task constraints (empty if no constraints)
-        """
-        # pylint: disable=unused-argument
-        task_topology_constraints: Dict[str, TaskTopologyConstraints] = {}
-
-        # If pool has no topology keys, return empty constraints
-        if not self.pool.topology_keys:
-            return GroupTopologyConstraints(task_topology_constraints={})
-
-        # Build task topology constraints for tasks with topology requirements
-        for task_obj in tasks:
-            if not task_obj.resources.topology:
-                continue
-
-            # Get the task name from the task object
-            task_name = task_obj.name
-
-            # Create TaskTopologyConstraint for each topology requirement
-            constraints = []
-            for req in task_obj.resources.topology:
-                label = self.key_to_label[req.key]
-                constraint = TaskTopologyConstraint(
-                    label=label,
-                    subgroup=req.group,
-                    required=(req.requirementType == connectors.TopologyRequirementType.REQUIRED)
-                )
-                constraints.append(constraint)
-
-            # Sort constraints by pool topology_keys order (coarsest to finest)
-            # This ensures tree building works correctly regardless of workflow spec order
-            constraints.sort(key=lambda c: self.label_to_position[c.label])
-
-            task_topology_constraints[task_name] = TaskTopologyConstraints(
-                constraints=constraints
-            )
-
-        return GroupTopologyConstraints(
-            task_topology_constraints=task_topology_constraints
+    # Validate uniform keys
+    if len(key_sets) > 1:
+        key_list = [', '.join(keys) for keys in key_sets]
+        raise osmo_errors.OSMOResourceError(
+            f'Topology validation failed: All tasks must use the same topology keys. '
+            f'Found different key sets: {key_list}. '
+            f'Either all tasks should have topology requirements with the same keys, '
+            f'or no tasks should have topology requirements.'
         )
 
-    def validate_topology_requirements(self, resource_spec: connectors.ResourceSpec):
-        """Validates that topology requirements reference valid pool keys"""
-        for req in resource_spec.topology:
-            if req.key not in self.key_to_label:
-                raise ValueError(
-                    f'Topology key "{req.key}" not found in pool topology_keys. '
-                    f'Available keys: {list(self.key_to_label.keys())}'
+    # Validate keys exist in configuration
+    for task in tasks:
+        for req in task.topology_requirements:
+            if req.key not in available_keys:
+                raise osmo_errors.OSMOResourceError(
+                    f'Topology validation failed: Topology key "{req.key}" in task '
+                    f'"{task.name}" not found in pool. '
+                    f'Available keys: {list(available_keys)}'
                 )
+
+
+class PodGroupTopologyBuilder:
+    """
+    Unified builder for PodGroup topology structure.
+    Validates topology requirements and builds complete tree structure in one step.
+    """
+
+    def __init__(self, topology_name: str, topology_keys: List[TopologyKey]):
+        """
+        Args:
+            topology_name: Name of the Topology CRD
+            topology_keys: Ordered list of topology keys (coarsest → finest)
+        """
+        self.topology_name = topology_name
+        self.topology_keys = topology_keys
+        # Create mappings for fast lookup
+        self.key_to_label = {
+            topology_key.key: topology_key.label for topology_key in topology_keys
+        }
+        self.label_to_key = {
+            topology_key.label: topology_key.key for topology_key in topology_keys
+        }
+        self.label_order = {
+            topology_key.label: i for i, topology_key in enumerate(topology_keys)
+        }
+
+    def build(self, tasks: List[TaskInfo]) -> TopologyTreeResult:
+        """
+        Validates topology requirements and builds complete tree structure.
+
+        Algorithm:
+        1. Validate all tasks use same topology keys (or no keys)
+        2. Validate keys exist in topology configuration
+        3. Build tree with namespaced subgroup names (concatenate parent path)
+        4. Find shared topology levels
+        5. Create subgroups with hierarchical relationships
+
+        Args:
+            tasks: List of tasks with topology requirements
+
+        Returns:
+            TopologyTreeResult with complete PodGroup structure
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Handle empty topology case
+        if not any(t.topology_requirements for t in tasks):
+            return TopologyTreeResult(
+                top_level_constraint=None,
+                subgroups=[],
+                task_subgroups={}
+            )
+
+        # Step 1: Validate all tasks use same topology keys
+        self._validate_uniform_keys(tasks)
+
+        # Step 2: Validate keys exist in configuration
+        self._validate_keys_exist(tasks)
+
+        # Step 3: Build tree with namespaced names
+        root = self._build_tree(tasks)
+
+        # Step 4: Find shared topology levels
+        top_level_constraint, subgroup_root = self._find_shared_topology(root)
+
+        # Step 5: Create subgroups
+        subgroups, task_subgroups = self._create_subgroups(subgroup_root)
+
+        logging.info('Built topology tree with %d subgroups', len(subgroups))
+        return TopologyTreeResult(
+            top_level_constraint=top_level_constraint,
+            subgroups=subgroups,
+            task_subgroups=task_subgroups
+        )
+
+    def _validate_uniform_keys(self, tasks: List[TaskInfo]):
+        """Validates that all tasks use the same set of topology keys."""
+        # Collect unique key sets
+        key_sets = set()
+        for task in tasks:
+            if task.topology_requirements:
+                keys = tuple(sorted(req.key for req in task.topology_requirements))
+                key_sets.add(keys)
+
+        # Check uniformity
+        if len(key_sets) > 1:
+            key_list = [', '.join(ks) for ks in key_sets]
+            raise osmo_errors.OSMOResourceError(
+                f'Topology validation failed: All tasks must use the same topology keys. '
+                f'Found different key sets: {key_list}. '
+                f'Either all tasks should have topology requirements with the same keys, '
+                f'or no tasks should have topology requirements.'
+            )
+
+    def _validate_keys_exist(self, tasks: List[TaskInfo]):
+        """Validates that all topology keys exist in configuration."""
+        for task in tasks:
+            for req in task.topology_requirements:
+                if req.key not in self.key_to_label:
+                    raise osmo_errors.OSMOResourceError(
+                        f'Topology validation failed: Topology key "{req.key}" in task '
+                        f'"{task.name}" not found in pool. '
+                        f'Available keys: {list(self.key_to_label.keys())}'
+                    )
+
+    def _build_tree(self, tasks: List[TaskInfo]) -> TopologyTreeNode:
+        """
+        Builds tree structure with namespaced subgroup names.
+
+        Subgroup names are namespaced by concatenating parent groups:
+        e.g., zone=z1, rack=r1 → subgroup name is "z1-r1"
+        """
+        root = TopologyTreeNode(label=None, subgroup=None, required=True)
+
+        # Get ordered topology levels (coarsest to finest)
+        task_with_reqs = next((t for t in tasks if t.topology_requirements), None)
+        if not task_with_reqs:
+            return root
+
+        # Sort requirements by label order from config
+        sorted_reqs = sorted(
+            task_with_reqs.topology_requirements,
+            key=lambda r: self.label_order[self.key_to_label[r.key]]
+        )
+        topology_levels = [self.key_to_label[req.key] for req in sorted_reqs]
+
+        # Track nodes by path for fast lookup
+        # path_nodes[(label1, group1, label2, group2, ...)] = TreeNode
+        path_nodes: Dict[tuple, TopologyTreeNode] = {}
+        path_nodes[()] = root
+
+        # Process each task
+        for task in tasks:
+            if not task.topology_requirements:
+                continue
+
+            # Sort task requirements by topology order
+            sorted_task_reqs = sorted(
+                task.topology_requirements,
+                key=lambda r: self.label_order[self.key_to_label[r.key]]
+            )
+
+            # Build path through tree
+            current_node = root
+            parent_groups = []
+
+            for req in sorted_task_reqs:
+                label = self.key_to_label[req.key]
+                group = req.group
+
+                # Build namespaced subgroup name by concatenating path
+                if parent_groups:
+                    subgroup_name = '-'.join(parent_groups + [group])
+                else:
+                    subgroup_name = group
+
+                # Create path key for lookup
+                path_key = tuple(
+                    item for i in range(len(parent_groups))
+                    for item in (topology_levels[i], parent_groups[i])
+                ) + (label, group)
+
+                # Check if node exists at this path
+                if path_key in path_nodes:
+                    child_node = path_nodes[path_key]
+                else:
+                    # Create new node
+                    child_node = TopologyTreeNode(
+                        label=label,
+                        subgroup=subgroup_name,
+                        required=req.required
+                    )
+                    path_nodes[path_key] = child_node
+                    current_node.children.append(child_node)
+
+                current_node = child_node
+                parent_groups.append(group)
+
+            # Add task to leaf node
+            current_node.tasks.append(task.name)
+
+        return root
+
+    def _find_shared_topology(
+        self,
+        root: TopologyTreeNode
+    ) -> tuple[Optional[Dict[str, str]], TopologyTreeNode]:
+        """Walks down single-child path to find shared topology levels."""
+        top_level_constraint = None
+        current = root
+
+        # Walk down while there's only one child (shared by all tasks)
+        while len(current.children) == 1:
+            child = current.children[0]
+            top_level_constraint = {
+                'topology': self.topology_name,
+                ('requiredTopologyLevel' if child.required
+                 else 'preferredTopologyLevel'): child.label
+            }
+            current = child
+
+        return top_level_constraint, current
+
+    def _create_subgroups(
+        self,
+        root: TopologyTreeNode
+    ) -> tuple[List[Dict[str, Any]], Dict[str, str]]:
+        """Creates subgroups with hierarchical relationships."""
+        subgroups = []
+        task_subgroups = {}
+
+        def create_recursive(
+            node: TopologyTreeNode,
+            parent_name: Optional[str] = None
+        ) -> Optional[str]:
+            """Recursively creates subgroups."""
+            # Use the namespaced subgroup name from the node
+            name = node.subgroup
+
+            # Leaf node - create subgroup for tasks
+            if not node.children and node.tasks:
+                subgroup = {
+                    'name': name,
+                    'minMember': len(node.tasks),
+                    'topologyConstraint': {
+                        'topology': self.topology_name,
+                        ('requiredTopologyLevel' if node.required
+                         else 'preferredTopologyLevel'): node.label
+                    }
+                }
+                if parent_name:
+                    subgroup['parent'] = parent_name
+
+                subgroups.append(subgroup)
+
+                # Map tasks to subgroup
+                for task_name in node.tasks:
+                    task_subgroups[task_name] = name
+
+                return name
+
+            # Non-leaf - create parent subgroup if multiple children or has parent
+            if len(node.children) > 1 or parent_name is not None:
+                subgroup = {
+                    'name': name,
+                    'topologyConstraint': {
+                        'topology': self.topology_name,
+                        ('requiredTopologyLevel' if node.required
+                         else 'preferredTopologyLevel'): node.label
+                    }
+                }
+                if parent_name:
+                    subgroup['parent'] = parent_name
+
+                idx = len(subgroups)
+                subgroups.append(subgroup)
+
+                # Recurse into children
+                total = sum(self._count_tasks(child) for child in node.children)
+                for child in node.children:
+                    create_recursive(child, name)
+
+                subgroups[idx]['minMember'] = total
+                return name
+
+            # Single child, no parent - pass through
+            return create_recursive(node.children[0], parent_name)
+
+        # Create subgroups from branching point
+        for child in root.children:
+            create_recursive(child)
+
+        return subgroups, task_subgroups
+
+    def _count_tasks(self, node: TopologyTreeNode) -> int:
+        """Counts total tasks in a tree node."""
+        return len(node.tasks) + sum(self._count_tasks(c) for c in node.children)

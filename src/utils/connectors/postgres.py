@@ -3402,6 +3402,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
 
         # Validate topology_keys is only set for schedulers that support it
         if self.topology_keys:
+            # Import inside function to avoid circular dependency:
+            # connectors/__init__.py -> postgres.py -> kb_objects.py -> connectors
             from src.utils.job import kb_objects  # pylint: disable=import-outside-toplevel
             backend = Backend.fetch_from_db(database, self.backend)
             factory = kb_objects.get_k8s_object_factory(backend)
