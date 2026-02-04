@@ -39,6 +39,7 @@
 
 import { type NextRequest } from "next/server";
 import { getServerApiBaseUrl } from "@/lib/api/server/config";
+import { forwardAuthHeaders } from "@/lib/api/server/proxy-headers";
 
 /**
  * Proxy all API requests to backend.
@@ -55,27 +56,14 @@ async function proxyRequest(request: NextRequest, method: string) {
   const queryString = searchParams.toString();
   const fullUrl = queryString ? `${backendUrl}${backendPath}?${queryString}` : `${backendUrl}${backendPath}`;
 
-  // Forward headers from incoming request
-  const headers = new Headers();
+  // Forward auth headers using centralized utility
+  const headers = forwardAuthHeaders(request);
 
-  // Copy important headers
-  // In production: Envoy injects authorization, x-osmo-user, etc.
-  // In local dev: Client may send x-osmo-auth or other headers
-  const headersToForward = [
-    "content-type",
-    "authorization", // Envoy adds this with valid JWT
-    "x-osmo-auth", // Used in local dev
-    "x-osmo-user", // Envoy adds this (username)
-    "x-osmo-roles", // If configured in Envoy
-    "cookie", // Includes Envoy session cookie
-  ];
-
-  headersToForward.forEach((header) => {
-    const value = request.headers.get(header);
-    if (value) {
-      headers.set(header, value);
-    }
-  });
+  // Also forward content-type for POST/PUT/PATCH requests
+  const contentType = request.headers.get("content-type");
+  if (contentType) {
+    headers.set("content-type", contentType);
+  }
 
   // Forward request body for POST/PUT/PATCH
   let body: BodyInit | undefined;
@@ -97,26 +85,20 @@ async function proxyRequest(request: NextRequest, method: string) {
       redirect: "manual",
     });
 
-    // Forward response headers
+    // Forward response headers from backend as-is (transparent proxy)
     const responseHeaders = new Headers();
 
     // Copy all headers from backend response
     response.headers.forEach((value, key) => {
-      // Skip headers that cause issues
+      // Skip headers that cause issues with streaming
       if (!["transfer-encoding", "connection", "keep-alive"].includes(key.toLowerCase())) {
         responseHeaders.set(key, value);
       }
     });
 
-    // Add cache control headers to prevent caching
-    responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate");
-    responseHeaders.set("Pragma", "no-cache");
-    responseHeaders.set("Expires", "0");
-
-    // Forward response body
-    const responseBody = await response.arrayBuffer();
-
-    return new Response(responseBody, {
+    // Stream response body directly (zero-copy proxying)
+    // This reduces latency and memory usage by not buffering the entire response
+    return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
