@@ -125,6 +125,7 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         method: "GET",
         headers: { Accept: "text/plain" },
         signal: controller.signal,
+        credentials: "include", // Forward cookies (Envoy session) for authentication
       });
 
       if (!response.ok) {
