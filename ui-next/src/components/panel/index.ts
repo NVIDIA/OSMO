@@ -65,6 +65,8 @@ export { DetailsSection, type DetailsSectionProps, type DetailsItem } from "./de
 
 export { LinksSection, type LinksSectionProps, type LinkItem } from "./links-section";
 
+export { ActionsSection, type ActionsSectionProps, type ActionItem } from "./actions-section";
+
 export { DependenciesSection, type DependenciesSectionProps, type DependencyItem } from "./dependencies-section";
 
 export { TabPanel, type TabPanelProps } from "./tab-panel";
