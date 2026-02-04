@@ -17,6 +17,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -75,9 +76,11 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
       });
       // Don't clear edits - profile will refetch and bucketDirty will become false automatically
       // This prevents flashing during the refetch
+      toast.success("Default bucket saved successfully");
       announcer.announce("Default bucket saved successfully", "polite");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save default bucket";
+      toast.error(message);
       announcer.announce(`Error: ${message}`, "assertive");
     }
   }, [stagedBucket, bucketDirty, updateProfile, announcer]);
