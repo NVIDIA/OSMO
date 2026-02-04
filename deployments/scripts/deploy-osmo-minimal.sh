@@ -385,34 +385,35 @@ handle_configuration() {
 deploy_osmo() {
     log_info "Deploying OSMO..."
 
-    # Save current values before sourcing deploy-k8s.sh (which resets them)
+    # Save current values before sourcing deploy-k8s.sh
     local saved_provider="$PROVIDER"
     local saved_outputs_file="$OUTPUTS_FILE"
     local saved_values_dir="$VALUES_DIR"
     local saved_dry_run="$DRY_RUN"
 
-    # Parse component-specific values file arguments from ALL_ARGS
-    local saved_service_values_files=()
-    local saved_ui_values_files=()
-    local saved_router_values_files=()
-    local saved_backend_values_files=()
+    # Parse component-specific values file arguments from ALL_ARGS into global arrays
+    # These will be preserved when sourcing deploy-k8s.sh
+    SERVICE_VALUES_FILES=()
+    UI_VALUES_FILES=()
+    ROUTER_VALUES_FILES=()
+    BACKEND_VALUES_FILES=()
     local i=0
     while [[ $i -lt ${#ALL_ARGS[@]} ]]; do
         case "${ALL_ARGS[$i]}" in
             --service-values-file)
-                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_service_values_files+=("${ALL_ARGS[$((i+1))]}")
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && SERVICE_VALUES_FILES+=("${ALL_ARGS[$((i+1))]}")
                 i=$((i+2))
                 ;;
             --ui-values-file)
-                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_ui_values_files+=("${ALL_ARGS[$((i+1))]}")
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && UI_VALUES_FILES+=("${ALL_ARGS[$((i+1))]}")
                 i=$((i+2))
                 ;;
             --router-values-file)
-                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_router_values_files+=("${ALL_ARGS[$((i+1))]}")
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && ROUTER_VALUES_FILES+=("${ALL_ARGS[$((i+1))]}")
                 i=$((i+2))
                 ;;
             --backend-values-file)
-                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && saved_backend_values_files+=("${ALL_ARGS[$((i+1))]}")
+                [[ $((i+1)) -lt ${#ALL_ARGS[@]} ]] && BACKEND_VALUES_FILES+=("${ALL_ARGS[$((i+1))]}")
                 i=$((i+2))
                 ;;
             *)
@@ -431,38 +432,16 @@ deploy_osmo() {
         redis_password=$(grep 'redis_auth_token\|redis_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
     fi
 
-    # Run K8s deployment script
+    # Source deploy-k8s.sh (preserves *_VALUES_FILES arrays set above)
     source "$SCRIPT_DIR/deploy-k8s.sh"
 
-    # Restore variables for deploy-k8s.sh
+    # Restore other variables
     PROVIDER="$saved_provider"
     OUTPUTS_FILE="$saved_outputs_file"
     VALUES_DIR="$saved_values_dir"
     POSTGRES_PASSWORD="$postgres_password"
     REDIS_PASSWORD="$redis_password"
     DRY_RUN="$saved_dry_run"
-
-    # Restore component-specific values files
-    if [[ ${#saved_service_values_files[@]} -gt 0 ]]; then
-        SERVICE_VALUES_FILES=("${saved_service_values_files[@]}")
-    else
-        SERVICE_VALUES_FILES=()
-    fi
-    if [[ ${#saved_ui_values_files[@]} -gt 0 ]]; then
-        UI_VALUES_FILES=("${saved_ui_values_files[@]}")
-    else
-        UI_VALUES_FILES=()
-    fi
-    if [[ ${#saved_router_values_files[@]} -gt 0 ]]; then
-        ROUTER_VALUES_FILES=("${saved_router_values_files[@]}")
-    else
-        ROUTER_VALUES_FILES=()
-    fi
-    if [[ ${#saved_backend_values_files[@]} -gt 0 ]]; then
-        BACKEND_VALUES_FILES=("${saved_backend_values_files[@]}")
-    else
-        BACKEND_VALUES_FILES=()
-    fi
 
     # Source the outputs file
     if [[ -f "$OUTPUTS_FILE" ]]; then

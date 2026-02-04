@@ -120,6 +120,13 @@ Handles Kubernetes-specific deployment tasks:
 This script is typically called by `deploy-osmo-minimal.sh` but can be used standalone:
 
 ```bash
+# For existing clusters (kubectl already configured)
+./deploy-k8s.sh --postgres-password 'YourPassword'
+
+# Or explicitly specify local provider
+./deploy-k8s.sh --provider local --postgres-password 'YourPassword'
+
+# For Azure-provisioned infrastructure
 ./deploy-k8s.sh --provider azure --outputs-file .azure_outputs.env --postgres-password 'YourPassword'
 
 # With custom values files for specific components
@@ -128,6 +135,11 @@ This script is typically called by `deploy-osmo-minimal.sh` but can be used stan
   --service-values-file service-overrides.yaml \
   --ui-values-file ui-overrides.yaml
 ```
+
+**Providers:**
+- `local` (default): Uses direct kubectl/helm commands for existing clusters
+- `azure`: Uses Azure-specific wrappers (supports private AKS clusters)
+- `aws`: Uses AWS-specific wrappers
 
 ### `common.sh`
 

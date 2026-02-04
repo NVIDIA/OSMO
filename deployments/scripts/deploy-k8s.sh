@@ -31,13 +31,17 @@
 # - Infrastructure outputs file with connection details
 #
 # Usage:
-#   ./deploy-k8s.sh --provider azure|aws --outputs-file <path> [options]
+#   ./deploy-k8s.sh [--provider local|azure|aws] [options]
 #
 # Options:
+#   --provider <provider>          Provider: local (default), azure, or aws
+#   --outputs-file <path>          Infrastructure outputs file (required for azure/aws)
 #   --service-values-file <path>   Additional values file for OSMO service (can be repeated)
 #   --ui-values-file <path>        Additional values file for OSMO UI (can be repeated)
 #   --router-values-file <path>    Additional values file for OSMO router (can be repeated)
 #   --backend-values-file <path>   Additional values file for backend operator (can be repeated)
+#
+# For existing clusters with kubectl configured, you can omit --provider (defaults to local)
 ###############################################################################
 
 set -euo pipefail
@@ -67,11 +71,11 @@ VALUES_DIR=""
 DRY_RUN=false
 POSTGRES_PASSWORD=""
 
-# Component-specific values files
-SERVICE_VALUES_FILES=()
-UI_VALUES_FILES=()
-ROUTER_VALUES_FILES=()
-BACKEND_VALUES_FILES=()
+# Component-specific values files (preserve if already set by parent script)
+SERVICE_VALUES_FILES=("${SERVICE_VALUES_FILES[@]+"${SERVICE_VALUES_FILES[@]}"}")
+UI_VALUES_FILES=("${UI_VALUES_FILES[@]+"${UI_VALUES_FILES[@]}"}")
+ROUTER_VALUES_FILES=("${ROUTER_VALUES_FILES[@]+"${ROUTER_VALUES_FILES[@]}"}")
+BACKEND_VALUES_FILES=("${BACKEND_VALUES_FILES[@]+"${BACKEND_VALUES_FILES[@]}"}")
 
 # Function references for provider-specific commands
 RUN_KUBECTL="kubectl"
@@ -133,10 +137,38 @@ parse_k8s_args() {
 # Provider Setup
 ###############################################################################
 
+###############################################################################
+# Local Provider Functions (for existing clusters)
+###############################################################################
+
+local_run_kubectl() {
+    kubectl "$@"
+}
+
+local_run_kubectl_apply_stdin() {
+    local manifest="$1"
+    echo "$manifest" | kubectl apply -f -
+}
+
+local_run_helm() {
+    helm "$@"
+}
+
+local_run_helm_with_values() {
+    local values_file="$1"
+    local helm_cmd="$2"
+    local extra_values="${3:-}"
+    eval helm $helm_cmd -f "$values_file"$extra_values
+}
+
+###############################################################################
+# Provider Setup
+###############################################################################
+
 setup_provider() {
+    # Default to local if no provider specified
     if [[ -z "$PROVIDER" ]]; then
-        log_error "Provider not specified. Use --provider azure|aws"
-        exit 1
+        PROVIDER="local"
     fi
 
     # Load outputs file
@@ -146,6 +178,14 @@ setup_provider() {
 
     # Set up provider-specific functions
     case "$PROVIDER" in
+        local)
+            # Use direct kubectl/helm commands for existing clusters
+            RUN_KUBECTL="local_run_kubectl"
+            RUN_KUBECTL_APPLY_STDIN="local_run_kubectl_apply_stdin"
+            RUN_HELM="local_run_helm"
+            RUN_HELM_WITH_VALUES="local_run_helm_with_values"
+            IS_PRIVATE_CLUSTER="${IS_PRIVATE_CLUSTER:-false}"
+            ;;
         azure)
             source "$SCRIPT_DIR/azure/terraform.sh"
             RUN_KUBECTL="azure_run_kubectl"
@@ -161,7 +201,7 @@ setup_provider() {
             RUN_HELM_WITH_VALUES="aws_run_helm_with_values"
             ;;
         *)
-            log_error "Unknown provider: $PROVIDER. Supported: azure, aws"
+            log_error "Unknown provider: $PROVIDER. Supported: local, azure, aws"
             exit 1
             ;;
     esac
