@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { Resource } from "@/lib/api/adapter";
 import { ResizablePanel, PANEL } from "@/components/panel";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
@@ -49,8 +49,11 @@ export function ResourcePanelLayout({
   onPoolSelect,
   children,
 }: ResourcePanelLayoutProps) {
-  const panelWidth = useResourcesTableStore((s) => s.panelWidth);
+  const storedPanelWidth = useResourcesTableStore((s) => s.panelWidth);
   const setPanelWidth = useResourcesTableStore((s) => s.setPanelWidth);
+
+  // Clamp panel width to max 80% (stored value might be > 80% from before the constraint was added)
+  const panelWidth = useMemo(() => Math.min(storedPanelWidth, PANEL.OVERLAY_MAX_WIDTH_PCT), [storedPanelWidth]);
 
   const handleWidthPreset = useCallback((pct: number) => setPanelWidth(pct), [setPanelWidth]);
 
@@ -61,7 +64,7 @@ export function ResourcePanelLayout({
       width={panelWidth}
       onWidthChange={setPanelWidth}
       minWidth={PANEL.MIN_WIDTH_PCT}
-      maxWidth={PANEL.MAX_WIDTH_PCT}
+      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
       mainContent={children}
       backdrop={false}
       aria-label={resource ? `Resource details: ${resource.name}` : undefined}
