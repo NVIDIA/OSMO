@@ -162,10 +162,22 @@ jobs:
         ports:
           - 2375:2375
     steps:
-      - name: Install dependencies
+      - name: Install Node.js and dependencies
         run: |
           apt-get update
-          apt-get install -y git-lfs
+          apt-get install -y ca-certificates curl gnupg git-lfs
+
+          # Install Node.js 20.x from NodeSource
+          mkdir -p /etc/apt/keyrings
+          curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+          apt-get update
+          apt-get install -y nodejs
+
+          # Verify installations
+          echo "Node.js version: $(node --version)"
+          echo "npm version: $(npm --version)"
+          echo "Git LFS version: $(git-lfs --version)"
 
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
