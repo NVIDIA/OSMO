@@ -17,6 +17,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Button } from "@/components/shadcn/button";
 import { Switch } from "@/components/shadcn/switch";
@@ -83,9 +84,11 @@ export function NotificationsCard({ profile, updateProfile, isUpdating, announce
       });
       // Clear edits after successful save - profile will refetch with new values
       setNotificationEdits({});
+      toast.success("Notification preferences saved successfully");
       announcer.announce("Notification preferences saved successfully", "polite");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save notification preferences";
+      toast.error(message);
       announcer.announce(`Error: ${message}`, "assertive");
     }
   }, [stagedNotifications, notificationsDirty, updateProfile, announcer]);
