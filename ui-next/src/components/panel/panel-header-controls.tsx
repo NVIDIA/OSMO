@@ -40,6 +40,8 @@ export const PANEL = {
   WIDTH_PRESETS: [33, 50, 75] as const,
   /** Minimum width percentage */
   MIN_WIDTH_PCT: 33,
+  /** Overlay maximum width percentage */
+  OVERLAY_MAX_WIDTH_PCT: 80,
   /** Maximum width percentage (100 for auto-snap zones) */
   MAX_WIDTH_PCT: 100,
   /** Default panel width percentage */
