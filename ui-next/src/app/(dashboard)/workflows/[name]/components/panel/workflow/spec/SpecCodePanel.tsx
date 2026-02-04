@@ -17,7 +17,7 @@
 /**
  * SpecCodePanel - CodeMirror-based code viewer
  *
- * Displays YAML/Jinja content with syntax highlighting, line numbers,
+ * Displays YAML/template content with syntax highlighting, line numbers,
  * and code folding. Theme-aware (respects light/dark mode).
  *
  * Features:
@@ -56,7 +56,7 @@ import "./spec-search.css";
 export interface SpecCodePanelProps {
   /** Content to display */
   content: string;
-  /** Language mode (yaml or jinja - both use YAML highlighting for MVP) */
+  /** Language mode (yaml or template - both use YAML highlighting for MVP) */
   language: SpecView;
   /** Whether the editor is read-only */
   readOnly?: boolean;
@@ -102,7 +102,7 @@ function createExtensions(language: SpecView, readOnly: boolean, isDark: boolean
     // Theme and syntax highlighting
     ...createSpecViewerExtension(isDark),
 
-    // Language support (YAML for both - Jinja mixed mode is Phase 2)
+    // Language support (YAML for both - template mixed mode is Phase 2)
     yaml(),
 
     // Indentation markers (VS Code-style vertical guides)
@@ -137,7 +137,7 @@ function createExtensions(language: SpecView, readOnly: boolean, isDark: boolean
 
     // Accessibility
     EditorView.contentAttributes.of({
-      "aria-label": language === "yaml" ? "YAML workflow specification" : "Jinja workflow template",
+      "aria-label": language === "yaml" ? "YAML workflow specification" : "Workflow template",
     }),
 
     // Scroll margin for virtualization
