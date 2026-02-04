@@ -21,7 +21,7 @@
  * This is the "base layer" shown when no group/task is selected.
  *
  * Features:
- * - Tabbed interface: Overview, Logs, Events
+ * - Tabbed interface: Overview, Tasks, Logs, Events, Spec
  * - Status, priority, and duration
  * - Vertical timeline (submitted → started → running/completed)
  * - Details (user, pool, backend, tags)
@@ -44,6 +44,7 @@ import {
   List,
   Loader2,
   RotateCw,
+  FileCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
@@ -318,6 +319,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
       { id: "tasks", label: "Tasks", icon: List },
       { id: "logs", label: "Logs", icon: FileText },
       { id: "events", label: "Events", icon: History },
+      { id: "spec", label: "Spec", icon: FileCode },
     ],
     [],
   );
@@ -430,6 +432,20 @@ export const WorkflowDetails = memo(function WorkflowDetails({
             url={workflow.events}
             buttonLabel="View Events"
             emptyText="No events available"
+          />
+        </TabPanel>
+
+        <TabPanel
+          tab="spec"
+          activeTab={activeTab}
+          centered
+          className="p-4"
+        >
+          <EmptyTabPrompt
+            icon={FileCode}
+            title="Workflow Spec"
+            description="View workflow YAML specification and Jinja template"
+            emptyText="Spec not available yet"
           />
         </TabPanel>
       </div>

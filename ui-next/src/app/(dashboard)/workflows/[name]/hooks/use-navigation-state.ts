@@ -64,8 +64,9 @@ export type TaskTab = "overview" | "shell" | "logs" | "events";
  * - "tasks": Task list table view
  * - "logs": Workflow logs output
  * - "events": Kubernetes events
+ * - "spec": Workflow YAML spec and template Jinja spec
  */
-export type WorkflowTab = "overview" | "tasks" | "logs" | "events";
+export type WorkflowTab = "overview" | "tasks" | "logs" | "events" | "spec";
 
 /**
  * Group detail tabs.
@@ -290,7 +291,12 @@ export function useNavigationState({ groups, initialView }: UseNavigationStateOp
 
   // Resolve workflow tab param to WorkflowTab type (defaults to "overview" if null or invalid)
   const selectedWorkflowTab: WorkflowTab = useMemo(() => {
-    if (workflowTabParam === "tasks" || workflowTabParam === "logs" || workflowTabParam === "events") {
+    if (
+      workflowTabParam === "tasks" ||
+      workflowTabParam === "logs" ||
+      workflowTabParam === "events" ||
+      workflowTabParam === "spec"
+    ) {
       return workflowTabParam;
     }
     return "overview";
