@@ -17,52 +17,29 @@
 /**
  * PanelResizeStateMachine - Deterministic state machine for panel resize operations.
  *
- * Architecture Principles:
- * 1. Single Source of Truth - All resize state lives here
- * 2. Explicit Phases - No implicit boolean combinations
- * 3. Guarded Transitions - Invalid state changes are no-ops
- * 4. React-Controlled DOM - No direct DOM manipulation (React reads state, applies to DOM)
- * 5. Callback Coordination - Direct function calls, not events
- *
  * Phase Diagram:
  *
- *              startDrag()
- *           ┌──────────────┐
- *           │              │
- *           ▼              │
- *   ┌──────┐     ┌────────┐     ┌────────┐     ┌─────────┐
- *   │ IDLE │────▶│DRAGGING│────▶│SNAPPING│────▶│ SETTLING│
- *   └──────┘     └────────┘     └────────┘     └─────────┘
- *       ▲             │              │               │
- *       │             │ endDrag()    │ onTransition  │
- *       │             │ (no snap)    │ Complete()    │
- *       │             ▼              ▼               │
- *       │        ┌─────────────────────┐             │
- *       │        │      SETTLING       │             │
- *       │        └─────────────────────┘             │
- *       │                   │                        │
- *       │          double RAF → layoutStable()       │
- *       └────────────────────────────────────────────┘
+ *   ┌──────┐  startDrag()  ┌────────┐  endDrag()  ┌────────┐  onTransitionComplete()  ┌─────────┐
+ *   │ IDLE │──────────────▶│DRAGGING│────────────▶│SNAPPING│─────────────────────────▶│ SETTLING│
+ *   └──────┘               └────────┘             └────────┘                          └─────────┘
+ *       ▲                       │                                                          │
+ *       │                       │ endDrag() (no snap or already at target)                 │
+ *       │                       ▼                                                          │
+ *       │                  ┌─────────┐                                                     │
+ *       │                  │ SETTLING│                                                     │
+ *       │                  └─────────┘                                                     │
+ *       │                       │ double RAF                                               │
+ *       └───────────────────────┴──────────────────────────────────────────────────────────┘
  */
 
 // =============================================================================
 // Types
 // =============================================================================
 
-/**
- * Explicit phases for panel resize operations.
- * Each phase has clear semantics and valid transitions.
- */
 export type ResizePhase = "IDLE" | "DRAGGING" | "SNAPPING" | "SETTLING";
-
-/**
- * Snap zones for panel width thresholds.
- */
 export type SnapZone = "soft" | "full";
+export type CallbackType = "onLayoutStable" | "onPhaseChange";
 
-/**
- * Snap zone thresholds and targets (percentages).
- */
 export const SNAP_ZONES = {
   SOFT_SNAP_START: 80,
   FULL_SNAP_START: 90,
@@ -70,80 +47,48 @@ export const SNAP_ZONES = {
   FULL_SNAP_TARGET: 100,
 } as const;
 
-/**
- * Complete state managed by the state machine.
- */
 export interface ResizeState {
-  /** Current phase of resize operation */
   phase: ResizePhase;
-  /** Current display width as percentage (0-100) */
   widthPct: number;
-  /** Persisted width percentage (synced to storage) */
   persistedPct: number;
-  /** Current snap zone during drag (null if outside zones) */
   snapZone: SnapZone | null;
-  /** Target width for SNAPPING phase (null otherwise) */
   snapTarget: number | null;
-  /** Whether panel is collapsed */
   isCollapsed: boolean;
-  /** Whether DAG is visible (derived from widthPct < 100) */
   dagVisible: boolean;
 }
 
-/**
- * Callback types for coordination with other systems.
- */
-export type CallbackType = "onLayoutStable" | "onPhaseChange";
-
-/**
- * Options for state machine constructor.
- */
 export interface PanelResizeStateMachineOptions {
-  /** Initial persisted panel width percentage */
   initialPersistedPct: number;
-  /** Initial collapsed state from storage */
   initialCollapsed: boolean;
-  /** Callback to persist width to storage */
   onPersist: (pct: number) => void;
-  /** Callback to persist collapsed state to storage */
   onPersistCollapsed: (collapsed: boolean) => void;
-  /** Minimum width percentage */
   minPct?: number;
-  /** Maximum width percentage */
   maxPct?: number;
 }
 
 // =============================================================================
-// Valid Transitions
+// Constants and Helpers
 // =============================================================================
 
-/**
- * Map of valid phase transitions.
- * Used for transition guards.
- */
 const VALID_TRANSITIONS: Record<ResizePhase, ResizePhase[]> = {
-  IDLE: ["DRAGGING", "SETTLING"], // SETTLING for collapse toggle
+  IDLE: ["DRAGGING", "SETTLING"],
   DRAGGING: ["SNAPPING", "SETTLING"],
   SNAPPING: ["SETTLING"],
   SETTLING: ["IDLE"],
 };
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
+const WIDTH_EPSILON = 0.01;
 
-/**
- * Classify width percentage into snap zone.
- */
 export function classifySnapZone(widthPct: number): SnapZone | null {
   if (widthPct >= SNAP_ZONES.FULL_SNAP_START) return "full";
   if (widthPct >= SNAP_ZONES.SOFT_SNAP_START) return "soft";
   return null;
 }
 
-/**
- * Default state (SSR-safe).
- */
+function isAtTarget(current: number, target: number): boolean {
+  return Math.abs(current - target) < WIDTH_EPSILON;
+}
+
 function createInitialState(initialPersistedPct: number, initialCollapsed: boolean): ResizeState {
   return {
     phase: "IDLE",
@@ -191,16 +136,10 @@ export class PanelResizeStateMachine {
   // Public API: State Access
   // ===========================================================================
 
-  /**
-   * Get full state snapshot (for React hooks).
-   */
   getState(): Readonly<ResizeState> {
     return this.state;
   }
 
-  /**
-   * Check if a specific transition is valid from current state.
-   */
   private canTransitionTo(targetPhase: ResizePhase): boolean {
     return VALID_TRANSITIONS[this.state.phase].includes(targetPhase);
   }
@@ -209,41 +148,28 @@ export class PanelResizeStateMachine {
   // Public API: Drag Operations
   // ===========================================================================
 
-  /**
-   * Start drag operation.
-   * Guard: Only valid from IDLE phase.
-   */
   startDrag(): void {
     if (this.disposed) return;
     if (!this.canTransitionTo("DRAGGING")) return;
 
-    const startPct = this.state.persistedPct;
-
     this.setState({
       phase: "DRAGGING",
-      widthPct: startPct,
       snapZone: null,
       snapTarget: null,
-      // If currently collapsed, expand on drag start
       isCollapsed: false,
     });
   }
 
-  /**
-   * Update during drag.
-   * Guard: Only valid during DRAGGING phase.
-   */
   updateDrag(pct: number): void {
     if (this.disposed) return;
     if (this.state.phase !== "DRAGGING") return;
 
     const clampedPct = this.clamp(pct);
     const newSnapZone = classifySnapZone(clampedPct);
+    const hasChanged = clampedPct !== this.state.widthPct || newSnapZone !== this.state.snapZone;
+    const isAtMax = clampedPct >= SNAP_ZONES.FULL_SNAP_TARGET;
 
-    // Only update and notify if something actually changed
-    if (clampedPct === this.state.widthPct && newSnapZone === this.state.snapZone) {
-      return;
-    }
+    if (!hasChanged && !isAtMax) return;
 
     const updates: Partial<ResizeState> = {
       widthPct: clampedPct,
@@ -251,87 +177,113 @@ export class PanelResizeStateMachine {
       dagVisible: clampedPct < 100,
     };
 
-    // CRITICAL: Only update persistedPct when BELOW soft snap zone (< 80%)
-    // When in ANY snap zone (soft or full), freeze persistedPct:
-    // - Soft snap will set persistedPct=80 in onTransitionComplete()
-    // - Full snap will preserve persistedPct in onTransitionComplete()
+    // Only update persistedPct below soft snap zone - snap zones handle their own persistence
     if (clampedPct < SNAP_ZONES.SOFT_SNAP_START) {
-      // < 80%
       updates.persistedPct = clampedPct;
     }
-    // When 80% <= x < 100%: persistedPct unchanged (snap zone active)
 
     this.setState(updates);
   }
 
   /**
-   * End drag operation.
-   * Guard: Only valid from DRAGGING phase.
-   * Transitions to SNAPPING if snap zone active, otherwise SETTLING.
+   * End drag operation. Transitions to SNAPPING if snap zone active and not
+   * already at target, otherwise SETTLING.
    */
   endDrag(): void {
     if (this.disposed) return;
     if (this.state.phase !== "DRAGGING") return;
 
-    const zone = this.state.snapZone;
+    const snapConfig = this.resolveSnapConfig();
 
-    if (zone === "full") {
-      // Full-width snap: Transition to SNAPPING
-      this.setState({
-        phase: "SNAPPING",
-        widthPct: SNAP_ZONES.FULL_SNAP_TARGET,
-        snapTarget: SNAP_ZONES.FULL_SNAP_TARGET,
-        dagVisible: false,
-      });
-    } else if (zone === "soft") {
-      // Soft snap to 80%
-      this.setState({
-        phase: "SNAPPING",
-        widthPct: SNAP_ZONES.SOFT_SNAP_TARGET,
-        snapTarget: SNAP_ZONES.SOFT_SNAP_TARGET,
-        dagVisible: true,
-      });
+    if (!snapConfig) {
+      this.settleWithoutSnap();
+      return;
+    }
+
+    if (isAtTarget(this.state.widthPct, snapConfig.target)) {
+      this.settleAtTarget(snapConfig);
     } else {
-      // No snap: Go directly to SETTLING
-      this.setState({
-        phase: "SETTLING",
-        persistedPct: this.state.widthPct,
-        snapZone: null,
-        snapTarget: null,
-      });
-
-      // Persist immediately for non-snap case
-      this.onPersist(this.state.widthPct);
-
-      // Schedule layout stable notification
-      this.scheduleLayoutStable();
+      this.animateToTarget(snapConfig);
     }
   }
 
   /**
-   * Handle CSS transition completion.
-   * Guard: Only valid from SNAPPING phase.
-   * Called by React's onTransitionEnd handler.
+   * Determine snap configuration based on current state.
+   * Returns null if no snap should occur.
+   */
+  private resolveSnapConfig(): { target: number; dagVisible: boolean; preservePersistedPct: boolean } | null {
+    const zone = this.state.snapZone;
+    const isAtMaxTarget = this.state.widthPct >= SNAP_ZONES.FULL_SNAP_TARGET;
+
+    if (zone === "full" || isAtMaxTarget) {
+      return { target: SNAP_ZONES.FULL_SNAP_TARGET, dagVisible: false, preservePersistedPct: true };
+    }
+    if (zone === "soft") {
+      return { target: SNAP_ZONES.SOFT_SNAP_TARGET, dagVisible: true, preservePersistedPct: false };
+    }
+    return null;
+  }
+
+  /**
+   * Settle immediately without snap animation.
+   */
+  private settleWithoutSnap(): void {
+    this.setState({
+      phase: "SETTLING",
+      persistedPct: this.state.widthPct,
+      snapZone: null,
+      snapTarget: null,
+    });
+    this.onPersist(this.state.widthPct);
+    this.scheduleLayoutStable();
+  }
+
+  /**
+   * Already at target - skip SNAPPING phase and settle immediately.
+   */
+  private settleAtTarget(config: { target: number; dagVisible: boolean; preservePersistedPct: boolean }): void {
+    this.setState({
+      phase: "SETTLING",
+      widthPct: config.target,
+      snapTarget: config.target,
+      dagVisible: config.dagVisible,
+      persistedPct: config.preservePersistedPct ? this.state.persistedPct : config.target,
+      snapZone: null,
+    });
+    this.onPersist(config.target);
+    this.scheduleLayoutStable();
+  }
+
+  /**
+   * Animate to target via SNAPPING phase.
+   */
+  private animateToTarget(config: { target: number; dagVisible: boolean }): void {
+    this.setState({
+      phase: "SNAPPING",
+      widthPct: config.target,
+      snapTarget: config.target,
+      dagVisible: config.dagVisible,
+    });
+  }
+
+  /**
+   * Handle CSS transition completion. Called by React's onTransitionEnd handler.
    */
   onTransitionComplete(): void {
     if (this.disposed) return;
     if (this.state.phase !== "SNAPPING") return;
 
     const targetPct = this.state.snapTarget ?? this.state.widthPct;
+    const preservePersistedPct = targetPct >= 100;
 
     this.setState({
       phase: "SETTLING",
-      // Only update persistedPct for soft snap (80%)
-      // For full snap (100%), preserve the last non-100% width
-      persistedPct: targetPct >= 100 ? this.state.persistedPct : targetPct,
+      persistedPct: preservePersistedPct ? this.state.persistedPct : targetPct,
       snapZone: null,
       snapTarget: null,
     });
 
-    // Persist display width
     this.onPersist(targetPct);
-
-    // Schedule layout stable notification
     this.scheduleLayoutStable();
   }
 
@@ -339,50 +291,26 @@ export class PanelResizeStateMachine {
   // Public API: Collapse Operations
   // ===========================================================================
 
-  /**
-   * Toggle collapsed state.
-   * Uses SETTLING phase to wait for collapse transition.
-   */
   toggleCollapsed(): void {
     if (this.disposed) return;
-    // Allow from IDLE only
     if (this.state.phase !== "IDLE") return;
 
     const newCollapsed = !this.state.isCollapsed;
-
-    this.setState({
-      phase: "SETTLING",
-      isCollapsed: newCollapsed,
-    });
-
-    // Schedule layout stable notification (collapse has CSS transition)
+    this.setState({ phase: "SETTLING", isCollapsed: newCollapsed });
     this.scheduleLayoutStable();
-
-    // Persist collapsed state
     this.onPersistCollapsed(newCollapsed);
   }
 
-  /**
-   * Set collapsed state explicitly.
-   */
   setCollapsed(collapsed: boolean): void {
     if (this.disposed) return;
     if (this.state.isCollapsed === collapsed) return;
-    // Allow from IDLE only
     if (this.state.phase !== "IDLE") return;
 
-    this.setState({
-      phase: "SETTLING",
-      isCollapsed: collapsed,
-    });
-
+    this.setState({ phase: "SETTLING", isCollapsed: collapsed });
     this.scheduleLayoutStable();
     this.onPersistCollapsed(collapsed);
   }
 
-  /**
-   * Expand panel (for drag-to-expand from collapsed state).
-   */
   expand(): void {
     if (this.disposed) return;
     if (!this.state.isCollapsed) return;
@@ -393,94 +321,62 @@ export class PanelResizeStateMachine {
   // Public API: DAG Visibility
   // ===========================================================================
 
-  /**
-   * Hide DAG (set width to 100% with animation).
-   */
   hideDAG(): void {
     if (this.disposed) return;
     if (this.state.phase !== "IDLE") return;
 
-    // Don't update persistedPct - preserve last non-100% width
-    // Use SNAPPING phase for smooth animation
     this.setState({
       phase: "SNAPPING",
       widthPct: 100,
       snapTarget: 100,
       dagVisible: false,
     });
-
-    // Note: onPersist() will be called in onTransitionComplete() after animation
   }
 
-  /**
-   * Show DAG (restore to previous width or default 50% with animation).
-   */
   showDAG(): void {
     if (this.disposed) return;
     if (this.state.phase !== "IDLE") return;
 
     const targetPct = this.state.persistedPct < 100 ? this.state.persistedPct : 50;
 
-    // Use SNAPPING phase for smooth animation
-    // Note: dagVisible is derived from widthPct < 100, will update automatically
     this.setState({
       phase: "SNAPPING",
       widthPct: targetPct,
       snapTarget: targetPct,
       persistedPct: targetPct,
-      dagVisible: targetPct < 100, // Explicitly set for consistency
+      dagVisible: true,
     });
-
-    // Note: onPersist() will be called in onTransitionComplete() after animation
   }
 
   // ===========================================================================
   // Public API: Subscriptions
   // ===========================================================================
 
-  /**
-   * Subscribe to state changes (for React re-renders via useSyncExternalStore).
-   */
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => {};
-
     this.subscribers.add(listener);
-    return () => {
-      this.subscribers.delete(listener);
-    };
+    return () => this.subscribers.delete(listener);
   };
 
-  /**
-   * Register a callback for specific events.
-   * Returns unsubscribe function.
-   */
   registerCallback(type: CallbackType, callback: () => void): () => void {
     if (this.disposed) return () => {};
-
     this.callbacks[type].add(callback);
-    return () => {
-      this.callbacks[type].delete(callback);
-    };
+    return () => this.callbacks[type].delete(callback);
   }
 
   // ===========================================================================
   // Public API: Lifecycle
   // ===========================================================================
 
-  /**
-   * Clean up resources.
-   */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
 
-    // Cancel pending RAFs
     for (const id of this.pendingRafIds) {
       cancelAnimationFrame(id);
     }
     this.pendingRafIds = [];
 
-    // Clear subscribers and callbacks
     this.subscribers.clear();
     this.callbacks.onLayoutStable.clear();
     this.callbacks.onPhaseChange.clear();
@@ -490,62 +386,35 @@ export class PanelResizeStateMachine {
   // Private Methods
   // ===========================================================================
 
-  /**
-   * Update state and notify subscribers.
-   */
   private setState(update: Partial<ResizeState>): void {
     if (this.disposed) return;
 
-    // Check for actual changes
     const hasChanges = Object.keys(update).some(
       (key) => this.state[key as keyof ResizeState] !== update[key as keyof ResizeState],
     );
-
     if (!hasChanges) return;
 
     const oldPhase = this.state.phase;
-
-    // Update state
     this.state = { ...this.state, ...update };
+    this.notifySubscribers();
 
-    // Notify state subscribers (triggers React re-renders)
-    this.notify();
-
-    // Notify phase change callbacks if phase changed
     if (update.phase && update.phase !== oldPhase) {
-      this.notifyPhaseChange();
+      this.notifyCallbacks("onPhaseChange");
     }
   }
 
-  /**
-   * Notify all state subscribers.
-   */
-  private notify(): void {
+  private notifySubscribers(): void {
     if (this.disposed) return;
     this.subscribers.forEach((listener) => listener());
   }
 
-  /**
-   * Notify phase change callbacks.
-   */
-  private notifyPhaseChange(): void {
+  private notifyCallbacks(type: CallbackType): void {
     if (this.disposed) return;
-    this.callbacks.onPhaseChange.forEach((cb) => cb());
+    this.callbacks[type].forEach((cb) => cb());
   }
 
   /**
-   * Notify layout stable callbacks.
-   */
-  private notifyLayoutStable(): void {
-    if (this.disposed) return;
-    this.callbacks.onLayoutStable.forEach((cb) => cb());
-  }
-
-  /**
-   * Schedule layout stable notification using double RAF.
-   * Double RAF ensures layout has fully computed:
-   * - First RAF: After current paint
-   * - Second RAF: After layout reflow completes
+   * Double RAF ensures layout has fully computed before transitioning to IDLE.
    */
   private scheduleLayoutStable(): void {
     if (this.disposed) return;
@@ -557,10 +426,8 @@ export class PanelResizeStateMachine {
       const id2 = requestAnimationFrame(() => {
         if (this.disposed) return;
         this.removeRafId(id2);
-
-        // Transition to IDLE and notify callbacks
         this.setState({ phase: "IDLE" });
-        this.notifyLayoutStable();
+        this.notifyCallbacks("onLayoutStable");
       });
 
       this.pendingRafIds.push(id2);
@@ -569,17 +436,11 @@ export class PanelResizeStateMachine {
     this.pendingRafIds.push(id1);
   }
 
-  /**
-   * Remove RAF ID from pending list.
-   */
   private removeRafId(id: number): void {
     const idx = this.pendingRafIds.indexOf(id);
     if (idx !== -1) this.pendingRafIds.splice(idx, 1);
   }
 
-  /**
-   * Clamp width percentage to valid range.
-   */
   private clamp(pct: number): number {
     return Math.min(this.maxPct, Math.max(this.minPct, pct));
   }
