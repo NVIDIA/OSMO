@@ -722,6 +722,77 @@ NEVER hardcode these values. ALWAYS use the designated source:
 | Screen reader announcements | `useServices().announcer` | Manual aria-live regions |
 | URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
 
+## CSS Organization
+
+### File Structure
+
+**Co-locate styles with components/features:**
+
+```
+src/
+├── styles/
+│   ├── base.css          ← Global: resets, typography, foundational styles
+│   └── utilities.css     ← Global: .gpu-layer, .contain-*, .scrollbar-styled
+│
+├── components/
+│   ├── panel/
+│   │   ├── panel-tabs.tsx
+│   │   └── panel-tabs.css     ← Component styles (imported by component)
+│   ├── dag/
+│   │   └── dag.css            ← Component styles
+│   └── data-table/
+│       └── styles.css         ← Component styles
+│
+└── app/(dashboard)/
+    ├── pools/
+    │   └── styles/pools.css    ← Feature-specific styles
+    └── workflows/[name]/
+        └── styles/
+            ├── dag.css         ← Feature-specific styles
+            └── layout.css      ← Feature-specific styles
+```
+
+### When to Co-locate vs Centralize
+
+**✅ Co-locate (keep with component/feature):**
+- Component-specific styles
+- Feature-specific styles
+- Styles used by one module only
+- Import directly in the component that uses them
+
+**✅ Centralize (in `src/styles/`):**
+- Global utilities (`.gpu-layer`, `.contain-*`, `.scrollbar-styled`)
+- Base styles (resets, typography)
+- Performance utilities shared across all components
+- Theme tokens (keep in `globals.css` via Tailwind `@theme`)
+
+**❌ NEVER create:** `src/styles/components/` or similar directories - creates ambiguity about where styles belong!
+
+### Import Pattern
+
+```typescript
+// Component imports its own styles
+// src/components/panel/panel-tabs.tsx
+import "./panel-tabs.css";
+
+// Feature imports its own styles
+// src/app/(dashboard)/workflows/[name]/components/WorkflowDetailLayout.tsx
+import "../styles/layout.css";
+
+// Global styles imported in globals.css
+// src/app/globals.css
+@import "../styles/base.css";
+@import "../styles/utilities.css";
+```
+
+### Benefits of Co-location
+
+- **Discoverability** - Find styles immediately when working on a component
+- **Safe deletion** - Remove component → styles go with it automatically
+- **Clear ownership** - No ambiguity about what styles belong where
+- **Portability** - Can extract component to a package if needed
+- **Single source of truth** - Global utilities in one predictable place
+
 ## Code Style Notes
 
 ### ESLint Rules
