@@ -54,6 +54,10 @@ const mockProfileSettings: {
   pool?: string;
 } = {};
 
+// Store credentials that can be created/updated/deleted
+// Maps credential name -> credential object
+const mockCredentials: Map<string, unknown> = new Map();
+
 // =============================================================================
 // URL Matching Patterns
 // =============================================================================
@@ -1412,7 +1416,19 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   http.get("*/api/credentials", async () => {
     await delay(MOCK_DELAY);
 
+    // If we have stored credentials, return those; otherwise return generated defaults
+    if (mockCredentials.size > 0) {
+      const credentials = Array.from(mockCredentials.values());
+      return HttpResponse.json(credentials);
+    }
+
+    // First time: generate defaults and store them
     const credentials = profileGenerator.generateCredentials(5);
+    for (const cred of credentials) {
+      if (cred && typeof cred === "object" && "name" in cred) {
+        mockCredentials.set(cred.name as string, cred);
+      }
+    }
     return HttpResponse.json(credentials);
   }),
 
@@ -1423,15 +1439,23 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const name = params.name as string;
     const body = (await request.json()) as Record<string, unknown>;
 
-    // Return the credential with the provided data
+    // Check if updating existing credential
+    const existing = mockCredentials.get(name);
+
     const credential = {
-      id: faker.string.uuid(),
+      id: existing && typeof existing === "object" && "id" in existing ? (existing.id as string) : faker.string.uuid(),
       name,
       type: body.type || "generic",
-      created_at: new Date().toISOString(),
+      created_at:
+        existing && typeof existing === "object" && "created_at" in existing
+          ? (existing.created_at as string)
+          : new Date().toISOString(),
       updated_at: new Date().toISOString(),
       ...body,
     };
+
+    // Store the credential
+    mockCredentials.set(name, credential);
 
     return HttpResponse.json(credential);
   }),
@@ -1441,6 +1465,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
+    // Remove from storage
+    mockCredentials.delete(name);
     return HttpResponse.json({ message: `Credential ${name} deleted` });
   }),
 
