@@ -27,7 +27,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { customFetch } from "@/lib/api/fetcher";
+import { getBasePathUrl } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -66,21 +66,27 @@ const SPEC_GC_TIME = 30 * 60 * 1000;
 // =============================================================================
 
 async function fetchSpec(workflowId: string, useTemplate: boolean): Promise<string> {
-  const url = useTemplate
+  const path = useTemplate
     ? `/api/workflow/${encodeURIComponent(workflowId)}/spec?use_template=true`
     : `/api/workflow/${encodeURIComponent(workflowId)}/spec`;
 
-  // Use customFetch but expect text response
-  const response = await customFetch<string>({
-    url,
+  const url = getBasePathUrl(path);
+
+  const response = await fetch(url, {
     method: "GET",
     headers: {
       Accept: "text/plain",
     },
+    credentials: "include",
   });
 
-  // Response might already be a string or need parsing
-  return typeof response === "string" ? response : String(response);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch spec: ${response.status} ${response.statusText}`, {
+      cause: { status: response.status },
+    });
+  }
+
+  return response.text();
 }
 
 // =============================================================================
