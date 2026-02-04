@@ -38,6 +38,8 @@ import type {
   ResourceCapacity,
   PoolMembership,
   Version,
+  UserProfile,
+  Credential,
 } from "@/lib/api/adapter/types";
 import { naturalCompare } from "@/lib/utils";
 
@@ -446,4 +448,111 @@ export function transformAllResourcesResponse(rawResponse: unknown): AllResource
     pools: Array.from(poolSet).sort(naturalCompare),
     platforms: Array.from(platformSet).sort(naturalCompare),
   };
+}
+
+// =============================================================================
+// Profile Transforms
+// =============================================================================
+
+/**
+ * Transform backend user profile response to ideal UserProfile type.
+ *
+ * WORKAROUND: Backend may return numeric IDs as strings.
+ * Ensures all fields have proper defaults and types.
+ *
+ * @param data - The raw API response from GET /api/profile
+ */
+export function transformUserProfile(data: unknown): UserProfile {
+  if (!data || typeof data !== "object") {
+    return {
+      id: "",
+      name: "",
+      email: "",
+      notifications: { email: true, slack: false },
+      bucket: { default: "" },
+      pool: { default: "", accessible: [] },
+    };
+  }
+
+  const raw = data as Record<string, unknown>;
+  const notifications = raw.notifications as Record<string, unknown> | undefined;
+  const bucket = raw.bucket as Record<string, unknown> | undefined;
+  const pool = raw.pool as Record<string, unknown> | undefined;
+
+  return {
+    id: String(raw.id || ""),
+    name: String(raw.name || ""),
+    email: String(raw.email || ""),
+    notifications: {
+      email: Boolean(notifications?.email ?? true),
+      slack: Boolean(notifications?.slack ?? false),
+    },
+    bucket: {
+      default: String(bucket?.default || ""),
+    },
+    pool: {
+      default: String(pool?.default || ""),
+      accessible: Array.isArray(pool?.accessible) ? pool.accessible.map(String) : [],
+    },
+  };
+}
+
+/**
+ * Transform backend credential response to ideal Credential type.
+ *
+ * WORKAROUND: Backend may return numeric IDs as strings.
+ * Ensures all fields have proper defaults and types.
+ *
+ * @param data - The raw API response for a single credential
+ */
+export function transformCredential(data: unknown): Credential {
+  if (!data || typeof data !== "object") {
+    return {
+      id: "",
+      name: "",
+      type: "generic",
+      created_at: "",
+      updated_at: "",
+    };
+  }
+
+  const raw = data as Record<string, unknown>;
+  const credType = raw.type as "registry" | "data" | "generic" | undefined;
+
+  return {
+    id: String(raw.id || ""),
+    name: String(raw.name || ""),
+    type: credType || "generic",
+    created_at: String(raw.created_at || ""),
+    updated_at: String(raw.updated_at || ""),
+    registry: raw.registry as Credential["registry"],
+    data: raw.data as Credential["data"],
+    generic: raw.generic as Credential["generic"],
+  };
+}
+
+/**
+ * Transform backend credentials list response to array of Credentials.
+ *
+ * WORKAROUND: Backend may return either an array or an object with 'items' key.
+ * Handles both response formats gracefully.
+ *
+ * @param data - The raw API response from GET /api/credentials
+ */
+export function transformCredentialList(data: unknown): Credential[] {
+  if (!data) return [];
+
+  if (Array.isArray(data)) {
+    return data.map(transformCredential);
+  }
+
+  if (typeof data === "object") {
+    const raw = data as Record<string, unknown>;
+    const items = raw.items;
+    if (Array.isArray(items)) {
+      return items.map(transformCredential);
+    }
+  }
+
+  return [];
 }

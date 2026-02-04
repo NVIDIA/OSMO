@@ -194,3 +194,96 @@ export interface Version {
   revision: string;
   hash?: string;
 }
+
+// =============================================================================
+// Profile Types
+// =============================================================================
+
+/**
+ * User profile information.
+ */
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  notifications: {
+    email: boolean;
+    slack: boolean;
+  };
+  bucket: {
+    default: string;
+  };
+  pool: {
+    default: string;
+    accessible: string[]; // List of pool names user has access to
+  };
+}
+
+/**
+ * Profile update request payload.
+ */
+export interface ProfileUpdate {
+  notifications?: {
+    email?: boolean;
+    slack?: boolean;
+  };
+  bucket?: {
+    default?: string;
+  };
+  pool?: {
+    default?: string;
+  };
+}
+
+// =============================================================================
+// Credential Types
+// =============================================================================
+
+/**
+ * A credential entry with all relevant information.
+ * Supports multiple credential types: registry, data, and generic.
+ */
+export interface Credential {
+  id: string;
+  name: string;
+  type: "registry" | "data" | "generic";
+  created_at: string;
+  updated_at: string;
+  // Type-specific fields
+  registry?: {
+    url: string;
+    username: string;
+    password: string;
+  };
+  data?: {
+    endpoint: string;
+    access_key: string;
+    secret_key: string;
+  };
+  generic?: {
+    key: string;
+    value: string;
+  };
+}
+
+/**
+ * Payload for creating a new credential.
+ */
+export interface CredentialCreate {
+  name: string;
+  type: "registry" | "data" | "generic";
+  registry?: {
+    url: string;
+    username: string;
+    password: string;
+  };
+  data?: {
+    endpoint: string;
+    access_key: string;
+    secret_key: string;
+  };
+  generic?: {
+    key: string;
+    value: string;
+  };
+}
