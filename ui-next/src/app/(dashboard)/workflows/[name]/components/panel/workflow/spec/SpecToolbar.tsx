@@ -18,7 +18,7 @@
  * SpecToolbar - View toggle and action buttons
  *
  * Provides:
- * - Toggle between YAML and Jinja views
+ * - Toggle between YAML and Template views
  * - Copy button (copies entire content)
  * - Download button (downloads as file)
  */
@@ -48,8 +48,8 @@ export interface SpecToolbarProps {
   content: string | null;
   /** Workflow name for download filename */
   workflowName: string;
-  /** Whether Jinja view is available */
-  jinjaAvailable?: boolean;
+  /** Whether Template view is available */
+  templateAvailable?: boolean;
   /** Whether content is loading */
   isLoading?: boolean;
 }
@@ -63,7 +63,7 @@ export const SpecToolbar = memo(function SpecToolbar({
   onViewChange,
   content,
   workflowName,
-  jinjaAvailable = true,
+  templateAvailable = true,
   isLoading = false,
 }: SpecToolbarProps) {
   const { copied, copy } = useCopy();
@@ -74,7 +74,7 @@ export const SpecToolbar = memo(function SpecToolbar({
     if (!content) return;
 
     const success = await copy(content);
-    const message = activeView === "yaml" ? "YAML spec copied" : "Jinja template copied";
+    const message = activeView === "yaml" ? "YAML spec copied" : "Template copied";
     if (success) {
       toast.success(message);
       announcer.announce(message, "polite");
@@ -138,10 +138,10 @@ export const SpecToolbar = memo(function SpecToolbar({
           className="h-7 gap-1.5 px-2.5"
           role="radio"
           aria-checked={activeView === "jinja"}
-          disabled={isLoading || !jinjaAvailable}
+          disabled={isLoading || !templateAvailable}
         >
           <Braces className="size-3.5" />
-          Jinja
+          Template
         </Button>
       </div>
 
