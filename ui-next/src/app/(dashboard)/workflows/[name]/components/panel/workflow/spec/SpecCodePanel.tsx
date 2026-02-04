@@ -18,7 +18,7 @@
  * SpecCodePanel - CodeMirror-based code viewer
  *
  * Displays YAML/Jinja content with syntax highlighting, line numbers,
- * and code folding. Always uses dark theme regardless of app theme.
+ * and code folding. Theme-aware (respects light/dark mode).
  *
  * Features:
  * - YAML syntax highlighting
@@ -32,13 +32,15 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { useTheme } from "next-themes";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { foldGutter } from "@codemirror/language";
 import { search } from "@codemirror/search";
-import { specViewerExtension } from "./lib/theme";
+import { createSpecViewerExtension } from "./lib/theme";
+import { useMounted } from "@/hooks";
 import type { SpecView } from "./hooks/useSpecData";
 
 // =============================================================================
@@ -64,12 +66,12 @@ export interface SpecCodePanelProps {
 
 /**
  * Create CodeMirror extensions for the spec viewer.
- * Memoized per language to avoid recreating on every render.
+ * Memoized per language and theme to avoid recreating on every render.
  */
-function createExtensions(language: SpecView, readOnly: boolean) {
+function createExtensions(language: SpecView, readOnly: boolean, isDark: boolean) {
   const extensions = [
     // Theme and syntax highlighting
-    ...specViewerExtension,
+    ...createSpecViewerExtension(isDark),
 
     // Language support (YAML for both - Jinja mixed mode is Phase 2)
     yaml(),
@@ -109,8 +111,16 @@ export const SpecCodePanel = memo(function SpecCodePanel({
   "aria-label": ariaLabel,
   className,
 }: SpecCodePanelProps) {
+  // Wait for hydration to get accurate theme
+  const mounted = useMounted();
+  const { theme, resolvedTheme } = useTheme();
+
+  // Default to dark during SSR, then use actual theme after hydration
+  // This prevents hydration mismatch and ensures consistent rendering
+  const isDark = !mounted ? true : (resolvedTheme ?? theme ?? "dark") === "dark";
+
   // Memoize extensions to prevent unnecessary CodeMirror re-renders
-  const extensions = useMemo(() => createExtensions(language, readOnly), [language, readOnly]);
+  const extensions = useMemo(() => createExtensions(language, readOnly, isDark), [language, readOnly, isDark]);
 
   return (
     <div
@@ -120,6 +130,7 @@ export const SpecCodePanel = memo(function SpecCodePanel({
     >
       <CodeMirror
         value={content}
+        theme={isDark ? "dark" : "light"}
         extensions={extensions}
         readOnly={readOnly}
         basicSetup={{
