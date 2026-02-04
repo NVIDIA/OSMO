@@ -101,7 +101,10 @@ def _install_ingress_nginx() -> None:
         '--create-namespace', '--namespace', 'ingress-nginx',
         '--set', 'controller.nodeSelector.node_group=service',
         '--set', 'controller.service.type=NodePort',
-        '--set', 'controller.service.nodePorts.http=30080'
+        '--set', 'controller.service.nodePorts.http=30080',
+        # Enable TCP services for gRPC without TLS
+        '--set', 'tcp.50051=osmo/osmo-operator:80',
+        '--set', 'controller.service.nodePorts.tcp.50051=30051'
     ], 'Installing ingress-nginx')
 
     if not process.has_failed():

@@ -37,6 +37,7 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `global.backendNamespace` | Backend namespace | `osmo-namespace` |
 | `global.backendTestNamespace` | Namespace for backend cluster validation tests | `null` |
 | `global.serviceUrl` | Service URL | `""` (empty, must be configured) |
+| `global.serviceGrpcPort` | Port for gRPC connections. Ignore if empty | `""` (empty) |
 | `global.accountUsername` | Account username | `""` (empty, must be configured) |
 | `global.accountPasswordSecret` | Secret name for account password | `svc-osmo-admin` |
 | `global.accountPasswordSecretKey` | Secret key for account password | `password` |

@@ -128,6 +128,12 @@ global:
   ##
   serviceUrl: ""
 
+  ## gRPC port for backend-listener connection to operator-service
+  ## Only needed when using nginx ingress without TLS (TCP services)
+  ## Leave empty for HTTPS/ALB which use standard ports (443)
+  ##
+  serviceGrpcPort: ""
+
   ## Username for authenticating with OSMO service (when using password authentication)
   ##
   accountUsername: ""

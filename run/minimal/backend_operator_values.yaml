@@ -19,6 +19,8 @@ global:
   osmoImageTag: latest
   imagePullSecret: imagepullsecret
   serviceUrl: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local
+  # serviceGrpcPort for backend-listener (gRPC to operator-service on TCP)
+  serviceGrpcPort: 50051
   backendNamespace: default
   backendTestNamespace: osmo-test
   backendName: default
