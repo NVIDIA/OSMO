@@ -49,7 +49,16 @@ export async function WorkflowsWithData({ searchParams }: WorkflowsWithDataProps
 
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
-  await prefetchWorkflowsList(queryClient, filterChips);
+  try {
+    await prefetchWorkflowsList(queryClient, filterChips);
+  } catch (error) {
+    // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
+    // Page will still render - client will fetch on hydration if cache is empty
+    console.debug(
+      "[Server Prefetch] Could not prefetch workflows:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+  }
 
   // Wrap in HydrationBoundary so client gets the cached data
   return (

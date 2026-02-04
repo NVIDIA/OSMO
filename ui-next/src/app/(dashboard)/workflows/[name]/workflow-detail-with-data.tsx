@@ -62,7 +62,16 @@ export async function WorkflowDetailWithData({ params, searchParams }: WorkflowD
 
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
-  await prefetchWorkflowByName(queryClient, decodedName);
+  try {
+    await prefetchWorkflowByName(queryClient, decodedName);
+  } catch (error) {
+    // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
+    // Page will still render - client will fetch on hydration if cache is empty
+    console.debug(
+      `[Server Prefetch] Could not prefetch workflow "${decodedName}":`,
+      error instanceof Error ? error.message : "Unknown error",
+    );
+  }
 
   // Wrap in HydrationBoundary so client gets the cached data
   // Pass initialView for instant panel rendering (no nuqs hydration delay)
