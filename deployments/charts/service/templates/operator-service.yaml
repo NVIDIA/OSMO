@@ -14,9 +14,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-{{/* Create a copy of the shared sidecar config values */}}
-{{ $operatorSidecarValues := deepCopy .Values.sidecars }}
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -178,14 +175,12 @@ spec:
           timeoutSeconds: 5
 
 
-      {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
       {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
       {{- include "osmo.extra-sidecars" .Values.services.operator | nindent 6 }}
       volumes:
-        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.operator.serviceName "serviceEnvoy" .Values.services.operator.envoy "Values" .Values) | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.operator | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}
@@ -206,11 +201,6 @@ spec:
         {{- end}}
 
 ---
-{{- if .Values.sidecars.envoy.enabled }}
-
-{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.operator.serviceName "serviceEnvoy" .Values.services.operator.envoy "Values" .Values "Release" .Release) }}
----
-{{- end }}
 
 apiVersion: v1
 kind: Service
@@ -221,11 +211,53 @@ metadata:
 spec:
   ports:
     - port: 80
-      targetPort: {{ include "service.targetPort" . }}
+      targetPort: 8000
       protocol: TCP
-      name: http
+      name: grpc
   selector:
     app: {{ .Values.services.operator.serviceName }}
+
+{{- if .Values.services.service.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.services.operator.serviceName }}
+  annotations:
+    {{- if eq .Values.services.service.ingress.ingressClass "nginx" }}
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    {{- end }}
+    {{- if .Values.services.service.ingress.albAnnotations.enabled}}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: osmo
+    alb.ingress.kubernetes.io/group.order: "50"
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
+    alb.ingress.kubernetes.io/backend-protocol-version: GRPC
+    alb.ingress.kubernetes.io/success-codes: '0-5'
+    {{- end }}
+    {{- range $k, $v := .Values.services.service.ingress.annotations }}
+    {{$k}}: {{ $v | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.services.service.ingress.ingressClass }}
+  rules:
+  - host: {{ .Values.services.service.hostname }}
+    http:
+      paths:
+      - path: /operator.ListenerService
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.operator.serviceName }}
+            port:
+              number: 80
+  {{- if .Values.services.service.ingress.sslEnabled }}
+  tls:
+  - hosts:
+    - {{ .Values.services.service.hostname }}
+    secretName: {{.Values.services.service.ingress.sslSecret }}
+  {{- end }}
+{{- end }}
 
 ---
 
