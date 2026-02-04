@@ -80,14 +80,23 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
   }, [stagedBucket, bucketDirty, updateProfile, announcer]);
 
   // Convert accessible buckets to SelectableListItem format
+  // Show default first, then others in original order
   const bucketItems: SelectableListItem[] = useMemo(() => {
     if (!profile.bucket.accessible) return [];
-    return profile.bucket.accessible.map((bucket) => ({
+
+    const defaultBucket = profile.bucket.default;
+    const items = profile.bucket.accessible.map((bucket) => ({
       value: bucket,
       label: bucket,
       subtitle: `s3://${bucket}`,
     }));
-  }, [profile.bucket.accessible]);
+
+    // Sort so default is first, maintaining original order for rest
+    const defaultItem = items.find((item) => item.value === defaultBucket);
+    const otherItems = items.filter((item) => item.value !== defaultBucket);
+
+    return defaultItem ? [defaultItem, ...otherItems] : items;
+  }, [profile.bucket.accessible, profile.bucket.default]);
 
   return (
     <Card className={cn("flex h-[600px] flex-col", bucketDirty && "border-nvidia")}>
