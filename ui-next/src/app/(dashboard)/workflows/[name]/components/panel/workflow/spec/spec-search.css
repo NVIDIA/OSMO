@@ -23,6 +23,37 @@
  * Theme-aware with light/dark mode support.
  */
 
+/* Theme-aware CSS custom properties */
+.spec-search[data-theme="dark"] {
+  --search-bg: #18181b;
+  --search-border: #27272a;
+  --search-input-bg: #09090b;
+  --search-text: #e4e4e7;
+  --search-muted: #71717a;
+  --search-hover-bg: rgba(255, 255, 255, 0.1);
+  --search-active-color: #76b900;
+  --search-active-hover: #8fd400;
+  --search-active-bg: rgba(118, 185, 0, 0.15);
+  --search-focus-border: #76b900;
+  --search-shadow: rgba(0, 0, 0, 0.3);
+}
+
+.spec-search[data-theme="light"] {
+  --search-bg: #ffffff;
+  --search-border: #e4e4e7;
+  --search-input-bg: #fafafa;
+  --search-input-border: #d4d4d8;
+  --search-text: #18181b;
+  --search-muted: #71717a;
+  --search-hover-bg: rgba(0, 0, 0, 0.05);
+  --search-hover-text: #3f3f46;
+  --search-active-color: #76b900;
+  --search-active-hover: #65a000;
+  --search-active-bg: rgba(118, 185, 0, 0.1);
+  --search-focus-border: #76b900;
+  --search-shadow: rgba(0, 0, 0, 0.1);
+}
+
 /* Panel mount point - positions the search as a floating overlay */
 .spec-search-panel-mount {
   position: absolute;
@@ -39,26 +70,12 @@
   gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
-
-  /* Performance: Prep GPU for animation */
-  will-change: opacity, transform;
+  background: var(--search-bg);
+  border: 1px solid var(--search-border);
+  box-shadow: 0 4px 12px var(--search-shadow);
 
   /* Slide down + fade in animation */
   animation: spec-search-slide-down 150ms ease-out forwards;
-}
-
-/* Dark theme (default) */
-.spec-search[data-theme="dark"] {
-  background: #18181b;
-  border: 1px solid #27272a;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-/* Light theme */
-.spec-search[data-theme="light"] {
-  background: #ffffff;
-  border: 1px solid #e4e4e7;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* Input wrapper - contains input and inline options */
@@ -67,27 +84,13 @@
   display: flex;
   align-items: center;
   border-radius: 4px;
+  background: var(--search-input-bg);
+  border: 1px solid var(--search-border);
   transition: border-color 100ms ease-out;
 }
 
-/* Dark theme input wrapper */
-.spec-search[data-theme="dark"] .spec-search-input-wrapper {
-  background: #09090b;
-  border: 1px solid #27272a;
-}
-
-.spec-search[data-theme="dark"] .spec-search-input-wrapper:focus-within {
-  border-color: #76b900;
-}
-
-/* Light theme input wrapper */
-.spec-search[data-theme="light"] .spec-search-input-wrapper {
-  background: #fafafa;
-  border: 1px solid #d4d4d8;
-}
-
-.spec-search[data-theme="light"] .spec-search-input-wrapper:focus-within {
-  border-color: #76b900;
+.spec-search-input-wrapper:focus-within {
+  border-color: var(--search-focus-border);
 }
 
 /* Input field */
@@ -99,24 +102,11 @@
   background: transparent;
   border: none;
   outline: none;
+  color: var(--search-text);
 }
 
-/* Dark theme input */
-.spec-search[data-theme="dark"] .spec-search-input {
-  color: #e4e4e7;
-}
-
-.spec-search[data-theme="dark"] .spec-search-input::placeholder {
-  color: #71717a;
-}
-
-/* Light theme input */
-.spec-search[data-theme="light"] .spec-search-input {
-  color: #18181b;
-}
-
-.spec-search[data-theme="light"] .spec-search-input::placeholder {
-  color: #a1a1aa;
+.spec-search-input::placeholder {
+  color: var(--search-muted);
 }
 
 /* Inline search options (inside input) */
@@ -138,47 +128,24 @@
   border: none;
   border-radius: 3px;
   cursor: pointer;
+  color: var(--search-muted);
   transition:
     color 100ms ease-out,
     background-color 100ms ease-out;
 }
 
-/* Dark theme options */
-.spec-search[data-theme="dark"] .spec-search-option {
-  color: #71717a;
+.spec-search-option:hover {
+  color: var(--search-hover-text, var(--search-text));
+  background: var(--search-hover-bg);
 }
 
-.spec-search[data-theme="dark"] .spec-search-option:hover {
-  color: #e4e4e7;
-  background: rgba(255, 255, 255, 0.1);
+.spec-search-option.active {
+  color: var(--search-active-color);
 }
 
-.spec-search[data-theme="dark"] .spec-search-option.active {
-  color: #76b900;
-}
-
-.spec-search[data-theme="dark"] .spec-search-option.active:hover {
-  color: #8fd400;
-  background: rgba(118, 185, 0, 0.15);
-}
-
-/* Light theme options */
-.spec-search[data-theme="light"] .spec-search-option {
-  color: #71717a;
-}
-
-.spec-search[data-theme="light"] .spec-search-option:hover {
-  color: #3f3f46;
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.spec-search[data-theme="light"] .spec-search-option.active {
-  color: #76b900;
-}
-
-.spec-search[data-theme="light"] .spec-search-option.active:hover {
-  color: #65a000;
-  background: rgba(118, 185, 0, 0.1);
+.spec-search-option.active:hover {
+  color: var(--search-active-hover);
+  background: var(--search-active-bg);
 }
 
 /* Match count text */
@@ -187,14 +154,7 @@
   white-space: nowrap;
   min-width: 32px;
   text-align: center;
-}
-
-.spec-search[data-theme="dark"] .spec-search-count {
-  color: #71717a;
-}
-
-.spec-search[data-theme="light"] .spec-search-count {
-  color: #71717a;
+  color: var(--search-muted);
 }
 
 /* Navigation and close buttons */
@@ -203,42 +163,15 @@
   gap: 2px;
 }
 
-/* Dark theme buttons */
-.spec-search[data-theme="dark"] .spec-search-nav-button {
-  color: #71717a;
+.spec-search-nav-button,
+.spec-search-close-button {
+  color: var(--search-muted);
 }
 
-.spec-search[data-theme="dark"] .spec-search-nav-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e4e4e7;
-}
-
-.spec-search[data-theme="dark"] .spec-search-close-button {
-  color: #71717a;
-}
-
-.spec-search[data-theme="dark"] .spec-search-close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e4e4e7;
-}
-
-/* Light theme buttons */
-.spec-search[data-theme="light"] .spec-search-nav-button {
-  color: #71717a;
-}
-
-.spec-search[data-theme="light"] .spec-search-nav-button:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #3f3f46;
-}
-
-.spec-search[data-theme="light"] .spec-search-close-button {
-  color: #71717a;
-}
-
-.spec-search[data-theme="light"] .spec-search-close-button:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #3f3f46;
+.spec-search-nav-button:hover,
+.spec-search-close-button:hover {
+  background: var(--search-hover-bg);
+  color: var(--search-hover-text, var(--search-text));
 }
 
 /* Animation */
@@ -246,10 +179,12 @@
   from {
     opacity: 0;
     transform: translateY(-8px);
+    will-change: opacity, transform;
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    will-change: auto;
   }
 }
 

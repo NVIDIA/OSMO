@@ -26,6 +26,7 @@
  * ```
  */
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getBasePathUrl } from "@/lib/config";
 
@@ -128,13 +129,24 @@ export function useSpecData(workflowId: string, activeView: SpecView): UseSpecDa
     (currentQuery.error as { status?: number })?.status === 404 ||
     (currentQuery.data !== undefined && currentQuery.data === "");
 
-  return {
-    yamlSpec: yamlQuery.data ?? null,
-    jinjaSpec: jinjaQuery.data ?? null,
-    content: currentQuery.data ?? null,
-    isLoading: currentQuery.isLoading,
-    error: currentQuery.error as Error | null,
-    isNotFound,
-    refetch: currentQuery.refetch,
-  };
+  return useMemo(
+    () => ({
+      yamlSpec: yamlQuery.data ?? null,
+      jinjaSpec: jinjaQuery.data ?? null,
+      content: currentQuery.data ?? null,
+      isLoading: currentQuery.isLoading,
+      error: currentQuery.error as Error | null,
+      isNotFound,
+      refetch: currentQuery.refetch,
+    }),
+    [
+      yamlQuery.data,
+      jinjaQuery.data,
+      currentQuery.data,
+      currentQuery.isLoading,
+      currentQuery.error,
+      isNotFound,
+      currentQuery.refetch,
+    ],
+  );
 }

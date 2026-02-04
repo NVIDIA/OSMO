@@ -21,7 +21,7 @@
  * Icon-based controls for case sensitivity, whole word, and regex.
  */
 
-import React from "react";
+import React, { useDeferredValue } from "react";
 import { EditorView } from "@codemirror/view";
 import {
   SearchQuery,
@@ -31,7 +31,7 @@ import {
   findPrevious,
   closeSearchPanel,
 } from "@codemirror/search";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { X, ChevronUp, ChevronDown, CaseSensitive, WholeWord, Regex } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
@@ -157,12 +157,15 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     }
   }, []);
 
+  // Defer search text to avoid blocking typing
+  const deferredSearchText = useDeferredValue(searchText);
+
   // Calculate match info (current match position and total count)
   const matchInfo = React.useMemo(() => {
     // Force recomputation when selection changes (used to track navigation)
     void selectionPos;
 
-    if (!searchText) return null;
+    if (!deferredSearchText) return null;
 
     try {
       const state = view.state;
@@ -206,7 +209,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     } catch {
       return null;
     }
-  }, [searchText, view, selectionPos]);
+  }, [deferredSearchText, view, selectionPos]);
 
   return (
     <div
@@ -298,11 +301,13 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
  * Creates a custom search panel for CodeMirror as a floating overlay
  */
 export function createSearchPanel(isDark: boolean) {
-  return (view: EditorView): { dom: HTMLElement; top: boolean } => {
+  let root: Root | null = null;
+
+  return (view: EditorView): { dom: HTMLElement; top: boolean; destroy?: () => void } => {
     const dom = document.createElement("div");
     dom.className = "spec-search-panel-mount";
 
-    const root = createRoot(dom);
+    root = createRoot(dom);
     root.render(
       <SearchPanel
         view={view}
@@ -313,6 +318,15 @@ export function createSearchPanel(isDark: boolean) {
     return {
       dom,
       top: true, // Position at top of editor
+      destroy: () => {
+        if (root) {
+          // Defer unmount to avoid race condition when called during render
+          queueMicrotask(() => {
+            root?.unmount();
+          });
+          root = null;
+        }
+      },
     };
   };
 }
