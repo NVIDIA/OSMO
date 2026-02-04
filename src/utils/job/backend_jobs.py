@@ -513,7 +513,8 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
             # If CRD is not installed (404), return empty list
             if e.status == 404:
                 logging.info(
-                    f'CRD {cleanup_spec.resource_type} not installed in cluster, skipping sync')
+                    'CRD %s not installed in cluster, skipping sync',
+                    cleanup_spec.resource_type)
                 return []
             raise
 
@@ -575,7 +576,7 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
                 # Object exists - check if it needs to be recreated (immutable) or updated
                 if obj_kind in self.immutable_kinds:
                     # Delete and recreate for immutable kinds
-                    logging.info(f'Recreating immutable {obj_kind} object: {obj_name}')
+                    logging.info('Recreating immutable %s object: %s', obj_kind, obj_name)
                     self._delete_object(context, cleanup_spec, obj_name)
                     self._apply_object(context, cleanup_spec, obj, resource_version=None)
                 else:

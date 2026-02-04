@@ -62,6 +62,10 @@ class TopologyConstraintBuilder:
         self.key_to_label = {
             topology_key.key: topology_key.label for topology_key in pool.topology_keys
         }
+        # Create mapping from label to position (for sorting coarsest to finest)
+        self.label_to_position = {
+            topology_key.label: idx for idx, topology_key in enumerate(pool.topology_keys)
+        }
 
     def build_constraints(self, tasks: List, pods: List[Dict],
                          pool_name: str, namespace: str) -> GroupTopologyConstraints:
@@ -107,6 +111,10 @@ class TopologyConstraintBuilder:
                     required=(req.requirementType == connectors.TopologyRequirementType.REQUIRED)
                 )
                 constraints.append(constraint)
+
+            # Sort constraints by pool topology_keys order (coarsest to finest)
+            # This ensures tree building works correctly regardless of workflow spec order
+            constraints.sort(key=lambda c: self.label_to_position[c.label])
 
             task_topology_constraints[task_name] = TaskTopologyConstraints(
                 constraints=constraints

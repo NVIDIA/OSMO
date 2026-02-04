@@ -3403,13 +3403,14 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
 
         # Validate topology_keys is only set for schedulers that support it
         if self.topology_keys:
+            from src.utils.job import kb_objects  # pylint: disable=import-outside-toplevel
             backend = Backend.fetch_from_db(database, self.backend)
-            from src.utils.job import kb_objects
             factory = kb_objects.get_k8s_object_factory(backend)
             if not factory.topology_supported():
+                scheduler_type = backend.scheduler_settings.scheduler_type
                 raise osmo_errors.OSMOUsageError(
                     f'Topology keys cannot be set for pool "{name}" because backend '
-                    f'"{self.backend}" uses scheduler "{backend.scheduler_settings.scheduler_type}" '
+                    f'"{self.backend}" uses scheduler "{scheduler_type}" '
                     f'which does not support topology constraints')
 
         insert_cmd = '''

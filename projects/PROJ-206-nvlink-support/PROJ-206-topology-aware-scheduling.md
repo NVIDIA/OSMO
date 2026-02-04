@@ -473,7 +473,7 @@ Each entry in `topology_keys` has two fields:
 - `key`: A user-friendly name that users will reference in their workflow specs
 - `label`: The actual Kubernetes node label that will be used in the Topology CRD and PodGroup
 
-Keys that appear higher in the list are "smaller" groups of nodes and are subsets of the keys below them.
+Keys are listed from coarsest to finest granularity. Keys that appear later in the list are "smaller" groups of nodes and are subsets of the keys before them.
 In the example below: One or more `rack`s appear in a given `spine` and one or more `spine`s appear in a given `zone`.
 
 The `topology_keys` parameter is only allowed to be non-empty for pools that are part of a backend using KAI scheduler.
@@ -483,12 +483,12 @@ The `topology_keys` parameter is only allowed to be non-empty for pools that are
 {
     "name": "my-pool-01",
     "description": "A pool with topology aware scheduling enabled",
-    # Topology keys that appear first are the finest grain
-    # (Ie multiple racks belong in the same spine)
+    # Topology keys are listed from coarsest to finest granularity
+    # (ie zone contains multiple spines, spine contains multiple racks)
     "topology_keys": [
-        {"key": "rack", "label": "topology.kubernetes.io/rack"},
-        {"key": "spine", "label": "topology.kubernetes.io/spine"},
         {"key": "zone", "label": "topology.kubernetes.io/zone"},
+        {"key": "spine", "label": "topology.kubernetes.io/spine"},
+        {"key": "rack", "label": "topology.kubernetes.io/rack"},
     ],
     ...
 }
@@ -517,8 +517,8 @@ class TopologyRequirement(pydantic.BaseModel):
 class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     cpu: int | None = None
     ...
-    # A list of topology requirements in decreasing levels of granularity
-    # (ie `rack` should appear before `zone`)
+    # A list of topology requirements in increasing levels of granularity
+    # (ie `zone` should appear before `rack`, matching pool topology_keys order)
     topology: List[TopologyRequirement] = []
 
 ```
@@ -529,10 +529,10 @@ For the below examples, assume the pool has the following `topology_keys` config
 ```yaml
 {
   "topology_keys": [
-    {"key": "gpu-clique", "label": "nvidia.com/gpu-clique"},
-    {"key": "rack", "label": "nvidia.com/rack"},
-    {"key": "spine", "label": "nvidia.com/spine"},
     {"key": "zone", "label": "nvidia.com/zone"},
+    {"key": "spine", "label": "nvidia.com/spine"},
+    {"key": "rack", "label": "nvidia.com/rack"},
+    {"key": "gpu-clique", "label": "nvidia.com/gpu-clique"},
   ]
 }
 ```
@@ -735,28 +735,45 @@ spec:
   - nodeLabel: "topology.kubernetes.io/zone"
 ```
 
-When a workflow is submitted on a pool that uses topology, the KAI scheduler PodGroup will be created with topology constraints using the following algorithm:
+When a workflow is submitted on a pool that uses topology, the KAI scheduler PodGroup will be created with topology constraints using the following tree-based algorithm:
 
-**Algorithm for creating PodGroup with topology constraints:**
+**Tree-Based Algorithm for Creating PodGroup with Topology Constraints:**
 
-1. **Translate topology keys**: For each topology requirement in the workflow, translate the user-friendly `key` (e.g., "rack", "zone") to the corresponding Kubernetes node `label` (e.g., "topology.kubernetes.io/rack") using the pool's `topology_keys` configuration.
+1. **Determine topology levels at play**: Identify which topology levels are referenced in task topology requirements across the workflow. Sort these levels from coarsest to finest (matching the order in the pool's `topology_keys` configuration).
 
-2. **Top-level topology constraint**: If the coarsest (largest scope) topology requirement is shared by all pods in the workflow, add it to the `topologyConstraint` field of the PodGroup spec using the translated label.
+2. **Build a topology tree**:
+   - Start with an empty root node
+   - For each level of topology (coarsest to finest):
+     - Create child nodes representing each unique group at that level
+     - Group tasks based on their (topology_key, subgroup) pairs
+   - Leaf nodes represent individual tasks
+   - **Important constraint**: The structure must be a tree, not a DAG. A finer topology group cannot span multiple coarser topology groups (e.g., a rack cannot span multiple zones).
 
-3. **Create subgroups**: For each unique set of topology requirements:
-   - Create a subgroup in the `subgroups` section
-   - Set `minMember` equal to the number of tasks that share those topology requirements
-   - Set the `topologyConstraint` to reference the finest-grained (smallest scope) topology level for that subgroup using the translated label
-   - Reference the pool's Topology CRD name in the `topology` field
+3. **Walk down the tree to find shared topology**:
+   - Starting from the root, traverse down through each level that has only one child node
+   - These single-child levels represent topology requirements shared by all tasks
+   - The finest (most specific) shared topology level becomes the top-level `topologyConstraint` in the PodGroup spec
+   - Stop when reaching a level with multiple child nodes (branching point)
 
-4. **Hierarchical relationships**: For workflows with multiple levels of topology requirements (e.g., both rack and zone):
-   - Create parent subgroups for coarser topology levels
-   - Set the `parent` field on child subgroups to reference their parent subgroup
-   - This creates a hierarchy where finer-grained requirements are nested within coarser ones
+4. **Create subgroups with hierarchy**:
+   - Starting from the first branching point, create subgroups for each branch
+   - For non-leaf subgroups: Set `topologyConstraint` to the topology level at that node, and add a `parent` field referencing the parent subgroup (if any)
+   - For leaf subgroups: Set `topologyConstraint` to the finest topology level and set `minMember` to the number of tasks
+   - Use the subgroup `parent` field to create hierarchical relationships (see [KAI multi-level topology docs](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/topology/multilevel.md))
 
-5. **Pod annotations and labels**: Each pod in the workflow receives:
+5. **Ensure all leaf nodes are at same tree level**:
+   - **Critical constraint**: If any pod is in a subgroup, ALL pods must be in a subgroup
+   - Tasks without topology constraints are placed in a catch-all subgroup with "preferred" constraints at the same topology level as other subgroups
+   - Tasks with fewer topology levels than others are padded with "preferred" constraints at finer levels to reach the same depth
+   - This ensures all leaf nodes in the tree are at the same level
+
+6. **Handle minMember placement**:
+   - If there are subgroups: Skip `minMember` at the top PodGroup level and only add it to leaf subgroups
+   - If there are no subgroups: Use `minMember` at the PodGroup level
+
+7. **Pod annotations and labels**: Each pod in the workflow receives:
    - Annotation: `pod-group-name: <group-uuid>`
-   - Label: `kai.scheduler/subgroup-name: <subgroup-name>`
+   - Label: `kai.scheduler/subgroup-name: <subgroup-name>` (all pods get this when subgroups are used)
 
 These annotations and labels associate each pod with its PodGroup and subgroup, enabling the KAI scheduler to enforce the topology constraints.
 
@@ -771,9 +788,10 @@ metadata:
     kai.scheduler/queue: osmo-pool-my-pool
 spec:
   queue: osmo-pool-my-pool
+  # Note: minMember is NOT set at top level when subgroups are present
   topologyConstraint:
     topology: "osmo-pool-my-pool-topology"
-    requiredTopologyLevel: "topology.kubernetes.io/zone"
+    requiredTopologyLevel: "nvidia.com/zone"
   subgroups:
     # Subgroup for model 1 - all shards must be on same gpu-clique
     - name: model-1-subgroup
