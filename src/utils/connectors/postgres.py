@@ -674,6 +674,7 @@ class PostgresConnector:
                 description TEXT,
                 policies JSONB[],
                 immutable BOOLEAN,
+                sync_mode TEXT NOT NULL DEFAULT 'import',
                 PRIMARY KEY (name)
             );
         """
@@ -971,16 +972,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates table for user keys.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS ueks (
-                uid TEXT,
-                keys HSTORE,
-                PRIMARY KEY (uid)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
         create_cmd = '''
             CREATE OR REPLACE FUNCTION jsonb_recursive_merge(receivingJson jsonb, givingJson jsonb)
             RETURNS jsonb LANGUAGE SQL AS $$
@@ -1093,26 +1084,30 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates table for access token keys.
+        # Creates table for users (IDP users and service accounts)
         create_cmd = '''
-            CREATE TABLE IF NOT EXISTS access_token (
-                user_name TEXT,
-                token_name TEXT,
-                access_token BYTEA,
-                expires_at TIMESTAMP,
-                description TEXT,
-                access_type TEXT,
-                roles TEXT[],
-                PRIMARY KEY (user_name, token_name, access_type),
-                CONSTRAINT unique_access_token UNIQUE (access_token)
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                external_id TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                created_by TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMP WITH TIME ZONE
             );
         '''
         self.execute_commit_command(create_cmd, ())
 
+        # Create indices for users table
+        create_cmd = '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_external_id
+                ON users (external_id);
+        '''
+        self.execute_autocommit_command(create_cmd, ())
+
         # Creates table for User profile
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS profile (
-                user_name TEXT NOT NULL,
+                user_name TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 slack_notification BOOLEAN,
                 email_notification BOOLEAN,
                 bucket TEXT,
@@ -1121,6 +1116,88 @@ class PostgresConnector:
             );
         '''
         self.execute_commit_command(create_cmd, ())
+
+        # Creates table for user keys.
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS ueks (
+                uid TEXT REFERENCES users(id) ON DELETE CASCADE,
+                keys HSTORE,
+                PRIMARY KEY (uid)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Creates table for user role assignments
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS user_roles (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                assigned_by TEXT NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                UNIQUE(user_id, role_name)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Create indices for user_roles table
+        index_cmds = [
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_roles_user
+                ON user_roles (user_id);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_roles_role
+                ON user_roles (role_name);
+            '''
+        ]
+        for cmd in index_cmds:
+            self.execute_autocommit_command(cmd, ())
+
+        # Creates table for access token keys (Personal Access Tokens).
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS access_token (
+                user_name TEXT,
+                token_name TEXT,
+                access_token BYTEA,
+                expires_at TIMESTAMP,
+                description TEXT,
+                last_seen_at TIMESTAMP WITH TIME ZONE,
+                PRIMARY KEY (user_name, token_name),
+                CONSTRAINT unique_access_token UNIQUE (access_token)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Creates table for PAT role assignments (subset of user roles)
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS pat_roles (
+                id SERIAL PRIMARY KEY,
+                user_name TEXT NOT NULL,
+                token_name TEXT NOT NULL,
+                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                assigned_by TEXT NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                UNIQUE(user_name, token_name, role_name),
+                FOREIGN KEY (user_name, token_name)
+                    REFERENCES access_token(user_name, token_name) ON DELETE CASCADE
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Create indices for pat_roles table
+        index_cmds = [
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pat_roles_token
+                ON pat_roles (user_name, token_name);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pat_roles_role
+                ON pat_roles (role_name);
+            '''
+        ]
+        for cmd in index_cmds:
+            self.execute_autocommit_command(cmd, ())
 
         # Creates table for config history
         create_cmd = """
@@ -4079,16 +4156,17 @@ class Role(role.Role):
         database.execute_commit_command(delete_cmd, (name,))
 
     def insert_into_db(self, database: PostgresConnector, force: bool = False):
-        """ Create/update an entry in the pools table """
+        """ Create/update an entry in the roles table """
         check_immutable = 'WHERE roles.immutable = false' if not force else ''
         insert_cmd = f'''
             INSERT INTO roles
-            (name, description, policies, immutable)
-            VALUES (%s, %s, %s::jsonb[], %s)
+            (name, description, policies, immutable, sync_mode)
+            VALUES (%s, %s, %s::jsonb[], %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
-                policies = EXCLUDED.policies
+                policies = EXCLUDED.policies,
+                sync_mode = EXCLUDED.sync_mode
             {check_immutable}
             RETURNING policies, immutable;
             '''
@@ -4096,7 +4174,7 @@ class Role(role.Role):
             insert_cmd,
             (self.name, self.description,
              [json.dumps(policy.to_dict()) for policy in self.policies],
-             False),
+             False, self.sync_mode.value),
             True
         )
         # No result means that immutable was true and nothing was updated

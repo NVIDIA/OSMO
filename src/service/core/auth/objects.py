@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import datetime
-import enum
 import re
 from typing import List, Optional
 
@@ -27,93 +26,54 @@ from src.lib.utils import common, osmo_errors
 from src.utils import auth, connectors
 
 
-class AccessTokenType(enum.Enum):
-    """ Type of access token """
-    USER = 'USER'
-    SERVICE = 'SERVICE'
-
-
 class AccessToken(pydantic.BaseModel):
-    """ Single Pool Entry """
+    """Personal Access Token (PAT) entry."""
     user_name: str
     token_name: str
     expires_at: datetime.datetime
     description: str
-    access_type: AccessTokenType
-    roles: List[str]
 
     @classmethod
-    def list_from_db(cls, database: connectors.PostgresConnector, access_type: AccessTokenType,
-                     user_name: str | None = None) \
-        -> List['AccessToken']:
-        """ Fetches the list of access tokens from the access token table """
-        fetch_cmd = 'SELECT * FROM access_token WHERE access_type = %s'
-        fetch_params = [access_type.value]
-        if user_name:
-            fetch_cmd += ' AND user_name = %s;'
-            fetch_params.append(user_name)
-        spec_rows = database.execute_fetch_command(fetch_cmd, tuple(fetch_params), True)
-
+    def list_from_db(cls, database: connectors.PostgresConnector,
+                     user_name: str) -> List['AccessToken']:
+        """Fetches the list of access tokens from the access token table for a user."""
+        fetch_cmd = '''
+            SELECT user_name, token_name, expires_at, description
+            FROM access_token WHERE user_name = %s;
+        '''
+        spec_rows = database.execute_fetch_command(fetch_cmd, (user_name,), True)
         return [AccessToken(**spec_row) for spec_row in spec_rows]
 
     @classmethod
-    def fetch_from_db(cls, database: connectors.PostgresConnector, access_type: AccessTokenType,
-                      token_name: str, user_name: str | None = None) -> 'AccessToken':
-        """ Fetches the access token from the access token table """
-        fetch_cmd = 'SELECT * FROM access_token WHERE access_type = %s AND token_name = %s'
-        fetch_params = [access_type.value, token_name]
-        if user_name:
-            fetch_cmd += ' AND user_name = %s;'
-            fetch_params.append(user_name)
-        spec_rows = database.execute_fetch_command(fetch_cmd, tuple(fetch_params), True)
+    def fetch_from_db(cls, database: connectors.PostgresConnector,
+                      token_name: str, user_name: str) -> 'AccessToken':
+        """Fetches the access token from the access token table."""
+        fetch_cmd = '''
+            SELECT user_name, token_name, expires_at, description
+            FROM access_token WHERE token_name = %s AND user_name = %s;
+        '''
+        spec_rows = database.execute_fetch_command(fetch_cmd, (token_name, user_name), True)
         if not spec_rows:
-            if access_type == AccessTokenType.USER:
-                type_str = 'User'
-            else:
-                type_str = 'Service'
-            raise osmo_errors.OSMOUserError(f'{type_str} access token {token_name} does not exist.')
-
-        spec_row = spec_rows[0]
-
-        return AccessToken(**spec_row)
+            raise osmo_errors.OSMOUserError(f'Access token {token_name} does not exist.')
+        return AccessToken(**spec_rows[0])
 
     @classmethod
-    def delete_from_db(cls, database: connectors.PostgresConnector, access_type: AccessTokenType,
-                       token_name: str, user_name: str | None = None):
-        """ Delete an entry from the access token table """
-        cls.fetch_from_db(database, access_type, token_name, user_name)
-        if access_type == AccessTokenType.USER:
-            delete_cmd = '''
-                DELETE FROM access_token
-                WHERE access_type = %s
-                    AND token_name = %s
-                    AND user_name = %s;
-                '''
-            delete_params = [access_type.value, token_name, user_name]
-        else:
-            delete_cmd = '''
-                BEGIN;
-                    DELETE FROM profile where user_name = (
-                        SELECT user_name FROM access_token
-                        WHERE access_type = %s AND token_name = %s);
-                    DELETE FROM ueks where uid = (
-                        SELECT user_name FROM access_token
-                        WHERE access_type = %s AND token_name = %s);
-                    DELETE FROM credential where user_name = (
-                        SELECT user_name FROM access_token
-                        WHERE access_type = %s AND token_name = %s);
-                    DELETE FROM access_token WHERE access_type = %s AND token_name = %s;
-                COMMIT;
-                '''
-            delete_params = [access_type.value, token_name, access_type.value, token_name,
-                             access_type.value, token_name, access_type.value, token_name]
-        database.execute_commit_command(delete_cmd, tuple(delete_params))
+    def delete_from_db(cls, database: connectors.PostgresConnector,
+                       token_name: str, user_name: str):
+        """Delete an entry from the access token table."""
+        cls.fetch_from_db(database, token_name, user_name)
+        # pat_roles will be deleted via ON DELETE CASCADE
+        delete_cmd = '''
+            DELETE FROM access_token
+            WHERE token_name = %s AND user_name = %s;
+        '''
+        database.execute_commit_command(delete_cmd, (token_name, user_name))
 
     @classmethod
-    def insert_into_db(cls, database: connectors.PostgresConnector, user_name: str, token_name: str,
-                       access_token: str, expires_at: str, description: str, roles: List[str],
-                       access_type: AccessTokenType):
-        """ Create/update an entry in the access token table """
+    def insert_into_db(cls, database: connectors.PostgresConnector, user_name: str,
+                       token_name: str, access_token: str, expires_at: str,
+                       description: str, roles: List[str], assigned_by: str):
+        """Create an entry in the access token table and assign roles via pat_roles."""
         if not re.fullmatch(common.TOKEN_NAME_REGEX, token_name):
             raise osmo_errors.OSMOUserError(
                 f'Token name {token_name} must match regex {common.TOKEN_NAME_REGEX}')
@@ -135,26 +95,151 @@ class AccessToken(pydantic.BaseModel):
             raise osmo_errors.OSMOUserError(
                 f'Access token cannot last longer than {max_token_duration}')
 
+        # Insert the access token
         insert_cmd = '''
             INSERT INTO access_token
-            (user_name, token_name, access_token, expires_at, description, access_type, roles)
-            VALUES (%s, %s, %s, %s, %s, %s, %s);
-            '''
+            (user_name, token_name, access_token, expires_at, description)
+            VALUES (%s, %s, %s, %s, %s);
+        '''
         try:
             database.execute_commit_command(
                 insert_cmd,
-                (user_name, token_name, auth.hash_access_token(access_token), expires_at,
-                 description, access_type.value, roles))
+                (user_name, token_name, auth.hash_access_token(access_token),
+                 expires_at, description))
         except osmo_errors.OSMODatabaseError as e:
             raise osmo_errors.OSMOUserError(f'Token name {token_name} already exists.') from e
+
+        # Insert roles into pat_roles table
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for role_name in roles:
+            role_insert_cmd = '''
+                INSERT INTO pat_roles (user_name, token_name, role_name, assigned_by, assigned_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_name, token_name, role_name) DO NOTHING;
+            '''
+            database.execute_commit_command(
+                role_insert_cmd, (user_name, token_name, role_name, assigned_by, now))
 
     @classmethod
     def validate_access_token(cls, database: connectors.PostgresConnector, access_token: str) \
         -> Optional['AccessToken']:
-        """ Validate the access token """
-        fetch_cmd = 'SELECT * FROM access_token WHERE access_token = %s;'
+        """Validate the access token."""
+        fetch_cmd = '''
+            SELECT user_name, token_name, expires_at, description
+            FROM access_token WHERE access_token = %s;
+        '''
         spec_rows = database.execute_fetch_command(
             fetch_cmd, (auth.hash_access_token(access_token),), True)
         if not spec_rows:
             return None
         return AccessToken(**spec_rows[0])
+
+    @classmethod
+    def get_roles_for_token(cls, database: connectors.PostgresConnector,
+                            user_name: str, token_name: str) -> List[str]:
+        """Get the roles assigned to a PAT from pat_roles table."""
+        fetch_cmd = '''
+            SELECT role_name FROM pat_roles
+            WHERE user_name = %s AND token_name = %s
+            ORDER BY role_name;
+        '''
+        rows = database.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
+        return [row['role_name'] for row in rows]
+
+
+# =============================================================================
+# User Management Objects
+# =============================================================================
+
+class UserRole(pydantic.BaseModel):
+    """User role assignment."""
+    role_name: str
+    assigned_by: str
+    assigned_at: datetime.datetime
+
+
+class User(pydantic.BaseModel):
+    """User record."""
+    id: str
+    external_id: Optional[str] = None
+    created_at: Optional[datetime.datetime] = None
+    created_by: Optional[str] = None
+    updated_at: Optional[datetime.datetime] = None
+    last_seen_at: Optional[datetime.datetime] = None
+
+
+class UserWithRoles(User):
+    """User record with role assignments."""
+    roles: List[UserRole] = []
+
+
+class CreateUserRequest(pydantic.BaseModel):
+    """Request to create a new user."""
+    id: str
+    external_id: Optional[str] = None
+    roles: Optional[List[str]] = None
+
+
+class UpdateUserRequest(pydantic.BaseModel):
+    """Request to update a user."""
+    external_id: Optional[str] = None
+
+
+class AssignRoleRequest(pydantic.BaseModel):
+    """Request to assign a role to a user."""
+    role_name: str
+
+
+class UserRoleAssignment(pydantic.BaseModel):
+    """User role assignment response."""
+    user_id: str
+    role_name: str
+    assigned_by: str
+    assigned_at: datetime.datetime
+
+
+class UserListResponse(pydantic.BaseModel):
+    """Response for listing users."""
+    total_results: int
+    start_index: int
+    items_per_page: int
+    users: List[User]
+
+
+class UserRolesResponse(pydantic.BaseModel):
+    """Response for listing user roles."""
+    user_id: str
+    roles: List[UserRole]
+
+
+class RoleUsersResponse(pydantic.BaseModel):
+    """Response for listing users with a role."""
+    role_name: str
+    users: List[dict]
+
+
+class BulkAssignRequest(pydantic.BaseModel):
+    """Request to bulk assign a role to users."""
+    user_ids: List[str]
+
+
+class BulkAssignResponse(pydantic.BaseModel):
+    """Response for bulk role assignment."""
+    role_name: str
+    assigned: List[str]
+    already_assigned: List[str]
+    failed: List[str]
+
+
+class PATRole(pydantic.BaseModel):
+    """PAT role assignment."""
+    role_name: str
+    assigned_by: str
+    assigned_at: datetime.datetime
+
+
+class PATRolesResponse(pydantic.BaseModel):
+    """Response for listing PAT roles."""
+    user_name: str
+    token_name: str
+    roles: List[PATRole]

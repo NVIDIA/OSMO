@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
+import re
 import secrets
 import time
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import fastapi
 
@@ -32,6 +33,10 @@ router = fastapi.APIRouter(
     tags = ['Auth API']
 )
 
+
+# =============================================================================
+# Authentication APIs
+# =============================================================================
 
 @router.get('/api/auth/login', include_in_schema=False)
 def get_login_info() -> auth.LoginInfo:
@@ -47,7 +52,6 @@ def get_keys():
     return service_config.service_auth.get_keyset()
 
 
-@router.get('/api/auth/refresh_token')
 @router.get('/api/auth/jwt/refresh_token')
 def get_new_jwt_token(refresh_token: str, workflow_id: str,
                       group_name: str, task_name: str, retry_id: int = 0):
@@ -119,12 +123,15 @@ def get_jwt_token_from_access_token(access_token: str):
     if token.expires_at.date() <= datetime.datetime.utcnow().date():
         raise osmo_errors.OSMOUserError('Access Token has expired')
 
+    # Get roles from pat_roles table
+    roles = objects.AccessToken.get_roles_for_token(postgres, token.user_name, token.token_name)
+
     service_config = postgres.get_service_configs()
 
     end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
-    token = service_config.service_auth.create_idtoken_jwt(end_timeout, token.user_name,
-                                                           roles=token.roles)
-    return {'token': token,
+    jwt_token = service_config.service_auth.create_idtoken_jwt(end_timeout, token.user_name,
+                                                               roles=roles)
+    return {'token': jwt_token,
             'expires_at': end_timeout,
             'error': None}
 
@@ -141,56 +148,37 @@ def get_access_token_info(access_token: str) -> objects.AccessToken:
     return token
 
 
-@router.post('/api/auth/access_token/user/{token_name}')
+@router.post('/api/auth/access_token/{token_name}')
 def create_access_token(token_name: str,
                         expires_at: str,
                         description: str = '',
                         user_header: Optional[str] =
                             fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
     """
-    API to create a new access token.
+    API to create a new access token (PAT).
+    The token will inherit the user's roles from the user_roles table.
     """
     postgres = connectors.PostgresConnector.get_instance()
 
     user_name = connectors.parse_username(user_header)
     access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
     service_config = postgres.get_service_configs()
-    objects.AccessToken.insert_into_db(postgres, user_name, token_name, access_token,
-                                       expires_at, description,
-                                       service_config.service_auth.user_roles,
-                                       objects.AccessTokenType.USER)
+
+    # Get user's roles from user_roles table (PAT inherits user's roles)
+    roles = _get_user_role_names(postgres, user_name)
+
+    # If user has no roles, use default user roles from config
+    if not roles:
+        roles = service_config.service_auth.user_roles
+
+    objects.AccessToken.insert_into_db(
+        postgres, user_name, token_name, access_token,
+        expires_at, description, roles, user_name)
 
     return access_token
 
 
-@router.post('/api/auth/access_token/service/{token_name}')
-def create_service_access_token(token_name: str,
-                                expires_at: str,
-                                roles: List[str] = fastapi.Query(default = []),
-                                description: str = ''):
-    """
-    API to create a new service access token.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-
-    # Create serivce account name
-    service_account_name = token_name
-    access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
-
-    config_roles_names = [role.name for role in connectors.Role.list_from_db(postgres)]
-    for role in roles:
-        if role not in config_roles_names:
-            raise osmo_errors.OSMOUserError(f'Invalid role: {role}')
-
-    objects.AccessToken.insert_into_db(postgres, service_account_name, token_name, access_token,
-                                       expires_at, description, roles,
-                                       objects.AccessTokenType.SERVICE)
-    connectors.UserProfile.insert_default_profile(postgres, service_account_name)
-
-    return access_token
-
-
-@router.delete('/api/auth/access_token/user/{token_name}')
+@router.delete('/api/auth/access_token/{token_name}')
 def delete_access_token(token_name: str,
                         user_header: Optional[str] =
                             fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
@@ -199,20 +187,10 @@ def delete_access_token(token_name: str,
     """
     postgres = connectors.PostgresConnector.get_instance()
     user_name = connectors.parse_username(user_header)
-    objects.AccessToken.delete_from_db(postgres, objects.AccessTokenType.USER, token_name,
-                                       user_name)
+    objects.AccessToken.delete_from_db(postgres, token_name, user_name)
 
 
-@router.delete('/api/auth/access_token/service/{token_name}')
-def delete_service_access_token(token_name: str):
-    """
-    API to delete a service access token.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    objects.AccessToken.delete_from_db(postgres, objects.AccessTokenType.SERVICE, token_name)
-
-
-@router.get('/api/auth/access_token/user')
+@router.get('/api/auth/access_token')
 def list_access_tokens(user_header: Optional[str] =
                            fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)) \
                        -> List[objects.AccessToken]:
@@ -221,13 +199,698 @@ def list_access_tokens(user_header: Optional[str] =
     """
     postgres = connectors.PostgresConnector.get_instance()
     user_name = connectors.parse_username(user_header)
-    return objects.AccessToken.list_from_db(postgres, objects.AccessTokenType.USER, user_name)
+    return objects.AccessToken.list_from_db(postgres, user_name)
 
 
-@router.get('/api/auth/access_token/service')
-def list_service_access_tokens() -> List[objects.AccessToken]:
+@router.post('/api/auth/users/{user_id}/access_token/{token_name}')
+def admin_create_access_token(
+    user_id: str,
+    token_name: str,
+    expires_at: str,
+    description: str = '',
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+):
     """
-    API to list all service access tokens.
+    Admin API to create a PAT for a specific user.
+
+    This endpoint allows administrators to create a Personal Access Token
+    on behalf of any user in the system.
+
+    Args:
+        user_id: The user ID to create the token for
+        token_name: Name for the access token
+        expires_at: Expiration date in YYYY-MM-DD format
+        description: Optional description for the token
+        user_header: Authenticated admin user making the request
+
+    Returns:
+        The generated access token string
     """
     postgres = connectors.PostgresConnector.get_instance()
-    return objects.AccessToken.list_from_db(postgres, objects.AccessTokenType.SERVICE)
+    admin_user = connectors.parse_username(user_header)
+
+    # Validate the target user exists
+    _validate_user_exists(postgres, user_id)
+
+    access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
+    service_config = postgres.get_service_configs()
+
+    # Get target user's roles from user_roles table (PAT inherits user's roles)
+    roles = _get_user_role_names(postgres, user_id)
+
+    # If user has no roles, use default user roles from config
+    if not roles:
+        roles = service_config.service_auth.user_roles
+
+    objects.AccessToken.insert_into_db(
+        postgres, user_id, token_name, access_token,
+        expires_at, description, roles, admin_user)
+
+    return access_token
+
+
+# =============================================================================
+# User Management Helper Functions
+# =============================================================================
+
+def _get_user_from_db(postgres: connectors.PostgresConnector,
+                      user_id: str) -> Optional[dict]:
+    """Fetch a user record from the database."""
+    fetch_cmd = '''
+        SELECT id, external_id, created_at, created_by, updated_at, last_seen_at
+        FROM users WHERE id = %s;
+    '''
+    rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
+    return rows[0] if rows else None
+
+
+def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
+                            user_id: str) -> List[objects.UserRole]:
+    """Fetch all roles assigned to a user."""
+    fetch_cmd = '''
+        SELECT role_name, assigned_by, assigned_at
+        FROM user_roles WHERE user_id = %s
+        ORDER BY role_name;
+    '''
+    rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
+    return [objects.UserRole(
+        role_name=row['role_name'],
+        assigned_by=row['assigned_by'],
+        assigned_at=row['assigned_at']
+    ) for row in rows]
+
+
+def _get_user_role_names(postgres: connectors.PostgresConnector,
+                         user_id: str) -> List[str]:
+    """Fetch all role names assigned to a user."""
+    fetch_cmd = '''
+        SELECT role_name FROM user_roles WHERE user_id = %s ORDER BY role_name;
+    '''
+    rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
+    return [row['role_name'] for row in rows]
+
+
+def _validate_role_exists(postgres: connectors.PostgresConnector, role_name: str):
+    """Validate that a role exists in the database."""
+    fetch_cmd = 'SELECT 1 FROM roles WHERE name = %s;'
+    rows = postgres.execute_fetch_command(fetch_cmd, (role_name,), True)
+    if not rows:
+        raise osmo_errors.OSMOUserError(f'Role {role_name} does not exist')
+
+
+def _validate_user_exists(postgres: connectors.PostgresConnector, user_id: str):
+    """Validate that a user exists in the database."""
+    if not _get_user_from_db(postgres, user_id):
+        raise osmo_errors.OSMOUserError(f'User {user_id} not found')
+
+
+def _parse_scim_filter(filter_str: Optional[str]) -> Tuple[str, Tuple]:
+    """
+    Parse a simple SCIM-style filter.
+    Supports: id eq "value", external_id eq "value"
+    """
+    if not filter_str:
+        return '', ()
+
+    # Simple pattern: field eq "value"
+    match = re.match(r'^(\w+)\s+eq\s+"([^"]*)"$', filter_str.strip(), re.IGNORECASE)
+    if not match:
+        raise osmo_errors.OSMOUserError(
+            f'Invalid filter format: {filter_str}. Expected: field eq "value"')
+
+    field = match.group(1).lower()
+    value = match.group(2)
+
+    # Map SCIM field names to database columns
+    field_map = {
+        'id': 'id',
+        'externalid': 'external_id',
+        'external_id': 'external_id',
+    }
+
+    if field not in field_map:
+        raise osmo_errors.OSMOUserError(
+            f'Unknown filter field: {field}. Supported: id, external_id')
+
+    db_field = field_map[field]
+    return f' WHERE {db_field} = %s', (value,)
+
+
+# =============================================================================
+# User Management APIs
+# =============================================================================
+
+@router.get('/api/auth/users', response_model=objects.UserListResponse)
+def list_users(
+    start_index: int = 1,
+    count: int = 100,
+    filter: Optional[str] = None,  # pylint: disable=redefined-builtin
+) -> objects.UserListResponse:
+    """
+    List all users with optional filtering.
+
+    Args:
+        start_index: Pagination start (1-based, default: 1)
+        count: Results per page (default: 100, max: 1000)
+        filter: SCIM-style filter (e.g., `email eq "user@example.com"`)
+
+    Returns:
+        UserListResponse with paginated user list
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Validate pagination parameters
+    if start_index < 1:
+        start_index = 1
+    if count < 1:
+        count = 1
+    if count > 1000:
+        count = 1000
+
+    # Parse filter
+    where_clause, filter_args = _parse_scim_filter(filter)
+
+    # Get total count
+    count_cmd = f'SELECT COUNT(*) as total FROM users{where_clause};'
+    count_result = postgres.execute_fetch_command(count_cmd, filter_args, True)
+    total_results = count_result[0]['total'] if count_result else 0
+
+    # Calculate offset (start_index is 1-based)
+    offset = start_index - 1
+
+    # Fetch users with pagination
+    fetch_cmd = f'''
+        SELECT id, external_id, created_at, created_by, updated_at, last_seen_at
+        FROM users{where_clause}
+        ORDER BY created_at DESC
+        LIMIT %s OFFSET %s;
+    '''
+    rows = postgres.execute_fetch_command(
+        fetch_cmd, filter_args + (count, offset), True)
+
+    users = [objects.User(
+        id=row['id'],
+        external_id=row['external_id'],
+        created_at=row['created_at'],
+        created_by=row['created_by'],
+        updated_at=row['updated_at'],
+        last_seen_at=row['last_seen_at']
+    ) for row in rows]
+
+    return objects.UserListResponse(
+        total_results=total_results,
+        start_index=start_index,
+        items_per_page=len(users),
+        users=users
+    )
+
+
+@router.post('/api/auth/users', response_model=objects.User, status_code=201)
+def create_user(
+    request: objects.CreateUserRequest,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> objects.User:
+    """
+    Create a new user.
+
+    Args:
+        request: CreateUserRequest with user details
+        user_header: Authenticated user making the request
+
+    Returns:
+        Created User object
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+    created_by = connectors.parse_username(user_header)
+
+    # Check if user already exists
+    existing_user = _get_user_from_db(postgres, request.id)
+    if existing_user:
+        raise osmo_errors.OSMOUserError(f'User {request.id} already exists')
+
+    # Validate roles if provided
+    if request.roles:
+        for role_name in request.roles:
+            _validate_role_exists(postgres, role_name)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    # Insert user
+    insert_cmd = '''
+        INSERT INTO users (id, external_id, created_at, created_by, updated_at)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id, external_id, created_at, created_by, updated_at;
+    '''
+    result = postgres.execute_fetch_command(
+        insert_cmd,
+        (request.id, request.external_id, now, created_by, now),
+        True
+    )
+
+    if not result:
+        raise osmo_errors.OSMODatabaseError('Failed to create user')
+
+    # Assign initial roles if provided
+    if request.roles:
+        for role_name in request.roles:
+            assign_cmd = '''
+                INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id, role_name) DO NOTHING;
+            '''
+            postgres.execute_commit_command(
+                assign_cmd, (request.id, role_name, created_by, now))
+
+    row = result[0]
+    return objects.User(
+        id=row['id'],
+        external_id=row['external_id'],
+        created_at=row['created_at'],
+        created_by=row['created_by'],
+        updated_at=row['updated_at'],
+        last_seen_at=None
+    )
+
+
+@router.get('/api/auth/users/{user_id}', response_model=objects.UserWithRoles)
+def get_user(user_id: str) -> objects.UserWithRoles:
+    """
+    Get a specific user's details including their roles.
+
+    Args:
+        user_id: The user ID to fetch
+
+    Returns:
+        UserWithRoles object
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    user_row = _get_user_from_db(postgres, user_id)
+    if not user_row:
+        raise osmo_errors.OSMOUserError(f'User {user_id} not found')
+
+    roles = _get_user_roles_from_db(postgres, user_id)
+
+    return objects.UserWithRoles(
+        id=user_row['id'],
+        external_id=user_row['external_id'],
+        created_at=user_row['created_at'],
+        created_by=user_row['created_by'],
+        updated_at=user_row['updated_at'],
+        last_seen_at=user_row['last_seen_at'],
+        roles=roles
+    )
+
+
+@router.put('/api/auth/users/{user_id}', response_model=objects.User)
+def update_user(
+    user_id: str,
+    request: objects.UpdateUserRequest,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> objects.User:
+    """
+    Update a user (full replace of mutable fields).
+
+    Args:
+        user_id: The user ID to update
+        request: UpdateUserRequest with new values
+        user_header: Authenticated user making the request
+
+    Returns:
+        Updated User object
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Check if user exists
+    _validate_user_exists(postgres, user_id)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    # Full replace - set all mutable fields (null if not provided)
+    update_cmd = '''
+        UPDATE users
+        SET external_id = %s, updated_at = %s
+        WHERE id = %s
+        RETURNING id, external_id, created_at, created_by, updated_at, last_seen_at;
+    '''
+    result = postgres.execute_fetch_command(
+        update_cmd,
+        (request.external_id, now, user_id),
+        True
+    )
+
+    if not result:
+        raise osmo_errors.OSMODatabaseError('Failed to update user')
+
+    row = result[0]
+    return objects.User(
+        id=row['id'],
+        external_id=row['external_id'],
+        created_at=row['created_at'],
+        created_by=row['created_by'],
+        updated_at=row['updated_at'],
+        last_seen_at=row['last_seen_at']
+    )
+
+
+@router.patch('/api/auth/users/{user_id}', response_model=objects.User)
+def patch_user(
+    user_id: str,
+    request: objects.UpdateUserRequest,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> objects.User:
+    """
+    Partially update a user.
+
+    Args:
+        user_id: The user ID to update
+        request: UpdateUserRequest with fields to update
+        user_header: Authenticated user making the request
+
+    Returns:
+        Updated User object
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Check if user exists
+    _validate_user_exists(postgres, user_id)
+
+    # Build dynamic update query for only provided fields
+    updates = []
+    values = []
+
+    if request.external_id is not None:
+        updates.append('external_id = %s')
+        values.append(request.external_id)
+
+    if not updates:
+        # No fields to update, just return current user
+        return get_user(user_id)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    updates.append('updated_at = %s')
+    values.append(now)
+    values.append(user_id)
+
+    update_cmd = f'''
+        UPDATE users
+        SET {', '.join(updates)}
+        WHERE id = %s
+        RETURNING id, external_id, created_at, created_by, updated_at, last_seen_at;
+    '''
+    result = postgres.execute_fetch_command(update_cmd, tuple(values), True)
+
+    if not result:
+        raise osmo_errors.OSMODatabaseError('Failed to update user')
+
+    row = result[0]
+    return objects.User(
+        id=row['id'],
+        external_id=row['external_id'],
+        created_at=row['created_at'],
+        created_by=row['created_by'],
+        updated_at=row['updated_at'],
+        last_seen_at=row['last_seen_at']
+    )
+
+
+@router.delete('/api/auth/users/{user_id}', status_code=204)
+def delete_user(
+    user_id: str,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+):
+    """
+    Delete a user and all associated role assignments and PATs.
+
+    Args:
+        user_id: The user ID to delete
+        user_header: Authenticated user making the request
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Check if user exists
+    _validate_user_exists(postgres, user_id)
+
+    # Delete user (cascades to user_roles due to ON DELETE CASCADE)
+    delete_cmd = 'DELETE FROM users WHERE id = %s;'
+    postgres.execute_commit_command(delete_cmd, (user_id,))
+
+
+# =============================================================================
+# User Role Assignment APIs
+# =============================================================================
+
+@router.get('/api/auth/users/{user_id}/roles', response_model=objects.UserRolesResponse)
+def list_user_roles(user_id: str) -> objects.UserRolesResponse:
+    """
+    List all roles assigned to a user.
+
+    Args:
+        user_id: The user ID
+
+    Returns:
+        UserRolesResponse with list of role assignments
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Validate user exists
+    _validate_user_exists(postgres, user_id)
+
+    roles = _get_user_roles_from_db(postgres, user_id)
+
+    return objects.UserRolesResponse(
+        user_id=user_id,
+        roles=roles
+    )
+
+
+@router.post('/api/auth/users/{user_id}/roles',
+             response_model=objects.UserRoleAssignment,
+             status_code=201)
+def assign_role_to_user(
+    user_id: str,
+    request: objects.AssignRoleRequest,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> objects.UserRoleAssignment:
+    """
+    Assign a role to a user.
+
+    Args:
+        user_id: The user ID
+        request: AssignRoleRequest with role_name
+        user_header: Authenticated user making the request
+
+    Returns:
+        UserRoleAssignment with assignment details
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+    assigned_by = connectors.parse_username(user_header)
+
+    # Validate user and role exist
+    _validate_user_exists(postgres, user_id)
+    _validate_role_exists(postgres, request.role_name)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    # Insert role assignment (idempotent - returns existing if already assigned)
+    insert_cmd = '''
+        INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (user_id, role_name) DO UPDATE SET user_id = EXCLUDED.user_id
+        RETURNING assigned_by, assigned_at;
+    '''
+    result = postgres.execute_fetch_command(
+        insert_cmd, (user_id, request.role_name, assigned_by, now), True)
+
+    if not result:
+        raise osmo_errors.OSMODatabaseError('Failed to assign role')
+
+    row = result[0]
+    return objects.UserRoleAssignment(
+        user_id=user_id,
+        role_name=request.role_name,
+        assigned_by=row['assigned_by'],
+        assigned_at=row['assigned_at']
+    )
+
+
+@router.delete('/api/auth/users/{user_id}/roles/{role_name}', status_code=204)
+def remove_role_from_user(
+    user_id: str,
+    role_name: str,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+):
+    """
+    Remove a role from a user.
+
+    Args:
+        user_id: The user ID
+        role_name: The role to remove
+        user_header: Authenticated user making the request
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Validate user exists
+    _validate_user_exists(postgres, user_id)
+
+    # Delete role assignment
+    delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
+    postgres.execute_commit_command(delete_cmd, (user_id, role_name))
+
+
+@router.get('/api/auth/roles/{role_name}/users', response_model=objects.RoleUsersResponse)
+def list_users_with_role(role_name: str) -> objects.RoleUsersResponse:
+    """
+    List all users who have a specific role.
+
+    Args:
+        role_name: The role name
+
+    Returns:
+        RoleUsersResponse with list of users
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Validate role exists
+    _validate_role_exists(postgres, role_name)
+
+    fetch_cmd = '''
+        SELECT ur.user_id, ur.assigned_by, ur.assigned_at
+        FROM user_roles ur
+        JOIN users u ON ur.user_id = u.id
+        WHERE ur.role_name = %s
+        ORDER BY ur.assigned_at DESC;
+    '''
+    rows = postgres.execute_fetch_command(fetch_cmd, (role_name,), True)
+
+    users = [{
+        'user_id': row['user_id'],
+        'assigned_by': row['assigned_by'],
+        'assigned_at': row['assigned_at'].isoformat() if row['assigned_at'] else None
+    } for row in rows]
+
+    return objects.RoleUsersResponse(
+        role_name=role_name,
+        users=users
+    )
+
+
+@router.post('/api/auth/roles/{role_name}/users',
+             response_model=objects.BulkAssignResponse)
+def bulk_assign_role(
+    role_name: str,
+    request: objects.BulkAssignRequest,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> objects.BulkAssignResponse:
+    """
+    Bulk assign a role to multiple users.
+
+    Args:
+        role_name: The role to assign
+        request: BulkAssignRequest with list of user_ids
+        user_header: Authenticated user making the request
+
+    Returns:
+        BulkAssignResponse with results
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+    assigned_by = connectors.parse_username(user_header)
+
+    # Validate role exists
+    _validate_role_exists(postgres, role_name)
+
+    assigned: List[str] = []
+    already_assigned: List[str] = []
+    failed: List[str] = []
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    for user_id in request.user_ids:
+        # Check if user exists
+        user = _get_user_from_db(postgres, user_id)
+        if not user:
+            failed.append(user_id)
+            continue
+
+        # Check if already assigned
+        check_cmd = '''
+            SELECT 1 FROM user_roles WHERE user_id = %s AND role_name = %s;
+        '''
+        existing = postgres.execute_fetch_command(check_cmd, (user_id, role_name), True)
+
+        if existing:
+            already_assigned.append(user_id)
+        else:
+            # Assign role
+            insert_cmd = '''
+                INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id, role_name) DO NOTHING;
+            '''
+            postgres.execute_commit_command(
+                insert_cmd, (user_id, role_name, assigned_by, now))
+            assigned.append(user_id)
+
+    return objects.BulkAssignResponse(
+        role_name=role_name,
+        assigned=assigned,
+        already_assigned=already_assigned,
+        failed=failed
+    )
+
+
+# =============================================================================
+# PAT Role Assignment APIs
+# =============================================================================
+
+@router.get('/api/auth/access_tokens/{token_name}/roles',
+            response_model=objects.PATRolesResponse)
+def list_pat_roles(
+    token_name: str,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> objects.PATRolesResponse:
+    """
+    List all roles assigned to a PAT.
+
+    Args:
+        token_name: The token name
+        user_header: Authenticated user (owner of the token)
+
+    Returns:
+        PATRolesResponse with list of role assignments
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+    user_name = connectors.parse_username(user_header)
+
+    # Verify token exists and belongs to user
+    fetch_token_cmd = '''
+        SELECT user_name, token_name FROM access_token
+        WHERE token_name = %s AND user_name = %s;
+    '''
+    token_rows = postgres.execute_fetch_command(
+        fetch_token_cmd, (token_name, user_name), True)
+
+    if not token_rows:
+        raise osmo_errors.OSMOUserError(
+            f'Token {token_name} not found or does not belong to current user')
+
+    # Fetch PAT roles
+    fetch_cmd = '''
+        SELECT role_name, assigned_by, assigned_at
+        FROM pat_roles
+        WHERE user_name = %s AND token_name = %s
+        ORDER BY role_name;
+    '''
+    rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
+
+    roles = [objects.PATRole(
+        role_name=row['role_name'],
+        assigned_by=row['assigned_by'],
+        assigned_at=row['assigned_at']
+    ) for row in rows]
+
+    return objects.PATRolesResponse(
+        user_name=user_name,
+        token_name=token_name,
+        roles=roles
+    )
