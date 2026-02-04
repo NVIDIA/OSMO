@@ -8,11 +8,13 @@
 
 "use client";
 
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
 import { useViewTransition } from "@/hooks";
+
+import "./panel-tabs.css";
 
 export interface PanelTab {
   id: string;
@@ -29,92 +31,8 @@ export interface PanelTabsProps {
   className?: string;
 }
 
-let stylesInjected = false;
-
-function injectStyles() {
-  if (stylesInjected || typeof document === "undefined") return;
-  stylesInjected = true;
-
-  const style = document.createElement("style");
-  style.id = "panel-tabs-styles";
-  style.textContent = `
-    /* Hover pill for inactive tabs */
-    .panel-tabs .panel-tab[data-active="false"] {
-      isolation: isolate;
-    }
-    .panel-tabs .panel-tab[data-active="false"]::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: calc(100% - 12px);
-      height: calc(100% - 8px);
-      border-radius: 6px;
-      background: transparent;
-      transition: background-color 150ms ease-out;
-      z-index: -1;
-    }
-    .panel-tabs .panel-tab[data-active="false"]:hover::before {
-      background: rgba(0, 0, 0, 0.08);
-    }
-    .dark .panel-tabs .panel-tab[data-active="false"]:hover::before {
-      background: rgba(255, 255, 255, 0.08);
-    }
-    
-    /* Curve pseudo-elements on active tab */
-    .panel-tabs .panel-tab[data-active="true"]::before,
-    .panel-tabs .panel-tab[data-active="true"]::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      width: 6px;
-      height: 6px;
-      pointer-events: none;
-      transform: translateZ(0);
-      backface-visibility: hidden;
-      will-change: opacity;
-      opacity: 0;
-    }
-    
-    .panel-tabs .panel-tab[data-active="true"]::before {
-      left: -6px;
-      background: radial-gradient(circle at 0% 0%, transparent 6px, var(--panel-tabs-bg) 6px);
-    }
-    
-    .panel-tabs .panel-tab[data-active="true"]::after {
-      right: -6px;
-      background: radial-gradient(circle at 100% 0%, transparent 6px, var(--panel-tabs-bg) 6px);
-    }
-    
-    .panel-tabs .panel-tab[data-active="true"]:not([data-first="true"])::before,
-    .panel-tabs .panel-tab[data-active="true"]:not([data-last="true"])::after {
-      opacity: 1;
-    }
-    
-    .panel-tabs {
-      --panel-tabs-bg: white;
-    }
-    .dark .panel-tabs {
-      --panel-tabs-bg: theme(colors.zinc.900);
-    }
-    
-    /* View Transitions */
-    ::view-transition-old(root),
-    ::view-transition-new(root) {
-      animation-duration: 100ms;
-      animation-timing-function: ease-out;
-    }
-    
-    @media (prefers-reduced-motion: reduce) {
-      ::view-transition-old(root),
-      ::view-transition-new(root) {
-        animation: none;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-}
+// Panel tabs styles are now in src/styles/components/panel-tabs.css
+// Imported via globals.css - no dynamic injection needed
 
 /**
  * PanelTabs - Chrome-style tabs with content-driven responsive behavior.
@@ -130,11 +48,6 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
 
   // Store the width where we switched to compact mode
   const switchWidthRef = useRef<number>(0);
-
-  // Inject styles once on mount
-  useEffect(() => {
-    injectStyles();
-  }, []);
 
   // Content-driven compact mode detection
   useIsomorphicLayoutEffect(() => {
