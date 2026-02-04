@@ -104,7 +104,6 @@ const lightColors = {
 export function createSpecViewerTheme(isDark: boolean) {
   const colors = isDark ? darkColors : lightColors;
   const borderColor = "hsl(var(--border))";
-  const outlineColor = "hsl(var(--border))";
 
   return EditorView.theme(
     {
