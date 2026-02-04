@@ -34,13 +34,7 @@ function getOrCreatePortalContainer(): HTMLElement {
   if (!portalRoot) {
     portalRoot = document.createElement("div");
     portalRoot.id = "snap-zone-portal";
-    portalRoot.style.cssText = `
-      position: fixed;
-      inset: 0;
-      z-index: 5;
-      pointer-events: none;
-      overflow: hidden;
-    `;
+    portalRoot.className = "snap-zone-portal";
     document.body.appendChild(portalRoot);
   }
   return portalRoot;

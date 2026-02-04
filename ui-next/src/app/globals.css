@@ -118,6 +118,19 @@
   --color-tree-line: var(--tree-line);
 
   /* ==========================================================================
+     Shell/Terminal Colors
+     Available as: bg-shell, border-shell, etc.
+     ========================================================================== */
+  --color-shell-bg: var(--shell-bg);
+
+  /* ==========================================================================
+     Minimap Colors
+     Available as: bg-minimap-node-fill, border-minimap-node-stroke, etc.
+     ========================================================================== */
+  --color-minimap-node-fill: var(--minimap-node-fill);
+  --color-minimap-node-stroke: var(--minimap-node-stroke);
+
+  /* ==========================================================================
      Border Radius Scale
      ========================================================================== */
   --radius-sm: calc(var(--radius) - 4px);
@@ -248,6 +261,13 @@
 
   /* Tree connector lines (light mode) - more prominent than regular borders */
   --tree-line: oklch(0.8 0 0);
+
+  /* Shell/Terminal colors */
+  --shell-bg: #0a0a0f;
+
+  /* Minimap colors (light mode) */
+  --minimap-node-fill: #d4d4d8; /* zinc-300 */
+  --minimap-node-stroke: #a1a1aa; /* zinc-400 */
 }
 
 .dark {
@@ -307,6 +327,13 @@
 
   /* Tree connector lines (dark mode) - more prominent than regular borders */
   --tree-line: oklch(0.45 0 0);
+
+  /* Shell/Terminal colors - same in dark mode */
+  --shell-bg: #0a0a0f;
+
+  /* Minimap colors (dark mode) */
+  --minimap-node-fill: #52525b; /* zinc-600 */
+  --minimap-node-stroke: #3f3f46; /* zinc-700 */
 }
 
 /* Base styles, utilities, and component styles are imported above.

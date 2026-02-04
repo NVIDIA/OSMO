@@ -30,10 +30,30 @@ import { memo } from "react";
 import type { MiniMapNodeProps } from "@xyflow/react";
 import { NODE_DEFAULTS } from "../constants";
 
-/** Default fallback colors for minimap nodes (used if parent doesn't provide colors) */
+/**
+ * Default fallback colors for minimap nodes (used if parent doesn't provide colors).
+ * Reads from CSS variables defined in globals.css for theme-aware colors.
+ */
+function getMinimapColors() {
+  if (typeof document === "undefined") {
+    // SSR fallback - return dark mode colors
+    return { fill: "#52525b", stroke: "#3f3f46" };
+  }
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    fill: styles.getPropertyValue("--minimap-node-fill").trim(),
+    stroke: styles.getPropertyValue("--minimap-node-stroke").trim(),
+  };
+}
+
+/** Legacy export for backward compatibility */
 export const MINIMAP_COLORS = {
-  fill: "#52525b", // zinc-600
-  stroke: "#3f3f46", // zinc-700
+  get fill() {
+    return getMinimapColors().fill;
+  },
+  get stroke() {
+    return getMinimapColors().stroke;
+  },
 } as const;
 
 export const MiniMapNode = memo(function MiniMapNode({

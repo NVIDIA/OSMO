@@ -23,7 +23,7 @@ import type { ShellTerminalProps, ShellTerminalRef } from "../lib/types";
 
 const ShellLoadingSkeleton = memo(function ShellLoadingSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn("flex h-full min-h-[200px] items-center justify-center", "bg-[#0a0a0f]", className)}>
+    <div className={cn("flex h-full min-h-[200px] items-center justify-center", "bg-shell-bg", className)}>
       <div className="flex flex-col items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
