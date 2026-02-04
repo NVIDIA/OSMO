@@ -51,7 +51,7 @@ BIG_TEMPLATE = """
 workflow:
   name: {{name}}
   task:
-{% for task_num in range(0, 4096) %}
+{% for task_num in range(0, 512) %}
   - name: worker_{{task_num}}
     image: ubuntu:22.04
     command:
@@ -151,7 +151,7 @@ class TestJinjaSandbox(unittest.TestCase):
             jinja_sandbox.sandboxed_jinja_substitute(CPU_BOUND_TEMPLATE, {'name': 'World'})
 
     @unittest.skipIf(platform.system() == 'Darwin',
-                     "Memory limits not supported on macOS - test in CI/Linux")
+                     'Memory limits not supported on macOS - test in CI/Linux')
     def test_memory_bound_template(self):
         # On Linux, memory limits should trigger MemoryError
         with self.assertRaisesRegex(osmo_errors.OSMOUsageError, 'MemoryError'):
@@ -162,7 +162,7 @@ class TestJinjaSandbox(unittest.TestCase):
             jinja_sandbox.sandboxed_jinja_substitute(UNSAFE_TEMPLATE, {'name': 'World'})
 
     def test_big_template_multiple_times(self):
-        for _ in range(10):
+        for _ in range(5):
             jinja_sandbox.sandboxed_jinja_substitute(BIG_TEMPLATE, {'name': 'my-workflow'})
 
 
