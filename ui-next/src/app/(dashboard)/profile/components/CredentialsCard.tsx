@@ -19,6 +19,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -837,11 +838,13 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
 
     try {
       await upsertCredential(formDataToCredentialCreate(newFormData));
+      toast.success(`Credential "${newFormData.name}" created successfully`);
       announcer.announce(`Credential "${newFormData.name}" created successfully`, "polite");
       setShowNewForm(false);
       setNewFormData(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create credential";
+      toast.error(message);
       announcer.announce(`Error: ${message}`, "assertive");
     }
   }, [newFormData, upsertCredential, announcer]);
@@ -882,6 +885,7 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
 
       try {
         await upsertCredential(formDataToCredentialCreate(formData));
+        toast.success(`Credential "${formData.name}" updated successfully`);
         announcer.announce(`Credential "${formData.name}" updated successfully`, "polite");
         // Clear editing state after successful save
         setEditingIds((prev) => {
@@ -902,6 +906,7 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update credential";
+        toast.error(message);
         announcer.announce(`Error: ${message}`, "assertive");
       }
     },
@@ -955,10 +960,12 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
 
     try {
       await deleteCredential(deleteConfirmName);
+      toast.success(`Credential "${deleteConfirmName}" deleted successfully`);
       announcer.announce(`Credential "${deleteConfirmName}" deleted successfully`, "polite");
       setDeleteConfirmName(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to delete credential";
+      toast.error(message);
       announcer.announce(`Error: ${message}`, "assertive");
     }
   }, [deleteConfirmName, deleteCredential, announcer]);
