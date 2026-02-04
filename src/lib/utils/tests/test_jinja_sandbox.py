@@ -103,6 +103,14 @@ class TestJinjaSandbox(unittest.TestCase):
         # Use 10MB limit to trigger faster in containerized environments
         jinja_sandbox.SandboxedJinjaRenderer(workers=2, max_time=3, jinja_memory=10*1024*1024)
 
+    @classmethod
+    def tearDownClass(cls):
+        # Shutdown Jinja renderer workers to prevent process leaks
+        # pylint: disable=protected-access  # Accessing singleton instance for test cleanup
+        if jinja_sandbox.SandboxedJinjaRenderer._instance:
+            jinja_sandbox.SandboxedJinjaRenderer._instance.shutdown()
+            jinja_sandbox.SandboxedJinjaRenderer._instance = None
+
     def test_sandboxed_worker_good(self):
         values = [1, 5, 10, 100, 1000]
         results = [triple(x) for x in values]
