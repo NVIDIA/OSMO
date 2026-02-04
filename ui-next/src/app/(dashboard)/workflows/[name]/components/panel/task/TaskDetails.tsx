@@ -19,6 +19,7 @@
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
 import {
   FileText,
+  TextSearch,
   Terminal,
   AlertCircle,
   XCircle,
@@ -470,7 +471,7 @@ export const TaskDetails = memo(function TaskDetails({
     return [
       { id: "overview", label: "Overview", icon: Info },
       { id: "shell", label: "Shell", icon: Terminal, statusContent: shellStatusContent },
-      { id: "logs", label: "Logs", icon: FileText },
+      { id: "logs", label: "Logs", icon: TextSearch },
       { id: "events", label: "Events", icon: History },
     ];
   }, [shellSession]);
@@ -543,7 +544,7 @@ export const TaskDetails = memo(function TaskDetails({
           className="p-4"
         >
           <EmptyTabPrompt
-            icon={FileText}
+            icon={TextSearch}
             title="Task Logs"
             description="View stdout/stderr output from the task execution"
             url={task.logs}
