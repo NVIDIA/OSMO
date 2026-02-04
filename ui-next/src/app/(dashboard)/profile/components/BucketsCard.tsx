@@ -83,7 +83,7 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
   }, [stagedBucket, bucketDirty, updateProfile, announcer]);
 
   // Convert accessible buckets to SelectableListItem format
-  // Show initial default first, then others in original order
+  // Show initial default first, then others in alphabetical order
   // Only sort once on mount - don't re-sort when default changes
   const bucketItems: SelectableListItem[] = useMemo(() => {
     if (!profile.bucket.accessible) return [];
@@ -94,9 +94,11 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
       subtitle: `s3://${bucket}`,
     }));
 
-    // Sort so initial default is first, maintaining original order for rest
+    // Sort: initial default first, then rest alphabetically
     const defaultItem = items.find((item) => item.value === initialDefault);
-    const otherItems = items.filter((item) => item.value !== initialDefault);
+    const otherItems = items
+      .filter((item) => item.value !== initialDefault)
+      .sort((a, b) => a.value.localeCompare(b.value));
 
     return defaultItem ? [defaultItem, ...otherItems] : items;
   }, [profile.bucket.accessible, initialDefault]);

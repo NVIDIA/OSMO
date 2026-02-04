@@ -83,7 +83,7 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
   }, [stagedPool, poolDirty, updateProfile, announcer]);
 
   // Convert accessible pools to SelectableListItem format
-  // Show initial default first, then others in original order
+  // Show initial default first, then others in alphabetical order
   // Only sort once on mount - don't re-sort when default changes
   const poolItems: SelectableListItem[] = useMemo(() => {
     if (!profile.pool.accessible) return [];
@@ -94,9 +94,11 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
       subtitle: "8 GPUs available - A100", // Placeholder until real data available
     }));
 
-    // Sort so initial default is first, maintaining original order for rest
+    // Sort: initial default first, then rest alphabetically
     const defaultItem = items.find((item) => item.value === initialDefault);
-    const otherItems = items.filter((item) => item.value !== initialDefault);
+    const otherItems = items
+      .filter((item) => item.value !== initialDefault)
+      .sort((a, b) => a.value.localeCompare(b.value));
 
     return defaultItem ? [defaultItem, ...otherItems] : items;
   }, [profile.pool.accessible, initialDefault]);
