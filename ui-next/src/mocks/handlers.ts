@@ -1332,6 +1332,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const userProfile = profileGenerator.generateProfile("current.user");
     const settings = profileGenerator.generateSettings("current.user");
     const pools = poolGenerator.getPoolNames();
+    const buckets = profileGenerator.getBucketNames();
 
     // Merge stored settings with generated defaults
     const emailNotification = mockProfileSettings.email_notification ?? settings.notifications.email;
@@ -1347,6 +1348,14 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
           ? [defaultPool, ...pools]
           : pools;
 
+    // Ensure default bucket is in accessible buckets list
+    const accessibleBuckets =
+      defaultBucket !== null && buckets.includes(defaultBucket)
+        ? buckets
+        : defaultBucket !== null
+          ? [defaultBucket, ...buckets]
+          : buckets;
+
     // Backend returns { profile: UserProfile, pools: string[] }
     return HttpResponse.json({
       profile: {
@@ -1359,6 +1368,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
         },
         bucket: {
           default: defaultBucket,
+          accessible: accessibleBuckets,
         },
         pool: {
           default: defaultPool,

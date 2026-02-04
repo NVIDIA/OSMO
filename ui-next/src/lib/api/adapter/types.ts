@@ -212,6 +212,7 @@ export interface UserProfile {
   };
   bucket: {
     default: string;
+    accessible: string[]; // List of bucket names user has access to
   };
   pool: {
     default: string;

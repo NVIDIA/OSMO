@@ -126,13 +126,20 @@ export class ProfileGenerator {
   }
 
   /**
+   * Get available bucket names
+   */
+  getBucketNames(): string[] {
+    return ["osmo-artifacts", "osmo-checkpoints", "ml-data-bucket", "team-storage"];
+  }
+
+  /**
    * Generate user settings
    */
   generateSettings(username?: string): GeneratedProfileSettings {
     faker.seed(this.baseSeed + (username ? hashString(username) : 0) + 1000);
 
     const pools = MOCK_CONFIG.pools.names;
-    const buckets = ["osmo-artifacts", "osmo-checkpoints", "ml-data-bucket", "team-storage"];
+    const buckets = this.getBucketNames();
 
     return {
       // Always return a default pool (matching v4 prototype behavior)

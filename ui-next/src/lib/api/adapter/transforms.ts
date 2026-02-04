@@ -469,7 +469,7 @@ export function transformUserProfile(data: unknown): UserProfile {
       name: "",
       email: "",
       notifications: { email: true, slack: false },
-      bucket: { default: "" },
+      bucket: { default: "", accessible: [] },
       pool: { default: "", accessible: [] },
     };
   }
@@ -489,6 +489,7 @@ export function transformUserProfile(data: unknown): UserProfile {
     },
     bucket: {
       default: String(bucket?.default || ""),
+      accessible: Array.isArray(bucket?.accessible) ? (bucket.accessible as string[]) : [],
     },
     pool: {
       default: String(pool?.default || ""),
