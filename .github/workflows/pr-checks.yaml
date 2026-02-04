@@ -141,9 +141,10 @@ jobs:
     runs-on: self-hosted
     environment:
       name: internal-ci
-    concurrency:
-      group: ci-internal-${{ github.event.pull_request.number || github.run_id }}
-      cancel-in-progress: true
+    env:
+      # Unique identifiers for Docker resources to prevent collisions
+      COMPOSE_PROJECT_NAME: ci-${{ github.run_id }}
+      DOCKER_BUILDKIT: "1"
     container:
       # python:3.10.18-bullseye pinned to digest for security (amd64)
       image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
@@ -254,12 +255,20 @@ jobs:
     needs: [ci-internal]
     if: always()
     timeout-minutes: 5
+    concurrency:
+      group: cleanup-host-${{ runner.name || github.run_id }}
+      cancel-in-progress: false  # Critical: never cancel cleanup
     steps:
       - name: Host cleanup (concurrent-safe)
         run: |
-          echo "=== Host Cleanup for Job ${{ github.run_id }} ==="
+          echo "=== Host Cleanup for Run ${{ github.run_id }} ==="
 
-          # Only remove containers that exited >5 mins ago (clearly orphaned)
+          # Tag-based cleanup: remove containers from this run (if labeled)
+          RUN_ID="${{ github.run_id }}"
+          echo "Checking for containers from run $RUN_ID..."
+          docker ps -aq --filter "label=github.run_id=$RUN_ID" 2>/dev/null | xargs -r docker rm -f || true
+
+          # Fallback: remove old exited containers (>5 mins ago - clearly orphaned)
           echo "Checking for old exited containers..."
           OLD_CONTAINERS=$(docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null || echo "")
           if [ -n "$OLD_CONTAINERS" ]; then
