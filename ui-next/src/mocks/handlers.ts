@@ -43,6 +43,18 @@ import { MOCK_CONFIG } from "@/mocks/seed/types";
 const MOCK_DELAY = getMockDelay();
 
 // =============================================================================
+// Stateful Mock Data (persists changes during session)
+// =============================================================================
+
+// Store profile settings that can be updated via POST
+const mockProfileSettings: {
+  email_notification?: boolean;
+  slack_notification?: boolean;
+  bucket?: string;
+  pool?: string;
+} = {};
+
+// =============================================================================
 // URL Matching Patterns
 // =============================================================================
 // MSW v2's `*` wildcard should match any origin, but in Next.js + Turbopack,
@@ -1321,8 +1333,13 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const settings = profileGenerator.generateSettings("current.user");
     const pools = poolGenerator.getPoolNames();
 
+    // Merge stored settings with generated defaults
+    const emailNotification = mockProfileSettings.email_notification ?? settings.notifications.email;
+    const slackNotification = mockProfileSettings.slack_notification ?? settings.notifications.slack;
+    const defaultBucket = mockProfileSettings.bucket ?? settings.default_bucket;
+    const defaultPool = mockProfileSettings.pool ?? settings.default_pool;
+
     // Ensure default pool is in accessible pools list
-    const defaultPool = settings.default_pool;
     const accessiblePools =
       defaultPool !== null && pools.includes(defaultPool)
         ? pools
@@ -1337,14 +1354,14 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
         name: userProfile.display_name,
         email: userProfile.email,
         notifications: {
-          email: settings.notifications.email,
-          slack: settings.notifications.slack,
+          email: emailNotification,
+          slack: slackNotification,
         },
         bucket: {
-          default: settings.default_bucket,
+          default: defaultBucket,
         },
         pool: {
-          default: settings.default_pool,
+          default: defaultPool,
           accessible: accessiblePools,
         },
       },
@@ -1358,7 +1375,21 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     await delay(MOCK_DELAY);
 
     const body = (await request.json()) as Record<string, unknown>;
-    // In a real implementation, this would persist the settings
+
+    // Persist settings to mock storage
+    if ("email_notification" in body) {
+      mockProfileSettings.email_notification = body.email_notification as boolean;
+    }
+    if ("slack_notification" in body) {
+      mockProfileSettings.slack_notification = body.slack_notification as boolean;
+    }
+    if ("bucket" in body) {
+      mockProfileSettings.bucket = body.bucket as string;
+    }
+    if ("pool" in body) {
+      mockProfileSettings.pool = body.pool as string;
+    }
+
     return HttpResponse.json({ ...body, updated_at: new Date().toISOString() });
   }),
 
