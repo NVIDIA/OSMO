@@ -1,7 +1,7 @@
 // React Query hooks with transformation to ideal types. Use these instead of generated hooks.
 
 import { useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
@@ -14,6 +14,8 @@ import {
   useGetUserCredentialApiCredentialsGet,
   useSetUserCredentialApiCredentialsCredNamePost,
   useDeleteUsersCredentialApiCredentialsCredNameDelete,
+  type CredentialOptions,
+  type UserProfile as BackendUserProfile,
 } from "@/lib/api/generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -29,7 +31,7 @@ import {
   transformCredential,
 } from "@/lib/api/adapter/transforms";
 
-import type { PoolResourcesResponse, AllResourcesResponse } from "@/lib/api/adapter/types";
+import type { PoolResourcesResponse, AllResourcesResponse, ProfileUpdate, CredentialCreate } from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
   invalidateResourcesCache,
@@ -662,10 +664,6 @@ export function usePortForwardWebserver() {
 // =============================================================================
 // Profile and Credentials Hooks
 // =============================================================================
-
-import { useQueryClient } from "@tanstack/react-query";
-import type { ProfileUpdate, CredentialCreate } from "./types";
-import type { CredentialOptions, UserProfile as BackendUserProfile } from "../generated";
 
 /**
  * Query keys for profile-related cache management.

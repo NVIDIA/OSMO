@@ -132,12 +132,13 @@ export class ProfileGenerator {
     faker.seed(this.baseSeed + (username ? hashString(username) : 0) + 1000);
 
     const pools = MOCK_CONFIG.pools.names;
+    const buckets = ["osmo-artifacts", "osmo-checkpoints", "ml-data-bucket", "team-storage"];
 
     return {
-      default_pool: faker.datatype.boolean({ probability: 0.7 }) ? faker.helpers.arrayElement(pools) : null,
-      default_bucket: faker.datatype.boolean({ probability: 0.6 })
-        ? faker.helpers.arrayElement(["osmo-artifacts", "osmo-checkpoints"])
-        : null,
+      // Always return a default pool (matching v4 prototype behavior)
+      default_pool: faker.helpers.arrayElement(pools),
+      // Always return a default bucket (matching v4 prototype behavior)
+      default_bucket: faker.helpers.arrayElement(buckets),
       default_priority: "NORMAL",
       notifications: {
         email: faker.datatype.boolean({ probability: 0.8 }),

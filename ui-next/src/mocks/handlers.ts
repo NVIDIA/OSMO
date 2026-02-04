@@ -1317,8 +1317,39 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   http.get("*/api/profile/settings", async () => {
     await delay(MOCK_DELAY);
 
+    const userProfile = profileGenerator.generateProfile("current.user");
     const settings = profileGenerator.generateSettings("current.user");
-    return HttpResponse.json(settings);
+    const pools = poolGenerator.getPoolNames();
+
+    // Ensure default pool is in accessible pools list
+    const defaultPool = settings.default_pool;
+    const accessiblePools =
+      defaultPool !== null && pools.includes(defaultPool)
+        ? pools
+        : defaultPool !== null
+          ? [defaultPool, ...pools]
+          : pools;
+
+    // Backend returns { profile: UserProfile, pools: string[] }
+    return HttpResponse.json({
+      profile: {
+        id: userProfile.username,
+        name: userProfile.display_name,
+        email: userProfile.email,
+        notifications: {
+          email: settings.notifications.email,
+          slack: settings.notifications.slack,
+        },
+        bucket: {
+          default: settings.default_bucket,
+        },
+        pool: {
+          default: settings.default_pool,
+          accessible: accessiblePools,
+        },
+      },
+      pools: accessiblePools,
+    });
   }),
 
   // Update profile settings (POST, not PUT - matching backend)
