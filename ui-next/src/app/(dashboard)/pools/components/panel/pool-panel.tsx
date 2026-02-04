@@ -25,9 +25,9 @@
 
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
-import { ResizablePanel } from "@/components/panel";
+import { ResizablePanel, PANEL } from "@/components/panel";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { PoolPanelHeader } from "./panel-header";
 import { PanelContent } from "./panel-content";
@@ -84,8 +84,11 @@ export function PoolPanelLayout({
   onPlatformSelect,
   children,
 }: PoolPanelProps) {
-  const panelWidth = usePoolsTableStore((s) => s.panelWidth);
+  const storedPanelWidth = usePoolsTableStore((s) => s.panelWidth);
   const setPanelWidth = usePoolsTableStore((s) => s.setPanelWidth);
+
+  // Clamp panel width to max 80% (stored value might be > 80% from before the constraint was added)
+  const panelWidth = useMemo(() => Math.min(storedPanelWidth, PANEL.OVERLAY_MAX_WIDTH_PCT), [storedPanelWidth]);
 
   const handleWidthPreset = useCallback((pct: number) => setPanelWidth(pct), [setPanelWidth]);
 
@@ -95,6 +98,8 @@ export function PoolPanelLayout({
       onClose={onClose}
       width={panelWidth}
       onWidthChange={setPanelWidth}
+      minWidth={PANEL.MIN_WIDTH_PCT}
+      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
       mainContent={children}
       backdrop={false}
       aria-label={pool ? `Pool details: ${pool.name}` : undefined}
