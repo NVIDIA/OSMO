@@ -34,6 +34,7 @@
 import { memo, useMemo, useCallback } from "react";
 import {
   FileText,
+  TextSearch,
   BarChart3,
   Activity,
   Package,
@@ -318,7 +319,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
     () => [
       { id: "overview", label: "Overview", icon: Info },
       { id: "tasks", label: "Tasks", icon: List },
-      { id: "logs", label: "Logs", icon: FileText },
+      { id: "logs", label: "Logs", icon: TextSearch },
       { id: "events", label: "Events", icon: History },
       { id: "spec", label: "Spec", icon: FileCode },
     ],
@@ -412,7 +413,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
           className="p-4"
         >
           <EmptyTabPrompt
-            icon={FileText}
+            icon={TextSearch}
             title="Workflow Logs"
             description="View stdout/stderr output from the workflow execution"
             url={workflow.logs}
