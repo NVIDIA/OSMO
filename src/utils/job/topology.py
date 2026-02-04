@@ -41,7 +41,7 @@ class TopologyRequirement:
 
 
 @dataclasses.dataclass
-class TaskInfo:
+class TaskTopology:
     """Task information for topology building."""
     name: str  # Task name
     topology_requirements: List[TopologyRequirement]  # Empty if no requirements
@@ -66,7 +66,7 @@ class TopologyTreeResult:
 
 
 def validate_topology_requirements(
-    tasks: List[TaskInfo],
+    tasks: List[TaskTopology],
     topology_keys: List[TopologyKey]
 ) -> None:
     """
@@ -139,7 +139,7 @@ class PodGroupTopologyBuilder:
             topology_key.label: i for i, topology_key in enumerate(topology_keys)
         }
 
-    def build(self, tasks: List[TaskInfo]) -> TopologyTreeResult:
+    def build(self, tasks: List[TaskTopology]) -> TopologyTreeResult:
         """
         Validates topology requirements and builds complete tree structure.
 
@@ -189,7 +189,7 @@ class PodGroupTopologyBuilder:
             task_subgroups=task_subgroups
         )
 
-    def _validate_uniform_keys(self, tasks: List[TaskInfo]):
+    def _validate_uniform_keys(self, tasks: List[TaskTopology]):
         """Validates that all tasks use the same set of topology keys."""
         # Collect unique key sets
         key_sets = set()
@@ -208,7 +208,7 @@ class PodGroupTopologyBuilder:
                 f'or no tasks should have topology requirements.'
             )
 
-    def _validate_keys_exist(self, tasks: List[TaskInfo]):
+    def _validate_keys_exist(self, tasks: List[TaskTopology]):
         """Validates that all topology keys exist in configuration."""
         for task in tasks:
             for req in task.topology_requirements:
@@ -219,7 +219,7 @@ class PodGroupTopologyBuilder:
                         f'Available keys: {list(self.key_to_label.keys())}'
                     )
 
-    def _build_tree(self, tasks: List[TaskInfo]) -> TopologyTreeNode:
+    def _build_tree(self, tasks: List[TaskTopology]) -> TopologyTreeNode:
         """
         Builds tree structure with namespaced subgroup names.
 

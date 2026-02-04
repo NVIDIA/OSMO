@@ -517,8 +517,8 @@ class TopologyRequirement(pydantic.BaseModel):
 class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     cpu: int | None = None
     ...
-    # A list of topology requirements in increasing levels of granularity
-    # (ie `zone` should appear before `rack`, matching pool topology_keys order)
+    # A list of topology requirements for this task
+    # Order does not matter - validation ensures all tasks use the same keys
     topology: List[TopologyRequirement] = []
 
 ```
@@ -747,7 +747,7 @@ When a workflow is submitted on a pool that uses topology, the KAI scheduler Pod
      - Create child nodes representing each unique group at that level
      - Group tasks based on their (topology_key, subgroup) pairs
    - Leaf nodes represent individual tasks
-   - **Important constraint**: The structure must be a tree, not a DAG. A finer topology group cannot span multiple coarser topology groups (e.g., a rack cannot span multiple zones).
+   - The structure is always a tree - if the same group name appears under different parent groups (e.g., "r1" under both "z1" and "z2"), they are treated as distinct groups with namespaced names ("z1-r1" and "z2-r1")
 
 3. **Walk down the tree to find shared topology**:
    - Starting from the root, traverse down through each level that has only one child node

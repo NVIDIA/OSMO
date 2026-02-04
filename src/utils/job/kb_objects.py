@@ -76,7 +76,7 @@ class K8sObjectFactory:
             priority: wf_priority.WorkflowPriority,
             topology_name: str,
             topology_keys: List[topology.TopologyKey],
-            task_infos: List[topology.TaskInfo]
+            task_infos: List[topology.TaskTopology]
     ) -> List[Dict[str, Any]]:
         """
         Given the target pod specs, this returns the k8s resources needed to create them as a gang
@@ -327,13 +327,13 @@ class K8sObjectFactory:
 
     def get_scheduler_resources_spec(
             self, backend: connectors.Backend,
-            pools: List[connectors.Pool]) -> List[Dict] | None:
+            pools: List[connectors.Pool]) -> List[Dict]:
         """
         Gets a list of scheduler resources (queues, topologies, etc.) that belong on the backend.
-        Returns None if scheduler resources aren't supported by this backend.
+        Returns empty list if scheduler resources aren't supported by this backend.
         """
         # pylint: disable=unused-argument
-        return None
+        return []
 
     def priority_supported(self) -> bool:
         """Whether this scheduler supports priority"""
@@ -356,7 +356,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         priority: wf_priority.WorkflowPriority,
         topology_name: str,
         topology_keys: List[topology.TopologyKey],
-        task_infos: List[topology.TaskInfo]) -> List[Dict]:
+        task_infos: List[topology.TaskTopology]) -> List[Dict]:
         """
         Given the target pod specs, this returns the k8s resources needed to create them as a gang
         scheduled group.
@@ -409,11 +409,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             pod_name = pod['metadata']['name']
             if pod_name in pod_subgroups:
                 subgroup_name = pod_subgroups[pod_name]
-                logging.info('Setting kai.scheduler/subgroup-name=%s on pod %s',
-                             subgroup_name, pod_name)
                 pod['metadata']['labels']['kai.scheduler/subgroup-name'] = subgroup_name
-            else:
-                logging.info('Pod %s not in any subgroup', pod_name)
 
         pod_group_labels = {
             'kai.scheduler/queue': queue,
@@ -511,20 +507,15 @@ class KaiK8sObjectFactory(K8sObjectFactory):
 
     def get_scheduler_resources_spec(
             self, backend: connectors.Backend,
-            pools: List[connectors.Pool]) -> List[Dict] | None:
+            pools: List[connectors.Pool]) -> List[Dict]:
         """
         Gets queue and topology CRD specs for all pools in the backend.
         Returns list containing both Queue and Topology CRDs.
         """
-        resources = []
-
-        # Create queue specs
-        resources.extend(self._create_queue_specs(backend, pools))
-
-        # Create topology CRD specs
-        resources.extend(self._create_topology_specs(backend, pools))
-
-        return resources
+        return [
+            *self._create_queue_specs(backend, pools),
+            *self._create_topology_specs(backend, pools)
+        ]
 
     def _create_queue_specs(self, backend: connectors.Backend, pools: List[connectors.Pool]) \
         -> List[Dict]:

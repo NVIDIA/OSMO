@@ -428,7 +428,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                                 group=req.group,
                                 required=is_required
                             ))
-                    task_infos.append(topology_module.TaskInfo(
+                    task_infos.append(topology_module.TaskTopology(
                         name=task_obj.name,
                         topology_requirements=topology_requirements
                     ))

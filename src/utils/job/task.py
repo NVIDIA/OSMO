@@ -1976,7 +1976,7 @@ class TaskGroup(pydantic.BaseModel):
             for tk in pool_obj.topology_keys
         ] if pool_obj.topology_keys else []
 
-        # Convert tasks to TaskInfo with topology requirements
+        # Convert tasks to TaskTopology with topology requirements
         task_infos = []
         for task_obj in self.spec.tasks:
             topology_reqs = []
@@ -1990,7 +1990,7 @@ class TaskGroup(pydantic.BaseModel):
                         group=req.group,
                         required=is_required
                     ))
-            task_infos.append(topology_module.TaskInfo(
+            task_infos.append(topology_module.TaskTopology(
                 name=task_obj.name,
                 topology_requirements=topology_reqs
             ))

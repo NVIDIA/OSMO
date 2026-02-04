@@ -3404,7 +3404,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         if self.topology_keys:
             # Import inside function to avoid circular dependency:
             # connectors/__init__.py -> postgres.py -> kb_objects.py -> connectors
-            from src.utils.job import kb_objects  # pylint: disable=import-outside-toplevel
+            from src.utils.job import kb_objects  # type: ignore  # pylint: disable=import-outside-toplevel
             backend = Backend.fetch_from_db(database, self.backend)
             factory = kb_objects.get_k8s_object_factory(backend)
             if not factory.topology_supported():
