@@ -33,7 +33,6 @@
 
 import { memo, useMemo, useCallback } from "react";
 import {
-  FileText,
   TextSearch,
   BarChart3,
   Activity,

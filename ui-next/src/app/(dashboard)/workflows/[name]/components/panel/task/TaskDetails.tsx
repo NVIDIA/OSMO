@@ -18,7 +18,6 @@
 
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
 import {
-  FileText,
   TextSearch,
   Terminal,
   AlertCircle,

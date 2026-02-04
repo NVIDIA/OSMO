@@ -17,7 +17,7 @@
 /**
  * useSpecData - React Query hooks for fetching workflow specs
  *
- * Fetches YAML specs and Jinja templates from the backend.
+ * Fetches YAML specs and templates from the backend.
  * Uses immutable caching (staleTime: Infinity) since specs never change.
  *
  * @example
@@ -38,7 +38,7 @@ export type SpecView = "yaml" | "jinja";
 export interface UseSpecDataReturn {
   /** YAML spec content (always fetched) */
   yamlSpec: string | null;
-  /** Jinja template content (lazy fetched) */
+  /** Template content (lazy fetched) */
   jinjaSpec: string | null;
   /** Current view's content */
   content: string | null;
@@ -94,10 +94,10 @@ async function fetchSpec(workflowId: string, useTemplate: boolean): Promise<stri
 // =============================================================================
 
 /**
- * Fetches workflow spec data with lazy loading for Jinja templates.
+ * Fetches workflow spec data with lazy loading for templates.
  *
  * - YAML spec is always fetched (default view)
- * - Jinja template is only fetched when activeView === 'jinja'
+ * - Template is only fetched when activeView === 'jinja'
  * - Both use immutable caching (staleTime: Infinity)
  * - Retry logic is handled by the global QueryClient (see query-client.ts)
  */
@@ -111,7 +111,7 @@ export function useSpecData(workflowId: string, activeView: SpecView): UseSpecDa
     enabled: Boolean(workflowId),
   });
 
-  // Only fetch Jinja when user switches to template view
+  // Only fetch template when user switches to template view
   const jinjaQuery = useQuery({
     queryKey: ["workflow", workflowId, "spec", "jinja"],
     queryFn: () => fetchSpec(workflowId, true),

@@ -84,9 +84,8 @@ export const SpecToolbar = memo(function SpecToolbar({
   const handleDownload = useCallback(() => {
     if (!content) return;
 
-    const extension = activeView === "yaml" ? "yaml" : "jinja";
-    const filename = `${workflowName}-${activeView === "yaml" ? "spec" : "template"}.${extension}`;
-    const mimeType = activeView === "yaml" ? "text/yaml" : "text/plain";
+    const filename = `${workflowName}-${activeView === "yaml" ? "spec" : "template"}.yaml`;
+    const mimeType = "text/yaml";
 
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -94,10 +93,19 @@ export const SpecToolbar = memo(function SpecToolbar({
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
+    link.style.display = "none";
+
+    // Temporarily add to DOM for better browser compatibility
+    document.body.appendChild(link);
     link.click();
 
-    URL.revokeObjectURL(url);
-    const downloadMessage = `Downloaded ${filename}`;
+    // Clean up after download starts
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+
+    const downloadMessage = `Downloading ${filename}...`;
     toast.success(downloadMessage);
     announcer.announce(downloadMessage, "polite");
   }, [content, activeView, workflowName, announcer]);
@@ -171,7 +179,7 @@ export const SpecToolbar = memo(function SpecToolbar({
               <Download className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Download as {activeView === "yaml" ? ".yaml" : ".jinja"}</TooltipContent>
+          <TooltipContent>{activeView === "yaml" ? "Download spec" : "Download template"}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
