@@ -45,6 +45,8 @@ import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/co
 const NEW_DASHBOARD_NAME = "-- Create New Dashboard --";
 
 interface Dashboard {
+  name: string;
+  isDefault: boolean;
   workflows: WorkflowWidgetDataProps[];
   tasks: TaskWidgetDataProps[];
   allPools: boolean;
@@ -52,7 +54,7 @@ interface Dashboard {
 }
 
 interface DashboardList {
-  widgets: Record<string, Dashboard>;
+  widgets: Dashboard[];
 }
 
 export default function Home() {
@@ -66,32 +68,45 @@ export default function Home() {
   const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
   const [editingPool, setEditingPool] = useState(false);
-  const [dashboardName, setDashboardName] = useState("default");
+  const [dashboardName, setDashboardName] = useState<string | undefined>(undefined);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
+  const [currentDashboard, setCurrentDashboard] = useState<Dashboard | undefined>(undefined);
 
   const createWidgetId = () => crypto.randomUUID();
   const [dashboards, setDashboards] = useState<DashboardList>({
-    widgets: {},
+    widgets: [],
   });
 
   const { data: profile } = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
     refetchOnWindowFocus: false,
   });
 
-  const emptyDashboard = useMemo<Dashboard>(
-    () => ({
-      workflows: [],
-      tasks: [],
-      allPools: false,
-      pools: [],
-    }),
-    [],
+  const pools = api.resources.getPools.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const {
+    data: resources,
+    isFetching: isResourcesFetching,
+    isSuccess: isResourcesSuccess,
+    refetch: refetchResources,
+  } = api.resources.listResources.useQuery(
+    {
+      all_pools: currentDashboard?.allPools,
+      pools: currentDashboard?.allPools ? [] : (currentDashboard?.pools ?? []),
+    },
+    {
+      refetchOnWindowFocus: false,
+      enabled: currentDashboard?.allPools ?? (currentDashboard?.pools?.length ?? 0) > 0,
+    },
   );
 
   const defaultDashboard = useMemo<Dashboard>(
     () => ({
+      isDefault: true,
+      name: "default",
       workflows: [
         {
           id: createWidgetId(),
@@ -156,60 +171,45 @@ export default function Home() {
     [currentDays, profile?.profile.pool, username],
   );
 
-  const currentDashboard = useMemo(() => {
-    return dashboards.widgets[dashboardName] ?? emptyDashboard;
-  }, [dashboards.widgets, dashboardName, emptyDashboard]);
-
   const persistDashboards = (nextDashboards: DashboardList) => {
     localStorage.setItem("widgets", JSON.stringify(nextDashboards));
   };
 
   const updateCurrentDashboard = useCallback(
     (updater: Dashboard | ((prev: Dashboard) => Dashboard)) => {
+      if (!currentDashboard) {
+        return;
+      }
+
       setDashboards((prevDashboards) => {
-        const prevDashboard = prevDashboards.widgets[dashboardName] ?? emptyDashboard;
+        const prevDashboard = prevDashboards.widgets.find((widget) => widget.name === currentDashboard.name);
+        if (!prevDashboard) {
+          return prevDashboards;
+        }
         const nextDashboard = typeof updater === "function" ? updater(prevDashboard) : updater;
         const nextDashboards = {
           ...prevDashboards,
-          widgets: {
-            ...prevDashboards.widgets,
-            [dashboardName]: nextDashboard,
-          },
+          widgets: prevDashboards.widgets.map((widget) =>
+            widget.name === currentDashboard.name ? nextDashboard : widget,
+          ),
         };
 
         persistDashboards(nextDashboards);
         return nextDashboards;
       });
     },
-    [dashboardName, emptyDashboard],
-  );
-
-  const pools = api.resources.getPools.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
-
-  const {
-    data: resources,
-    isFetching: isResourcesFetching,
-    isSuccess: isResourcesSuccess,
-    refetch: refetchResources,
-  } = api.resources.listResources.useQuery(
-    {
-      all_pools: currentDashboard.allPools,
-      pools: currentDashboard.allPools ? [] : currentDashboard.pools,
-    },
-    {
-      refetchOnWindowFocus: false,
-    },
+    [currentDashboard],
   );
 
   const processResources = useMemo(() => {
-    if (!isResourcesSuccess) {
+    // resource list api will return users default pool if all_pools is false and pools is empty
+    // Instead, if the user does not want pools, we should return an empty array.
+    if (!isResourcesSuccess || (!currentDashboard?.allPools && (currentDashboard?.pools?.length ?? 0)) === 0) {
       return [];
     }
 
     return calcResourceUsages(resources);
-  }, [resources, isResourcesSuccess]);
+  }, [resources, isResourcesSuccess, currentDashboard?.allPools, currentDashboard?.pools]);
 
   const aggregateTotals = useMemo(() => calcAggregateTotals(processResources), [processResources]);
 
@@ -259,45 +259,34 @@ export default function Home() {
 
     const filters = new Map<string, boolean>(Object.keys(availablePools).map((pool) => [pool, false]));
 
-    if (currentDashboard.pools.length) {
-      currentDashboard.pools.forEach((pool) => {
+    if (currentDashboard?.pools.length) {
+      currentDashboard?.pools.forEach((pool) => {
         filters.set(pool, true);
       });
     }
 
     setLocalPools(filters);
-  }, [currentDashboard.pools, pools.data]);
+  }, [currentDashboard?.pools, pools.data]);
 
   useEffect(() => {
     const storedWidgets = localStorage.getItem("widgets");
 
     if (storedWidgets !== null) {
       const storedDashboards = JSON.parse(storedWidgets) as DashboardList;
-      const nextDashboards = storedDashboards.widgets?.[dashboardName]
-        ? storedDashboards
-        : {
-            widgets: {
-              ...storedDashboards.widgets,
-              [dashboardName]: emptyDashboard,
-            },
-          };
-
-      setDashboards(nextDashboards);
+      setDashboards(storedDashboards);
+      setCurrentDashboard(storedDashboards.widgets.find((widget) => widget.isDefault) ?? undefined);
     } else {
-      const nextDashboards = {
-        widgets: {
-          [dashboardName]: defaultDashboard,
-        },
-      };
-
-      setDashboards(nextDashboards);
-      persistDashboards(nextDashboards);
+      setDashboards({
+        widgets: [defaultDashboard],
+      });
+      setCurrentDashboard(defaultDashboard);
     }
-  }, [currentDays, dashboardName, defaultDashboard, emptyDashboard, profile?.profile.pool, username]);
+  }, [defaultDashboard]);
 
+  // Back-fill the default dashboard with the current user's pool if it is not already set.
   useEffect(() => {
     const pool = profile?.profile.pool ?? "";
-    if (!pool || dashboardName !== "default" || !dashboards.widgets[dashboardName]) {
+    if (!pool || !currentDashboard || !currentDashboard.isDefault) {
       return;
     }
 
@@ -311,7 +300,7 @@ export default function Home() {
         pools: [pool],
       };
     });
-  }, [profile?.profile.pool, dashboardName, dashboards.widgets, updateCurrentDashboard]);
+  }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard]);
 
   const addDashboard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -321,21 +310,30 @@ export default function Home() {
       return;
     }
 
-    if (dashboards.widgets[trimmedName]) {
+    if (dashboards.widgets.some((widget) => widget.name === trimmedName)) {
       setNewDashboardNameError("Dashboard name already exists");
       return;
     }
 
     setDashboards((prevDashboards) => {
+      const newDashboard: Dashboard = {
+        name: trimmedName,
+        isDefault: false,
+        workflows: [],
+        tasks: [],
+        allPools: false,
+        pools: [],
+      };
       const nextDashboards = {
         ...prevDashboards,
-        widgets: {
+        widgets: [
           ...prevDashboards.widgets,
-          [trimmedName]: emptyDashboard,
-        },
+          newDashboard,
+        ],
       };
 
       persistDashboards(nextDashboards);
+      setCurrentDashboard(newDashboard);
       return nextDashboards;
     });
 
@@ -345,6 +343,10 @@ export default function Home() {
     setShowNewDashboard(false);
   };
 
+  useEffect(() => {
+    setDashboardName(currentDashboard?.name ?? "");
+  }, [currentDashboard]);
+
   return (
     <>
       <PageHeader>
@@ -352,22 +354,22 @@ export default function Home() {
           <Select
             id="dashboard-name"
             aria-label="Select a dashboard"
-            value={dashboardName}
+            value={currentDashboard?.name ?? ""}
             onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
               if (event.target.value === NEW_DASHBOARD_NAME) {
                 setShowNewDashboard(true);
               } else {
-                setDashboardName(event.target.value);
+                setCurrentDashboard(dashboards.widgets.find((widget) => widget.name === event.target.value));
                 setShowNewDashboard(false);
               }
             }}
           >
-            {Object.keys(dashboards.widgets).map((name) => (
+            {dashboards.widgets.map((widget) => (
               <option
-                key={name}
-                value={name}
+                key={widget.name}
+                value={widget.name}
               >
-                {name}
+                {widget.name}
               </option>
             ))}
             <option value={NEW_DASHBOARD_NAME}>{NEW_DASHBOARD_NAME}</option>
@@ -382,7 +384,7 @@ export default function Home() {
       </PageHeader>
       <div className="h-full w-full flex justify-center items-baseline">
         <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-6 gap-global p-global">
-          {currentDashboard.workflows.map((widget) => (
+          {currentDashboard?.workflows.map((widget) => (
             <WorkflowsWidget
               key={widget.name}
               widget={widget}
@@ -396,7 +398,7 @@ export default function Home() {
               isEditing={isEditing}
             />
           ))}
-          {currentDashboard.tasks.map((widget) => (
+          {currentDashboard?.tasks.map((widget) => (
             <TasksWidget
               key={widget.id}
               widget={widget}
@@ -640,6 +642,32 @@ export default function Home() {
             </button>
           </div>
         </form>
+      </SlideOut>
+      <SlideOut
+        id="edit-dashboard"
+        open={isEditing}
+        onClose={() => {
+          setIsEditing(false);
+        }}
+        bodyClassName="p-global"
+        className="border-t-0"
+        header={<h2 id="edit-dashboard-header">Edit Dashboard</h2>}
+        aria-labelledby="edit-dashboard-header"
+        pinned
+        canPin={false}
+      >
+        <div className="flex flex-col gap-global">
+          <TextInput
+            id="dashboard-name"
+            label="Name"
+            className="w-full"
+            value={dashboardName ?? ""}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setDashboardName(event.target.value);
+            }}
+            required
+          />
+        </div>
       </SlideOut>
     </>
   );
