@@ -334,17 +334,16 @@ export function SidePanel({
         // Disable transitions during drag for smooth 60fps resizing
         // In fillContainer mode, grid handles width transitions via grid-template-columns
         isDragging || fillContainer ? "transition-none" : "transition-[width] duration-200 ease-out",
+        // Note: We use "layout style" instead of "layout style paint" because
+        // contain: paint clips content at the boundary, which would hide the
+        // resize handle that extends 8px outside the panel via -translate-x-1/2.
+        "contain-layout-style",
         className,
       )}
       style={{
         // In fillContainer mode: no width set, panel fills grid cell.
         // Grid's grid-template-columns controls the actual width.
         width: panelWidth,
-        // Note: We use "layout style" instead of "layout style paint" because
-        // contain: paint clips content at the boundary, which would hide the
-        // resize handle that extends 8px outside the panel via -translate-x-1/2.
-        // The inner content wrapper has overflow-hidden anyway.
-        contain: "layout style",
         willChange: isDragging ? "width" : "auto",
         // Apply width constraints when not collapsed.
         // In fillContainer mode, skip maxWidth (grid controls it) but keep minWidth for usability.

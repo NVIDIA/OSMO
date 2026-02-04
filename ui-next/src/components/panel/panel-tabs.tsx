@@ -180,10 +180,7 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
                 iconOnly ? "px-2" : "px-4",
                 isActive
                   ? "rounded-t-md bg-white text-gray-900 dark:bg-zinc-900 dark:text-zinc-100"
-                  : [
-                      "text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300",
-                      "isolation-auto before:absolute before:inset-x-1.5 before:inset-y-1 before:z-[-1] before:rounded-md before:bg-transparent before:transition-colors hover:before:bg-black/5 dark:hover:before:bg-white/5",
-                    ],
+                  : "text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300",
                 isActive &&
                   !isFirst &&
                   "before:absolute before:bottom-0 before:-left-[6px] before:size-[6px] before:bg-[radial-gradient(circle_at_0%_0%,transparent_6px,white_6px)] dark:before:bg-[radial-gradient(circle_at_0%_0%,transparent_6px,rgb(24,24,27)_6px)]",
