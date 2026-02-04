@@ -67,6 +67,28 @@ export interface GeneratedApiKey {
   expires_at?: string;
 }
 
+export interface GeneratedCredential {
+  id: string;
+  name: string;
+  type: "registry" | "data" | "generic";
+  created_at: string;
+  updated_at: string;
+  registry?: {
+    url: string;
+    username: string;
+    password: string;
+  };
+  data?: {
+    endpoint: string;
+    access_key: string;
+    secret_key: string;
+  };
+  generic?: {
+    key: string;
+    value: string;
+  };
+}
+
 // ============================================================================
 // Generator Class
 // ============================================================================
@@ -163,6 +185,73 @@ export class ProfileGenerator {
     }
 
     return keys;
+  }
+
+  /**
+   * Generate credentials list
+   */
+  generateCredentials(count: number = 5): GeneratedCredential[] {
+    faker.seed(this.baseSeed + 2000);
+    const credentials: GeneratedCredential[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const type = faker.helpers.arrayElement(["registry", "data", "generic"] as const);
+      const name = faker.helpers.arrayElement([
+        "my-ngc-cred",
+        "docker-hub-cred",
+        "s3-data-cred",
+        "azure-storage-cred",
+        "api-token",
+        "ssh-key",
+        "github-token",
+      ]);
+
+      const baseCredential = {
+        id: faker.string.uuid(),
+        name: `${name}-${i}`,
+        type,
+        created_at: faker.date.past({ years: 1 }).toISOString(),
+        updated_at: faker.date.recent({ days: 30 }).toISOString(),
+      };
+
+      if (type === "registry") {
+        credentials.push({
+          ...baseCredential,
+          registry: {
+            url: faker.helpers.arrayElement(["nvcr.io", "docker.io", "ghcr.io", "quay.io"]),
+            username: faker.helpers.arrayElement(["$oauthtoken", faker.internet.username()]),
+            password: faker.string.alphanumeric(32),
+          },
+        });
+      } else if (type === "data") {
+        credentials.push({
+          ...baseCredential,
+          data: {
+            endpoint: `s3.${faker.location.countryCode().toLowerCase()}-${faker.helpers.arrayElement(["east", "west"])}-1.amazonaws.com`,
+            access_key: `AKIA${faker.string.alphanumeric(16).toUpperCase()}`,
+            secret_key: faker.string.alphanumeric(40),
+          },
+        });
+      } else {
+        credentials.push({
+          ...baseCredential,
+          generic: {
+            key: faker.helpers.arrayElement(["API_TOKEN", "SSH_KEY", "GITHUB_TOKEN", "SLACK_WEBHOOK"]),
+            value: faker.string.alphanumeric(32),
+          },
+        });
+      }
+    }
+
+    return credentials;
+  }
+
+  /**
+   * Get credential by name
+   */
+  getCredentialByName(name: string): GeneratedCredential | undefined {
+    const credentials = this.generateCredentials(10);
+    return credentials.find((c) => c.name === name);
   }
 
   private capitalize(str: string): string {
