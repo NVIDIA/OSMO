@@ -193,8 +193,23 @@ jobs:
         run: |
           echo "=== Bazel Cache Cleanup ==="
 
-          # Remove everything including repository cache to prevent unbounded growth
+          # Remove everything including repository cache (uses/starts server)
           bazel clean --expunge || true
+
+          # Now shutdown the Bazel server gracefully
+          bazel shutdown || true
+
+          # Wait for server to terminate
+          sleep 2
+
+          # Force kill any remaining Bazel processes
+          pkill -9 -f "bazel" 2>/dev/null || true
+
+          # Verify no Bazel processes remain
+          if pgrep -f "bazel" > /dev/null 2>&1; then
+            echo "Warning: Bazel processes still running after cleanup"
+            pkill -9 -f "bazel" 2>/dev/null || true
+          fi
 
       - name: Workspace cleanup
         if: always()
