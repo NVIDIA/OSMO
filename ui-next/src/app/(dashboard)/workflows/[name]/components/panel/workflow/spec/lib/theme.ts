@@ -126,10 +126,18 @@ export function createSpecViewerTheme(isDark: boolean) {
         padding: "0.5rem 0", // 8px in rem
       },
 
-      // Cursor
+      // Cursor - hidden for read-only spec viewer
       ".cm-cursor, .cm-dropCursor": {
-        borderLeftColor: colors.cursor,
-        borderLeftWidth: "0.125rem", // 2px in rem
+        display: "none !important", // No cursor in read-only mode
+      },
+
+      // Hide cursor in all states for read-only editor
+      "&.cm-focused .cm-cursor": {
+        display: "none !important",
+      },
+
+      ".cm-cursorLayer": {
+        display: "none !important",
       },
 
       // Selection
@@ -208,6 +216,19 @@ export function createSpecViewerTheme(isDark: boolean) {
         color: colors.lineNumber,
         padding: "0 0.25rem", // 4px in rem
         borderRadius: "var(--radius-sm)",
+      },
+
+      // Search panel mount - position as floating overlay
+      // Actual styles are in spec-search.css (matches ShellSearch)
+      ".spec-search-panel-mount": {
+        position: "absolute",
+        top: "0",
+        right: "0",
+        pointerEvents: "none", // Allow clicks through to editor
+      },
+
+      ".spec-search-panel-mount *": {
+        pointerEvents: "auto", // Re-enable clicks on search panel itself
       },
     },
     { dark: isDark },
