@@ -162,21 +162,34 @@ jobs:
         ports:
           - 2375:2375
     steps:
-      - name: Install Node.js and dependencies
+      - name: Install Node.js, Docker CLI, and dependencies
         run: |
           apt-get update
           apt-get install -y ca-certificates curl gnupg git-lfs
 
-          # Install Node.js 20.x from NodeSource
-          mkdir -p /etc/apt/keyrings
+          # Add Docker's official GPG key and repository
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          chmod a+r /etc/apt/keyrings/docker.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list
+
+          # Add Node.js 20.x from NodeSource
           curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
           echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+
           apt-get update
-          apt-get install -y nodejs
+
+          # Install Docker CLI (client only, connects to DinD service)
+          apt-get install -y docker-ce-cli
+
+          # Remove Debian's nodejs package if present and install from NodeSource
+          apt-get remove -y nodejs || true
+          apt-get install -y nodejs=20.*
 
           # Verify installations
           echo "Node.js version: $(node --version)"
           echo "npm version: $(npm --version)"
+          echo "Docker version: $(docker --version)"
           echo "Git LFS version: $(git-lfs --version)"
 
       - name: Checkout
