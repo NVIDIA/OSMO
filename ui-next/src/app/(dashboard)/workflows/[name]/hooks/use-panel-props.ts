@@ -99,6 +99,7 @@ export function usePanelProps(options: UsePanelPropsOptions): {
     activeShellTaskName,
     // Workflow actions
     onCancelWorkflow,
+    onResubmitWorkflow,
     // Layout
     containerRef,
     className,
@@ -132,6 +133,7 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       onToggleCollapsed: togglePanelCollapsed,
       toggleHotkey: "mod+i",
       onCancelWorkflow,
+      onResubmitWorkflow,
       fallbackContent: panelOverrideContent,
       containerRef,
       onShellTabChange,
@@ -163,6 +165,7 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       isPanelCollapsed,
       togglePanelCollapsed,
       onCancelWorkflow,
+      onResubmitWorkflow,
       panelOverrideContent,
       containerRef,
       onShellTabChange,

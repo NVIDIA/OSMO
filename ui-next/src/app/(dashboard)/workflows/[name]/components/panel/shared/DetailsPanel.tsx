@@ -270,6 +270,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   onToggleCollapsed,
   toggleHotkey,
   onCancelWorkflow,
+  onResubmitWorkflow,
   fallbackContent,
   containerRef,
   onDraggingChange,
@@ -447,6 +448,7 @@ export const DetailsPanel = memo(function DetailsPanel({
         <WorkflowDetails
           workflow={workflow}
           onCancel={onCancelWorkflow}
+          onResubmit={onResubmitWorkflow}
           isDetailsExpanded={isDetailsExpanded}
           onToggleDetailsExpanded={onToggleDetailsExpanded}
           selectedTab={selectedWorkflowTab}

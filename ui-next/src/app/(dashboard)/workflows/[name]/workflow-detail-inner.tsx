@@ -242,6 +242,17 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     setActiveShellTaskName(taskName);
   });
 
+  // Placeholder workflow action handlers (to be implemented)
+  const handleCancelWorkflow = useEventCallback(() => {
+    // TODO: Implement workflow cancellation API call
+    console.log("Cancel workflow:", name);
+  });
+
+  const handleResubmitWorkflow = useEventCallback(() => {
+    // TODO: Implement workflow resubmission API call
+    console.log("Resubmit workflow:", name);
+  });
+
   // Screen reader announcements for snap zone transitions
   const announce = useAnnouncer();
   useEffect(() => {
@@ -351,7 +362,8 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     togglePanelCollapsed: handleTogglePanelCollapsed,
     expandPanel: handleExpandPanel,
     panelOverrideContent,
-    onCancelWorkflow: undefined,
+    onCancelWorkflow: handleCancelWorkflow,
+    onResubmitWorkflow: handleResubmitWorkflow,
     selectedTab,
     setSelectedTab,
     selectedWorkflowTab,
