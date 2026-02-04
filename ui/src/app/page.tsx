@@ -42,6 +42,7 @@ import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflo
 import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/components/WorkflowsFilters";
 
 interface Dashboard {
+  id: string;
   name: string;
   workflows: WorkflowWidgetDataProps[];
   tasks: TaskWidgetDataProps[];
@@ -51,8 +52,77 @@ interface Dashboard {
 
 interface DashboardList {
   widgets: Dashboard[];
-  defaultDashboard: string;
+  defaultDashboardID: string;
 }
+
+const createWidgetId = () => crypto.randomUUID();
+
+const makeDefaultDashboard = (username: string, days: number, allPools: boolean, pools: string[], widgetAllPools: boolean, widgetPools: string[]) => {
+  return {
+    id: "default",
+    name: "Personal",
+    workflows: [
+      {
+        id: createWidgetId(),
+        name: "Current Workflows",
+        description: "Current Workflows for the current user",
+        filters: {
+          userType: UserFilterType.CURRENT,
+          selectedUsers: username,
+          isSelectAllPoolsChecked: widgetAllPools,
+          selectedPools: widgetPools.join(","),
+          dateRange: -2,
+          statusFilterType: StatusFilterType.CURRENT,
+          name: "",
+        },
+      },
+      {
+        id: createWidgetId(),
+        name: "Today's Workflows",
+        description: "Workflows for current user for the last 365 days",
+        filters: {
+          userType: UserFilterType.CURRENT,
+          selectedUsers: username,
+          isSelectAllPoolsChecked: widgetAllPools,
+          selectedPools: widgetPools.join(","),
+          dateRange: 365,
+          statusFilterType: StatusFilterType.ALL,
+          name: "",
+        },
+      },
+    ],
+    tasks: [
+      {
+        id: createWidgetId(),
+        name: "Current Tasks",
+        description: "Current Tasks for the current user",
+        filters: {
+          userType: UserFilterType.CURRENT,
+          selectedUsers: username,
+          isSelectAllPoolsChecked: widgetAllPools,
+          selectedPools: widgetPools.join(","),
+          dateRange: allDateRange,
+          statusFilterType: StatusFilterType.CURRENT,
+        },
+      },
+      {
+        id: createWidgetId(),
+        name: "Today's Tasks",
+        description: "Tasks for current user for the last 365 days",
+        filters: {
+          userType: UserFilterType.CURRENT,
+          selectedUsers: username,
+          isSelectAllPoolsChecked: widgetAllPools,
+          selectedPools: widgetPools.join(","),
+          dateRange: days,
+          statusFilterType: StatusFilterType.ALL,
+        },
+      },
+    ],
+    allPools,
+    pools,
+  };
+};
 
 export default function Home() {
   const currentDays = 365;
@@ -69,13 +139,12 @@ export default function Home() {
   const [showNewDashboard, setShowNewDashboard] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
-  const [currentDashboard, setCurrentDashboard] = useState<Dashboard | undefined>(undefined);
+  const [currentDashboardID, setCurrentDashboardID] = useState<string | undefined>(undefined);
   const [isDefaultDashboard, setIsDefaultDashboard] = useState(false);
 
-  const createWidgetId = () => crypto.randomUUID();
   const [dashboards, setDashboards] = useState<DashboardList>({
     widgets: [],
-    defaultDashboard: "",
+    defaultDashboardID: "",
   });
 
   const { data: profile } = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
@@ -85,6 +154,8 @@ export default function Home() {
   const pools = api.resources.getPools.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+
+  const currentDashboard = useMemo(() => dashboards.widgets.find((widget) => widget.id === currentDashboardID), [dashboards.widgets, currentDashboardID]);
 
   const {
     data: resources,
@@ -98,75 +169,13 @@ export default function Home() {
     },
     {
       refetchOnWindowFocus: false,
-      enabled: currentDashboard?.allPools ?? (currentDashboard?.pools?.length ?? 0) > 0,
+      enabled: currentDashboard?.allPools ? true : (currentDashboard?.pools?.length ?? 0) > 0,
     },
   );
 
   const defaultDashboard = useMemo<Dashboard>(
-    () => ({
-      name: "default",
-      workflows: [
-        {
-          id: createWidgetId(),
-          name: "Current Workflows",
-          description: "Current Workflows for the current user",
-          filters: {
-            userType: UserFilterType.CURRENT,
-            selectedUsers: username,
-            isSelectAllPoolsChecked: true,
-            selectedPools: "",
-            dateRange: -2,
-            statusFilterType: StatusFilterType.CURRENT,
-            name: "",
-          },
-        },
-        {
-          id: createWidgetId(),
-          name: "Today's Workflows",
-          description: "Workflows for current user for the last 365 days",
-          filters: {
-            userType: UserFilterType.CURRENT,
-            selectedUsers: username,
-            isSelectAllPoolsChecked: true,
-            selectedPools: "",
-            dateRange: 365,
-            statusFilterType: StatusFilterType.ALL,
-            name: "",
-          },
-        },
-      ],
-      tasks: [
-        {
-          id: createWidgetId(),
-          name: "Current Tasks",
-          description: "Current Tasks for the current user",
-          filters: {
-            userType: UserFilterType.CURRENT,
-            selectedUsers: username,
-            isSelectAllPoolsChecked: true,
-            selectedPools: "",
-            dateRange: allDateRange,
-            statusFilterType: StatusFilterType.CURRENT,
-          },
-        },
-        {
-          id: createWidgetId(),
-          name: "Today's Tasks",
-          description: "Tasks for current user for the last 365 days",
-          filters: {
-            userType: UserFilterType.CURRENT,
-            selectedUsers: username,
-            isSelectAllPoolsChecked: true,
-            selectedPools: "",
-            dateRange: currentDays,
-            statusFilterType: StatusFilterType.ALL,
-          },
-        },
-      ],
-      allPools: false,
-      pools: profile?.profile.pool ? [profile.profile.pool] : [],
-    }),
-    [currentDays, profile?.profile.pool, username],
+    () => makeDefaultDashboard(username, currentDays, false, profile?.profile.pool ? [profile?.profile.pool] : [], true, []),
+    [username, currentDays, profile?.profile.pool],
   );
 
   const persistDashboards = (nextDashboards: DashboardList) => {
@@ -272,20 +281,20 @@ export default function Home() {
     if (storedWidgets !== null) {
       const storedDashboards = JSON.parse(storedWidgets) as DashboardList;
       setDashboards(storedDashboards);
-      setCurrentDashboard(storedDashboards.widgets.find((widget) => widget.name === storedDashboards.defaultDashboard) ?? undefined);
+      setCurrentDashboardID(storedDashboards.defaultDashboardID);
     } else {
       setDashboards({
         widgets: [defaultDashboard],
-        defaultDashboard: defaultDashboard.name,
+        defaultDashboardID: defaultDashboard.id,
       });
-      setCurrentDashboard(defaultDashboard);
+      setCurrentDashboardID(defaultDashboard.id);
     }
   }, [defaultDashboard]);
 
   // Back-fill the default dashboard with the current user's pool if it is not already set.
   useEffect(() => {
     const pool = profile?.profile.pool ?? "";
-    if (!pool || !currentDashboard || currentDashboard.name !== dashboards.defaultDashboard) {
+    if (!pool || !currentDashboard || currentDashboard.name !== dashboards.defaultDashboardID) {
       return;
     }
 
@@ -299,7 +308,7 @@ export default function Home() {
         pools: [pool],
       };
     });
-  }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard, dashboards.defaultDashboard]);
+  }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard, dashboards.defaultDashboardID]);
 
   const addDashboard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -316,6 +325,7 @@ export default function Home() {
 
     setDashboards((prevDashboards) => {
       const newDashboard: Dashboard = {
+        id: createWidgetId(),
         name: trimmedName,
         workflows: [],
         tasks: [],
@@ -331,7 +341,7 @@ export default function Home() {
       };
 
       persistDashboards(nextDashboards);
-      setCurrentDashboard(newDashboard);
+      setCurrentDashboardID(newDashboard.id);
       return nextDashboards;
     });
 
@@ -354,7 +364,7 @@ export default function Home() {
       pools,
       allPools,
       name: dashboardName ?? "",
-      defaultDashboard: isDefaultDashboard ? dashboardName ?? "" : dashboards.defaultDashboard,
+      defaultDashboard: isDefaultDashboard ? dashboardName ?? "" : dashboards.defaultDashboardID,
     }));
 
     setIsEditingMetadata(false);
@@ -369,13 +379,13 @@ export default function Home() {
             aria-label="Select a dashboard"
             value={currentDashboard?.name ?? ""}
             onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
-              setCurrentDashboard(dashboards.widgets.find((widget) => widget.name === event.target.value));
+              setCurrentDashboardID(event.target.value);
             }
             }
           >
             {dashboards.widgets.map((widget) => (
               <option
-                key={widget.name}
+                key={widget.id}
                 value={widget.name}
               >
                 {widget.name}
@@ -596,7 +606,7 @@ export default function Home() {
             setDashboardName(currentDashboard?.name ?? "");
             setAllPools(currentDashboard?.allPools ?? false);
             setLocalPools(new Map(currentDashboard?.pools.map((pool) => [pool, true])));
-            setIsDefaultDashboard(currentDashboard?.name === dashboards.defaultDashboard);
+            setIsDefaultDashboard(currentDashboard?.id === dashboards.defaultDashboardID);
           }
           } role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
           <button className="btn btn-action" role="listitem"><OutlinedIcon name="work_outline" />Add Workflow Widget</button>
