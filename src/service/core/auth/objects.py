@@ -73,7 +73,13 @@ class AccessToken(pydantic.BaseModel):
     def insert_into_db(cls, database: connectors.PostgresConnector, user_name: str,
                        token_name: str, access_token: str, expires_at: str,
                        description: str, roles: List[str], assigned_by: str):
-        """Create an entry in the access token table and assign roles via pat_roles."""
+        """Create an entry in the access token table and assign roles via pat_roles.
+
+        This operation is atomic - the role validation and all inserts happen in a
+        single SQL transaction. If any requested role is not assigned to the user
+        in the user_roles table at the moment of insert, the entire operation fails
+        and no token is created.
+        """
         if not re.fullmatch(common.TOKEN_NAME_REGEX, token_name):
             raise osmo_errors.OSMOUserError(
                 f'Token name {token_name} must match regex {common.TOKEN_NAME_REGEX}')
@@ -95,30 +101,58 @@ class AccessToken(pydantic.BaseModel):
             raise osmo_errors.OSMOUserError(
                 f'Access token cannot last longer than {max_token_duration}')
 
-        # Insert the access token
-        insert_cmd = '''
-            INSERT INTO access_token
-            (user_name, token_name, access_token, expires_at, description)
-            VALUES (%s, %s, %s, %s, %s);
-        '''
-        try:
-            database.execute_commit_command(
-                insert_cmd,
-                (user_name, token_name, auth.hash_access_token(access_token),
-                 expires_at, description))
-        except osmo_errors.OSMODatabaseError as e:
-            raise osmo_errors.OSMOUserError(f'Token name {token_name} already exists.') from e
+        if not roles:
+            raise osmo_errors.OSMOUserError(
+                'At least one role must be specified for the access token.')
 
-        # Insert roles into pat_roles table
         now = datetime.datetime.now(datetime.timezone.utc)
-        for role_name in roles:
-            role_insert_cmd = '''
-                INSERT INTO pat_roles (user_name, token_name, role_name, assigned_by, assigned_at)
+        hashed_token = auth.hash_access_token(access_token)
+
+        # Atomic insert with role validation using CTEs
+        # The query validates roles and inserts in a single transaction.
+        # If any requested role is not in user_roles, the validation check
+        # causes a division by zero error which rolls back the entire transaction.
+        insert_cmd = '''
+            WITH token_insert AS (
+                INSERT INTO access_token
+                (user_name, token_name, access_token, expires_at, description)
                 VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (user_name, token_name, role_name) DO NOTHING;
-            '''
-            database.execute_commit_command(
-                role_insert_cmd, (user_name, token_name, role_name, assigned_by, now))
+                RETURNING user_name, token_name
+            ),
+            role_insert AS (
+                INSERT INTO pat_roles (user_name, token_name, role_name, assigned_by, assigned_at)
+                SELECT ti.user_name, ti.token_name, ur.role_name, %s, %s
+                FROM token_insert ti
+                INNER JOIN user_roles ur ON ur.user_id = ti.user_name
+                WHERE ur.role_name = ANY(%s::text[])
+                RETURNING role_name
+            )
+            SELECT
+                CASE
+                    WHEN (SELECT COUNT(*) FROM role_insert) = %s
+                    THEN 'ok'
+                    ELSE (SELECT (1/0)::text)
+                END;
+        '''
+        args = (
+            user_name, token_name, hashed_token, expires_at, description,
+            assigned_by, now,
+            roles,
+            len(roles)
+        )
+
+        try:
+            database.execute_commit_command(insert_cmd, args)
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'already exists' in error_str or 'duplicate key' in error_str:
+                raise osmo_errors.OSMOUserError(
+                    f'Token name {token_name} already exists.') from e
+            if 'division by zero' in error_str:
+                raise osmo_errors.OSMOUserError(
+                    'User does not have all the requested roles. '
+                    'Token creation failed.') from e
+            raise
 
     @classmethod
     def validate_access_token(cls, database: connectors.PostgresConnector, access_token: str) \

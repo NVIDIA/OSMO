@@ -16,10 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
-import re
 import secrets
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import fastapi
 
@@ -152,28 +151,32 @@ def get_access_token_info(access_token: str) -> objects.AccessToken:
 def create_access_token(token_name: str,
                         expires_at: str,
                         description: str = '',
+                        roles: Optional[List[str]] = fastapi.Query(default=None),
                         user_header: Optional[str] =
                             fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
     """
     API to create a new access token (PAT).
-    The token will inherit the user's roles from the user_roles table.
+
+    If roles are specified, all specified roles must be assigned to the user.
+    If any role is not assigned to the user, the request fails and no token
+    is created. If no roles are specified, the PAT inherits all of the user's
+    current roles from the user_roles table.
     """
     postgres = connectors.PostgresConnector.get_instance()
 
     user_name = connectors.parse_username(user_header)
     access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
-    service_config = postgres.get_service_configs()
 
-    # Get user's roles from user_roles table (PAT inherits user's roles)
-    roles = _get_user_role_names(postgres, user_name)
-
-    # If user has no roles, use default user roles from config
-    if not roles:
-        roles = service_config.service_auth.user_roles
+    if roles is None:
+        # No roles specified - inherit all user's roles
+        pat_roles = _get_user_role_names(postgres, user_name)
+    else:
+        # Use the specified roles - validation happens in insert_into_db
+        pat_roles = roles
 
     objects.AccessToken.insert_into_db(
         postgres, user_name, token_name, access_token,
-        expires_at, description, roles, user_name)
+        expires_at, description, pat_roles, user_name)
 
     return access_token
 
@@ -208,6 +211,7 @@ def admin_create_access_token(
     token_name: str,
     expires_at: str,
     description: str = '',
+    roles: Optional[List[str]] = fastapi.Query(default=None),
     user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
 ):
     """
@@ -216,11 +220,17 @@ def admin_create_access_token(
     This endpoint allows administrators to create a Personal Access Token
     on behalf of any user in the system.
 
+    If roles are specified, all specified roles must be assigned to the target
+    user. If any role is not assigned to the user, the request fails and no
+    token is created. If no roles are specified, the PAT inherits all of the
+    target user's current roles from the user_roles table.
+
     Args:
         user_id: The user ID to create the token for
         token_name: Name for the access token
         expires_at: Expiration date in YYYY-MM-DD format
         description: Optional description for the token
+        roles: Optional list of roles to assign (must all be assigned to user)
         user_header: Authenticated admin user making the request
 
     Returns:
@@ -233,20 +243,64 @@ def admin_create_access_token(
     _validate_user_exists(postgres, user_id)
 
     access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
-    service_config = postgres.get_service_configs()
 
-    # Get target user's roles from user_roles table (PAT inherits user's roles)
-    roles = _get_user_role_names(postgres, user_id)
-
-    # If user has no roles, use default user roles from config
-    if not roles:
-        roles = service_config.service_auth.user_roles
+    if roles is None:
+        # No roles specified - inherit all user's roles
+        pat_roles = _get_user_role_names(postgres, user_id)
+    else:
+        # Use the specified roles - validation happens in insert_into_db
+        pat_roles = roles
 
     objects.AccessToken.insert_into_db(
         postgres, user_id, token_name, access_token,
-        expires_at, description, roles, admin_user)
+        expires_at, description, pat_roles, admin_user)
 
     return access_token
+
+
+@router.get('/api/auth/users/{user_id}/access_tokens')
+def admin_list_access_tokens(
+    user_id: str,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+) -> List[objects.AccessToken]:
+    """
+    Admin API to list all access tokens for a specific user.
+
+    Args:
+        user_id: The user ID to list tokens for
+        user_header: Authenticated admin user making the request
+
+    Returns:
+        List of AccessToken objects
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Validate the target user exists
+    _validate_user_exists(postgres, user_id)
+
+    return objects.AccessToken.list_from_db(postgres, user_id)
+
+
+@router.delete('/api/auth/users/{user_id}/access_token/{token_name}')
+def admin_delete_access_token(
+    user_id: str,
+    token_name: str,
+    user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
+):
+    """
+    Admin API to delete an access token for a specific user.
+
+    Args:
+        user_id: The user ID who owns the token
+        token_name: Name of the token to delete
+        user_header: Authenticated admin user making the request
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Validate the target user exists
+    _validate_user_exists(postgres, user_id)
+
+    objects.AccessToken.delete_from_db(postgres, token_name, user_id)
 
 
 # =============================================================================
@@ -304,38 +358,6 @@ def _validate_user_exists(postgres: connectors.PostgresConnector, user_id: str):
         raise osmo_errors.OSMOUserError(f'User {user_id} not found')
 
 
-def _parse_scim_filter(filter_str: Optional[str]) -> Tuple[str, Tuple]:
-    """
-    Parse a simple SCIM-style filter.
-    Supports: id eq "value", external_id eq "value"
-    """
-    if not filter_str:
-        return '', ()
-
-    # Simple pattern: field eq "value"
-    match = re.match(r'^(\w+)\s+eq\s+"([^"]*)"$', filter_str.strip(), re.IGNORECASE)
-    if not match:
-        raise osmo_errors.OSMOUserError(
-            f'Invalid filter format: {filter_str}. Expected: field eq "value"')
-
-    field = match.group(1).lower()
-    value = match.group(2)
-
-    # Map SCIM field names to database columns
-    field_map = {
-        'id': 'id',
-        'externalid': 'external_id',
-        'external_id': 'external_id',
-    }
-
-    if field not in field_map:
-        raise osmo_errors.OSMOUserError(
-            f'Unknown filter field: {field}. Supported: id, external_id')
-
-    db_field = field_map[field]
-    return f' WHERE {db_field} = %s', (value,)
-
-
 # =============================================================================
 # User Management APIs
 # =============================================================================
@@ -344,7 +366,8 @@ def _parse_scim_filter(filter_str: Optional[str]) -> Tuple[str, Tuple]:
 def list_users(
     start_index: int = 1,
     count: int = 100,
-    filter: Optional[str] = None,  # pylint: disable=redefined-builtin
+    id_prefix: Optional[str] = None,
+    roles: Optional[List[str]] = fastapi.Query(default=None),
 ) -> objects.UserListResponse:
     """
     List all users with optional filtering.
@@ -352,7 +375,9 @@ def list_users(
     Args:
         start_index: Pagination start (1-based, default: 1)
         count: Results per page (default: 100, max: 1000)
-        filter: SCIM-style filter (e.g., `email eq "user@example.com"`)
+        id_prefix: Filter users whose ID starts with this prefix
+        roles: List of role names. Returns users who have ANY of these roles.
+               Use multiple query params: ?roles=admin&roles=user
 
     Returns:
         UserListResponse with paginated user list
@@ -367,26 +392,71 @@ def list_users(
     if count > 1000:
         count = 1000
 
-    # Parse filter
-    where_clause, filter_args = _parse_scim_filter(filter)
+    # Build WHERE clause and args
+    where_conditions = []
+    filter_args: List = []
+
+    # Add id_prefix filter
+    if id_prefix:
+        where_conditions.append('u.id LIKE %s')
+        filter_args.append(f'{id_prefix}%')
+
+    # Add roles filter (users who have ANY of the specified roles)
+    role_list = roles if roles else []
+
+    # Build the query
+    if role_list:
+        # Join with user_roles to filter by roles
+        role_placeholders = ', '.join(['%s'] * len(role_list))
+        filter_args.extend(role_list)
+
+        where_clause = ''
+        if where_conditions:
+            where_clause = ' AND ' + ' AND '.join(where_conditions)
+
+        # Count query with role filter
+        count_cmd = f'''
+            SELECT COUNT(DISTINCT u.id) as total
+            FROM users u
+            JOIN user_roles ur ON u.id = ur.user_id
+            WHERE ur.role_name IN ({role_placeholders}){where_clause};
+        '''
+
+        # Fetch query with role filter
+        fetch_cmd = f'''
+            SELECT DISTINCT u.id, u.external_id, u.created_at, u.created_by,
+                   u.updated_at, u.last_seen_at
+            FROM users u
+            JOIN user_roles ur ON u.id = ur.user_id
+            WHERE ur.role_name IN ({role_placeholders}){where_clause}
+            ORDER BY u.created_at DESC
+            LIMIT %s OFFSET %s;
+        '''
+    else:
+        # No role filter - query users table directly
+        where_clause = ''
+        if where_conditions:
+            where_clause = ' WHERE ' + ' AND '.join(where_conditions)
+
+        count_cmd = f'SELECT COUNT(*) as total FROM users u{where_clause};'
+        fetch_cmd = f'''
+            SELECT u.id, u.external_id, u.created_at, u.created_by,
+                   u.updated_at, u.last_seen_at
+            FROM users u{where_clause}
+            ORDER BY u.created_at DESC
+            LIMIT %s OFFSET %s;
+        '''
 
     # Get total count
-    count_cmd = f'SELECT COUNT(*) as total FROM users{where_clause};'
-    count_result = postgres.execute_fetch_command(count_cmd, filter_args, True)
+    count_result = postgres.execute_fetch_command(count_cmd, tuple(filter_args), True)
     total_results = count_result[0]['total'] if count_result else 0
 
     # Calculate offset (start_index is 1-based)
     offset = start_index - 1
 
     # Fetch users with pagination
-    fetch_cmd = f'''
-        SELECT id, external_id, created_at, created_by, updated_at, last_seen_at
-        FROM users{where_clause}
-        ORDER BY created_at DESC
-        LIMIT %s OFFSET %s;
-    '''
     rows = postgres.execute_fetch_command(
-        fetch_cmd, filter_args + (count, offset), True)
+        fetch_cmd, tuple(filter_args) + (count, offset), True)
 
     users = [objects.User(
         id=row['id'],
