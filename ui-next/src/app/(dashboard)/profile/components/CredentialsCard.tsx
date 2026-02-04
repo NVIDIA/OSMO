@@ -870,7 +870,23 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
       try {
         await upsertCredential(formDataToCredentialCreate(formData));
         announcer.announce(`Credential "${formData.name}" updated successfully`, "polite");
-        // Don't clear edits - let dirty flag become false when credentials refetch
+        // Clear editing state after successful save
+        setEditingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(credentialId);
+          return next;
+        });
+        setCredentialEdits((prev) => {
+          const next = { ...prev };
+          delete next[credentialId];
+          return next;
+        });
+        // Collapse the credential
+        setExpandedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(credentialId);
+          return next;
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update credential";
         announcer.announce(`Error: ${message}`, "assertive");

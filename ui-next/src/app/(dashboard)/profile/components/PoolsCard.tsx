@@ -91,7 +91,6 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
     const items = profile.pool.accessible.map((pool) => ({
       value: pool,
       label: pool,
-      subtitle: "8 GPUs available - A100", // Placeholder until real data available
     }));
 
     // Sort: initial default first, then rest alphabetically
