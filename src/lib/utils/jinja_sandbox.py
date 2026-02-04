@@ -238,13 +238,16 @@ class SandboxedJinjaRenderer:
         self.__class__._instance = self
 
     @classmethod
-    def get_instance(cls, workers: int | None = None, max_time: float | None = None,
-                     jinja_memory: int | None = None) \
-        -> 'SandboxedJinjaRenderer':
+    def get_instance(
+        cls,
+        workers: int | None = None,
+        max_time: float | None = None,
+        jinja_memory: int | None = None,
+    ) -> 'SandboxedJinjaRenderer':
         if cls._instance is None or \
             (workers is not None and cls._instance.workers != workers) or \
             (max_time is not None and cls._instance.max_time != max_time) or \
-            (jinja_memory is not None and cls._instance.jinja_memory != jinja_memory):
+                (jinja_memory is not None and cls._instance.jinja_memory != jinja_memory):
             effective_workers = workers if workers is not None else DEFAULT_WORKERS
             effective_max_time = max_time if max_time is not None else DEFAULT_MAX_TIME
             effective_jinja_memory = jinja_memory if jinja_memory is not None \
@@ -261,7 +264,7 @@ class SandboxedJinjaRenderer:
         """Shutdown the worker pool and reset singleton"""
         if self._pool:
             self._pool.shutdown()
-        self.__class__._instance = None
+        self.__class__._instance = None  # pylint: disable=protected-access
 
 
 def sandboxed_jinja_substitute(
@@ -269,7 +272,8 @@ def sandboxed_jinja_substitute(
     data: Dict,
     workers: int | None = None,
     max_time: float | None = None,
-    jinja_memory: int | None = None) -> str:
+    jinja_memory: int | None = None,
+) -> str:
     """Render a Jinja template with unsave methods prohibited and with an sandboxed worker pool"""
     renderer = SandboxedJinjaRenderer.get_instance(workers=workers, max_time=max_time,
                                                    jinja_memory=jinja_memory)

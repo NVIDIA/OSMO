@@ -86,6 +86,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
     def tearDownClass(cls):
         try:
             # Reset singleton connectors to prevent leaks
+            # pylint: disable=protected-access  # Accessing singleton instances for test cleanup
             if connectors.postgres.PostgresConnector._instance:
                 connectors.postgres.PostgresConnector._instance.close()
                 connectors.postgres.PostgresConnector._instance = None
