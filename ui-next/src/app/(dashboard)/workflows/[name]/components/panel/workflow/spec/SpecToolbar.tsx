@@ -109,7 +109,7 @@ export const SpecToolbar = memo(function SpecToolbar({
 
   return (
     <div
-      className="border-border bg-muted/30 flex h-11 items-center justify-between border-b px-3"
+      className="border-border bg-white dark:bg-zinc-900 flex h-11 items-center justify-between border-b px-3"
       role="toolbar"
       aria-label="Spec viewer controls"
     >
