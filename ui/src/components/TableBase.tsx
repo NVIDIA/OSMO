@@ -172,7 +172,7 @@ export function TableBase<TData, TValue>({
         open={open}
         onClose={() => setOpen(false)}
         headerChildren={<h2 id="show-hide-columns-header">Show/Hide Columns</h2>}
-        size="none"
+        size="sm"
         aria-labelledby="show-hide-columns-header"
       >
         <CheckboxWithLabel

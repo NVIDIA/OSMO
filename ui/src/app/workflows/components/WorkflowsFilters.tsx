@@ -211,7 +211,7 @@ export const WorkflowsFilters = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="body-component p-global flex flex-col gap-global">
+      <div className="p-global flex flex-col gap-global">
         {fields.includes("user") && (
           <UserFilter
             userType={localUserType}

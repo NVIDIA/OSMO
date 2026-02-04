@@ -52,11 +52,9 @@ export interface TaskWidgetDataProps {
 export const TasksWidget = ({
   widget,
   onEdit,
-  isEditing,
 }: {
   widget: TaskWidgetDataProps;
   onEdit: (widget: TaskWidgetDataProps) => void;
-  isEditing: boolean;
 }) => {
   const { getUrlParams } = useToolParamUpdater();
   const dateRangeDates = getDateFromValues(
@@ -112,7 +110,7 @@ export const TasksWidget = ({
     >
       <div className="popup-header body-header">
         <h2 id="tasks-widget-title">{widget.name}</h2>
-        {isEditing ? (
+        <div className="flex flex-row gap-global">
           <button
             className="btn btn-secondary"
             onClick={() => onEdit(widget)}
@@ -120,7 +118,6 @@ export const TasksWidget = ({
           >
             <OutlinedIcon name="edit" />
           </button>
-        ) : (
           <Link
             href={detailsUrl}
             className="btn btn-secondary"
@@ -128,10 +125,10 @@ export const TasksWidget = ({
           >
             <OutlinedIcon name="list_alt" />
           </Link>
-        )}
+        </div>
       </div>
       <div
-        className={`flex flex-col gap-global p-global w-full flex-1 justify-between ${isEditing ? "opacity-60" : ""}`}
+        className="flex flex-col gap-global p-global w-full flex-1 justify-between"
       >
         <TaskPieChart
           counts={currentTasks ?? {}}

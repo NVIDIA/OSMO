@@ -24,13 +24,12 @@ import { useAuth } from "~/components/AuthProvider";
 import { allDateRange } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
-import { IconButton } from "~/components/IconButton";
-import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
 import PageHeader from "~/components/PageHeader";
 import { Select } from "~/components/Select";
 import { SlideOut } from "~/components/SlideOut";
 import { StatusFilterType } from "~/components/StatusFilter";
+import { Switch } from "~/components/Switch";
 import { TextInput } from "~/components/TextInput";
 import { UserFilterType } from "~/components/UserFilter";
 import { PoolsListResponseSchema, type ProfileResponse } from "~/models";
@@ -42,11 +41,8 @@ import { TasksWidget, type TaskWidgetDataProps } from "./widgets/tasks";
 import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
 import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/components/WorkflowsFilters";
 
-const NEW_DASHBOARD_NAME = "-- Create New Dashboard --";
-
 interface Dashboard {
   name: string;
-  isDefault: boolean;
   workflows: WorkflowWidgetDataProps[];
   tasks: TaskWidgetDataProps[];
   allPools: boolean;
@@ -55,28 +51,31 @@ interface Dashboard {
 
 interface DashboardList {
   widgets: Dashboard[];
+  defaultDashboard: string;
 }
 
 export default function Home() {
   const currentDays = 365;
   const { username } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [widgetName, setWidgetName] = useState("");
   const [widgetDescription, setWidgetDescription] = useState("");
   const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
   const [allPools, setAllPools] = useState(true);
   const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
-  const [editingPool, setEditingPool] = useState(false);
   const [dashboardName, setDashboardName] = useState<string | undefined>(undefined);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
   const [currentDashboard, setCurrentDashboard] = useState<Dashboard | undefined>(undefined);
+  const [isDefaultDashboard, setIsDefaultDashboard] = useState(false);
 
   const createWidgetId = () => crypto.randomUUID();
   const [dashboards, setDashboards] = useState<DashboardList>({
     widgets: [],
+    defaultDashboard: "",
   });
 
   const { data: profile } = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
@@ -105,7 +104,6 @@ export default function Home() {
 
   const defaultDashboard = useMemo<Dashboard>(
     () => ({
-      isDefault: true,
       name: "default",
       workflows: [
         {
@@ -222,11 +220,11 @@ export default function Home() {
       workflows: prevWidgets.workflows.map((widget) =>
         widget.id === editingWorkflowWidget.id
           ? {
-              id: editingWorkflowWidget.id,
-              name: widgetName,
-              description: widgetDescription,
-              filters: data,
-            }
+            id: editingWorkflowWidget.id,
+            name: widgetName,
+            description: widgetDescription,
+            filters: data,
+          }
           : widget,
       ),
     }));
@@ -242,11 +240,11 @@ export default function Home() {
       tasks: prevWidgets.tasks.map((widget) =>
         widget.id === editingTaskWidget.id
           ? {
-              id: editingTaskWidget.id,
-              name: widgetName,
-              description: widgetDescription,
-              filters: data,
-            }
+            id: editingTaskWidget.id,
+            name: widgetName,
+            description: widgetDescription,
+            filters: data,
+          }
           : widget,
       ),
     }));
@@ -274,10 +272,11 @@ export default function Home() {
     if (storedWidgets !== null) {
       const storedDashboards = JSON.parse(storedWidgets) as DashboardList;
       setDashboards(storedDashboards);
-      setCurrentDashboard(storedDashboards.widgets.find((widget) => widget.isDefault) ?? undefined);
+      setCurrentDashboard(storedDashboards.widgets.find((widget) => widget.name === storedDashboards.defaultDashboard) ?? undefined);
     } else {
       setDashboards({
         widgets: [defaultDashboard],
+        defaultDashboard: defaultDashboard.name,
       });
       setCurrentDashboard(defaultDashboard);
     }
@@ -286,7 +285,7 @@ export default function Home() {
   // Back-fill the default dashboard with the current user's pool if it is not already set.
   useEffect(() => {
     const pool = profile?.profile.pool ?? "";
-    if (!pool || !currentDashboard || !currentDashboard.isDefault) {
+    if (!pool || !currentDashboard || currentDashboard.name !== dashboards.defaultDashboard) {
       return;
     }
 
@@ -300,7 +299,7 @@ export default function Home() {
         pools: [pool],
       };
     });
-  }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard]);
+  }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard, dashboards.defaultDashboard]);
 
   const addDashboard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -318,7 +317,6 @@ export default function Home() {
     setDashboards((prevDashboards) => {
       const newDashboard: Dashboard = {
         name: trimmedName,
-        isDefault: false,
         workflows: [],
         tasks: [],
         allPools: false,
@@ -338,14 +336,29 @@ export default function Home() {
     });
 
     setDashboardName(trimmedName);
+    setIsDefaultDashboard(false);
     setNewDashboardName("");
     setNewDashboardNameError(undefined);
     setShowNewDashboard(false);
   };
 
-  useEffect(() => {
-    setDashboardName(currentDashboard?.name ?? "");
-  }, [currentDashboard]);
+  const handleEditDashboard = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const pools = Array.from(localPools.entries())
+      .filter(([_, enabled]) => enabled)
+      .map(([pool]) => pool);
+
+    updateCurrentDashboard((prevWidgets) => ({
+      ...prevWidgets,
+      pools,
+      allPools,
+      name: dashboardName ?? "",
+      defaultDashboard: isDefaultDashboard ? dashboardName ?? "" : dashboards.defaultDashboard,
+    }));
+
+    setIsEditingMetadata(false);
+  };
 
   return (
     <>
@@ -356,13 +369,9 @@ export default function Home() {
             aria-label="Select a dashboard"
             value={currentDashboard?.name ?? ""}
             onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
-              if (event.target.value === NEW_DASHBOARD_NAME) {
-                setShowNewDashboard(true);
-              } else {
-                setCurrentDashboard(dashboards.widgets.find((widget) => widget.name === event.target.value));
-                setShowNewDashboard(false);
-              }
-            }}
+              setCurrentDashboard(dashboards.widgets.find((widget) => widget.name === event.target.value));
+            }
+            }
           >
             {dashboards.widgets.map((widget) => (
               <option
@@ -372,14 +381,14 @@ export default function Home() {
                 {widget.name}
               </option>
             ))}
-            <option value={NEW_DASHBOARD_NAME}>{NEW_DASHBOARD_NAME}</option>
           </Select>
-          <IconButton
-            icon={isEditing ? "done" : "edit"}
-            text={isEditing ? "Done" : "Edit"}
-            className={"btn btn-secondary"}
-            onClick={() => setIsEditing(!isEditing)}
-          />
+          <button
+            className="btn btn-secondary"
+            onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
+            title="Dashboard Actions"
+          >
+            <OutlinedIcon name="more_vert" />
+          </button>
         </div>
       </PageHeader>
       <div className="h-full w-full flex justify-center items-baseline">
@@ -393,9 +402,7 @@ export default function Home() {
                 setWidgetName(widget.name);
                 setWidgetDescription(widget.description ?? "");
                 setEditingTaskWidget(undefined);
-                setEditingPool(false);
               }}
-              isEditing={isEditing}
             />
           ))}
           {currentDashboard?.tasks.map((widget) => (
@@ -407,9 +414,7 @@ export default function Home() {
                 setWidgetName(widget.name);
                 setWidgetDescription(widget.description ?? "");
                 setEditingWorkflowWidget(undefined);
-                setEditingPool(false);
               }}
-              isEditing={isEditing}
             />
           ))}
           {aggregateTotals.byPool &&
@@ -421,139 +426,71 @@ export default function Home() {
               >
                 <div className="popup-header body-header">
                   <h2 id={pool}>{pool}</h2>
-                  {isEditing ? (
+                  <div className="flex flex-row gap-global">
                     <button
                       className="btn btn-secondary"
                       onClick={() => {
-                        setEditingWorkflowWidget(undefined);
-                        setEditingTaskWidget(undefined);
-                        setEditingPool(true);
+                        void refetchResources();
                       }}
-                      title="Edit Pools"
+                      title="Refresh"
                     >
-                      <OutlinedIcon name="edit" />
+                      <OutlinedIcon name="refresh" />
                     </button>
-                  ) : (
-                    <div className="flex flex-row gap-global">
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          void refetchResources();
-                        }}
-                        title="Refresh"
-                      >
-                        <OutlinedIcon name="refresh" />
-                      </button>
-                      <Link
-                        href={`/resources?pools=${pool}`}
-                        className="btn btn-secondary"
-                        title={`View Resources for ${pool}`}
-                      >
-                        <OutlinedIcon name="list_alt" />
-                      </Link>
-                    </div>
-                  )}
+                    <Link
+                      href={`/resources?pools=${pool}`}
+                      className="btn btn-secondary"
+                      title={`View Resources for ${pool}`}
+                    >
+                      <OutlinedIcon name="list_alt" />
+                    </Link>
+                  </div>
                 </div>
                 <ResourcesGraph
                   {...totals}
                   isLoading={isResourcesFetching}
-                  isEditing={isEditing}
                   isShowingUsed={false}
                   width={200}
                   height={150}
                 />
               </section>
             ))}
-          <section className="card p-global">
-            <button
-              className="btn btn-secondary border-dashed w-full h-full justify-center items-center text-[10rem] opacity-30 hover:opacity-100 hover:cursor-pointer focus:opacity-100"
-              aria-label="Add Widget"
-            >
-              <OutlinedIcon
-                name="add"
-                className="text-[7rem]!"
-              />
-            </button>
-          </section>
         </div>
       </div>
       <FullPageModal
-        open={!!editingWorkflowWidget || !!editingTaskWidget || editingPool}
+        open={!!editingWorkflowWidget || !!editingTaskWidget}
         onClose={() => {
           setEditingWorkflowWidget(undefined);
           setEditingTaskWidget(undefined);
-          setEditingPool(false);
         }}
         headerChildren={
-          <h2 id="edit-header">{editingPool ? "Edit Pools" : editingWorkflowWidget ? "Edit Workflow" : "Edit Task"}</h2>
+          <h2 id="edit-header">{editingWorkflowWidget ? "Edit Workflow" : "Edit Task"}</h2>
         }
         aria-labelledby="edit-header"
         size="md"
       >
-        {(editingWorkflowWidget ?? editingTaskWidget) && (
-          <>
-            <TextInput
-              id="widget-name"
-              label="Name"
-              helperText="Name of the widget (unique)"
-              className="w-full"
-              required
-              containerClassName="w-full p-global"
-              value={widgetName}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setWidgetName(event.target.value);
-              }}
-            />
-            <TextInput
-              id="widget-description"
-              label="Description"
-              className="w-full"
-              containerClassName="w-full p-global"
-              value={widgetDescription}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setWidgetDescription(event.target.value);
-              }}
-            />
-          </>
-        )}
-        {editingPool ? (
-          <div className="flex flex-col gap-global">
-            <InlineBanner status="info">Select the pools to include in the widget</InlineBanner>
-            <div className="p-global">
-              <MultiselectWithAll
-                id="pools"
-                label="All Pools"
-                placeholder="Filter by pool name..."
-                aria-label="Filter by pool name"
-                filter={localPools}
-                setFilter={setLocalPools}
-                onSelectAll={setAllPools}
-                isSelectAllChecked={allPools}
-                showAll
-              />
-            </div>
-            <div className="flex flex-row gap-global justify-between body-footer p-global sm:sticky sm:bottom-0">
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  const pools = Array.from(localPools.entries())
-                    .filter(([_, enabled]) => enabled)
-                    .map(([pool]) => pool);
-
-                  updateCurrentDashboard((prevWidgets) => ({
-                    ...prevWidgets,
-                    pools,
-                    allPools,
-                  }));
-                  setEditingPool(false);
-                }}
-              >
-                <OutlinedIcon name="save" />
-                Save
-              </button>
-            </div>
-          </div>
-        ) : editingWorkflowWidget ? (
+        <TextInput
+          id="widget-name"
+          label="Name"
+          helperText="Name of the widget (unique)"
+          className="w-full"
+          required
+          containerClassName="w-full p-global"
+          value={widgetName}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+            setWidgetName(event.target.value);
+          }}
+        />
+        <TextInput
+          id="widget-description"
+          label="Description"
+          className="w-full"
+          containerClassName="w-full p-global"
+          value={widgetDescription}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+            setWidgetDescription(event.target.value);
+          }}
+        />
+        {editingWorkflowWidget ? (
           <WorkflowsFilters
             fields={["user", "date", "status", "pool", "priority"]}
             name={""}
@@ -645,30 +582,85 @@ export default function Home() {
       </SlideOut>
       <SlideOut
         id="edit-dashboard"
-        open={isEditing}
+        open={isActionsMenuOpen}
         onClose={() => {
-          setIsEditing(false);
+          setIsActionsMenuOpen(false);
         }}
-        bodyClassName="p-global"
         className="border-t-0"
-        header={<h2 id="edit-dashboard-header">Edit Dashboard</h2>}
         aria-labelledby="edit-dashboard-header"
-        pinned
         canPin={false}
       >
-        <div className="flex flex-col gap-global">
-          <TextInput
-            id="dashboard-name"
-            label="Name"
-            className="w-full"
-            value={dashboardName ?? ""}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setDashboardName(event.target.value);
-            }}
-            required
-          />
+        <div className="flex flex-col gap-global p-global">
+          <button className="btn btn-action" onClick={() => {
+            setIsEditingMetadata(true);
+            setDashboardName(currentDashboard?.name ?? "");
+            setAllPools(currentDashboard?.allPools ?? false);
+            setLocalPools(new Map(currentDashboard?.pools.map((pool) => [pool, true])));
+            setIsDefaultDashboard(currentDashboard?.name === dashboards.defaultDashboard);
+          }
+          } role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
+          <button className="btn btn-action" role="listitem"><OutlinedIcon name="work_outline" />Add Workflow Widget</button>
+          <button className="btn btn-action" role="listitem"><OutlinedIcon name="task" />Add Task Widget</button>
+        </div>
+        <div className="flex flex-col gap-global p-global border-t-1 border-border">
+          <button className="btn btn-action" onClick={() => setShowNewDashboard(true)} role="listitem"><OutlinedIcon name="dashboard_customize" />New Dashboard</button>
+          <button className="btn btn-action" role="listitem"><OutlinedIcon name="copy" />Clone Current Dashboard</button>
+          <button className="btn btn-action" role="listitem"><OutlinedIcon name="share" />Share Dashboard</button>
         </div>
       </SlideOut>
+      <FullPageModal
+        open={isEditingMetadata}
+        onClose={() => {
+          setIsEditingMetadata(false);
+        }}
+        headerChildren="Edit Dashboard"
+        size="sm"
+      >
+        <form onSubmit={handleEditDashboard}>
+          <div className="flex flex-col gap-global p-global">
+            <TextInput
+              id="dashboard-name"
+              label="Name"
+              className="w-full"
+              value={dashboardName ?? ""}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setDashboardName(event.target.value);
+              }}
+              required
+            />
+            <Switch
+              id="is-default"
+              label="Default Dashboard"
+              checked={isDefaultDashboard}
+              onChange={(checked) => {
+                setIsDefaultDashboard(checked);
+              }}
+              size="small"
+              labelPosition="right"
+            />
+            <MultiselectWithAll
+              id="pools"
+              label="All Pools"
+              placeholder="Filter by pool name..."
+              aria-label="Filter by pool name"
+              filter={localPools}
+              setFilter={setLocalPools}
+              onSelectAll={setAllPools}
+              isSelectAllChecked={allPools}
+              showAll
+            />
+          </div>
+          <div className="flex justify-end p-global bg-footerbg">
+            <button
+              className="btn btn-primary"
+              type="submit"
+            >
+              <OutlinedIcon name="save" />
+              Save
+            </button>
+          </div>
+        </form>
+      </FullPageModal>
     </>
   );
 }

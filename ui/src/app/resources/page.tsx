@@ -180,7 +180,6 @@ export default function Resources() {
               </div>
               <ResourceGraph
                 {...aggregateTotals.total}
-                isEditing={false}
                 isLoading={isFetching}
                 isShowingUsed={isShowingUsed}
                 width={200}
@@ -219,7 +218,6 @@ export default function Resources() {
                   <ResourceGraph
                     {...totals}
                     isLoading={isFetching}
-                    isEditing={false}
                     isShowingUsed={isShowingUsed}
                     width={200}
                     height={150}

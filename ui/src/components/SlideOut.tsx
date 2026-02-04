@@ -41,7 +41,6 @@ export const SlideOut = ({
   pinned = false,
   onPinChange,
   paused = false,
-  dimBackground = true,
   returnFocusOnDeactivate = true,
   ariaLabel,
   animate = false,
@@ -61,7 +60,6 @@ export const SlideOut = ({
   pinned?: boolean;
   onPinChange?: (pinned: boolean) => void;
   paused?: boolean;
-  dimBackground?: boolean;
   returnFocusOnDeactivate?: boolean;
   ariaLabel?: string;
   animate?: boolean;
@@ -99,7 +97,7 @@ export const SlideOut = ({
     if (localPinned) {
       result += open ? `relative ${className}` : "hidden";
     } else {
-      result += `${animate ? "fixed" : "absolute"} z-30 body-component max-h-full ${position === "right" ? "right-0" : "left-0"} ${dimBackground ? "shadow-xl shadow-black/50" : ""} ${className} `;
+      result += `${animate ? "fixed" : "absolute"} z-30 body-component max-h-full ${position === "right" ? "right-0" : "left-0"} shadow-xl shadow-black/50} ${className} `;
 
       if (!animate) {
         if (!open) {
@@ -117,12 +115,12 @@ export const SlideOut = ({
     }
 
     return result;
-  }, [className, dimBackground, localPinned, open, position, animate]);
+  }, [className, localPinned, open, position, animate]);
 
   return (
     <>
       {open && !localPinned && (
-        <div className={`fixed top-0 left-0 w-full h-full z-20 ${dimBackground ? "bg-black/10" : ""}`}></div>
+        <div className="fixed top-0 left-0 w-full h-full z-20"></div>
       )}
       <FocusTrap
         active={active}
@@ -205,7 +203,7 @@ export const SlideOut = ({
               </div>
             </div>
           )}
-          <div className={`overflow-y-auto ${bodyClassName}`}>{children}</div>
+          <div className={`overflow-y-auto bg-page-header-bg ${bodyClassName}`}>{children}</div>
         </div>
       </FocusTrap>
     </>

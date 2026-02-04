@@ -172,7 +172,6 @@ export const Layout = ({ children }: PropsWithChildren) => {
               animate={true}
               open={mainMenuOpen}
               onClose={() => setMainMenuOpen(false)}
-              dimBackground={false}
               className="h-full body-component"
               bodyClassName="h-full min-w-50 shadow-2xl shadow-black/50"
               position="left"

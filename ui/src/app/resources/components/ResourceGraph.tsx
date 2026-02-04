@@ -22,7 +22,6 @@ import { type AggregateProps } from "./AggregatePanels";
 
 interface ResourceGraphProps extends AggregateProps {
   isLoading: boolean;
-  isEditing: boolean;
   isShowingUsed: boolean;
   width?: number;
   height?: number;
@@ -66,7 +65,6 @@ export const ResourcesGraph = ({
   gpu,
   storage,
   isLoading,
-  isEditing,
   isShowingUsed,
   width = 250,
   height = 200,
@@ -110,7 +108,7 @@ export const ResourcesGraph = ({
   return (
     <>
       <div
-        className={`p-global box-border flex w-full h-full items-center justify-center ${isLoading || isEditing ? "opacity-60" : ""}`}
+        className={`p-global box-border flex w-full h-full items-center justify-center ${isLoading ? "opacity-60" : ""}`}
       >
         <BarChart
           data={data}
