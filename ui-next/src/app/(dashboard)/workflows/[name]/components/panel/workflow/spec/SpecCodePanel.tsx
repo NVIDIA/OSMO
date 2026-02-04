@@ -40,11 +40,14 @@ import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { foldGutter } from "@codemirror/language";
-import { search } from "@codemirror/search";
+import { search, searchKeymap } from "@codemirror/search";
+import { keymap } from "@codemirror/view";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { createSpecViewerExtension } from "./lib/theme";
+import { createSearchPanel } from "./lib/search-panel";
 import { useMounted } from "@/hooks";
 import type { SpecView } from "./hooks/useSpecData";
+import "./spec-search.css";
 
 // =============================================================================
 // Types
@@ -121,8 +124,13 @@ function createExtensions(language: SpecView, readOnly: boolean, isDark: boolean
       markerDOM: (open) => createChevronMarker(open),
     }),
 
-    // Search support (Cmd+F)
-    search(),
+    // Search support with custom panel (icon-based, theme-aware)
+    search({
+      createPanel: createSearchPanel(isDark),
+    }),
+
+    // Search keymaps
+    keymap.of(searchKeymap),
 
     // Read-only state
     EditorState.readOnly.of(readOnly),
