@@ -245,6 +245,55 @@ jobs:
           df -h / || true
 
   #######################
+  #   Runner Cleanup    #
+  #######################
+  cleanup-runner:
+    runs-on: self-hosted
+    needs: [ci-internal]
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: Host cleanup (concurrent-safe)
+        run: |
+          echo "=== Host Cleanup for Job ${{ github.run_id }} ==="
+
+          # Only remove containers that exited >5 mins ago (clearly orphaned)
+          echo "Checking for old exited containers..."
+          OLD_CONTAINERS=$(docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null || echo "")
+          if [ -n "$OLD_CONTAINERS" ]; then
+            echo "Removing old exited containers:"
+            echo "$OLD_CONTAINERS"
+            docker rm -f $OLD_CONTAINERS 2>/dev/null || true
+          else
+            echo "No old exited containers found"
+          fi
+
+          # Prune dangling resources (safe - not in use)
+          echo "Pruning dangling volumes..."
+          docker volume prune -f 2>/dev/null || true
+
+          echo "Pruning unused networks..."
+          docker network prune -f 2>/dev/null || true
+
+          echo "Pruning dangling images..."
+          docker image prune -f 2>/dev/null || true
+
+          # Show runner health
+          echo "Runner process status:"
+          if pgrep -f "Runner.Listener" > /dev/null; then
+            echo "✓ Runner.Listener is running"
+          else
+            echo "⚠️  Runner.Listener not running - may need recovery"
+          fi
+
+          # Show disk usage
+          echo "Disk usage after cleanup:"
+          docker system df 2>/dev/null || true
+          df -h / | grep -E '^Filesystem|/$' || true
+
+          echo "✓ Cleanup complete (safe for concurrent jobs)"
+
+  #######################
   #    Docs Build       #
   #######################
   docs-build:
