@@ -81,6 +81,7 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
 
   // Convert accessible pools to SelectableListItem format
   const poolItems: SelectableListItem[] = useMemo(() => {
+    if (!profile.pool.accessible) return [];
     return profile.pool.accessible.map((pool) => ({
       value: pool,
       label: pool,
@@ -132,7 +133,7 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
                 Saving...
               </>
             ) : (
-              "Save Default"
+              "Save"
             )}
           </Button>
         </div>
