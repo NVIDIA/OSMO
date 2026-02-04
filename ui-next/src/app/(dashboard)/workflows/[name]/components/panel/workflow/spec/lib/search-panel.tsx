@@ -30,7 +30,6 @@ import {
   findNext,
   findPrevious,
   closeSearchPanel,
-  SearchCursor,
 } from "@codemirror/search";
 import { createRoot } from "react-dom/client";
 import { X, ChevronUp, ChevronDown, CaseSensitive, WholeWord, Regex } from "lucide-react";
@@ -48,7 +47,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
   const [caseSensitive, setCaseSensitive] = React.useState(query.caseSensitive);
   const [wholeWord, setWholeWord] = React.useState(query.wholeWord);
   const [regexp, setRegexp] = React.useState(query.regexp);
-  const [updateCounter, setUpdateCounter] = React.useState(0); // Force updates for match navigation
+  const [selectionPos, setSelectionPos] = React.useState(0); // Track selection for match navigation
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -82,18 +81,21 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     const newValue = !caseSensitive;
     setCaseSensitive(newValue);
     updateSearch(searchText, newValue, wholeWord, regexp);
+    setSelectionPos(view.state.selection.main.from);
   };
 
   const toggleWholeWord = () => {
     const newValue = !wholeWord;
     setWholeWord(newValue);
     updateSearch(searchText, caseSensitive, newValue, regexp);
+    setSelectionPos(view.state.selection.main.from);
   };
 
   const toggleRegexp = () => {
     const newValue = !regexp;
     setRegexp(newValue);
     updateSearch(searchText, caseSensitive, wholeWord, newValue);
+    setSelectionPos(view.state.selection.main.from);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -115,7 +117,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
       }
       // Trigger match info update after navigation
       requestAnimationFrame(() => {
-        setUpdateCounter((c) => c + 1);
+        setSelectionPos(view.state.selection.main.from);
       });
     } else if (e.key === "Escape") {
       e.preventDefault();
@@ -132,7 +134,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     findNext(view);
     // Delay update to ensure CodeMirror state has been updated
     requestAnimationFrame(() => {
-      setUpdateCounter((c) => c + 1);
+      setSelectionPos(view.state.selection.main.from);
     });
   };
 
@@ -140,7 +142,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     findPrevious(view);
     // Delay update to ensure CodeMirror state has been updated
     requestAnimationFrame(() => {
-      setUpdateCounter((c) => c + 1);
+      setSelectionPos(view.state.selection.main.from);
     });
   };
 
@@ -157,6 +159,9 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
 
   // Calculate match info (current match position and total count)
   const matchInfo = React.useMemo(() => {
+    // Force recomputation when selection changes (used to track navigation)
+    void selectionPos;
+
     if (!searchText) return null;
 
     try {
@@ -174,18 +179,20 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
       const selStart = selection.from;
       const selEnd = selection.to;
 
-      while (!cursor.next().done) {
+      let result = cursor.next();
+      while (!result.done) {
         totalMatches++;
         // Check if this match overlaps with or contains the selection
         if (
           currentMatch === -1 &&
-          ((cursor.value.from >= selStart && cursor.value.from < selEnd) ||
-            (cursor.value.to > selStart && cursor.value.to <= selEnd) ||
-            (cursor.value.from <= selStart && cursor.value.to >= selEnd))
+          ((result.value.from >= selStart && result.value.from < selEnd) ||
+            (result.value.to > selStart && result.value.to <= selEnd) ||
+            (result.value.from <= selStart && result.value.to >= selEnd))
         ) {
           currentMatch = matchIndex;
         }
         matchIndex++;
+        result = cursor.next();
       }
 
       if (totalMatches === 0) return "No results";
@@ -196,10 +203,10 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
       }
 
       return `${currentMatch + 1} of ${totalMatches}`;
-    } catch (error) {
+    } catch {
       return null;
     }
-  }, [searchText, view, caseSensitive, wholeWord, regexp, updateCounter]);
+  }, [searchText, view, selectionPos]);
 
   return (
     <div

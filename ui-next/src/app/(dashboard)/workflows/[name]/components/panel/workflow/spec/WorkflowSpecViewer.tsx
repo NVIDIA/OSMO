@@ -151,7 +151,7 @@ export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflowId 
   const { activeView, setActiveView } = useSpecViewState();
 
   // Data fetching
-  const { content, isLoading, error, isNotFound, refetch, jinjaSpec } = useSpecData(workflowId, activeView);
+  const { content, isLoading, error, isNotFound, refetch } = useSpecData(workflowId, activeView);
 
   // Show loading skeleton on initial load
   if (isLoading && !content) {
