@@ -274,6 +274,14 @@ services:
     ##
     progressFrequencySec: 15
 
+    ## Buffer size for event channel (EventListener)
+    ##
+    eventChanSize: 500
+
+    ## Time-to-live for event deduplication cache (in minutes)
+    ##
+    eventCacheTTL: 15
+
     ## Additional command line arguments to pass to the backend listener
     ##
     extraArgs: []
