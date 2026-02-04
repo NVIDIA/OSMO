@@ -145,8 +145,8 @@ jobs:
       group: ci-internal-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: true
     container:
-      # python:3.10.18-bullseye pinned to digest for security
-      image: python:3.10.18-bullseye@sha256:ff2d497e208802e4a7e5f7f3cea019aa96a02469f160bc23f7466a6522b26abd
+      # python:3.10.18-bullseye pinned to digest for security (amd64)
+      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
@@ -169,13 +169,13 @@ jobs:
 
           # Add Docker's official GPG key and repository
           install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          chmod a+r /etc/apt/keyrings/docker.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list
+          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
           # Add Node.js 20.x from NodeSource
           curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list > /dev/null
 
           apt-get update
 
