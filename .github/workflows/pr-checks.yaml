@@ -256,7 +256,7 @@ jobs:
     if: always()
     timeout-minutes: 5
     concurrency:
-      group: cleanup-host-${{ runner.name || github.run_id }}
+      group: cleanup-host-${{ github.run_id }}
       cancel-in-progress: false  # Critical: never cancel cleanup
     steps:
       - name: Host cleanup (concurrent-safe)
