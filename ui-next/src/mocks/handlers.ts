@@ -475,15 +475,63 @@ export const handlers = [
     return HttpResponse.json({ events });
   }),
 
-  // Workflow spec
+  // Workflow spec (YAML or Jinja template)
+  // Query params:
+  //   - use_template=true: Return Jinja template instead of resolved YAML
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/workflow/:name/spec", async ({ params }) => {
+  http.get("*/api/workflow/:name/spec", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
+    const url = new URL(request.url);
+    const useTemplate = url.searchParams.get("use_template") === "true";
     const workflow = workflowGenerator.getByName(name);
 
     const groups = workflow?.groups || [];
+
+    // Return Jinja template if requested
+    if (useTemplate) {
+      const taskTemplates = groups.flatMap((g) =>
+        g.tasks.map((t) => {
+          return `  - name: {{ task_name | default("${t.name}") }}
+    image: {{ image | default("${t.image || workflow?.image || "nvcr.io/nvidia/pytorch:24.08-py3"}") }}
+    resources:
+      gpu: {{ gpu_count | default(${t.gpu}) }}
+      cpu: {{ cpu_count | default(${t.cpu}) }}
+      memory: {{ memory_gb | default(${t.memory}) }}Gi`;
+        }),
+      );
+
+      const template = `{# Workflow Template #}
+{% set workflow_name = "${name}" %}
+{% set pool_name = "${workflow?.pool || "default-pool"}" %}
+{% set priority_level = "${workflow?.priority || "NORMAL"}" %}
+
+workflow:
+  name: {{ workflow_name }}
+  priority: {{ priority_level }}
+  pool: {{ pool_name }}
+
+  {# Task definitions #}
+  tasks:
+{% for task in tasks %}
+${
+  taskTemplates.length > 0
+    ? taskTemplates.join("\n")
+    : `  - name: {{ task.name | default("main") }}
+    image: {{ task.image | default("nvcr.io/nvidia/pytorch:24.08-py3") }}
+    resources:
+      gpu: {{ task.gpu | default(1) }}
+      cpu: {{ task.cpu | default(8) }}
+      memory: {{ task.memory | default(32) }}Gi`
+}
+{% endfor %}
+`;
+
+      return HttpResponse.text(template);
+    }
+
+    // Return resolved YAML spec (default)
     const taskSpecs = groups.flatMap((g) =>
       g.tasks.map((t) => {
         return `  - name: ${t.name}
