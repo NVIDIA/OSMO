@@ -1,0 +1,177 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* =============================================================================
+   CUSTOM UTILITIES
+   Performance optimizations, layout utilities, and custom Tailwind extensions
+   ============================================================================= */
+
+@layer utilities {
+  /* ==========================================================================
+     Performance Utilities
+     GPU-accelerated transforms and optimizations for smooth animations
+     ========================================================================== */
+
+  /* Force GPU layer for smooth transforms and animations */
+  .gpu-layer {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  /* ==========================================================================
+     CSS Containment - Isolate layout/paint calculations for performance
+
+     Usage:
+     - contain-layout: Basic layout isolation
+     - contain-style: Style isolation only
+     - contain-layout-style: Layout + style isolation (recommended for most cases)
+     - contain-layout-paint: Layout + paint isolation (clips overflow)
+     - contain-strict: Strongest isolation, equivalent to size + layout + style + paint
+     - contain-size-layout-style: Size + layout + style (for virtualized lists)
+     ========================================================================== */
+  .contain-layout {
+    contain: layout;
+  }
+
+  .contain-style {
+    contain: style;
+  }
+
+  .contain-layout-style {
+    contain: layout style;
+  }
+
+  .contain-layout-paint {
+    contain: layout paint;
+  }
+
+  .contain-strict {
+    contain: strict;
+  }
+
+  .contain-size-layout-style {
+    contain: size layout style;
+  }
+
+  /* ==========================================================================
+     Chrome Layout Utilities
+     ========================================================================== */
+
+  /* Fixed overlay that covers only the page content area */
+  .fixed-below-header {
+    position: fixed;
+    inset: 0;
+    top: var(--chrome-header-height);
+  }
+
+  /* ==========================================================================
+     Table Container - Semantic table styling with bevel and header shadow
+     ========================================================================== */
+  .table-container {
+    background: var(--table-surface);
+    border-radius: theme(borderRadius.md);
+    overflow: hidden;
+    /* Bevel borders */
+    border-top: 1px solid var(--table-border-top);
+    border-left: 1px solid var(--table-border-left);
+    border-right: 1px solid var(--table-border-right);
+    border-bottom: 1px solid var(--table-border-bottom);
+  }
+
+  .table-header {
+    background: var(--table-header);
+    /* Sharp shadow - z-index handled by sticky class when needed */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+
+    :is(.dark &) {
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  /* ==========================================================================
+     Scrollbar Styling
+     Subtle, elegant scrollbars for scroll containers
+     ========================================================================== */
+  .scrollbar-styled {
+    scrollbar-width: thin;
+    scrollbar-color: theme(colors.zinc.400 / 50%) theme(colors.zinc.100 / 60%);
+
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: theme(colors.zinc.100 / 60%);
+      border-radius: 5px;
+      margin: 2px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: theme(colors.zinc.400 / 50%);
+      border-radius: 5px;
+      border: 2px solid theme(colors.zinc.100 / 60%);
+      transition: background var(--duration-normal) var(--ease-out);
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: theme(colors.zinc.500 / 70%);
+    }
+
+    &::-webkit-scrollbar-corner {
+      background: theme(colors.zinc.100 / 60%);
+      border-radius: 5px;
+    }
+
+    :is(.dark &) {
+      scrollbar-color: theme(colors.zinc.500 / 40%) theme(colors.zinc.800 / 50%);
+
+      &::-webkit-scrollbar-track {
+        background: theme(colors.zinc.800 / 60%);
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: theme(colors.zinc.500 / 50%);
+        border-color: theme(colors.zinc.800 / 60%);
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: theme(colors.zinc.400 / 60%);
+      }
+
+      &::-webkit-scrollbar-corner {
+        background: theme(colors.zinc.800 / 60%);
+      }
+    }
+  }
+
+  /* ==========================================================================
+     Log Viewer Utilities
+     ========================================================================== */
+
+  /* Dashed line separator for log entries */
+  .dashed-line-separator {
+    background-image: linear-gradient(
+      to right,
+      transparent 50%,
+      var(--border) 50%
+    );
+    background-size: 6px 1px;
+    opacity: 0.4;
+  }
+}

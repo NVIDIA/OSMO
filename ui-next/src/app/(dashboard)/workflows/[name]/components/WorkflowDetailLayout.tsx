@@ -47,6 +47,8 @@ import { cn } from "@/lib/utils";
 import { FullSnapOverlay, SoftSnapIndicator } from "./SnapZoneIndicator";
 import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
 
+import "../styles/layout.css";
+
 const DAG_TRANSITION_DURATION = 250;
 const TRANSITION_TIMING = "200ms ease-out";
 
