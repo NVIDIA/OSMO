@@ -402,7 +402,7 @@ def log(name: str, backend: str, config: utils_logging.LoggingConfig,
         message.type.value, message.text, extra={'workflow_uuid': message.workflow_uuid})
 
 
-def create_monitor_job(message: backend_messages.MonitorPodBody):
+def create_monitor_job(message: backend_messages.MonitorPodBody | backend_messages.UpdatePodBody):
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
     task_info = get_task_info(message.workflow_uuid, message.task_uuid,
