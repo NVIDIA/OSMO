@@ -28,7 +28,6 @@
     "validate": "pnpm type-check && pnpm lint && pnpm format:check && pnpm build && pnpm test:all"
   },
   "dependencies": {
-    "@codemirror/fold": "^0.19.4",
     "@codemirror/lang-yaml": "^6.1.2",
     "@codemirror/language": "^6.12.1",
     "@codemirror/search": "^6.6.0",
