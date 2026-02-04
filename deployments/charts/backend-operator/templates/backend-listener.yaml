@@ -80,7 +80,11 @@ spec:
         - listener
         args:
         - --serviceURL
+        {{- if .Values.global.serviceGrpcPort }}
+        - {{ .Values.global.serviceUrl }}:{{ .Values.global.serviceGrpcPort }}
+        {{- else }}
         - {{ .Values.global.serviceUrl }}
+        {{- end }}
         # {{- if eq .Values.global.loginMethod "password" }}
         # - --username
         # - {{ .Values.global.accountUsername }}
