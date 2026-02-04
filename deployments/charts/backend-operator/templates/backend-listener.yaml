@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,47 +77,39 @@ spec:
           runAsNonRoot: true
           runAsUser: 1001
         command:
-        - backend_listener
+        - listener
         args:
-        - --host
+        - --serviceURL
         - {{ .Values.global.serviceUrl }}
-        {{- if eq .Values.global.loginMethod "password" }}
-        - --username
-        - {{ .Values.global.accountUsername }}
-        - --password_file
-        - /opt/osmo/secrets/password.txt
-        {{- else if eq .Values.global.loginMethod "token" }}
-        - --token_file
-        - /opt/osmo/secrets/token.txt
-        {{- end }}
-        - --login_method
-        - {{ .Values.global.loginMethod }}
+        # {{- if eq .Values.global.loginMethod "password" }}
+        # - --username
+        # - {{ .Values.global.accountUsername }}
+        # - --passwordFile
+        # - /opt/osmo/secrets/password.txt
+        # {{- else if eq .Values.global.loginMethod "token" }}
+        # - --tokenFile
+        # - /opt/osmo/secrets/token.txt
+        # {{- end }}
+        # - --loginMethod
+        # - {{ .Values.global.loginMethod }}
         - --backend
         - {{ .Values.global.backendName }}
         - --namespace
         - {{ .Values.global.backendNamespace }}
-        - --log_level
-        - {{ .Values.global.logs.logLevel }}
-        - --k8s_log_level
-        - {{ .Values.global.logs.k8sLogLevel }}
-        - --metrics_otel_collector_component
-        - {{ $name }}-{{ .Values.services.backendListener.serviceName }}
-        - --metrics_otel_enable
-        - {{ .Values.sidecars.OTEL.enabled | quote }}
-        - --enable_node_label_update
-        - '{{ .Values.services.backendListener.enableNodeLabelUpdate }}'
-        - --node_condition_prefix
+        - --nodeConditionPrefix
         - '{{ .Values.global.nodeConditionPrefix }}'
-        - --max_unacked_messages
-        - '{{ .Values.services.backendListener.max_unacked_messages }}'
-        - --pod_event_cache_ttl
-        - {{ .Values.services.backendListener.podCacheTtl | quote }}
-        - --include_namespace_usage
-        - {{ .Values.global.includeNamespaceUsage | quote }}
-        - --api_qps
-        - {{ .Values.services.backendListener.apiQps | quote }}
-        - --api_burst
-        - {{ .Values.services.backendListener.apiBurst | quote }}
+        - --maxUnackedMessages
+        - '{{ .Values.services.backendListener.maxUnackedMessages }}'
+        - --resyncPeriodSec
+        - '{{ .Values.services.backendListener.resyncPeriodSec }}'
+        - --stateCacheTTLMin
+        - '{{ .Values.services.backendListener.stateCacheTTLMin }}'
+        - --usageFlushIntervalSec
+        - '{{ .Values.services.backendListener.usageFlushIntervalSec }}'
+        - --progressDir
+        - '{{ .Values.services.backendListener.progressDir }}'
+        - --progressFrequencySec
+        - '{{ .Values.services.backendListener.progressFrequencySec }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}
@@ -150,9 +142,9 @@ spec:
             command:
             - progress_check
             - --progress_interval
-            - "300:300:300:300"
+            - "300:300"
             - --progress_file
-            - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
+            - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:/{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener
           failureThreshold: 1
           periodSeconds: 30
           timeoutSeconds: 15
@@ -162,9 +154,9 @@ spec:
             command:
             - progress_check
             - --progress_interval
-            - "300:300:300:300"
+            - "300:300"
             - --progress_file
-            - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
+            - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:/{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener
           failureThreshold: 12
           periodSeconds: 5
           timeoutSeconds: 15

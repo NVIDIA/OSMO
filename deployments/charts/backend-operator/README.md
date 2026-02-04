@@ -1,5 +1,5 @@
 <!--
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -99,15 +99,18 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `services.backendListener.enableNodeLabelUpdate` | Enable node label updates | `false` |
 | `services.backendListener.imageName` | Listener image name | `backend-listener` |
 | `services.backendListener.imagePullPolicy` | Image pull policy | `Always` |
 | `services.backendListener.serviceName` | Service name | `osmo-backend-listener` |
 | `services.backendListener.initContainers` | Init containers for backend listener | `[]` |
 | `services.backendListener.serviceAccount` | Service account name | `backend-listener` |
-| `services.backendListener.max_unacked_messages` | Maximum unacked messages | `100` |
-| `services.backendListener.podCacheTtl` | Pod cache TTL in seconds | `15` |
-| `services.backendListener.extraArgs` | Additional arguments | `[]` |
+| `services.backendListener.maxUnackedMessages` | Maximum number of unacknowledged messages | `100` |
+| `services.backendListener.resyncPeriodSec` | Resync period in seconds for Kubernetes informer | `300` |
+| `services.backendListener.stateCacheTTLMin` | Time-to-live for state cache entries (in minutes) | `15` |
+| `services.backendListener.usageFlushIntervalSec` | Usage flush interval in seconds for resource usage updates | `15` |
+| `services.backendListener.progressDir` | Directory to write progress timestamps to (for liveness/startup probes) | `/tmp/osmo/operator` |
+| `services.backendListener.progressFrequencySec` | Progress frequency in seconds (for periodic progress reporting when idle) | `15` |
+| `services.backendListener.extraArgs` | Additional command line arguments | `[]` |
 | `services.backendListener.extraEnvs` | Additional environment variables | `[]` |
 | `services.backendListener.extraPodAnnotations` | Additional pod annotations | `{}` |
 | `services.backendListener.extraPodLabels` | Additional pod labels | `{}` |
@@ -116,12 +119,9 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.hostAliases` | Host aliases | `[]` |
 | `services.backendListener.volumes` | Volumes for backend listener | Default includes progress files for liveness and startup probes |
 | `services.backendListener.volumeMounts` | Volume mounts for backend listener | Default includes progress files mount at `/var/run/osmo` |
-| `services.backendListener.resources.requests.cpu` | CPU requests | `2` |
-| `services.backendListener.resources.requests.memory` | Memory requests | `16Gi` |
-| `services.backendListener.resources.limits.cpu` | CPU limits | `2` |
-| `services.backendListener.resources.limits.memory` | Memory limits | `16Gi` |
-| `services.backendListener.apiQps` | QPS (Queries Per Second) to Kube-API Server | `20` |
-| `services.backendListener.apiBurst` | API Burst Setting for Kube-API requests | `30` |
+| `services.backendListener.resources.requests.cpu` | CPU requests | `1` |
+| `services.backendListener.resources.requests.memory` | Memory requests | `2Gi` |
+| `services.backendListener.resources.limits.memory` | Memory limits | `2Gi` |
 
 #### Backend Worker
 

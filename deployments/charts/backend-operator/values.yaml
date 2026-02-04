@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -230,10 +230,6 @@ services:
   ## Listens for job requests and manages backend cluster state
   ##
   backendListener:
-    ## Enable automatic node label updates based on cluster state
-    ##
-    enableNodeLabelUpdate: false
-
     ## Docker image name for the backend listener
     ##
     imageName: backend-listener
@@ -254,13 +250,29 @@ services:
     ##
     serviceAccount: backend-listener
 
-    ## Maximum number of unacknowledged websocket messages
+    ## Maximum number of unacknowledged messages
     ##
-    max_unacked_messages: 100
+    maxUnackedMessages: 100
 
-    ## Time-to-live for pod cache entries (in seconds)
+    ## Resync period in seconds for Kubernetes informer
     ##
-    podCacheTtl: 15
+    resyncPeriodSec: 300
+
+    ## Time-to-live for state cache entries (in minutes)
+    ##
+    stateCacheTTLMin: 15
+
+    ## Usage flush interval in seconds for resource usage updates
+    ##
+    usageFlushIntervalSec: 15
+
+    ## Directory to write progress timestamps to (for liveness/startup probes)
+    ##
+    progressDir: /tmp/osmo/operator
+
+    ## Progress frequency in seconds (for periodic progress reporting when idle)
+    ##
+    progressFrequencySec: 15
 
     ## Additional command line arguments to pass to the backend listener
     ##
@@ -331,14 +343,6 @@ services:
         memory: "2Gi"
       limits:
         memory: "2Gi"
-
-    ## Kubernetes API client QPS (queries per second) setting.
-    ##
-    apiQps: 20
-
-    ## Kubernetes API client burst setting.
-    ##
-    apiBurst: 30
 
   ## Backend worker configuration
   ## Executes jobs received from the backend listener
