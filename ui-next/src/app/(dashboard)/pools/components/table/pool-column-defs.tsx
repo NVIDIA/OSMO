@@ -27,6 +27,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { Pool } from "@/lib/api/adapter";
 import type { DisplayMode } from "@/stores";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { remToPx } from "@/components/data-table";
 import { GpuProgressCell } from "../cells/gpu-progress-cell";
 import { PlatformPills } from "../cells/platform-pills";
@@ -112,9 +113,9 @@ export function createPoolColumns({
         }
 
         return (
-          <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${styles.bg}`}>
-            <Icon className={`h-3.5 w-3.5 ${styles.icon}`} />
-            <span className={`text-xs font-semibold ${styles.text}`}>{label}</span>
+          <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5", styles.bg)}>
+            <Icon className={cn("h-3.5 w-3.5", styles.icon)} />
+            <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
           </span>
         );
       },

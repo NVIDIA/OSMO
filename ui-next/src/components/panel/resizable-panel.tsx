@@ -321,8 +321,7 @@ export function ResizablePanel({
         )}
         style={{
           width: panelWidth,
-          // Performance: CSS containment for layout and style isolation
-          contain: "layout style",
+          // Performance: CSS containment already applied via .contain-layout-style class
           // GPU optimization: hint browser about upcoming width changes during drag
           willChange: isDragging ? "width" : "auto",
           ...(effectiveCollapsed

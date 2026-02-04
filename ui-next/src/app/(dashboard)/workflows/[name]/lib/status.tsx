@@ -200,7 +200,8 @@ export function useMiniMapColors() {
     const getMiniMapNodeColor = (node: { data: unknown }): string => {
       const data = node.data as GroupNodeData;
       if (!data?.group) {
-        return isDark ? "#52525b" : "#d4d4d8"; // zinc-600 : zinc-300
+        // Read CSS variable for theme-aware colors
+        return getComputedStyle(document.documentElement).getPropertyValue("--minimap-node-fill").trim();
       }
       const category = getStatusCategory(data.group.status);
       const themeColors = isDark ? STATUS_STYLES[category].dark : STATUS_STYLES[category].light;
@@ -210,7 +211,8 @@ export function useMiniMapColors() {
     const getMiniMapStrokeColor = (node: { data: unknown }): string => {
       const data = node.data as GroupNodeData;
       if (!data?.group) {
-        return isDark ? "#3f3f46" : "#a1a1aa"; // zinc-700 : zinc-400
+        // Read CSS variable for theme-aware colors
+        return getComputedStyle(document.documentElement).getPropertyValue("--minimap-node-stroke").trim();
       }
       const category = getStatusCategory(data.group.status);
       const themeColors = isDark ? STATUS_STYLES[category].dark : STATUS_STYLES[category].light;

@@ -129,8 +129,8 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={measureRef}
-          className="pointer-events-none invisible absolute flex items-center gap-2"
-          style={{ contain: "layout style", willChange: "contents" }}
+          className="contain-layout-style pointer-events-none invisible absolute flex items-center gap-2"
+          style={{ willChange: "contents" }}
           aria-hidden="true"
         >
           {groups.map((group) => (

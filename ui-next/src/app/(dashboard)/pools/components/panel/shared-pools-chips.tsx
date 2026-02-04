@@ -63,8 +63,8 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
       {/* CSS containment + will-change for 60fps performance */}
       <div
         ref={measureRef}
-        className="pointer-events-none invisible absolute flex w-full items-center gap-1.5"
-        style={{ contain: "layout style", willChange: "contents" }}
+        className="contain-layout-style pointer-events-none invisible absolute flex w-full items-center gap-1.5"
+        style={{ willChange: "contents" }}
         aria-hidden="true"
       >
         {sortedItems.map((poolName) => (

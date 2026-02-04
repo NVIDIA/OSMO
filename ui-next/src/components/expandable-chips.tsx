@@ -77,8 +77,8 @@ export const ExpandableChips = memo(function ExpandableChips({
       {/* Hidden measurement container - CSS containment for 60fps performance */}
       <div
         ref={measureRef}
-        className="pointer-events-none invisible absolute flex w-full items-center gap-1"
-        style={{ contain: "layout style", willChange: "contents" }}
+        className="contain-layout-style pointer-events-none invisible absolute flex w-full items-center gap-1"
+        style={{ willChange: "contents" }}
         aria-hidden="true"
       >
         {sortedItems.map((item) => (
