@@ -42,6 +42,10 @@ export const PoolsFilter = ({
   });
 
   useEffect(() => {
+    if (!availablePools) {
+      return;
+    }
+
     const parsedData = PoolsListResponseSchema.safeParse(availablePools);
     const parsedAvailablePools = parsedData.success ? parsedData.data.pools : [];
     const filters = new Map<string, boolean>(Object.keys(parsedAvailablePools).map((pool) => [pool, false]));
