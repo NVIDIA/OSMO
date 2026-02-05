@@ -402,7 +402,7 @@ def log(name: str, backend: str, config: utils_logging.LoggingConfig,
         message.type.value, message.text, extra={'workflow_uuid': message.workflow_uuid})
 
 
-def create_monitor_job(message: backend_messages.MonitorPodBody):
+def create_monitor_job(message: backend_messages.MonitorPodBody | backend_messages.UpdatePodBody):
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
     task_info = get_task_info(message.workflow_uuid, message.task_uuid,
@@ -433,8 +433,10 @@ def keep_pod_conditions(message: backend_messages.ConditionMessage) -> bool:
     return True
 
 
-def send_pod_conditions(message: backend_messages.PodConditionsBody,
-                        max_event_log_lines: int):
+def send_pod_conditions(
+    message: backend_messages.PodConditionsBody | backend_messages.UpdatePodBody,
+    max_event_log_lines: int):
+
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
     fetch_cmd = '''
