@@ -84,6 +84,7 @@ osmo_py_library(
         "//src/utils:static_config",
         "//src/utils/connectors:connectors",
         "//src/utils/metrics",
+        "//src/utils/job",
     ],
     visibility = ["//src/service:__subpackages__"],
 )

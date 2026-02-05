@@ -35,6 +35,7 @@ from src.service.core.workflow import objects
 from src.utils import connectors, backend_messages, static_config
 from src.utils.metrics import metrics
 from src.utils.progress_check import progress
+from src.utils.job import task
 
 
 # Redis Stream name for operator messages from backends
@@ -180,8 +181,7 @@ class MessageWorker:
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack invalid message to prevent infinite retries
-                logging.info('Message type: %s', message_type)
-                logging.info('Message body: %s', body_data)
+                logging.info('Message: %s', protobuf_msg)
                 self.redis_client.xack(self.stream_name, self.group_name, message_id)
                 return
 
@@ -202,7 +202,11 @@ class MessageWorker:
             message_body = backend_messages.MessageOptions(**message_options)
 
             if message_body.update_pod:
+                if message_body.update_pod.status == task.TaskGroupStatus.INITIALIZING:
+                    helpers.create_monitor_job(message_body.update_pod)
                 helpers.queue_update_group_job(message_body.update_pod)
+                helpers.send_pod_conditions(message_body.update_pod,
+                                            self.workflow_config.max_event_log_lines)
             elif message_body.update_node:
                 helpers.update_resource(backend_name, message_body.update_node)
             elif message_body.update_node_usage:
