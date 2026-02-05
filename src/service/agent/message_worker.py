@@ -138,6 +138,12 @@ class MessageWorker:
             elif 'update_node_usage' in protobuf_msg:
                 message_type = backend_messages.MessageType.UPDATE_NODE_USAGE
                 body_data = protobuf_msg['update_node_usage']
+            elif 'node_inventory' in protobuf_msg:
+                message_type = backend_messages.MessageType.NODE_INVENTORY
+                body_data = protobuf_msg['node_inventory']
+            elif 'pod_event' in protobuf_msg:
+                message_type = backend_messages.MessageType.POD_EVENT
+                body_data = protobuf_msg['pod_event']
             elif 'logging' in protobuf_msg:
                 # Check if this is a backend operation notification
                 logging_text = protobuf_msg['logging'].get('text', '')
@@ -202,6 +208,11 @@ class MessageWorker:
             elif message_body.update_node_usage:
                 helpers.update_resource_usage(
                     backend_name, message_body.update_node_usage)
+            elif message_body.node_inventory:
+                helpers.clean_resources(backend_name, message_body.node_inventory)
+            elif message_body.pod_event:
+                helpers.send_pod_event(
+                    message_body.pod_event, self.workflow_config.max_event_log_lines)
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)

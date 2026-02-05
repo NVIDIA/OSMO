@@ -50,6 +50,7 @@ message ListenerMessage {
     UpdateNodeBody update_node = 5;
     UpdateNodeUsageBody update_node_usage = 6;
     NodeInventoryBody node_inventory = 7;
+    PodEventBody pod_event = 8;
   }
 }
 
@@ -123,4 +124,12 @@ message UpdateNodeUsageBody {
 // Used for reconciliation to allow the service to clean up stale nodes
 message NodeInventoryBody {
   repeated string hostnames = 1;
+}
+
+// PodEventBody represents a Kubernetes event related to a pod
+message PodEventBody {
+  string pod_name = 1;
+  string reason = 2;
+  string message = 3;
+  string timestamp = 4;  // ISO 8601 timestamp
 }

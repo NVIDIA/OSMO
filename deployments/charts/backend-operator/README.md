@@ -111,6 +111,8 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.usageFlushIntervalSec` | Usage flush interval in seconds for resource usage updates | `15` |
 | `services.backendListener.progressDir` | Directory to write progress timestamps to (for liveness/startup probes) | `/tmp/osmo/operator` |
 | `services.backendListener.progressFrequencySec` | Progress frequency in seconds (for periodic progress reporting when idle) | `15` |
+| `services.backendListener.eventChanSize` | Buffer size for event channel (EventListener) | `500` |
+| `services.backendListener.eventCacheTTLMin` | Event deduplication cache TTL in minutes | `15` |
 | `services.backendListener.extraArgs` | Additional command line arguments | `[]` |
 | `services.backendListener.extraEnvs` | Additional environment variables | `[]` |
 | `services.backendListener.extraPodAnnotations` | Additional pod annotations | `{}` |
