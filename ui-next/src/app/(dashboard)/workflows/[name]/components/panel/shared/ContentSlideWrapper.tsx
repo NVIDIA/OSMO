@@ -99,24 +99,10 @@ export function ContentSlideWrapper({
         const containerWidth = container.offsetWidth;
         const frozenPx = (frozenPct / 100) * containerWidth;
 
-        console.log("[ContentSlideWrapper] Freezing content width", {
-          phase,
-          preSnapWidthPct,
-          snapTarget,
-          frozenPct,
-          isExpanding: snapTarget !== null && preSnapWidthPct !== null && snapTarget > preSnapWidthPct,
-          containerWidth,
-          frozenPx,
-        });
-
         setFrozenWidthPx(frozenPx);
       }
     } else if (justReturnedToIdle) {
       // Animation complete: unfreeze content
-      console.log("[ContentSlideWrapper] Unfreezing content width", {
-        phase,
-      });
-
       setFrozenWidthPx(null);
     }
   }, [phase, prevPhase, frozenPct, preSnapWidthPct, snapTarget, containerRef]);

@@ -34,4 +34,11 @@
   .workflow-detail-grid[data-dragging="true"] {
     transition: none;
   }
+
+  /* Respect user's motion preferences for accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    .workflow-detail-grid {
+      transition: none;
+    }
+  }
 }
