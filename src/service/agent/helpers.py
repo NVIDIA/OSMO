@@ -433,8 +433,10 @@ def keep_pod_conditions(message: backend_messages.ConditionMessage) -> bool:
     return True
 
 
-def send_pod_conditions(message: backend_messages.PodConditionsBody,
-                        max_event_log_lines: int):
+def send_pod_conditions(
+    message: backend_messages.PodConditionsBody | backend_messages.UpdatePodBody,
+    max_event_log_lines: int):
+
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
     fetch_cmd = '''
