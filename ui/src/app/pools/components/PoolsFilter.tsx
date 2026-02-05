@@ -16,14 +16,11 @@
 import { useEffect, useState } from "react";
 
 import { OutlinedIcon } from "~/components/Icon";
-import { MultiselectWithAll } from "~/components/MultiselectWithAll";
-import { Spinner } from "~/components/Spinner";
-import { PoolsListResponseSchema } from "~/models";
-import { api } from "~/trpc/react";
+import { PoolsFilter } from "~/components/PoolsFilter";
 
 import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
-export const PoolsFilter = ({
+export const PoolsPageFilter = ({
   isSelectAllPoolsChecked,
   selectedPools,
   updateUrl,
@@ -34,47 +31,22 @@ export const PoolsFilter = ({
   updateUrl: (props: ToolParamUpdaterProps) => void;
   onRefresh: () => void;
 }) => {
-  const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
-  const [localAllPools, setLocalAllPools] = useState<boolean>(isSelectAllPoolsChecked);
-
-  const { data: availablePools, isLoading: isLoadingPools } = api.resources.getPools.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-    enabled: !localAllPools,
-  });
+  const [localPools, setLocalPools] = useState(selectedPools);
+  const [localAllPools, setLocalAllPools] = useState(isSelectAllPoolsChecked);
 
   useEffect(() => {
     setLocalAllPools(isSelectAllPoolsChecked);
   }, [isSelectAllPoolsChecked]);
 
   useEffect(() => {
-    const parsedData = PoolsListResponseSchema.safeParse(availablePools);
-    const parsedAvailablePools = parsedData.success ? parsedData.data.pools : [];
-    const filters = new Map<string, boolean>(Object.keys(parsedAvailablePools).map((pool) => [pool, false]));
-
-    if (!parsedData.success) {
-      console.error(parsedData.error);
-    }
-
-    if (selectedPools.length) {
-      selectedPools.split(",").forEach((pool) => {
-        filters.set(pool, true);
-      });
-    }
-
-    setLocalPools(filters);
-  }, [availablePools, selectedPools]);
+    setLocalPools(selectedPools);
+  }, [selectedPools]);
 
   const handleSubmit = (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
 
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([name]) => name)
-      .join(",");
-
     updateUrl({
-      pools,
+      pools: localPools,
       allPools: localAllPools,
     });
 
@@ -83,28 +55,18 @@ export const PoolsFilter = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-global p-global">
-        <MultiselectWithAll
-          id="pools"
-          label="All Pools"
-          placeholder="Filter by pool name..."
-          aria-label="Filter by pool name"
-          filter={localPools}
-          setFilter={(pools) => {
-            setLocalPools(pools);
-          }}
-          onSelectAll={setLocalAllPools}
-          isSelectAllChecked={localAllPools}
-          showAll={true}
-        />
-        {isLoadingPools && !localAllPools && <Spinner size="small" />}
-      </div>
+      <PoolsFilter
+        isSelectAllPoolsChecked={localAllPools}
+        selectedPools={localPools}
+        setIsSelectAllPoolsChecked={setLocalAllPools}
+        setSelectedPools={setLocalPools}
+      />
       <div className="flex flex-row gap-global justify-between body-footer p-global">
         <button
           type="button"
           className="btn"
           onClick={() => {
-            setLocalPools(new Map(Array.from(localPools.keys()).map((key) => [key, false])));
+            setLocalPools("");
             setLocalAllPools(true);
             updateUrl({
               pools: "",
