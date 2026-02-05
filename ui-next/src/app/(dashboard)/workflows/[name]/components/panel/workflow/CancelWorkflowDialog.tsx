@@ -23,21 +23,18 @@
  * - Destructive action styling
  * - Error handling and loading states
  * - Toast notification with manual refresh action
+ * - Responsive: Drawer on mobile, Dialog on desktop
+ * - Blur effect on backdrop overlay
  */
 
 "use client";
 
 import { useState, useCallback, memo } from "react";
+import { useMediaQuery } from "@react-hookz/web";
 import { XCircle, Info } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/shadcn/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/shadcn/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/shadcn/drawer";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useServerMutation } from "@/hooks";
@@ -60,6 +57,120 @@ export interface CancelWorkflowDialogProps {
 }
 
 // =============================================================================
+// Shared Content Component
+// =============================================================================
+
+interface CancelWorkflowContentProps {
+  message: string;
+  setMessage: (message: string) => void;
+  force: boolean;
+  setForce: (force: boolean) => void;
+  isPending: boolean;
+  error: string | null;
+  handleCancel: () => void;
+  handleConfirm: () => void;
+}
+
+const CancelWorkflowContent = memo(function CancelWorkflowContent({
+  message,
+  setMessage,
+  force,
+  setForce,
+  isPending,
+  error,
+  handleCancel,
+  handleConfirm,
+}: CancelWorkflowContentProps) {
+  return (
+    <>
+      <div className="flex flex-col gap-4 px-4 sm:px-0">
+        {/* Reason/Message Input */}
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="cancel-message"
+            className="text-sm font-medium"
+          >
+            Reason (Optional)
+          </label>
+          <textarea
+            id="cancel-message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Enter cancellation reason..."
+            disabled={isPending}
+            rows={3}
+            className={cn(
+              "placeholder:text-muted-foreground border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+              "resize-y",
+            )}
+          />
+          <p className="text-muted-foreground text-xs">This message will be recorded in the workflow audit logs.</p>
+        </div>
+
+        {/* Force Checkbox */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="force-cancel"
+            checked={force}
+            onChange={(e) => setForce(e.target.checked)}
+            disabled={isPending}
+            className="border-input size-4 rounded border"
+          />
+          <label
+            htmlFor="force-cancel"
+            className="text-sm"
+          >
+            Force cancel
+          </label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="What is force cancel?"
+              >
+                <Info className="size-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs">
+                Force cancel immediately terminates the workflow without waiting for graceful shutdown. Use this if the
+                workflow is unresponsive.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col-reverse gap-2 px-4 pb-4 sm:flex-row sm:justify-end sm:px-0 sm:pb-0">
+        <Button
+          variant="outline"
+          onClick={handleCancel}
+          disabled={isPending}
+        >
+          Keep Running
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={handleConfirm}
+          disabled={isPending}
+        >
+          {isPending ? "Cancelling..." : "Confirm Cancellation"}
+        </Button>
+      </div>
+    </>
+  );
+});
+
+// =============================================================================
 // Component
 // =============================================================================
 
@@ -71,6 +182,7 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
 }: CancelWorkflowDialogProps) {
   const [message, setMessage] = useState("");
   const [force, setForce] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const { execute, isPending, error, resetError } = useServerMutation(cancelWorkflow, {
     onSuccess: () => {
@@ -122,108 +234,69 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
     [onOpenChange, isPending, resetError],
   );
 
+  if (isDesktop) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={handleOpenChange}
+      >
+        <DialogContent showCloseButton={!isPending}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="size-5 text-red-600 dark:text-red-400" />
+              Cancel Workflow
+            </DialogTitle>
+            <DialogDescription>
+              This will stop the workflow execution. The workflow status will change to{" "}
+              <code className="bg-muted rounded px-1 py-0.5 text-xs">FAILED_CANCELED</code> asynchronously (within
+              seconds to minutes).
+            </DialogDescription>
+          </DialogHeader>
+
+          <CancelWorkflowContent
+            message={message}
+            setMessage={setMessage}
+            force={force}
+            setForce={setForce}
+            isPending={isPending}
+            error={error}
+            handleCancel={handleCancel}
+            handleConfirm={handleConfirm}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog
+    <Drawer
       open={open}
       onOpenChange={handleOpenChange}
     >
-      <DialogContent showCloseButton={!isPending}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle className="flex items-center gap-2">
             <XCircle className="size-5 text-red-600 dark:text-red-400" />
             Cancel Workflow
-          </DialogTitle>
-          <DialogDescription>
+          </DrawerTitle>
+          <DrawerDescription>
             This will stop the workflow execution. The workflow status will change to{" "}
             <code className="bg-muted rounded px-1 py-0.5 text-xs">FAILED_CANCELED</code> asynchronously (within seconds
             to minutes).
-          </DialogDescription>
-        </DialogHeader>
+          </DrawerDescription>
+        </DrawerHeader>
 
-        <div className="flex flex-col gap-4">
-          {/* Reason/Message Input */}
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="cancel-message"
-              className="text-sm font-medium"
-            >
-              Reason (Optional)
-            </label>
-            <textarea
-              id="cancel-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Enter cancellation reason..."
-              disabled={isPending}
-              rows={3}
-              className={cn(
-                "placeholder:text-muted-foreground border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
-                "resize-y",
-              )}
-            />
-            <p className="text-muted-foreground text-xs">This message will be recorded in the workflow audit logs.</p>
-          </div>
-
-          {/* Force Checkbox */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="force-cancel"
-              checked={force}
-              onChange={(e) => setForce(e.target.checked)}
-              disabled={isPending}
-              className="border-input size-4 rounded border"
-            />
-            <label
-              htmlFor="force-cancel"
-              className="text-sm"
-            >
-              Force cancel
-            </label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label="What is force cancel?"
-                >
-                  <Info className="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs">
-                  Force cancel immediately terminates the workflow without waiting for graceful shutdown. Use this if
-                  the workflow is unresponsive.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          {/* Error Display */}
-          {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            disabled={isPending}
-          >
-            Keep Running
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleConfirm}
-            disabled={isPending}
-          >
-            {isPending ? "Cancelling..." : "Confirm Cancellation"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <CancelWorkflowContent
+          message={message}
+          setMessage={setMessage}
+          force={force}
+          setForce={setForce}
+          isPending={isPending}
+          error={error}
+          handleCancel={handleCancel}
+          handleConfirm={handleConfirm}
+        />
+      </DrawerContent>
+    </Drawer>
   );
 });
