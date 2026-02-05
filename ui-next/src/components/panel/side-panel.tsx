@@ -103,13 +103,15 @@ export function SidePanel({
   const widthRef = useRef(width);
   const minWidthRef = useRef(minWidth);
   const maxWidthRef = useRef(maxWidth);
+  const minWidthPxRef = useRef(minWidthPx);
 
   // Sync refs in useIsomorphicLayoutEffect
   useIsomorphicLayoutEffect(() => {
     widthRef.current = width;
     minWidthRef.current = minWidth;
     maxWidthRef.current = maxWidth;
-  }, [width, minWidth, maxWidth]);
+    minWidthPxRef.current = minWidthPx;
+  }, [width, minWidth, maxWidth, minWidthPx]);
 
   // Keep startWidthRef in sync when not dragging
   useIsomorphicLayoutEffect(() => {
@@ -187,7 +189,15 @@ export function SidePanel({
         const deltaPct = (-mx / containerWidth) * 100;
 
         const rawWidth = startWidthRef.current + deltaPct;
-        const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
+
+        // Calculate effective minimum: max of percentage-based min and pixel-based min
+        let effectiveMin = minWidthRef.current;
+        if (minWidthPxRef.current && containerWidth > 0) {
+          const minPctFromPx = (minWidthPxRef.current / containerWidth) * 100;
+          effectiveMin = Math.max(effectiveMin, minPctFromPx);
+        }
+
+        const clampedWidth = Math.min(maxWidthRef.current, Math.max(effectiveMin, rawWidth));
 
         // Calculate pixel width and round to whole pixels for stability
         const pixelWidth = Math.round((clampedWidth / 100) * containerWidth);

@@ -48,6 +48,7 @@ import {
   usePersistedPanelWidth,
   usePanelWidth,
 } from "./lib/panel-resize-context";
+import { ACTIVITY_STRIP_WIDTH_PX } from "./lib/panel-constants";
 
 // Route-level components
 import {
@@ -59,6 +60,7 @@ import {
   DetailsPanel,
   type DetailsPanelView,
 } from "./components";
+import { CancelWorkflowDialog } from "./components/panel/workflow/CancelWorkflowDialog";
 
 // Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
@@ -138,7 +140,8 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) {
   // Get state machine and state via hooks
   const machine = usePanelResizeMachine();
-  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed } = usePanelResize();
+  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed, updateStripSnapTarget } =
+    usePanelResize();
 
   // Subscribe to specific state slices
   const displayPct = usePanelWidth();
@@ -209,6 +212,28 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     }
   }, [sidebarCollapsed, machine, phase, setCollapsed]);
 
+  // Update strip snap target based on actual container width (deterministic calculation)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateTarget = () => {
+      const containerWidth = container.clientWidth;
+      if (containerWidth > 0) {
+        updateStripSnapTarget(ACTIVITY_STRIP_WIDTH_PX, containerWidth);
+      }
+    };
+
+    // Initial measurement
+    updateTarget();
+
+    // Update on window resize
+    const resizeObserver = new ResizeObserver(updateTarget);
+    resizeObserver.observe(container);
+
+    return () => resizeObserver.disconnect();
+  }, [updateStripSnapTarget]);
+
   // Synchronized tick for live durations - only tick when workflow is active
   // PERFORMANCE: Pause ticking during pan/zoom AND panel drag
   const workflowStatus = workflow?.status;
@@ -242,10 +267,12 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     setActiveShellTaskName(taskName);
   });
 
-  // Placeholder workflow action handlers (to be implemented)
+  // Cancel workflow dialog state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+
+  // Workflow action handlers
   const handleCancelWorkflow = useEventCallback(() => {
-    // TODO: Implement workflow cancellation API call
-    console.log("Cancel workflow:", name);
+    setCancelDialogOpen(true);
   });
 
   const handleResubmitWorkflow = useEventCallback(() => {
@@ -261,8 +288,8 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
 
     if (snapZone === "full") {
       announce("Hiding DAG view, panel expanding to full width", "polite");
-    } else if (snapZone === "soft") {
-      announce("Panel snapping to 80%", "polite");
+    } else if (snapZone === "strip") {
+      announce("Panel collapsing to activity strip", "polite");
     }
   }, [phase, snapZone, announce]);
 
@@ -474,6 +501,16 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
                 <p>Loading workflow...</p>
               </div>
             </div>
+          )}
+
+          {/* Cancel workflow dialog */}
+          {workflow && (
+            <CancelWorkflowDialog
+              workflowName={workflow.name}
+              open={cancelDialogOpen}
+              onOpenChange={setCancelDialogOpen}
+              onRefetch={refetch}
+            />
           )}
         </ShellPortalProvider>
       </ShellProvider>
