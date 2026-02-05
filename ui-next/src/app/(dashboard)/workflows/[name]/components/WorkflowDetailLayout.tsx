@@ -46,11 +46,9 @@ import {
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
 import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
+import { PANEL_TIMING } from "../lib/panel-constants";
 
 import "../styles/layout.css";
-
-const DAG_TRANSITION_DURATION = 250;
-const TRANSITION_TIMING = "200ms ease-out";
 
 export type LayoutMode = "sideBySide" | "panelOnly";
 type DAGState = "visible" | "exiting" | "hidden";
@@ -94,7 +92,7 @@ export function WorkflowDetailLayout({
     const columns = dagVisible ? `${dagWidthPct}% ${widthPct}%` : "0% 100%";
 
     // Disable transitions during drag for 60fps performance
-    const transition = phase === "DRAGGING" ? "none" : `grid-template-columns ${TRANSITION_TIMING}`;
+    const transition = phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`;
 
     return {
       gridTemplateColumns: columns,
@@ -127,7 +125,7 @@ export function WorkflowDetailLayout({
       startTransition(() => setDagRenderState("exiting"));
       const timer = setTimeout(() => {
         startTransition(() => setDagRenderState("hidden"));
-      }, DAG_TRANSITION_DURATION);
+      }, PANEL_TIMING.DAG_TRANSITION_MS);
       return () => clearTimeout(timer);
     }
   }, [dagVisible]);
@@ -190,7 +188,6 @@ export function WorkflowDetailLayout({
       <StripSnapIndicator
         isActive={showStripSnapPreview}
         containerRef={containerRef}
-        stripWidthPx={40}
       />
     </div>
   );

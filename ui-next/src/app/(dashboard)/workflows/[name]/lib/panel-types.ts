@@ -145,7 +145,7 @@ export interface DetailsPanelProps {
   /**
    * Minimum width in pixels for the panel.
    * When set, this takes precedence over minWidth percentage.
-   * Used by workflow panel to enforce activity strip width (40px).
+   * Used by workflow panel to enforce ACTIVITY_STRIP_WIDTH_PX.
    */
   minWidthPx?: number;
   /**
