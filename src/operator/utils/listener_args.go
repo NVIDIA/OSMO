@@ -32,8 +32,10 @@ type ListenerArgs struct {
 	PodUpdateChanSize     int
 	NodeUpdateChanSize    int // Buffer size for node update channel (ResourceListener)
 	UsageChanSize         int // Buffer size for usage update channel (ResourceListener)
+	EventChanSize         int // Buffer size for event channel (EventListener)
 	ResyncPeriodSec       int
 	StateCacheTTLMin      int
+	EventCacheTTLMin      int // TTL in minutes for event deduplication (EventListener)
 	MaxUnackedMessages    int
 	NodeConditionPrefix   string
 	ProgressDir           string
@@ -61,12 +63,18 @@ func ListenerParse() ListenerArgs {
 	usageChanSize := flag.Int("usageChanSize",
 		getEnvInt("USAGE_CHAN_SIZE", 500),
 		"Buffer size for usage update channel (ResourceListener)")
+	eventChanSize := flag.Int("eventChanSize",
+		getEnvInt("EVENT_CHAN_SIZE", 500),
+		"Buffer size for event channel (EventListener)")
 	resyncPeriodSec := flag.Int("resyncPeriodSec",
 		getEnvInt("RESYNC_PERIOD_SEC", 300),
 		"Resync period in seconds for Kubernetes informer")
 	stateCacheTTLMin := flag.Int("stateCacheTTLMin",
 		getEnvInt("STATE_CACHE_TTL_MIN", 15),
-		"TTL in minutes for state cache entries")
+		"TTL in minutes for state cache entries (WorkflowListener)")
+	eventCacheTTLMin := flag.Int("eventCacheTTLMin",
+		getEnvInt("EVENT_CACHE_TTL_MIN", 15),
+		"TTL in minutes for event deduplication (EventListener)")
 	maxUnackedMessages := flag.Int("maxUnackedMessages",
 		getEnvInt("MAX_UNACKED_MESSAGES", 100),
 		"Maximum number of unacked messages allowed")
@@ -92,8 +100,10 @@ func ListenerParse() ListenerArgs {
 		PodUpdateChanSize:     *podUpdateChanSize,
 		NodeUpdateChanSize:    *nodeUpdateChanSize,
 		UsageChanSize:         *usageChanSize,
+		EventChanSize:         *eventChanSize,
 		ResyncPeriodSec:       *resyncPeriodSec,
 		StateCacheTTLMin:      *stateCacheTTLMin,
+		EventCacheTTLMin:      *eventCacheTTLMin,
 		MaxUnackedMessages:    *maxUnackedMessages,
 		NodeConditionPrefix:   *nodeConditionPrefix,
 		ProgressDir:           *progressDir,

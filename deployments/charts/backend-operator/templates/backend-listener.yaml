@@ -114,6 +114,10 @@ spec:
         - '{{ .Values.services.backendListener.progressDir }}'
         - --progressFrequencySec
         - '{{ .Values.services.backendListener.progressFrequencySec }}'
+        - --eventChanSize
+        - '{{ .Values.services.backendListener.eventChanSize }}'
+        - --eventCacheTTLMin
+        - '{{ .Values.services.backendListener.eventCacheTTLMin }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}
@@ -146,9 +150,9 @@ spec:
             command:
             - progress_check
             - --progress_interval
-            - "300:300"
+            - "300:300:300"
             - --progress_file
-            - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:/{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener
+            - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_event_listener
           failureThreshold: 1
           periodSeconds: 30
           timeoutSeconds: 15
@@ -158,9 +162,9 @@ spec:
             command:
             - progress_check
             - --progress_interval
-            - "300:300"
+            - "300:300:300"
             - --progress_file
-            - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:/{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener
+            - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_event_listener
           failureThreshold: 12
           periodSeconds: 5
           timeoutSeconds: 15

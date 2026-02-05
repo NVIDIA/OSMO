@@ -59,18 +59,20 @@ func main() {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
 
-	// Create both listeners
+	// Create all listeners
 	workflowListener := NewWorkflowListener(cmdArgs)
 	resourceListener := NewResourceListener(cmdArgs)
+	eventListener := NewEventListener(cmdArgs)
 
 	var wg sync.WaitGroup
 
-	// Launch both listeners in parallel
-	wg.Add(2)
+	// Launch all listeners in parallel
+	wg.Add(3)
 	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
 	go runListenerWithRetry(ctx, resourceListener, "ResourceListener", &wg)
+	go runListenerWithRetry(ctx, eventListener, "EventListener", &wg)
 
-	// Wait for both listeners to complete
+	// Wait for all listeners to complete
 	wg.Wait()
 
 	log.Println("Operator Listeners stopped gracefully")
