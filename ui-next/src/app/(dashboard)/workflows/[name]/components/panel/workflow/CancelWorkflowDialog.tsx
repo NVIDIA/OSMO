@@ -104,9 +104,17 @@ const CancelWorkflowContent = memo(function CancelWorkflowContent({
               "resize-y",
             )}
           />
-          <p className="text-muted-foreground text-xs">This message will be recorded in the workflow audit logs.</p>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-col gap-6 px-4 pb-4 sm:mt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-0 sm:pb-0">
         {/* Force Checkbox */}
         <div className="flex items-center gap-2">
           <input
@@ -135,36 +143,29 @@ const CancelWorkflowContent = memo(function CancelWorkflowContent({
             </TooltipTrigger>
             <TooltipContent>
               <p className="max-w-xs">
-                Force cancel immediately terminates the workflow without waiting for graceful shutdown. Use this if the
-                workflow is unresponsive.
+                Cancels the workflow even if it&apos;s already finished or if a previous cancellation is in progress.
+                Use when normal cancel doesn&apos;t work.
               </p>
             </TooltipContent>
           </Tooltip>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
-            {error}
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col-reverse gap-2 px-4 pb-4 sm:flex-row sm:justify-end sm:px-0 sm:pb-0">
-        <Button
-          variant="outline"
-          onClick={handleCancel}
-          disabled={isPending}
-        >
-          Keep Running
-        </Button>
-        <Button
-          variant="destructive"
-          onClick={handleConfirm}
-          disabled={isPending}
-        >
-          {isPending ? "Cancelling..." : "Confirm Cancellation"}
-        </Button>
+        <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row">
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isPending}
+          >
+            Keep Running
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={isPending}
+          >
+            {isPending ? "Cancelling..." : "Confirm"}
+          </Button>
+        </div>
       </div>
     </>
   );
@@ -242,15 +243,15 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
       >
         <DialogContent showCloseButton={!isPending}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <XCircle className="size-5 text-red-600 dark:text-red-400" />
-              Cancel Workflow
-            </DialogTitle>
-            <DialogDescription>
-              This will stop the workflow execution. The workflow status will change to{" "}
-              <code className="bg-muted rounded px-1 py-0.5 text-xs">FAILED_CANCELED</code> asynchronously (within
-              seconds to minutes).
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <XCircle className="size-6 shrink-0 text-red-600 dark:text-red-400" />
+              <div className="flex items-baseline gap-2">
+                <DialogTitle>Cancel Workflow</DialogTitle>
+                <DialogDescription asChild>
+                  <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-sm">{workflowName}</code>
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <CancelWorkflowContent
@@ -275,15 +276,15 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
     >
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle className="flex items-center gap-2">
-            <XCircle className="size-5 text-red-600 dark:text-red-400" />
-            Cancel Workflow
-          </DrawerTitle>
-          <DrawerDescription>
-            This will stop the workflow execution. The workflow status will change to{" "}
-            <code className="bg-muted rounded px-1 py-0.5 text-xs">FAILED_CANCELED</code> asynchronously (within seconds
-            to minutes).
-          </DrawerDescription>
+          <div className="flex items-center gap-3">
+            <XCircle className="size-6 shrink-0 text-red-600 dark:text-red-400" />
+            <div className="flex items-baseline gap-2">
+              <DrawerTitle>Cancel Workflow</DrawerTitle>
+              <DrawerDescription asChild>
+                <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-sm">{workflowName}</code>
+              </DrawerDescription>
+            </div>
+          </div>
         </DrawerHeader>
 
         <CancelWorkflowContent
