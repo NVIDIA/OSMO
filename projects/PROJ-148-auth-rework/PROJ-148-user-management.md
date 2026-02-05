@@ -1082,12 +1082,12 @@ This design has been implemented:
 - [x] Role Assignment APIs (`/api/auth/users/*/roles`, `/api/auth/roles/*/users`)
 - [x] Access Token APIs (`/api/auth/access_token/*`)
 - [x] Admin API for creating PATs for any user
+- [x] Authorization middleware role synchronization with sync_mode
 
 ## Next Steps
 
-1. **Update authorization middleware** for new role resolution with sync_mode
-2. **Add tests** for all new APIs
-3. **Document** user-facing APIs and migration guide
+1. **Add tests** for all new APIs
+2. **Document** user-facing APIs and migration guide
 
 ## Implementation Notes
 
@@ -1098,7 +1098,26 @@ Users are automatically provisioned on first profile access via the `upsert_user
 - Creates a new user record if the user doesn't exist
 - Updates the `last_seen_at` timestamp if the user already exists
 
-This is called from `UserProfile.insert_into_db`, ensuring users are created when their profile is first accessed (typically on first login via IDP).
+This is called from the `AccessControlMiddleware`, ensuring users are created when they first access the system.
+
+### Role Synchronization from IDP
+
+The `AccessControlMiddleware` synchronizes user roles from IDP headers on each request via the `sync_user_roles` function. The behavior depends on each role's `sync_mode`:
+
+| Sync Mode | IDP has role | User has role | Action |
+|-----------|--------------|---------------|--------|
+| `ignore`  | -            | -             | No action (role is managed manually) |
+| `import`  | Yes          | No            | Add role to user |
+| `import`  | No           | Yes           | No action (keep existing role) |
+| `force`   | Yes          | No            | Add role to user |
+| `force`   | No           | Yes           | **Remove role from user** |
+
+**Key Behaviors:**
+- **ignore**: The role is never modified by IDP sync. Use this for manually assigned roles.
+- **import**: Roles are added from IDP but never removed. Useful for accumulating roles from different sources.
+- **force**: The user's roles exactly match what the IDP provides. If the IDP stops providing a role, it is removed.
+
+**Example:** If a role `osmo-team-lead` has `sync_mode = 'force'`, and a user logs in without that role in their IDP claims, the role will be removed from their `user_roles` mapping.
 
 ### CLI Commands
 
