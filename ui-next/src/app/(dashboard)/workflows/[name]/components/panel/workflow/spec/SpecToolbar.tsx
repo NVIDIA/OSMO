@@ -114,13 +114,13 @@ export const SpecToolbar = memo(function SpecToolbar({
 
   return (
     <div
-      className="border-border flex h-11 items-center justify-between border-b bg-white px-3 dark:bg-zinc-900"
+      className="border-border contain-layout-style flex h-11 shrink-0 items-center justify-between border-b bg-white px-3 dark:bg-zinc-900"
       role="toolbar"
       aria-label="Spec viewer controls"
     >
-      {/* View toggle */}
+      {/* View toggle - left side is naturally stable */}
       <div
-        className="flex items-center gap-1"
+        className="flex shrink-0 items-center gap-1"
         role="radiogroup"
         aria-label="View selection"
       >
@@ -150,8 +150,12 @@ export const SpecToolbar = memo(function SpecToolbar({
         </Button>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1">
+      {/* Actions - GPU layer prevents jitter during resize
+       * The right side of justify-between layouts is most affected by sub-pixel
+       * rounding during resize. Using gpu-layer promotes to compositor layer,
+       * eliminating rounding jitter. shrink-0 prevents flex compression.
+       */}
+      <div className="gpu-layer flex shrink-0 items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
