@@ -72,6 +72,7 @@ import { usePanelResize } from "../../../lib/panel-resize-context";
 import { WorkflowDetails } from "../workflow/WorkflowDetails";
 import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
+import { ContentSlideWrapper } from "./ContentSlideWrapper";
 
 // NOTE: We intentionally do NOT use a focus trap here.
 // This is a non-modal side panel (role="complementary"), not a dialog.
@@ -119,7 +120,9 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   const allSessions = useShellSessions();
 
   // DAG visibility toggle state - use state machine's value, not store
-  const { dagVisible, showDAG, hideDAG } = usePanelResize();
+  // NOTE: isCollapsed is now DERIVED from widthPct in the state machine,
+  // so we only need to check isCollapsed (no more isAtStripWidth hack needed).
+  const { dagVisible, showDAG, hideDAG, isCollapsed, expand } = usePanelResize();
 
   const handleToggleDAG = useEventCallback(() => {
     if (dagVisible) {
@@ -136,11 +139,21 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   const handleSessionClick = useEventCallback((e: MouseEvent<HTMLButtonElement>) => {
     const taskId = e.currentTarget.dataset.taskId;
     if (taskId) {
+      // isCollapsed is derived from widthPct, so this covers both cases:
+      // - User clicked collapse button
+      // - User dragged to strip width
+      if (isCollapsed) {
+        expand();
+      }
       onSelectSession?.(taskId);
     }
   });
 
   const handleSelect = useEventCallback((taskId: string) => {
+    // isCollapsed is derived from widthPct - unified check
+    if (isCollapsed) {
+      expand();
+    }
     onSelectSession?.(taskId);
   });
 
@@ -190,12 +203,19 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
             <div className="flex flex-col items-center space-y-1">
               {quickActions.map((action) => {
                 const Icon = action.icon;
+                const handleClick = () => {
+                  // isCollapsed is derived from widthPct - unified check
+                  if (isCollapsed) {
+                    expand();
+                  }
+                  action.onClick();
+                };
                 return (
                   <Tooltip key={action.id}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        onClick={action.onClick}
+                        onClick={handleClick}
                         className={cn(
                           "flex size-8 items-center justify-center rounded-lg",
                           "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
@@ -290,11 +310,18 @@ export const DetailsPanel = memo(function DetailsPanel({
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell, reconnectShell } = useShellContext();
 
+  // Access resize state for smooth snap animations
+  const { phase, preSnapWidthPct, snapTarget } = usePanelResize();
+
   // Ref to override focus behavior when panel expands.
   // - undefined: use default (focus first focusable)
   // - null: skip focus (shell will handle its own focus)
   // - HTMLElement: focus that element
   const focusTargetRef = useRef<HTMLElement | null | undefined>(undefined);
+
+  // Local container ref for ContentSlideWrapper (fallback if external ref not provided)
+  const localContainerRef = useRef<HTMLDivElement>(null);
+  const effectiveContainerRef = containerRef ?? localContainerRef;
 
   // Escape key collapses the panel
   const handleEscapeKey = useCallback(() => {
@@ -444,62 +471,70 @@ export const DetailsPanel = memo(function DetailsPanel({
       onDragEnd={onDragEnd}
       fillContainer={fillContainer}
     >
-      {/* Workflow Details (base layer) */}
-      {view === "workflow" && workflow && (
-        <WorkflowDetails
-          workflow={workflow}
-          onCancel={onCancelWorkflow}
-          onResubmit={onResubmitWorkflow}
-          isDetailsExpanded={isDetailsExpanded}
-          onToggleDetailsExpanded={onToggleDetailsExpanded}
-          selectedTab={selectedWorkflowTab}
-          setSelectedTab={setSelectedWorkflowTab}
-          allGroups={allGroups}
-          selectedGroupName={group?.name ?? null}
-          selectedTaskName={task?.name ?? null}
-          onSelectGroup={onSelectGroup}
-          onSelectTask={onSelectTask}
-        />
-      )}
+      {/* Wrap all content in animation controller for smooth snap transitions */}
+      <ContentSlideWrapper
+        phase={phase}
+        preSnapWidthPct={preSnapWidthPct}
+        snapTarget={snapTarget}
+        containerRef={effectiveContainerRef}
+      >
+        {/* Workflow Details (base layer) */}
+        {view === "workflow" && workflow && (
+          <WorkflowDetails
+            workflow={workflow}
+            onCancel={onCancelWorkflow}
+            onResubmit={onResubmitWorkflow}
+            isDetailsExpanded={isDetailsExpanded}
+            onToggleDetailsExpanded={onToggleDetailsExpanded}
+            selectedTab={selectedWorkflowTab}
+            setSelectedTab={setSelectedWorkflowTab}
+            allGroups={allGroups}
+            selectedGroupName={group?.name ?? null}
+            selectedTaskName={task?.name ?? null}
+            onSelectGroup={onSelectGroup}
+            onSelectTask={onSelectTask}
+          />
+        )}
 
-      {/* Group Details */}
-      {view === "group" && group && (
-        <GroupDetails
-          group={group}
-          allGroups={allGroups}
-          workflowName={workflow?.name}
-          onSelectTask={onSelectTask}
-          onSelectGroup={onSelectGroup}
-          onBack={onBackToWorkflow}
-          selectedGroupTab={selectedGroupTab}
-          setSelectedGroupTab={setSelectedGroupTab}
-        />
-      )}
+        {/* Group Details */}
+        {view === "group" && group && (
+          <GroupDetails
+            group={group}
+            allGroups={allGroups}
+            workflowName={workflow?.name}
+            onSelectTask={onSelectTask}
+            onSelectGroup={onSelectGroup}
+            onBack={onBackToWorkflow}
+            selectedGroupTab={selectedGroupTab}
+            setSelectedGroupTab={setSelectedGroupTab}
+          />
+        )}
 
-      {/* Task Details */}
-      {view === "task" && task && group && (
-        <TaskDetails
-          group={group}
-          allGroups={allGroups}
-          task={task}
-          workflowName={workflow?.name}
-          onBackToGroup={onBackToGroup}
-          onBackToWorkflow={onBackToWorkflow}
-          onSelectTask={onSelectTask}
-          onSelectGroup={onSelectGroup}
-          onShellTabChange={onShellTabChange}
-          selectedTab={selectedTab}
-          setSelectedTab={setSelectedTab}
-        />
-      )}
+        {/* Task Details */}
+        {view === "task" && task && group && (
+          <TaskDetails
+            group={group}
+            allGroups={allGroups}
+            task={task}
+            workflowName={workflow?.name}
+            onBackToGroup={onBackToGroup}
+            onBackToWorkflow={onBackToWorkflow}
+            onSelectTask={onSelectTask}
+            onSelectGroup={onSelectGroup}
+            onShellTabChange={onShellTabChange}
+            selectedTab={selectedTab}
+            setSelectedTab={setSelectedTab}
+          />
+        )}
 
-      {/* Fallback content (loading/error states) - with minimal header */}
-      {fallbackContent && (
-        <>
-          <PanelHeader title={<PanelTitle>{workflow?.name ?? "Workflow Details"}</PanelTitle>} />
-          {fallbackContent}
-        </>
-      )}
+        {/* Fallback content (loading/error states) - with minimal header */}
+        {fallbackContent && (
+          <>
+            <PanelHeader title={<PanelTitle>{workflow?.name ?? "Workflow Details"}</PanelTitle>} />
+            {fallbackContent}
+          </>
+        )}
+      </ContentSlideWrapper>
     </SidePanel>
   );
 });

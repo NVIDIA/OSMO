@@ -45,8 +45,14 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
-import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
-import { PANEL_TIMING } from "../lib/panel-constants";
+import {
+  usePanelResize,
+  useDisplayDagVisible,
+  useIsDragging,
+  useSnapZone,
+  SNAP_ZONES,
+} from "../lib/panel-resize-context";
+import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "../lib/panel-constants";
 
 import "../styles/layout.css";
 
@@ -86,13 +92,32 @@ export function WorkflowDetailLayout({
 
   // Compute CSS variables from state (React-controlled DOM)
   const gridStyle = useMemo((): CSSProperties => {
-    // Use percentage-based columns for smooth transitions
-    // DAG width = 100 - panel width, Panel width = widthPct
-    const dagWidthPct = 100 - widthPct;
-    const columns = dagVisible ? `${dagWidthPct}% ${widthPct}%` : "0% 100%";
+    // Determine column layout based on state
+    let columns: string;
+
+    if (!dagVisible) {
+      // DAG hidden - panel takes full width
+      columns = "0% 100%";
+    } else if (phase === "DRAGGING" || widthPct >= SNAP_ZONES.STRIP_SNAP_THRESHOLD) {
+      // During drag OR when expanded: use percentage-based columns for smooth resize
+      const dagWidthPct = 100 - widthPct;
+      columns = `${dagWidthPct}% ${widthPct}%`;
+    } else {
+      // At rest AND collapsed: use fixed 40px for activity strip
+      columns = `1fr ${ACTIVITY_STRIP_WIDTH_PX}px`;
+    }
 
     // Disable transitions during drag for 60fps performance
     const transition = phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`;
+
+    console.log("[WorkflowLayout] gridStyle", {
+      phase,
+      widthPct,
+      dagVisible,
+      columns,
+      transition,
+      isCollapsed: widthPct < SNAP_ZONES.STRIP_SNAP_THRESHOLD,
+    });
 
     return {
       gridTemplateColumns: columns,
@@ -106,6 +131,12 @@ export function WorkflowDetailLayout({
       // Only handle grid-template-columns transitions on this element
       if (e.propertyName !== "grid-template-columns") return;
       if (e.target !== containerRef.current) return;
+
+      console.log("[WorkflowLayout] transitionEnd", {
+        propertyName: e.propertyName,
+        phase,
+        willCallComplete: phase === "SNAPPING",
+      });
 
       // Only signal during SNAPPING phase
       if (phase === "SNAPPING") {
