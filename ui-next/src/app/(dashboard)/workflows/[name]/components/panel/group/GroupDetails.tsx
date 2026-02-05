@@ -36,7 +36,7 @@ import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
 import type { GroupDetailsProps } from "../../../lib/panel-types";
 import type { TaskWithDuration } from "../../../lib/workflow-types";
-import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
+import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
 import { useTick } from "@/hooks";
 import type { BreadcrumbSegment } from "../../../lib/panel-types";
 import { GroupOverviewTab } from "./GroupOverviewTab";
