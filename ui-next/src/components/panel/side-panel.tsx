@@ -306,18 +306,31 @@ export function SidePanel({
 
   // Calculate panel width based on collapsed state and container mode
   const getPanelWidth = (): string => {
-    if (isCollapsed) {
-      return typeof collapsedWidth === "number" ? `${collapsedWidth}px` : collapsedWidth;
-    }
-    // In fillContainer mode (CSS Grid), panel fills its grid cell.
-    // Grid's grid-template-columns controls the actual column width.
-    // We set 100% to ensure the panel content fills the entire grid cell.
+    // IMPORTANT: Check fillContainer FIRST!
+    // In fillContainer mode (CSS Grid), panel ALWAYS fills its grid cell (100%),
+    // regardless of collapsed state. The grid template controls actual sizing.
     if (fillContainer) {
       return "100%";
+    }
+    // In standalone mode, panel controls its own width
+    if (isCollapsed) {
+      return typeof collapsedWidth === "number" ? `${collapsedWidth}px` : collapsedWidth;
     }
     return `${width}%`;
   };
   const panelWidth = getPanelWidth();
+
+  // Debug logging
+  useEffect(() => {
+    console.log("[SidePanel] width changed", {
+      width,
+      isCollapsed,
+      fillContainer,
+      panelWidth,
+      minWidthPx,
+      isDragging,
+    });
+  }, [width, isCollapsed, fillContainer, panelWidth, minWidthPx, isDragging]);
 
   // Default collapsed content
   const defaultCollapsedContent = useMemo(
@@ -362,9 +375,9 @@ export function SidePanel({
         // Hint browser to optimize for width changes during drag
         willChange: isDragging ? "width" : "auto",
         // Apply width constraints when not collapsed.
-        // In fillContainer mode, skip maxWidth (grid controls it) but keep minWidth for usability.
+        // In fillContainer mode, skip ALL width constraints (grid controls sizing completely).
         maxWidth: isCollapsed || fillContainer ? undefined : `${maxWidth}%`,
-        minWidth: isCollapsed ? undefined : `${minWidthPx}px`,
+        minWidth: isCollapsed || fillContainer ? undefined : `${minWidthPx}px`,
         // Force GPU acceleration during drag for smoother rendering
         transform: isDragging ? "translate3d(0, 0, 0)" : undefined,
       }}
@@ -372,8 +385,9 @@ export function SidePanel({
       aria-label={ariaLabel}
     >
       {/* Resize Handle - positioned at panel's left edge (before edge strip) */}
-      {/* Always visible when not collapsed */}
-      {!isCollapsed && (
+      {/* IMPORTANT: In fillContainer mode, ALWAYS visible (grid controls sizing) */}
+      {/* In standalone mode, only visible when not collapsed */}
+      {(fillContainer || !isCollapsed) && (
         <ResizeHandle
           bindResizeHandle={bindResizeHandle}
           isDragging={isDragging}
@@ -404,7 +418,8 @@ export function SidePanel({
       >
         {/* Collapsed content */}
         {/* Use inert to fully disable keyboard navigation and close tooltips when expanded */}
-        {effectiveCollapsedContent && (
+        {/* IMPORTANT: In fillContainer mode (grid), don't show collapsed content - grid controls sizing */}
+        {effectiveCollapsedContent && !fillContainer && (
           <div
             ref={collapsedContentRef}
             className={cn(
@@ -421,18 +436,22 @@ export function SidePanel({
 
         {/* Panel content */}
         {/* Use inert to fully disable keyboard navigation when panel is collapsed */}
+        {/* IMPORTANT: In fillContainer mode (grid), content always visible - grid controls sizing */}
         <div
           ref={panelContentRef}
           className={cn(
             "flex h-full w-full min-w-0 flex-col overflow-hidden transition-opacity duration-200 ease-out",
-            isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
+            // In fillContainer mode, keep content visible (grid handles sizing)
+            // In standalone mode, fade out when collapsed
+            fillContainer ? "opacity-100" : isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
             // Disable pointer events during drag to prevent hover states causing reflow
             isDragging && "pointer-events-none",
             // Contain layout to prevent reflow propagation during resize
             "contain-layout-style",
           )}
           // inert removes from tab order and accessibility tree when panel is collapsed
-          inert={isCollapsed ? true : undefined}
+          // But NOT in fillContainer mode where content should remain accessible
+          inert={isCollapsed && !fillContainer ? true : undefined}
           onTransitionEnd={handlePanelTransitionEnd}
         >
           {children}

@@ -17,6 +17,15 @@
 /**
  * React Context and Hooks for PanelResizeStateMachine.
  *
+ * STATE UNIFICATION:
+ * ==================
+ * `isCollapsed` is now DERIVED from `widthPct`, not stored separately.
+ * This eliminates the dual-state bug where both `isCollapsed: true` AND
+ * `widthPct < 20%` could represent "panel at activity strip".
+ *
+ * Use `useIsPanelCollapsed()` or `usePanelResize().isCollapsed` to check
+ * collapsed state - both derive from the same source (widthPct).
+ *
  * Provides:
  * - PanelResizeProvider: Context provider that manages machine lifecycle
  * - usePanelResizeMachine: Access to raw machine instance
@@ -41,6 +50,7 @@ import {
   type ResizePhase,
   type ResizeState,
   type SnapZone,
+  isCollapsedWidth,
 } from "./panel-resize-state-machine";
 
 // =============================================================================
@@ -122,6 +132,10 @@ export function usePanelResizeMachine(): PanelResizeStateMachine {
 /**
  * Main hook for panel resize state and actions.
  * Returns reactive state that triggers re-renders on changes.
+ *
+ * NOTE: `isCollapsed` is now DERIVED from `widthPct`, not stored separately.
+ * This ensures consistent behavior regardless of how the panel reached
+ * the collapsed state (click vs drag).
  */
 export function usePanelResize(): {
   // State
@@ -129,9 +143,11 @@ export function usePanelResize(): {
   widthPct: number;
   persistedPct: number;
   dagVisible: boolean;
+  /** Whether panel is collapsed (DERIVED from widthPct < 20%) */
   isCollapsed: boolean;
   snapZone: SnapZone | null;
   snapTarget: number | null;
+  preSnapWidthPct: number | null;
 
   // Derived
   isSuspended: boolean;
@@ -147,6 +163,7 @@ export function usePanelResize(): {
   toggleCollapsed: () => void;
   setCollapsed: (collapsed: boolean) => void;
   expand: () => void;
+  collapse: () => void;
   hideDAG: () => void;
   showDAG: () => void;
   updateStripSnapTarget: (stripWidthPx: number, containerWidthPx: number) => void;
@@ -159,6 +176,9 @@ export function usePanelResize(): {
     () => machine.getState(),
     () => machine.getState(), // Server snapshot
   );
+
+  // DERIVED: isCollapsed from widthPct (the unified source of truth)
+  const isCollapsed = isCollapsedWidth(state.widthPct);
 
   // Derive computed values
   const isSuspended = state.phase !== "IDLE";
@@ -174,6 +194,7 @@ export function usePanelResize(): {
   const toggleCollapsed = useCallback(() => machine.toggleCollapsed(), [machine]);
   const setCollapsed = useCallback((collapsed: boolean) => machine.setCollapsed(collapsed), [machine]);
   const expand = useCallback(() => machine.expand(), [machine]);
+  const collapse = useCallback(() => machine.collapse(), [machine]);
   const hideDAG = useCallback(() => machine.hideDAG(), [machine]);
   const showDAG = useCallback(() => machine.showDAG(), [machine]);
   const updateStripSnapTarget = useCallback(
@@ -187,9 +208,10 @@ export function usePanelResize(): {
     widthPct: state.widthPct,
     persistedPct: state.persistedPct,
     dagVisible: state.dagVisible,
-    isCollapsed: state.isCollapsed,
+    isCollapsed, // DERIVED from widthPct
     snapZone: state.snapZone,
     snapTarget: state.snapTarget,
+    preSnapWidthPct: state.preSnapWidthPct,
 
     // Derived
     isSuspended,
@@ -205,6 +227,7 @@ export function usePanelResize(): {
     toggleCollapsed,
     setCollapsed,
     expand,
+    collapse,
     hideDAG,
     showDAG,
     updateStripSnapTarget,
@@ -245,9 +268,10 @@ export function usePersistedPanelWidth(): number {
 
 /**
  * Get whether panel is collapsed.
+ * This is DERIVED from widthPct - the unified source of truth.
  */
 export function useIsPanelCollapsed(): boolean {
-  return usePanelResizeSelector((s) => s.isCollapsed);
+  return usePanelResizeSelector((s) => isCollapsedWidth(s.widthPct));
 }
 
 /**
@@ -295,4 +319,4 @@ export function useIsDragging(): boolean {
 // =============================================================================
 
 export type { ResizePhase, ResizeState, SnapZone };
-export { SNAP_ZONES, classifySnapZone } from "./panel-resize-state-machine";
+export { SNAP_ZONES, classifySnapZone, isCollapsedWidth } from "./panel-resize-state-machine";
