@@ -65,7 +65,6 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
       {
         id: createWidgetId(),
         name: "Current Workflows",
-        description: "Current Workflows for the current user",
         filters: {
           userType: UserFilterType.CURRENT,
           selectedUsers: username,
@@ -79,7 +78,6 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
       {
         id: createWidgetId(),
         name: "Today's Workflows",
-        description: "Workflows for current user for the last 365 days",
         filters: {
           userType: UserFilterType.CURRENT,
           selectedUsers: username,
@@ -95,7 +93,6 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
       {
         id: createWidgetId(),
         name: "Current Tasks",
-        description: "Current Tasks for the current user",
         filters: {
           userType: UserFilterType.CURRENT,
           selectedUsers: username,
@@ -108,7 +105,6 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
       {
         id: createWidgetId(),
         name: "Today's Tasks",
-        description: "Tasks for current user for the last 365 days",
         filters: {
           userType: UserFilterType.CURRENT,
           selectedUsers: username,
@@ -132,7 +128,7 @@ export default function Home() {
   const [widgetName, setWidgetName] = useState("");
   const [widgetDescription, setWidgetDescription] = useState("");
   const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
-  const [allPools, setAllPools] = useState(true);
+  const [allPools, setAllPools] = useState(false);
   const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
   const [dashboardName, setDashboardName] = useState<string | undefined>(undefined);
@@ -261,9 +257,12 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (!pools.data) {
+      return;
+    }
+
     const parsedData = PoolsListResponseSchema.safeParse(pools.data);
     const availablePools = parsedData.success ? parsedData.data.pools : [];
-
     const filters = new Map<string, boolean>(Object.keys(availablePools).map((pool) => [pool, false]));
 
     if (currentDashboard?.pools.length) {
@@ -605,7 +604,6 @@ export default function Home() {
             setIsEditingMetadata(true);
             setDashboardName(currentDashboard?.name ?? "");
             setAllPools(currentDashboard?.allPools ?? false);
-            setLocalPools(new Map(currentDashboard?.pools.map((pool) => [pool, true])));
             setIsDefaultDashboard(currentDashboard?.id === dashboards.defaultDashboardID);
           }
           } role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>

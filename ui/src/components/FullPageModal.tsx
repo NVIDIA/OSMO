@@ -27,23 +27,29 @@ interface FullPageModalProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const FullPageModal = ({ open, onClose, children, headerChildren, size = "lg", ...props }: FullPageModalProps) => {
   return (
-    <div className={`${open ? "fixed" : "hidden"} top-0 left-0 right-0 bottom-0 bg-black/10 z-30`}>
-      <FocusTrap
-        active={open}
-        focusTrapOptions={{
-          allowOutsideClick: true,
-          clickOutsideDeactivates: true,
-          escapeDeactivates: true,
-          onDeactivate: () => {
-            onClose();
-          },
-        }}
-      >
-        <div className="p-global w-full h-full flex items-center justify-center">
+    <div
+      className={`${open ? "fixed" : "hidden"} top-0 left-0 right-0 bottom-0 bg-black/10 z-30`}
+      onClick={() => {
+        onClose();
+      }}
+    >
+      <div className="p-global w-full h-full flex items-center justify-center">
+        <FocusTrap
+          active={open}
+          focusTrapOptions={{
+            allowOutsideClick: true,
+            clickOutsideDeactivates: true,
+            escapeDeactivates: true,
+            onDeactivate: () => {
+              onClose();
+            },
+          }}
+        >
           <div
             className={`flex flex-col body-component shadow-xl shadow-black/50 ${size === "md" ? "md:w-1/2 md:h-auto md:max-h-3/4" : size === "sm" ? "md:w-1/4 md:h-auto md:max-h-1/2" : ""} w-full max-h-screen max-w-screen`}
             aria-modal="true"
             role="dialog"
+            onClick={(event) => event.stopPropagation()}
             {...props}
           >
             <div className="popup-header body-header">
@@ -58,8 +64,8 @@ const FullPageModal = ({ open, onClose, children, headerChildren, size = "lg", .
             </div>
             <div className="flex flex-col w-full h-full overflow-auto">{children}</div>
           </div>
-        </div>
-      </FocusTrap>
+        </FocusTrap>
+      </div>
     </div>
   );
 };
