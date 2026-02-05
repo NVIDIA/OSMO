@@ -25,23 +25,22 @@ import { allDateRange } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
 import PageHeader from "~/components/PageHeader";
-import { PoolsFilter } from "~/components/PoolsFilter";
 import { Select } from "~/components/Select";
 import { SlideOut } from "~/components/SlideOut";
 import { StatusFilterType } from "~/components/StatusFilter";
-import { Switch } from "~/components/Switch";
 import { TextInput } from "~/components/TextInput";
 import { UserFilterType } from "~/components/UserFilter";
 import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
+import EditDashboardMetadataModal from "./components/EditDashboardMetadataModal";
 import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
 import { TasksFilters, type TasksFiltersDataProps } from "./tasks/components/TasksFilters";
 import { TasksWidget, type TaskWidgetDataProps } from "./widgets/tasks";
 import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
 import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/components/WorkflowsFilters";
 
-interface Dashboard {
+export interface Dashboard {
   id: string;
   name: string;
   workflows: WorkflowWidgetDataProps[];
@@ -127,16 +126,12 @@ export default function Home() {
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [widgetName, setWidgetName] = useState("");
   const [widgetDescription, setWidgetDescription] = useState("");
-  const [localPools, setLocalPools] = useState("");
-  const [allPools, setAllPools] = useState(false);
   const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
-  const [dashboardName, setDashboardName] = useState<string | undefined>(undefined);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
   const [currentDashboardID, setCurrentDashboardID] = useState<string | undefined>(undefined);
-  const [isDefaultDashboard, setIsDefaultDashboard] = useState(false);
 
   const [dashboards, setDashboards] = useState<DashboardList>({
     widgets: [],
@@ -322,23 +317,46 @@ export default function Home() {
       return nextDashboards;
     });
 
-    setDashboardName(trimmedName);
-    setIsDefaultDashboard(false);
     setNewDashboardName("");
     setNewDashboardNameError(undefined);
     setShowNewDashboard(false);
   };
 
-  const handleEditDashboard = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleEditDashboard = (name: string, isDefault: boolean, allPools: boolean, pools: string) => {
+    if (!currentDashboard) {
+      return;
+    }
 
-    updateCurrentDashboard((prevWidgets) => ({
-      ...prevWidgets,
-      pools: localPools.split(","),
-      allPools,
-      name: dashboardName ?? "",
-      defaultDashboard: isDefaultDashboard ? dashboardName ?? "" : dashboards.defaultDashboardID,
-    }));
+    setDashboards((prevDashboards) => {
+      const nextWidgets = prevDashboards.widgets.map((widget) => {
+        if (widget.id !== currentDashboard.id) {
+          return widget;
+        }
+
+        return {
+          ...widget,
+          name,
+          allPools,
+          pools: pools
+            .split(",")
+            .map((pool) => pool.trim())
+            .filter(Boolean),
+        };
+      });
+      const nextDefaultDashboardID = isDefault
+        ? currentDashboard.id
+        : prevDashboards.defaultDashboardID === currentDashboard.id
+          ? ""
+          : prevDashboards.defaultDashboardID;
+      const nextDashboards = {
+        ...prevDashboards,
+        widgets: nextWidgets,
+        defaultDashboardID: nextDefaultDashboardID,
+      };
+
+      persistDashboards(nextDashboards);
+      return nextDashboards;
+    });
 
     setIsEditingMetadata(false);
   };
@@ -576,10 +594,6 @@ export default function Home() {
         <div className="flex flex-col gap-global p-global">
           <button className="btn btn-action" onClick={() => {
             setIsEditingMetadata(true);
-            setDashboardName(currentDashboard?.name ?? "");
-            setAllPools(currentDashboard?.allPools ?? false);
-            setLocalPools(currentDashboard?.pools.join(",") ?? "");
-            setIsDefaultDashboard(currentDashboard?.id === dashboards.defaultDashboardID);
           }
           } role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
           <button className="btn btn-action" role="listitem"><OutlinedIcon name="work_outline" />Add Workflow Widget</button>
@@ -591,54 +605,15 @@ export default function Home() {
           <button className="btn btn-action" role="listitem"><OutlinedIcon name="share" />Share Dashboard</button>
         </div>
       </SlideOut>
-      <FullPageModal
+      <EditDashboardMetadataModal
         open={isEditingMetadata}
         onClose={() => {
           setIsEditingMetadata(false);
         }}
-        headerChildren="Edit Dashboard"
-        size="sm"
-      >
-        <form onSubmit={handleEditDashboard}>
-          <div className="flex flex-col gap-global p-global">
-            <TextInput
-              id="dashboard-name"
-              label="Name"
-              className="w-full"
-              value={dashboardName ?? ""}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setDashboardName(event.target.value);
-              }}
-              required
-            />
-            <Switch
-              id="is-default"
-              label="Default Dashboard"
-              checked={isDefaultDashboard}
-              onChange={(checked) => {
-                setIsDefaultDashboard(checked);
-              }}
-              size="small"
-              labelPosition="right"
-            />
-            <PoolsFilter
-              isSelectAllPoolsChecked={allPools}
-              selectedPools={localPools}
-              setIsSelectAllPoolsChecked={setAllPools}
-              setSelectedPools={setLocalPools}
-            />
-          </div>
-          <div className="flex justify-end p-global bg-footerbg">
-            <button
-              className="btn btn-primary"
-              type="submit"
-            >
-              <OutlinedIcon name="save" />
-              Save
-            </button>
-          </div>
-        </form>
-      </FullPageModal>
+        dashboard={currentDashboard}
+        defaultDashboardID={dashboards.defaultDashboardID}
+        onSave={handleEditDashboard}
+      />
     </>
   );
 }
