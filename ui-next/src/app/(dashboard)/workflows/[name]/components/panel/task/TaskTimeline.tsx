@@ -18,7 +18,7 @@
 
 import { memo, useMemo } from "react";
 import type { TaskQueryResponse } from "../../../lib/workflow-types";
-import { Timeline, type TimelinePhase } from "../shared/Timeline";
+import { Timeline, type TimelinePhase } from "../views/Timeline";
 import {
   useTimelineSetup,
   parseCommonTimestamps,

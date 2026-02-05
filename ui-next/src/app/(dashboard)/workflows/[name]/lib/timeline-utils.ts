@@ -29,7 +29,7 @@ import {
   createPhaseDurationCalculator,
   finalizeTimelinePhases,
   type TimelineFinalizeContext,
-} from "../components/panel/shared/Timeline";
+} from "../components/panel/views/Timeline";
 
 /**
  * Status flags derived from a status string.

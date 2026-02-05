@@ -47,24 +47,17 @@
 
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
-import { TextSearch, Info, History, Network, PanelLeftClose, List, FileCode, type LucideIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { TextSearch, Info, History, List, FileCode } from "lucide-react";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
-import { ShellSessionIcon, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import {
-  usePanelResize,
-  usePanelResizeMachine,
-  useDisplayDagVisible,
-  useIsPanelCollapsed,
-} from "../../../lib/panel-resize-context";
+import { usePanelResize } from "../../../lib/panel-resize-context";
+import { WorkflowEdgeStrip, type QuickAction } from "../workflow/WorkflowEdgeStrip";
 
 // =============================================================================
 // Direct Imports - Eager loading for instant panel rendering
@@ -83,199 +76,6 @@ import { ContentSlideWrapper } from "./ContentSlideWrapper";
 // This is a non-modal side panel (role="complementary"), not a dialog.
 // Users should be able to Tab freely between the panel and the DAG.
 // Focus traps are only appropriate for modal dialogs that block interaction.
-
-// ============================================================================
-// Workflow Edge Strip - Unified strip with expand, links, and shells
-// ============================================================================
-
-/** Generic quick action for the edge strip */
-interface QuickAction {
-  id: string;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}
-
-interface WorkflowEdgeStripProps {
-  /** Generic quick actions to display */
-  quickActions?: QuickAction[];
-  /** Current workflow name - used to filter sessions */
-  workflowName?: string;
-  currentTaskId?: string;
-  onSelectSession?: (taskId: string) => void;
-  onDisconnectSession?: (taskId: string) => void;
-  onReconnectSession?: (taskId: string) => void;
-  onRemoveSession?: (taskId: string) => void;
-}
-
-/**
- * Unified edge strip that's always visible on the left side of the panel.
- * Contains: expand/collapse button, quick actions, shell session icons.
- * Same appearance whether panel is collapsed or expanded - provides consistency.
- */
-const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
-  quickActions,
-  workflowName,
-  currentTaskId,
-  onSelectSession,
-  onDisconnectSession,
-  onReconnectSession,
-  onRemoveSession,
-}: WorkflowEdgeStripProps) {
-  const allSessions = useShellSessions();
-
-  // DAG visibility toggle state - use granular selectors for optimal performance
-  // Only re-renders when these specific values change, not on all state machine updates
-  const dagVisible = useDisplayDagVisible();
-  const isCollapsed = useIsPanelCollapsed();
-  const machine = usePanelResizeMachine();
-
-  // Actions accessed via machine instance (stable references)
-  const showDAG = useCallback(() => machine.showDAG(), [machine]);
-  const hideDAG = useCallback(() => machine.hideDAG(), [machine]);
-  const expand = useCallback(() => machine.expand(), [machine]);
-
-  const handleToggleDAG = useEventCallback(() => {
-    if (dagVisible) {
-      hideDAG();
-    } else {
-      showDAG();
-    }
-  });
-
-  // Filter sessions to only show those belonging to this workflow
-  const sessions = workflowName ? allSessions.filter((s) => s.workflowName === workflowName) : allSessions;
-
-  // Shell session handlers - stable callbacks using data attributes
-  const handleSessionClick = useEventCallback((e: MouseEvent<HTMLButtonElement>) => {
-    const taskId = e.currentTarget.dataset.taskId;
-    if (taskId) {
-      // isCollapsed is derived from widthPct, so this covers both cases:
-      // - User clicked collapse button
-      // - User dragged to strip width
-      if (isCollapsed) {
-        expand();
-      }
-      onSelectSession?.(taskId);
-    }
-  });
-
-  const handleSelect = useEventCallback((taskId: string) => {
-    // isCollapsed is derived from widthPct - unified check
-    if (isCollapsed) {
-      expand();
-    }
-    onSelectSession?.(taskId);
-  });
-
-  const handleDisconnect = useEventCallback((taskId: string) => {
-    onDisconnectSession?.(taskId);
-  });
-
-  const handleReconnect = useEventCallback((taskId: string) => {
-    onReconnectSession?.(taskId);
-  });
-
-  const handleRemove = useEventCallback((taskId: string) => {
-    onRemoveSession?.(taskId);
-  });
-
-  const hasQuickActions = quickActions && quickActions.length > 0;
-  const hasShellSessions = sessions.length > 0;
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex h-full flex-col items-center py-3">
-        {/* DAG Visibility Toggle */}
-        <SemiStatefulButton
-          onClick={handleToggleDAG}
-          currentStateIcon={dagVisible ? <Network className="size-4" /> : <PanelLeftClose className="size-4" />}
-          nextStateIcon={dagVisible ? <PanelLeftClose className="size-4" /> : <Network className="size-4" />}
-          label={dagVisible ? "Hide DAG" : "Show DAG"}
-          aria-label={dagVisible ? "Currently showing DAG view" : "DAG view is hidden"}
-          tooltipSide="left"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            "rounded-lg border-0 bg-transparent shadow-none",
-            "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
-            "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
-            "focus-visible:ring-0 focus-visible:ring-offset-0",
-          )}
-        />
-
-        {/* Quick actions */}
-        {hasQuickActions && (
-          <>
-            <div
-              className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700"
-              aria-hidden="true"
-            />
-            <div className="flex flex-col items-center space-y-1">
-              {quickActions.map((action) => {
-                const Icon = action.icon;
-                const handleClick = () => {
-                  // isCollapsed is derived from widthPct - unified check
-                  if (isCollapsed) {
-                    expand();
-                  }
-                  action.onClick();
-                };
-                return (
-                  <Tooltip key={action.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={handleClick}
-                        className={cn(
-                          "flex size-8 items-center justify-center rounded-lg",
-                          "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
-                          "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
-                          "transition-colors",
-                        )}
-                      >
-                        <Icon
-                          className="size-4"
-                          aria-hidden="true"
-                        />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">{action.label}</TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {/* Shell session icons */}
-        {hasShellSessions && (
-          <>
-            <div
-              className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700"
-              aria-hidden="true"
-            />
-            <div className="flex flex-col items-center space-y-1">
-              {sessions.map((session) => (
-                <ShellSessionIcon
-                  key={session.key}
-                  session={session}
-                  isActive={session.key === currentTaskId}
-                  onClick={handleSessionClick}
-                  onSelect={() => handleSelect(session.key)}
-                  onDisconnect={() => handleDisconnect(session.key)}
-                  onReconnect={() => handleReconnect(session.key)}
-                  onRemove={() => handleRemove(session.key)}
-                  data-task-id={session.key}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </TooltipProvider>
-  );
-});
 
 // ============================================================================
 // Main Component

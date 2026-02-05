@@ -23,11 +23,11 @@
 // Shared Components
 // =============================================================================
 
-export { DetailsPanel } from "./shared/DetailsPanel";
-export { DetailsPanelHeader, ColumnMenuContent } from "./shared/DetailsPanelHeader";
-export type { HeaderViewType } from "./shared/DetailsPanelHeader";
-export { Timeline, parseTime } from "./shared/Timeline";
-export { DependencyPills } from "./shared/DependencyPills";
+export { DetailsPanel } from "./views/DetailsPanel";
+export { DetailsPanelHeader, ColumnMenuContent } from "./views/DetailsPanelHeader";
+export type { HeaderViewType } from "./views/DetailsPanelHeader";
+export { Timeline, parseTime } from "./views/Timeline";
+export { DependencyPills } from "./views/DependencyPills";
 
 // =============================================================================
 // Workflow Components

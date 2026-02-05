@@ -28,7 +28,7 @@
 import { memo, useMemo } from "react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter";
 import { STATUS_CATEGORY_MAP } from "../../../lib/status";
-import { Timeline, type TimelinePhase, parseTime } from "../shared/Timeline";
+import { Timeline, type TimelinePhase, parseTime } from "../views/Timeline";
 import { useTick } from "@/hooks";
 
 // ============================================================================

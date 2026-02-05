@@ -28,7 +28,7 @@ import { AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { DependenciesSection } from "@/components/panel";
 import { GroupTimeline } from "./GroupTimeline";
-import { DependencyPill } from "../shared/DependencyPills";
+import { DependencyPill } from "../views/DependencyPills";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 
 // =============================================================================
