@@ -280,6 +280,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   selectedGroupTab,
   setSelectedGroupTab,
   minWidth,
+  minWidthPx,
   maxWidth,
   className,
   onDragStart,
@@ -427,6 +428,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       width={panelPct}
       onWidthChange={onPanelResize}
       minWidth={minWidth}
+      minWidthPx={minWidthPx}
       maxWidth={maxWidth}
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}

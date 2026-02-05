@@ -147,6 +147,12 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       onDragStart,
       onDragEnd,
       fillContainer,
+      // Workflow-specific: Allow resizing down to activity strip width (40px)
+      // This overrides the default PANEL.MIN_WIDTH_PCT (33%) used by pools/resources
+      minWidth: 0, // Effectively disable percentage minimum (rely on minWidthPx instead)
+      minWidthPx: 40, // Enforce exact activity strip width in pixels
+      // Workflow-specific: Allow full width (100%) for panel-only view
+      maxWidth: 100,
     }),
     [
       currentPanelView,
