@@ -294,27 +294,27 @@ class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
         self.assertIn('AccountKey not found', str(context.exception))
 
 
-class IsS3CompatibleEndpointTest(unittest.TestCase):
-    """Tests for S3-compatible endpoint detection."""
+class IsNonAwsS3EndpointConfiguredTest(unittest.TestCase):
+    """Tests for non-AWS S3-compatible endpoint detection."""
 
     # pylint: disable=protected-access
 
     def test_no_endpoint_returns_false(self):
         """No endpoint env var set returns False."""
         with mock.patch.dict('os.environ', {}, clear=True):
-            self.assertFalse(backends._is_s3_compatible_endpoint())
+            self.assertFalse(backends._is_non_aws_s3_endpoint_configured())
 
     def test_aws_endpoints_return_false(self):
         """AWS S3 endpoints are not S3-compatible (they use IAM)."""
         for endpoint in ['https://s3.amazonaws.com', 'https://s3.us-east-1.amazonaws.com']:
             with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': endpoint}):
-                self.assertFalse(backends._is_s3_compatible_endpoint())
+                self.assertFalse(backends._is_non_aws_s3_endpoint_configured())
 
     def test_s3_compatible_endpoints_return_true(self):
         """MinIO, Ceph, localstack endpoints return True."""
         for endpoint in ['http://minio:9000', 'http://localstack:4566']:
             with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': endpoint}):
-                self.assertTrue(backends._is_s3_compatible_endpoint())
+                self.assertTrue(backends._is_non_aws_s3_endpoint_configured())
 
     def test_env_var_precedence(self):
         """AWS_ENDPOINT_URL_S3 takes precedence over AWS_ENDPOINT_URL."""
@@ -322,7 +322,7 @@ class IsS3CompatibleEndpointTest(unittest.TestCase):
             'AWS_ENDPOINT_URL_S3': 'http://minio:9000',
             'AWS_ENDPOINT_URL': 'https://s3.amazonaws.com',
         }):
-            self.assertTrue(backends._is_s3_compatible_endpoint())
+            self.assertTrue(backends._is_non_aws_s3_endpoint_configured())
 
 
 class IsAwsEndpointTest(unittest.TestCase):
