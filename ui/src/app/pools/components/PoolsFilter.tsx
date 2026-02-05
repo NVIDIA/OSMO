@@ -55,12 +55,14 @@ export const PoolsPageFilter = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <PoolsFilter
-        isSelectAllPoolsChecked={localAllPools}
-        selectedPools={localPools}
-        setIsSelectAllPoolsChecked={setLocalAllPools}
-        setSelectedPools={setLocalPools}
-      />
+      <div className="p-global">
+        <PoolsFilter
+          isSelectAllPoolsChecked={localAllPools}
+          selectedPools={localPools}
+          setIsSelectAllPoolsChecked={setLocalAllPools}
+          setSelectedPools={setLocalPools}
+        />
+      </div>
       <div className="flex flex-row gap-global justify-between body-footer p-global">
         <button
           type="button"

@@ -18,12 +18,11 @@ import { useEffect, useState } from "react";
 import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
-import { MultiselectWithAll } from "~/components/MultiselectWithAll";
+import { PoolsFilter } from "~/components/PoolsFilter";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
 import { UserFilter, UserFilterType } from "~/components/UserFilter";
-import { PoolsListResponseSchema, type PriorityType, WorkflowStatusValues, type WorkflowStatusType } from "~/models";
-import { api } from "~/trpc/react";
+import { type PriorityType, WorkflowStatusValues, type WorkflowStatusType } from "~/models";
 
 import { getMapFromStatusArray, getWorkflowStatusArray, StatusFilter } from "./StatusFilter";
 
@@ -101,24 +100,24 @@ export const WorkflowsFilters = ({
   const [localSubmittedBefore, setLocalSubmittedBefore] = useState<string | undefined>(submittedBefore);
   const [localStatusFilterType, setLocalStatusFilterType] = useState<StatusFilterType | undefined>(statusFilterType);
   const [localStatusMap, setLocalStatusMap] = useState<Map<WorkflowStatusType, boolean>>(new Map());
-  const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
+  const [localPools, setLocalPools] = useState(selectedPools);
   const [localUsers, setLocalUsers] = useState<string>(selectedUsers);
   const [localUserType, setLocalUserType] = useState<UserFilterType>(userType);
-  const [allPools, setAllPools] = useState<boolean>(isSelectAllPoolsChecked);
+  const [localAllPools, setLocalAllPools] = useState<boolean>(isSelectAllPoolsChecked);
   const [errors, setErrors] = useState<string[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<PriorityType | undefined>(priority);
-
-  const pools = api.resources.getPools.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
 
   useEffect(() => {
     setPriorityFilter(priority);
   }, [priority]);
 
   useEffect(() => {
-    setAllPools(isSelectAllPoolsChecked);
+    setLocalAllPools(isSelectAllPoolsChecked);
   }, [isSelectAllPoolsChecked]);
+
+  useEffect(() => {
+    setLocalPools(selectedPools);
+  }, [selectedPools]);
 
   useEffect(() => {
     setLocalUserType(userType);
@@ -147,35 +146,16 @@ export const WorkflowsFilters = ({
     setLocalDateRange(dateRange);
   }, [dateRange]);
 
-  useEffect(() => {
-    const parsedData = PoolsListResponseSchema.safeParse(pools.data);
-    const availablePools = parsedData.success ? parsedData.data.pools : [];
-
-    const filters = new Map<string, boolean>(Object.keys(availablePools).map((pool) => [pool, false]));
-
-    if (selectedPools.length) {
-      selectedPools.split(",").forEach((pool) => {
-        filters.set(pool, true);
-      });
-    }
-
-    setLocalPools(filters);
-  }, [pools.data, selectedPools]);
-
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const statuses = getWorkflowStatusArray(localStatusFilterType, localStatusMap);
 
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([pool]) => pool);
-
     const data = {
       userType: localUserType,
       selectedUsers: localUsers,
-      selectedPools: pools.join(","),
-      isSelectAllPoolsChecked: allPools,
+      selectedPools: localPools,
+      isSelectAllPoolsChecked: localAllPools,
       dateRange: localDateRange,
       submittedAfter: localSubmittedAfter,
       submittedBefore: localSubmittedBefore,
@@ -201,8 +181,8 @@ export const WorkflowsFilters = ({
     setLocalStatusMap(new Map(WorkflowStatusValues.map((value) => [value, true])));
     setLocalUserType(UserFilterType.CURRENT);
     setLocalUsers(currentUserName);
-    setAllPools(true);
-    setLocalPools(new Map());
+    setLocalAllPools(true);
+    setLocalPools("");
     setErrors([]);
     setPriorityFilter(undefined);
 
@@ -292,16 +272,11 @@ export const WorkflowsFilters = ({
           />
         )}
         {fields.includes("pool") && (
-          <MultiselectWithAll
-            id="pools"
-            label="All Pools"
-            placeholder="Filter by pool name..."
-            aria-label="Filter by pool name"
-            filter={localPools}
-            setFilter={setLocalPools}
-            onSelectAll={setAllPools}
-            isSelectAllChecked={allPools}
-            showAll
+            <PoolsFilter
+            isSelectAllPoolsChecked={localAllPools}
+            selectedPools={localPools}
+            setIsSelectAllPoolsChecked={setLocalAllPools}
+            setSelectedPools={setLocalPools}
           />
         )}
         {fields.includes("date") && (

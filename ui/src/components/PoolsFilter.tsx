@@ -69,19 +69,19 @@ export const PoolsFilter = ({
   }, [localPools, setSelectedPools]);
 
   return (
-      <div className="flex flex-col gap-global p-global">
-        <MultiselectWithAll
-          id="pools"
-          label="All Pools"
-          placeholder="Filter by pool name..."
-          aria-label="Filter by pool name"
-          filter={localPools}
-          setFilter={setLocalPools}
-          onSelectAll={setIsSelectAllPoolsChecked}
-          isSelectAllChecked={isSelectAllPoolsChecked}
-          showAll={true}
-        />
-        {isLoadingPools && !isSelectAllPoolsChecked && <Spinner size="small" />}
-      </div>
+    <>
+      <MultiselectWithAll
+        id="pools"
+        label="All Pools"
+        placeholder="Filter by pool name..."
+        aria-label="Filter by pool name"
+        filter={localPools}
+        setFilter={setLocalPools}
+        onSelectAll={setIsSelectAllPoolsChecked}
+        isSelectAllChecked={isSelectAllPoolsChecked}
+        showAll={true}
+      />
+      {isLoadingPools && !isSelectAllPoolsChecked && <Spinner size="small" />}
+    </>
   );
 };

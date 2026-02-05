@@ -18,9 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { type ToolParamUpdaterProps } from "~/app/resources/hooks/useToolParamUpdater";
 import { OutlinedIcon } from "~/components/Icon";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
-import { Spinner } from "~/components/Spinner";
-import { PoolsListResponseSchema } from "~/models";
-import { api } from "~/trpc/react";
+import { PoolsFilter } from "~/components/PoolsFilter";
 
 import { initNodes, type PoolNodes } from "../../tasks/components/TasksFilters";
 
@@ -48,32 +46,25 @@ export const ResourcesFilter = ({
   updateUrl: (props: ToolParamUpdaterProps) => void;
   onRefresh: () => void;
 }) => {
-  const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
+  const [localPools, setLocalPools] = useState(selectedPools);
+  const [localAllPools, setLocalAllPools] = useState(isSelectAllPoolsChecked);
   const [resourceTypeFilter, setResourceTypeFilter] = useState(resourceTypes);
-  const [localAllPools, setLocalAllPools] = useState<boolean>(isSelectAllPoolsChecked);
   const [localNodes, setLocalNodes] = useState<Map<string, boolean>>(new Map());
   const [localAllNodes, setLocalAllNodes] = useState<boolean>(isSelectAllNodesChecked);
-
-  const { data: availablePools, isLoading: isLoadingPools } = api.resources.getPools.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-    enabled: !localAllPools,
-  });
 
   useEffect(() => {
     setLocalAllPools(isSelectAllPoolsChecked);
     setLocalAllNodes(isSelectAllNodesChecked);
     setResourceTypeFilter(resourceTypes);
-  }, [isSelectAllPoolsChecked, isSelectAllNodesChecked, resourceTypes]);
+    setLocalPools(selectedPools);
+  }, [isSelectAllPoolsChecked, isSelectAllNodesChecked, resourceTypes, selectedPools]);
 
   const poolNodes = useMemo(() => {
     if (localAllPools) {
       return availableNodes.flatMap(({ hostname }) => hostname);
     }
 
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([pool]) => pool);
+    const pools = localPools.split(",");
 
     // Return all hostnames for every match against selected pool(s)
     return availableNodes.filter(({ pool }) => pool && pools.includes(pool)).flatMap(({ hostname }) => hostname);
@@ -87,35 +78,8 @@ export const ResourcesFilter = ({
     setLocalNodes(initNodes(nodes, poolNodes));
   }, [poolNodes, nodes]);
 
-  useEffect(() => {
-    if (!availablePools) {
-      return;
-    }
-
-    const parsedData = PoolsListResponseSchema.safeParse(availablePools);
-    const parsedAvailablePools = parsedData.success ? parsedData.data.pools : [];
-    const filters = new Map<string, boolean>(Object.keys(parsedAvailablePools).map((pool) => [pool, false]));
-
-    if (!parsedData.success) {
-      console.error(parsedData.error);
-    }
-
-    if (selectedPools.length) {
-      selectedPools.split(",").forEach((pool) => {
-        filters.set(pool, true);
-      });
-    }
-
-    setLocalPools(filters);
-  }, [availablePools, selectedPools]);
-
   const handleSubmit = (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([name]) => name)
-      .join(",");
 
     const nodes = Array.from(localNodes.entries())
       .filter(([_, enabled]) => enabled)
@@ -126,7 +90,7 @@ export const ResourcesFilter = ({
       nodes,
       allNodes: localAllNodes,
       resourceType: resourceTypeFilter ?? null,
-      pools,
+      pools: localPools,
       allPools: localAllPools,
     });
 
@@ -171,20 +135,12 @@ export const ResourcesFilter = ({
             </label>
           </div>
         </fieldset>
-        <MultiselectWithAll
-          id="pools"
-          label="All Pools"
-          placeholder="Filter by pool name..."
-          aria-label="Filter by pool name"
-          filter={localPools}
-          setFilter={(pools) => {
-            setLocalPools(pools);
-          }}
-          onSelectAll={setLocalAllPools}
-          isSelectAllChecked={localAllPools}
-          showAll={true}
+        <PoolsFilter
+          isSelectAllPoolsChecked={localAllPools}
+          setIsSelectAllPoolsChecked={setLocalAllPools}
+          selectedPools={localPools}
+          setSelectedPools={setLocalPools}
         />
-        {isLoadingPools && !localAllPools && <Spinner size="small" />}
         <MultiselectWithAll
           id="nodes"
           label="All Nodes"
@@ -203,7 +159,7 @@ export const ResourcesFilter = ({
           onClick={() => {
             setResourceTypeFilter(undefined);
             setLocalNodes(new Map());
-            setLocalPools(new Map(Array.from(localPools.keys()).map((key) => [key, false])));
+            setLocalPools("");
             setLocalAllPools(true);
             setLocalAllNodes(true);
             updateUrl({

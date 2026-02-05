@@ -19,11 +19,12 @@ import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
+import { PoolsFilter } from "~/components/PoolsFilter";
 import { Spinner } from "~/components/Spinner";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
 import { UserFilter, UserFilterType } from "~/components/UserFilter";
-import { PoolsListResponseSchema, type PriorityType, type ResourcesEntry, type TaskStatusType } from "~/models";
+import { type PriorityType, type ResourcesEntry, type TaskStatusType } from "~/models";
 import { api } from "~/trpc/react";
 
 import { getMapFromStatusArray, getTaskStatusArray, StatusFilter } from "./StatusFilter";
@@ -138,7 +139,7 @@ export const TasksFilters = ({
   const [localStartedAfter, setLocalStartedAfter] = useState<string | undefined>(undefined);
   const [localStartedBefore, setLocalStartedBefore] = useState<string | undefined>(undefined);
   const [localStatusMap, setLocalStatusMap] = useState<Map<TaskStatusType, boolean>>(new Map());
-  const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
+  const [localPools, setLocalPools] = useState(selectedPools);
   const [localUsers, setLocalUsers] = useState<string>(selectedUsers);
   const [localUserType, setLocalUserType] = useState<UserFilterType>(userType);
   const [localAllPools, setLocalAllPools] = useState<boolean>(isSelectAllPoolsChecked);
@@ -148,12 +149,6 @@ export const TasksFilters = ({
   const [localNodes, setLocalNodes] = useState<Map<string, boolean>>(new Map());
   const [localAllNodes, setLocalAllNodes] = useState<boolean>(isSelectAllNodesChecked);
   const [localStatusFilterType, setLocalStatusFilterType] = useState<StatusFilterType | undefined>(statusFilterType);
-
-  const { data: availablePools, isLoading: isLoadingPools } = api.resources.getPools.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-    enabled: !localAllPools,
-  });
 
   const { data: availableNodes, isLoading: isLoadingNodes } = api.resources.listResources.useQuery(
     {
@@ -170,6 +165,10 @@ export const TasksFilters = ({
   useEffect(() => {
     setLocalAllPools(isSelectAllPoolsChecked);
   }, [isSelectAllPoolsChecked]);
+
+  useEffect(() => {
+    setLocalPools(selectedPools);
+  }, [selectedPools]);
 
   useEffect(() => {
     setLocalUserType(userType);
@@ -191,9 +190,7 @@ export const TasksFilters = ({
       return availableNodes?.flatMap(({ hostname }) => hostname);
     }
 
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([pool]) => pool);
+    const pools = localPools.split(",");
 
     // Return all hostnames for every match against selected pool(s)
     return availableNodes?.filter(({ pool }) => pool && pools.includes(pool)).flatMap(({ hostname }) => hostname);
@@ -207,20 +204,6 @@ export const TasksFilters = ({
   }, [dateRange, startedAfter, startedBefore, workflowId]);
 
   useEffect(() => {
-    const parsedData = PoolsListResponseSchema.safeParse(availablePools);
-    const parsedAvailablePools = parsedData.success ? parsedData.data.pools : [];
-    const filters = new Map<string, boolean>(Object.keys(parsedAvailablePools).map((pool) => [pool, false]));
-
-    if (selectedPools.length) {
-      selectedPools.split(",").forEach((pool) => {
-        filters.set(pool, true);
-      });
-    }
-
-    setLocalPools(filters);
-  }, [availablePools, selectedPools]);
-
-  useEffect(() => {
     if (!poolNodes) {
       return;
     }
@@ -232,11 +215,6 @@ export const TasksFilters = ({
     event.preventDefault();
 
     const statuses = getTaskStatusArray(localStatusFilterType, localStatusMap);
-
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([pool]) => pool);
-
     const nodes = localAllNodes
       ? []
       : Array.from(localNodes.entries())
@@ -246,7 +224,7 @@ export const TasksFilters = ({
     const formErrors = validateFilters({
       userType: localUserType,
       selectedUsers: localUsers,
-      selectedPools: pools.join(","),
+      selectedPools: localPools,
       isSelectAllPoolsChecked: localAllPools,
       dateRange: localDateRange,
       startedAfter: localStartedAfter,
@@ -267,7 +245,7 @@ export const TasksFilters = ({
     onSave({
       userType: localUserType,
       selectedUsers: localUsers,
-      selectedPools: pools.join(","),
+      selectedPools: localPools,
       isSelectAllPoolsChecked: localAllPools,
       dateRange: localDateRange,
       startedAfter: localStartedAfter,
@@ -285,7 +263,7 @@ export const TasksFilters = ({
     setLocalUserType(UserFilterType.CURRENT);
     setLocalUsers(currentUserName);
     setLocalAllPools(true);
-    setLocalPools(new Map(Array.from(localPools.keys(), (pool) => [pool, false])));
+    setLocalPools("");
     setErrors([]);
     setPriorityFilter(undefined);
     setLocalWorkflowId("");
@@ -372,19 +350,13 @@ export const TasksFilters = ({
           />
         )}
         {fields.includes("pool") && (
-          <MultiselectWithAll
-            id="pools"
-            label="All Pools"
-            placeholder="Filter by pool name..."
-            aria-label="Filter by pool name"
-            filter={localPools}
-            setFilter={setLocalPools}
-            onSelectAll={setLocalAllPools}
-            isSelectAllChecked={localAllPools}
-            showAll
+          <PoolsFilter
+              isSelectAllPoolsChecked={localAllPools}
+            selectedPools={localPools}
+            setIsSelectAllPoolsChecked={setLocalAllPools}
+            setSelectedPools={setLocalPools}
           />
         )}
-        {isLoadingPools && !localAllPools && <Spinner size="small" />}
         {fields.includes("node") && (
           <MultiselectWithAll
             id="nodes"
