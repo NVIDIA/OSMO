@@ -119,7 +119,7 @@ spec:
         - --api_burst
         - {{ .Values.services.backendListener.apiBurst | quote }}
         {{- range $arg := .Values.services.backendListener.extraArgs }}
-        - {{$arg}}
+        - {{$arg | quote}}
         {{- end }}
         env:
         {{- with .Values.services.backendListener.extraEnvs }}
