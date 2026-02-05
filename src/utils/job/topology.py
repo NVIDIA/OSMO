@@ -167,11 +167,8 @@ class PodGroupTopologyBuilder:
                 task_subgroups={}
             )
 
-        # Step 1: Validate all tasks use same topology keys
-        self._validate_uniform_keys(tasks)
-
-        # Step 2: Validate keys exist in configuration
-        self._validate_keys_exist(tasks)
+        # Step 1 & 2: Validate topology requirements
+        validate_topology_requirements(tasks, self.topology_keys)
 
         # Step 3: Build tree with namespaced names
         root = self._build_tree(tasks)
@@ -189,110 +186,65 @@ class PodGroupTopologyBuilder:
             task_subgroups=task_subgroups
         )
 
-    def _validate_uniform_keys(self, tasks: List[TaskTopology]):
-        """Validates that all tasks use the same set of topology keys."""
-        # Collect unique key sets
-        key_sets = set()
-        for task in tasks:
-            if task.topology_requirements:
-                keys = tuple(sorted(req.key for req in task.topology_requirements))
-                key_sets.add(keys)
-
-        # Check uniformity
-        if len(key_sets) > 1:
-            key_list = [', '.join(ks) for ks in key_sets]
-            raise osmo_errors.OSMOResourceError(
-                f'Topology validation failed: All tasks must use the same topology keys. '
-                f'Found different key sets: {key_list}. '
-                f'Either all tasks should have topology requirements with the same keys, '
-                f'or no tasks should have topology requirements.'
-            )
-
-    def _validate_keys_exist(self, tasks: List[TaskTopology]):
-        """Validates that all topology keys exist in configuration."""
-        for task in tasks:
-            for req in task.topology_requirements:
-                if req.key not in self.key_to_label:
-                    raise osmo_errors.OSMOResourceError(
-                        f'Topology validation failed: Topology key "{req.key}" in task '
-                        f'"{task.name}" not found in pool. '
-                        f'Available keys: {list(self.key_to_label.keys())}'
-                    )
-
     def _build_tree(self, tasks: List[TaskTopology]) -> TopologyTreeNode:
         """
         Builds tree structure with namespaced subgroup names.
 
         Subgroup names are namespaced by concatenating parent groups:
         e.g., zone=z1, rack=r1 → subgroup name is "z1-r1"
+
+        Algorithm:
+        - For each task, traverse from root down through topology levels
+        - Build namespaced subgroup path at each level
+        - Reuse existing nodes or create new ones as needed
+        - Tasks with no requirements are added to root
         """
         root = TopologyTreeNode(label=None, subgroup=None, required=True)
 
-        # Get ordered topology levels (coarsest to finest)
-        task_with_reqs = next((t for t in tasks if t.topology_requirements), None)
-        if not task_with_reqs:
-            return root
-
-        # Sort requirements by label order from config
-        sorted_reqs = sorted(
-            task_with_reqs.topology_requirements,
-            key=lambda r: self.label_order[self.key_to_label[r.key]]
-        )
-        topology_levels = [self.key_to_label[req.key] for req in sorted_reqs]
-
-        # Track nodes by path for fast lookup
-        # path_nodes[(label1, group1, label2, group2, ...)] = TreeNode
-        path_nodes: Dict[tuple, TopologyTreeNode] = {}
-        path_nodes[()] = root
+        # Dictionary: subgroup_path -> node
+        # The subgroup path is the namespaced name (e.g., 'z1-r1-n2')
+        subgroup_map: Dict[str, TopologyTreeNode] = {}
 
         # Process each task
         for task in tasks:
-            if not task.topology_requirements:
-                continue
+            current_node = root
+            current_path = ''
 
-            # Sort task requirements by topology order
-            sorted_task_reqs = sorted(
+            # Sort requirements by topology order
+            # If task has no requirements, this will be an empty list
+            sorted_requirements = sorted(
                 task.topology_requirements,
                 key=lambda r: self.label_order[self.key_to_label[r.key]]
             )
 
-            # Build path through tree
-            current_node = root
-            parent_groups = []
-
-            for req in sorted_task_reqs:
+            # Traverse/build tree for this task
+            # If task has no requirements, loop doesn't execute and task is added to root
+            for req in sorted_requirements:
                 label = self.key_to_label[req.key]
                 group = req.group
 
-                # Build namespaced subgroup name by concatenating path
-                if parent_groups:
-                    subgroup_name = '-'.join(parent_groups + [group])
+                # Build namespaced subgroup name
+                if current_path:
+                    subgroup_name = f'{current_path}-{group}'
                 else:
                     subgroup_name = group
 
-                # Create path key for lookup
-                path_key = tuple(
-                    item for i in range(len(parent_groups))
-                    for item in (topology_levels[i], parent_groups[i])
-                ) + (label, group)
-
-                # Check if node exists at this path
-                if path_key in path_nodes:
-                    child_node = path_nodes[path_key]
-                else:
+                # Check if node exists
+                if subgroup_name not in subgroup_map:
                     # Create new node
-                    child_node = TopologyTreeNode(
+                    new_node = TopologyTreeNode(
                         label=label,
                         subgroup=subgroup_name,
                         required=req.required
                     )
-                    path_nodes[path_key] = child_node
-                    current_node.children.append(child_node)
+                    subgroup_map[subgroup_name] = new_node
+                    current_node.children.append(new_node)
 
-                current_node = child_node
-                parent_groups.append(group)
+                # Traverse to child
+                current_node = subgroup_map[subgroup_name]
+                current_path = subgroup_name
 
-            # Add task to leaf node
+            # Add task to current node (root if no requirements, else leaf subgroup)
             current_node.tasks.append(task.name)
 
         return root
