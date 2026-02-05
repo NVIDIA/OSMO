@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import enum
 import re
-from typing import Annotated, Any, Dict, List
+from typing import Annotated, Any, Dict, List, Optional
 
 import pydantic
 
@@ -118,12 +118,20 @@ class RolePolicy(pydantic.BaseModel):
 
 
 class Role(pydantic.BaseModel):
-    """ Single Role Entry """
+    """
+    Single Role Entry
+
+    external_roles semantics:
+    - None: Don't modify external role mappings (preserve existing)
+    - []: Explicitly clear all external role mappings
+    - ['role1', 'role2']: Set external role mappings to these values
+    """
     name: str
     description: str
     policies: List[RolePolicy]
     immutable: bool = False
     sync_mode: SyncMode = SyncMode.IMPORT
+    external_roles: Optional[List[str]] = None
 
     @classmethod
     def parse_actions_as_strings(cls, data: List[Dict])\
@@ -139,10 +147,14 @@ class Role(pydantic.BaseModel):
         return data_list
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             'name': self.name,
             'description': self.description,
             'policies': [policy.to_dict() for policy in self.policies],
             'immutable': self.immutable,
-            'sync_mode': self.sync_mode.value
+            'sync_mode': self.sync_mode.value,
         }
+        # Only include external_roles if explicitly set (not None)
+        if self.external_roles is not None:
+            result['external_roles'] = self.external_roles
+        return result
