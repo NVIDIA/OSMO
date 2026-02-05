@@ -81,37 +81,51 @@ export async function getServerAuthToken(): Promise<string | null> {
  * Build headers for server-side API requests.
  *
  * Auth flow:
- * - Production: Envoy injects Authorization header with Bearer token
+ * - Production: Envoy injects Authorization, x-osmo-user, x-osmo-roles headers
  * - Local dev: Uses cookies (IdToken/BearerToken) if available
  *
- * This function checks both sources and forwards the appropriate headers.
+ * This function forwards ALL auth-related headers to match the proxy route handler behavior.
+ * IMPORTANT: This must forward the same headers as forwardAuthHeaders() in proxy-headers.ts
  */
 export async function getServerFetchHeaders(): Promise<HeadersInit> {
   const { headers: getHeaders } = await import("next/headers");
   const requestHeaders = await getHeaders();
 
-  // Priority 1: Check for Authorization header (production with Envoy)
-  const authHeader = requestHeaders.get("Authorization");
-  if (authHeader) {
-    return {
-      "Content-Type": "application/json",
-      Authorization: authHeader,
-    };
-  }
-
-  // Priority 2: Check for auth in cookies (local dev)
-  const token = await getServerAuthToken();
-  if (token) {
-    return {
-      "Content-Type": "application/json",
-      [AUTH_HEADER]: token,
-    };
-  }
-
-  // No auth available
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+
+  // Forward all Envoy-injected headers (production)
+  const authHeader = requestHeaders.get("Authorization");
+  if (authHeader) {
+    headers["Authorization"] = authHeader;
+  }
+
+  const osmoUser = requestHeaders.get("x-osmo-user");
+  if (osmoUser) {
+    headers["x-osmo-user"] = osmoUser;
+  }
+
+  const osmoRoles = requestHeaders.get("x-osmo-roles");
+  if (osmoRoles) {
+    headers["x-osmo-roles"] = osmoRoles;
+  }
+
+  // Forward cookie header (includes Envoy session)
+  const cookieHeader = requestHeaders.get("cookie");
+  if (cookieHeader) {
+    headers["cookie"] = cookieHeader;
+  }
+
+  // Fallback: Check for auth in cookies (local dev without Envoy)
+  if (!authHeader) {
+    const token = await getServerAuthToken();
+    if (token) {
+      headers[AUTH_HEADER] = token;
+    }
+  }
+
+  return headers;
 }
 
 // =============================================================================
