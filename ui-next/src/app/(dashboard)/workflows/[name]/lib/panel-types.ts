@@ -139,9 +139,15 @@ export interface DetailsPanelProps {
   setSelectedGroupTab?: (tab: GroupTab) => void;
   /**
    * Minimum width percentage for the panel.
-   * Defaults to PANEL.MIN_WIDTH_PCT (20%).
+   * Defaults to PANEL.MIN_WIDTH_PCT (33%).
    */
   minWidth?: number;
+  /**
+   * Minimum width in pixels for the panel.
+   * When set, this takes precedence over minWidth percentage.
+   * Used by workflow panel to enforce activity strip width (40px).
+   */
+  minWidthPx?: number;
   /**
    * Maximum width percentage for the panel.
    * Defaults to PANEL.MAX_WIDTH_PCT (80%).
