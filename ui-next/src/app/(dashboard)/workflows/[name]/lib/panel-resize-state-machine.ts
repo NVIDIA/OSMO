@@ -32,6 +32,8 @@
  *       └───────────────────────┴──────────────────────────────────────────────────────────┘
  */
 
+import { calculateStripSnapTargetPct, SNAP_ZONES as SNAP_ZONE_CONSTANTS } from "./panel-constants";
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -40,12 +42,8 @@ export type ResizePhase = "IDLE" | "DRAGGING" | "SNAPPING" | "SETTLING";
 export type SnapZone = "strip" | "full";
 export type CallbackType = "onLayoutStable" | "onPhaseChange";
 
-export const SNAP_ZONES = {
-  STRIP_SNAP_THRESHOLD: 20,
-  FULL_SNAP_START: 80,
-  STRIP_SNAP_TARGET: 0, // Will be calculated dynamically based on activity strip width
-  FULL_SNAP_TARGET: 100,
-} as const;
+// Re-export snap zone constants for backwards compatibility
+export const SNAP_ZONES = SNAP_ZONE_CONSTANTS;
 
 export interface ResizeState {
   phase: ResizePhase;
@@ -135,7 +133,7 @@ export class PanelResizeStateMachine {
     // Default to 2% if not provided (approximately 40px on typical screens)
     // The CSS minWidthPx constraint will enforce the exact pixel minimum
     if (options.stripWidthPx && options.containerWidthPx && options.containerWidthPx > 0) {
-      this.stripSnapTargetPct = Math.max(1, (options.stripWidthPx / options.containerWidthPx) * 100);
+      this.stripSnapTargetPct = calculateStripSnapTargetPct(options.containerWidthPx);
     } else {
       this.stripSnapTargetPct = 2;
     }
@@ -344,7 +342,7 @@ export class PanelResizeStateMachine {
     if (this.disposed) return;
     if (containerWidthPx <= 0) return;
 
-    const newTarget = Math.max(1, (stripWidthPx / containerWidthPx) * 100);
+    const newTarget = calculateStripSnapTargetPct(containerWidthPx);
     if (Math.abs(this.stripSnapTargetPct - newTarget) > 0.01) {
       // @ts-expect-error - Allowing mutation of readonly field for runtime configuration
       this.stripSnapTargetPct = newTarget;

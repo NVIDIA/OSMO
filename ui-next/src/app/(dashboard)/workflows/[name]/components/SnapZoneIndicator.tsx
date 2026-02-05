@@ -27,6 +27,7 @@ import { memo, useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useMounted } from "@/hooks";
 import { usePanelWidth } from "../lib/panel-resize-context";
+import { computeSnapIndicatorGeometry } from "../lib/panel-constants";
 
 function getOrCreatePortalContainer(): HTMLElement {
   let portalRoot = document.getElementById("snap-zone-portal");
@@ -114,14 +115,12 @@ export const FullSnapOverlay = memo(function FullSnapOverlay({ isActive }: FullS
 interface StripSnapIndicatorProps {
   isActive: boolean;
   containerRef?: RefObject<HTMLElement | null>;
-  stripWidthPx: number;
 }
 
 /** Strip snap indicator (< 20%) showing washout effect + target line via portal */
 export const StripSnapIndicator = memo(function StripSnapIndicator({
   isActive,
   containerRef,
-  stripWidthPx,
 }: StripSnapIndicatorProps) {
   // Read current panel width from manager
   const currentPct = usePanelWidth();
@@ -131,16 +130,11 @@ export const StripSnapIndicator = memo(function StripSnapIndicator({
 
   if (!isActive || !portalContainer || !containerBounds) return null;
 
-  // Overlay is inside the panel, starting after the activity strip
-  const containerWidth = containerBounds.width;
-  const panelWidthPx = containerWidth * (currentPct / 100);
-  const panelLeftPx = containerWidth - panelWidthPx; // Panel grows from right
+  // Calculate overlay geometry using pure function
+  const geometry = computeSnapIndicatorGeometry(currentPct, containerBounds.width);
+  if (!geometry) return null;
 
-  // Overlay starts at the right edge of the activity strip (inside the panel)
-  const overlayLeftPx = panelLeftPx + stripWidthPx;
-  const overlayWidthPx = panelWidthPx - stripWidthPx;
-
-  if (overlayWidthPx <= 0) return null;
+  const { overlayLeftPx, overlayWidthPx } = geometry;
 
   return createPortal(
     <div

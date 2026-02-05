@@ -84,10 +84,28 @@ async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = 
  * Cancel a running workflow.
  *
  * @param workflowName - The workflow name to cancel
+ * @param options - Optional cancellation parameters
+ * @param options.message - Reason for cancellation (shown in audit logs)
+ * @param options.force - Force cancellation even if graceful shutdown fails
  * @returns Result indicating success or error
  */
-export async function cancelWorkflow(workflowName: string): Promise<ActionResult> {
-  const result = await makeWorkflowAction(`/api/workflow/${encodeURIComponent(workflowName)}/cancel`);
+export async function cancelWorkflow(
+  workflowName: string,
+  options?: { message?: string; force?: boolean },
+): Promise<ActionResult> {
+  // Build query parameters if provided
+  const params = new URLSearchParams();
+  if (options?.message) {
+    params.set("message", options.message);
+  }
+  if (options?.force !== undefined) {
+    params.set("force", String(options.force));
+  }
+
+  const queryString = params.toString();
+  const endpoint = `/api/workflow/${encodeURIComponent(workflowName)}/cancel${queryString ? `?${queryString}` : ""}`;
+
+  const result = await makeWorkflowAction(endpoint);
 
   if (result.success) {
     // Revalidate workflow data after successful cancellation
