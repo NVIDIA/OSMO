@@ -258,12 +258,6 @@ export class PanelResizeStateMachine {
     if (this.disposed) return;
     if (!this.canTransitionTo("DRAGGING")) return;
 
-    console.log("[PanelResize] startDrag()", {
-      currentPhase: this.state.phase,
-      widthPct: this.state.widthPct,
-      persistedPct: this.state.persistedPct,
-    });
-
     this.setState({
       phase: "DRAGGING",
       dragStartWidthPct: this.state.widthPct, // Capture starting position
@@ -294,15 +288,6 @@ export class PanelResizeStateMachine {
     // - Free zone (20-80%): persist the final position
     // - Snap zone (< 20% or >= 80%): preserve dragStartWidthPct (where user was working)
 
-    if (newSnapZone !== this.state.snapZone) {
-      console.log("[PanelResize] updateDrag() - zone change", {
-        pct: clampedPct,
-        oldZone: this.state.snapZone,
-        newZone: newSnapZone,
-        updates,
-      });
-    }
-
     this.setState(updates);
   }
 
@@ -315,14 +300,6 @@ export class PanelResizeStateMachine {
     if (this.state.phase !== "DRAGGING") return;
 
     const snapConfig = this.resolveSnapConfig();
-
-    console.log("[PanelResize] endDrag()", {
-      widthPct: this.state.widthPct,
-      snapZone: this.state.snapZone,
-      snapConfig,
-      stripSnapTargetPct: this.stripSnapTargetPct,
-      isCollapsed: this.isCollapsed(),
-    });
 
     if (!snapConfig) {
       this.settleWithoutSnap();
@@ -427,13 +404,6 @@ export class PanelResizeStateMachine {
     // Capture width BEFORE transition begins (for content freeze animation)
     const preSnapWidth = this.state.widthPct;
 
-    console.log("[PanelResize] animateToTarget()", {
-      from: preSnapWidth,
-      to: config.target,
-      dagVisible: config.dagVisible,
-      persistedPctOverride: config.persistedPctOverride,
-    });
-
     const updates: Partial<ResizeState> = {
       phase: "SNAPPING",
       widthPct: config.target,
@@ -460,13 +430,6 @@ export class PanelResizeStateMachine {
     const targetPct = this.state.snapTarget ?? this.state.widthPct;
     const wasCollapsed = isCollapsedWidth(this.state.persistedPct);
     const isNowCollapsed = isCollapsedWidth(targetPct);
-
-    console.log("[PanelResize] onTransitionComplete()", {
-      targetPct,
-      wasCollapsed,
-      isNowCollapsed,
-      persistedPct: this.state.persistedPct,
-    });
 
     this.setState({
       phase: "SETTLING",

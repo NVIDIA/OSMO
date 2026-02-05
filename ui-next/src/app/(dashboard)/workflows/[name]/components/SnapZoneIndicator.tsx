@@ -55,35 +55,40 @@ interface Bounds {
 }
 
 /**
- * Continuously tracks element bounds via RAF loop while active.
- * Polls for ref availability since refs don't trigger re-renders.
+ * Tracks element bounds using ResizeObserver and scroll events.
+ * More efficient than RAF loop - only updates when element actually changes.
  */
 function useElementBounds(ref: RefObject<HTMLElement | null> | undefined, isActive: boolean): Bounds | null {
   const [bounds, setBounds] = useState<Bounds | null>(null);
 
   useEffect(() => {
-    if (!isActive || !ref) {
+    if (!isActive || !ref?.current) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronizing with DOM element position
       setBounds(null);
       return;
     }
 
-    let rafId: number;
-    let element: HTMLElement | null = null;
+    const element = ref.current;
 
-    const measureLoop = () => {
-      if (!element && ref.current) {
-        element = ref.current;
-      }
-      if (element) {
-        const rect = element.getBoundingClientRect();
-        setBounds({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-      }
-      rafId = requestAnimationFrame(measureLoop);
+    const updateBounds = () => {
+      const rect = element.getBoundingClientRect();
+      setBounds({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
     };
 
-    measureLoop();
-    return () => cancelAnimationFrame(rafId);
+    // Measure immediately
+    updateBounds();
+
+    // Update on resize
+    const resizeObserver = new ResizeObserver(updateBounds);
+    resizeObserver.observe(element);
+
+    // Update on scroll (position changes even if size doesn't)
+    window.addEventListener("scroll", updateBounds, { passive: true });
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("scroll", updateBounds);
+    };
   }, [ref, isActive]);
 
   return bounds;
