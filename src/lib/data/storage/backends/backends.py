@@ -176,9 +176,6 @@ class SwiftBackend(Boto3Backend):
         description='Whether the backend supports batch delete.',
     )
 
-    # Cache the region to avoid re-computing it
-    _region: str | None = pydantic.PrivateAttr(default=None)
-
     @override
     @classmethod
     def create(
@@ -311,42 +308,13 @@ class SwiftBackend(Boto3Backend):
         """
         Infer the region of the bucket via provided credentials.
 
-        If 'LocationConstraint' is not present, we will use the default region.
+        Swift does not support LocationConstraint. We will use the data credential region if
+        provided, otherwise the default region.
         """
-        if self._region is not None:
-            return self._region
-
         if data_cred is None:
             data_cred = self.resolved_data_credential
 
-        match data_cred:
-            case credentials.StaticDataCredential():
-                pass
-            case credentials.DefaultDataCredential():
-                raise NotImplementedError(
-                    'Default data credentials are not supported for Swift backend')
-            case _ as unreachable:
-                assert_never(unreachable)
-
-        if data_cred.region is not None:
-            return data_cred.region
-
-        s3_client = s3.create_client(
-            data_cred=data_cred,
-            scheme=self.scheme,
-            endpoint_url=self.auth_endpoint,
-            # No region, we need to get it from the bucket location
-        )
-
-        def _get_region() -> str:
-            bucket_location_resp = s3_client.get_bucket_location(Bucket=self.container)
-            return (
-                bucket_location_resp.get('LocationConstraint', self.default_region)
-                or self.default_region
-            )
-
-        self._region = client.execute_api(_get_region, s3.S3ErrorHandler()).result
-        return self._region
+        return data_cred.region or self.default_region
 
 
 class S3Backend(Boto3Backend):
