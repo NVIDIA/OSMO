@@ -52,7 +52,7 @@ def _skip_data_auth() -> bool:
     return os.getenv(OSMO_SKIP_DATA_AUTH, '0') == '1'
 
 
-def _is_s3_compatible_endpoint() -> bool:
+def _is_non_aws_s3_endpoint_configured() -> bool:
     """
     Returns True if using a non-AWS S3-compatible endpoint (e.g., MinIO, Ceph).
 
@@ -515,7 +515,7 @@ class S3Backend(Boto3Backend):
         # Check if using a non-AWS S3-compatible endpoint (MinIO, Ceph, etc.)
         # IAM policy simulation is not available on these backends, so we use
         # a simpler bucket access check instead.
-        if _is_s3_compatible_endpoint():
+        if _is_non_aws_s3_endpoint_configured():
             self._validate_bucket_access(data_cred=data_cred)
             return
 
