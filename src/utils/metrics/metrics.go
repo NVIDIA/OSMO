@@ -13,6 +13,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+
+	"go.corp.nvidia.com/osmo/utils"
 )
 
 // MetricsConfig holds configuration for the metrics system.
@@ -268,22 +270,22 @@ type MetricsFlagPointers struct {
 func RegisterMetricsFlags(defaultComponent string) *MetricsFlagPointers {
 	return &MetricsFlagPointers{
 		enable: flag.Bool("metricsOtelEnable",
-			true,
+			utils.GetEnvBool("METRICS_OTEL_ENABLE", true),
 			"Enable OpenTelemetry metrics"),
 		host: flag.String("metricsOtelCollectorHost",
-			"localhost",
+			utils.GetEnv("METRICS_OTEL_COLLECTOR_HOST", "localhost"),
 			"OpenTelemetry collector host"),
 		port: flag.Int("metricsOtelCollectorPort",
-			4317,
+			utils.GetEnvInt("METRICS_OTEL_COLLECTOR_PORT", 4317),
 			"OpenTelemetry collector port"),
 		intervalMS: flag.Int("metricsOtelCollectorIntervalInMillis",
-			6000,
+			utils.GetEnvInt("METRICS_OTEL_COLLECTOR_INTERVAL_IN_MILLIS", 6000),
 			"OpenTelemetry export interval in milliseconds"),
 		component: flag.String("metricsOtelCollectorComponent",
-			defaultComponent,
+			utils.GetEnv("METRICS_OTEL_COLLECTOR_COMPONENT", defaultComponent),
 			"Service name for OpenTelemetry metrics"),
 		version: flag.String("serviceVersion",
-			"unknown",
+			utils.GetEnv("SERVICE_VERSION", "unknown"),
 			"Service version for OpenTelemetry metrics"),
 	}
 }
