@@ -1970,7 +1970,6 @@ class TaskGroup(pydantic.BaseModel):
         pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
 
         # Build topology configuration
-        topology_name = f'osmo-pool-{backend_config.k8s_namespace}-{pool}-topology'
         topology_keys = [
             topology_module.TopologyKey(key=tk.key, label=tk.label)
             for tk in pool_obj.topology_keys
@@ -1996,7 +1995,7 @@ class TaskGroup(pydantic.BaseModel):
             ))
 
         group_objects = k8s_factory.create_group_k8s_resources(
-            group_uid, pods, labels, pool, priority, topology_name, topology_keys, task_infos)
+            group_uid, pods, labels, pool, priority, topology_keys, task_infos)
 
         pod_specs = dict(zip(task_names, pods))
 

@@ -76,12 +76,15 @@ def validate_topology_requirements(
     This should be called early (during workflow submission) so users get
     immediate feedback on invalid topology specifications.
 
+    Key constraint: All tasks must use the same set of topology keys. Tasks cannot
+    have different topology levels (e.g., one task with zone+rack, another with only zone).
+
     Args:
         tasks: List of tasks with topology requirements
         topology_keys: Available topology keys from pool configuration
 
     Raises:
-        OSMOResourceError: If validation fails (uniform keys or invalid keys)
+        OSMOResourceError: If validation fails (non-uniform keys or invalid keys)
     """
     # Build key mappings
     available_keys = {topology_key.key for topology_key in topology_keys}
@@ -117,16 +120,19 @@ def validate_topology_requirements(
 class PodGroupTopologyBuilder:
     """
     Unified builder for PodGroup topology structure.
+
     Validates topology requirements and builds complete tree structure in one step.
+
+    Key constraint: All tasks must use the same set of topology keys. Tasks cannot
+    have different topology levels (e.g., one task with zone+rack, another with only zone).
+    This ensures a consistent tree structure and simplifies the algorithm.
     """
 
-    def __init__(self, topology_name: str, topology_keys: List[TopologyKey]):
+    def __init__(self, topology_keys: List[TopologyKey]):
         """
         Args:
-            topology_name: Name of the Topology CRD
             topology_keys: Ordered list of topology keys (coarsest → finest)
         """
-        self.topology_name = topology_name
         self.topology_keys = topology_keys
         # Create mappings for fast lookup
         self.key_to_label = {
@@ -261,7 +267,6 @@ class PodGroupTopologyBuilder:
         while len(current.children) == 1:
             child = current.children[0]
             top_level_constraint = {
-                'topology': self.topology_name,
                 ('requiredTopologyLevel' if child.required
                  else 'preferredTopologyLevel'): child.label
             }
@@ -291,7 +296,6 @@ class PodGroupTopologyBuilder:
                     'name': name,
                     'minMember': len(node.tasks),
                     'topologyConstraint': {
-                        'topology': self.topology_name,
                         ('requiredTopologyLevel' if node.required
                          else 'preferredTopologyLevel'): node.label
                     }
@@ -312,7 +316,6 @@ class PodGroupTopologyBuilder:
                 subgroup = {
                     'name': name,
                     'topologyConstraint': {
-                        'topology': self.topology_name,
                         ('requiredTopologyLevel' if node.required
                          else 'preferredTopologyLevel'): node.label
                     }

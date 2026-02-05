@@ -19,7 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import hashlib
 import json
-import logging
 import os
 from typing import Any, Dict, List
 
@@ -74,7 +73,6 @@ class K8sObjectFactory:
             self, group_uuid: str, pods: List[Dict],
             labels: Dict[str, str], pool_name: str,
             priority: wf_priority.WorkflowPriority,
-            topology_name: str,
             topology_keys: List[topology.TopologyKey],
             task_infos: List[topology.TaskTopology]
     ) -> List[Dict[str, Any]]:
@@ -86,7 +84,6 @@ class K8sObjectFactory:
             group_uuid (str): The group uuid.
             pods (List[Dict]): The list of pod specs to create in the backend.
             labels (Dict[str, str]): OSMO labels.
-            topology_name: Name of the Topology CRD
             topology_keys: Ordered list of topology keys (coarsest → finest)
             task_infos: Task information with topology requirements
 
@@ -354,7 +351,6 @@ class KaiK8sObjectFactory(K8sObjectFactory):
     def create_group_k8s_resources(self, group_uuid: str,
         pods: List[Dict], labels: Dict[str, str], pool_name: str,
         priority: wf_priority.WorkflowPriority,
-        topology_name: str,
         topology_keys: List[topology.TopologyKey],
         task_infos: List[topology.TaskTopology]) -> List[Dict]:
         """
@@ -368,7 +364,6 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             group_uuid (str): The group uuid.
             pods (List[Dict]): The list of pod specs to create in the backend.
             labels (Dict[str, str]): OSMO labels.
-            topology_name: Name of the Topology CRD
             topology_keys: Ordered list of topology keys (coarsest → finest)
             task_infos: Task information with topology requirements
 
@@ -378,12 +373,23 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         queue = f'osmo-pool-{self._namespace}-{pool_name}'
         priority_class = f'osmo-{priority.value.lower()}'
 
+        # Scheduler-specific topology name format
+        topology_name = f'osmo-pool-{self._namespace}-{pool_name}-topology'
+
         # Build topology tree using unified builder
-        builder = topology.PodGroupTopologyBuilder(topology_name, topology_keys)
+        builder = topology.PodGroupTopologyBuilder(topology_keys)
         tree_result = builder.build(task_infos)
 
+        # Add scheduler-specific topology_name to constraints
         top_level_constraint = tree_result.top_level_constraint
+        if top_level_constraint:
+            top_level_constraint['topology'] = topology_name
+
         subgroups = tree_result.subgroups
+        for subgroup in subgroups:
+            if 'topologyConstraint' in subgroup:
+                subgroup['topologyConstraint']['topology'] = topology_name
+
         task_subgroups = tree_result.task_subgroups
 
         # Convert task_subgroups to pod_subgroups
@@ -432,10 +438,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
             pod_group_spec['topologyConstraint'] = top_level_constraint
 
         if subgroups:
-            logging.info('Adding %d subgroups to PodGroup spec', len(subgroups))
             pod_group_spec['subGroups'] = subgroups
-        else:
-            logging.info('No subgroups, not adding to PodGroup spec')
 
         return [{
             'apiVersion': 'scheduling.run.ai/v2alpha2',

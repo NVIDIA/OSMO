@@ -761,11 +761,11 @@ When a workflow is submitted on a pool that uses topology, the KAI scheduler Pod
    - For leaf subgroups: Set `topologyConstraint` to the finest topology level and set `minMember` to the number of tasks
    - Use the subgroup `parent` field to create hierarchical relationships (see [KAI multi-level topology docs](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/topology/multilevel.md))
 
-5. **Ensure all leaf nodes are at same tree level**:
-   - **Critical constraint**: If any pod is in a subgroup, ALL pods must be in a subgroup
-   - Tasks without topology constraints are placed in a catch-all subgroup with "preferred" constraints at the same topology level as other subgroups
-   - Tasks with fewer topology levels than others are padded with "preferred" constraints at finer levels to reach the same depth
-   - This ensures all leaf nodes in the tree are at the same level
+5. **Uniform topology requirements**:
+   - **Critical constraint**: All tasks must use the same set of topology keys, or no topology keys at all
+   - This is validated at workflow submission time to provide immediate feedback
+   - Tasks cannot have different topology levels (e.g., one task with zone+rack, another with only zone)
+   - This ensures a consistent tree structure and simplifies the algorithm
 
 6. **Handle minMember placement**:
    - If there are subgroups: Skip `minMember` at the top PodGroup level and only add it to leaf subgroups
