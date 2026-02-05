@@ -59,7 +59,12 @@ import { useAnnouncer } from "@/hooks";
 import { ShellSessionIcon, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import { usePanelResize } from "../../../lib/panel-resize-context";
+import {
+  usePanelResize,
+  usePanelResizeMachine,
+  useDisplayDagVisible,
+  useIsPanelCollapsed,
+} from "../../../lib/panel-resize-context";
 
 // =============================================================================
 // Direct Imports - Eager loading for instant panel rendering
@@ -119,10 +124,16 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
 }: WorkflowEdgeStripProps) {
   const allSessions = useShellSessions();
 
-  // DAG visibility toggle state - use state machine's value, not store
-  // NOTE: isCollapsed is now DERIVED from widthPct in the state machine,
-  // so we only need to check isCollapsed (no more isAtStripWidth hack needed).
-  const { dagVisible, showDAG, hideDAG, isCollapsed, expand } = usePanelResize();
+  // DAG visibility toggle state - use granular selectors for optimal performance
+  // Only re-renders when these specific values change, not on all state machine updates
+  const dagVisible = useDisplayDagVisible();
+  const isCollapsed = useIsPanelCollapsed();
+  const machine = usePanelResizeMachine();
+
+  // Actions accessed via machine instance (stable references)
+  const showDAG = useCallback(() => machine.showDAG(), [machine]);
+  const hideDAG = useCallback(() => machine.hideDAG(), [machine]);
+  const expand = useCallback(() => machine.expand(), [machine]);
 
   const handleToggleDAG = useEventCallback(() => {
     if (dagVisible) {

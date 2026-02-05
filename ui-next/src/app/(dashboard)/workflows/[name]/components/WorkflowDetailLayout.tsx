@@ -110,15 +110,6 @@ export function WorkflowDetailLayout({
     // Disable transitions during drag for 60fps performance
     const transition = phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`;
 
-    console.log("[WorkflowLayout] gridStyle", {
-      phase,
-      widthPct,
-      dagVisible,
-      columns,
-      transition,
-      isCollapsed: widthPct < SNAP_ZONES.STRIP_SNAP_THRESHOLD,
-    });
-
     return {
       gridTemplateColumns: columns,
       transition,
@@ -131,12 +122,6 @@ export function WorkflowDetailLayout({
       // Only handle grid-template-columns transitions on this element
       if (e.propertyName !== "grid-template-columns") return;
       if (e.target !== containerRef.current) return;
-
-      console.log("[WorkflowLayout] transitionEnd", {
-        propertyName: e.propertyName,
-        phase,
-        willCallComplete: phase === "SNAPPING",
-      });
 
       // Only signal during SNAPPING phase
       if (phase === "SNAPPING") {
