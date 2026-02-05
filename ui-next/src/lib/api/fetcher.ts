@@ -90,18 +90,22 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
 
   // Build URL with query params
   // Server-side: Must use absolute URL (Node.js fetch requires full URL)
-  // Client-side: Can use relative URL
-  let fullUrl = getBasePathUrl(url);
+  // Client-side: Can use relative URL with basePath prepended
+  let fullUrl = url;
 
   // On server, we need both absolute URL and auth headers from incoming request
   let serverAuthHeaders: HeadersInit = {};
   if (typeof window === "undefined" && fullUrl.startsWith("/")) {
+    // Server-side: Direct backend request (no basePath needed)
     const { getServerApiBaseUrl, getServerFetchHeaders } = await import("@/lib/api/server/config");
     const baseUrl = getServerApiBaseUrl();
     fullUrl = `${baseUrl}${fullUrl}`;
     // Get auth headers from incoming request cookies
     // This forwards the user's auth token to backend API
     serverAuthHeaders = await getServerFetchHeaders();
+  } else {
+    // Client-side: Add basePath for Next.js routing
+    fullUrl = getBasePathUrl(url);
   }
 
   if (params) {
