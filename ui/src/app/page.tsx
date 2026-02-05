@@ -413,7 +413,7 @@ export default function Home() {
                       <OutlinedIcon name="refresh" />
                     </button>
                     <Link
-                      href={`/resources?pools=${pool}`}
+                      href={`/resources?pools=${pool}&allPools=${false}`}
                       className="btn btn-secondary"
                       title={`View Resources for ${pool}`}
                     >

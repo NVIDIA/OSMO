@@ -92,7 +92,7 @@ export const WorkflowsFilters = ({
   onDelete,
   saveButtonText = "Refresh",
   saveButtonIcon = "refresh",
-  fields = ["name", "date", "status", "pool", "priority"],
+  fields = ["user", "name", "date", "status", "pool", "priority"],
 }: WorkflowsFiltersProps) => {
   const [localName, setLocalName] = useState<string>(name);
   const [localDateRange, setLocalDateRange] = useState(dateRange);
