@@ -45,14 +45,8 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
-import {
-  usePanelResize,
-  useDisplayDagVisible,
-  useIsDragging,
-  useSnapZone,
-  SNAP_ZONES,
-} from "../lib/panel-resize-context";
-import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "../lib/panel-constants";
+import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
+import { PANEL_TIMING } from "../lib/panel-constants";
 
 import "../styles/layout.css";
 
@@ -92,27 +86,21 @@ export function WorkflowDetailLayout({
 
   // Compute CSS variables from state (React-controlled DOM)
   const gridStyle = useMemo((): CSSProperties => {
-    // Determine column layout based on state
-    let columns: string;
-
-    if (!dagVisible) {
-      // DAG hidden - panel takes full width
-      columns = "0% 100%";
-    } else if (phase === "DRAGGING" || widthPct >= SNAP_ZONES.STRIP_SNAP_THRESHOLD) {
-      // During drag OR when expanded: use percentage-based columns for smooth resize
-      const dagWidthPct = 100 - widthPct;
-      columns = `${dagWidthPct}% ${widthPct}%`;
-    } else {
-      // At rest AND collapsed: use fixed 40px for activity strip
-      columns = `1fr ${ACTIVITY_STRIP_WIDTH_PX}px`;
-    }
-
-    // Disable transitions during drag for 60fps performance
-    const transition = phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`;
+    // ✨ SIMPLIFIED: Single calculation for all states - always use percentages
+    // - DAG hidden: widthPct = 100, so "0% 100%"
+    // - Collapsed: widthPct = stripSnapTargetPct (~2-3%), so "~97% ~3%"
+    // - Expanded: widthPct = 20-100%, so calculated split
+    // No mixed units (no `1fr 40px`) = simpler logic, browser can interpolate smoothly
+    const dagWidthPct = dagVisible ? 100 - widthPct : 0;
+    const panelWidthPct = dagVisible ? widthPct : 100;
 
     return {
-      gridTemplateColumns: columns,
-      transition,
+      gridTemplateColumns: `${dagWidthPct}% ${panelWidthPct}%`,
+      // Disable transitions during drag for 60fps performance
+      transition: phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`,
+      // Performance hint: prepare for grid transition during snap animation
+      // Tells browser to optimize for this property change
+      willChange: phase === "SNAPPING" ? "grid-template-columns" : "auto",
     };
   }, [dagVisible, widthPct, phase]);
 
