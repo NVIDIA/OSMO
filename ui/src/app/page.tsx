@@ -24,15 +24,15 @@ import { useAuth } from "~/components/AuthProvider";
 import { allDateRange } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
-import { MultiselectWithAll } from "~/components/MultiselectWithAll";
 import PageHeader from "~/components/PageHeader";
+import { PoolsFilter } from "~/components/PoolsFilter";
 import { Select } from "~/components/Select";
 import { SlideOut } from "~/components/SlideOut";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { Switch } from "~/components/Switch";
 import { TextInput } from "~/components/TextInput";
 import { UserFilterType } from "~/components/UserFilter";
-import { PoolsListResponseSchema, type ProfileResponse } from "~/models";
+import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
 import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
@@ -127,7 +127,7 @@ export default function Home() {
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [widgetName, setWidgetName] = useState("");
   const [widgetDescription, setWidgetDescription] = useState("");
-  const [localPools, setLocalPools] = useState<Map<string, boolean>>(new Map());
+  const [localPools, setLocalPools] = useState("");
   const [allPools, setAllPools] = useState(false);
   const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
   const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
@@ -144,10 +144,6 @@ export default function Home() {
   });
 
   const { data: profile } = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
-    refetchOnWindowFocus: false,
-  });
-
-  const pools = api.resources.getPools.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
 
@@ -257,24 +253,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!pools.data) {
-      return;
-    }
-
-    const parsedData = PoolsListResponseSchema.safeParse(pools.data);
-    const availablePools = parsedData.success ? parsedData.data.pools : [];
-    const filters = new Map<string, boolean>(Object.keys(availablePools).map((pool) => [pool, false]));
-
-    if (currentDashboard?.pools.length) {
-      currentDashboard?.pools.forEach((pool) => {
-        filters.set(pool, true);
-      });
-    }
-
-    setLocalPools(filters);
-  }, [currentDashboard?.pools, pools.data]);
-
-  useEffect(() => {
     const storedWidgets = localStorage.getItem("widgets");
 
     if (storedWidgets !== null) {
@@ -354,13 +332,9 @@ export default function Home() {
   const handleEditDashboard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const pools = Array.from(localPools.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([pool]) => pool);
-
     updateCurrentDashboard((prevWidgets) => ({
       ...prevWidgets,
-      pools,
+      pools: localPools.split(","),
       allPools,
       name: dashboardName ?? "",
       defaultDashboard: isDefaultDashboard ? dashboardName ?? "" : dashboards.defaultDashboardID,
@@ -604,6 +578,7 @@ export default function Home() {
             setIsEditingMetadata(true);
             setDashboardName(currentDashboard?.name ?? "");
             setAllPools(currentDashboard?.allPools ?? false);
+            setLocalPools(currentDashboard?.pools.join(",") ?? "");
             setIsDefaultDashboard(currentDashboard?.id === dashboards.defaultDashboardID);
           }
           } role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
@@ -646,16 +621,11 @@ export default function Home() {
               size="small"
               labelPosition="right"
             />
-            <MultiselectWithAll
-              id="pools"
-              label="All Pools"
-              placeholder="Filter by pool name..."
-              aria-label="Filter by pool name"
-              filter={localPools}
-              setFilter={setLocalPools}
-              onSelectAll={setAllPools}
-              isSelectAllChecked={allPools}
-              showAll
+            <PoolsFilter
+              isSelectAllPoolsChecked={allPools}
+              selectedPools={localPools}
+              setIsSelectAllPoolsChecked={setAllPools}
+              setSelectedPools={setLocalPools}
             />
           </div>
           <div className="flex justify-end p-global bg-footerbg">
