@@ -174,7 +174,9 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
               tabIndex={isActive ? 0 : -1}
               role="tab"
               className={cn(
-                "panel-tab relative z-10 flex h-auto flex-1 items-center justify-center gap-1.5 py-[6px] text-sm font-medium transition-colors outline-none",
+                // Fixed height ensures no layout shift when switching between icon-only and icon+text modes.
+                // Height = 28px: 16px content (icon/text) + 6px top padding + 6px bottom padding
+                "panel-tab relative z-10 flex h-7 flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors outline-none",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1",
                 "min-w-0",
                 iconOnly ? "px-2" : "px-4",
@@ -189,8 +191,8 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
                   "after:absolute after:-right-[6px] after:bottom-0 after:size-[6px] after:bg-[radial-gradient(circle_at_100%_0%,transparent_6px,white_6px)] dark:after:bg-[radial-gradient(circle_at_100%_0%,transparent_6px,rgb(24,24,27)_6px)]",
               )}
             >
-              {tab.icon && <tab.icon className={iconOnly ? "size-4 shrink-0" : "size-3.5 shrink-0"} />}
-              {!iconOnly && <span className="tab-label truncate">{tab.label}</span>}
+              {tab.icon && <tab.icon className="size-4 shrink-0" />}
+              {!iconOnly && <span className="tab-label truncate leading-4">{tab.label}</span>}
               {tab.statusContent}
             </button>
           );
