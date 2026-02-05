@@ -40,7 +40,6 @@ import { useSharedPreferences, usePanelWidthPct, useDetailsPanelCollapsed } from
 import {
   PanelResizeProvider,
   usePanelResize,
-  usePanelResizeMachine,
   useDisplayDagVisible,
   useIsDragging,
   useSnapZone,
@@ -138,8 +137,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 // =============================================================================
 
 function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) {
-  // Get state machine and state via hooks
-  const machine = usePanelResizeMachine();
+  // Get state machine actions and state via hooks
   const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed, updateStripSnapTarget } =
     usePanelResize();
 
@@ -205,12 +203,27 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   });
 
   // Sync sidebar collapsed state to state machine (for navigation-aware behavior)
+  // IMPORTANT: Only sync when sidebarCollapsed CHANGES, not just when phase becomes IDLE.
+  // This prevents the sync effect from overriding intentional expansions triggered by
+  // clicking quick actions (which call expand() directly on the state machine).
+  //
+  // NOTE: isPanelCollapsed is now DERIVED from widthPct in the state machine,
+  // so the comparison is consistent - both use the same source of truth.
+  const prevSidebarCollapsedRef = useRef(sidebarCollapsed);
   useEffect(() => {
-    const currentCollapsed = machine.getState().isCollapsed;
-    if (sidebarCollapsed !== currentCollapsed && phase === "IDLE") {
-      setCollapsed(sidebarCollapsed);
+    const prevValue = prevSidebarCollapsedRef.current;
+    const sidebarCollapsedChanged = sidebarCollapsed !== prevValue;
+    prevSidebarCollapsedRef.current = sidebarCollapsed;
+
+    // Only sync to state machine when sidebar collapsed state actually changes
+    // (due to navigation or user preference change), not just when phase becomes IDLE
+    if (sidebarCollapsedChanged && phase === "IDLE") {
+      // isPanelCollapsed is derived from the state machine's widthPct
+      if (sidebarCollapsed !== isPanelCollapsed) {
+        setCollapsed(sidebarCollapsed);
+      }
     }
-  }, [sidebarCollapsed, machine, phase, setCollapsed]);
+  }, [sidebarCollapsed, phase, setCollapsed, isPanelCollapsed]);
 
   // Update strip snap target based on actual container width (deterministic calculation)
   useEffect(() => {
