@@ -22,7 +22,6 @@ import Link from "next/link";
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
 import { useAuth } from "~/components/AuthProvider";
 import { allDateRange } from "~/components/DateRangePicker";
-import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
 import PageHeader from "~/components/PageHeader";
 import { Select } from "~/components/Select";
@@ -35,10 +34,8 @@ import { api } from "~/trpc/react";
 
 import EditDashboardMetadataModal from "./components/EditDashboardMetadataModal";
 import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
-import { TasksFilters, type TasksFiltersDataProps } from "./tasks/components/TasksFilters";
 import { TasksWidget, type TaskWidgetDataProps } from "./widgets/tasks";
 import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
-import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./workflows/components/WorkflowsFilters";
 
 export interface Dashboard {
   id: string;
@@ -50,7 +47,7 @@ export interface Dashboard {
 }
 
 interface DashboardList {
-  widgets: Dashboard[];
+  dashboards: Dashboard[];
   defaultDashboardID: string;
 }
 
@@ -124,17 +121,13 @@ export default function Home() {
   const { username } = useAuth();
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
-  const [widgetName, setWidgetName] = useState("");
-  const [widgetDescription, setWidgetDescription] = useState("");
-  const [editingWorkflowWidget, setEditingWorkflowWidget] = useState<WorkflowWidgetDataProps | undefined>(undefined);
-  const [editingTaskWidget, setEditingTaskWidget] = useState<TaskWidgetDataProps | undefined>(undefined);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
   const [currentDashboardID, setCurrentDashboardID] = useState<string | undefined>(undefined);
 
   const [dashboards, setDashboards] = useState<DashboardList>({
-    widgets: [],
+    dashboards: [],
     defaultDashboardID: "",
   });
 
@@ -142,7 +135,7 @@ export default function Home() {
     refetchOnWindowFocus: false,
   });
 
-  const currentDashboard = useMemo(() => dashboards.widgets.find((widget) => widget.id === currentDashboardID), [dashboards.widgets, currentDashboardID]);
+  const currentDashboard = useMemo(() => dashboards.dashboards.find((widget) => widget.id === currentDashboardID), [dashboards.dashboards, currentDashboardID]);
 
   const {
     data: resources,
@@ -171,20 +164,20 @@ export default function Home() {
 
   const updateCurrentDashboard = useCallback(
     (updater: Dashboard | ((prev: Dashboard) => Dashboard)) => {
-      if (!currentDashboard) {
+      if (!currentDashboardID) {
         return;
       }
 
       setDashboards((prevDashboards) => {
-        const prevDashboard = prevDashboards.widgets.find((widget) => widget.name === currentDashboard.name);
+        const prevDashboard = prevDashboards.dashboards.find((widget) => widget.id === currentDashboardID);
         if (!prevDashboard) {
           return prevDashboards;
         }
         const nextDashboard = typeof updater === "function" ? updater(prevDashboard) : updater;
         const nextDashboards = {
           ...prevDashboards,
-          widgets: prevDashboards.widgets.map((widget) =>
-            widget.name === currentDashboard.name ? nextDashboard : widget,
+          dashboards: prevDashboards.dashboards.map((widget) =>
+            widget.id === currentDashboardID ? nextDashboard : widget,
           ),
         };
 
@@ -192,7 +185,7 @@ export default function Home() {
         return nextDashboards;
       });
     },
-    [currentDashboard],
+    [currentDashboardID],
   );
 
   const processResources = useMemo(() => {
@@ -207,46 +200,6 @@ export default function Home() {
 
   const aggregateTotals = useMemo(() => calcAggregateTotals(processResources), [processResources]);
 
-  const onSaveWorkflowWidget = (data: WorkflowsFiltersDataProps) => {
-    if (!editingWorkflowWidget) {
-      return;
-    }
-    updateCurrentDashboard((prevWidgets) => ({
-      ...prevWidgets,
-      workflows: prevWidgets.workflows.map((widget) =>
-        widget.id === editingWorkflowWidget.id
-          ? {
-            id: editingWorkflowWidget.id,
-            name: widgetName,
-            description: widgetDescription,
-            filters: data,
-          }
-          : widget,
-      ),
-    }));
-    setEditingWorkflowWidget(undefined);
-  };
-
-  const onSaveTaskWidget = (data: TasksFiltersDataProps) => {
-    if (!editingTaskWidget) {
-      return;
-    }
-    updateCurrentDashboard((prevWidgets) => ({
-      ...prevWidgets,
-      tasks: prevWidgets.tasks.map((widget) =>
-        widget.id === editingTaskWidget.id
-          ? {
-            id: editingTaskWidget.id,
-            name: widgetName,
-            description: widgetDescription,
-            filters: data,
-          }
-          : widget,
-      ),
-    }));
-    setEditingTaskWidget(undefined);
-  };
-
   useEffect(() => {
     const storedWidgets = localStorage.getItem("widgets");
 
@@ -256,7 +209,7 @@ export default function Home() {
       setCurrentDashboardID(storedDashboards.defaultDashboardID);
     } else {
       setDashboards({
-        widgets: [defaultDashboard],
+        dashboards: [defaultDashboard],
         defaultDashboardID: defaultDashboard.id,
       });
       setCurrentDashboardID(defaultDashboard.id);
@@ -290,7 +243,7 @@ export default function Home() {
       return;
     }
 
-    if (dashboards.widgets.some((widget) => widget.name === trimmedName)) {
+    if (dashboards.dashboards.some((widget) => widget.name === trimmedName)) {
       setNewDashboardNameError("Dashboard name already exists");
       return;
     }
@@ -307,7 +260,7 @@ export default function Home() {
       const nextDashboards = {
         ...prevDashboards,
         widgets: [
-          ...prevDashboards.widgets,
+          ...prevDashboards.dashboards,
           newDashboard,
         ],
       };
@@ -328,7 +281,7 @@ export default function Home() {
     }
 
     setDashboards((prevDashboards) => {
-      const nextWidgets = prevDashboards.widgets.map((widget) => {
+      const nextWidgets = prevDashboards.dashboards.map((widget) => {
         if (widget.id !== currentDashboard.id) {
           return widget;
         }
@@ -374,7 +327,7 @@ export default function Home() {
             }
             }
           >
-            {dashboards.widgets.map((widget) => (
+            {dashboards.dashboards.map((widget) => (
               <option
                 key={widget.id}
                 value={widget.name}
@@ -398,11 +351,22 @@ export default function Home() {
             <WorkflowsWidget
               key={widget.name}
               widget={widget}
-              onEdit={(widget) => {
-                setEditingWorkflowWidget(widget);
-                setWidgetName(widget.name);
-                setWidgetDescription(widget.description ?? "");
-                setEditingTaskWidget(undefined);
+              currentUserName={username}
+              onSave={(data) => {
+                const targetId = widget.id;
+                updateCurrentDashboard((prevWidgets) => ({
+                  ...prevWidgets,
+                  workflows: prevWidgets.workflows.map((dashboardWidget) =>
+                    dashboardWidget.id === targetId ? data : dashboardWidget,
+                  ),
+                }));
+              }  }
+              onDelete={() => {
+                const targetId = widget.id;
+                updateCurrentDashboard((prevWidgets) => ({
+                  ...prevWidgets,
+                  workflows: prevWidgets.workflows.filter((dashboardWidget) => dashboardWidget.id !== targetId),
+                }));
               }}
             />
           ))}
@@ -410,11 +374,22 @@ export default function Home() {
             <TasksWidget
               key={widget.id}
               widget={widget}
-              onEdit={(widget) => {
-                setEditingTaskWidget(widget);
-                setWidgetName(widget.name);
-                setWidgetDescription(widget.description ?? "");
-                setEditingWorkflowWidget(undefined);
+              currentUserName={username}
+              onSave={(data) => {
+                const targetId = widget.id;
+                updateCurrentDashboard((prevWidgets) => ({
+                  ...prevWidgets,
+                  tasks: prevWidgets.tasks.map((dashboardWidget) =>
+                    dashboardWidget.id === targetId ? data : dashboardWidget,
+                  ),
+                }));
+              }}
+              onDelete={() => {
+                const targetId = widget.id;
+                updateCurrentDashboard((prevWidgets) => ({
+                  ...prevWidgets,
+                  tasks: prevWidgets.tasks.filter((dashboardWidget) => dashboardWidget.id !== targetId),
+                }));
               }}
             />
           ))}
@@ -457,94 +432,6 @@ export default function Home() {
             ))}
         </div>
       </div>
-      <FullPageModal
-        open={!!editingWorkflowWidget || !!editingTaskWidget}
-        onClose={() => {
-          setEditingWorkflowWidget(undefined);
-          setEditingTaskWidget(undefined);
-        }}
-        headerChildren={
-          <h2 id="edit-header">{editingWorkflowWidget ? "Edit Workflow" : "Edit Task"}</h2>
-        }
-        aria-labelledby="edit-header"
-        size="md"
-      >
-        <TextInput
-          id="widget-name"
-          label="Name"
-          helperText="Name of the widget (unique)"
-          className="w-full"
-          required
-          containerClassName="w-full p-global"
-          value={widgetName}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetName(event.target.value);
-          }}
-        />
-        <TextInput
-          id="widget-description"
-          label="Description"
-          className="w-full"
-          containerClassName="w-full p-global"
-          value={widgetDescription}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetDescription(event.target.value);
-          }}
-        />
-        {editingWorkflowWidget ? (
-          <WorkflowsFilters
-            fields={["user", "date", "status", "pool", "priority"]}
-            name={""}
-            userType={editingWorkflowWidget.filters.userType}
-            selectedUsers={editingWorkflowWidget.filters.selectedUsers}
-            selectedPools={editingWorkflowWidget.filters.selectedPools}
-            dateRange={editingWorkflowWidget.filters.dateRange}
-            statusFilterType={editingWorkflowWidget.filters.statusFilterType}
-            submittedAfter={editingWorkflowWidget.filters.submittedAfter}
-            submittedBefore={editingWorkflowWidget.filters.submittedBefore}
-            isSelectAllPoolsChecked={editingWorkflowWidget.filters.isSelectAllPoolsChecked}
-            currentUserName={username}
-            priority={editingWorkflowWidget.filters.priority}
-            onSave={onSaveWorkflowWidget}
-            onDelete={() => {
-              updateCurrentDashboard((prevWidgets) => ({
-                ...prevWidgets,
-                workflows: prevWidgets.workflows.filter((widget) => widget.id !== editingWorkflowWidget?.id),
-              }));
-              setEditingWorkflowWidget(undefined);
-            }}
-            saveButtonText="Save"
-            saveButtonIcon="save"
-          />
-        ) : editingTaskWidget ? (
-          <TasksFilters
-            fields={["user", "date", "status", "pool", "priority", "workflow"]}
-            userType={editingTaskWidget.filters.userType}
-            selectedUsers={editingTaskWidget.filters.selectedUsers}
-            dateRange={editingTaskWidget.filters.dateRange}
-            startedAfter={editingTaskWidget.filters.startedAfter}
-            startedBefore={editingTaskWidget.filters.startedBefore}
-            statusFilterType={editingTaskWidget.filters.statusFilterType}
-            statuses={editingTaskWidget.filters.statuses}
-            selectedPools={editingTaskWidget.filters.selectedPools}
-            isSelectAllPoolsChecked={editingTaskWidget.filters.isSelectAllPoolsChecked}
-            currentUserName={username}
-            isSelectAllNodesChecked={true}
-            nodes=""
-            workflowId=""
-            onSave={onSaveTaskWidget}
-            onDelete={() => {
-              updateCurrentDashboard((prevWidgets) => ({
-                ...prevWidgets,
-                tasks: prevWidgets.tasks.filter((widget) => widget.id !== editingTaskWidget?.id),
-              }));
-              setEditingTaskWidget(undefined);
-            }}
-            saveButtonText="Save"
-            saveButtonIcon="save"
-          />
-        ) : undefined}
-      </FullPageModal>
       <SlideOut
         id="new-dashboard"
         open={showNewDashboard}
