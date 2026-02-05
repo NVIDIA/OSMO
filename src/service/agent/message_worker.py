@@ -144,9 +144,6 @@ class MessageWorker:
             elif 'pod_event' in protobuf_msg:
                 message_type = backend_messages.MessageType.POD_EVENT
                 body_data = protobuf_msg['pod_event']
-            elif 'pod_conditions' in protobuf_msg:
-                message_type = backend_messages.MessageType.POD_CONDITIONS
-                body_data = protobuf_msg['pod_conditions']
             elif 'logging' in protobuf_msg:
                 # Check if this is a backend operation notification
                 logging_text = protobuf_msg['logging'].get('text', '')
