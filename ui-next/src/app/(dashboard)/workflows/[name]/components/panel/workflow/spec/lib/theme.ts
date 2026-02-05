@@ -155,6 +155,8 @@ export function createSpecViewerTheme(isDark: boolean) {
         backgroundColor: colors.gutterBg,
         color: colors.lineNumber,
         border: "none",
+        borderRight: `1px solid ${borderColor}`,
+        zIndex: "2", // Ensure gutter stays above scrolling content
       },
 
       // Line numbers
