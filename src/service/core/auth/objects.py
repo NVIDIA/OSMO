@@ -211,11 +211,6 @@ class CreateUserRequest(pydantic.BaseModel):
     roles: Optional[List[str]] = None
 
 
-class UpdateUserRequest(pydantic.BaseModel):
-    """Request to update a user."""
-    pass  # Reserved for future mutable fields
-
-
 class AssignRoleRequest(pydantic.BaseModel):
     """Request to assign a role to a user."""
     role_name: str

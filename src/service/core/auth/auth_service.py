@@ -545,53 +545,6 @@ def get_user(user_id: str) -> objects.UserWithRoles:
     )
 
 
-@router.put('/api/auth/users/{user_id}', response_model=objects.User)
-def update_user(user_id: str, request: objects.UpdateUserRequest) -> objects.User:
-    """
-    Update a user (full replace of mutable fields).
-
-    Currently there are no mutable user fields. This endpoint is reserved for future use.
-
-    Args:
-        user_id: The user ID to update
-        request: UpdateUserRequest with new values
-
-    Returns:
-        Current User object
-    """
-    # pylint: disable=unused-argument
-    postgres = connectors.PostgresConnector.get_instance()
-
-    # Check if user exists and return current user
-    user_row = _get_user_from_db(postgres, user_id)
-    if not user_row:
-        raise osmo_errors.OSMOUserError(f'User {user_id} not found')
-
-    return objects.User(
-        id=user_row['id'],
-        created_at=user_row['created_at'],
-        created_by=user_row['created_by'],
-        last_seen_at=user_row['last_seen_at']
-    )
-
-
-@router.patch('/api/auth/users/{user_id}', response_model=objects.User)
-def patch_user(user_id: str, request: objects.UpdateUserRequest) -> objects.User:
-    """
-    Partially update a user.
-
-    Args:
-        user_id: The user ID to update
-        request: UpdateUserRequest with fields to update
-
-    Returns:
-        Updated User object
-    """
-    # No mutable fields currently - just return the user
-    _ = request  # Reserved for future mutable fields
-    return get_user(user_id)
-
-
 @router.delete('/api/auth/users/{user_id}', status_code=204)
 def delete_user(user_id: str):
     """
@@ -690,7 +643,11 @@ def assign_role_to_user(
 @router.delete('/api/auth/users/{user_id}/roles/{role_name}', status_code=204)
 def remove_role_from_user(user_id: str, role_name: str):
     """
-    Remove a role from a user.
+    Remove a role from a user and all their PATs.
+
+    When a role is removed from a user, it is also removed from all PATs
+    owned by that user. This ensures PATs cannot have roles that the user
+    no longer has.
 
     Args:
         user_id: The user ID
@@ -701,9 +658,15 @@ def remove_role_from_user(user_id: str, role_name: str):
     # Validate user exists
     _validate_user_exists(postgres, user_id)
 
-    # Delete role assignment
-    delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
-    postgres.execute_commit_command(delete_cmd, (user_id, role_name))
+    # Delete role assignment from user_roles and pat_roles in a single transaction
+    # This ensures consistency - if a user loses a role, their PATs lose it too
+    delete_cmd = '''
+        WITH user_role_delete AS (
+            DELETE FROM user_roles WHERE user_id = %s AND role_name = %s
+        )
+        DELETE FROM pat_roles WHERE user_name = %s AND role_name = %s;
+    '''
+    postgres.execute_commit_command(delete_cmd, (user_id, role_name, user_id, role_name))
 
 
 @router.get('/api/auth/roles/{role_name}/users', response_model=objects.RoleUsersResponse)

@@ -229,6 +229,42 @@ CREATE TABLE roles (
 - `import` — Role is imported from IDP claims or `user_roles` table (default)
 - `ignore` — Ignore this role in IDP sync (role is managed manually)
 
+### Role External Mappings Table
+
+Maps external IDP role names to OSMO roles. This enables flexible role mapping when IDP role names differ from OSMO role names.
+
+```sql
+CREATE TABLE role_external_mappings (
+    -- OSMO role name (references roles.name)
+    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+
+    -- External role name from IDP (e.g., from x-osmo-roles header)
+    external_role TEXT NOT NULL,
+
+    -- Composite primary key ensures unique mappings
+    PRIMARY KEY (role_name, external_role)
+);
+
+-- Index for fast lookups by external role name (used during IDP role resolution)
+CREATE INDEX idx_role_external_mappings_external_role ON role_external_mappings (external_role);
+```
+
+**Key Characteristics:**
+
+1. **Many-to-many mapping** — Multiple external roles can map to the same OSMO role, and one external role can map to multiple OSMO roles
+2. **Default mapping** — During migration, each existing role automatically gets a 1:1 mapping (role name → same external role name)
+3. **Flexible IDP integration** — Supports scenarios where IDP uses different naming conventions
+
+**Example Use Cases:**
+
+| External Role (IDP) | OSMO Role | Use Case |
+|---------------------|-----------|----------|
+| `LDAP_ML_TEAM` | `osmo-ml-team` | Map LDAP group name to OSMO role |
+| `ad-developers` | `osmo-user` | Map AD group to OSMO role |
+| `ad-developers` | `osmo-dev-team` | Same external role grants multiple OSMO roles |
+| `senior-engineer` | `osmo-admin` | Map job title to admin role |
+| `junior-engineer` | `osmo-admin` | Multiple external roles can grant admin |
+
 ### Related Tables with Foreign Keys
 
 The following tables reference the `users` table:
@@ -269,52 +305,52 @@ CREATE TABLE ueks (
                               │ sync_mode    │
                               └──────────────┘
                                      ▲
-                                     │
-              ┌──────────────────────┼
-              │                      │
-       ┌──────────────┐       ┌──────────────┐
-       │  user_roles  │       │  pat_roles   │
-       ├──────────────┤       ├──────────────┤
-       │ user_id (FK) │       │ user_name(FK)│
-       │ role_name(FK)│       │ token_name   │
-       │ assigned_by  │       │ role_name(FK)│
-       │ assigned_at  │       │ assigned_by  │
-       └──────────────┘       │ assigned_at  │
-              ▲               └──────────────┘
-              │                      ▲
-              │                      │
-              │               ┌──────────────────┐
-              │               │  access_token    │
-              │               ├──────────────────┤
-              │               │ user_name (PK)   │
-              │               │ token_name (PK)  │
-              │               │ access_token     │
-              │               │ expires_at       │
-              │               │ description      │
-              │               │ last_seen_at     │
-              │               └──────────────────┘
-              │                      ▲
-              │                      │ 1:N
-              │                      │
-       ┌──────┴──────────────────────┴────────────────────────┐
-       │                        users                         │
-       ├──────────────────────────────────────────────────────┤
-       │ id (PK)                                              │
-       │ created_at, created_by, last_seen_at                 │
-       └──────────────────────────────────────────────────────┘
-              ▲                                        ▲
-              │ 1:1                                    │ 1:1
-              │                                        │
-       ┌──────────────┐                         ┌──────────────┐
-       │   profile    │                         │     ueks     │
-       ├──────────────┤                         ├──────────────┤
-       │ user_name(FK)│                         │ uid (FK)     │
-       │ ...          │                         │ keys         │
-       └──────────────┘                         └──────────────┘
+                ┌────────────────────┼────────────────────┐
+                │                    │                    │
+  ┌─────────────────────────┐ ┌──────────────┐     ┌──────────────┐
+  │ role_external_mappings  │ │  user_roles  │     │  pat_roles   │
+  ├─────────────────────────┤ ├──────────────┤     ├──────────────┤
+  │ role_name (PK,FK)       │ │ user_id (FK) │     │ user_name(FK)│
+  │ external_role (PK)      │ │ role_name(FK)│     │ token_name   │
+  └─────────────────────────┘ │ assigned_by  │     │ role_name(FK)│
+        ▲                     │ assigned_at  │     │ assigned_by  │
+        │                     └──────────────┘     │ assigned_at  │
+        │                            ▲             └──────────────┘
+  (IDP role lookup)                  │                    ▲
+                                     │                    │
+                                     │             ┌──────────────────┐
+                                     │             │  access_token    │
+                                     │             ├──────────────────┤
+                                     │             │ user_name (PK)   │
+                                     │             │ token_name (PK)  │
+                                     │             │ access_token     │
+                                     │             │ expires_at       │
+                                     │             │ description      │
+                                     │             │ last_seen_at     │
+                                     │             └──────────────────┘
+                                     │                    ▲
+                                     │                    │ 1:N
+                                     │                    │
+              ┌──────────────────────┴────────────────────┴───────────┐
+              │                        users                          │
+              ├───────────────────────────────────────────────────────┤
+              │ id (PK)                                               │
+              │ created_at, created_by, last_seen_at                  │
+              └───────────────────────────────────────────────────────┘
+                     ▲                                        ▲
+                     │ 1:1                                    │ 1:1
+                     │                                        │
+              ┌──────────────┐                         ┌──────────────┐
+              │   profile    │                         │     ueks     │
+              ├──────────────┤                         ├──────────────┤
+              │ user_name(FK)│                         │ uid (FK)     │
+              │ ...          │                         │ keys         │
+              └──────────────┘                         └──────────────┘
 
     - PAT roles are inherited from user at token creation time
     - Profile and ueks have 1:1 foreign key to users (ON DELETE CASCADE)
     - user_roles and access_token have N:1 foreign key to users
+    - role_external_mappings maps external IDP roles to OSMO roles (many-to-many)
 ```
 
 ### Service Account Workflow
@@ -361,7 +397,7 @@ Service accounts (for CI/CD pipelines, automation, etc.) follow the same pattern
 4. **Admin-created PATs** — Admins can create PATs for any user via the admin API
 5. **Easy rotation** — Create new PAT (inherits current roles), delete old PAT
 
-> **Note**: PAT roles are immutable after creation. If a user's roles change, existing PATs retain their original roles. To update a PAT's roles, delete it and create a new one.
+> **Note**: PAT roles cannot be added after creation. However, when a role is removed from a user, it is also automatically removed from all of that user's PATs. This ensures PATs cannot have roles that the user no longer has.
 
 ---
 
@@ -376,8 +412,6 @@ The User Management APIs follow SCIM-inspired patterns. All endpoints are under 
 | `/api/auth/users` | GET | `user:List` | List users with filtering |
 | `/api/auth/users` | POST | `user:Create` | Create a new user |
 | `/api/auth/users/{id}` | GET | `user:Read` | Get user details with roles |
-| `/api/auth/users/{id}` | PUT | `user:Update` | Replace user (full update) |
-| `/api/auth/users/{id}` | PATCH | `user:Update` | Partial user update |
 | `/api/auth/users/{id}` | DELETE | `user:Delete` | Delete user |
 
 ### List Users
@@ -460,36 +494,6 @@ GET /api/auth/users/{id}
   ]
 }
 ```
-
-### Update User (Full Replace)
-
-```
-PUT /api/auth/users/{id}
-```
-
-Returns the current user. Currently there are no mutable user fields.
-
-**Request Body:**
-```json
-{}
-```
-
-> **Note**: The user model currently has no mutable fields. This endpoint is reserved for future use.
-
-### Update User (Partial)
-
-```
-PATCH /api/auth/users/{id}
-```
-
-Returns the current user. Currently there are no mutable user fields.
-
-**Request Body:**
-```json
-{}
-```
-
-> **Note**: The user model currently has no mutable fields. This endpoint is reserved for future use.
 
 ### Delete User
 
@@ -574,6 +578,8 @@ POST /api/auth/users/{id}/roles
 ```
 DELETE /api/auth/users/{id}/roles/{role_name}
 ```
+
+Removes the role from the user **and from all PATs owned by that user**. This ensures PATs cannot have roles that the user no longer has.
 
 **Response:** `204 No Content`
 
@@ -808,8 +814,11 @@ When a request comes in, the authorization middleware resolves roles based on ho
   │ Step 2: Collect Roles Based on Auth Type                               │
   │                                                                        │
   │   IF auth_type = JWT:                                                  │
-  │     Source 1: JWT Claims (if present and role sync_mode != 'ignore')   │
-  │       roles += token.groups OR token.roles                             │
+  │     Source 1: IDP Claims (mapped via role_external_mappings)           │
+  │       external_roles = x-osmo-roles header OR token.groups/roles       │
+  │       roles += SELECT role_name FROM role_external_mappings            │
+  │                WHERE external_role IN (external_roles)                 │
+  │                AND sync_mode != 'ignore'                               │
   │                                                                        │
   │     Source 2: user_roles table                                         │
   │       SELECT role_name FROM user_roles WHERE user_id = ?               │
@@ -835,9 +844,10 @@ When a request comes in, the authorization middleware resolves roles based on ho
   └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key Difference:**
-- **JWT users** get roles from `user_roles` (all roles assigned to the user)
+**Key Differences:**
+- **JWT users** get roles from `user_roles` (all roles assigned to the user) plus IDP roles mapped via `role_external_mappings`
 - **PAT users** get roles from `pat_roles` (subset of user's roles assigned to this specific token)
+- **External role mapping** translates IDP role names to OSMO role names, enabling integration with IDPs that use different naming conventions
 
 ---
 
@@ -908,7 +918,8 @@ The migration performs the following steps in a single transaction:
 5. **Update access_token schema** — Remove `access_type` and `roles` columns, add `last_seen_at`
 6. **Create pat_roles table** — For PAT role assignments
 7. **Add sync_mode to roles** — New column for role synchronization behavior
-8. **Add foreign key constraints** — Profile and ueks tables reference users
+8. **Create role_external_mappings table** — Maps external IDP roles to OSMO roles; auto-populates with 1:1 mappings for existing roles
+9. **Add foreign key constraints** — Profile and ueks tables reference users
 
 ### Migration Script Summary
 
@@ -973,7 +984,22 @@ CREATE TABLE IF NOT EXISTS pat_roles (
 -- Step 7: Add sync_mode to roles table
 ALTER TABLE roles ADD COLUMN IF NOT EXISTS sync_mode TEXT NOT NULL DEFAULT 'import';
 
--- Step 8: Add foreign key constraints
+-- Step 8: Create role_external_mappings table (IDP role name to OSMO role)
+CREATE TABLE IF NOT EXISTS role_external_mappings (
+    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+    external_role TEXT NOT NULL,
+    PRIMARY KEY (role_name, external_role)
+);
+
+CREATE INDEX IF NOT EXISTS idx_role_external_mappings_external_role
+    ON role_external_mappings (external_role);
+
+-- Auto-create 1:1 mappings for existing roles
+INSERT INTO role_external_mappings (role_name, external_role)
+SELECT name, name FROM roles
+ON CONFLICT (role_name, external_role) DO NOTHING;
+
+-- Step 9: Add foreign key constraints
 DELETE FROM profile WHERE user_name NOT IN (SELECT id FROM users);
 ALTER TABLE profile ADD CONSTRAINT profile_user_name_fkey
     FOREIGN KEY (user_name) REFERENCES users(id) ON DELETE CASCADE;
@@ -1003,7 +1029,6 @@ COMMIT;
 | List users | `user:List` | Included in `osmo-admin` |
 | Create user | `user:Create` | Included in `osmo-admin` |
 | Read user | `user:Read` | Users can read their own record |
-| Update user | `user:Update` | Users can update limited fields on their own record |
 | Delete user | `user:Delete` | Included in `osmo-admin` |
 | Manage roles | `role:Manage` | Fine-grained by resource pattern |
 
@@ -1054,7 +1079,6 @@ Add the following actions to the authorization middleware:
 | `user:List` | `/api/auth/users` | GET |
 | `user:Create` | `/api/auth/users` | POST |
 | `user:Read` | `/api/auth/users/*` | GET |
-| `user:Update` | `/api/auth/users/*` | PUT, PATCH |
 | `user:Delete` | `/api/auth/users/*` | DELETE |
 | `role:Read` | `/api/auth/users/*/roles` | GET |
 | `role:Read` | `/api/auth/roles/*/users` | GET |
@@ -1078,6 +1102,7 @@ This design has been implemented:
 - [x] PAT roles table
 - [x] Access token schema updates (removed `access_type`, `roles`; added `last_seen_at`)
 - [x] Roles table `sync_mode` column
+- [x] Role external mappings table (IDP role name → OSMO role mapping)
 - [x] User Management APIs (`/api/auth/users/*`)
 - [x] Role Assignment APIs (`/api/auth/users/*/roles`, `/api/auth/roles/*/users`)
 - [x] Access Token APIs (`/api/auth/access_token/*`)
@@ -1102,7 +1127,36 @@ This is called from the `AccessControlMiddleware`, ensuring users are created wh
 
 ### Role Synchronization from IDP
 
-The `AccessControlMiddleware` synchronizes user roles from IDP headers on each request via the `sync_user_roles` function. The behavior depends on each role's `sync_mode`:
+The `AccessControlMiddleware` synchronizes user roles from IDP headers on each request via the `sync_user_roles` function. The process involves two steps:
+
+#### Step 1: External Role Mapping
+
+When roles arrive from the IDP (via the `x-osmo-roles` header or JWT claims), they are first translated to OSMO roles using the `role_external_mappings` table:
+
+```
+IDP sends: ["LDAP_ML_TEAM", "ad-developers"]
+                    │
+                    ▼
+    ┌─────────────────────────────────────┐
+    │     role_external_mappings          │
+    ├─────────────────────────────────────┤
+    │ LDAP_ML_TEAM    → osmo-ml-team      │
+    │ ad-developers   → osmo-user         │
+    │ ad-developers   → osmo-dev-team     │
+    └─────────────────────────────────────┘
+                    │
+                    ▼
+Resolved OSMO roles: ["osmo-ml-team", "osmo-user", "osmo-dev-team"]
+```
+
+This mapping enables:
+- **Different naming conventions** — Map LDAP/AD group names to OSMO role names
+- **Role consolidation** — Map multiple IDP roles to a single OSMO role
+- **Role expansion** — Map one IDP role to multiple OSMO roles
+
+#### Step 2: Sync Mode Application
+
+After mapping, the behavior depends on each role's `sync_mode`:
 
 | Sync Mode | IDP has role | User has role | Action |
 |-----------|--------------|---------------|--------|
@@ -1117,7 +1171,11 @@ The `AccessControlMiddleware` synchronizes user roles from IDP headers on each r
 - **import**: Roles are added from IDP but never removed. Useful for accumulating roles from different sources.
 - **force**: The user's roles exactly match what the IDP provides. If the IDP stops providing a role, it is removed.
 
-**Example:** If a role `osmo-team-lead` has `sync_mode = 'force'`, and a user logs in without that role in their IDP claims, the role will be removed from their `user_roles` mapping.
+**Example:** If a role `osmo-team-lead` has `sync_mode = 'force'`, and a user logs in without that role in their IDP claims (after external mapping), the role will be removed from their `user_roles` mapping.
+
+#### Default External Mappings
+
+During migration, each existing role automatically gets a 1:1 mapping where the external role name equals the OSMO role name. This ensures backward compatibility — if your IDP already sends role names that match OSMO role names, no additional configuration is needed.
 
 ### CLI Commands
 
@@ -1126,9 +1184,16 @@ The `osmo user` CLI provides the following commands:
 - `osmo user list` — List all users with optional filtering
 - `osmo user create <user_id>` — Create a new user with optional roles
 - `osmo user get <user_id>` — Get user details including roles
-- `osmo user update <user_id>` — Update user (add/remove roles)
+- `osmo user update <user_id>` — Add or remove roles from a user (uses role assignment APIs, not PUT/PATCH)
 - `osmo user delete <user_id>` — Delete a user
 
 The `osmo token` CLI has been updated:
 - Removed service token functionality
 - Added `--user` flag for admin operations on other users' tokens
+
+### Role Removal Cascading
+
+When a role is removed from a user (via CLI or API), the role is also automatically removed from all PATs owned by that user. This ensures that:
+- PATs cannot retain roles that the user no longer has
+- Role revocation is immediate and complete
+- No manual cleanup of PAT roles is required
