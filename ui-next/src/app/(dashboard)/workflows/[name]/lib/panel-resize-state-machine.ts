@@ -37,13 +37,13 @@
 // =============================================================================
 
 export type ResizePhase = "IDLE" | "DRAGGING" | "SNAPPING" | "SETTLING";
-export type SnapZone = "soft" | "full";
+export type SnapZone = "strip" | "full";
 export type CallbackType = "onLayoutStable" | "onPhaseChange";
 
 export const SNAP_ZONES = {
-  SOFT_SNAP_START: 80,
-  FULL_SNAP_START: 90,
-  SOFT_SNAP_TARGET: 80,
+  STRIP_SNAP_THRESHOLD: 20,
+  FULL_SNAP_START: 80,
+  STRIP_SNAP_TARGET: 0, // Will be calculated dynamically based on activity strip width
   FULL_SNAP_TARGET: 100,
 } as const;
 
@@ -64,6 +64,10 @@ export interface PanelResizeStateMachineOptions {
   onPersistCollapsed: (collapsed: boolean) => void;
   minPct?: number;
   maxPct?: number;
+  /** Width of the activity strip in pixels (for calculating strip snap target) */
+  stripWidthPx?: number;
+  /** Container width in pixels (for calculating strip snap target percentage) */
+  containerWidthPx?: number;
 }
 
 // =============================================================================
@@ -81,7 +85,7 @@ const WIDTH_EPSILON = 0.01;
 
 export function classifySnapZone(widthPct: number): SnapZone | null {
   if (widthPct >= SNAP_ZONES.FULL_SNAP_START) return "full";
-  if (widthPct >= SNAP_ZONES.SOFT_SNAP_START) return "soft";
+  if (widthPct < SNAP_ZONES.STRIP_SNAP_THRESHOLD) return "strip";
   return null;
 }
 
@@ -122,11 +126,21 @@ export class PanelResizeStateMachine {
   private readonly maxPct: number;
   private readonly onPersist: (pct: number) => void;
   private readonly onPersistCollapsed: (collapsed: boolean) => void;
+  private readonly stripSnapTargetPct: number;
 
   constructor(options: PanelResizeStateMachineOptions) {
     this.state = createInitialState(options.initialPersistedPct, options.initialCollapsed);
 
-    this.minPct = options.minPct ?? 20;
+    // Calculate strip snap target percentage based on strip width and container width
+    // Default to 2% if not provided (approximately 40px on typical screens)
+    // The CSS minWidthPx constraint will enforce the exact pixel minimum
+    if (options.stripWidthPx && options.containerWidthPx && options.containerWidthPx > 0) {
+      this.stripSnapTargetPct = Math.max(1, (options.stripWidthPx / options.containerWidthPx) * 100);
+    } else {
+      this.stripSnapTargetPct = 2;
+    }
+
+    this.minPct = options.minPct ?? this.stripSnapTargetPct;
     this.maxPct = options.maxPct ?? 100;
     this.onPersist = options.onPersist;
     this.onPersistCollapsed = options.onPersistCollapsed;
@@ -177,8 +191,9 @@ export class PanelResizeStateMachine {
       dagVisible: clampedPct < 100,
     };
 
-    // Only update persistedPct below soft snap zone - snap zones handle their own persistence
-    if (clampedPct < SNAP_ZONES.SOFT_SNAP_START) {
+    // Only update persistedPct in the free zone (not in snap zones)
+    // Strip zone (< 20%) and full zone (>= 80%) handle their own persistence
+    if (clampedPct >= SNAP_ZONES.STRIP_SNAP_THRESHOLD && clampedPct < SNAP_ZONES.FULL_SNAP_START) {
       updates.persistedPct = clampedPct;
     }
 
@@ -218,8 +233,8 @@ export class PanelResizeStateMachine {
     if (zone === "full" || isAtMaxTarget) {
       return { target: SNAP_ZONES.FULL_SNAP_TARGET, dagVisible: false, preservePersistedPct: true };
     }
-    if (zone === "soft") {
-      return { target: SNAP_ZONES.SOFT_SNAP_TARGET, dagVisible: true, preservePersistedPct: false };
+    if (zone === "strip") {
+      return { target: this.stripSnapTargetPct, dagVisible: true, preservePersistedPct: false };
     }
     return null;
   }
@@ -315,6 +330,25 @@ export class PanelResizeStateMachine {
     if (this.disposed) return;
     if (!this.state.isCollapsed) return;
     this.setCollapsed(false);
+  }
+
+  // ===========================================================================
+  // Public API: Configuration Updates
+  // ===========================================================================
+
+  /**
+   * Update the strip snap target percentage based on actual measurements.
+   * Call this after the container is rendered and measured.
+   */
+  updateStripSnapTarget(stripWidthPx: number, containerWidthPx: number): void {
+    if (this.disposed) return;
+    if (containerWidthPx <= 0) return;
+
+    const newTarget = Math.max(1, (stripWidthPx / containerWidthPx) * 100);
+    if (Math.abs(this.stripSnapTargetPct - newTarget) > 0.01) {
+      // @ts-expect-error - Allowing mutation of readonly field for runtime configuration
+      this.stripSnapTargetPct = newTarget;
+    }
   }
 
   // ===========================================================================

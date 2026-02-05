@@ -149,6 +149,7 @@ export function usePanelResize(): {
   expand: () => void;
   hideDAG: () => void;
   showDAG: () => void;
+  updateStripSnapTarget: (stripWidthPx: number, containerWidthPx: number) => void;
 } {
   const machine = usePanelResizeMachine();
 
@@ -175,6 +176,10 @@ export function usePanelResize(): {
   const expand = useCallback(() => machine.expand(), [machine]);
   const hideDAG = useCallback(() => machine.hideDAG(), [machine]);
   const showDAG = useCallback(() => machine.showDAG(), [machine]);
+  const updateStripSnapTarget = useCallback(
+    (stripWidthPx: number, containerWidthPx: number) => machine.updateStripSnapTarget(stripWidthPx, containerWidthPx),
+    [machine],
+  );
 
   return {
     // State
@@ -202,6 +207,7 @@ export function usePanelResize(): {
     expand,
     hideDAG,
     showDAG,
+    updateStripSnapTarget,
   };
 }
 

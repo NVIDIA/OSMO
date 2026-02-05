@@ -189,8 +189,13 @@ export function SidePanel({
         const rawWidth = startWidthRef.current + deltaPct;
         const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
 
-        if (Math.abs(clampedWidth - widthRef.current) > 0.01) {
-          stableOnWidthChange(clampedWidth);
+        // Calculate pixel width and round to whole pixels for stability
+        const pixelWidth = Math.round((clampedWidth / 100) * containerWidth);
+        // Convert back to percentage based on rounded pixel value
+        const roundedWidth = (pixelWidth / containerWidth) * 100;
+
+        if (Math.abs(roundedWidth - widthRef.current) > 0.01) {
+          stableOnWidthChange(roundedWidth);
         }
       }
 
@@ -344,11 +349,14 @@ export function SidePanel({
         // In fillContainer mode: no width set, panel fills grid cell.
         // Grid's grid-template-columns controls the actual width.
         width: panelWidth,
+        // Hint browser to optimize for width changes during drag
         willChange: isDragging ? "width" : "auto",
         // Apply width constraints when not collapsed.
         // In fillContainer mode, skip maxWidth (grid controls it) but keep minWidth for usability.
         maxWidth: isCollapsed || fillContainer ? undefined : `${maxWidth}%`,
         minWidth: isCollapsed ? undefined : `${minWidthPx}px`,
+        // Force GPU acceleration during drag for smoother rendering
+        transform: isDragging ? "translate3d(0, 0, 0)" : undefined,
       }}
       role="complementary"
       aria-label={ariaLabel}
@@ -377,7 +385,13 @@ export function SidePanel({
       )}
 
       {/* Main content area */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        className="relative flex min-w-0 flex-1 flex-col overflow-hidden overscroll-contain"
+        style={{
+          // Reserve scrollbar space to prevent layout shift when scrollbar appears/disappears
+          scrollbarGutter: "stable",
+        }}
+      >
         {/* Collapsed content */}
         {/* Use inert to fully disable keyboard navigation and close tooltips when expanded */}
         {effectiveCollapsedContent && (
@@ -402,6 +416,10 @@ export function SidePanel({
           className={cn(
             "flex h-full w-full min-w-0 flex-col overflow-hidden transition-opacity duration-200 ease-out",
             isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
+            // Disable pointer events during drag to prevent hover states causing reflow
+            isDragging && "pointer-events-none",
+            // Contain layout to prevent reflow propagation during resize
+            "contain-layout-style",
           )}
           // inert removes from tab order and accessibility tree when panel is collapsed
           inert={isCollapsed ? true : undefined}
