@@ -148,6 +148,7 @@ export function usePanelResize(): {
   snapZone: SnapZone | null;
   snapTarget: number | null;
   preSnapWidthPct: number | null;
+  dragStartWidthPct: number | null;
 
   // Derived
   isSuspended: boolean;
@@ -212,6 +213,7 @@ export function usePanelResize(): {
     snapZone: state.snapZone,
     snapTarget: state.snapTarget,
     preSnapWidthPct: state.preSnapWidthPct,
+    dragStartWidthPct: state.dragStartWidthPct,
 
     // Derived
     isSuspended,

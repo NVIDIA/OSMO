@@ -88,6 +88,14 @@ export interface ResizeState {
    * Cleared when animation completes (phase returns to IDLE).
    */
   preSnapWidthPct: number | null;
+  /**
+   * Width percentage when drag started.
+   * Used to determine persistedPct when drag ends in a snap zone.
+   * This ensures snap zones are "magnetic destinations" - expansion restores
+   * to where the user was working, not where they briefly passed through.
+   * Cleared when transitioning to IDLE.
+   */
+  dragStartWidthPct: number | null;
 }
 
 export interface PanelResizeStateMachineOptions {
@@ -171,6 +179,7 @@ function createInitialState(
     snapTarget: null,
     dagVisible: widthPct < 100,
     preSnapWidthPct: null,
+    dragStartWidthPct: null,
   };
 }
 
@@ -257,6 +266,7 @@ export class PanelResizeStateMachine {
 
     this.setState({
       phase: "DRAGGING",
+      dragStartWidthPct: this.state.widthPct, // Capture starting position
       snapZone: null,
       snapTarget: null,
     });
@@ -279,11 +289,10 @@ export class PanelResizeStateMachine {
       dagVisible: clampedPct < 100,
     };
 
-    // Only update persistedPct in the free zone (not in snap zones)
-    // This preserves the "last good width" for restoration
-    if (clampedPct >= SNAP_ZONES.STRIP_SNAP_THRESHOLD && clampedPct < SNAP_ZONES.FULL_SNAP_START) {
-      updates.persistedPct = clampedPct;
-    }
+    // NOTE: persistedPct is NO LONGER updated during drag.
+    // It will be determined at endDrag() based on final position:
+    // - Free zone (20-80%): persist the final position
+    // - Snap zone (< 20% or >= 80%): preserve dragStartWidthPct (where user was working)
 
     if (newSnapZone !== this.state.snapZone) {
       console.log("[PanelResize] updateDrag() - zone change", {
@@ -330,17 +339,31 @@ export class PanelResizeStateMachine {
   /**
    * Determine snap configuration based on current state.
    * Returns null if no snap should occur.
+   *
+   * When snapping, preserves dragStartWidthPct (normalized) so expansion
+   * returns to where the user was working, not the intermediate drag position.
    */
   private resolveSnapConfig(): { target: number; dagVisible: boolean; persistedPctOverride?: number } | null {
     const zone = this.state.snapZone;
     const isAtMaxTarget = this.state.widthPct >= SNAP_ZONES.FULL_SNAP_TARGET;
 
+    // If snapping, preserve the width from where drag started (normalized)
+    const preservedPct =
+      this.state.dragStartWidthPct !== null ? normalizePersistedPct(this.state.dragStartWidthPct) : undefined;
+
     if (zone === "full" || isAtMaxTarget) {
-      return { target: SNAP_ZONES.FULL_SNAP_TARGET, dagVisible: false };
+      return {
+        target: SNAP_ZONES.FULL_SNAP_TARGET,
+        dagVisible: false,
+        persistedPctOverride: preservedPct,
+      };
     }
     if (zone === "strip") {
-      // Strip snap: move to strip target, keep persistedPct unchanged
-      return { target: this.stripSnapTargetPct, dagVisible: true };
+      return {
+        target: this.stripSnapTargetPct,
+        dagVisible: true,
+        persistedPctOverride: preservedPct,
+      };
     }
     return null;
   }
@@ -400,7 +423,7 @@ export class PanelResizeStateMachine {
   /**
    * Animate to target via SNAPPING phase.
    */
-  private animateToTarget(config: { target: number; dagVisible: boolean }): void {
+  private animateToTarget(config: { target: number; dagVisible: boolean; persistedPctOverride?: number }): void {
     // Capture width BEFORE transition begins (for content freeze animation)
     const preSnapWidth = this.state.widthPct;
 
@@ -408,15 +431,23 @@ export class PanelResizeStateMachine {
       from: preSnapWidth,
       to: config.target,
       dagVisible: config.dagVisible,
+      persistedPctOverride: config.persistedPctOverride,
     });
 
-    this.setState({
+    const updates: Partial<ResizeState> = {
       phase: "SNAPPING",
       widthPct: config.target,
       snapTarget: config.target,
       dagVisible: config.dagVisible,
       preSnapWidthPct: preSnapWidth,
-    });
+    };
+
+    // If snapping, preserve the dragStartWidthPct (normalized)
+    if (config.persistedPctOverride !== undefined) {
+      updates.persistedPct = config.persistedPctOverride;
+    }
+
+    this.setState(updates);
   }
 
   /**
@@ -682,6 +713,7 @@ export class PanelResizeStateMachine {
         this.setState({
           phase: "IDLE",
           preSnapWidthPct: null, // Clear pre-snap width when animation completes
+          dragStartWidthPct: null, // Clear drag start width when returning to IDLE
         });
         this.notifyCallbacks("onLayoutStable");
       });
