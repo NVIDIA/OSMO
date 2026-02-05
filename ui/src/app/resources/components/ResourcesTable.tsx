@@ -132,6 +132,7 @@ export const ResourcesTable = ({
   resources,
   isLoading,
   isShowingUsed,
+  setAggregates,
   nodes,
   allNodes,
   filterResourceTypes,
@@ -141,6 +142,7 @@ export const ResourcesTable = ({
   resources: ResourceListItem[];
   isLoading: boolean;
   isShowingUsed: boolean;
+  setAggregates: (aggregates: AggregateProps) => void;
   nodes: string;
   allNodes?: boolean;
   filterResourceTypes?: string;
@@ -304,6 +306,48 @@ export const ResourcesTable = ({
     filterFns: commonFilterFns,
     autoResetPageIndex: false,
   });
+
+  useEffect(() => {
+    const filteredRows = table.getFilteredRowModel().flatRows;
+
+    const newAggregates: AggregateProps = {
+      cpu: { allocatable: 0, usage: 0 },
+      gpu: { allocatable: 0, usage: 0 },
+      storage: { allocatable: 0, usage: 0 },
+      memory: { allocatable: 0, usage: 0 },
+    };
+
+    const processedNodes = new Set<string>();
+
+    filteredRows.forEach((row) => {
+      const item = row.original;
+
+      if (processedNodes.has(item.node)) {
+        return;
+      }
+
+      Object.keys(newAggregates).forEach((key) => {
+        const entry = item[key as keyof AggregateProps];
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+
+        const currentAggregate = newAggregates[key as keyof AggregateProps];
+        if (!currentAggregate) {
+          return;
+        }
+
+        newAggregates[key as keyof AggregateProps] = {
+          allocatable: currentAggregate.allocatable + entry.allocatable,
+          usage: currentAggregate.usage + entry.usage,
+        };
+        processedNodes.add(item.node);
+      });
+    });
+
+    setAggregates(newAggregates);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.getFilteredRowModel().flatRows, setAggregates]);
 
   return (
     <TableBase

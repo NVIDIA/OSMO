@@ -19,7 +19,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
 
-import { CheckboxWithLabel } from "~/components/Checkbox";
 import { FilterButton } from "~/components/FilterButton";
 import FullPageModal from "~/components/FullPageModal";
 import { FilledIcon } from "~/components/Icon";
@@ -31,8 +30,8 @@ import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
 import { api } from "~/trpc/react";
 
+import { AggregatePanels, type AggregateProps } from "./components/AggregatePanels";
 import { ResourceDetails } from "./components/ResourceDetails";
-import { ResourceGraph } from "./components/ResourceGraph";
 import { ResourcesFilter } from "./components/ResourcesFilter";
 import { ResourcesTable } from "./components/ResourcesTable";
 import { calcAggregateTotals, calcResourceUsages } from "./components/utils";
@@ -50,12 +49,19 @@ export default function Resources() {
     filterCount,
     filterResourceTypes,
     isShowingUsed,
-    showDetails,
+    showGauges,
     selectedResource,
   } = useToolParamUpdater();
   const [showFilters, setShowFilters] = useState(false);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const { setSafeTimeout } = useSafeTimeout();
+
+  const [aggregates, setAggregates] = useState<AggregateProps>({
+    cpu: { allocatable: 0, usage: 0 },
+    gpu: { allocatable: 0, usage: 0 },
+    storage: { allocatable: 0, usage: 0 },
+    memory: { allocatable: 0, usage: 0 },
+  });
 
   const {
     data: resources,
@@ -80,12 +86,12 @@ export default function Resources() {
   }, [resources]);
 
   const gridClass = useMemo(() => {
-    if (showDetails) {
+    if (showGauges) {
       return "grid grid-cols-[auto_1fr]";
     } else {
       return "flex flex-row";
     }
-  }, [showDetails]);
+  }, [showGauges]);
 
   const processResources = useMemo(() => {
     if (!isSuccess) {
@@ -100,8 +106,6 @@ export default function Resources() {
       isSelectAllPoolsChecked ? true : selectedPools.split(",").includes(item.pool),
     );
   }, [processResources, isSelectAllPoolsChecked, selectedPools]);
-
-  const aggregateTotals = useMemo(() => calcAggregateTotals(processResources), [processResources]);
 
   const forceRefetch = useCallback(() => {
     // Wait to see if the refresh has already happened. If not call it explicitly
@@ -119,11 +123,11 @@ export default function Resources() {
       <PageHeader>
         <IconButton
           id="gauges-button"
-          className={`btn ${showDetails ? "btn-primary" : ""}`}
-          aria-pressed={showDetails}
-          onClick={() => updateUrl({ showDetails: !showDetails })}
-          icon="table_chart"
-          text="Details"
+          className={`btn ${showGauges ? "btn-primary" : ""}`}
+          aria-pressed={showGauges}
+          onClick={() => updateUrl({ showGauges: !showGauges })}
+          icon="speed"
+          text="Gauges"
         />
         <UsedFreeToggle
           isShowingUsed={isShowingUsed}
@@ -162,81 +166,31 @@ export default function Resources() {
               onRefresh={forceRefetch}
             />
           </SlideOut>
-          <section
-            className={`justify-center items-baseline relative overflow-y-auto p-global gap-global ${showDetails ? "flex flex-col h-full" : "flex flex-row flex-wrap w-full"}`}
-            aria-labelledby="gauges-button"
-          >
-            <div className="card">
-              <div className="brand-header p-global">
-                {showDetails ? (
-                  <CheckboxWithLabel
-                    checked={isSelectAllPoolsChecked}
-                    onChange={() => updateUrl({ allPools: !isSelectAllPoolsChecked, pools: "" })}
-                    label="Select All Pools"
-                  />
-                ) : (
-                  <h2 className="text-base p-0 m-0">Total</h2>
-                )}
-              </div>
-              <ResourceGraph
-                {...aggregateTotals.total}
+          {showGauges && (
+            <section
+              className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
+            >
+              <AggregatePanels
+                cpu={aggregates.cpu}
+                memory={aggregates.memory}
+                gpu={aggregates.gpu}
+                storage={aggregates.storage}
                 isLoading={isFetching}
                 isShowingUsed={isShowingUsed}
-                width={200}
-                height={150}
               />
-            </div>
-            {Object.entries(aggregateTotals.byPool)
-              .sort(([poolA], [poolB]) => poolA.localeCompare(poolB))
-              .map(([pool, totals]) => (
-                <div
-                  key={pool}
-                  className="card"
-                >
-                  <div className="body-header p-global">
-                    {showDetails ? (
-                      <CheckboxWithLabel
-                        checked={isSelectAllPoolsChecked ? true : selectedPools.split(",").includes(pool)}
-                        onChange={() =>
-                          updateUrl({
-                            pools: selectedPools.split(",").includes(pool)
-                              ? selectedPools
-                                  .split(",")
-                                  .filter((p) => p !== pool)
-                                  .join(",")
-                              : [...selectedPools, pool].join(","),
-                            allPools: false,
-                          })
-                        }
-                        id={pool}
-                        label={pool}
-                      />
-                    ) : (
-                      <h2 className="text-base p-0 m-0">{pool}</h2>
-                    )}
-                  </div>
-                  <ResourceGraph
-                    {...totals}
-                    isLoading={isFetching}
-                    isShowingUsed={isShowingUsed}
-                    width={200}
-                    height={150}
-                  />
-                </div>
-              ))}
-          </section>
-          {showDetails && (
-            <ResourcesTable
-              isLoading={isFetching}
-              resources={filteredResources}
-              isShowingUsed={isShowingUsed}
-              nodes={nodes}
-              allNodes={isSelectAllNodesChecked}
-              filterResourceTypes={filterResourceTypes}
-              selectedResource={selectedResource}
-              updateUrl={updateUrl}
-            />
+            </section>
           )}
+          <ResourcesTable
+            setAggregates={setAggregates}
+            isLoading={isFetching}
+            resources={filteredResources}
+            isShowingUsed={isShowingUsed}
+            nodes={nodes}
+            allNodes={isSelectAllNodesChecked}
+            filterResourceTypes={filterResourceTypes}
+            selectedResource={selectedResource}
+            updateUrl={updateUrl}
+          />
         </div>
       )}
       <FullPageModal
