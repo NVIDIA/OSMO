@@ -27,6 +27,7 @@ import type { RefObject } from "react";
 import type { WorkflowViewCommonProps } from "../lib/view-types";
 import type { DetailsPanelProps } from "../lib/panel-types";
 import type { GroupWithLayout } from "../lib/workflow-types";
+import { ACTIVITY_STRIP_WIDTH_PX, PANEL_CONSTRAINTS } from "../lib/panel-constants";
 
 interface UsePanelPropsOptions extends WorkflowViewCommonProps {
   /** Optional override for allGroups (DAG view uses dagGroups with layout) */
@@ -147,12 +148,12 @@ export function usePanelProps(options: UsePanelPropsOptions): {
       onDragStart,
       onDragEnd,
       fillContainer,
-      // Workflow-specific: Allow resizing down to activity strip width (40px)
+      // Workflow-specific: Allow resizing down to activity strip width
       // This overrides the default PANEL.MIN_WIDTH_PCT (33%) used by pools/resources
-      minWidth: 0, // Effectively disable percentage minimum (rely on minWidthPx instead)
-      minWidthPx: 40, // Enforce exact activity strip width in pixels
-      // Workflow-specific: Allow full width (100%) for panel-only view
-      maxWidth: 100,
+      minWidth: PANEL_CONSTRAINTS.MIN_PCT, // Effectively disable percentage minimum (rely on minWidthPx instead)
+      minWidthPx: ACTIVITY_STRIP_WIDTH_PX, // Enforce exact activity strip width in pixels
+      // Workflow-specific: Allow full width for panel-only view
+      maxWidth: PANEL_CONSTRAINTS.MAX_PCT,
     }),
     [
       currentPanelView,
