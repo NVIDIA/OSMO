@@ -159,6 +159,7 @@ listeners:
                   end
                 end
 
+        {{- if .Values.sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken }}
         - name: envoy.filters.http.lua.validate_idtoken
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
@@ -219,6 +220,7 @@ listeners:
                     end
                   end
                 end
+        {{- end }}
 
         - name: envoy.filters.http.lua.pre_oauth2
           typed_config:

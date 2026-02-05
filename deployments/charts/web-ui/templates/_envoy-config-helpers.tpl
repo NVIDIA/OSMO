@@ -247,6 +247,7 @@ Generate OAuth2 filter configuration
 */}}
 {{- define "envoy.oauth2-filter" -}}
 {{- $oauth := .Values.sidecars.envoy.oauth2Filter -}}
+{{- if $oauth.forceReauthOnMissingIdToken }}
 - name: envoy.filters.http.lua.validate_idtoken
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
@@ -307,6 +308,7 @@ Generate OAuth2 filter configuration
             end
           end
         end
+{{- end }}
 - name: envoy.filters.http.lua.pre_oauth2
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
