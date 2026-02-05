@@ -2,9 +2,8 @@ package metrics
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +20,7 @@ type MetricsConfig struct {
 	OTLPEndpoint     string
 	ExportIntervalMS int
 	ServiceName      string
+	ServiceVersion   string
 	GlobalTags       map[string]string
 	Enabled          bool
 }
@@ -28,11 +28,12 @@ type MetricsConfig struct {
 // MetricCreator provides thread-safe metric recording capabilities.
 // All methods are safe for concurrent use by multiple goroutines.
 type MetricCreator struct {
-	meterProvider  *sdkmetric.MeterProvider
-	meter          metric.Meter
-	counterCache   sync.Map // map[string]metric.Int64Counter
-	histogramCache sync.Map // map[string]metric.Float64Histogram
-	globalTags     map[string]string // Immutable after initialization
+	meterProvider      *sdkmetric.MeterProvider
+	meter              metric.Meter
+	counterCache       sync.Map // map[string]metric.Int64Counter
+	upDownCounterCache sync.Map // map[string]metric.Int64UpDownCounter
+	histogramCache     sync.Map // map[string]metric.Float64Histogram
+	globalTags         map[string]string // Immutable after initialization
 }
 
 var (
@@ -73,9 +74,11 @@ func newMetricCreator(config MetricsConfig) (*MetricCreator, error) {
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
+	// Add service.name and service.version to resource attributes
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceName(config.ServiceName),
+			semconv.ServiceVersion(config.ServiceVersion),
 		),
 	)
 	if err != nil {
@@ -96,9 +99,15 @@ func newMetricCreator(config MetricsConfig) (*MetricCreator, error) {
 		globalTags[k] = v
 	}
 
+	// Use service name and version for meter
+	meterName := config.ServiceName
+	if config.ServiceVersion != "" {
+		meterName = config.ServiceName + "@" + config.ServiceVersion
+	}
+
 	return &MetricCreator{
 		meterProvider: provider,
-		meter:         provider.Meter(config.ServiceName),
+		meter:         provider.Meter(meterName),
 		globalTags:    globalTags,
 	}, nil
 }
@@ -117,6 +126,24 @@ func (mc *MetricCreator) RecordCounter(ctx context.Context, name string, value i
 
 	attrs := mc.buildAttributes(tags)
 	counter.Add(ctx, value, metric.WithAttributes(attrs...))
+	return nil
+}
+
+// RecordUpDownCounter records an integer up-down counter metric.
+// Unlike Counter, this can record both positive and negative values.
+// Safe for concurrent use by multiple goroutines.
+func (mc *MetricCreator) RecordUpDownCounter(ctx context.Context, name string, value int64, unit, description string, tags map[string]string) error {
+	if mc == nil {
+		return nil
+	}
+
+	upDownCounter, err := mc.getOrCreateUpDownCounter(name, unit, description)
+	if err != nil {
+		return err
+	}
+
+	attrs := mc.buildAttributes(tags)
+	upDownCounter.Add(ctx, value, metric.WithAttributes(attrs...))
 	return nil
 }
 
@@ -156,6 +183,27 @@ func (mc *MetricCreator) getOrCreateCounter(name, unit, description string) (met
 	// Atomic store-if-absent handles race with other goroutines
 	actual, _ := mc.counterCache.LoadOrStore(name, counter)
 	return actual.(metric.Int64Counter), nil
+}
+
+func (mc *MetricCreator) getOrCreateUpDownCounter(name, unit, description string) (metric.Int64UpDownCounter, error) {
+	// Fast path: instrument already cached
+	if cached, ok := mc.upDownCounterCache.Load(name); ok {
+		return cached.(metric.Int64UpDownCounter), nil
+	}
+
+	// Slow path: create the instrument
+	upDownCounter, err := mc.meter.Int64UpDownCounter(
+		name,
+		metric.WithUnit(unit),
+		metric.WithDescription(description),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create up-down counter %s: %w", name, err)
+	}
+
+	// Atomic store-if-absent handles race with other goroutines
+	actual, _ := mc.upDownCounterCache.LoadOrStore(name, upDownCounter)
+	return actual.(metric.Int64UpDownCounter), nil
 }
 
 func (mc *MetricCreator) getOrCreateHistogram(name, unit, description string) (metric.Float64Histogram, error) {
@@ -200,29 +248,55 @@ func (mc *MetricCreator) Shutdown(ctx context.Context) error {
 	return mc.meterProvider.Shutdown(ctx)
 }
 
-// LoadMetricsConfig loads metrics configuration from environment variables.
-func LoadMetricsConfig() MetricsConfig {
-	endpoint := os.Getenv("OTLP_ENDPOINT")
-	if endpoint == "" {
-		endpoint = "localhost:4317" // Default gRPC port
+// MetricsFlagPointers holds pointers to flag values for metrics configuration.
+// This follows the same pattern as Redis and Postgres configurations in the codebase.
+type MetricsFlagPointers struct {
+	enable     *bool
+	host       *string
+	port       *int
+	intervalMS *int
+	component  *string
+	version    *string
+}
+
+// RegisterMetricsFlags registers metrics-related command-line flags.
+// Returns a MetricsFlagPointers that should be converted to MetricsConfig
+// after flag.Parse() is called.
+//
+// The defaultComponent parameter allows different services to specify their
+// default service name (e.g., "osmo-operator-listener", "osmo-scheduler").
+func RegisterMetricsFlags(defaultComponent string) *MetricsFlagPointers {
+	return &MetricsFlagPointers{
+		enable: flag.Bool("metricsOtelEnable",
+			true,
+			"Enable OpenTelemetry metrics"),
+		host: flag.String("metricsOtelCollectorHost",
+			"localhost",
+			"OpenTelemetry collector host"),
+		port: flag.Int("metricsOtelCollectorPort",
+			4317,
+			"OpenTelemetry collector port"),
+		intervalMS: flag.Int("metricsOtelCollectorIntervalInMillis",
+			6000,
+			"OpenTelemetry export interval in milliseconds"),
+		component: flag.String("metricsOtelCollectorComponent",
+			defaultComponent,
+			"Service name for OpenTelemetry metrics"),
+		version: flag.String("serviceVersion",
+			"unknown",
+			"Service version for OpenTelemetry metrics"),
 	}
+}
 
-	intervalStr := os.Getenv("OTLP_EXPORT_INTERVAL_MS")
-	interval := 6000 // Default 6 seconds
-	if intervalStr != "" {
-		if val, err := strconv.Atoi(intervalStr); err == nil {
-			interval = val
-		}
-	}
-
-	enabled := os.Getenv("OTLP_ENABLED")
-	isEnabled := enabled == "" || enabled == "true" // Enabled by default
-
+// ToMetricsConfig converts flag pointers to MetricsConfig.
+// This should be called after flag.Parse().
+func (m *MetricsFlagPointers) ToMetricsConfig() MetricsConfig {
 	return MetricsConfig{
-		OTLPEndpoint:     endpoint,
-		ExportIntervalMS: interval,
-		ServiceName:      "osmo-operator",
+		OTLPEndpoint:     fmt.Sprintf("%s:%d", *m.host, *m.port),
+		ExportIntervalMS: *m.intervalMS,
+		ServiceName:      *m.component,
+		ServiceVersion:   *m.version,
 		GlobalTags:       make(map[string]string),
-		Enabled:          isEnabled,
+		Enabled:          *m.enable,
 	}
 }

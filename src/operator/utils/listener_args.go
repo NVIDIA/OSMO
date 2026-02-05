@@ -22,6 +22,8 @@ import (
 	"flag"
 	"os"
 	"strconv"
+
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // ListenerArgs holds configuration for all listeners
@@ -41,6 +43,9 @@ type ListenerArgs struct {
 	ProgressDir           string
 	ProgressFrequencySec  int
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
+
+	// OpenTelemetry metrics configuration
+	Metrics metrics.MetricsConfig
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -91,6 +96,9 @@ func ListenerParse() ListenerArgs {
 		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
 
+	// OpenTelemetry metrics configuration
+	metricsFlagPtrs := metrics.RegisterMetricsFlags("osmo-operator")
+
 	flag.Parse()
 
 	return ListenerArgs{
@@ -109,6 +117,7 @@ func ListenerParse() ListenerArgs {
 		ProgressDir:           *progressDir,
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
+		Metrics:               metricsFlagPtrs.ToMetricsConfig(),
 	}
 }
 
@@ -124,6 +133,13 @@ func getEnvInt(key string, defaultValue int) int {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
 		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		return value == "true" || value == "True"
 	}
 	return defaultValue
 }

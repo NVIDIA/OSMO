@@ -114,16 +114,22 @@ spec:
         - '{{ .Values.services.backendListener.eventChanSize }}'
         - --eventCacheTTLMin
         - '{{ .Values.services.backendListener.eventCacheTTLMin }}'
+        - --metricsOtelEnable
+        - '{{ .Values.services.backendListener.metrics.enabled }}'
+        - --metricsOtelCollectorHost
+        - '{{ .Values.services.backendListener.metrics.host }}'
+        - --metricsOtelCollectorPort
+        - '{{ .Values.services.backendListener.metrics.port }}'
+        - --metricsOtelCollectorIntervalInMillis
+        - '{{ .Values.services.backendListener.metrics.exportIntervalMs }}'
+        - --metricsOtelCollectorComponent
+        - '{{ .Values.services.backendListener.metrics.component }}'
+        - --serviceVersion
+        - '{{ .Values.services.backendListener.metrics.version | default .Values.global.osmoImageTag }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}
         env:
-        - name: OTLP_ENABLED
-          value: "{{ .Values.services.backendListener.metrics.enabled }}"
-        - name: OTLP_ENDPOINT
-          value: "{{ .Values.services.backendListener.metrics.otlpEndpoint }}"
-        - name: OTLP_EXPORT_INTERVAL_MS
-          value: "{{ .Values.services.backendListener.metrics.exportIntervalMs }}"
         {{- with .Values.services.backendListener.extraEnvs }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
