@@ -26,7 +26,6 @@
 import { memo, useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useMounted } from "@/hooks";
-import { SNAP_ZONES } from "../lib/panel-resize-state-machine";
 import { usePanelWidth } from "../lib/panel-resize-context";
 
 function getOrCreatePortalContainer(): HTMLElement {
@@ -112,49 +111,58 @@ export const FullSnapOverlay = memo(function FullSnapOverlay({ isActive }: FullS
   );
 });
 
-interface SoftSnapIndicatorProps {
+interface StripSnapIndicatorProps {
   isActive: boolean;
   containerRef?: RefObject<HTMLElement | null>;
+  stripWidthPx: number;
 }
 
-/** Soft snap indicator (80-90%) showing washout effect + target line via portal */
-export const SoftSnapIndicator = memo(function SoftSnapIndicator({ isActive, containerRef }: SoftSnapIndicatorProps) {
+/** Strip snap indicator (< 20%) showing washout effect + target line via portal */
+export const StripSnapIndicator = memo(function StripSnapIndicator({
+  isActive,
+  containerRef,
+  stripWidthPx,
+}: StripSnapIndicatorProps) {
   // Read current panel width from manager
   const currentPct = usePanelWidth();
 
   const portalContainer = usePortalContainer();
   const containerBounds = useElementBounds(containerRef, isActive);
 
-  const overflowPct = currentPct - SNAP_ZONES.SOFT_SNAP_TARGET;
-  if (!isActive || !portalContainer || !containerBounds || overflowPct <= 0) return null;
+  if (!isActive || !portalContainer || !containerBounds) return null;
 
-  // Panel grows right-to-left: calculate pixel positions for overflow region
+  // Overlay is inside the panel, starting after the activity strip
   const containerWidth = containerBounds.width;
-  const currentPanelLeftPx = containerWidth * (1 - currentPct / 100);
-  const targetPanelLeftPx = containerWidth * (1 - SNAP_ZONES.SOFT_SNAP_TARGET / 100);
-  const overflowWidthPx = targetPanelLeftPx - currentPanelLeftPx;
+  const panelWidthPx = containerWidth * (currentPct / 100);
+  const panelLeftPx = containerWidth - panelWidthPx; // Panel grows from right
+
+  // Overlay starts at the right edge of the activity strip (inside the panel)
+  const overlayLeftPx = panelLeftPx + stripWidthPx;
+  const overlayWidthPx = panelWidthPx - stripWidthPx;
+
+  if (overlayWidthPx <= 0) return null;
 
   return createPortal(
     <div
-      className="snap-soft-container"
+      className="snap-strip-container"
       style={{
         position: "absolute",
         top: containerBounds.top,
         height: containerBounds.height,
-        left: containerBounds.left + currentPanelLeftPx,
-        width: overflowWidthPx,
+        left: containerBounds.left + overlayLeftPx,
+        width: overlayWidthPx,
       }}
       role="status"
       aria-live="polite"
-      aria-label="Panel will snap back to 80% width"
+      aria-label="Panel will snap to activity strip width"
     >
       <div
-        className="snap-soft-washout"
+        className="snap-strip-washout"
         style={{ width: "100%" }}
       />
       <div
-        className="snap-soft-target-line"
-        style={{ right: 0 }}
+        className="snap-strip-target-line"
+        style={{ left: 0 }}
       />
     </div>,
     portalContainer,

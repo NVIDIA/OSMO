@@ -44,7 +44,7 @@ import {
   type CSSProperties,
 } from "react";
 import { cn } from "@/lib/utils";
-import { FullSnapOverlay, SoftSnapIndicator } from "./SnapZoneIndicator";
+import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
 import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
 
 import "../styles/layout.css";
@@ -139,7 +139,7 @@ export function WorkflowDetailLayout({
   const shouldRenderDag = dagVisible;
   const showSnapIndicators = isDragging && dagVisible;
   const showFullSnapPreview = showSnapIndicators && snapZone === "full";
-  const showSoftSnapPreview = showSnapIndicators && snapZone === "soft";
+  const showStripSnapPreview = showSnapIndicators && snapZone === "strip";
 
   return (
     <div
@@ -187,9 +187,10 @@ export function WorkflowDetailLayout({
           SidePanel manages its own internal width constraints. */}
       {panel}
 
-      <SoftSnapIndicator
-        isActive={showSoftSnapPreview}
+      <StripSnapIndicator
+        isActive={showStripSnapPreview}
         containerRef={containerRef}
+        stripWidthPx={40}
       />
     </div>
   );
