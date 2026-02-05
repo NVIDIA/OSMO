@@ -414,7 +414,9 @@ export function SidePanel({
         maxWidth: isCollapsed || fillContainer ? undefined : `${maxWidth}%`,
         minWidth: isCollapsed || fillContainer ? undefined : `${minWidthPx}px`,
         // Force GPU layer during drag (translate3d creates composite layer)
+        // Combined with backface-visibility: hidden, this ensures smooth compositor-based resize
         transform: isDragging ? "translate3d(0, 0, 0)" : undefined,
+        backfaceVisibility: isDragging ? "hidden" : undefined,
       }}
       role="complementary"
       aria-label={ariaLabel}
@@ -436,7 +438,11 @@ export function SidePanel({
       {/* Edge content - always visible on left side */}
       {edgeContent && (
         <div
-          className="flex h-full shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-700"
+          className={cn(
+            "flex h-full shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-700",
+            // Isolate edge content from layout changes during resize
+            "contain-layout-style",
+          )}
           style={{ width: edgeWidthPx }}
         >
           {edgeContent}
@@ -445,7 +451,12 @@ export function SidePanel({
 
       {/* Main content area */}
       <div
-        className="relative flex min-w-0 flex-1 flex-col overflow-hidden overscroll-contain"
+        className={cn(
+          "relative flex min-w-0 flex-1 flex-col overflow-hidden overscroll-contain",
+          // Use stricter containment during drag to prevent layout recalculations
+          // from propagating through the tree and causing jitter
+          isDragging ? "contain-strict" : "contain-layout-style",
+        )}
         style={{
           // Reserve scrollbar space to prevent layout shift when scrollbar appears/disappears
           scrollbarGutter: "stable",
@@ -481,8 +492,9 @@ export function SidePanel({
             fillContainer ? "opacity-100" : isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
             // Disable pointer events during drag to prevent hover states causing reflow
             isDragging && "pointer-events-none",
-            // Contain layout to prevent reflow propagation during resize
-            "contain-layout-style",
+            // Use stricter containment during drag to isolate size calculations
+            // This prevents content reflow from causing scrollbar jitter
+            isDragging ? "contain-strict" : "contain-layout-style",
           )}
           // inert removes from tab order and accessibility tree when panel is collapsed
           // But NOT in fillContainer mode where content should remain accessible

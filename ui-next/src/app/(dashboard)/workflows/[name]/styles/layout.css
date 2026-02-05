@@ -30,8 +30,9 @@
   }
 
   /* Disable transitions during drag for 60fps performance.
-     Manager also sets inline style.transition = 'none' for explicit control. */
-  .workflow-detail-grid[data-dragging="true"] {
+     Manager also sets inline style.transition = 'none' for explicit control.
+     Note: data-phase is set by WorkflowDetailLayout based on state machine phase. */
+  .workflow-detail-grid[data-phase="DRAGGING"] {
     transition: none;
   }
 
@@ -49,5 +50,29 @@
   .workflow-detail-grid > section,
   .workflow-detail-grid > aside {
     contain: layout style paint;
+  }
+
+  /* During drag: Use strictest containment to eliminate ALL reflow propagation.
+     contain: strict = size + layout + style + paint
+     This tells the browser the element's size is independent of its contents,
+     completely isolating it from layout recalculations.
+
+     CRITICAL: This prevents scrollbar jitter by ensuring content size changes
+     don't propagate back to the grid item, which would cause column recalculation. */
+  .workflow-detail-grid[data-phase="DRAGGING"] > main,
+  .workflow-detail-grid[data-phase="DRAGGING"] > aside {
+    contain: strict;
+  }
+
+  /* Promote grid items to GPU layer during drag for compositor-accelerated resizing.
+     translate3d(0,0,0) creates a compositing layer, moving resize calculations
+     from the main thread to the GPU compositor thread.
+
+     Combined with contain:strict, this ensures sub-pixel rounding happens
+     on the GPU where it won't cause visible jitter. */
+  .workflow-detail-grid[data-phase="DRAGGING"] > main,
+  .workflow-detail-grid[data-phase="DRAGGING"] > aside {
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
   }
 }

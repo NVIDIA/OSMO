@@ -62,6 +62,11 @@ export const TabPanel = memo(
           padding === "with-bottom" && "p-4 pb-16",
           className,
         )}
+        style={
+          // Reserve scrollbar space to prevent layout shift during resize
+          // when content height changes and scrollbar appears/disappears
+          scrollable ? { scrollbarGutter: "stable" } : undefined
+        }
         // Hidden from screen readers when not active
         aria-hidden={!isActive}
         // Prevent tab focus when hidden

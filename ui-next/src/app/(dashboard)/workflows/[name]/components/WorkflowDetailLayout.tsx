@@ -101,6 +101,9 @@ export function WorkflowDetailLayout({
       // Performance hint: prepare for grid transition during snap animation
       // Tells browser to optimize for this property change
       willChange: phase === "SNAPPING" ? "grid-template-columns" : "auto",
+      // Force GPU layer during drag to prevent jitter from CPU layout recalculations
+      // translate3d(0,0,0) promotes to compositor layer for smoother resizing
+      transform: phase === "DRAGGING" ? "translate3d(0, 0, 0)" : undefined,
     };
   }, [dagVisible, widthPct, phase]);
 
