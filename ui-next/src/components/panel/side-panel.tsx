@@ -99,6 +99,10 @@ export function SidePanel({
   // Cache container width at drag start to avoid layout reflows during drag
   const containerWidthRef = useRef(0);
 
+  // RAF batching refs for drag updates
+  const pendingRafRef = useRef<number | null>(null);
+  const pendingWidthRef = useRef<number | null>(null);
+
   // Refs that MUST be updated synchronously during render (not in effects!)
   const widthRef = useRef(width);
   const minWidthRef = useRef(minWidth);
@@ -205,7 +209,20 @@ export function SidePanel({
         const roundedWidth = (pixelWidth / containerWidth) * 100;
 
         if (Math.abs(roundedWidth - widthRef.current) > 0.01) {
-          stableOnWidthChange(roundedWidth);
+          // Batch width updates to animation frame for 60fps performance
+          pendingWidthRef.current = roundedWidth;
+
+          if (pendingRafRef.current === null) {
+            pendingRafRef.current = requestAnimationFrame(() => {
+              pendingRafRef.current = null;
+              const width = pendingWidthRef.current;
+              pendingWidthRef.current = null;
+
+              if (width !== null) {
+                stableOnWidthChange(width);
+              }
+            });
+          }
         }
       }
 
@@ -227,6 +244,26 @@ export function SidePanel({
     } else {
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
+    }
+  }, [isDragging]);
+
+  // Cleanup pending RAF on unmount or when drag ends
+  useEffect(() => {
+    return () => {
+      if (pendingRafRef.current !== null) {
+        cancelAnimationFrame(pendingRafRef.current);
+        pendingRafRef.current = null;
+        pendingWidthRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cancel pending RAF when drag ends
+  useEffect(() => {
+    if (!isDragging && pendingRafRef.current !== null) {
+      cancelAnimationFrame(pendingRafRef.current);
+      pendingRafRef.current = null;
+      pendingWidthRef.current = null;
     }
   }, [isDragging]);
 
@@ -372,13 +409,11 @@ export function SidePanel({
         // In fillContainer mode: no width set, panel fills grid cell.
         // Grid's grid-template-columns controls the actual width.
         width: panelWidth,
-        // Hint browser to optimize for width changes during drag
-        willChange: isDragging ? "width" : "auto",
         // Apply width constraints when not collapsed.
         // In fillContainer mode, skip ALL width constraints (grid controls sizing completely).
         maxWidth: isCollapsed || fillContainer ? undefined : `${maxWidth}%`,
         minWidth: isCollapsed || fillContainer ? undefined : `${minWidthPx}px`,
-        // Force GPU acceleration during drag for smoother rendering
+        // Force GPU layer during drag (translate3d creates composite layer)
         transform: isDragging ? "translate3d(0, 0, 0)" : undefined,
       }}
       role="complementary"
