@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 import datetime
 import secrets
 import time
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import fastapi
 
