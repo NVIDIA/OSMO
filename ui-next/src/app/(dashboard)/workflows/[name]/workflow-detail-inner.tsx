@@ -60,7 +60,13 @@ import { WorkflowDAGContent } from "./components/WorkflowDAGContent";
 import { DetailsPanel } from "./components/panel/views/DetailsPanel";
 import type { DetailsPanelView } from "./lib/panel-types";
 import { CancelWorkflowDialog } from "./components/panel/workflow/CancelWorkflowDialog";
-import { ResubmitPanel } from "./components/resubmit/ResubmitPanel";
+
+// Lazy-load ResubmitPanel (only loads when user clicks resubmit button)
+// Saves ~20 KB from initial bundle (panel + form logic)
+const ResubmitPanel = dynamic(
+  () => import("./components/resubmit/ResubmitPanel").then((m) => ({ default: m.ResubmitPanel })),
+  { ssr: false },
+);
 
 // Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
