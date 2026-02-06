@@ -107,17 +107,6 @@ export const DatasetVersionsTable = ({ dataset, selectedVersion, visible }: Data
         enableMultiSort: true,
       },
       {
-        header: "Retention Policy",
-        accessorKey: "retention_policy",
-        cell: ({ row }) => {
-          const days = Math.floor(row.original.retention_policy / (24 * 60 * 60));
-          return `${days} days`;
-        },
-        sortingFn: "basic",
-        invertSorting: true,
-        enableMultiSort: true,
-      },
-      {
         header: "Tags",
         accessorKey: "tags",
         cell: ({ row }) => (
