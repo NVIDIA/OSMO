@@ -60,6 +60,7 @@ import {
   type DetailsPanelView,
 } from "./components";
 import { CancelWorkflowDialog } from "./components/panel/workflow/CancelWorkflowDialog";
+import { ResubmitDrawer } from "./components/resubmit";
 
 // Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
@@ -283,14 +284,16 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   // Cancel workflow dialog state
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
+  // Resubmit workflow drawer state
+  const [resubmitDrawerOpen, setResubmitDrawerOpen] = useState(false);
+
   // Workflow action handlers
   const handleCancelWorkflow = useEventCallback(() => {
     setCancelDialogOpen(true);
   });
 
   const handleResubmitWorkflow = useEventCallback(() => {
-    // TODO: Implement workflow resubmission API call
-    console.log("Resubmit workflow:", name);
+    setResubmitDrawerOpen(true);
   });
 
   // Screen reader announcements for snap zone transitions
@@ -523,6 +526,15 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
               open={cancelDialogOpen}
               onOpenChange={setCancelDialogOpen}
               onRefetch={refetch}
+            />
+          )}
+
+          {/* Resubmit workflow drawer */}
+          {workflow && (
+            <ResubmitDrawer
+              workflow={workflow}
+              open={resubmitDrawerOpen}
+              onOpenChange={setResubmitDrawerOpen}
             />
           )}
         </ShellPortalProvider>
