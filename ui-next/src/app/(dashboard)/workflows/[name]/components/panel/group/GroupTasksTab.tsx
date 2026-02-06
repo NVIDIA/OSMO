@@ -25,8 +25,10 @@
 
 import { useState, useMemo, useCallback, memo } from "react";
 import { naturalCompare } from "@/lib/utils";
-import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
-import { useSharedPreferences } from "@/stores";
+import { DataTable } from "@/components/data-table/DataTable";
+import { TableToolbar } from "@/components/data-table/TableToolbar";
+import type { SortState } from "@/components/data-table/types";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { STATUS_SORT_ORDER } from "../../../lib/status";
 import type { TaskWithDuration, GroupWithLayout } from "../../../lib/workflow-types";
 import type { TaskQueryResponse } from "../../../lib/workflow-types";
@@ -37,11 +39,12 @@ import {
   asTaskColumnIds,
 } from "../../../lib/task-columns";
 import { createTaskColumns } from "../../../lib/task-column-defs";
-import { filterByChips, type SearchChip } from "@/components/filter-bar";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-fields";
-import { useTaskTableStore } from "../../../stores";
+import { useTaskTableStore } from "../../../stores/task-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { useResultsCount } from "@/hooks";
+import { useResultsCount } from "@/hooks/use-results-count";
 import { useIsSuspended, usePanelResizeMachine } from "../../../lib/panel-resize-context";
 
 // =============================================================================

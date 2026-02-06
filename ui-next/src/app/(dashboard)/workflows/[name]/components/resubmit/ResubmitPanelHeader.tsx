@@ -26,8 +26,8 @@
 
 import { memo } from "react";
 import { RotateCw } from "lucide-react";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
-import { PanelHeader, PanelTitle } from "@/components/panel";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
+import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
 import { PanelCloseButton } from "@/components/panel/panel-header-controls";
 
 export interface ResubmitPanelHeaderProps {

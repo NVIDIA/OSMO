@@ -35,9 +35,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useFilteredPools, type PoolFilterParams, type PoolMetadata } from "@/lib/api/adapter";
-import type { Pool } from "@/lib/api/adapter";
-import type { SearchChip } from "@/stores";
+import { useFilteredPools, type PoolFilterParams, type PoolMetadata } from "@/lib/api/adapter/hooks";
+import type { Pool } from "@/lib/api/adapter/types";
+import type { SearchChip } from "@/stores/types";
 import { chipsToParams, type ChipMappingConfig } from "@/lib/api/chip-filter-utils";
 
 // =============================================================================

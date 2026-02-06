@@ -19,7 +19,7 @@
 import { memo } from "react";
 import { Check, Loader2, Clock, AlertCircle, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useExpandableChips } from "@/hooks";
+import { useExpandableChips } from "@/hooks/use-expandable-chips";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusCategory } from "../../../lib/status";
 

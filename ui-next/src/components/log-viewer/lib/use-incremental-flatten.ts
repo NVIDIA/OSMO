@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { useState, useMemo } from "react";
-import type { LogEntry } from "@/lib/api/log-adapter";
+import type { LogEntry } from "@/lib/api/log-adapter/types";
 
 // =============================================================================
 // Types

@@ -48,27 +48,23 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
-import {
-  PanelTabs,
-  LinksSection,
-  ActionsSection,
-  EmptyTabPrompt,
-  TabPanel,
-  SeparatedParts,
-  type PanelTab,
-  type ActionItem,
-} from "@/components/panel";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import { ActionsSection, type ActionItem } from "@/components/panel/actions-section";
+import { EmptyTabPrompt } from "@/components/panel/empty-tab-prompt";
+import { LinksSection } from "@/components/panel/links-section";
+import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
+import { SeparatedParts } from "@/components/panel/separated-parts";
+import { TabPanel } from "@/components/panel/tab-panel";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { formatDuration } from "../../../lib/workflow-types";
 import { getStatusIcon } from "../../../lib/status";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../../lib/status";
 import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
 import { WorkflowTimeline } from "./WorkflowTimeline";
 import { parseTime } from "../views/Timeline";
-import { useTick } from "@/hooks";
+import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { WorkflowTasksTab } from "./WorkflowTasksTab";
-import { WorkflowSpecViewer } from "./spec";
+import { WorkflowSpecViewer } from "./spec/WorkflowSpecViewer";
 
 // =============================================================================
 // Styling Constants (Single Source of Truth)

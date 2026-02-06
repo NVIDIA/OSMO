@@ -21,7 +21,8 @@
  * Uses the createColumnConfig factory to reduce boilerplate.
  */
 
-import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM, createColumnConfig } from "@/components/data-table";
+import { createColumnConfig } from "@/components/data-table/create-column-config";
+import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
 
 // =============================================================================
 // Column IDs

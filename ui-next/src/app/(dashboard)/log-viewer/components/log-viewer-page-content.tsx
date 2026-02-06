@@ -17,8 +17,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePage } from "@/components/chrome";
-import { LogViewerContainer } from "@/components/log-viewer";
+import { usePage } from "@/components/chrome/page-context";
+import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 import { addRecentWorkflow } from "../lib/recent-workflows";
 import { WorkflowStatus } from "@/lib/api/generated";
 

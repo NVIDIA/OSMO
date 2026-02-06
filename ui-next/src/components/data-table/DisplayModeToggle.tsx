@@ -19,7 +19,7 @@
 import { memo } from "react";
 import { MonitorCheck, MonitorX } from "lucide-react";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import { useSharedPreferences, useDisplayMode } from "@/stores";
+import { useSharedPreferences, useDisplayMode } from "@/stores/shared-preferences-store";
 
 /**
  * DisplayModeToggle - Toggle between "free" (available) and "used" display modes.

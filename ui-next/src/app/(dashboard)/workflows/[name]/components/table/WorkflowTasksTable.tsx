@@ -30,10 +30,13 @@
 
 import { useMemo, useCallback, useState, memo } from "react";
 import { naturalCompare } from "@/lib/utils";
-import { DataTable, type Section, type SortState, TableToolbar } from "@/components/data-table";
-import { useSharedPreferences } from "@/stores";
+import { DataTable } from "@/components/data-table/DataTable";
+import { TableToolbar } from "@/components/data-table/TableToolbar";
+import type { Section, SortState } from "@/components/data-table/types";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { useTick, useResultsCount } from "@/hooks";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useTick } from "@/hooks/use-tick";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useIsSuspended, usePanelResizeMachine } from "../../lib/panel-resize-context";
 
@@ -47,9 +50,11 @@ import {
   OPTIONAL_COLUMNS_ALPHABETICAL,
   asTaskColumnIds,
 } from "../../lib/task-columns";
-import { useTaskTableStore } from "../../stores";
-import { TreeConnector, SplitGroupHeader } from "./tree";
-import { filterByChips, type SearchChip } from "@/components/filter-bar";
+import { useTaskTableStore } from "../../stores/task-table-store";
+import { TreeConnector } from "./tree/TreeConnector";
+import { SplitGroupHeader } from "./tree/SplitGroupHeader";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
 
 import type { GroupWithLayout, TaskQueryResponse, TaskWithDuration } from "../../lib/workflow-types";

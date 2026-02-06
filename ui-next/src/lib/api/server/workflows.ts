@@ -205,7 +205,7 @@ export function buildServerWorkflowsQueryKey(
 }
 
 // Re-export SearchChip type for server use
-import type { SearchChip } from "@/stores";
+import type { SearchChip } from "@/stores/types";
 import { chipsToKeyString } from "@/lib/url-utils";
 
 /**

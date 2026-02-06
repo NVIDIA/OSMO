@@ -35,15 +35,12 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  fetchResources,
-  type Resource,
-  type PaginatedResourcesResult,
-  type ResourceFilterParams,
-} from "@/lib/api/adapter";
-import { usePaginatedData } from "@/lib/api/pagination";
-import type { SearchChip } from "@/stores";
-import { filterByChips } from "@/components/filter-bar";
+import { fetchResources } from "@/lib/api/adapter/hooks";
+import type { PaginatedResourcesResult, ResourceFilterParams } from "@/lib/api/adapter/resources-shim";
+import type { Resource } from "@/lib/api/adapter/types";
+import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
+import type { SearchChip } from "@/stores/types";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
 import {
   chipsToParams,
   filterChipsByFields,

@@ -23,8 +23,8 @@ import { SIDEBAR_CSS_VARS } from "./constants";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
-import { useSharedPreferences, sharedPreferencesInitialState } from "@/stores";
-import { useMounted } from "@/hooks";
+import { useSharedPreferences, initialState as sharedPreferencesInitialState } from "@/stores/shared-preferences-store";
+import { useMounted } from "@/hooks/use-mounted";
 
 interface ChromeProps {
   children: React.ReactNode;

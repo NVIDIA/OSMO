@@ -25,9 +25,9 @@
 "use client";
 
 import { memo } from "react";
-import type { SearchChip, ResultsCount } from "@/components/filter-bar";
-import { TableToolbar } from "@/components/data-table";
-import { useTaskTableStore } from "../../stores";
+import type { SearchChip, ResultsCount } from "@/components/filter-bar/lib/types";
+import { TableToolbar } from "@/components/data-table/TableToolbar";
+import { useTaskTableStore } from "../../stores/task-table-store";
 import { OPTIONAL_COLUMNS } from "../../lib/task-columns";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
 import type { TaskWithDuration } from "../../lib/workflow-types";

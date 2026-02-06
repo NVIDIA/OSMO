@@ -40,8 +40,8 @@
 
 import { memo, useMemo, useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import type { HistogramBucket } from "@/lib/api/log-adapter";
-import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter";
+import type { HistogramBucket } from "@/lib/api/log-adapter/types";
+import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter/constants";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
 import { calculateBucketWidth, calculateInvalidZonePositions } from "../lib/invalid-zones";

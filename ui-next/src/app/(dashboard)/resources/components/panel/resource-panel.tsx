@@ -26,8 +26,9 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { Resource } from "@/lib/api/adapter";
-import { ResizablePanel, PANEL } from "@/components/panel";
+import type { Resource } from "@/lib/api/adapter/types";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 import { ResourcePanelHeader } from "./panel-header";
 import { ResourcePanelContent } from "./panel-content";

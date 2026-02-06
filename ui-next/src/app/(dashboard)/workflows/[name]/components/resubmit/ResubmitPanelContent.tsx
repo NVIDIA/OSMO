@@ -28,9 +28,9 @@
 
 import { memo, useCallback } from "react";
 import { Loader2 } from "lucide-react";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { Button } from "@/components/shadcn/button";
-import { useSpecData } from "../panel/workflow/spec/hooks/useSpecData";
+import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
 import { SpecSection } from "./sections/SpecSection";
 import { PoolSection } from "./sections/PoolSection";
 import { PrioritySection } from "./sections/PrioritySection";

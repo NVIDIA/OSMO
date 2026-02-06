@@ -39,7 +39,7 @@
  * ```
  */
 
-import type { Pool, Resource } from "@/lib/api/adapter";
+import type { Pool, Resource } from "@/lib/api/adapter/types";
 import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 
 // =============================================================================

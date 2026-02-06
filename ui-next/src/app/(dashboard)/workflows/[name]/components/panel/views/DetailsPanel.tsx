@@ -51,11 +51,12 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { TextSearch, Info, History, List, FileCode } from "lucide-react";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
-import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
+import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
+import { SidePanel } from "@/components/panel/side-panel";
 import { cn } from "@/lib/utils";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
-import { useAnnouncer } from "@/hooks";
-import { useShellContext } from "../../shell";
+import { useAnnouncer } from "@/hooks/use-announcer";
+import { useShellContext } from "../../shell/ShellContext";
 import { usePanelResize } from "../../../lib/panel-resize-context";
 import { WorkflowEdgeStrip, type QuickAction } from "../workflow/WorkflowEdgeStrip";
 

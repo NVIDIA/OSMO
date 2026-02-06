@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { useMounted } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
 
 /**
  * Theme toggle with GPU-accelerated transitions.

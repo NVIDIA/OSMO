@@ -119,22 +119,25 @@ Location: `src/lib/api/adapter/`
 **Purpose**: Transforms backend responses that don't match UI expectations.
 
 ```typescript
-// ❌ DON'T import generated types directly in pages/components
+// ❌ DON'T import generated types/hooks directly in pages/components
 import { usePools } from '@/lib/api/generated';
 
-// ✅ DO use adapter hooks
-import { usePools } from '@/lib/api/adapter';
+// ✅ DO use adapter hooks and types (domain-based)
+import { usePools, type Pool } from '@/lib/api/adapter/pools';
+import { useResources, type Resource } from '@/lib/api/adapter/resources';
+import { useWorkflows, type WorkflowQueryResponse } from '@/lib/api/adapter/workflows';
 ```
 
 **Why it exists**: The backend has quirks (numeric fields as strings, missing pagination, etc.). The adapter transforms responses to what the UI expects. When backend is fixed, remove the transform.
 
-**Key files**:
-- `types.ts` - Clean types the UI expects
-- `transforms.ts` - Transform functions (**all backend workarounds quarantined here**)
-- `hooks.ts` - React Query hooks with automatic transformation
+**Domain-based organization:**
+- `pools.ts` - Pool types + hooks + transforms
+- `resources.ts` - Resource types + hooks + transforms
+- `workflows.ts` - Workflow types + hooks + transforms
+- `transforms.ts` - Shared transform utilities
 - `BACKEND_TODOS.md` - Documents 22 backend issues and workarounds
 
-**Important**: When adding new API usage, add a transform in `adapter/transforms.ts` if needed, then export a hook from `adapter/hooks.ts`.
+**Important**: When adding new API usage, add domain-specific types and hooks to the appropriate file (pools/resources/workflows).
 
 ### Authentication
 
@@ -152,49 +155,103 @@ Open http://localhost:3000 and follow the login prompt to transfer your session.
 
 ### Feature Modules
 
-Each feature (`pools`, `resources`, `workflows`) follows this structure:
+Each feature (`pools`, `resources`, `workflows`) follows a **flat, co-located structure**:
 
 ```
 app/(dashboard)/pools/
-├── page.tsx                # Next.js page (composition only)
-├── hooks/
-│   └── use-pools-data.ts   # Business logic, filtering, state (no UI)
-├── components/
-│   └── pools-table.tsx     # Themed components (presentation only)
-├── lib/
-│   └── [feature utils]     # Feature-specific utilities
-└── index.ts                # Public API exports
+├── page.tsx                    # Next.js page (composition only)
+├── PoolsPageContent.tsx        # Page content component
+├── PoolsToolbar.tsx            # Toolbar component
+├── PoolsTable.tsx              # Table component
+├── use-pools-data.ts           # Business logic hook
+├── pool-columns.ts             # Column configuration
+├── pool-constants.ts           # Feature constants
+├── pool-search-fields.ts       # Search configuration
+└── stores/
+    └── pools-table-store.ts    # Zustand store
 ```
 
-**Import rule**: Features should import from each other's `index.ts`, not internals. ESLint warns on deep imports.
+**Import rule**: Always use **direct imports** to source files. No barrel exports (index.ts).
 
 ```typescript
-// ✅ Good
-import { usePoolsData } from '@/app/(dashboard)/pools';
+// ✅ REQUIRED: Direct imports
+import { usePoolsData } from '@/app/(dashboard)/pools/use-pools-data';
+import { POOL_SEARCH_FIELDS } from '@/app/(dashboard)/pools/pool-search-fields';
+import { usePoolsTableStore } from '@/app/(dashboard)/pools/stores/pools-table-store';
 
-// ❌ Bad (couples modules too tightly)
-import { usePoolsData } from '@/app/(dashboard)/pools/hooks/use-pools-data';
+// ❌ FORBIDDEN: Barrel exports (ESLint will error)
+import { usePoolsData } from '@/app/(dashboard)/pools';
 ```
 
-### Type Imports: Adapter vs Generated
+**Why direct imports:**
+- ✅ Perfect tree shaking (only bundle what's imported)
+- ✅ Fast HMR (changing one file doesn't invalidate entire module)
+- ✅ Clear dependencies (explicit what depends on what)
+- ✅ React Server Components safe (no client/server mixing)
+- ✅ No phantom module references in Turbopack
 
-**Critical distinction:** Import **types** from `adapter`, but **enums** from `generated`:
+### Import Patterns: The Direct Import Rule
+
+**CRITICAL:** All imports must be direct to source files. Barrel exports (index.ts) are **forbidden**.
+
+#### Type Imports: Adapter vs Generated
 
 ```typescript
 // ❌ FORBIDDEN: Types from generated change without notice
 import type { Pool } from "@/lib/api/generated";
 
-// ✅ REQUIRED: Types from adapter are stable
-import type { Pool } from "@/lib/api/adapter";
+// ✅ REQUIRED: Types from adapter (domain-based)
+import type { Pool } from "@/lib/api/adapter/pools";
+import type { Resource } from "@/lib/api/adapter/resources";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/workflows";
 
 // ✅ REQUIRED: Enums MUST come from generated for type safety
 import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 ```
 
-**Why this matters:**
-- Backend adds a new status → TypeScript error forces UI update
-- No silent failures from typos (`"RUNING"` vs `"RUNNING"`)
-- Refactoring is safe (rename in one place, compiler finds all uses)
+#### Component Imports
+
+```typescript
+// ✅ REQUIRED: Direct imports (follows shadcn/ui pattern)
+import { Button } from "@/components/shadcn/button";
+import { Dialog } from "@/components/shadcn/dialog";
+import { DataTable } from "@/components/data-table/DataTable";
+import { FilterBar } from "@/components/filter-bar/FilterBar";
+
+// ❌ FORBIDDEN: Barrel exports (ESLint will error)
+import { Button, Dialog } from "@/components/shadcn";
+import { DataTable } from "@/components/data-table";
+```
+
+#### Hook Imports
+
+```typescript
+// ✅ REQUIRED: Direct to source file
+import { useCopy } from "@/hooks/use-copy";
+import { useAnnouncer } from "@/hooks/use-announcer";
+import { usePanelState } from "@/hooks/use-url-state";
+
+// ❌ FORBIDDEN: Barrel exports
+import { useCopy, useAnnouncer } from "@/hooks";
+```
+
+#### Store Imports
+
+```typescript
+// ✅ REQUIRED: Direct imports
+import { createTableStore } from "@/stores/create-table-store";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
+
+// ❌ FORBIDDEN: Barrel exports
+import { createTableStore } from "@/stores";
+```
+
+**Why direct imports matter:**
+- ✅ **Tree shaking**: Bundler only includes imported files (not entire barrel)
+- ✅ **HMR performance**: Editing one file doesn't invalidate barrel consumers
+- ✅ **RSC safety**: Clear client/server boundaries, no accidental mixing
+- ✅ **Type safety**: Backend changes → TypeScript errors (not silent failures)
+- ✅ **Turbopack compatibility**: No phantom module references or HMR bugs
 
 ## Forbidden Patterns - NEVER DO THESE
 

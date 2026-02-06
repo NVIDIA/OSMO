@@ -24,9 +24,9 @@
  * since we pass filters directly to the backend API.
  */
 
-import type { SearchField, SearchChip } from "@/components/filter-bar";
+import type { SearchField, SearchChip } from "@/components/filter-bar/lib/types";
 import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
-import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter";
+import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter/types";
 import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
 import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
 import { naturalCompare } from "@/lib/utils";

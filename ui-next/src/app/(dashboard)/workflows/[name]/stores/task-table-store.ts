@@ -22,7 +22,7 @@
  * other tables (pools, resources, workflows).
  */
 
-import { createTableStore } from "@/stores";
+import { createTableStore } from "@/stores/create-table-store";
 import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT } from "../lib/task-columns";
 
 /**

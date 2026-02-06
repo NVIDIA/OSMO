@@ -57,7 +57,7 @@
 "use client";
 
 import { useState, useCallback, useTransition } from "react";
-import { useServices } from "@/contexts";
+import { useServices } from "@/contexts/service-context";
 import type { ActionResult } from "@/app/(dashboard)/workflows/actions";
 
 export interface UseServerMutationOptions {

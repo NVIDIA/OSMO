@@ -33,9 +33,12 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { InlineErrorBoundary } from "@/components/error";
-import { usePage } from "@/components/chrome";
-import { useUrlChips, usePanelState, useResultsCount, useViewTransition } from "@/hooks";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { usePage } from "@/components/chrome/page-context";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { usePanelState } from "@/hooks/use-url-state";
+import { useViewTransition } from "@/hooks/use-view-transition";
 import { PoolsDataTable } from "./components/table/pools-data-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";

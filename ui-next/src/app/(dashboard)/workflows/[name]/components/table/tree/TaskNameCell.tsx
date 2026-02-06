@@ -26,7 +26,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { LeadBadge } from "../../shared";
+import { LeadBadge } from "../../shared/LeadBadge";
 
 // =============================================================================
 // Types

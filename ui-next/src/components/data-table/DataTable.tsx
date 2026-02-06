@@ -33,7 +33,7 @@ import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 
-import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
+import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";

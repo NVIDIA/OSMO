@@ -24,10 +24,10 @@
 "use client";
 
 import { memo } from "react";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import type { GroupWithLayout, TaskQueryResponse } from "../../../lib/workflow-types";
 import { WorkflowTasksTable } from "../../table/WorkflowTasksTable";
-import { InlineErrorBoundary } from "@/components/error";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 
 export interface WorkflowTasksTabProps {
   workflow: WorkflowQueryResponse;

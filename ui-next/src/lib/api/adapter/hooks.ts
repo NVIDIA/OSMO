@@ -34,7 +34,7 @@ import {
   type FilteredPoolsResult,
   type PoolMetadata,
 } from "./pools-shim";
-import type { PaginationParams } from "@/lib/api/pagination";
+import type { PaginationParams } from "@/lib/api/pagination/types";
 import { normalizeWorkflowTimestamps } from "./utils";
 
 export function usePools() {

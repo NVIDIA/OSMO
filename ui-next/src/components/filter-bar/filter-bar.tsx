@@ -26,8 +26,9 @@ import { cn } from "@/lib/utils";
 import { Command, CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 
 // Core types (lib/) and hooks (hooks/) - never change with UI library swap
-import type { FilterBarProps } from "./lib";
-import { useChips, useSuggestions } from "./hooks";
+import type { FilterBarProps } from "./lib/types";
+import { useChips } from "./hooks/use-chips";
+import { useSuggestions } from "./hooks/use-suggestions";
 
 // UI components and styles
 import { inputStyles, chipStyles, dropdownStyles } from "./styles";
