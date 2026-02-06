@@ -357,18 +357,6 @@ export function SidePanel({
   };
   const panelWidth = getPanelWidth();
 
-  // Debug logging
-  useEffect(() => {
-    console.log("[SidePanel] width changed", {
-      width,
-      isCollapsed,
-      fillContainer,
-      panelWidth,
-      minWidthPx,
-      isDragging,
-    });
-  }, [width, isCollapsed, fillContainer, panelWidth, minWidthPx, isDragging]);
-
   // Default collapsed content
   const defaultCollapsedContent = useMemo(
     () =>

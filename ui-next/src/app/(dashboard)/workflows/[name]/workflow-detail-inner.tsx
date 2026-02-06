@@ -60,7 +60,7 @@ import {
   type DetailsPanelView,
 } from "./components";
 import { CancelWorkflowDialog } from "./components/panel/workflow/CancelWorkflowDialog";
-import { ResubmitDrawer } from "./components/resubmit";
+import { ResubmitPanel } from "./components/resubmit";
 
 // Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
@@ -284,8 +284,8 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   // Cancel workflow dialog state
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
-  // Resubmit workflow drawer state
-  const [resubmitDrawerOpen, setResubmitDrawerOpen] = useState(false);
+  // Resubmit workflow panel state
+  const [resubmitPanelOpen, setResubmitPanelOpen] = useState(false);
 
   // Workflow action handlers
   const handleCancelWorkflow = useEventCallback(() => {
@@ -293,7 +293,11 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   });
 
   const handleResubmitWorkflow = useEventCallback(() => {
-    setResubmitDrawerOpen(true);
+    setResubmitPanelOpen(true);
+  });
+
+  const handleCloseResubmitPanel = useEventCallback(() => {
+    setResubmitPanelOpen(false);
   });
 
   // Screen reader announcements for snap zone transitions
@@ -504,19 +508,45 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     <DAGErrorBoundary>
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
-          {isReady ? (
-            <WorkflowDetailLayout
-              containerRef={containerRef}
-              dagContent={dagContentElement}
-              panel={panelElement}
-            />
+          {/* Resubmit workflow panel - wraps main content */}
+          {workflow ? (
+            <ResubmitPanel
+              workflow={workflow}
+              open={resubmitPanelOpen}
+              onClose={handleCloseResubmitPanel}
+            >
+              {isReady ? (
+                <WorkflowDetailLayout
+                  containerRef={containerRef}
+                  dagContent={dagContentElement}
+                  panel={panelElement}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+                  <div className="text-center text-gray-500 dark:text-zinc-500">
+                    <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+                    <p>Loading workflow...</p>
+                  </div>
+                </div>
+              )}
+            </ResubmitPanel>
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
-              <div className="text-center text-gray-500 dark:text-zinc-500">
-                <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
-                <p>Loading workflow...</p>
-              </div>
-            </div>
+            <>
+              {isReady ? (
+                <WorkflowDetailLayout
+                  containerRef={containerRef}
+                  dagContent={dagContentElement}
+                  panel={panelElement}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+                  <div className="text-center text-gray-500 dark:text-zinc-500">
+                    <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+                    <p>Loading workflow...</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Cancel workflow dialog */}
@@ -526,15 +556,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
               open={cancelDialogOpen}
               onOpenChange={setCancelDialogOpen}
               onRefetch={refetch}
-            />
-          )}
-
-          {/* Resubmit workflow drawer */}
-          {workflow && (
-            <ResubmitDrawer
-              workflow={workflow}
-              open={resubmitDrawerOpen}
-              onOpenChange={setResubmitDrawerOpen}
             />
           )}
         </ShellPortalProvider>
