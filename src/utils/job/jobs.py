@@ -1390,13 +1390,6 @@ class CleanupWorkflow(WorkflowJob):
                     tmp_path,
                 )
 
-                # Ensure data is synced to disk before upload reads it
-                sync_fd = os.open(tmp_path, os.O_RDONLY)
-                try:
-                    os.fsync(sync_fd)
-                finally:
-                    os.close(sync_fd)
-
                 await progress_writer.report_progress_async()
 
                 # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
