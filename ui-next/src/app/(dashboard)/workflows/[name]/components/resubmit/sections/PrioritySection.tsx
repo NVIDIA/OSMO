@@ -46,6 +46,20 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
   const [open, setOpen] = useState(true);
   const groupId = useId();
 
+  // Calculate the position of the sliding indicator.
+  // Layout: container has p-1.5 (0.375rem) padding and gap-2 (0.5rem) between flex-1 items.
+  // The indicator width = one button width = (container content width - total gaps) / numOptions.
+  // In CSS: width = calc((100% - 2 * padding - totalGaps) / numOptions)
+  //   where 100% is the container's full width including padding.
+  // translateX uses percentages relative to the element's OWN width, so
+  //   translateX(100%) = exactly one button width. For index N we need
+  //   N * 100% (button widths) + N * gapSize (accumulated gaps) + padding offset.
+  const selectedIndex = PRIORITY_OPTIONS.indexOf(priority);
+  const numOptions = PRIORITY_OPTIONS.length;
+  const GAP_REM = 0.5; // gap-2 = 0.5rem
+  const PADDING_REM = 0.375; // p-1.5 = 0.375rem
+  const totalGapsRem = (numOptions - 1) * GAP_REM;
+
   return (
     <CollapsibleSection
       step={3}
@@ -55,10 +69,20 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
     >
       <div className="flex flex-col gap-2">
         <div
-          className="bg-muted flex gap-2 rounded-md p-1.5"
+          className="bg-muted relative flex gap-2 rounded-md p-1.5"
           role="radiogroup"
           aria-label="Priority level"
         >
+          {/* Sliding background indicator */}
+          <div
+            className="bg-nvidia pointer-events-none absolute inset-y-1.5 rounded-sm shadow-sm transition-transform duration-200 ease-out"
+            style={{
+              left: `${PADDING_REM}rem`,
+              width: `calc((100% - ${2 * PADDING_REM}rem - ${totalGapsRem}rem) / ${numOptions})`,
+              transform: `translateX(calc(${selectedIndex * 100}% + ${selectedIndex * GAP_REM}rem))`,
+            }}
+          />
+
           {PRIORITY_OPTIONS.map((option) => {
             const isSelected = priority === option;
             const inputId = `${groupId}-${option}`;
@@ -68,11 +92,9 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
                 key={option}
                 htmlFor={inputId}
                 className={cn(
-                  "flex-1 cursor-pointer rounded-sm px-3 py-2 text-center text-sm font-medium",
-                  "transition-[color,background-color,box-shadow] duration-150 ease-out",
-                  isSelected
-                    ? "bg-nvidia text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-nvidia-bg hover:text-foreground dark:hover:bg-nvidia-bg-dark",
+                  "relative z-10 flex-1 cursor-pointer rounded-sm px-3 py-2 text-center text-sm font-medium",
+                  "transition-colors duration-200 ease-out",
+                  isSelected ? "text-white" : "text-muted-foreground",
                 )}
               >
                 <input
