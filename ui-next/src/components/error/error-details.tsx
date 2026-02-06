@@ -18,7 +18,7 @@
 
 import { ChevronDown, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCopy } from "@/hooks";
+import { useCopy } from "@/hooks/use-copy";
 import { Card } from "@/components/shadcn/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
 

@@ -84,55 +84,25 @@ const eslintConfig = defineConfig([
     },
   },
   // ============================================================================
-  // Feature Module Boundaries
+  // Prevent Barrel Exports (index.ts files)
   // ============================================================================
-  // Enforce clean imports across feature boundaries.
-  // Features should import from each other's public API (index.ts), not internals.
+  // Barrel exports cause tree-shaking failures, HMR issues, and RSC boundary
+  // confusion. All imports must be direct to the source file.
   //
-  // Good: import { usePoolsData } from "@/app/(dashboard)/pools";
-  // Bad:  import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
+  // Good: import { Button } from "@/components/shadcn/button";
+  // Bad:  import { Button } from "@/components/shadcn";
   //
-  // This is currently a warning to allow gradual migration.
-  // TODO: Upgrade to "error" once all deep imports are eliminated.
+  // This is enforced as an error to prevent regression after full migration.
   {
-    files: ["src/app/**/*.ts", "src/app/**/*.tsx"],
     rules: {
       "no-restricted-imports": [
-        "warn",
+        "error",
         {
           patterns: [
-            // Warn on deep imports into pools feature internals
             {
-              group: [
-                "@/app/(dashboard)/pools/hooks/*",
-                "@/app/(dashboard)/pools/lib/*",
-                "@/app/(dashboard)/pools/stores/*",
-                "@/app/(dashboard)/pools/components/**/*",
-              ],
+              group: ["**/index", "**/index.ts", "**/index.tsx"],
               message:
-                "Import from feature's public API: import { ... } from '@/app/(dashboard)/pools'. Deep imports couple modules too tightly.",
-            },
-            // Warn on deep imports into resources feature internals
-            {
-              group: [
-                "@/app/(dashboard)/resources/hooks/*",
-                "@/app/(dashboard)/resources/lib/*",
-                "@/app/(dashboard)/resources/stores/*",
-                "@/app/(dashboard)/resources/components/**/*",
-              ],
-              message:
-                "Import from feature's public API: import { ... } from '@/app/(dashboard)/resources'. Deep imports couple modules too tightly.",
-            },
-            // Warn on deep imports into workflows feature internals
-            {
-              group: [
-                "@/app/(dashboard)/workflows/hooks/*",
-                "@/app/(dashboard)/workflows/lib/*",
-                "@/app/(dashboard)/workflows/stores/*",
-                "@/app/(dashboard)/workflows/components/**/*",
-              ],
-              message:
-                "Import from feature's public API: import { ... } from '@/app/(dashboard)/workflows'. Deep imports couple modules too tightly.",
+                "Barrel exports (index.ts) are forbidden. Import directly from the source file. Example: import { Button } from '@/components/shadcn/button' (not '@/components/shadcn')",
             },
           ],
         },

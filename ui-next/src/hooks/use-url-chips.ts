@@ -29,7 +29,7 @@
 
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
-import type { SearchChip } from "@/stores";
+import type { SearchChip } from "@/stores/types";
 import { parseUrlChips } from "@/lib/url-utils";
 
 export interface UseUrlChipsOptions {

@@ -1,4 +1,4 @@
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/generated";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 

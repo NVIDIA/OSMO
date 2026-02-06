@@ -34,8 +34,8 @@ import {
   isPresetActive,
   togglePreset,
 } from "./workflow-search-fields";
-import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter";
-import type { SearchChip } from "@/stores";
+import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter/types";
+import type { SearchChip } from "@/stores/types";
 
 // =============================================================================
 // Test Helpers

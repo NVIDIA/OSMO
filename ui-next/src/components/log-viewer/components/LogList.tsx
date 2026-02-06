@@ -19,7 +19,7 @@
 import { useRef, useCallback, memo, useLayoutEffect, forwardRef, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
-import type { LogEntry } from "@/lib/api/log-adapter";
+import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { LogEntryRow } from "./LogEntryRow";
 import { useLogViewerStore } from "../store/log-viewer-store";

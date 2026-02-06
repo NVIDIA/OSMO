@@ -85,7 +85,7 @@ export async function prefetchResources(queryClient: QueryClient): Promise<void>
 }
 
 // Re-export SearchChip type for server use
-import type { SearchChip } from "@/stores";
+import type { SearchChip } from "@/stores/types";
 
 /**
  * Build query key for resources list (matches client-side useResourcesData).

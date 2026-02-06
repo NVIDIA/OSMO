@@ -24,7 +24,7 @@
  */
 
 import { useCallback, useState } from "react";
-import type { SearchField, SearchChip, SearchPreset } from "../lib";
+import type { SearchField, SearchChip, SearchPreset } from "../lib/types";
 
 export interface UseChipsOptions<T> {
   chips: SearchChip[];

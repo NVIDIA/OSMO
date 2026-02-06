@@ -21,10 +21,11 @@
 import { memo, useMemo } from "react";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Pool } from "@/lib/api/adapter";
-import type { SearchChip } from "@/stores";
-import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar";
-import { TableToolbar, DisplayModeToggle } from "@/components/data-table";
+import type { Pool } from "@/lib/api/adapter/types";
+import type { SearchChip } from "@/stores/types";
+import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
+import { DisplayModeToggle } from "@/components/data-table/DisplayModeToggle";
+import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { usePoolsTableStore } from "../stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
 import { createPoolSearchFields } from "../lib/pool-search-fields";

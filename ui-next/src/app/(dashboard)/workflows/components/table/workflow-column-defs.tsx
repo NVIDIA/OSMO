@@ -18,7 +18,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowUp, ArrowDown, Minus } from "lucide-react";
-import { remToPx } from "@/components/data-table";
+import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
 import type { WorkflowListEntry } from "../../lib/workflow-search-fields";

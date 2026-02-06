@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import { getDateKey, fullFlatten } from "./use-incremental-flatten";
-import type { LogEntry } from "@/lib/api/log-adapter";
+import type { LogEntry } from "@/lib/api/log-adapter/types";
 
 /**
  * Create a mock log entry for testing.

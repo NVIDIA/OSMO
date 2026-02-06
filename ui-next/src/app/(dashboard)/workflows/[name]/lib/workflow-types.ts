@@ -25,7 +25,7 @@
  */
 
 import { TaskGroupStatus } from "@/lib/api/generated";
-import type { GroupQueryResponse, TaskQueryResponse, WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { GroupQueryResponse, TaskQueryResponse, WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { isTaskOngoing } from "@/lib/api/status-metadata.generated";
 
 // Re-export backend types for convenience

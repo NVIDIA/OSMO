@@ -16,14 +16,14 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { remToPx } from "@/components/data-table";
+import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "./workflow-types";
 import { getStatusCategory, STATUS_STYLES, type StatusCategory } from "./status";
 import type { TaskWithDuration } from "./workflow-types";
 import { TASK_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type TaskColumnId } from "./task-columns";
 import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
-import { TaskNameCell } from "../components/table/tree";
+import { TaskNameCell } from "../components/table/tree/TaskNameCell";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,

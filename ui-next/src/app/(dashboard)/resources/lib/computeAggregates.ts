@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Resource } from "@/lib/api/adapter";
+import type { Resource } from "@/lib/api/adapter/types";
 
 /**
  * Aggregated resource metrics across a dataset.

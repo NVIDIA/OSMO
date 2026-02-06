@@ -19,7 +19,7 @@
 import { PoolStatus } from "@/lib/api/generated";
 
 // Re-export from canonical locations
-export type { DisplayMode } from "@/stores";
+export type { DisplayMode } from "@/stores/shared-preferences-store";
 
 export type StatusCategory = "online" | "maintenance" | "offline";
 

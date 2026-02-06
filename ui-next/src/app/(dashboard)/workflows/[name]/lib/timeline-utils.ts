@@ -21,7 +21,7 @@
  * Consolidates common patterns to reduce duplication.
  */
 
-import { useTick } from "@/hooks";
+import { useTick } from "@/hooks/use-tick";
 import { getStatusCategory } from "./status";
 import {
   type TimelinePhase,

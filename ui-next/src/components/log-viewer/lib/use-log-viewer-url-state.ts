@@ -70,8 +70,8 @@
 
 "use client";
 
-import type { SearchChip } from "@/components/filter-bar";
-import type { TimeRangePreset } from "../components/timeline";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
+import type { TimeRangePreset } from "../components/timeline/components/TimelineContainer";
 import { useFilterChipsUrlState } from "./use-filter-chips-url-state";
 import { useTimeRangeUrlState } from "./use-time-range-url-state";
 

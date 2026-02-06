@@ -16,7 +16,7 @@
 
 "use client";
 
-import { RouteError } from "@/components/error";
+import { RouteError } from "@/components/error/route-error";
 
 /**
  * Pools section error boundary.

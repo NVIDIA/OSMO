@@ -32,17 +32,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
-import {
-  PanelTabs,
-  DetailsSection,
-  LinksSection,
-  DependenciesSection,
-  EmptyTabPrompt,
-  TabPanel,
-  SeparatedParts,
-  type PanelTab,
-} from "@/components/panel";
-import { useTick } from "@/hooks";
+import { DependenciesSection } from "@/components/panel/dependencies-section";
+import { DetailsSection } from "@/components/panel/details-section";
+import { EmptyTabPrompt } from "@/components/panel/empty-tab-prompt";
+import { LinksSection } from "@/components/panel/links-section";
+import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
+import { SeparatedParts } from "@/components/panel/separated-parts";
+import { TabPanel } from "@/components/panel/tab-panel";
+import { useTick } from "@/hooks/use-tick";
 import { ShellConnectPrompt } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
@@ -51,8 +48,10 @@ import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from
 import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPill } from "../views/DependencyPills";
-import { useShellPortal, useShellContext } from "../../shell";
-import { useShellSession, StatusDot } from "@/components/shell";
+import { useShellPortal } from "../../shell/ShellPortalContext";
+import { useShellContext } from "../../shell/ShellContext";
+import { StatusDot } from "@/components/shell/components/StatusDot";
+import { useShellSession } from "@/components/shell/lib/shell-cache";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
 

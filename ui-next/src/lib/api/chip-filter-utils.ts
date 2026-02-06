@@ -44,7 +44,7 @@
  * ```
  */
 
-import type { SearchChip } from "@/stores";
+import type { SearchChip } from "@/stores/types";
 
 // =============================================================================
 // Types

@@ -33,11 +33,15 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { usePage } from "@/components/chrome";
-import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
-import { useUrlChips, usePanelState, useResultsCount, useViewTransition } from "@/hooks";
-import type { Resource } from "@/lib/api/adapter";
-import { useSharedPreferences } from "@/stores";
+import { usePage } from "@/components/chrome/page-context";
+import { ApiError, type ApiErrorProps } from "@/components/error/api-error";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { usePanelState } from "@/hooks/use-url-state";
+import { useViewTransition } from "@/hooks/use-view-transition";
+import type { Resource } from "@/lib/api/adapter/types";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { ResourcesTable } from "./components/table/resources-table";
 import { ResourcePanelLayout } from "./components/panel/resource-panel";
 import { ResourcesToolbar } from "./components/resources-toolbar";

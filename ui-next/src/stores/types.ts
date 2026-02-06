@@ -45,7 +45,7 @@ export type { ColumnSizingPreference, ColumnSizingPreferences, SortDirection, Pr
 // =============================================================================
 
 // Import search types from filter-bar component (single source of truth)
-import type { ChipVariant, SearchChip } from "@/components/filter-bar";
+import type { ChipVariant, SearchChip } from "@/components/filter-bar/lib/types";
 
 // Re-export for consumers of this module
 export type { ChipVariant, SearchChip };

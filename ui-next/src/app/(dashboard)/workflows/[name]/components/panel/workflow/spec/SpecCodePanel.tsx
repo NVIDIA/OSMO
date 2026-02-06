@@ -43,7 +43,7 @@ import { keymap } from "@codemirror/view";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { createSpecViewerExtension } from "./lib/theme";
 import { createSearchPanel } from "./lib/search-panel";
-import { useMounted } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
 import type { SpecView } from "./hooks/useSpecData";
 import "./spec-search.css";
 

@@ -23,7 +23,7 @@ import { CirclePile } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { InlineProgress, type DisplayMode } from "@/components/inline-progress";
-import type { Quota } from "@/lib/api/adapter";
+import type { Quota } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Types

@@ -18,7 +18,7 @@ import { useCallback, useRef, useMemo, useEffect, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
 import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback, usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
-import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
+import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import type { ColumnSizeConfig } from "../types";
 import {
   measureColumnContentWidth,

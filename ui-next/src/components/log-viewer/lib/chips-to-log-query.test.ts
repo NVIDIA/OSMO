@@ -7,7 +7,7 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import { describe, it, expect } from "vitest";
-import type { SearchChip } from "@/components/filter-bar";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { chipsToLogQuery, hasActiveFilters } from "./chips-to-log-query";
 
 // =============================================================================

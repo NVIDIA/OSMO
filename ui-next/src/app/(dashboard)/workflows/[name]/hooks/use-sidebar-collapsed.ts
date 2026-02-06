@@ -37,8 +37,8 @@
 
 import { useState, useRef, useMemo } from "react";
 import { useEventCallback, useIsomorphicLayoutEffect } from "usehooks-ts";
-import { useSharedPreferences, sharedPreferencesInitialState } from "@/stores";
-import { useMounted } from "@/hooks";
+import { useSharedPreferences, initialState as sharedPreferencesInitialState } from "@/stores/shared-preferences-store";
+import { useMounted } from "@/hooks/use-mounted";
 
 // Module-level stable no-op function (created once, never changes)
 const NOOP = () => {};

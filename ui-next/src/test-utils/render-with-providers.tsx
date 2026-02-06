@@ -42,7 +42,8 @@
 
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConfigProvider, ServiceProvider, defaultConfig, type AppConfig, type Services } from "@/contexts";
+import { ConfigProvider, defaultConfig, type AppConfig } from "@/contexts/config-context";
+import { ServiceProvider, type Services } from "@/contexts/service-context";
 
 // =============================================================================
 // Mock Services (test-only)

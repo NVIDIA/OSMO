@@ -45,7 +45,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
 } from "@/components/shadcn/dropdown-menu";
-import { PanelHeader, PanelBadge, PanelTitle, PanelSubtitle } from "@/components/panel";
+import { PanelHeader, PanelBadge, PanelTitle, PanelSubtitle } from "@/components/panel/panel-header";
 import { getStatusIcon } from "../../../lib/status";
 import type { DetailsPanelHeaderProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 

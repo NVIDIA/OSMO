@@ -27,8 +27,9 @@
 "use client";
 
 import { useMemo } from "react";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
-import { ResizablePanel, PANEL } from "@/components/panel";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { useWorkflowsPreferencesStore } from "../../../stores/workflows-table-store";
 import { ResubmitPanelHeader } from "./ResubmitPanelHeader";
 import { ResubmitPanelContent } from "./ResubmitPanelContent";

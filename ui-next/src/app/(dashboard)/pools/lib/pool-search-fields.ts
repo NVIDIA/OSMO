@@ -16,8 +16,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SearchField } from "@/components/filter-bar";
-import type { Pool } from "@/lib/api/adapter";
+import type { SearchField } from "@/components/filter-bar/lib/types";
+import type { Pool } from "@/lib/api/adapter/types";
 import { createNumericSearchFieldPair } from "@/lib/filter-utils";
 
 // ============================================================================

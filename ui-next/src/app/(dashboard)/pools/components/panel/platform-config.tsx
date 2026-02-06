@@ -20,7 +20,7 @@
 
 import { BooleanIndicator } from "@/components/boolean-indicator";
 import { CopyableBlock } from "@/components/copyable-value";
-import type { PlatformConfig } from "@/lib/api/adapter";
+import type { PlatformConfig } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Types

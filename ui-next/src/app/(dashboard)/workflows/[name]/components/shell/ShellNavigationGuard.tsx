@@ -39,7 +39,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/shadcn/button";
-import { useShellSessions } from "@/components/shell";
+import { useShellSessions } from "@/components/shell/lib/shell-cache";
 import { stripBasePath } from "@/lib/config";
 
 // =============================================================================

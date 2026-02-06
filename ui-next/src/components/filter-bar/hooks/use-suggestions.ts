@@ -24,7 +24,7 @@
  */
 
 import { useMemo } from "react";
-import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } from "../lib";
+import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } from "../lib/types";
 
 export interface UseSuggestionsOptions<T> {
   /** Current input value */
