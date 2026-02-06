@@ -4354,7 +4354,8 @@ class Role(role.Role):
 
         # Determine sync parameters:
         # - external_roles_provided: True if self.external_roles is not None
-        # - external_roles_list: the list to use (empty if None, to be replaced by default for new roles)
+        # - external_roles_list: the list to use
+        #   (empty if None, to be replaced by default for new roles)
         external_roles_provided = self.external_roles is not None
         external_roles_list = self.external_roles if external_roles_provided else []
 

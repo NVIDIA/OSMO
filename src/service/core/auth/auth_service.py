@@ -662,8 +662,8 @@ def assign_role_to_user(
     try:
         result = postgres.execute_fetch_command(
             insert_cmd, (user_id, request.role_name, assigned_by, now), True)
-    except osmo_errors.OSMODatabaseError:
-        raise osmo_errors.OSMOUserError(f'User {user_id} not found')
+    except osmo_errors.OSMODatabaseError as err:
+        raise osmo_errors.OSMOUserError(f'User {user_id} not found') from err
 
     row = result[0]
     return objects.UserRoleAssignment(
