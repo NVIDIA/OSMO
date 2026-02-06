@@ -121,6 +121,17 @@ const nextConfig: NextConfig = {
       "@dnd-kit/core",
       "@dnd-kit/sortable",
       "@dnd-kit/utilities",
+      // CodeMirror editor (lazy-loaded, but optimize when loaded)
+      "@codemirror/lang-yaml",
+      "@codemirror/view",
+      "@codemirror/state",
+      "@codemirror/language",
+      "@codemirror/search",
+      "@uiw/react-codemirror",
+      "@lezer/highlight",
+      // UI component libraries
+      "vaul", // Drawer component
+      "sonner", // Toast notifications
       // Hooks libraries
       "usehooks-ts",
       "@react-hookz/web",
@@ -130,6 +141,7 @@ const nextConfig: NextConfig = {
       "cmdk",
       "nuqs",
       "class-variance-authority",
+      "immer", // Immutable state updates
     ],
   },
 
