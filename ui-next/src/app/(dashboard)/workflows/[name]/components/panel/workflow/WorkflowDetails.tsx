@@ -32,6 +32,7 @@
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   TextSearch,
   BarChart3,
@@ -48,6 +49,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ActionsSection, type ActionItem } from "@/components/panel/actions-section";
 import { EmptyTabPrompt } from "@/components/panel/empty-tab-prompt";
 import { LinksSection } from "@/components/panel/links-section";
@@ -64,7 +66,21 @@ import { parseTime } from "../views/Timeline";
 import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { WorkflowTasksTab } from "./WorkflowTasksTab";
-import { WorkflowSpecViewer } from "./spec/WorkflowSpecViewer";
+
+// Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)
+// Saves ~92 KB from initial bundle (CodeMirror + YAML parser + Lezer)
+const WorkflowSpecViewer = dynamic(
+  () => import("./spec/WorkflowSpecViewer").then((m) => ({ default: m.WorkflowSpecViewer })),
+  {
+    loading: () => (
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 // =============================================================================
 // Styling Constants (Single Source of Truth)
