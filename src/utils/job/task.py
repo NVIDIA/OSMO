@@ -1871,6 +1871,55 @@ class TaskGroup(pydantic.BaseModel):
 
         return kb_objects.get_k8s_object_factory(backend_copy)
 
+    def _build_topology_tree(
+        self, pool: str
+    ) -> Tuple[List[topology_module.TopologyKey], List[topology_module.TaskTopology]]:
+        """
+        Builds topology tree configuration for tasks.
+
+        Optimized to avoid database query if no tasks use topology.
+
+        Args:
+            pool: Pool name
+
+        Returns:
+            Tuple of (topology_keys, task_infos)
+        """
+        # Build task infos first to check if any tasks have topology requirements
+        task_infos = []
+        has_topology = False
+
+        for task_obj in self.spec.tasks:
+            topology_reqs = []
+            if task_obj.resources.topology:
+                has_topology = True
+                for req in task_obj.resources.topology:
+                    is_required = (
+                        req.requirementType == connectors.TopologyRequirementType.REQUIRED
+                    )
+                    topology_reqs.append(topology_module.TopologyRequirement(
+                        key=req.key,
+                        group=req.group,
+                        required=is_required
+                    ))
+            task_infos.append(topology_module.TaskTopology(
+                name=task_obj.name,
+                topology_requirements=topology_reqs
+            ))
+
+        # Exit early if no topology is used (avoid database query)
+        if not has_topology:
+            return [], task_infos
+
+        # Fetch pool configuration and build topology keys
+        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+        topology_keys = [
+            topology_module.TopologyKey(key=tk.key, label=tk.label)
+            for tk in pool_obj.topology_keys
+        ] if pool_obj.topology_keys else []
+
+        return topology_keys, task_infos
+
     def get_kb_specs(
         self, workflow_uuid: str, user: str,
         workflow_config: connectors.WorkflowConfig,
@@ -1966,33 +2015,8 @@ class TaskGroup(pydantic.BaseModel):
 
         )
 
-        # Build topology constraints if pool has topology enabled
-        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
-
-        # Build topology configuration
-        topology_keys = [
-            topology_module.TopologyKey(key=tk.key, label=tk.label)
-            for tk in pool_obj.topology_keys
-        ] if pool_obj.topology_keys else []
-
-        # Convert tasks to TaskTopology with topology requirements
-        task_infos = []
-        for task_obj in self.spec.tasks:
-            topology_reqs = []
-            if task_obj.resources.topology:
-                for req in task_obj.resources.topology:
-                    is_required = (
-                        req.requirementType == connectors.TopologyRequirementType.REQUIRED
-                    )
-                    topology_reqs.append(topology_module.TopologyRequirement(
-                        key=req.key,
-                        group=req.group,
-                        required=is_required
-                    ))
-            task_infos.append(topology_module.TaskTopology(
-                name=task_obj.name,
-                topology_requirements=topology_reqs
-            ))
+        # Build topology tree configuration
+        topology_keys, task_infos = self._build_topology_tree(pool)
 
         group_objects = k8s_factory.create_group_k8s_resources(
             group_uid, pods, labels, pool, priority, topology_keys, task_infos)
