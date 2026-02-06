@@ -77,8 +77,8 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
                   "flex-1 cursor-pointer rounded-sm px-3 py-2 text-center text-sm font-medium",
                   "transition-[color,background-color,box-shadow] duration-150 ease-out",
                   isSelected
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                    ? "bg-nvidia text-white shadow-sm"
+                    : "text-muted-foreground hover:bg-nvidia-bg hover:text-foreground dark:hover:bg-nvidia-bg-dark",
                 )}
               >
                 <input
