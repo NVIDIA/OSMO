@@ -66,9 +66,8 @@ export const CollapsibleSection = memo(function CollapsibleSection({
     >
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center justify-between px-6 py-4",
+          "group flex w-full items-center justify-between px-6 py-4",
           "cursor-pointer select-none",
-          "hover:bg-accent/50 transition-colors duration-150",
           "focus-visible:ring-nvidia focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
         )}
         aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
@@ -100,7 +99,8 @@ export const CollapsibleSection = memo(function CollapsibleSection({
           <ChevronDown
             className={cn(
               "text-muted-foreground size-5 shrink-0",
-              "transition-transform duration-200 ease-out",
+              "transition-all duration-200 ease-out",
+              "group-hover:text-foreground",
               open && "rotate-180",
             )}
             aria-hidden="true"
