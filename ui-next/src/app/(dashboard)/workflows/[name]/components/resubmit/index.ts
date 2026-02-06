@@ -15,24 +15,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Resubmit Workflow Drawer
+ * Resubmit Workflow Panel
  *
- * Right-side sheet (desktop) / bottom drawer (mobile) for workflow resubmission.
+ * Resizable side panel for workflow resubmission.
  * Provides spec preview, pool selection, and priority configuration.
  *
  * @example
  * ```tsx
- * import { ResubmitDrawer } from './resubmit';
+ * import { ResubmitPanel } from './resubmit';
  *
- * <ResubmitDrawer
+ * <ResubmitPanel
  *   workflow={workflow}
- *   open={drawerOpen}
- *   onOpenChange={setDrawerOpen}
- * />
+ *   open={panelOpen}
+ *   onClose={handleClose}
+ * >
+ *   <WorkflowDetailPage workflow={workflow} />
+ * </ResubmitPanel>
  * ```
  */
 
-export { ResubmitDrawer, type ResubmitDrawerProps } from "./ResubmitDrawer";
-export { ResubmitDrawerContent, type ResubmitDrawerContentProps } from "./ResubmitDrawerContent";
+export { ResubmitPanel, type ResubmitPanelProps } from "./ResubmitPanel";
+export { ResubmitPanelHeader, type ResubmitPanelHeaderProps } from "./ResubmitPanelHeader";
+export { ResubmitPanelContent, type ResubmitPanelContentProps } from "./ResubmitPanelContent";
 export { useResubmitForm, type UseResubmitFormOptions, type UseResubmitFormReturn } from "./hooks";
 export { useResubmitMutation, type UseResubmitMutationOptions, type UseResubmitMutationReturn } from "./hooks";

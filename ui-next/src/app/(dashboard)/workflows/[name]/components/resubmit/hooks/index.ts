@@ -15,9 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Resubmit Drawer Hooks
+ * Resubmit Panel Hooks
  *
- * State management and mutation hooks for the workflow resubmit drawer.
+ * State management and mutation hooks for the workflow resubmit panel.
  */
 
 export { useResubmitForm, type UseResubmitFormOptions, type UseResubmitFormReturn } from "./useResubmitForm";
