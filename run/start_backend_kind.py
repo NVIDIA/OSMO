@@ -35,6 +35,7 @@ from run.kind_utils import (
     setup_osmo_namespace,
     detect_platform,
     setup_kai_scheduler,
+    load_images_to_kind,
 )
 
 logger = logging.getLogger()
@@ -202,6 +203,16 @@ def start_backend_kind(args: argparse.Namespace) -> None:
 
         detected_platform = detect_platform()
         logger.info('📱 Detected platform: %s', detected_platform)
+
+        if args.load_local_images:
+            images_to_load = ['backend-listener', 'backend-worker', 'init-container', 'client']
+            load_images_to_kind(args.cluster_name, images_to_load)
+
+            # Override image location and tag to use the local images
+            args.image_location = 'osmo.local'
+            args.image_tag = f'latest-{"x86_64" if detected_platform == "amd64" else "arm64"}'
+            # Clear registry password since we're using local images
+            args.container_registry_password = ''
 
         setup_kai_scheduler()
 
