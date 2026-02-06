@@ -110,48 +110,59 @@ class AccessToken(pydantic.BaseModel):
 
         # Atomic insert with role validation using CTEs
         # The query validates roles and inserts in a single transaction.
-        # If any requested role is not in user_roles, the validation check
-        # causes a division by zero error which rolls back the entire transaction.
+        # PAT roles reference user_roles.id via FK, so:
+        # - Token is only created if ALL requested roles exist in user_roles
+        # - When a user role is later deleted, PAT roles cascade delete automatically
+        #
+        # The role_check CTE verifies all roles exist before any insert happens.
+        # If the count doesn't match, the WHERE clause prevents token creation.
         insert_cmd = '''
-            WITH token_insert AS (
+            WITH matching_user_roles AS (
+                SELECT ur.id as user_role_id, ur.role_name
+                FROM user_roles ur
+                WHERE ur.user_id = %s AND ur.role_name = ANY(%s::text[])
+            ),
+            role_check AS (
+                SELECT COUNT(*) = %s AS all_roles_found FROM matching_user_roles
+            ),
+            token_insert AS (
                 INSERT INTO access_token
                 (user_name, token_name, access_token, expires_at, description)
-                VALUES (%s, %s, %s, %s, %s)
+                SELECT %s, %s, %s, %s, %s
+                WHERE (SELECT all_roles_found FROM role_check)
                 RETURNING user_name, token_name
             ),
             role_insert AS (
-                INSERT INTO pat_roles (user_name, token_name, role_name, assigned_by, assigned_at)
-                SELECT ti.user_name, ti.token_name, ur.role_name, %s, %s
+                INSERT INTO pat_roles (user_name, token_name, user_role_id, assigned_by, assigned_at)
+                SELECT ti.user_name, ti.token_name, mur.user_role_id, %s, %s
                 FROM token_insert ti
-                INNER JOIN user_roles ur ON ur.user_id = ti.user_name
-                WHERE ur.role_name = ANY(%s::text[])
-                RETURNING role_name
+                CROSS JOIN matching_user_roles mur
+                RETURNING user_role_id
             )
             SELECT
-                CASE
-                    WHEN (SELECT COUNT(*) FROM role_insert) = %s
-                    THEN 'ok'
-                    ELSE (SELECT (1/0)::text)
-                END;
+                (SELECT all_roles_found FROM role_check) as all_roles_found,
+                (SELECT COUNT(*) FROM token_insert) as token_created;
         '''
         args = (
+            user_name, roles, len(roles),
             user_name, token_name, hashed_token, expires_at, description,
-            assigned_by, now,
-            roles,
-            len(roles)
+            assigned_by, now
         )
 
         try:
-            database.execute_commit_command(insert_cmd, args)
-        except Exception as e:
+            result = database.execute_fetch_command(insert_cmd, args, True)
+            if result:
+                all_roles_found = result[0].get('all_roles_found', False)
+                token_created = result[0].get('token_created', 0)
+                if not all_roles_found or token_created == 0:
+                    raise osmo_errors.OSMOUserError(
+                        'User does not have all the requested roles. '
+                        'Token creation failed.')
+        except osmo_errors.OSMODatabaseError as e:
             error_str = str(e).lower()
             if 'already exists' in error_str or 'duplicate key' in error_str:
                 raise osmo_errors.OSMOUserError(
                     f'Token name {token_name} already exists.') from e
-            if 'division by zero' in error_str:
-                raise osmo_errors.OSMOUserError(
-                    'User does not have all the requested roles. '
-                    'Token creation failed.') from e
             raise
 
     @classmethod
@@ -171,11 +182,13 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def get_roles_for_token(cls, database: connectors.PostgresConnector,
                             user_name: str, token_name: str) -> List[str]:
-        """Get the roles assigned to a PAT from pat_roles table."""
+        """Get the roles assigned to a PAT by joining pat_roles with user_roles."""
         fetch_cmd = '''
-            SELECT role_name FROM pat_roles
-            WHERE user_name = %s AND token_name = %s
-            ORDER BY role_name;
+            SELECT ur.role_name
+            FROM pat_roles pr
+            JOIN user_roles ur ON pr.user_role_id = ur.id
+            WHERE pr.user_name = %s AND pr.token_name = %s
+            ORDER BY ur.role_name;
         '''
         rows = database.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
         return [row['role_name'] for row in rows]
@@ -197,7 +210,6 @@ class User(pydantic.BaseModel):
     id: str
     created_at: Optional[datetime.datetime] = None
     created_by: Optional[str] = None
-    last_seen_at: Optional[datetime.datetime] = None
 
 
 class UserWithRoles(User):

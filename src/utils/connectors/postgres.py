@@ -1106,8 +1106,7 @@ class PostgresConnector:
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                created_by TEXT,
-                last_seen_at TIMESTAMP WITH TIME ZONE
+                created_by TEXT
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1136,14 +1135,15 @@ class PostgresConnector:
         self.execute_commit_command(create_cmd, ())
 
         # Creates table for user role assignments
+        # Each assignment has a UUID that pat_roles references for cascading deletes
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS user_roles (
-                id SERIAL PRIMARY KEY,
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
                 assigned_by TEXT NOT NULL,
                 assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                UNIQUE(user_id, role_name)
+                UNIQUE (user_id, role_name)
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1178,15 +1178,15 @@ class PostgresConnector:
         self.execute_commit_command(create_cmd, ())
 
         # Creates table for PAT role assignments (subset of user roles)
+        # References user_roles.id so PAT roles are auto-deleted when user loses a role
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS pat_roles (
-                id SERIAL PRIMARY KEY,
                 user_name TEXT NOT NULL,
                 token_name TEXT NOT NULL,
-                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                user_role_id UUID NOT NULL REFERENCES user_roles(id) ON DELETE CASCADE,
                 assigned_by TEXT NOT NULL,
                 assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                UNIQUE(user_name, token_name, role_name),
+                PRIMARY KEY (user_name, token_name, user_role_id),
                 FOREIGN KEY (user_name, token_name)
                     REFERENCES access_token(user_name, token_name) ON DELETE CASCADE
             );
@@ -1200,8 +1200,8 @@ class PostgresConnector:
                 ON pat_roles (user_name, token_name);
             ''',
             '''
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pat_roles_role
-                ON pat_roles (role_name);
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pat_roles_user_role
+                ON pat_roles (user_role_id);
             '''
         ]
         for cmd in index_cmds:
@@ -1610,13 +1610,12 @@ class PostgresConnector:
 def upsert_user(database: PostgresConnector, user_name: str):
     """
     Create a user in the users table if they don't exist.
-    If the user already exists, update the last_seen_at field.
+    If the user already exists, this is a no-op.
     """
     upsert_cmd = '''
-        INSERT INTO users (id, created_at, created_by, last_seen_at)
-        VALUES (%s, NOW(), %s, NOW())
-        ON CONFLICT (id) DO UPDATE SET
-            last_seen_at = NOW();
+        INSERT INTO users (id, created_at, created_by)
+        VALUES (%s, NOW(), %s)
+        ON CONFLICT (id) DO NOTHING;
     '''
     database.execute_commit_command(upsert_cmd, (user_name, user_name))
 
@@ -4340,78 +4339,97 @@ class Role(role.Role):
         database.execute_commit_command(delete_cmd, (name,))
 
     def insert_into_db(self, database: PostgresConnector, force: bool = False):
-        """ Create/update an entry in the roles table """
+        """
+        Create/update an entry in the roles table and sync external role mappings.
+
+        This is a single atomic operation that:
+        1. Inserts/updates the role in the roles table
+        2. Synchronizes external role mappings based on external_roles value:
+           - None: Don't modify mappings (preserve existing), except for new roles
+           - []: Explicitly clear all mappings
+           - ['role1', ...]: Replace with specified mappings
+           For new roles with external_roles=None, creates a default mapping to the role name.
+        """
         check_immutable = 'WHERE roles.immutable = false' if not force else ''
-        # Use xmax = 0 to detect if this was an INSERT (new role) vs UPDATE
-        # xmax is 0 for newly inserted rows, non-zero for updated rows
+
+        # Determine sync parameters:
+        # - external_roles_provided: True if self.external_roles is not None
+        # - external_roles_list: the list to use (empty if None, to be replaced by default for new roles)
+        external_roles_provided = self.external_roles is not None
+        external_roles_list = self.external_roles if external_roles_provided else []
+
+        # Use CTEs to perform all operations atomically in a single transaction.
+        # The sync logic:
+        # - should_sync = external_roles_provided OR is_new_role
+        # - roles_to_map = external_roles_list if external_roles_provided else [role_name] (default)
         insert_cmd = f'''
-            INSERT INTO roles
-            (name, description, policies, immutable, sync_mode)
-            VALUES (%s, %s, %s::jsonb[], %s, %s)
-            ON CONFLICT (name)
-            DO UPDATE SET
-                description = EXCLUDED.description,
-                policies = EXCLUDED.policies,
-                sync_mode = EXCLUDED.sync_mode
-            {check_immutable}
-            RETURNING policies, immutable, (xmax = 0) AS is_new_role;
+            WITH role_upsert AS (
+                INSERT INTO roles
+                (name, description, policies, immutable, sync_mode)
+                VALUES (%s, %s, %s::jsonb[], %s, %s)
+                ON CONFLICT (name)
+                DO UPDATE SET
+                    description = EXCLUDED.description,
+                    policies = EXCLUDED.policies,
+                    sync_mode = EXCLUDED.sync_mode
+                {check_immutable}
+                RETURNING policies, immutable, (xmax = 0) AS is_new_role
+            ),
+            sync_config AS (
+                SELECT
+                    -- should_sync: True if external_roles explicitly provided OR if new role
+                    (%s OR (SELECT is_new_role FROM role_upsert)) AS should_sync,
+                    -- The roles to map: use provided list if external_roles was set,
+                    -- otherwise use default (role name) for new roles
+                    CASE
+                        WHEN %s THEN %s::text[]
+                        ELSE ARRAY[%s]::text[]
+                    END AS roles_to_map,
+                    (SELECT is_new_role FROM role_upsert) AS is_new_role
+            ),
+            delete_mappings AS (
+                DELETE FROM role_external_mappings
+                WHERE role_name = %s
+                AND (SELECT should_sync FROM sync_config)
+                RETURNING 1
+            ),
+            insert_mappings AS (
+                INSERT INTO role_external_mappings (role_name, external_role)
+                SELECT %s, unnest((SELECT roles_to_map FROM sync_config))
+                WHERE (SELECT should_sync FROM sync_config)
+                AND array_length((SELECT roles_to_map FROM sync_config), 1) > 0
+                ON CONFLICT (role_name, external_role) DO NOTHING
+                RETURNING 1
+            )
+            SELECT policies, immutable, is_new_role FROM role_upsert;
             '''
+
         result = database.execute_fetch_command(
             insert_cmd,
-            (self.name, self.description,
-             [json.dumps(policy.to_dict()) for policy in self.policies],
-             False, self.sync_mode.value),
+            (
+                # role_upsert params
+                self.name,
+                self.description,
+                [json.dumps(policy.to_dict()) for policy in self.policies],
+                False,
+                self.sync_mode.value,
+                # sync_config params
+                external_roles_provided,  # first %s in sync_config (should_sync)
+                external_roles_provided,  # WHEN %s in CASE
+                external_roles_list,      # THEN %s::text[]
+                self.name,                # ELSE ARRAY[%s] (default mapping)
+                # delete_mappings params
+                self.name,                # WHERE role_name = %s
+                # insert_mappings params
+                self.name,                # SELECT %s, unnest(...)
+            ),
             True
         )
+
         # No result means that immutable was true and nothing was updated
         if not force and (result and result[0].get('immutable') and \
             result[0].get('policies', []) != [policy.to_dict() for policy in self.policies]):
             raise osmo_errors.OSMOUserError(f'Role {self.name} is immutable.')
-
-        # Manage external role mappings
-        is_new_role = result[0]['is_new_role'] if result else False
-        self._sync_external_roles(database, is_new_role)
-
-    def _sync_external_roles(self, database: PostgresConnector, is_new_role: bool):
-        """
-        Synchronizes external role mappings for this role.
-
-        Behavior based on external_roles value:
-        - None: Don't modify mappings (preserve existing), except for new roles
-        - []: Explicitly clear all mappings
-        - ['role1', ...]: Replace with specified mappings
-
-        For new roles with external_roles=None, creates a default mapping to the role name.
-
-        Args:
-            database: PostgresConnector instance
-            is_new_role: True if this is a newly created role, False if updating existing
-        """
-        # Determine which external roles to map
-        if self.external_roles is None:
-            if is_new_role:
-                # New role with no external_roles specified - create default mapping
-                external_roles_to_map = [self.name]
-            else:
-                # Existing role with external_roles=None - preserve existing mappings
-                return
-        else:
-            # external_roles explicitly set (could be empty list to clear, or list of roles)
-            external_roles_to_map = self.external_roles
-
-        # Delete existing mappings
-        delete_cmd = 'DELETE FROM role_external_mappings WHERE role_name = %s;'
-        database.execute_commit_command(delete_cmd, (self.name,))
-
-        # Batch insert new mappings
-        if external_roles_to_map:
-            # Use unnest for efficient batch insert
-            insert_cmd = '''
-                INSERT INTO role_external_mappings (role_name, external_role)
-                SELECT %s, unnest(%s::text[])
-                ON CONFLICT (role_name, external_role) DO NOTHING;
-            '''
-            database.execute_commit_command(insert_cmd, (self.name, external_roles_to_map))
 
     def has_access(self, path: str, method: str) -> bool:
         """ Check if the role has access to the path and method """

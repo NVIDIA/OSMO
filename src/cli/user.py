@@ -142,19 +142,15 @@ def _list_users(service_client: client.ServiceClient, args: argparse.Namespace):
     else:
         print(f'Total users: {result.get("total_results", len(users))}')
         print()
-        collection_header = ['User ID', 'Created At', 'Last Seen']
+        collection_header = ['User ID', 'Created At']
         table = common.osmo_table(header=collection_header)
         for user in users:
             created_at = user.get('created_at', '-')
             if created_at and created_at != '-':
                 created_at = created_at.split('T')[0]
-            last_seen = user.get('last_seen_at') or '-'
-            if last_seen and last_seen != '-':
-                last_seen = last_seen.split('T')[0]
             table.add_row([
                 user.get('id', '-'),
-                created_at,
-                last_seen
+                created_at
             ])
         print(f'{table.draw()}\n')
 
@@ -237,10 +233,6 @@ def _get_user(service_client: client.ServiceClient, args: argparse.Namespace):
             created_at = created_at.split('T')[0]
         print(f'Created At: {created_at}')
         print(f'Created By: {result.get("created_by") or "-"}')
-        last_seen = result.get('last_seen_at') or '-'
-        if last_seen and last_seen != '-':
-            last_seen = last_seen.split('T')[0]
-        print(f'Last Seen: {last_seen}')
 
         roles = result.get('roles', [])
         if roles:

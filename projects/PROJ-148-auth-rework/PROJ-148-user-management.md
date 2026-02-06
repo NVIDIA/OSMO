@@ -120,12 +120,11 @@ CREATE TABLE users (
 
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    created_by TEXT,  -- Username of who created this record
-    last_seen_at TIMESTAMP WITH TIME ZONE  -- Last activity timestamp (auto-updated on profile access)
+    created_by TEXT  -- Username of who created this record
 );
 ```
 
-> **Note**: The `display_name`, `email`, `external_id`, and `updated_at` fields were removed from the implementation. User identity information is managed by the IDP. The `last_seen_at` field is automatically updated when a user's profile is accessed via the `upsert_user` function.
+> **Note**: The `display_name`, `email`, `external_id`, and `updated_at` fields were removed from the implementation. User identity information is managed by the IDP.
 
 ### User Roles Table
 
@@ -133,8 +132,8 @@ Maps users to roles. These are the maximum roles a user can have; PATs can use a
 
 ```sql
 CREATE TABLE user_roles (
-    -- Auto-generated ID for easier reference
-    id SERIAL PRIMARY KEY,
+    -- Unique identifier for this assignment (used as FK in pat_roles)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- User ID (references users.id)
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -146,8 +145,8 @@ CREATE TABLE user_roles (
     assigned_by TEXT NOT NULL,  -- Who assigned this role
     assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 
-    -- Unique constraint prevents duplicate assignments
-    UNIQUE(user_id, role_name)
+    -- Unique constraint on user + role combination
+    UNIQUE (user_id, role_name)
 );
 
 -- Index for fast user lookups (most common query)
@@ -159,26 +158,25 @@ CREATE INDEX idx_user_roles_role ON user_roles(role_name);
 
 ### PAT Roles Table
 
-Maps Personal Access Tokens to roles. PAT roles are assigned at token creation time and inherit from the user's roles.
+Maps Personal Access Tokens to roles via a foreign key to `user_roles.id`. This design ensures:
+- PAT roles can only reference roles the user actually has
+- When a user loses a role, all PAT roles referencing it are automatically deleted via CASCADE
 
 ```sql
 CREATE TABLE pat_roles (
-    -- Auto-generated ID for easier reference
-    id SERIAL PRIMARY KEY,
-
     -- Token identifier (references access_token)
     user_name TEXT NOT NULL,
     token_name TEXT NOT NULL,
 
-    -- Role name (references roles.name)
-    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+    -- References the user_role assignment (cascades on delete)
+    user_role_id UUID NOT NULL REFERENCES user_roles(id) ON DELETE CASCADE,
 
     -- Audit metadata
     assigned_by TEXT NOT NULL,  -- Who created the token (may be admin or user)
     assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 
-    -- Unique constraint prevents duplicate assignments
-    UNIQUE(user_name, token_name, role_name),
+    -- Composite primary key
+    PRIMARY KEY (user_name, token_name, user_role_id),
 
     -- Foreign key to access_token
     FOREIGN KEY (user_name, token_name) REFERENCES access_token(user_name, token_name) ON DELETE CASCADE
@@ -187,11 +185,11 @@ CREATE TABLE pat_roles (
 -- Index for fast token lookups
 CREATE INDEX idx_pat_roles_token ON pat_roles(user_name, token_name);
 
--- Index for role-centric queries
-CREATE INDEX idx_pat_roles_role ON pat_roles(role_name);
+-- Index for user_role lookups
+CREATE INDEX idx_pat_roles_user_role ON pat_roles(user_role_id);
 ```
 
-> **Note**: PAT roles are immutable after creation. To change a PAT's roles, delete the token and create a new one.
+> **Note**: PAT roles are immutable after creation. To change a PAT's roles, delete the token and create a new one. When a user loses a role, all PATs that had that role automatically lose it as well.
 
 ### Access Token Table
 
@@ -310,13 +308,14 @@ CREATE TABLE ueks (
   ┌─────────────────────────┐ ┌──────────────┐     ┌──────────────┐
   │ role_external_mappings  │ │  user_roles  │     │  pat_roles   │
   ├─────────────────────────┤ ├──────────────┤     ├──────────────┤
-  │ role_name (PK,FK)       │ │ user_id (FK) │     │ user_name(FK)│
-  │ external_role (PK)      │ │ role_name(FK)│     │ token_name   │
-  └─────────────────────────┘ │ assigned_by  │     │ role_name(FK)│
-        ▲                     │ assigned_at  │     │ assigned_by  │
+  │ role_name (PK,FK)       │ │ id (PK,UUID) │◄────│user_role_id  │
+  │ external_role (PK)      │ │ user_id (FK) │     │  (FK)        │
+  └─────────────────────────┘ │ role_name(FK)│     │ user_name(FK)│
+        ▲                     │ assigned_by  │     │ token_name   │
+        │                     │ assigned_at  │     │ assigned_by  │
         │                     └──────────────┘     │ assigned_at  │
-        │                            ▲             └──────────────┘
-  (IDP role lookup)                  │                    ▲
+  (IDP role lookup)                  ▲             └──────────────┘
+                                     │                    ▲
                                      │                    │
                                      │             ┌──────────────────┐
                                      │             │  access_token    │
@@ -335,7 +334,7 @@ CREATE TABLE ueks (
               │                        users                          │
               ├───────────────────────────────────────────────────────┤
               │ id (PK)                                               │
-              │ created_at, created_by, last_seen_at                  │
+              │ created_at, created_by                                │
               └───────────────────────────────────────────────────────┘
                      ▲                                        ▲
                      │ 1:1                                    │ 1:1
@@ -347,7 +346,8 @@ CREATE TABLE ueks (
               │ ...          │                         │ keys         │
               └──────────────┘                         └──────────────┘
 
-    - PAT roles are inherited from user at token creation time
+    - PAT roles reference user_roles.id via FK (ON DELETE CASCADE)
+    - When a user loses a role, all PAT roles referencing it are auto-deleted
     - Profile and ueks have 1:1 foreign key to users (ON DELETE CASCADE)
     - user_roles and access_token have N:1 foreign key to users
     - role_external_mappings maps external IDP roles to OSMO roles (many-to-many)
@@ -439,8 +439,7 @@ GET /api/auth/users
     {
       "id": "user@example.com",
       "created_at": "2026-01-15T10:30:00Z",
-      "created_by": "admin@example.com",
-      "last_seen_at": "2026-02-01T08:00:00Z"
+      "created_by": "admin@example.com"
     }
   ]
 }
@@ -467,8 +466,7 @@ The `roles` field is optional and provides a convenient way to assign initial ro
 {
   "id": "newuser@example.com",
   "created_at": "2026-02-03T14:30:00Z",
-  "created_by": "admin@example.com",
-  "last_seen_at": null
+  "created_by": "admin@example.com"
 }
 ```
 
@@ -484,7 +482,6 @@ GET /api/auth/users/{id}
   "id": "user@example.com",
   "created_at": "2026-01-15T10:30:00Z",
   "created_by": "system",
-  "last_seen_at": "2026-02-01T08:00:00Z",
   "roles": [
     {
       "role_name": "osmo-user",
@@ -827,9 +824,10 @@ When a request comes in, the authorization middleware resolves roles based on ho
   │       SELECT name FROM roles WHERE sync_mode = 'force'                 │
   │                                                                        │
   │   IF auth_type = PAT:                                                  │
-  │     Source: pat_roles table                                            │
-  │       SELECT role_name FROM pat_roles                                  │
-  │       WHERE user_name = ? AND token_name = ?                           │
+  │     Source: pat_roles joined with user_roles                           │
+  │       SELECT ur.role_name FROM pat_roles pr                            │
+  │       JOIN user_roles ur ON pr.user_role_id = ur.id                    │
+  │       WHERE pr.user_name = ? AND pr.token_name = ?                     │
   │                                                                        │
   │   Source 4: Default roles (based on authentication status)             │
   │     Unauthenticated: [osmo-default]                                    │
@@ -889,7 +887,7 @@ When SCIM is implemented, it will be available under `/scim/v2/`:
 }
 ```
 
-> **Note**: The `active` field is always `true` for existing users. OSMO does not support deactivating users; to revoke access, delete the user. Fields like `displayName`, `emails`, `externalId`, and `lastModified` are not stored in OSMO as user identity information is managed by the IDP. The `last_seen_at` field tracks the last time a user accessed the system but is not exposed in SCIM.
+> **Note**: The `active` field is always `true` for existing users. OSMO does not support deactivating users; to revoke access, delete the user. Fields like `displayName`, `emails`, `externalId`, and `lastModified` are not stored in OSMO as user identity information is managed by the IDP.
 
 ### Design Decisions for SCIM Compatibility
 
@@ -902,114 +900,6 @@ When SCIM is implemented, it will be available under `/scim/v2/`:
 4. **Active field** — SCIM's `active` boolean will always be `true` for existing users. To deactivate a user, delete them from OSMO.
 
 ---
-
-## Migration Strategy
-
-The migration is implemented in a single SQL migration file: `migration/6_0_2.sql`
-
-### Migration Overview
-
-The migration performs the following steps in a single transaction:
-
-1. **Create users table** — Stores all user records
-2. **Populate users from existing data** — Import users from `profile` and `access_token` tables
-3. **Create user_roles table** — For user role assignments
-4. **Clean up SERVICE tokens** — Delete all SERVICE type tokens and associated data
-5. **Update access_token schema** — Remove `access_type` and `roles` columns, add `last_seen_at`
-6. **Create pat_roles table** — For PAT role assignments
-7. **Add sync_mode to roles** — New column for role synchronization behavior
-8. **Create role_external_mappings table** — Maps external IDP roles to OSMO roles; auto-populates with 1:1 mappings for existing roles
-9. **Add foreign key constraints** — Profile and ueks tables reference users
-
-### Migration Script Summary
-
-```sql
--- migration/6_0_2.sql
-BEGIN;
-
--- Step 1: Create the users table
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    created_by TEXT,
-    last_seen_at TIMESTAMP WITH TIME ZONE
-);
-
--- Step 2: Populate users from existing profile and access_token data
-INSERT INTO users (id, created_at, created_by)
-SELECT DISTINCT user_name, NOW(), 'migration'
-FROM profile WHERE user_name NOT IN (SELECT id FROM users)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO users (id, created_at, created_by)
-SELECT DISTINCT user_name, NOW(), 'migration'
-FROM access_token WHERE access_type = 'USER'
-  AND user_name NOT IN (SELECT id FROM users)
-ON CONFLICT (id) DO NOTHING;
-
--- Step 3: Create user_roles table
-CREATE TABLE IF NOT EXISTS user_roles (
-    id SERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
-    assigned_by TEXT NOT NULL,
-    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, role_name)
-);
-
--- Step 4-5: Clean up SERVICE tokens and update access_token schema
-DELETE FROM profile WHERE user_name IN (SELECT user_name FROM access_token WHERE access_type = 'SERVICE');
-DELETE FROM ueks WHERE uid IN (SELECT user_name FROM access_token WHERE access_type = 'SERVICE');
-DELETE FROM credential WHERE user_name IN (SELECT user_name FROM access_token WHERE access_type = 'SERVICE');
-DELETE FROM access_token WHERE access_type = 'SERVICE';
-
-ALTER TABLE access_token DROP CONSTRAINT IF EXISTS access_token_pkey;
-ALTER TABLE access_token DROP COLUMN IF EXISTS access_type;
-ALTER TABLE access_token DROP COLUMN IF EXISTS roles;
-ALTER TABLE access_token ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE access_token ADD PRIMARY KEY (user_name, token_name);
-
--- Step 6: Create pat_roles table
-CREATE TABLE IF NOT EXISTS pat_roles (
-    id SERIAL PRIMARY KEY,
-    user_name TEXT NOT NULL,
-    token_name TEXT NOT NULL,
-    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
-    assigned_by TEXT NOT NULL,
-    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(user_name, token_name, role_name),
-    FOREIGN KEY (user_name, token_name) REFERENCES access_token(user_name, token_name) ON DELETE CASCADE
-);
-
--- Step 7: Add sync_mode to roles table
-ALTER TABLE roles ADD COLUMN IF NOT EXISTS sync_mode TEXT NOT NULL DEFAULT 'import';
-
--- Step 8: Create role_external_mappings table (IDP role name to OSMO role)
-CREATE TABLE IF NOT EXISTS role_external_mappings (
-    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
-    external_role TEXT NOT NULL,
-    PRIMARY KEY (role_name, external_role)
-);
-
-CREATE INDEX IF NOT EXISTS idx_role_external_mappings_external_role
-    ON role_external_mappings (external_role);
-
--- Auto-create 1:1 mappings for existing roles
-INSERT INTO role_external_mappings (role_name, external_role)
-SELECT name, name FROM roles
-ON CONFLICT (role_name, external_role) DO NOTHING;
-
--- Step 9: Add foreign key constraints
-DELETE FROM profile WHERE user_name NOT IN (SELECT id FROM users);
-ALTER TABLE profile ADD CONSTRAINT profile_user_name_fkey
-    FOREIGN KEY (user_name) REFERENCES users(id) ON DELETE CASCADE;
-
-DELETE FROM ueks WHERE uid NOT IN (SELECT id FROM users);
-ALTER TABLE ueks ADD CONSTRAINT ueks_uid_fkey
-    FOREIGN KEY (uid) REFERENCES users(id) ON DELETE CASCADE;
-
-COMMIT;
-```
 
 ### Breaking Changes
 
@@ -1118,10 +1008,7 @@ This design has been implemented:
 
 ### Just-in-Time User Provisioning
 
-Users are automatically provisioned on first profile access via the `upsert_user` function in `postgres.py`. This function:
-
-- Creates a new user record if the user doesn't exist
-- Updates the `last_seen_at` timestamp if the user already exists
+Users are automatically provisioned on first access via the `upsert_user` function in `postgres.py`. This function creates a new user record if the user doesn't exist.
 
 This is called from the `AccessControlMiddleware`, ensuring users are created when they first access the system.
 

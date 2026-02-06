@@ -233,9 +233,6 @@ def admin_create_access_token(
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Validate the target user exists
-    _validate_user_exists(postgres, user_id)
-
     access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
@@ -296,7 +293,7 @@ def _get_user_from_db(postgres: connectors.PostgresConnector,
                       user_id: str) -> Optional[dict]:
     """Fetch a user record from the database."""
     fetch_cmd = '''
-        SELECT id, created_at, created_by, last_seen_at
+        SELECT id, created_at, created_by
         FROM users WHERE id = %s;
     '''
     rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
@@ -406,7 +403,7 @@ def list_users(
 
         # Fetch query with role filter
         fetch_cmd = f'''
-            SELECT DISTINCT u.id, u.created_at, u.created_by, u.last_seen_at
+            SELECT DISTINCT u.id, u.created_at, u.created_by
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
             WHERE ur.role_name IN ({role_placeholders}){where_clause}
@@ -421,7 +418,7 @@ def list_users(
 
         count_cmd = f'SELECT COUNT(*) as total FROM users u{where_clause};'
         fetch_cmd = f'''
-            SELECT u.id, u.created_at, u.created_by, u.last_seen_at
+            SELECT u.id, u.created_at, u.created_by
             FROM users u{where_clause}
             ORDER BY u.created_at DESC
             LIMIT %s OFFSET %s;
@@ -441,8 +438,7 @@ def list_users(
     users = [objects.User(
         id=row['id'],
         created_at=row['created_at'],
-        created_by=row['created_by'],
-        last_seen_at=row['last_seen_at']
+        created_by=row['created_by']
     ) for row in rows]
 
     return objects.UserListResponse(
@@ -512,8 +508,7 @@ def create_user(
     return objects.User(
         id=row['id'],
         created_at=row['created_at'],
-        created_by=row['created_by'],
-        last_seen_at=None
+        created_by=row['created_by']
     )
 
 
@@ -540,7 +535,6 @@ def get_user(user_id: str) -> objects.UserWithRoles:
         id=user_row['id'],
         created_at=user_row['created_at'],
         created_by=user_row['created_by'],
-        last_seen_at=user_row['last_seen_at'],
         roles=roles
     )
 
@@ -612,18 +606,18 @@ def assign_role_to_user(
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Validate user and role exist
-    _validate_user_exists(postgres, user_id)
+    # Validate role exists (user existence is enforced by FK constraint on user_roles)
     _validate_role_exists(postgres, request.role_name)
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
     # Insert role assignment (idempotent - returns existing if already assigned)
+    # FK constraint on user_id will reject if user doesn't exist
     insert_cmd = '''
         INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (user_id, role_name) DO UPDATE SET user_id = EXCLUDED.user_id
-        RETURNING assigned_by, assigned_at;
+        RETURNING id, assigned_by, assigned_at;
     '''
     result = postgres.execute_fetch_command(
         insert_cmd, (user_id, request.role_name, assigned_by, now), True)
@@ -645,9 +639,8 @@ def remove_role_from_user(user_id: str, role_name: str):
     """
     Remove a role from a user and all their PATs.
 
-    When a role is removed from a user, it is also removed from all PATs
-    owned by that user. This ensures PATs cannot have roles that the user
-    no longer has.
+    When a role is removed from a user, it is automatically removed from all PATs
+    owned by that user via the FK cascade from pat_roles to user_roles.
 
     Args:
         user_id: The user ID
@@ -655,18 +648,10 @@ def remove_role_from_user(user_id: str, role_name: str):
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Validate user exists
-    _validate_user_exists(postgres, user_id)
-
-    # Delete role assignment from user_roles and pat_roles in a single transaction
-    # This ensures consistency - if a user loses a role, their PATs lose it too
-    delete_cmd = '''
-        WITH user_role_delete AS (
-            DELETE FROM user_roles WHERE user_id = %s AND role_name = %s
-        )
-        DELETE FROM pat_roles WHERE user_name = %s AND role_name = %s;
-    '''
-    postgres.execute_commit_command(delete_cmd, (user_id, role_name, user_id, role_name))
+    # Delete role assignment from user_roles
+    # pat_roles entries referencing this user_role are auto-deleted via ON DELETE CASCADE
+    delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
+    postgres.execute_commit_command(delete_cmd, (user_id, role_name))
 
 
 @router.get('/api/auth/roles/{role_name}/users', response_model=objects.RoleUsersResponse)
@@ -803,12 +788,13 @@ def list_pat_roles(
         raise osmo_errors.OSMOUserError(
             f'Token {token_name} not found or does not belong to current user')
 
-    # Fetch PAT roles
+    # Fetch PAT roles by joining with user_roles to get role_name
     fetch_cmd = '''
-        SELECT role_name, assigned_by, assigned_at
-        FROM pat_roles
-        WHERE user_name = %s AND token_name = %s
-        ORDER BY role_name;
+        SELECT ur.role_name, pr.assigned_by, pr.assigned_at
+        FROM pat_roles pr
+        JOIN user_roles ur ON pr.user_role_id = ur.id
+        WHERE pr.user_name = %s AND pr.token_name = %s
+        ORDER BY ur.role_name;
     '''
     rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
 
