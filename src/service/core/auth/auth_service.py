@@ -135,18 +135,6 @@ def get_jwt_token_from_access_token(access_token: str):
             'error': None}
 
 
-@router.get('/api/auth/access_token')
-def get_access_token_info(access_token: str) -> objects.AccessToken:
-    """
-    API to get the info for an access token.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    token = objects.AccessToken.validate_access_token(postgres, access_token)
-    if not token:
-        raise osmo_errors.OSMOUserError('Access Token is invalid')
-    return token
-
-
 @router.post('/api/auth/access_token/{token_name}')
 def create_access_token(token_name: str,
                         expires_at: str,
@@ -189,6 +177,59 @@ def delete_access_token(token_name: str,
     objects.AccessToken.delete_from_db(postgres, token_name, user_name)
 
 
+@router.get('/api/auth/access_token/{token_name}/roles',
+            response_model=objects.PATRolesResponse)
+def list_pat_roles(
+    token_name: str,
+    user_name: str = fastapi.Depends(connectors.parse_username),
+) -> objects.PATRolesResponse:
+    """
+    List all roles assigned to a PAT.
+
+    Args:
+        token_name: The token name
+        user_name: Authenticated user (owner of the token)
+
+    Returns:
+        PATRolesResponse with list of role assignments
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+
+    # Verify token exists and belongs to user
+    fetch_token_cmd = '''
+        SELECT user_name, token_name FROM access_token
+        WHERE token_name = %s AND user_name = %s;
+    '''
+    token_rows = postgres.execute_fetch_command(
+        fetch_token_cmd, (token_name, user_name), True)
+
+    if not token_rows:
+        raise osmo_errors.OSMOUserError(
+            f'Token {token_name} not found or does not belong to current user')
+
+    # Fetch PAT roles by joining with user_roles to get role_name
+    fetch_cmd = '''
+        SELECT ur.role_name, pr.assigned_by, pr.assigned_at
+        FROM pat_roles pr
+        JOIN user_roles ur ON pr.user_role_id = ur.id
+        WHERE pr.user_name = %s AND pr.token_name = %s
+        ORDER BY ur.role_name;
+    '''
+    rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
+
+    roles = [objects.PATRole(
+        role_name=row['role_name'],
+        assigned_by=row['assigned_by'],
+        assigned_at=row['assigned_at']
+    ) for row in rows]
+
+    return objects.PATRolesResponse(
+        user_name=user_name,
+        token_name=token_name,
+        roles=roles
+    )
+
+
 @router.get('/api/auth/access_token')
 def list_access_tokens(
         user_name: str = fastapi.Depends(connectors.parse_username)
@@ -200,7 +241,7 @@ def list_access_tokens(
     return objects.AccessToken.list_from_db(postgres, user_name)
 
 
-@router.post('/api/auth/users/{user_id}/access_token/{token_name}')
+@router.post('/api/auth/user/{user_id}/access_token/{token_name}')
 def admin_create_access_token(
     user_id: str,
     token_name: str,
@@ -249,7 +290,7 @@ def admin_create_access_token(
     return access_token
 
 
-@router.get('/api/auth/users/{user_id}/access_tokens')
+@router.get('/api/auth/user/{user_id}/access_tokens')
 def admin_list_access_tokens(user_id: str) -> List[objects.AccessToken]:
     """
     Admin API to list all access tokens for a specific user.
@@ -268,7 +309,7 @@ def admin_list_access_tokens(user_id: str) -> List[objects.AccessToken]:
     return objects.AccessToken.list_from_db(postgres, user_id)
 
 
-@router.delete('/api/auth/users/{user_id}/access_token/{token_name}')
+@router.delete('/api/auth/user/{user_id}/access_token/{token_name}')
 def admin_delete_access_token(user_id: str, token_name: str):
     """
     Admin API to delete an access token for a specific user.
@@ -344,7 +385,7 @@ def _validate_user_exists(postgres: connectors.PostgresConnector, user_id: str):
 # User Management APIs
 # =============================================================================
 
-@router.get('/api/auth/users', response_model=objects.UserListResponse)
+@router.get('/api/auth/user', response_model=objects.UserListResponse)
 def list_users(
     start_index: int = 1,
     count: int = 100,
@@ -449,7 +490,7 @@ def list_users(
     )
 
 
-@router.post('/api/auth/users', response_model=objects.User, status_code=201)
+@router.post('/api/auth/user', response_model=objects.User)
 def create_user(
     request: objects.CreateUserRequest,
     created_by: str = fastapi.Depends(connectors.parse_username),
@@ -512,7 +553,7 @@ def create_user(
     )
 
 
-@router.get('/api/auth/users/{user_id}', response_model=objects.UserWithRoles)
+@router.get('/api/auth/user/{user_id}', response_model=objects.UserWithRoles)
 def get_user(user_id: str) -> objects.UserWithRoles:
     """
     Get a specific user's details including their roles.
@@ -539,7 +580,7 @@ def get_user(user_id: str) -> objects.UserWithRoles:
     )
 
 
-@router.delete('/api/auth/users/{user_id}', status_code=204)
+@router.delete('/api/auth/user/{user_id}')
 def delete_user(user_id: str):
     """
     Delete a user and all associated role assignments and PATs.
@@ -561,7 +602,7 @@ def delete_user(user_id: str):
 # User Role Assignment APIs
 # =============================================================================
 
-@router.get('/api/auth/users/{user_id}/roles', response_model=objects.UserRolesResponse)
+@router.get('/api/auth/user/{user_id}/roles', response_model=objects.UserRolesResponse)
 def list_user_roles(user_id: str) -> objects.UserRolesResponse:
     """
     List all roles assigned to a user.
@@ -585,9 +626,8 @@ def list_user_roles(user_id: str) -> objects.UserRolesResponse:
     )
 
 
-@router.post('/api/auth/users/{user_id}/roles',
-             response_model=objects.UserRoleAssignment,
-             status_code=201)
+@router.post('/api/auth/user/{user_id}/roles',
+             response_model=objects.UserRoleAssignment)
 def assign_role_to_user(
     user_id: str,
     request: objects.AssignRoleRequest,
@@ -619,11 +659,11 @@ def assign_role_to_user(
         ON CONFLICT (user_id, role_name) DO UPDATE SET user_id = EXCLUDED.user_id
         RETURNING id, assigned_by, assigned_at;
     '''
-    result = postgres.execute_fetch_command(
-        insert_cmd, (user_id, request.role_name, assigned_by, now), True)
-
-    if not result:
-        raise osmo_errors.OSMODatabaseError('Failed to assign role')
+    try:
+        result = postgres.execute_fetch_command(
+            insert_cmd, (user_id, request.role_name, assigned_by, now), True)
+    except osmo_errors.OSMODatabaseError:
+        raise osmo_errors.OSMOUserError(f'User {user_id} not found')
 
     row = result[0]
     return objects.UserRoleAssignment(
@@ -634,7 +674,7 @@ def assign_role_to_user(
     )
 
 
-@router.delete('/api/auth/users/{user_id}/roles/{role_name}', status_code=204)
+@router.delete('/api/auth/user/{user_id}/roles/{role_name}')
 def remove_role_from_user(user_id: str, role_name: str):
     """
     Remove a role from a user and all their PATs.
@@ -751,61 +791,4 @@ def bulk_assign_role(
         assigned=assigned,
         already_assigned=already_assigned,
         failed=failed
-    )
-
-
-# =============================================================================
-# PAT Role Assignment APIs
-# =============================================================================
-
-@router.get('/api/auth/access_tokens/{token_name}/roles',
-            response_model=objects.PATRolesResponse)
-def list_pat_roles(
-    token_name: str,
-    user_name: str = fastapi.Depends(connectors.parse_username),
-) -> objects.PATRolesResponse:
-    """
-    List all roles assigned to a PAT.
-
-    Args:
-        token_name: The token name
-        user_name: Authenticated user (owner of the token)
-
-    Returns:
-        PATRolesResponse with list of role assignments
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-
-    # Verify token exists and belongs to user
-    fetch_token_cmd = '''
-        SELECT user_name, token_name FROM access_token
-        WHERE token_name = %s AND user_name = %s;
-    '''
-    token_rows = postgres.execute_fetch_command(
-        fetch_token_cmd, (token_name, user_name), True)
-
-    if not token_rows:
-        raise osmo_errors.OSMOUserError(
-            f'Token {token_name} not found or does not belong to current user')
-
-    # Fetch PAT roles by joining with user_roles to get role_name
-    fetch_cmd = '''
-        SELECT ur.role_name, pr.assigned_by, pr.assigned_at
-        FROM pat_roles pr
-        JOIN user_roles ur ON pr.user_role_id = ur.id
-        WHERE pr.user_name = %s AND pr.token_name = %s
-        ORDER BY ur.role_name;
-    '''
-    rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
-
-    roles = [objects.PATRole(
-        role_name=row['role_name'],
-        assigned_by=row['assigned_by'],
-        assigned_at=row['assigned_at']
-    ) for row in rows]
-
-    return objects.PATRolesResponse(
-        user_name=user_name,
-        token_name=token_name,
-        roles=roles
     )

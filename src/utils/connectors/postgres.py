@@ -1165,8 +1165,8 @@ class PostgresConnector:
         # Creates table for access token keys (Personal Access Tokens).
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS access_token (
-                user_name TEXT,
-                token_name TEXT,
+                user_name TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_name TEXT NOT NULL,
                 access_token BYTEA,
                 expires_at TIMESTAMP,
                 description TEXT,

@@ -129,7 +129,7 @@ def _list_users(service_client: client.ServiceClient, args: argparse.Namespace):
     if args.roles:
         params['roles'] = args.roles
 
-    result = service_client.request(client.RequestMethod.GET, 'api/auth/users',
+    result = service_client.request(client.RequestMethod.GET, 'api/auth/user',
                                     params=params)
 
     users = result.get('users', [])
@@ -162,7 +162,7 @@ def _create_user(service_client: client.ServiceClient, args: argparse.Namespace)
     if args.roles:
         payload['roles'] = args.roles
 
-    result = service_client.request(client.RequestMethod.POST, 'api/auth/users',
+    result = service_client.request(client.RequestMethod.POST, 'api/auth/user',
                                     payload=payload)
 
     if args.format_type == 'json':
@@ -182,7 +182,7 @@ def _update_user(service_client: client.ServiceClient, args: argparse.Namespace)
         for role_name in args.add_roles:
             payload = {'role_name': role_name}
             service_client.request(client.RequestMethod.POST,
-                                    f'api/auth/users/{user_id}/roles',
+                                    f'api/auth/user/{user_id}/roles',
                                     payload=payload)
             print(f'Added role: {role_name}')
 
@@ -190,13 +190,13 @@ def _update_user(service_client: client.ServiceClient, args: argparse.Namespace)
     if args.remove_roles:
         for role_name in args.remove_roles:
             service_client.request(client.RequestMethod.DELETE,
-                                    f'api/auth/users/{user_id}/roles/{role_name}')
+                                    f'api/auth/user/{user_id}/roles/{role_name}')
             print(f'Removed role: {role_name}')
 
     # Get updated user info
     if args.format_type == 'json':
         result = service_client.request(client.RequestMethod.GET,
-                                        f'api/auth/users/{user_id}')
+                                        f'api/auth/user/{user_id}')
         print(json.dumps(result, indent=2, default=str))
     elif not args.add_roles and not args.remove_roles:
         print('No updates specified. Use --add-roles or --remove-roles.')
@@ -213,7 +213,7 @@ def _delete_user(service_client: client.ServiceClient, args: argparse.Namespace)
             print('Cancelled')
             return
 
-    service_client.request(client.RequestMethod.DELETE, f'api/auth/users/{user_id}')
+    service_client.request(client.RequestMethod.DELETE, f'api/auth/user/{user_id}')
     print(f'User deleted: {user_id}')
 
 
@@ -222,7 +222,7 @@ def _get_user(service_client: client.ServiceClient, args: argparse.Namespace):
     user_id = args.user_id
 
     result = service_client.request(client.RequestMethod.GET,
-                                    f'api/auth/users/{user_id}')
+                                    f'api/auth/user/{user_id}')
 
     if args.format_type == 'json':
         print(json.dumps(result, indent=2, default=str))

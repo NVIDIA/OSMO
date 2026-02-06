@@ -193,12 +193,12 @@ CREATE INDEX idx_pat_roles_user_role ON pat_roles(user_role_id);
 
 ### Access Token Table
 
-Stores Personal Access Tokens (PATs). The `roles` and `access_type` columns have been removed; roles are now stored in the `pat_roles` table.
+Stores Personal Access Tokens (PATs). The `roles` and `access_type` columns have been removed; roles are now stored in the `pat_roles` table. Tokens are owned by users and are deleted when the user is deleted.
 
 ```sql
 CREATE TABLE access_token (
-    user_name TEXT,
-    token_name TEXT,
+    user_name TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_name TEXT NOT NULL,
     access_token BYTEA,
     expires_at TIMESTAMP,
     description TEXT,
@@ -320,17 +320,17 @@ CREATE TABLE ueks (
                                      │             ┌──────────────────┐
                                      │             │  access_token    │
                                      │             ├──────────────────┤
-                                     │             │ user_name (PK)   │
+                                     │             │ user_name(PK,FK) │
                                      │             │ token_name (PK)  │
                                      │             │ access_token     │
                                      │             │ expires_at       │
                                      │             │ description      │
                                      │             │ last_seen_at     │
                                      │             └──────────────────┘
-                                     │                    ▲
-                                     │                    │ 1:N
                                      │                    │
-              ┌──────────────────────┴────────────────────┴───────────┐
+                                     │                    │ N:1 (FK)
+                                     │                    ▼
+              ┌──────────────────────┴────────────────────────────────┐
               │                        users                          │
               ├───────────────────────────────────────────────────────┤
               │ id (PK)                                               │
@@ -348,8 +348,9 @@ CREATE TABLE ueks (
 
     - PAT roles reference user_roles.id via FK (ON DELETE CASCADE)
     - When a user loses a role, all PAT roles referencing it are auto-deleted
+    - access_token.user_name references users.id (ON DELETE CASCADE)
     - Profile and ueks have 1:1 foreign key to users (ON DELETE CASCADE)
-    - user_roles and access_token have N:1 foreign key to users
+    - user_roles has N:1 foreign key to users
     - role_external_mappings maps external IDP roles to OSMO roles (many-to-many)
 ```
 
@@ -364,7 +365,7 @@ Service accounts (for CI/CD pipelines, automation, etc.) follow the same pattern
 
   Step 1: Create a user for the service account
   ──────────────────────────────────────────────
-    POST /api/auth/users
+    POST /api/auth/user
     {
       "id": "ci-pipeline@myorg.local",
       "roles": ["osmo-user", "osmo-ml-team"]  // Optional: assign roles during creation
@@ -372,14 +373,14 @@ Service accounts (for CI/CD pipelines, automation, etc.) follow the same pattern
 
   Step 2: (Optional) Assign additional roles to the service account user
   ───────────────────────────────────────────────────────────────────────
-    POST /api/auth/users/ci-pipeline@myorg.local/roles
+    POST /api/auth/user/ci-pipeline@myorg.local/roles
     {
       "role_name": "osmo-admin"
     }
 
   Step 3: Create a PAT for programmatic access (admin creates for user)
   ─────────────────────────────────────────────────────────────────────
-    POST /api/auth/users/ci-pipeline@myorg.local/access_token/ci-token
+    POST /api/auth/user/ci-pipeline@myorg.local/access_token/ci-token
     ?expires_at=2027-01-01&description=CI%20Pipeline%20Token
 
     The PAT automatically inherits all of the user's current roles.
@@ -409,15 +410,15 @@ The User Management APIs follow SCIM-inspired patterns. All endpoints are under 
 
 | Endpoint | Method | Action Required | Description |
 |----------|--------|-----------------|-------------|
-| `/api/auth/users` | GET | `user:List` | List users with filtering |
-| `/api/auth/users` | POST | `user:Create` | Create a new user |
-| `/api/auth/users/{id}` | GET | `user:Read` | Get user details with roles |
-| `/api/auth/users/{id}` | DELETE | `user:Delete` | Delete user |
+| `/api/auth/user` | GET | `user:List` | List users with filtering |
+| `/api/auth/user` | POST | `user:Create` | Create a new user |
+| `/api/auth/user/{id}` | GET | `user:Read` | Get user details with roles |
+| `/api/auth/user/{id}` | DELETE | `user:Delete` | Delete user |
 
 ### List Users
 
 ```
-GET /api/auth/users
+GET /api/auth/user
 ```
 
 **Query Parameters:**
@@ -448,7 +449,7 @@ GET /api/auth/users
 ### Create User
 
 ```
-POST /api/auth/users
+POST /api/auth/user
 ```
 
 **Request Body:**
@@ -473,7 +474,7 @@ The `roles` field is optional and provides a convenient way to assign initial ro
 ### Get User
 
 ```
-GET /api/auth/users/{id}
+GET /api/auth/user/{id}
 ```
 
 **Response:**
@@ -495,7 +496,7 @@ GET /api/auth/users/{id}
 ### Delete User
 
 ```
-DELETE /api/auth/users/{id}
+DELETE /api/auth/user/{id}
 ```
 
 Deletes the user and all associated data (role assignments, PATs, profile, encryption keys) via cascading foreign keys. Does NOT delete:
@@ -514,16 +515,16 @@ These APIs manage the `user_roles` table. All endpoints are under the `/api/auth
 
 | Endpoint | Method | Action | Description |
 |----------|--------|--------|-------------|
-| `/api/auth/users/{id}/roles` | GET | `role:Read` | List user's roles |
-| `/api/auth/users/{id}/roles` | POST | `role:Manage` | Assign role to user |
-| `/api/auth/users/{id}/roles/{role}` | DELETE | `role:Manage` | Remove role from user |
+| `/api/auth/user/{id}/roles` | GET | `role:Read` | List user's roles |
+| `/api/auth/user/{id}/roles` | POST | `role:Manage` | Assign role to user |
+| `/api/auth/user/{id}/roles/{role}` | DELETE | `role:Manage` | Remove role from user |
 | `/api/auth/roles/{name}/users` | GET | `role:Read` | List users with role |
 | `/api/auth/roles/{name}/users` | POST | `role:Manage` | Bulk assign role to users |
 
 ### List User Roles
 
 ```
-GET /api/auth/users/{id}/roles
+GET /api/auth/user/{id}/roles
 ```
 
 **Response:**
@@ -548,7 +549,7 @@ GET /api/auth/users/{id}/roles
 ### Assign Role to User
 
 ```
-POST /api/auth/users/{id}/roles
+POST /api/auth/user/{id}/roles
 ```
 
 **Request Body:**
@@ -573,7 +574,7 @@ POST /api/auth/users/{id}/roles
 ### Remove Role from User
 
 ```
-DELETE /api/auth/users/{id}/roles/{role_name}
+DELETE /api/auth/user/{id}/roles/{role_name}
 ```
 
 Removes the role from the user **and from all PATs owned by that user**. This ensures PATs cannot have roles that the user no longer has.
@@ -645,9 +646,9 @@ These APIs manage Personal Access Tokens. All endpoints are under the `/api/auth
 | `/api/auth/access_token/{token_name}` | POST | Create a PAT for the authenticated user |
 | `/api/auth/access_token/{token_name}` | DELETE | Delete a PAT |
 | `/api/auth/access_token` | GET | List all PATs for the authenticated user |
-| `/api/auth/users/{user_id}/access_token/{token_name}` | POST | **Admin API**: Create a PAT for any user |
-| `/api/auth/users/{user_id}/access_token` | GET | **Admin API**: List all PATs for any user |
-| `/api/auth/users/{user_id}/access_token/{token_name}` | DELETE | **Admin API**: Delete any user's PAT |
+| `/api/auth/user/{user_id}/access_token/{token_name}` | POST | **Admin API**: Create a PAT for any user |
+| `/api/auth/user/{user_id}/access_token` | GET | **Admin API**: List all PATs for any user |
+| `/api/auth/user/{user_id}/access_token/{token_name}` | DELETE | **Admin API**: Delete any user's PAT |
 
 ### Create Access Token (Self)
 
@@ -680,7 +681,7 @@ Creates a PAT for the authenticated user.
 ### Create Access Token (Admin)
 
 ```
-POST /api/auth/users/{user_id}/access_token/{token_name}?expires_at=YYYY-MM-DD&description=...
+POST /api/auth/user/{user_id}/access_token/{token_name}?expires_at=YYYY-MM-DD&description=...
 ```
 
 Admin API to create a PAT for any user. The token inherits the target user's roles, and the `assigned_by` field records the admin who created the token.
@@ -715,7 +716,7 @@ Deletes a PAT owned by the authenticated user.
 ### Delete Access Token (Admin)
 
 ```
-DELETE /api/auth/users/{user_id}/access_token/{token_name}
+DELETE /api/auth/user/{user_id}/access_token/{token_name}
 ```
 
 Admin API to delete any user's PAT.
@@ -752,7 +753,7 @@ Lists all PATs owned by the authenticated user.
 ### List Access Tokens (Admin)
 
 ```
-GET /api/auth/users/{user_id}/access_token
+GET /api/auth/user/{user_id}/access_token
 ```
 
 Admin API to list all PATs for any user.
@@ -966,19 +967,19 @@ Add the following actions to the authorization middleware:
 
 | Action | Path Pattern | Methods |
 |--------|--------------|---------|
-| `user:List` | `/api/auth/users` | GET |
-| `user:Create` | `/api/auth/users` | POST |
-| `user:Read` | `/api/auth/users/*` | GET |
-| `user:Delete` | `/api/auth/users/*` | DELETE |
-| `role:Read` | `/api/auth/users/*/roles` | GET |
+| `user:List` | `/api/auth/user` | GET |
+| `user:Create` | `/api/auth/user` | POST |
+| `user:Read` | `/api/auth/user/*` | GET |
+| `user:Delete` | `/api/auth/user/*` | DELETE |
+| `role:Read` | `/api/auth/user/*/roles` | GET |
 | `role:Read` | `/api/auth/roles/*/users` | GET |
-| `role:Manage` | `/api/auth/users/*/roles` | POST |
-| `role:Manage` | `/api/auth/users/*/roles/*` | DELETE |
+| `role:Manage` | `/api/auth/user/*/roles` | POST |
+| `role:Manage` | `/api/auth/user/*/roles/*` | DELETE |
 | `role:Manage` | `/api/auth/roles/*/users` | POST |
 | `token:Create` | `/api/auth/access_token/*` | POST |
 | `token:Delete` | `/api/auth/access_token/*` | DELETE |
 | `token:List` | `/api/auth/access_token` | GET |
-| `token:AdminCreate` | `/api/auth/users/*/access_token/*` | POST |
+| `token:AdminCreate` | `/api/auth/user/*/access_token/*` | POST |
 
 ---
 
@@ -993,8 +994,8 @@ This design has been implemented:
 - [x] Access token schema updates (removed `access_type`, `roles`; added `last_seen_at`)
 - [x] Roles table `sync_mode` column
 - [x] Role external mappings table (IDP role name → OSMO role mapping)
-- [x] User Management APIs (`/api/auth/users/*`)
-- [x] Role Assignment APIs (`/api/auth/users/*/roles`, `/api/auth/roles/*/users`)
+- [x] User Management APIs (`/api/auth/user/*`)
+- [x] Role Assignment APIs (`/api/auth/user/*/roles`, `/api/auth/roles/*/users`)
 - [x] Access Token APIs (`/api/auth/access_token/*`)
 - [x] Admin API for creating PATs for any user
 - [x] Authorization middleware role synchronization with sync_mode
