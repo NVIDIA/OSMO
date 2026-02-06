@@ -450,7 +450,14 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     });
   }, []);
 
-  // Render section header (as table cells)
+  // Calculate column count for section header colSpan
+  // Column count = number of visible columns defined by TanStack Table
+  const sectionColSpan = useMemo(() => {
+    return visibleColumnIds.length + 1; // +1 for the tree column
+  }, [visibleColumnIds.length]);
+
+  // Render section header (as a single td spanning all columns)
+  // Note: Must return a <td> element to be valid inside the <tr> created by VirtualTableBody
   const renderSectionHeader = useCallback(
     (section: Section<TaskWithDuration, GroupSectionMeta>) => {
       const { group, stats, skipGroupRow, taskCount, hasVisibleTasks, _visualRowIndex } = section.metadata || {};
@@ -465,21 +472,23 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       return (
         <td
           role="gridcell"
-          className="flex items-center p-0"
-          style={{ flex: 1 }}
+          colSpan={sectionColSpan}
+          className="p-0"
         >
-          <SplitGroupHeader
-            group={group}
-            isExpanded={isExpanded}
-            hasVisibleTasks={hasVisibleTasks ?? false}
-            taskCount={displayTaskCount}
-            onToggleExpand={() => handleToggleGroup(section.id)}
-            onViewDetails={() => onSelectGroup(group)}
-          />
+          <div className="flex w-full items-center">
+            <SplitGroupHeader
+              group={group}
+              isExpanded={isExpanded}
+              hasVisibleTasks={hasVisibleTasks ?? false}
+              taskCount={displayTaskCount}
+              onToggleExpand={() => handleToggleGroup(section.id)}
+              onViewDetails={() => onSelectGroup(group)}
+            />
+          </div>
         </td>
       );
     },
-    [collapsedGroups, handleToggleGroup, onSelectGroup],
+    [collapsedGroups, handleToggleGroup, onSelectGroup, sectionColSpan],
   );
 
   // Handle row click
