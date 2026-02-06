@@ -110,10 +110,10 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
     return (
       <Badge
         variant="outline"
-        className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400"
+        className="border-nvidia/20 bg-nvidia-bg text-nvidia-dark dark:border-nvidia/30 dark:bg-nvidia-bg-dark dark:text-nvidia-light"
       >
         <span
-          className="size-1.5 rounded-full bg-current"
+          className="bg-nvidia size-1.5 rounded-full"
           aria-hidden="true"
         />
         {selectedPool.quota.free} Available

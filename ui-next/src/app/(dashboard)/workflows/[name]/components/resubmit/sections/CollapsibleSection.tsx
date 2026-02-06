@@ -69,7 +69,7 @@ export const CollapsibleSection = memo(function CollapsibleSection({
           "flex w-full items-center justify-between px-6 py-4",
           "cursor-pointer select-none",
           "hover:bg-accent/50 transition-colors duration-150",
-          "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+          "focus-visible:ring-nvidia focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
         )}
         aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
       >
@@ -77,7 +77,7 @@ export const CollapsibleSection = memo(function CollapsibleSection({
           <span
             className={cn(
               "flex size-6 shrink-0 items-center justify-center rounded-full",
-              "bg-primary text-primary-foreground",
+              "bg-nvidia text-white",
               "text-xs font-semibold",
             )}
             aria-hidden="true"

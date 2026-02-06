@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useCallback, memo } from "react";
+import { useCallback, memo, useEffect } from "react";
 import { useMediaQuery } from "@react-hookz/web";
 import { RotateCw, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/shadcn/sheet";
@@ -87,7 +87,7 @@ const SharedContent = memo(function SharedContent({
           Cancel
         </Button>
         <Button
-          className="flex-1"
+          className="bg-nvidia hover:bg-nvidia-dark focus-visible:ring-nvidia flex-1 text-white disabled:opacity-50"
           disabled={!form.canSubmit}
           onClick={form.handleSubmit}
           aria-label={`Submit workflow ${workflow.name}`}
@@ -137,6 +137,23 @@ export const ResubmitDrawer = memo(function ResubmitDrawer({ workflow, open, onO
     [onOpenChange, form],
   );
 
+  // Prevent Escape key from bubbling to parent panel when drawer is open
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !form.isPending) {
+        e.stopPropagation();
+      }
+    };
+
+    // Capture phase to catch the event before it bubbles
+    document.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, [open, form.isPending]);
+
   const sharedContent = (
     <SharedContent
       workflow={workflow}
@@ -159,7 +176,7 @@ export const ResubmitDrawer = memo(function ResubmitDrawer({ workflow, open, onO
         >
           <SheetHeader className="gap-1 border-b px-6 py-5">
             <div className="flex items-center gap-3">
-              <RotateCw className="text-primary size-5 shrink-0" />
+              <RotateCw className="text-nvidia size-5 shrink-0" />
               <div className="flex flex-col gap-0.5">
                 <SheetTitle className="text-base">Resubmit Workflow</SheetTitle>
                 <SheetDescription>
@@ -183,7 +200,7 @@ export const ResubmitDrawer = memo(function ResubmitDrawer({ workflow, open, onO
       <DrawerContent className="flex max-h-[85vh] flex-col gap-0">
         <DrawerHeader className="gap-1 border-b px-6 py-5">
           <div className="flex items-center gap-3">
-            <RotateCw className="text-primary size-5 shrink-0" />
+            <RotateCw className="text-nvidia size-5 shrink-0" />
             <div className="flex flex-col gap-0.5">
               <DrawerTitle className="text-base">Resubmit Workflow</DrawerTitle>
               <DrawerDescription>
