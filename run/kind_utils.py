@@ -208,10 +208,10 @@ def setup_kai_scheduler() -> None:
 
             # Fetch the KAI scheduler helm chart to temp directory
             logger.info('   Fetching KAI scheduler helm chart...')
-            chart_file = os.path.join(tmpdir, 'kai-scheduler-v0.8.1.tgz')
+            chart_file = os.path.join(tmpdir, 'kai-scheduler-v0.12.10.tgz')
             process = run_command_with_logging([
                 'helm', 'fetch', 'oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler',
-                '--version', 'v0.8.1',
+                '--version', 'v0.12.10',
                 '--destination', tmpdir
             ], 'Fetching KAI scheduler chart')
 
