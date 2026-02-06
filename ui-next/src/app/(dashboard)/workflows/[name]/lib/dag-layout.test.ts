@@ -34,7 +34,7 @@ import {
   NODE_HEADER_HEIGHT,
   NODE_BORDER_WIDTH,
 } from "./dag-layout";
-import { NODE_DEFAULTS, NODE_EXPANDED } from "@/components/dag";
+import { NODE_DEFAULTS, NODE_EXPANDED } from "@/components/dag/constants";
 import type { GroupWithLayout } from "./workflow-types";
 
 // =============================================================================

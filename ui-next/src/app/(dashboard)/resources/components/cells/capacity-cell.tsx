@@ -20,7 +20,7 @@
 
 import { memo } from "react";
 import { formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
-import type { DisplayMode } from "@/stores";
+import type { DisplayMode } from "@/stores/shared-preferences-store";
 
 interface CapacityCellProps {
   used: number;

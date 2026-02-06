@@ -30,9 +30,11 @@
 
 "use client";
 
-import { InlineErrorBoundary } from "@/components/error";
-import { usePage } from "@/components/chrome";
-import { useUrlChips, useResultsCount, useViewTransition } from "@/hooks";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { usePage } from "@/components/chrome/page-context";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { useViewTransition } from "@/hooks/use-view-transition";
 import { useCallback, useTransition } from "react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";

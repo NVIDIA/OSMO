@@ -20,7 +20,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "@/components/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
-import { useNavigation, type NavItem as NavItemType, type NavSection } from "@/lib/navigation";
+import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config";
+import { useNavigation } from "@/lib/navigation/use-navigation";
 import { NvidiaLogo } from "./nvidia-logo";
 import { cn, isMac } from "@/lib/utils";
 import {

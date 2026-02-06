@@ -25,7 +25,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import type { SearchField, SearchPreset, SearchChip } from "@/components/filter-bar";
+import type { SearchField, SearchPreset, SearchChip } from "@/components/filter-bar/lib/types";
 import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, STATUS_LABELS, type StateCategory } from "./status";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import type { TaskWithDuration } from "./workflow-types";

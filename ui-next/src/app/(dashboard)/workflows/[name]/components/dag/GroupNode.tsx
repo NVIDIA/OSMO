@@ -46,14 +46,15 @@ import { useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
-import { useVirtualizerCompat, useTick } from "@/hooks";
+import { useTick } from "@/hooks/use-tick";
+import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-types";
 import { TaskGroupStatus, isTaskFailed } from "../../lib/workflow-types";
 import type { GroupNodeData } from "../../lib/dag-layout";
 import { useDAGContext } from "./dag-context";
 import { getStatusIcon, getStatusCategory, getStatusLabel } from "../../lib/status";
 import { calculateDuration, formatDuration } from "../../lib/workflow-types";
-import { HANDLE_OFFSET } from "@/components/dag";
+import { HANDLE_OFFSET } from "@/components/dag/constants";
 import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../../lib/dag-layout";
 
 // ============================================================================

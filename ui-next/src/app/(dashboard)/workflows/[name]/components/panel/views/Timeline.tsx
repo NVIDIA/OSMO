@@ -25,7 +25,8 @@ import { memo, useRef, useState, useLayoutEffect } from "react";
 import { useResizeObserver } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { calculateLiveDuration, useTick, useIsHydrated } from "@/hooks";
+import { useIsHydrated } from "@/hooks/use-hydrated-store";
+import { calculateLiveDuration, useTick } from "@/hooks/use-tick";
 import { formatDateTimeFull, formatDateTimeRelative } from "@/lib/format-date";
 import { formatDuration } from "../../../lib/workflow-types";
 

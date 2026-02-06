@@ -4,7 +4,7 @@ import { useState, useCallback, FormEvent, useId, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, AlertCircle, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePage } from "@/components/chrome";
+import { usePage } from "@/components/chrome/page-context";
 import { getRecentWorkflows, clearRecentWorkflows, removeRecentWorkflow } from "../lib/recent-workflows";
 
 interface WorkflowSelectorProps {

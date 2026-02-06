@@ -30,16 +30,12 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import {
-  DataTable,
-  TableLoadingSkeleton,
-  TableErrorState,
-  type SortState,
-  type ColumnSizingPreference,
-} from "@/components/data-table";
-import { useSharedPreferences } from "@/stores";
-import type { Pool } from "@/lib/api/adapter";
-import type { SearchChip } from "@/stores";
+import { DataTable } from "@/components/data-table/DataTable";
+import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
+import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import type { Pool } from "@/lib/api/adapter/types";
+import type { SearchChip } from "@/stores/types";
 import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "../../lib/pool-columns";
 import { createPoolColumns } from "./pool-column-defs";
 import { usePoolsTableStore } from "../../stores/pools-table-store";

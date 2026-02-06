@@ -26,13 +26,14 @@ import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
 import { CapacityBar } from "@/components/capacity-bar";
-import { ApiError } from "@/components/error";
+import { ApiError } from "@/components/error/api-error";
 import { CopyableValue, CopyableBlock } from "@/components/copyable-value";
 import { ItemSelector } from "@/components/item-selector";
 import { BooleanIndicator } from "@/components/boolean-indicator";
 import { PlaceholderSection } from "@/components/placeholder-section";
-import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
-import { useViewTransition } from "@/hooks";
+import { useResourceDetail } from "@/lib/api/adapter/hooks";
+import type { Resource, TaskConfig } from "@/lib/api/adapter/types";
+import { useViewTransition } from "@/hooks/use-view-transition";
 
 interface ResourcePanelContentProps {
   resource: Resource;

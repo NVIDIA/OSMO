@@ -28,8 +28,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useSidebar } from "@/components/shadcn/sidebar";
-import { useUser } from "@/lib/auth";
-import { useVersion } from "@/lib/api/adapter";
+import { useUser } from "@/lib/auth/user-context";
+import { useVersion } from "@/lib/api/adapter/hooks";
 import { usePageConfig, type BreadcrumbSegment } from "./page-context";
 import { useBreadcrumbOrigin } from "./breadcrumb-origin-context";
 import { useRouter, usePathname } from "next/navigation";

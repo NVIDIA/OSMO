@@ -36,7 +36,7 @@ import {
   getRootGroups,
   getLeafGroups,
 } from "./workflow-layout";
-import type { GroupQueryResponse } from "@/lib/api/adapter";
+import type { GroupQueryResponse } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Test Helpers

@@ -16,17 +16,9 @@
 
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
-import {
-  elkWorker,
-  LAYOUT_CACHE,
-  NODE_DEFAULTS,
-  NODE_EXPANDED,
-  LAYOUT_SPACING,
-  EDGE_STYLE,
-  type LayoutDirection,
-  type NodeDimensions,
-  type ElkGraph,
-} from "@/components/dag";
+import { LAYOUT_CACHE, NODE_DEFAULTS, NODE_EXPANDED, LAYOUT_SPACING, EDGE_STYLE } from "@/components/dag/constants";
+import { elkWorker } from "@/components/dag/layout/elk-worker-client";
+import type { LayoutDirection, NodeDimensions, ElkGraph } from "@/components/dag/types";
 import type { GroupWithLayout } from "./workflow-types";
 import { getStatusCategory, STATUS_STYLES } from "./status";
 

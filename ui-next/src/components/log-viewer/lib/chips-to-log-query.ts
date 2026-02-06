@@ -13,9 +13,9 @@
  * rather than O(n) client-side filtering after fetching all entries.
  */
 
-import type { SearchChip } from "@/components/filter-bar";
-import type { LogLevel, LogSourceType } from "@/lib/api/log-adapter";
-import { LOG_LEVELS, LOG_SOURCE_TYPES } from "@/lib/api/log-adapter";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
+import type { LogLevel, LogSourceType } from "@/lib/api/log-adapter/types";
+import { LOG_LEVELS, LOG_SOURCE_TYPES } from "@/lib/api/log-adapter/constants";
 
 // =============================================================================
 // Types

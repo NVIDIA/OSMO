@@ -32,7 +32,7 @@
  */
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchResourcesList, buildResourcesQueryKey } from "@/lib/api/server";
+import { prefetchResourcesList, buildResourcesQueryKey } from "@/lib/api/server/resources";
 import { ResourcesPageContent } from "./resources-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createQueryClient } from "@/lib/query-client";

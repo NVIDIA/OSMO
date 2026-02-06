@@ -31,15 +31,16 @@
 "use client";
 
 import { useMemo } from "react";
-import type { SearchChip } from "@/stores";
-import { usePaginatedData, type PaginationParams, type PaginatedResponse } from "@/lib/api/pagination";
-import type { WorkflowListEntry } from "@/lib/api/adapter";
+import type { SearchChip } from "@/stores/types";
+import type { PaginationParams, PaginatedResponse } from "@/lib/api/pagination/types";
+import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
+import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import {
   fetchPaginatedWorkflows,
   buildWorkflowsQueryKey,
-  hasActiveWorkflowFilters,
+  hasActiveFilters as hasActiveWorkflowFilters,
   type WorkflowFilterParams,
-} from "@/lib/api/adapter";
+} from "@/lib/api/adapter/workflows-shim";
 import { QUERY_STALE_TIME } from "@/lib/config";
 
 // =============================================================================

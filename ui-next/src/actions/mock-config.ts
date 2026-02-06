@@ -30,36 +30,42 @@ import type { MockVolumes } from "./mock-config.types";
  * Changes take effect immediately for subsequent API requests.
  */
 export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<MockVolumes> {
-  // Dynamic import ensures generators are only loaded when this action runs
-  const generators = await import("@/mocks/generators");
+  // Dynamic imports ensure generators are only loaded when this action runs
+  const [wf, pool, resource, bucket, dataset] = await Promise.all([
+    import("@/mocks/generators/workflow-generator"),
+    import("@/mocks/generators/pool-generator"),
+    import("@/mocks/generators/resource-generator"),
+    import("@/mocks/generators/bucket-generator"),
+    import("@/mocks/generators/dataset-generator"),
+  ]);
 
   if (volumes.workflows !== undefined) {
-    generators.setWorkflowTotal(volumes.workflows);
+    wf.setWorkflowTotal(volumes.workflows);
   }
   if (volumes.pools !== undefined) {
-    generators.setPoolTotal(volumes.pools);
+    pool.setPoolTotal(volumes.pools);
   }
   if (volumes.resourcesPerPool !== undefined) {
-    generators.setResourcePerPool(volumes.resourcesPerPool);
+    resource.setResourcePerPool(volumes.resourcesPerPool);
   }
   if (volumes.resourcesGlobal !== undefined) {
-    generators.setResourceTotalGlobal(volumes.resourcesGlobal);
+    resource.setResourceTotalGlobal(volumes.resourcesGlobal);
   }
   if (volumes.buckets !== undefined) {
-    generators.setBucketTotal(volumes.buckets);
+    bucket.setBucketTotal(volumes.buckets);
   }
   if (volumes.datasets !== undefined) {
-    generators.setDatasetTotal(volumes.datasets);
+    dataset.setDatasetTotal(volumes.datasets);
   }
 
   // Return current volumes
   return {
-    workflows: generators.getWorkflowTotal(),
-    pools: generators.getPoolTotal(),
-    resourcesPerPool: generators.getResourcePerPool(),
-    resourcesGlobal: generators.getResourceTotalGlobal(),
-    buckets: generators.getBucketTotal(),
-    datasets: generators.getDatasetTotal(),
+    workflows: wf.getWorkflowTotal(),
+    pools: pool.getPoolTotal(),
+    resourcesPerPool: resource.getResourcePerPool(),
+    resourcesGlobal: resource.getResourceTotalGlobal(),
+    buckets: bucket.getBucketTotal(),
+    datasets: dataset.getDatasetTotal(),
   };
 }
 
@@ -67,14 +73,20 @@ export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<Moc
  * Get current mock data volumes from the server.
  */
 export async function getMockVolumes(): Promise<MockVolumes> {
-  const generators = await import("@/mocks/generators");
+  const [wf, pool, resource, bucket, dataset] = await Promise.all([
+    import("@/mocks/generators/workflow-generator"),
+    import("@/mocks/generators/pool-generator"),
+    import("@/mocks/generators/resource-generator"),
+    import("@/mocks/generators/bucket-generator"),
+    import("@/mocks/generators/dataset-generator"),
+  ]);
 
   return {
-    workflows: generators.getWorkflowTotal(),
-    pools: generators.getPoolTotal(),
-    resourcesPerPool: generators.getResourcePerPool(),
-    resourcesGlobal: generators.getResourceTotalGlobal(),
-    buckets: generators.getBucketTotal(),
-    datasets: generators.getDatasetTotal(),
+    workflows: wf.getWorkflowTotal(),
+    pools: pool.getPoolTotal(),
+    resourcesPerPool: resource.getResourcePerPool(),
+    resourcesGlobal: resource.getResourceTotalGlobal(),
+    buckets: bucket.getBucketTotal(),
+    datasets: dataset.getDatasetTotal(),
   };
 }

@@ -27,12 +27,14 @@
 
 import { memo, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { InlineErrorBoundary } from "@/components/error";
-import { useUrlChips, useResultsCount } from "@/hooks";
-import { filterByChips } from "@/components/filter-bar";
-import { WorkflowTasksTable, DetailsPanel } from ".";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
+import { WorkflowTasksTable } from "./table/WorkflowTasksTable";
+import { DetailsPanel } from "./panel/views/DetailsPanel";
 import { WorkflowTasksToolbar } from "./table/WorkflowTasksToolbar";
-import { PANEL } from "@/components/panel";
+import { PANEL } from "@/components/panel/panel-header-controls";
 import { usePanelProps } from "../hooks/use-panel-props";
 import { TASK_SEARCH_FIELDS } from "../lib/task-search-fields";
 import type { WorkflowViewCommonProps } from "../lib/view-types";

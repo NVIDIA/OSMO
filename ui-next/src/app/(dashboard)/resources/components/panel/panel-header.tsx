@@ -31,9 +31,11 @@
 import { memo } from "react";
 import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Resource } from "@/lib/api/adapter";
+import type { Resource } from "@/lib/api/adapter/types";
 import { getResourceAllocationTypeDisplay } from "../../lib/constants";
-import { PanelHeader, PanelTitle, PanelHeaderActions, SeparatedParts } from "@/components/panel";
+import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
+import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
+import { SeparatedParts } from "@/components/panel/separated-parts";
 
 export interface ResourcePanelHeaderProps {
   resource: Resource;

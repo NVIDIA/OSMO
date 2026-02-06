@@ -49,7 +49,7 @@
 import { memo, useMemo, useState, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import { formatTime24ShortUTC } from "@/lib/format-date";
-import type { HistogramBucket } from "@/lib/api/log-adapter";
+import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { TimelineHistogram } from "./TimelineHistogram";
 import { TimeRangePresets } from "./TimeRangePresets";

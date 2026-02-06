@@ -27,8 +27,8 @@
  */
 
 import { useMemo } from "react";
-import type { Pool } from "@/lib/api/adapter";
-import type { SortState } from "@/components/data-table";
+import type { Pool } from "@/lib/api/adapter/types";
+import type { SortState } from "@/components/data-table/types";
 import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================

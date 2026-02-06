@@ -23,7 +23,7 @@
  * Format: ?f=field1:value1&f=field2:value2
  */
 
-import type { SearchChip } from "@/stores";
+import type { SearchChip } from "@/stores/types";
 
 /**
  * Parse URL filter chips from searchParams.

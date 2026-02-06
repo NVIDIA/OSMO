@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createTableStore } from "@/stores";
+import { createTableStore } from "@/stores/create-table-store";
 import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -85,4 +85,4 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
   ),
 );
 
-export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";
+export type { TableState, TableActions, TableStore, SearchChip } from "@/stores/types";

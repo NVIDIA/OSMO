@@ -25,7 +25,7 @@
 
 import { memo, useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { useMounted } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
 import { usePanelWidth } from "../lib/panel-resize-context";
 import { computeSnapIndicatorGeometry } from "../lib/panel-constants";
 

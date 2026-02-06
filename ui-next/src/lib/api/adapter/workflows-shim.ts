@@ -16,8 +16,8 @@
  * See BACKEND_TODOS.md Issue #14 for details.
  */
 
-import type { SearchChip } from "@/stores";
-import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination";
+import type { SearchChip } from "@/stores/types";
+import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination/types";
 import {
   listWorkflowApiWorkflowGet,
   type ListWorkflowApiWorkflowGetParams,

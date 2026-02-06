@@ -29,7 +29,7 @@
  */
 
 import { memo } from "react";
-import { GroupBadge } from "../../shared";
+import { GroupBadge } from "../../shared/GroupBadge";
 
 // =============================================================================
 // Types

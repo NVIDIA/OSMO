@@ -28,7 +28,7 @@ import { memo } from "react";
 import { createPortal } from "react-dom";
 import { TaskShell } from "../panel/task/TaskShell";
 import { useShellPortal } from "./ShellPortalContext";
-import { useShellSessions } from "@/components/shell";
+import { useShellSessions } from "@/components/shell/lib/shell-cache";
 
 // =============================================================================
 // Types

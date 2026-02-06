@@ -26,7 +26,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { useResubmitMutation, type UseResubmitMutationReturn } from "./useResubmitMutation";
 

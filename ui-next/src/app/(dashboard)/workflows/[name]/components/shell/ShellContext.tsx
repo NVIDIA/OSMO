@@ -17,7 +17,7 @@
 "use client";
 
 import { createContext, useContext, useCallback, useMemo, type ReactNode } from "react";
-import { useShellSessions, hasSession, disconnectSession, reconnectSession } from "@/components/shell";
+import { useShellSessions, hasSession, disconnectSession, reconnectSession } from "@/components/shell/lib/shell-cache";
 import { _createSession, _deleteSession } from "@/components/shell/lib/shell-cache";
 import { ShellNavigationGuard } from "./ShellNavigationGuard";
 

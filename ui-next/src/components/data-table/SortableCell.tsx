@@ -21,7 +21,7 @@
 import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
-import { useMounted } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
 import type { SortableCellProps } from "./types";
 
 /**

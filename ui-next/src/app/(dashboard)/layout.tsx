@@ -15,8 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { Chrome } from "@/components/chrome";
-import { prefetchVersion } from "@/lib/api/server";
+import { Chrome } from "@/components/chrome/chrome";
+import { prefetchVersion } from "@/lib/api/server/version";
 import { createQueryClient } from "@/lib/query-client";
 
 /**

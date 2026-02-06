@@ -24,10 +24,11 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { InlineErrorBoundary } from "@/components/error";
-import { useUrlChips, useResultsCount } from "@/hooks";
-import { filterByChips } from "@/components/filter-bar";
-import { WorkflowTasksTable } from ".";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
+import { WorkflowTasksTable } from "./table/WorkflowTasksTable";
 import { WorkflowTasksToolbar } from "./table/WorkflowTasksToolbar";
 import { TASK_SEARCH_FIELDS } from "../lib/task-search-fields";
 import type {

@@ -27,7 +27,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { createTableStore } from "@/stores";
+import { createTableStore } from "@/stores/create-table-store";
 import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT } from "../lib/workflow-columns";
 
 /**
@@ -90,4 +90,4 @@ export const useWorkflowsPreferencesStore = create<WorkflowsPreferencesStore>()(
   ),
 );
 
-export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";
+export type { TableState, TableActions, TableStore, SearchChip } from "@/stores/types";

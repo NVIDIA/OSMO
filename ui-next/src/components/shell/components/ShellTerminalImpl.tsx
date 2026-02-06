@@ -26,7 +26,8 @@ import {
   useMemo,
 } from "react";
 import { cn } from "@/lib/utils";
-import { useAnnouncer, useCopy } from "@/hooks";
+import { useAnnouncer } from "@/hooks/use-announcer";
+import { useCopy } from "@/hooks/use-copy";
 
 import { useShell } from "../hooks/use-shell";
 import { getDisplayStatus } from "../lib/shell-state";

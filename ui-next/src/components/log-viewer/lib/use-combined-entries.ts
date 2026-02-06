@@ -17,7 +17,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { LogEntry } from "@/lib/api/log-adapter";
+import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { filterEntries, type FilterParams } from "@/lib/api/log-adapter/adapters/compute";
 import { debugWarn } from "./debug";
 

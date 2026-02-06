@@ -25,8 +25,9 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 import { PageProvider } from "@/components/chrome/page-context";
 import { BreadcrumbOriginProvider } from "@/components/chrome/breadcrumb-origin-context";
-import { ConfigProvider, ServiceProvider } from "@/contexts";
-import { UserProvider } from "@/lib/auth";
+import { ConfigProvider } from "@/contexts/config-context";
+import { ServiceProvider } from "@/contexts/service-context";
+import { UserProvider } from "@/lib/auth/user-context";
 import { MockProvider } from "@/mocks/MockProvider";
 import { createQueryClient } from "@/lib/query-client";
 

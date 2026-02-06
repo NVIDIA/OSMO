@@ -20,7 +20,7 @@
 
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useExpandableChips } from "@/hooks";
+import { useExpandableChips } from "@/hooks/use-expandable-chips";
 
 // =============================================================================
 // Types

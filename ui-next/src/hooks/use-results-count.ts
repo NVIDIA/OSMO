@@ -39,7 +39,7 @@
  */
 
 import { useMemo } from "react";
-import type { ResultsCount } from "@/components/filter-bar";
+import type { ResultsCount } from "@/components/filter-bar/lib/types";
 
 // =============================================================================
 // Types

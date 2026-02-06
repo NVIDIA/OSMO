@@ -47,9 +47,9 @@
 
 "use client";
 
-import { usePage } from "@/components/chrome";
-import { InlineErrorBoundary } from "@/components/error";
-import { preloadElkWorker } from "@/components/dag";
+import { usePage } from "@/components/chrome/page-context";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { preloadElkWorker } from "@/components/dag/layout/elk-worker-client";
 import { WorkflowDetailInnerWithProvider } from "./workflow-detail-inner";
 
 // =============================================================================

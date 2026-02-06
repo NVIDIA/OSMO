@@ -29,7 +29,8 @@ import { Network, PanelLeftClose, type LucideIcon } from "lucide-react";
 import { useEventCallback } from "usehooks-ts";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
-import { ShellSessionIcon, useShellSessions } from "@/components/shell";
+import { ShellSessionIcon } from "@/components/shell/components/ShellSessionIcon";
+import { useShellSessions } from "@/components/shell/lib/shell-cache";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import { usePanelResizeMachine, useDisplayDagVisible, useIsPanelCollapsed } from "../../../lib/panel-resize-context";
 
