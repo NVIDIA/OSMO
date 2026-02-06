@@ -204,3 +204,78 @@ export async function cancelTaskGroup(workflowName: string, groupName: string): 
 
   return result;
 }
+
+// =============================================================================
+// Resubmit Types
+// =============================================================================
+
+export interface ResubmitResult extends ActionResult {
+  /** New workflow name returned by the backend on success */
+  newWorkflowName?: string;
+}
+
+export interface ResubmitParams {
+  /** ID of the original workflow to resubmit */
+  workflowId: string;
+  /** Target pool for execution */
+  poolName: string;
+  /** Execution priority */
+  priority: string;
+}
+
+// =============================================================================
+// Resubmit Server Action
+// =============================================================================
+
+/**
+ * Resubmit a workflow to a (potentially different) pool with a given priority.
+ *
+ * Uses the existing submission endpoint:
+ *   POST /api/pool/{pool_name}/workflow?workflow_id={id}&priority={priority}
+ *
+ * The backend fetches the original spec from the workflow_id and creates a
+ * new workflow in the specified pool.
+ *
+ * @param params - Resubmit configuration (workflowId, poolName, priority)
+ * @returns Result with the new workflow name on success, or error message
+ */
+export async function resubmitWorkflow(params: ResubmitParams): Promise<ResubmitResult> {
+  const { workflowId, poolName, priority } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set("workflow_id", workflowId);
+  queryParams.set("priority", priority);
+
+  const endpoint = `/api/pool/${encodeURIComponent(poolName)}/workflow?${queryParams.toString()}`;
+
+  try {
+    // The backend expects a TemplateSpec body, but when workflow_id is provided
+    // the backend fetches the spec itself. We send an empty file field.
+    const response = await customFetch<{ name?: string }>({
+      url: endpoint,
+      method: "POST",
+      data: { file: "", set_variables: [] },
+    });
+
+    const newName = response?.name;
+
+    // Revalidate workflow list and individual workflow caches
+    updateTag("workflows");
+    if (newName) {
+      updateTag(`workflow-${newName}`);
+      revalidatePath(`/workflows/${newName}`, "page");
+    }
+    revalidatePath("/workflows", "page");
+    refresh();
+
+    return { success: true, newWorkflowName: newName };
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      return { success: false, error: error.message };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to resubmit workflow",
+    };
+  }
+}
