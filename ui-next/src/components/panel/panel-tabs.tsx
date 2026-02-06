@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
-import { useViewTransition } from "@/hooks";
+import { useViewTransition } from "@/hooks/use-view-transition";
 
 import "./panel-tabs.css";
 

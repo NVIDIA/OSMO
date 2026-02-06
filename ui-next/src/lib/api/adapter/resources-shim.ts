@@ -58,7 +58,7 @@
  * See: BACKEND_TODOS.md#11 for detailed backend requirements.
  */
 
-import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination";
+import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination/types";
 import { matchesSearch } from "@/lib/utils";
 import type { Resource } from "./types";
 import { transformAllResourcesResponse } from "./transforms";

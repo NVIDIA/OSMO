@@ -20,9 +20,9 @@ import { memo, useMemo } from "react";
 import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import type { SearchChip } from "@/stores";
-import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar";
-import { TableToolbar } from "@/components/data-table";
+import type { SearchChip } from "@/stores/types";
+import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
+import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { useWorkflowsTableStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
 import {

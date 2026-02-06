@@ -24,7 +24,7 @@
 "use client";
 
 import { useState, useCallback, useTransition, useMemo } from "react";
-import { useServices } from "@/contexts";
+import { useServices } from "@/contexts/service-context";
 import { resubmitWorkflow, type ResubmitParams, type ResubmitResult } from "@/app/(dashboard)/workflows/actions";
 
 export interface UseResubmitMutationOptions {

@@ -21,7 +21,7 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { MOCK_CONFIG } from "../seed";
+import { MOCK_CONFIG } from "../seed/types";
 import { hashString } from "../utils";
 
 // ============================================================================

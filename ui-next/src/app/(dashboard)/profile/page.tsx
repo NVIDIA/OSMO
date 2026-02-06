@@ -16,7 +16,7 @@
 
 "use client";
 
-import { usePage } from "@/components/chrome";
+import { usePage } from "@/components/chrome/page-context";
 
 export default function ProfilePage() {
   usePage({ title: "Profile" });

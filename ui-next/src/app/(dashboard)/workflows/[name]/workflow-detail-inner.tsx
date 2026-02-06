@@ -33,8 +33,10 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
-import { useTickController, useViewTransition, useAnnouncer } from "@/hooks";
-import { useSharedPreferences, usePanelWidthPct, useDetailsPanelCollapsed } from "@/stores";
+import { useAnnouncer } from "@/hooks/use-announcer";
+import { useTickController } from "@/hooks/use-tick";
+import { useViewTransition } from "@/hooks/use-view-transition";
+import { useSharedPreferences, usePanelWidthPct, useDetailsPanelCollapsed } from "@/stores/shared-preferences-store";
 
 // New state machine provider and hooks
 import {
@@ -50,17 +52,15 @@ import {
 import { ACTIVITY_STRIP_WIDTH_PX } from "./lib/panel-constants";
 
 // Route-level components
-import {
-  DAGErrorBoundary,
-  ShellPortalProvider,
-  ShellProvider,
-  WorkflowDetailLayout,
-  WorkflowDAGContent,
-  DetailsPanel,
-  type DetailsPanelView,
-} from "./components";
+import { DAGErrorBoundary } from "@/components/dag/components/DAGErrorBoundary";
+import { ShellPortalProvider } from "./components/shell/ShellPortalContext";
+import { ShellProvider } from "./components/shell/ShellContext";
+import { WorkflowDetailLayout } from "./components/WorkflowDetailLayout";
+import { WorkflowDAGContent } from "./components/WorkflowDAGContent";
+import { DetailsPanel } from "./components/panel/views/DetailsPanel";
+import type { DetailsPanelView } from "./lib/panel-types";
 import { CancelWorkflowDialog } from "./components/panel/workflow/CancelWorkflowDialog";
-import { ResubmitPanel } from "./components/resubmit";
+import { ResubmitPanel } from "./components/resubmit/ResubmitPanel";
 
 // Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";

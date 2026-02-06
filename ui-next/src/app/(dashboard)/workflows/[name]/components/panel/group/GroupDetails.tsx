@@ -31,13 +31,15 @@
 import { useState, useMemo, useCallback, memo } from "react";
 import { Check, Loader2, AlertCircle, Clock, Info, List } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PanelTabs, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
+import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
+import { SeparatedParts } from "@/components/panel/separated-parts";
+import { TabPanel } from "@/components/panel/tab-panel";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
 import type { GroupDetailsProps } from "../../../lib/panel-types";
 import type { TaskWithDuration } from "../../../lib/workflow-types";
 import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
-import { useTick } from "@/hooks";
+import { useTick } from "@/hooks/use-tick";
 import type { BreadcrumbSegment } from "../../../lib/panel-types";
 import { GroupOverviewTab } from "./GroupOverviewTab";
 import { GroupTasksTab } from "./GroupTasksTab";

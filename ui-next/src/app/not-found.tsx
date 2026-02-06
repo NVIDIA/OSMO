@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NotFoundContent } from "@/components/not-found-content";
-import { Chrome } from "@/components/chrome";
+import { Chrome } from "@/components/chrome/chrome";
 
 export default function NotFound() {
   return (

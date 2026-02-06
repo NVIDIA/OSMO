@@ -21,7 +21,7 @@
 import { memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
-import type { DisplayMode } from "@/stores";
+import type { DisplayMode } from "@/stores/shared-preferences-store";
 import type { ResourceAggregates } from "../lib/computeAggregates";
 
 interface AdaptiveSummaryProps {

@@ -29,8 +29,10 @@ import {
 import { Button } from "@/components/shadcn/button";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { useSharedPreferences, type SearchChip } from "@/stores";
-import { FilterBar, type SearchField, type SearchPreset, type ResultsCount } from "@/components/filter-bar";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import type { SearchChip } from "@/stores/types";
+import { FilterBar } from "@/components/filter-bar/filter-bar";
+import type { SearchField, SearchPreset, ResultsCount } from "@/components/filter-bar/lib/types";
 
 export interface ColumnDefinition {
   id: string;

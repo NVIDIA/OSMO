@@ -22,7 +22,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
-import { useExecIntoTask } from "@/lib/api/adapter";
+import { useExecIntoTask } from "@/lib/api/adapter/hooks";
 import { updateALBCookies } from "@/lib/auth/cookies";
 import {
   type ShellState,

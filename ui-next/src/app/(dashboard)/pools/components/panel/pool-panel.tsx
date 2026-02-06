@@ -26,8 +26,9 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { Pool } from "@/lib/api/adapter";
-import { ResizablePanel, PANEL } from "@/components/panel";
+import type { Pool } from "@/lib/api/adapter/types";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { PoolPanelHeader } from "./panel-header";
 import { PanelContent } from "./panel-content";

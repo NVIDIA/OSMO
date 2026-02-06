@@ -36,7 +36,7 @@
  * ```
  */
 
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import type { GroupWithLayout, TaskQueryResponse } from "./workflow-types";
 import type { NavigationContext, WorkflowProgress } from "./workflow-selectors";
 import type { TaskTab, WorkflowTab, GroupTab } from "../hooks/use-navigation-state";

@@ -32,7 +32,7 @@ import { memo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dropdownStyles, chipStyles, chipVariantStyles } from "./styles";
-import type { SearchChip, SearchPreset } from "./lib";
+import type { SearchChip, SearchPreset } from "./lib/types";
 
 // ============================================================================
 // Chip Components

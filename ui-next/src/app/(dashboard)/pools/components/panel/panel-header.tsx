@@ -31,8 +31,10 @@
 import { memo } from "react";
 import { Server } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Pool } from "@/lib/api/adapter";
-import { PanelHeader, PanelTitle, PanelHeaderActions, SeparatedParts } from "@/components/panel";
+import type { Pool } from "@/lib/api/adapter/types";
+import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
+import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
+import { SeparatedParts } from "@/components/panel/separated-parts";
 import { getStatusDisplay, getStatusStyles } from "../../lib/constants";
 
 export interface PoolPanelHeaderProps {

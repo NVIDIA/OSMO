@@ -24,19 +24,16 @@
  */
 
 import { http, HttpResponse, delay } from "msw";
-import {
-  workflowGenerator,
-  poolGenerator,
-  resourceGenerator,
-  logGenerator,
-  eventGenerator,
-  bucketGenerator,
-  datasetGenerator,
-  profileGenerator,
-  portForwardGenerator,
-  ptySimulator,
-  type PTYScenario,
-} from "./generators";
+import { workflowGenerator } from "./generators/workflow-generator";
+import { poolGenerator } from "./generators/pool-generator";
+import { resourceGenerator } from "./generators/resource-generator";
+import { logGenerator } from "./generators/log-generator";
+import { eventGenerator } from "./generators/event-generator";
+import { bucketGenerator } from "./generators/bucket-generator";
+import { datasetGenerator } from "./generators/dataset-generator";
+import { profileGenerator } from "./generators/profile-generator";
+import { portForwardGenerator } from "./generators/portforward-generator";
+import { ptySimulator, type PTYScenario } from "./generators/pty-simulator";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay } from "./utils";
 import { getMockWorkflow, getWorkflowLogConfig } from "./mock-workflows";
 

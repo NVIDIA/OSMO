@@ -36,7 +36,7 @@ import type {
 } from "@/lib/api/generated";
 import { PoolStatus } from "@/lib/api/generated";
 
-import { MOCK_CONFIG, type PoolPatterns } from "../seed";
+import { MOCK_CONFIG, type PoolPatterns } from "../seed/types";
 
 // Re-export for convenience
 export type { PoolResourceUsage, PoolResponse };

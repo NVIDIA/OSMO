@@ -30,7 +30,7 @@
  * - Enables DAG visualization with topological ordering
  */
 
-import type { GroupQueryResponse } from "@/lib/api/adapter";
+import type { GroupQueryResponse } from "@/lib/api/adapter/types";
 import type { GroupWithLayout } from "./workflow-types";
 import { naturalCompare } from "@/lib/utils";
 

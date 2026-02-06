@@ -19,7 +19,7 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/shadcn/badge";
-import { useExpandableChips } from "@/hooks";
+import { useExpandableChips } from "@/hooks/use-expandable-chips";
 
 // =============================================================================
 // Types

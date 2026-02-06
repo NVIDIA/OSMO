@@ -26,10 +26,10 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { STATUS_CATEGORY_MAP } from "../../../lib/status";
 import { Timeline, type TimelinePhase, parseTime } from "../views/Timeline";
-import { useTick } from "@/hooks";
+import { useTick } from "@/hooks/use-tick";
 
 // ============================================================================
 // Types

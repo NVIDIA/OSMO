@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useViewTransition } from "@/hooks";
+import { useViewTransition } from "@/hooks/use-view-transition";
 import NextLink from "next/link";
 import { useCallback, type ComponentProps } from "react";
 

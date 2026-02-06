@@ -18,7 +18,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { DisplayMode } from "@/stores";
+import type { DisplayMode } from "@/stores/shared-preferences-store";
 import { ProgressBar } from "./progress-bar";
 
 // Re-export for consumers that import from here

@@ -21,15 +21,21 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter";
-import { formatLogLine, LOG_LEVEL_STYLES, type LogLevel } from "@/lib/api/log-adapter";
+import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
+import { formatLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
+import { LOG_LEVEL_STYLES } from "@/lib/api/log-adapter/constants";
+import type { LogLevel } from "@/lib/api/log-adapter/types";
 import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { useServices } from "@/contexts/service-context";
-import { withViewTransition } from "@/hooks";
+import { withViewTransition } from "@/hooks/use-view-transition";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
-import { FilterBar } from "@/components/filter-bar";
-import { TimelineContainer, type TimeRangePreset, type TimelineContainerHandle } from "./timeline";
+import { FilterBar } from "@/components/filter-bar/filter-bar";
+import {
+  TimelineContainer,
+  type TimeRangePreset,
+  type TimelineContainerHandle,
+} from "./timeline/components/TimelineContainer";
 import { LogList } from "./LogList";
 import { Footer } from "./Footer";
 import { LogViewerSkeleton } from "./LogViewerSkeleton";

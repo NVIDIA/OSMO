@@ -18,7 +18,7 @@
 
 import { Link } from "@/components/link";
 import { FlaskConical } from "lucide-react";
-import { usePage } from "@/components/chrome";
+import { usePage } from "@/components/chrome/page-context";
 
 interface ExperimentalPage {
   title: string;

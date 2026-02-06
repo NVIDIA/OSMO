@@ -43,7 +43,8 @@ import { useState, useEffect, useLayoutEffect, useMemo, startTransition, useCall
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
-import { VIEWPORT, type LayoutDirection } from "@/components/dag";
+import { VIEWPORT } from "@/components/dag/constants";
+import type { LayoutDirection } from "@/components/dag/types";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
 import { transformGroups as defaultTransformGroups } from "../lib/workflow-layout";
 import {

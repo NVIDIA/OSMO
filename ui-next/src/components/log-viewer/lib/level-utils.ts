@@ -13,8 +13,8 @@
  * Uses the canonical LOG_LEVEL_STYLES from log-adapter for consistency.
  */
 
-import type { LogLevel } from "@/lib/api/log-adapter";
-import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS, getLogLevelStyle } from "@/lib/api/log-adapter";
+import type { LogLevel } from "@/lib/api/log-adapter/types";
+import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS, getLogLevelStyle } from "@/lib/api/log-adapter/constants";
 import { cn } from "@/lib/utils";
 
 // =============================================================================

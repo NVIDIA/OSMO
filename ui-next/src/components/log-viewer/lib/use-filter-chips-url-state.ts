@@ -41,7 +41,7 @@
 
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
-import type { SearchChip } from "@/components/filter-bar";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { parseUrlChips } from "@/lib/url-utils";
 
 // =============================================================================

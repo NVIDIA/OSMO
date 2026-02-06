@@ -24,11 +24,11 @@
  */
 
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Pool } from "@/lib/api/adapter";
-import type { DisplayMode } from "@/stores";
+import type { Pool } from "@/lib/api/adapter/types";
+import type { DisplayMode } from "@/stores/shared-preferences-store";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { remToPx } from "@/components/data-table";
+import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { GpuProgressCell } from "../cells/gpu-progress-cell";
 import { PlatformPills } from "../cells/platform-pills";
 import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "../../lib/pool-columns";

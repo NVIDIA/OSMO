@@ -19,7 +19,9 @@
 import { useMemo, useState, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import { getApiHostname } from "@/lib/config";
-import { useLogData, useLogTail, computeHistogram } from "@/lib/api/log-adapter";
+import { computeHistogram } from "@/lib/api/log-adapter/adapters/compute";
+import { useLogData } from "@/lib/api/log-adapter/hooks/use-log-data";
+import { useLogTail } from "@/lib/api/log-adapter/hooks/use-log-tail";
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
 import { LogViewer } from "./LogViewer";
 import type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "./LogViewer";

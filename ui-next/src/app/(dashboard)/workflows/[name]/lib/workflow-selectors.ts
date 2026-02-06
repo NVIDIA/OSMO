@@ -39,7 +39,7 @@
 
 import { WorkflowStatus } from "@/lib/api/generated";
 import { isTaskTerminal, isTaskOngoing, isTaskFailed } from "@/lib/api/status-metadata.generated";
-import type { TaskQueryResponse } from "@/lib/api/adapter";
+import type { TaskQueryResponse } from "@/lib/api/adapter/types";
 import type { GroupWithLayout } from "./workflow-types";
 
 // =============================================================================

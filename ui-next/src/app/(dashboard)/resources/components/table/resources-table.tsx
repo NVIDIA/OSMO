@@ -26,9 +26,10 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
-import { useSharedPreferences, type DisplayMode } from "@/stores";
-import type { Resource } from "@/lib/api/adapter";
+import { DataTable } from "@/components/data-table/DataTable";
+import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
+import { useSharedPreferences, type DisplayMode } from "@/stores/shared-preferences-store";
+import type { Resource } from "@/lib/api/adapter/types";
 import { MANDATORY_COLUMN_IDS, asResourceColumnIds, RESOURCE_COLUMN_SIZE_CONFIG } from "../../lib/resource-columns";
 import { createResourceColumns } from "../../lib/resource-column-defs";
 import { useResourcesTableStore } from "../../stores/resources-table-store";

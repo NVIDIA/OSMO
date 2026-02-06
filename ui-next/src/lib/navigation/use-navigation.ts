@@ -19,7 +19,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useUser } from "@/lib/auth";
+import { useUser } from "@/lib/auth/user-context";
 import { buildNavigation, type Navigation } from "./config";
 
 interface UseNavigationResult extends Navigation {

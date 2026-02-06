@@ -28,7 +28,7 @@
 import { memo } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCopy } from "@/hooks";
+import { useCopy } from "@/hooks/use-copy";
 
 // =============================================================================
 // CopyButton - Standalone copy button

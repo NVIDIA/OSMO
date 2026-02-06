@@ -30,7 +30,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useWorkflow } from "@/lib/api/adapter";
+import { useWorkflow } from "@/lib/api/adapter/hooks";
 import { transformGroups, type GroupWithLayout, type WorkflowQueryResponse } from "../lib/workflow-types";
 
 // =============================================================================

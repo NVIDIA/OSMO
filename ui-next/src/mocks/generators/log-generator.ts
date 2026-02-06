@@ -28,7 +28,7 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed";
+import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed/types";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 import { getWorkflowLogConfig, type WorkflowLogConfig } from "../mock-workflows";
 import { hashString } from "../utils";

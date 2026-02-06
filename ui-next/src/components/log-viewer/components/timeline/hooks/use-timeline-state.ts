@@ -51,7 +51,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import type { HistogramBucket } from "@/lib/api/log-adapter";
+import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { calculateDisplayRangeWithPadding } from "../lib/timeline-utils";
 import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS, DEFAULT_DURATION_MS } from "../lib/timeline-constants";
 

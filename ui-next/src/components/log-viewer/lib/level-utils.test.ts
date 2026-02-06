@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses, isLevelAtLeast, getLevelsAtLeast } from "./level-utils";
-import type { LogLevel } from "@/lib/api/log-adapter";
+import type { LogLevel } from "@/lib/api/log-adapter/types";
 
 // =============================================================================
 // getLevelBadgeClasses Tests

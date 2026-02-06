@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createTableStore } from "@/stores";
+import { createTableStore } from "@/stores/create-table-store";
 import {
   DEFAULT_VISIBLE_COLUMNS,
   DEFAULT_COLUMN_ORDER,
@@ -40,4 +40,4 @@ export const useResourcesTableStore = createTableStore({
   defaultPanelWidth: DEFAULT_PANEL_WIDTH,
 });
 
-export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";
+export type { TableState, TableActions, TableStore, SearchChip } from "@/stores/types";

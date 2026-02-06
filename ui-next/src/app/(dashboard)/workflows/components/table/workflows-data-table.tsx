@@ -30,15 +30,11 @@
 
 import { useMemo, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useViewTransition } from "@/hooks";
-import {
-  DataTable,
-  TableLoadingSkeleton,
-  TableErrorState,
-  type SortState,
-  type ColumnSizingPreference,
-} from "@/components/data-table";
-import { useSharedPreferences } from "@/stores";
+import { useViewTransition } from "@/hooks/use-view-transition";
+import { DataTable } from "@/components/data-table/DataTable";
+import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
+import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
