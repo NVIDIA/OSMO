@@ -89,7 +89,7 @@ export function ResubmitPanel({ workflow, open, onClose, children }: ResubmitPan
       mainContent={children}
       backdrop
       aria-label={`Resubmit workflow: ${workflow.name}`}
-      className="resubmit-panel"
+      className="resubmit-panel !bg-white dark:!bg-zinc-900"
     >
       <ResubmitPanelHeader
         workflow={workflow}
