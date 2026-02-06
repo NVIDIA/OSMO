@@ -33,7 +33,8 @@ export interface PrioritySectionProps {
   onChange: (priority: WorkflowPriority) => void;
 }
 
-const PRIORITY_OPTIONS = Object.values(WorkflowPriority) as WorkflowPriority[];
+// Display order: Low → Normal → High (left to right)
+const PRIORITY_OPTIONS: WorkflowPriority[] = [WorkflowPriority.LOW, WorkflowPriority.NORMAL, WorkflowPriority.HIGH];
 
 const PRIORITY_LABELS: Record<WorkflowPriority, string> = {
   [WorkflowPriority.HIGH]: "High",
