@@ -27,6 +27,7 @@ import uvicorn  # type: ignore
 import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers
+from src.service.core.auth import auth_service
 from src.service.core.workflow import objects
 from src.utils import connectors, static_config
 from src.utils.progress_check import progress
@@ -43,6 +44,8 @@ class BackendServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
 
 
 app = fastapi.FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+app.include_router(auth_service.router)
 
 app.add_middleware(connectors.AccessControlMiddleware)
 
