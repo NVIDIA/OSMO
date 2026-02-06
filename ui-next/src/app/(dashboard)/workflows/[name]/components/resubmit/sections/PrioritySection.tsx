@@ -54,17 +54,10 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
       onOpenChange={setOpen}
     >
       <div className="flex flex-col gap-2">
-        <label
-          id={`${groupId}-label`}
-          className="text-sm font-medium"
-        >
-          Execution priority
-        </label>
-
         <div
           className="bg-muted flex gap-2 rounded-md p-1.5"
           role="radiogroup"
-          aria-labelledby={`${groupId}-label`}
+          aria-label="Priority level"
         >
           {PRIORITY_OPTIONS.map((option) => {
             const isSelected = priority === option;
@@ -97,8 +90,6 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
             );
           })}
         </div>
-
-        <p className="text-muted-foreground text-xs">Higher priority jobs are scheduled to execute first</p>
       </div>
     </CollapsibleSection>
   );
