@@ -31,7 +31,6 @@ import time
 from typing import List, Dict, Tuple, Type
 import urllib.parse
 
-import aiofiles
 import redis  # type: ignore
 import redis.asyncio  # type: ignore
 import pydantic
@@ -1383,7 +1382,7 @@ class CleanupWorkflow(WorkflowJob):
 
             fd, tmp_path = tempfile.mkstemp(suffix='.log')
             try:
-                os.close(fd)  # Close the OS-level fd; let write_redis_log_to_disk open it
+                os.close(fd)
 
                 await connectors.write_redis_log_to_disk(
                     redis_url,
