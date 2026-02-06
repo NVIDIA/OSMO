@@ -27,15 +27,17 @@ import PageHeader from "~/components/PageHeader";
 import { Select } from "~/components/Select";
 import { SlideOut } from "~/components/SlideOut";
 import { StatusFilterType } from "~/components/StatusFilter";
-import { TextInput } from "~/components/TextInput";
 import { UserFilterType } from "~/components/UserFilter";
 import { type ProfileResponse } from "~/models";
 import { api } from "~/trpc/react";
 
-import EditDashboardMetadataModal from "./components/EditDashboardMetadataModal";
+import EditDashboardMetadata from "../components/EditDashboardMetadata";
+import NewDashboard from "../components/NewDashboard";
 import { calcAggregateTotals, calcResourceUsages } from "./resources/components/utils";
 import { TasksWidget, type TaskWidgetDataProps } from "./widgets/tasks";
 import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
+
+const defaultDays = 365;
 
 export interface Dashboard {
   id: string;
@@ -53,17 +55,17 @@ interface DashboardList {
 
 const createWidgetId = () => crypto.randomUUID();
 
-const makeDefaultDashboard = (username: string, days: number, allPools: boolean, pools: string[], widgetAllPools: boolean, widgetPools: string[]) => {
+const generateDashboardMeta = (id: string, name: string, userType: UserFilterType, users: string[], allPools: boolean, pools: string[], widgetAllPools: boolean, widgetPools: string[]): Dashboard => {
   return {
-    id: "default",
-    name: "Personal",
+    id,
+    name,
     workflows: [
       {
         id: createWidgetId(),
         name: "Current Workflows",
         filters: {
-          userType: UserFilterType.CURRENT,
-          selectedUsers: username,
+          userType,
+          selectedUsers: users.join(","),
           isSelectAllPoolsChecked: widgetAllPools,
           selectedPools: widgetPools.join(","),
           dateRange: -2,
@@ -75,11 +77,11 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
         id: createWidgetId(),
         name: "Today's Workflows",
         filters: {
-          userType: UserFilterType.CURRENT,
-          selectedUsers: username,
+          userType,
+          selectedUsers: users.join(","),
           isSelectAllPoolsChecked: widgetAllPools,
           selectedPools: widgetPools.join(","),
-          dateRange: 365,
+          dateRange: defaultDays,
           statusFilterType: StatusFilterType.ALL,
           name: "",
         },
@@ -90,8 +92,8 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
         id: createWidgetId(),
         name: "Current Tasks",
         filters: {
-          userType: UserFilterType.CURRENT,
-          selectedUsers: username,
+          userType,
+          selectedUsers: users.join(","),
           isSelectAllPoolsChecked: widgetAllPools,
           selectedPools: widgetPools.join(","),
           dateRange: allDateRange,
@@ -102,11 +104,11 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
         id: createWidgetId(),
         name: "Today's Tasks",
         filters: {
-          userType: UserFilterType.CURRENT,
-          selectedUsers: username,
+          userType,
+          selectedUsers: users.join(","),
           isSelectAllPoolsChecked: widgetAllPools,
           selectedPools: widgetPools.join(","),
-          dateRange: days,
+          dateRange: defaultDays,
           statusFilterType: StatusFilterType.ALL,
         },
       },
@@ -117,13 +119,10 @@ const makeDefaultDashboard = (username: string, days: number, allPools: boolean,
 };
 
 export default function Home() {
-  const currentDays = 365;
   const { username } = useAuth();
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
-  const [newDashboardName, setNewDashboardName] = useState("");
-  const [newDashboardNameError, setNewDashboardNameError] = useState<string | undefined>(undefined);
   const [currentDashboardID, setCurrentDashboardID] = useState<string | undefined>(undefined);
 
   const [dashboards, setDashboards] = useState<DashboardList>({
@@ -154,8 +153,8 @@ export default function Home() {
   );
 
   const defaultDashboard = useMemo<Dashboard>(
-    () => makeDefaultDashboard(username, currentDays, false, profile?.profile.pool ? [profile?.profile.pool] : [], true, []),
-    [username, currentDays, profile?.profile.pool],
+    () => generateDashboardMeta("default", "Personal", UserFilterType.CURRENT, [username], false, profile?.profile.pool ? [profile?.profile.pool] : [], true, []),
+    [username, profile?.profile.pool],
   );
 
   const persistDashboards = (nextDashboards: DashboardList) => {
@@ -235,45 +234,24 @@ export default function Home() {
     });
   }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard, dashboards.defaultDashboardID]);
 
-  const addDashboard = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const trimmedName = newDashboardName.trim();
-    if (!trimmedName) {
-      return;
-    }
-
-    if (dashboards.dashboards.some((widget) => widget.name === trimmedName)) {
-      setNewDashboardNameError("Dashboard name already exists");
-      return;
-    }
+  const addDashboard = (name: string, allPools: boolean, pools: string, userType: UserFilterType, selectedUsers: string) => {
+    const newDashboard = generateDashboardMeta(createWidgetId(), name, userType, selectedUsers.split(","), allPools, pools.split(","), allPools, pools.split(","));
 
     setDashboards((prevDashboards) => {
-      const newDashboard: Dashboard = {
-        id: createWidgetId(),
-        name: trimmedName,
-        workflows: [],
-        tasks: [],
-        allPools: false,
-        pools: [],
-      };
       const nextDashboards = {
         ...prevDashboards,
-        widgets: [
+        dashboards: [
           ...prevDashboards.dashboards,
           newDashboard,
         ],
       };
 
       persistDashboards(nextDashboards);
-      setCurrentDashboardID(newDashboard.id);
       return nextDashboards;
     });
 
-    setNewDashboardName("");
-    setNewDashboardNameError(undefined);
-    setShowNewDashboard(false);
-  };
+    setCurrentDashboardID(newDashboard.id);
+};
 
   const handleEditDashboard = (name: string, isDefault: boolean, allPools: boolean, pools: string) => {
     if (!currentDashboard) {
@@ -303,7 +281,7 @@ export default function Home() {
           : prevDashboards.defaultDashboardID;
       const nextDashboards = {
         ...prevDashboards,
-        widgets: nextWidgets,
+        dashboards: nextWidgets,
         defaultDashboardID: nextDefaultDashboardID,
       };
 
@@ -321,18 +299,18 @@ export default function Home() {
           <Select
             id="dashboard-name"
             aria-label="Select a dashboard"
-            value={currentDashboard?.name ?? ""}
+            value={currentDashboard?.id ?? ""}
             onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
               setCurrentDashboardID(event.target.value);
             }
             }
           >
-            {dashboards.dashboards.map((widget) => (
+            {dashboards.dashboards.map((dashboard) => (
               <option
-                key={widget.id}
-                value={widget.name}
+                key={dashboard.id}
+                value={dashboard.id}
               >
-                {widget.name}
+                {dashboard.name}
               </option>
             ))}
           </Select>
@@ -360,7 +338,7 @@ export default function Home() {
                     dashboardWidget.id === targetId ? data : dashboardWidget,
                   ),
                 }));
-              }  }
+              }}
               onDelete={() => {
                 const targetId = widget.id;
                 updateCurrentDashboard((prevWidgets) => ({
@@ -433,66 +411,75 @@ export default function Home() {
         </div>
       </div>
       <SlideOut
-        id="new-dashboard"
-        open={showNewDashboard}
-        onClose={() => {
-          setShowNewDashboard(false);
-          setNewDashboardNameError(undefined);
-          setNewDashboardName("");
-        }}
-        bodyClassName="p-global"
-        className="border-t-0"
-      >
-        <form onSubmit={addDashboard}>
-          <div className="flex flex-row gap-global">
-            <TextInput
-              id="dashboard-name"
-              label="Name"
-              className="w-full"
-              value={newDashboardName}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setNewDashboardName(event.target.value);
-                setNewDashboardNameError(undefined);
-              }}
-              errorText={newDashboardNameError}
-              required
-            />
-            <button
-              className="btn btn-secondary mt-5 h-8"
-              type="submit"
-              aria-disabled={!newDashboardName.trim()}
-            >
-              <OutlinedIcon name="add" />
-              Add
-            </button>
-          </div>
-        </form>
-      </SlideOut>
-      <SlideOut
-        id="edit-dashboard"
+        id="dashboard-actions"
         open={isActionsMenuOpen}
         onClose={() => {
           setIsActionsMenuOpen(false);
         }}
         className="border-t-0"
-        aria-labelledby="edit-dashboard-header"
         canPin={false}
       >
         <div className="flex flex-col gap-global p-global">
-          <button className="btn btn-action" onClick={() => {
-            setIsEditingMetadata(true);
-          }
-          } role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
-          <button className="btn btn-action" role="listitem"><OutlinedIcon name="work_outline" />Add Workflow Widget</button>
-          <button className="btn btn-action" role="listitem"><OutlinedIcon name="task" />Add Task Widget</button>
-        </div>
-        <div className="flex flex-col gap-global p-global border-t-1 border-border">
+          <button className="btn btn-action"
+            onClick={() => {
+              setIsEditingMetadata(true);
+            }
+            }
+            role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
+          <button className="btn btn-action" role="listitem" onClick={() => {
+            updateCurrentDashboard((prevWidgets) => ({
+              ...prevWidgets,
+              workflows: [...prevWidgets.workflows, {
+                id: createWidgetId(),
+                name: "",
+                filters: {
+                  userType: UserFilterType.CURRENT,
+                  selectedUsers: "",
+                  dateRange: -2,
+                  selectedPools: "",
+                  isSelectAllPoolsChecked: false,
+                  statusFilterType: StatusFilterType.ALL,
+                  name: "",
+                },
+              }],
+            }));
+          }}><OutlinedIcon name="work_outline" />Add Workflow Widget</button>
+          <button className="btn btn-action" role="listitem" onClick={() => {
+            updateCurrentDashboard((prevWidgets) => ({
+              ...prevWidgets,
+              tasks: [...prevWidgets.tasks, {
+                id: createWidgetId(),
+                name: "",
+                filters: {
+                  userType: UserFilterType.CURRENT,
+                  selectedUsers: "",
+                  dateRange: -2,
+                  selectedPools: "",
+                  isSelectAllPoolsChecked: false,
+                  statusFilterType: StatusFilterType.ALL,
+                  name: "",
+                },
+              }],
+            }));
+          }}><OutlinedIcon name="task" />Add Task Widget</button>
           <button className="btn btn-action" onClick={() => setShowNewDashboard(true)} role="listitem"><OutlinedIcon name="dashboard_customize" />New Dashboard</button>
-          <button className="btn btn-action" role="listitem"><OutlinedIcon name="copy" />Clone Current Dashboard</button>
+          <button className="btn btn-action" onClick={
+            () => {
+              setDashboards((prevDashboards) => {
+                const nextDashboards = {
+                  ...prevDashboards,
+                  dashboards: prevDashboards.dashboards.filter((dashboard) => dashboard.id !== currentDashboardID),
+                };
+                persistDashboards(nextDashboards);
+                return nextDashboards;
+              });
+              setCurrentDashboardID(dashboards.defaultDashboardID);
+            }
+          } role="listitem"><OutlinedIcon name="delete" />Delete Dashboard</button>
           <button className="btn btn-action" role="listitem"><OutlinedIcon name="share" />Share Dashboard</button>
         </div>
       </SlideOut>
-      <EditDashboardMetadataModal
+      <EditDashboardMetadata
         open={isEditingMetadata}
         onClose={() => {
           setIsEditingMetadata(false);
@@ -500,6 +487,15 @@ export default function Home() {
         dashboard={currentDashboard}
         defaultDashboardID={dashboards.defaultDashboardID}
         onSave={handleEditDashboard}
+      />
+      <NewDashboard
+        currentUserName={username}
+        open={showNewDashboard}
+        onClose={() => {
+          setShowNewDashboard(false);
+        }}
+        existingNames={dashboards.dashboards.map((widget) => widget.name)}
+        onCreate={addDashboard}
       />
     </>
   );

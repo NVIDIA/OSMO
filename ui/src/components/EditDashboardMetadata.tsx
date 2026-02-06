@@ -23,7 +23,7 @@ import { PoolsFilter } from "~/components/PoolsFilter";
 import { Switch } from "~/components/Switch";
 import { TextInput } from "~/components/TextInput";
 
-import type { Dashboard } from "../page";
+import type { Dashboard } from "../app/page";
 
 interface EditDashboardMetadataModalProps {
   open: boolean;
@@ -33,7 +33,7 @@ interface EditDashboardMetadataModalProps {
   onSave: (name: string, isDefault: boolean, allPools: boolean, pools: string) => void;
 }
 
-const EditDashboardMetadataModal = ({
+const EditDashboardMetadata = ({
   open,
   onClose,
   dashboard,
@@ -116,4 +116,4 @@ const EditDashboardMetadataModal = ({
   );
 };
 
-export default EditDashboardMetadataModal;
+export default EditDashboardMetadata;

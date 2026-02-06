@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
@@ -39,6 +39,12 @@ export const WorkflowsWidget = ({
   const [isEditing, setIsEditing] = useState(false);
   const [widgetName, setWidgetName] = useState(widget.name);
   const [widgetDescription, setWidgetDescription] = useState(widget.description ?? "");
+
+  useEffect(() => {
+    if (widgetName === "") {
+      setIsEditing(true);
+    }
+  }, [widgetName]);
 
   const dateRangeDates = getDateFromValues(
     widget.filters.dateRange,
@@ -113,7 +119,7 @@ export const WorkflowsWidget = ({
           setIsEditing(false);
         }}
         headerChildren={
-          <h2 id="edit-header">Edit Workflow</h2>
+          <h2 id="edit-header">{widget.name ? "Edit Workflow" : "New Workflow"}</h2>
         }
         aria-labelledby="edit-header"
         size="md"
@@ -121,7 +127,6 @@ export const WorkflowsWidget = ({
         <TextInput
           id="widget-name"
           label="Name"
-          helperText="Name of the widget (unique)"
           className="w-full"
           required
           containerClassName="w-full p-global"
@@ -129,6 +134,7 @@ export const WorkflowsWidget = ({
           onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
             setWidgetName(event.target.value);
           }}
+          errorText={widgetName === "" ? "Name is required" : undefined}
         />
         <TextInput
           id="widget-description"
@@ -154,6 +160,10 @@ export const WorkflowsWidget = ({
           currentUserName={currentUserName}
           priority={widget.filters.priority}
           onSave={(data: WorkflowsFiltersDataProps) => {
+            if (!widgetName) {
+              return;
+            }
+
             setIsEditing(false);
             onSave({
               id: widget.id,
