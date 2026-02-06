@@ -96,6 +96,7 @@ go_library(
     deps = [
         ":listener_service",
         ":utils",
+        "//src/utils/metrics-go",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//health",
         "@org_golang_google_grpc//health/grpc_health_v1",

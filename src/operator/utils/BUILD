@@ -58,6 +58,7 @@ go_library(
     deps = [
         "//src/proto/operator:operator_go_proto",
         "//src/utils:utils",
+        "//src/utils/metrics-go",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
