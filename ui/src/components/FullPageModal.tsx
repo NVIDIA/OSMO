@@ -46,7 +46,7 @@ const FullPageModal = ({ open, onClose, children, headerChildren, size = "lg", .
           }}
         >
           <div
-            className={`flex flex-col body-component shadow-xl shadow-black/50 ${size === "md" ? "md:w-1/2" : size === "sm" ? "md:w-1/4" : ""} w-full max-h-[96vh] max-w-[96vw]`}
+            className={`flex flex-col body-component shadow-xl shadow-black/50 ${size === "md" ? "md:w-1/2" : size === "sm" ? "md:w-1/4" : ""} max-h-[96vh] max-w-[96vw]`}
             aria-modal="true"
             role="dialog"
             onClick={(event) => event.stopPropagation()}

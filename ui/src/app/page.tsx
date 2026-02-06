@@ -26,6 +26,7 @@ import { allDateRange } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import PageHeader from "~/components/PageHeader";
 import { Select } from "~/components/Select";
+import ShareDashboard from "~/components/ShareDashboard";
 import { SlideOut } from "~/components/SlideOut";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { UserFilterType } from "~/components/UserFilter";
@@ -136,6 +137,8 @@ export default function Home() {
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
+  const [showShareDashboard, setShowShareDashboard] = useState(false);
+  const [showImportDashboard, setShowImportDashboard] = useState(false);
   const [currentDashboardID, setCurrentDashboardID] = useState<string | undefined>(undefined);
 
   const [dashboards, setDashboards] = useState<DashboardList>({
@@ -272,6 +275,8 @@ export default function Home() {
       return;
     }
 
+    console.log("useEffect", nextDashboardId);
+
     handleDashboardChange(nextDashboardId);
   }, [dashboards.dashboards, dashboards.defaultDashboardID, currentDashboardID, searchParams, handleDashboardChange]);
 
@@ -294,7 +299,23 @@ export default function Home() {
     });
   }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard, dashboards.defaultDashboardID]);
 
-  const addDashboard = (
+  const addDashboard = (dashboard: Dashboard) => {
+    setDashboards((prevDashboards) => {
+      const nextDashboards = {
+        ...prevDashboards,
+        dashboards: [...prevDashboards.dashboards, dashboard],
+      };
+
+      persistDashboards(nextDashboards);
+      return nextDashboards;
+    });
+
+    console.log("addDashboard", dashboard.id);
+
+    setCurrentDashboardID(dashboard.id);
+  };
+
+  const addNewDashboard = (
     name: string,
     allPools: boolean,
     pools: string,
@@ -312,17 +333,7 @@ export default function Home() {
       pools.split(","),
     );
 
-    setDashboards((prevDashboards) => {
-      const nextDashboards = {
-        ...prevDashboards,
-        dashboards: [...prevDashboards.dashboards, newDashboard],
-      };
-
-      persistDashboards(nextDashboards);
-      return nextDashboards;
-    });
-
-    handleDashboardChange(newDashboard.id);
+    addDashboard(newDashboard);
   };
 
   const handleEditDashboard = (name: string, isDefault: boolean, allPools: boolean, pools: string) => {
@@ -373,6 +384,7 @@ export default function Home() {
             aria-label="Select a dashboard"
             value={currentDashboard?.id ?? ""}
             onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
+              console.log("onChange", event.target.value);
               handleDashboardChange(event.target.value);
             }}
           >
@@ -557,6 +569,8 @@ export default function Home() {
             <OutlinedIcon name="task" />
             Add Task Widget
           </button>
+        </div>
+        <div className="flex flex-col p-global gap-global border-t border-border">
           <button
             className="btn btn-action"
             onClick={() => setShowNewDashboard(true)}
@@ -576,6 +590,7 @@ export default function Home() {
                 persistDashboards(nextDashboards);
                 return nextDashboards;
               });
+              console.log("deleteDashboard", dashboards.defaultDashboardID);
               handleDashboardChange(dashboards.defaultDashboardID);
             }}
             role="listitem"
@@ -586,9 +601,22 @@ export default function Home() {
           <button
             className="btn btn-action"
             role="listitem"
+            onClick={() => {
+              setShowShareDashboard(true);
+            }}
           >
             <OutlinedIcon name="share" />
             Share Dashboard
+          </button>
+          <button
+            className="btn btn-action"
+            role="listitem"
+            onClick={() => {
+              setShowImportDashboard(true);
+            }}
+          >
+            <OutlinedIcon name="upload_file" />
+            Import Dashboard
           </button>
         </div>
       </SlideOut>
@@ -608,7 +636,22 @@ export default function Home() {
           setShowNewDashboard(false);
         }}
         existingNames={dashboards.dashboards.map((widget) => widget.name)}
-        onCreate={addDashboard}
+        onCreate={addNewDashboard}
+      />
+      <ShareDashboard
+        existingNames={dashboards.dashboards.map((widget) => widget.name)}
+        existingIDs={dashboards.dashboards.map((widget) => widget.id)}
+        open={showShareDashboard || showImportDashboard}
+        onClose={() => {
+          setShowShareDashboard(false);
+          setShowImportDashboard(false);
+        }}
+        dashboard={showShareDashboard ? currentDashboard : undefined}
+        onImport={(dashboard) => {
+          addDashboard(dashboard);
+          setShowShareDashboard(false);
+          setShowImportDashboard(false);
+        }}
       />
     </>
   );
