@@ -82,11 +82,23 @@ export const SpecSection = memo(function SpecSection({ spec, isLoading }: SpecSe
     <Button
       variant="ghost"
       size="sm"
-      onClick={() => setOpen(true)}
+      asChild
       className="text-primary h-7 px-2 text-xs font-medium"
       aria-label="Edit workflow specification"
     >
-      Edit
+      <span
+        onClick={() => setOpen(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        Edit
+      </span>
     </Button>
   );
 
