@@ -20,8 +20,9 @@ package utils
 
 import (
 	"flag"
-	"os"
-	"strconv"
+
+	sharedutils "go.corp.nvidia.com/osmo/utils"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // ListenerArgs holds configuration for all listeners
@@ -41,55 +42,61 @@ type ListenerArgs struct {
 	ProgressDir           string
 	ProgressFrequencySec  int
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
+
+	// OpenTelemetry metrics configuration
+	Metrics metrics.MetricsConfig
 }
 
 // ListenerParse parses command line arguments and environment variables
 func ListenerParse() ListenerArgs {
 	serviceURL := flag.String("serviceURL",
-		getEnv("OSMO_SERVICE_URL", "http://127.0.0.1:8001"),
+		sharedutils.GetEnv("OSMO_SERVICE_URL", "http://127.0.0.1:8001"),
 		"The osmo service url to connect to.")
 	backend := flag.String("backend",
-		getEnv("BACKEND", "default"),
+		sharedutils.GetEnv("BACKEND", "default"),
 		"The backend to connect to.")
 	namespace := flag.String("namespace",
-		getEnv("OSMO_NAMESPACE", "osmo"),
+		sharedutils.GetEnv("OSMO_NAMESPACE", "osmo"),
 		"Kubernetes namespace to watch")
 	podUpdateChanSize := flag.Int("podUpdateChanSize",
-		getEnvInt("POD_UPDATE_CHAN_SIZE", 500),
+		sharedutils.GetEnvInt("POD_UPDATE_CHAN_SIZE", 500),
 		"Buffer size for pod update channel (WorkflowListener)")
 	nodeUpdateChanSize := flag.Int("nodeUpdateChanSize",
-		getEnvInt("NODE_UPDATE_CHAN_SIZE", 500),
+		sharedutils.GetEnvInt("NODE_UPDATE_CHAN_SIZE", 500),
 		"Buffer size for node update channel (ResourceListener)")
 	usageChanSize := flag.Int("usageChanSize",
-		getEnvInt("USAGE_CHAN_SIZE", 500),
+		sharedutils.GetEnvInt("USAGE_CHAN_SIZE", 500),
 		"Buffer size for usage update channel (ResourceListener)")
 	eventChanSize := flag.Int("eventChanSize",
-		getEnvInt("EVENT_CHAN_SIZE", 500),
+		sharedutils.GetEnvInt("EVENT_CHAN_SIZE", 500),
 		"Buffer size for event channel (EventListener)")
 	resyncPeriodSec := flag.Int("resyncPeriodSec",
-		getEnvInt("RESYNC_PERIOD_SEC", 300),
+		sharedutils.GetEnvInt("RESYNC_PERIOD_SEC", 300),
 		"Resync period in seconds for Kubernetes informer")
 	stateCacheTTLMin := flag.Int("stateCacheTTLMin",
-		getEnvInt("STATE_CACHE_TTL_MIN", 15),
+		sharedutils.GetEnvInt("STATE_CACHE_TTL_MIN", 15),
 		"TTL in minutes for state cache entries (WorkflowListener)")
 	eventCacheTTLMin := flag.Int("eventCacheTTLMin",
-		getEnvInt("EVENT_CACHE_TTL_MIN", 15),
+		sharedutils.GetEnvInt("EVENT_CACHE_TTL_MIN", 15),
 		"TTL in minutes for event deduplication (EventListener)")
 	maxUnackedMessages := flag.Int("maxUnackedMessages",
-		getEnvInt("MAX_UNACKED_MESSAGES", 100),
+		sharedutils.GetEnvInt("MAX_UNACKED_MESSAGES", 100),
 		"Maximum number of unacked messages allowed")
 	nodeConditionPrefix := flag.String("nodeConditionPrefix",
-		getEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
+		sharedutils.GetEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
 		"Prefix for node conditions")
 	progressDir := flag.String("progressDir",
-		getEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/operator/"),
+		sharedutils.GetEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/operator/"),
 		"The directory to write progress timestamps to (For liveness/startup probes)")
 	progressFrequencySec := flag.Int("progressFrequencySec",
-		getEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),
+		sharedutils.GetEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
-		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
+		sharedutils.GetEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
+
+	// OpenTelemetry metrics configuration
+	metricsFlagPtrs := metrics.RegisterMetricsFlags("osmo-operator")
 
 	flag.Parse()
 
@@ -109,21 +116,6 @@ func ListenerParse() ListenerArgs {
 		ProgressDir:           *progressDir,
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
+		Metrics:               metricsFlagPtrs.ToMetricsConfig(),
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
 }

@@ -57,6 +57,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//src/proto/operator:operator_go_proto",
+        "//src/utils:utils",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",

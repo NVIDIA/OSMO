@@ -35,6 +35,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/service/operator/listener_service"
 	"go.corp.nvidia.com/osmo/service/operator/utils"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // ParseLogLevel converts a string log level to slog.Level
@@ -56,6 +57,19 @@ func main() {
 		Level: level,
 	}))
 	slog.SetDefault(logger)
+
+	// Initialize OpenTelemetry metrics
+	metricsConfig := metrics.LoadMetricsConfig()
+	if metricsConfig.Enabled {
+		if err := metrics.InitMetricCreator(metricsConfig); err != nil {
+			logger.Error("Failed to initialize metrics",
+				slog.String("error", err.Error()))
+			// Continue without metrics - don't fail startup
+		} else {
+			logger.Info("OpenTelemetry metrics initialized",
+				slog.String("endpoint", metricsConfig.OTLPEndpoint))
+		}
+	}
 
 	// Parse host and port
 	host, port, err := utils.ParseHost(args.Host)
@@ -146,6 +160,17 @@ func main() {
 
 	// Graceful shutdown with timeout
 	logger.Info("initiating graceful shutdown...")
+
+	// Shutdown metrics first to flush pending metrics
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := metricCreator.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Error shutting down metrics", slog.String("error", err.Error()))
+		} else {
+			logger.Info("Metrics shut down successfully")
+		}
+		shutdownCancel()
+	}
 
 	// Use a goroutine with timeout to prevent indefinite blocking
 	done := make(chan struct{})

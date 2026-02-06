@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
@@ -110,6 +111,18 @@ func (bl *BaseListener) ReceiveAcks(ctx context.Context, cancel context.CancelCa
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
+			// Record grpc_disconnect_count metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"grpc_disconnect_count",
+					1,
+					"count",
+					"Count of gRPC stream disconnections",
+					nil,
+				)
+			}
+
 			// Check if context was cancelled
 			if ctx.Err() != nil {
 				log.Printf("Stopping %s message receiver (context cancelled)...", streamName)

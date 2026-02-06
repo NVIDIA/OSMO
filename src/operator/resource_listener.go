@@ -32,6 +32,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // ResourceListener manages the bidirectional gRPC stream for resource (node) events
@@ -178,14 +179,49 @@ func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage
 
 // sendResourceMessage sends a single resource message
 func (rl *ResourceListener) sendResourceMessage(ctx context.Context, msg *pb.ListenerMessage) error {
+	// Determine message type for metrics
+	messageType := "unknown"
+	switch msg.Body.(type) {
+	case *pb.ListenerMessage_UpdateNode:
+		messageType = "update_node"
+	case *pb.ListenerMessage_UpdateNodeUsage:
+		messageType = "update_node_usage"
+	case *pb.ListenerMessage_NodeInventory:
+		messageType = "node_inventory"
+	}
+
 	// Add message to unacked queue before sending
 	if err := rl.GetUnackedMessages().AddMessage(ctx, msg); err != nil {
 		log.Printf("Failed to add message to unacked queue: %v", err)
 		return nil // Don't fail the stream
 	}
 
+	// Record backend_listener_queue_event_count metric
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			ctx,
+			"backend_listener_queue_event_count",
+			1,
+			"count",
+			"Number of messages queued for transmission to service",
+			map[string]string{"type": messageType},
+		)
+	}
+
 	if err := rl.GetStream().Send(msg); err != nil {
 		return err
+	}
+
+	// Record backend_message_transmission_count metric
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			ctx,
+			"backend_message_transmission_count",
+			1,
+			"count",
+			"Number of messages successfully transmitted to service",
+			map[string]string{"type": messageType},
+		)
 	}
 
 	return nil
@@ -226,6 +262,18 @@ func (rl *ResourceListener) watchNodes(
 
 	// Handler for node events - builds and sends resource messages
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
+		// Record kb_event_watch_count metric for nodes
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kb_event_watch_count",
+				1,
+				"count",
+				"Number of Kubernetes events received from informer watches",
+				map[string]string{"type": "node"},
+			)
+		}
+
 		msg := rl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {
 			select {
@@ -274,6 +322,19 @@ func (rl *ResourceListener) watchNodes(
 	// Set watch error handler for rebuild on watch gaps
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
+
+		// Record event_watch_connection_error_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"event_watch_connection_error_count",
+				1,
+				"count",
+				"Count of connection errors when watching Kubernetes resources",
+				map[string]string{"type": "node"},
+			)
+		}
+
 		rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 
 		// Send NodeInventory after rebuilding from watch gap
@@ -343,10 +404,35 @@ func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.Cancel
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
+
+			// Record kb_event_watch_count metric for pod events (node resource usage)
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"kb_event_watch_count",
+					1,
+					"count",
+					"Number of Kubernetes events received from informer watches",
+					map[string]string{"type": "pod"},
+				)
+			}
+
 			rl.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			pod := newObj.(*corev1.Pod)
+
+			// Record kb_event_watch_count metric for pod events (node resource usage)
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"kb_event_watch_count",
+					1,
+					"count",
+					"Number of Kubernetes events received from informer watches",
+					map[string]string{"type": "pod"},
+				)
+			}
 
 			// Handle two cases:
 			// Case 1: Pod transitioned TO Running state (Pending/Unknown → Running)
@@ -374,6 +460,19 @@ func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.Cancel
 					return
 				}
 			}
+
+			// Record kb_event_watch_count metric for pod events (node resource usage)
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"kb_event_watch_count",
+					1,
+					"count",
+					"Number of Kubernetes events received from informer watches",
+					map[string]string{"type": "pod"},
+				)
+			}
+
 			// Always remove pod from aggregator on delete
 			rl.aggregator.DeletePod(pod)
 		},
@@ -386,6 +485,19 @@ func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.Cancel
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
+
+		// Record event_watch_connection_error_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"event_watch_connection_error_count",
+				1,
+				"count",
+				"Count of connection errors when watching Kubernetes resources",
+				map[string]string{"type": "pod"},
+			)
+		}
+
 		rl.rebuildPodsFromStore(podInformer)
 	})
 

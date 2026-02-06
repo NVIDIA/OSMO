@@ -32,6 +32,7 @@ import (
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // Listener interface defines the common contract for all listener types
@@ -46,6 +47,16 @@ func main() {
 		"Starting Operator Listeners: backend=%s, namespace=%s",
 		cmdArgs.Backend, cmdArgs.Namespace,
 	)
+
+	// Initialize OpenTelemetry metrics from parsed arguments
+	if cmdArgs.Metrics.Enabled {
+		if err := metrics.InitMetricCreator(cmdArgs.Metrics); err != nil {
+			log.Printf("Failed to initialize metrics: %v", err)
+			// Continue without metrics - don't fail startup
+		} else {
+			log.Printf("OpenTelemetry metrics initialized: endpoint=%s", cmdArgs.Metrics.OTLPEndpoint)
+		}
+	}
 
 	// Set up context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -74,6 +85,17 @@ func main() {
 
 	// Wait for all listeners to complete
 	wg.Wait()
+
+	// Shutdown metrics to flush pending metrics
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := metricCreator.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Error shutting down metrics: %v", err)
+		} else {
+			log.Println("Metrics shut down successfully")
+		}
+		shutdownCancel()
+	}
 
 	log.Println("Operator Listeners stopped gracefully")
 }
