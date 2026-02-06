@@ -52,11 +52,17 @@ interface WorkflowsPreferencesState {
    * Default: false (my workflows only)
    */
   showAllUsers: boolean;
+  /**
+   * Resubmit panel width percentage (0-80%).
+   * Default: 50% (balanced view)
+   */
+  resubmitPanelWidth: number;
 }
 
 interface WorkflowsPreferencesActions {
   setShowAllUsers: (show: boolean) => void;
   toggleShowAllUsers: () => void;
+  setResubmitPanelWidth: (width: number) => void;
 }
 
 type WorkflowsPreferencesStore = WorkflowsPreferencesState & WorkflowsPreferencesActions;
@@ -70,10 +76,12 @@ export const useWorkflowsPreferencesStore = create<WorkflowsPreferencesStore>()(
     (set) => ({
       // State
       showAllUsers: false, // Default: show only my workflows
+      resubmitPanelWidth: 50, // Default: 50% width
 
       // Actions
       setShowAllUsers: (show) => set({ showAllUsers: show }),
       toggleShowAllUsers: () => set((state) => ({ showAllUsers: !state.showAllUsers })),
+      setResubmitPanelWidth: (width) => set({ resubmitPanelWidth: width }),
     }),
     {
       name: "workflows-preferences",
