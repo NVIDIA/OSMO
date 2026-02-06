@@ -193,7 +193,7 @@ def patch_configs(
 
 def backend_action_request_helper(payload: Dict[str, Any], name: str):
 
-    """ Helper function that implements support for exec and portforward. """
+    """ Helper function that implements support for node condition actions. """
     redis_client = connectors.RedisConnector.get_instance().client
 
     action_attributes: Dict[str, Any] = {**payload}
