@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
@@ -80,6 +80,7 @@ interface TasksFiltersProps extends TasksFiltersDataProps {
   fields?: Fields[];
   saveButtonText?: string;
   saveButtonIcon?: string;
+  children?: ReactNode;
 }
 
 export type Fields = "user" | "date" | "status" | "pool" | "node" | "priority" | "workflow";
@@ -134,6 +135,7 @@ export const TasksFilters = ({
   fields = ["user", "date", "status", "pool", "node", "priority", "node", "workflow"],
   nodes,
   isSelectAllNodesChecked,
+  children,
 }: TasksFiltersProps) => {
   const [localDateRange, setLocalDateRange] = useState(dateRange);
   const [localStartedAfter, setLocalStartedAfter] = useState<string | undefined>(undefined);
@@ -276,6 +278,7 @@ export const TasksFilters = ({
   return (
     <form onSubmit={handleSubmit}>
       <div className="p-global flex flex-col gap-global">
+        {children}
         {fields.includes("user") && (
           <UserFilter
             userType={localUserType}

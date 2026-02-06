@@ -1,3 +1,18 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+//
+//http://www.apache.org/licenses/LICENSE-2.0
+//
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+//
+//SPDX-License-Identifier: Apache-2.0
 import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
@@ -124,28 +139,6 @@ export const WorkflowsWidget = ({
         aria-labelledby="edit-header"
         size="md"
       >
-        <TextInput
-          id="widget-name"
-          label="Name"
-          className="w-full"
-          required
-          containerClassName="w-full p-global"
-          value={widgetName}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetName(event.target.value);
-          }}
-          errorText={widgetName === "" ? "Name is required" : undefined}
-        />
-        <TextInput
-          id="widget-description"
-          label="Description"
-          className="w-full"
-          containerClassName="w-full p-global"
-          value={widgetDescription}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetDescription(event.target.value);
-          }}
-        />
         <WorkflowsFilters
           fields={["user", "date", "status", "pool", "priority"]}
           name={""}
@@ -175,7 +168,30 @@ export const WorkflowsWidget = ({
           onDelete={onDelete}
           saveButtonText="Save"
           saveButtonIcon="save"
-        />
+        >
+          <TextInput
+            id="widget-name"
+            label="Name"
+            className="w-full"
+            required
+            containerClassName="w-full"
+            value={widgetName}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setWidgetName(event.target.value);
+            }}
+            errorText={widgetName === "" ? "Name is required" : undefined}
+          />
+          <TextInput
+            id="widget-description"
+            label="Description"
+            className="w-full"
+            containerClassName="w-full"
+            value={widgetDescription}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setWidgetDescription(event.target.value);
+            }}
+          />
+        </WorkflowsFilters>
       </FullPageModal>
     </>
   );

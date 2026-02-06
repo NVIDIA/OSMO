@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { customDateRange, DateRangePicker } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
@@ -48,6 +48,7 @@ interface WorkflowsFiltersProps extends WorkflowsFiltersDataProps {
   saveButtonText?: string;
   saveButtonIcon?: string;
   fields?: Fields[];
+  children?: ReactNode;
 }
 
 export const validateFilters = ({
@@ -93,6 +94,7 @@ export const WorkflowsFilters = ({
   saveButtonText = "Refresh",
   saveButtonIcon = "refresh",
   fields = ["user", "name", "date", "status", "pool", "priority"],
+  children,
 }: WorkflowsFiltersProps) => {
   const [localName, setLocalName] = useState<string>(name);
   const [localDateRange, setLocalDateRange] = useState(dateRange);
@@ -192,6 +194,7 @@ export const WorkflowsFilters = ({
   return (
     <form onSubmit={handleSubmit}>
       <div className="p-global flex flex-col gap-global">
+        {children}
         {fields.includes("user") && (
           <UserFilter
             userType={localUserType}

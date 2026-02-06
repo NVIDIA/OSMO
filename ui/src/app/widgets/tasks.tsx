@@ -169,28 +169,6 @@ export const TasksWidget = ({
         aria-labelledby="edit-header"
         size="md"
       >
-        <TextInput
-          id="widget-name"
-          label="Name"
-          className="w-full"
-          required
-          containerClassName="w-full p-global"
-          value={widgetName}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetName(event.target.value);
-          }}
-          errorText={widgetName === "" ? "Name is required" : undefined}
-        />
-        <TextInput
-          id="widget-description"
-          label="Description"
-          className="w-full"
-          containerClassName="w-full p-global"
-          value={widgetDescription}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setWidgetDescription(event.target.value);
-          }}
-        />
         <TasksFilters
           fields={["user", "date", "status", "pool", "priority", "workflow"]}
           userType={widget.filters.userType}
@@ -222,7 +200,30 @@ export const TasksWidget = ({
           onDelete={onDelete}
           saveButtonText="Save"
           saveButtonIcon="save"
-        />
+        >
+          <TextInput
+            id="widget-name"
+            label="Name"
+            className="w-full"
+            required
+            containerClassName="w-full"
+            value={widgetName}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setWidgetName(event.target.value);
+            }}
+            errorText={widgetName === "" ? "Name is required" : undefined}
+          />
+          <TextInput
+            id="widget-description"
+            label="Description"
+            className="w-full"
+            containerClassName="w-full"
+            value={widgetDescription}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setWidgetDescription(event.target.value);
+            }}
+          />
+        </TasksFilters>
       </FullPageModal>
 
     </>
