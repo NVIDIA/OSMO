@@ -42,7 +42,7 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 
 
-def _update_workflow_config(
+def update_workflow_config(
     container_registry: str,
     container_registry_username: str,
     container_registry_password: str,
@@ -127,7 +127,7 @@ def _update_workflow_config(
         raise RuntimeError(f'Unexpected error updating workflow config: {e}') from e
 
 
-def _update_pod_template_config(detected_platform: str, mode: str) -> None:
+def update_pod_template_config(detected_platform: str, mode: str) -> None:
     """Update pod template configuration for platform-specific settings."""
     logger.info('🏷️  Updating pod template configuration...')
 
@@ -245,7 +245,7 @@ def _update_pod_template_config(detected_platform: str, mode: str) -> None:
         raise RuntimeError(f'Unexpected error updating pod template configuration: {e}') from e
 
 
-def _update_dataset_config(dataset_path: str) -> None:
+def update_dataset_config(dataset_path: str) -> None:
     """Update dataset configuration."""
     logger.info('📁 Updating dataset configuration...')
 
@@ -286,7 +286,7 @@ def _update_dataset_config(dataset_path: str) -> None:
         raise RuntimeError(f'Unexpected error updating dataset configuration: {e}') from e
 
 
-def _update_service_config(mode: str) -> None:
+def update_service_config(mode: str) -> None:
     """Update service configuration."""
     logger.info('🔧 Updating service configuration...')
 
@@ -330,7 +330,7 @@ def _update_service_config(mode: str) -> None:
         raise RuntimeError(f'Unexpected error updating service configuration: {e}') from e
 
 
-def _update_backend_config(mode: str) -> None:
+def update_backend_config(mode: str) -> None:
     """Update backend configuration."""
     logger.info('🔧 Updating backend configuration...')
 
@@ -372,7 +372,7 @@ def _update_backend_config(mode: str) -> None:
         raise RuntimeError(f'Unexpected error updating backend configuration: {e}') from e
 
 
-def _set_default_pool() -> None:
+def set_default_pool() -> None:
     """Set the default pool for the user profile."""
     logger.info('🎯 Setting default pool...')
 
@@ -459,7 +459,7 @@ def main():
         login_osmo(args.mode)
 
         try:
-            _update_workflow_config(
+            update_workflow_config(
                 args.container_registry,
                 args.container_registry_username,
                 args.container_registry_password,
@@ -470,13 +470,13 @@ def main():
                 args.image_location,
                 args.image_tag)
 
-            _update_pod_template_config(detected_platform, args.mode)
+            update_pod_template_config(detected_platform, args.mode)
             dataset_path = args.dataset_path \
                 if args.dataset_path else posixpath.join(args.object_storage_endpoint, 'datasets')
-            _update_dataset_config(dataset_path)
-            _update_service_config(args.mode)
-            _update_backend_config(args.mode)
-            _set_default_pool()
+            update_dataset_config(dataset_path)
+            update_service_config(args.mode)
+            update_backend_config(args.mode)
+            set_default_pool()
 
             logout_osmo()
 

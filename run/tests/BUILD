@@ -29,3 +29,11 @@ osmo_py_test(
     size = "medium",
     visibility = ["//visibility:public"],
 )
+
+osmo_py_test(
+    name = "test_start",
+    srcs = ["test_start.py"],
+    deps = [
+        "//run:start",
+    ],
+)

@@ -210,6 +210,19 @@ class SubmitWorkflow(WorkflowJob):
         postgres = context.postgres
 
         # Create workflow and groups in database
+        # Verify and parse workflow spec to ensure groups are populated
+        if not self.spec.pool:
+            raise osmo_errors.OSMOUserError('No Pool Specified')
+            
+        pool_info = connectors.Pool.fetch_from_db(postgres, self.spec.pool)
+        backend_name = self.spec.backend or pool_info.backend
+        self.spec = self.spec.parse(
+            postgres,
+            backend_name,
+            self.spec.pool,
+            self.group_and_task_uuids
+        )
+
         remaining_upstream_groups: Dict = collections.defaultdict(set)
         downstream_groups: Dict = collections.defaultdict(set)
         workflow_obj = workflow.Workflow.from_workflow_spec(context.postgres, self.workflow_id,
