@@ -457,10 +457,6 @@ export function SidePanel({
           // from propagating through the tree and causing jitter
           isDragging ? "contain-strict" : "contain-layout-style",
         )}
-        style={{
-          // Reserve scrollbar space to prevent layout shift when scrollbar appears/disappears
-          scrollbarGutter: "stable",
-        }}
       >
         {/* Collapsed content */}
         {/* Use inert to fully disable keyboard navigation and close tooltips when expanded */}

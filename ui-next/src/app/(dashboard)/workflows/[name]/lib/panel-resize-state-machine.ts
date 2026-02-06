@@ -200,7 +200,7 @@ export class PanelResizeStateMachine {
   private pendingRafIds: number[] = [];
 
   // Options
-  private readonly minPct: number;
+  private minPct: number;
   private readonly maxPct: number;
   private readonly onPersist: (pct: number) => void;
   private readonly onPersistCollapsed: (collapsed: boolean) => void;
@@ -541,6 +541,10 @@ export class PanelResizeStateMachine {
   /**
    * Update the strip snap target percentage based on actual measurements.
    * Call this after the container is rendered and measured.
+   *
+   * Also updates minPct so that `clamp()` enforces the pixel-accurate minimum
+   * during drag. Without this, the user can drag the panel narrower than the
+   * activity strip because minPct was initialized with a stale default (2%).
    */
   updateStripSnapTarget(_stripWidthPx: number, containerWidthPx: number): void {
     if (this.disposed) return;
@@ -549,6 +553,11 @@ export class PanelResizeStateMachine {
     const newTarget = calculateStripSnapTargetPct(containerWidthPx);
     if (Math.abs(this.stripSnapTargetPct - newTarget) > 0.01) {
       this.stripSnapTargetPct = newTarget;
+
+      // Keep minPct in sync so clamp() enforces the pixel-accurate minimum
+      // during drag. This prevents the panel from being dragged narrower than
+      // ACTIVITY_STRIP_WIDTH_PX (the hard stop).
+      this.minPct = newTarget;
 
       // If currently collapsed, update widthPct to match new target
       if (this.isCollapsed() && this.state.phase === "IDLE") {

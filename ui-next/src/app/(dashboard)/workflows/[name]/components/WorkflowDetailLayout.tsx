@@ -46,7 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
 import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
-import { PANEL_TIMING } from "../lib/panel-constants";
+import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "../lib/panel-constants";
 
 import "../styles/layout.css";
 
@@ -67,7 +67,7 @@ export function WorkflowDetailLayout({
   mainAriaLabel,
 }: WorkflowDetailLayoutProps) {
   // Get state machine state and actions
-  const { phase, widthPct, onTransitionComplete } = usePanelResize();
+  const { phase, widthPct, isCollapsed, onTransitionComplete } = usePanelResize();
 
   // Subscribe to specific state slices for rendering decisions
   const dagVisible = useDisplayDagVisible();
@@ -86,16 +86,27 @@ export function WorkflowDetailLayout({
 
   // Compute CSS variables from state (React-controlled DOM)
   const gridStyle = useMemo((): CSSProperties => {
-    // ✨ SIMPLIFIED: Single calculation for all states - always use percentages
-    // - DAG hidden: widthPct = 100, so "0% 100%"
-    // - Collapsed: widthPct = stripSnapTargetPct (~2-3%), so "~97% ~3%"
-    // - Expanded: widthPct = 20-100%, so calculated split
-    // No mixed units (no `1fr 40px`) = simpler logic, browser can interpolate smoothly
-    const dagWidthPct = dagVisible ? 100 - widthPct : 0;
-    const panelWidthPct = dagVisible ? widthPct : 100;
+    // When the panel is collapsed AND not mid-transition, anchor the activity
+    // strip to a fixed pixel width so it stays stable during viewport resize.
+    // During SNAPPING/DRAGGING we keep percentages so CSS can interpolate.
+    const useFixedStrip = isCollapsed && dagVisible && phase !== "SNAPPING" && phase !== "DRAGGING";
+
+    let gridTemplateColumns: string;
+    if (!dagVisible) {
+      // DAG hidden: panel takes full width
+      gridTemplateColumns = "0% 100%";
+    } else if (useFixedStrip) {
+      // Collapsed to activity strip: fixed pixels prevent shift on resize
+      gridTemplateColumns = `1fr ${ACTIVITY_STRIP_WIDTH_PX}px`;
+    } else {
+      // Expanded or mid-transition: percentage-based for smooth resizing
+      const dagWidthPct = 100 - widthPct;
+      const panelWidthPct = widthPct;
+      gridTemplateColumns = `${dagWidthPct}% ${panelWidthPct}%`;
+    }
 
     return {
-      gridTemplateColumns: `${dagWidthPct}% ${panelWidthPct}%`,
+      gridTemplateColumns,
       // Disable transitions during drag for 60fps performance
       transition: phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`,
       // Performance hint: prepare for grid transition during snap animation
@@ -105,7 +116,7 @@ export function WorkflowDetailLayout({
       // translate3d(0,0,0) promotes to compositor layer for smoother resizing
       transform: phase === "DRAGGING" ? "translate3d(0, 0, 0)" : undefined,
     };
-  }, [dagVisible, widthPct, phase]);
+  }, [dagVisible, widthPct, phase, isCollapsed]);
 
   // Handle CSS transition end - signal to state machine
   const handleTransitionEnd = useCallback(
