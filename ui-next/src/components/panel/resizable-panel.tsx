@@ -17,15 +17,13 @@
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
-import { useBoolean } from "usehooks-ts";
-import { useDrag } from "@use-gesture/react";
-import { useHotkeys } from "react-hotkeys-hook";
 import { ChevronLeft } from "lucide-react";
-import { cn, isInteractiveTarget } from "@/lib/utils";
-import { useIsomorphicLayoutEffect } from "@react-hookz/web";
+import { cn } from "@/lib/utils";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
+import { useResizeDrag } from "./hooks/useResizeDrag";
+import { usePanelEscape } from "./hooks/usePanelEscape";
 
 // =============================================================================
 // Types
@@ -150,113 +148,62 @@ export function ResizablePanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Drag state for resize handle
-  const { value: isDragging, setTrue: startDragging, setFalse: stopDragging } = useBoolean(false);
-  // Store the width at drag start to calculate absolute new width from movement
-  const startWidthRef = useRef(width);
-  // Cache container width at drag start to avoid layout reflows during drag
-  const containerWidthRef = useRef(0);
-
-  // Refs that MUST be updated synchronously during render (not in effects!)
-  // This is critical because useDrag's bounds() function can be called
-  // during the same frame before any effects run, causing stale values.
-  // We use refs synced via useLayoutEffect because useDrag memoizes its handler.
-  const widthRef = useRef(width);
-  const minWidthRef = useRef(minWidth);
-  const maxWidthRef = useRef(maxWidth);
-
-  // Sync refs in useIsomorphicLayoutEffect - runs synchronously after render, before paint
-  // SSR-safe: falls back to useEffect on server to avoid hydration warnings
-  useIsomorphicLayoutEffect(() => {
-    widthRef.current = width;
-    minWidthRef.current = minWidth;
-    maxWidthRef.current = maxWidth;
-  }, [width, minWidth, maxWidth]);
-
-  // Keep startWidthRef in sync when not dragging (for reference only)
-  useIsomorphicLayoutEffect(() => {
-    if (!isDragging) {
-      startWidthRef.current = width;
-    }
-  }, [isDragging, width]);
-
   // Stable callbacks to prevent stale closures in effects and event handlers
   const stableOnClose = useEventCallback(onClose);
-  const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? onClose);
 
-  // Global escape key handler using react-hotkeys-hook
-  // Automatically handles: enabled state, form element detection
-  useHotkeys(
-    "escape",
-    (e) => {
-      // Skip if target is in a dropdown or interactive element
-      if (isInteractiveTarget(e.target)) return;
-      stableOnEscapeKey();
-    },
-    {
-      enabled: open,
-      enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
-    },
-    [stableOnEscapeKey],
-  );
+  // Shared resize drag machinery
+  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
+    width,
+    onWidthChange,
+    minWidth,
+    maxWidth,
+    minWidthPx,
+    containerRef,
+  });
 
-  // Resize drag handler using @use-gesture/react
-  //
-  // CRITICAL DESIGN DECISIONS:
-  // 1. NO bounds option - @use-gesture's bounds can cause unexpected behavior
-  //    when movement values are constrained before our handler sees them
-  // 2. Clamping happens in handler - we control the math, no library magic
-  // 3. Skip redundant updates - don't call onWidthChange if value hasn't changed
-  // 4. All refs synced synchronously during render phase (above)
-  //
-  const bindResizeHandle = useDrag(
-    ({ active, first, last, movement: [mx] }) => {
-      if (first) {
-        startDragging();
-        // Capture current width at drag start - use ref which is synced during render
-        startWidthRef.current = widthRef.current;
-        // Cache container width to avoid layout reflows during drag
-        containerWidthRef.current = containerRef.current?.offsetWidth ?? window.innerWidth;
-      }
+  // Shared ESC key handling with focus scoping
+  usePanelEscape({
+    panelRef,
+    onEscape: stableOnEscapeKey,
+    enabled: open,
+  });
 
-      if (active) {
-        const containerWidth = containerWidthRef.current;
-        if (containerWidth === 0) return; // Safety check
-
-        // Calculate new width from movement
-        // Movement is negative when dragging left (making panel wider)
-        const deltaPct = (-mx / containerWidth) * 100;
-        const rawWidth = startWidthRef.current + deltaPct;
-        const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
-
-        // Only update if there's an actual change (avoids redundant updates on click)
-        // Use threshold to handle floating point precision
-        if (Math.abs(clampedWidth - widthRef.current) > 0.01) {
-          stableOnWidthChange(clampedWidth);
-        }
-      }
-
-      if (last) {
-        stopDragging();
-      }
-    },
-    {
-      pointer: { touch: true },
-      // NO bounds - we handle clamping ourselves for predictable behavior
-    },
-  );
-
-  // Prevent text selection during drag
+  // Focus management: move focus into panel when it opens
+  // Uses transitionend for precise timing, with a fallback timeout for reduced-motion scenarios
   useEffect(() => {
-    if (isDragging) {
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "ew-resize";
-    } else {
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-    }
-  }, [isDragging]);
+    if (!open || !panelRef.current) return;
+
+    const panel = panelRef.current;
+    let focused = false;
+
+    const doFocus = () => {
+      if (focused) return;
+      focused = true;
+      if (!panel || panel.contains(document.activeElement)) return;
+
+      // Find first focusable element
+      const focusableSelector =
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
+      const firstFocusable = panel.querySelector<HTMLElement>(focusableSelector);
+      firstFocusable?.focus();
+    };
+
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      // Only respond to the panel's own transform transition (the slide-in)
+      if (e.target !== panel || e.propertyName !== "transform") return;
+      doFocus();
+    };
+
+    panel.addEventListener("transitionend", handleTransitionEnd);
+    // Fallback: if transition doesn't fire within 250ms (e.g., prefers-reduced-motion), focus anyway
+    const fallbackId = setTimeout(doFocus, 250);
+
+    return () => {
+      panel.removeEventListener("transitionend", handleTransitionEnd);
+      clearTimeout(fallbackId);
+    };
+  }, [open]);
 
   // Calculate effective panel width based on collapsed state
   const effectiveCollapsed = collapsible && isCollapsed;
@@ -322,8 +269,7 @@ export function ResizablePanel({
         style={{
           width: panelWidth,
           // Performance: CSS containment already applied via .contain-layout-style class
-          // GPU optimization: hint browser about upcoming width changes during drag
-          willChange: isDragging ? "width" : "auto",
+          ...dragStyles,
           ...(effectiveCollapsed
             ? {}
             : {

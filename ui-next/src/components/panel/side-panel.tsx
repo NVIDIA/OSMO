@@ -17,16 +17,15 @@
 "use client";
 
 import { useRef, useMemo, useEffect, useCallback, type RefObject } from "react";
-import { flushSync } from "react-dom";
-import { useBoolean } from "usehooks-ts";
-import { useDrag } from "@use-gesture/react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { ChevronLeft } from "lucide-react";
 import { cn, isInteractiveTarget } from "@/lib/utils";
-import { useIsomorphicLayoutEffect, usePrevious } from "@react-hookz/web";
+import { usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
+import { useResizeDrag } from "./hooks/useResizeDrag";
+import { usePanelEscape } from "./hooks/usePanelEscape";
 
 export interface SidePanelProps {
   width: number;
@@ -92,62 +91,32 @@ export function SidePanel({
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Drag state for resize handle
-  const { value: isDragging, setTrue: startDragging, setFalse: stopDragging } = useBoolean(false);
-  // Store the width at drag start to calculate absolute new width from movement
-  const startWidthRef = useRef(width);
-  // Cache container width at drag start to avoid layout reflows during drag
-  const containerWidthRef = useRef(0);
-
-  // RAF batching refs for drag updates
-  const pendingRafRef = useRef<number | null>(null);
-  const pendingWidthRef = useRef<number | null>(null);
-
-  // Refs that MUST be updated synchronously during render (not in effects!)
-  const widthRef = useRef(width);
-  const minWidthRef = useRef(minWidth);
-  const maxWidthRef = useRef(maxWidth);
-  const minWidthPxRef = useRef(minWidthPx);
-
-  // Sync refs in useIsomorphicLayoutEffect
-  useIsomorphicLayoutEffect(() => {
-    widthRef.current = width;
-    minWidthRef.current = minWidth;
-    maxWidthRef.current = maxWidth;
-    minWidthPxRef.current = minWidthPx;
-  }, [width, minWidth, maxWidth, minWidthPx]);
-
-  // Keep startWidthRef in sync when not dragging
-  useIsomorphicLayoutEffect(() => {
-    if (!isDragging) {
-      startWidthRef.current = width;
-    }
-  }, [isDragging, width]);
-
-  // Stable callbacks - useEventCallback ensures stable reference with latest closure values
-  const stableOnWidthChange = useEventCallback(onWidthChange);
+  // Stable callbacks
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
-  const stableOnDragStart = useEventCallback((pct?: number) => onDragStart?.(pct));
-  const stableOnDragEnd = useEventCallback(() => onDragEnd?.());
-
-  // Global escape key handler using react-hotkeys-hook
-  // Automatically handles: enabled state, form element detection
-  useHotkeys(
-    "escape",
-    (e) => {
-      // Skip if target is in a dropdown or interactive element
-      if (isInteractiveTarget(e.target)) return;
-      stableOnEscapeKey();
-    },
-    {
-      enabled: !!onEscapeKey && !isCollapsed,
-      enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
-    },
-    [stableOnEscapeKey],
-  );
-
-  // Stable callback for toggle
   const stableOnToggleCollapsed = useEventCallback(onToggleCollapsed ?? (() => {}));
+
+  // Shared resize drag machinery (with RAF batching for grid coordination)
+  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
+    width,
+    onWidthChange,
+    minWidth,
+    maxWidth,
+    minWidthPx,
+    containerRef: externalContainerRef,
+    batchWithRAF: true, // SidePanel uses RAF batching for smooth grid updates
+    onDragStart,
+    onDragEnd,
+    onDraggingChange,
+  });
+
+  // Shared ESC key handling with focus scoping (only fires when panel has focus)
+  usePanelEscape({
+    panelRef,
+    onEscape: stableOnEscapeKey,
+    enabled: !!onEscapeKey && !isCollapsed,
+    // Note: Focus-scoped by default - ESC only triggers when focus is within the panel.
+    // This is correct UX: ESC should affect the focused element, not act globally.
+  });
 
   // Global toggle hotkey handler using react-hotkeys-hook
   // Allows quick expand/collapse via keyboard shortcut (e.g., Cmd+] or Ctrl+])
@@ -165,112 +134,6 @@ export function SidePanel({
     },
     [stableOnToggleCollapsed],
   );
-
-  // Resize drag handler
-  const bindResizeHandle = useDrag(
-    ({ active, first, last, movement: [mx] }) => {
-      if (first) {
-        // Capture initial width for delta calculation
-        startWidthRef.current = widthRef.current;
-
-        // Get container width from parent element BEFORE any state updates
-        const container = externalContainerRef?.current ?? panelRef.current?.parentElement;
-        containerWidthRef.current = container?.offsetWidth ?? window.innerWidth;
-
-        // Force synchronous re-render to apply transition-none BEFORE width changes
-        // This prevents the CSS transition from briefly animating the width change
-        flushSync(() => {
-          startDragging();
-          stableOnDragStart(widthRef.current);
-        });
-      }
-
-      if (active) {
-        const containerWidth = containerWidthRef.current;
-        if (containerWidth === 0) return;
-
-        // Movement is negative when dragging left (making panel wider)
-        const deltaPct = (-mx / containerWidth) * 100;
-
-        const rawWidth = startWidthRef.current + deltaPct;
-
-        // Calculate effective minimum: max of percentage-based min and pixel-based min
-        let effectiveMin = minWidthRef.current;
-        if (minWidthPxRef.current && containerWidth > 0) {
-          const minPctFromPx = (minWidthPxRef.current / containerWidth) * 100;
-          effectiveMin = Math.max(effectiveMin, minPctFromPx);
-        }
-
-        const clampedWidth = Math.min(maxWidthRef.current, Math.max(effectiveMin, rawWidth));
-
-        // Calculate pixel width and round to whole pixels for stability
-        const pixelWidth = Math.round((clampedWidth / 100) * containerWidth);
-        // Convert back to percentage based on rounded pixel value
-        const roundedWidth = (pixelWidth / containerWidth) * 100;
-
-        if (Math.abs(roundedWidth - widthRef.current) > 0.01) {
-          // Batch width updates to animation frame for 60fps performance
-          pendingWidthRef.current = roundedWidth;
-
-          if (pendingRafRef.current === null) {
-            pendingRafRef.current = requestAnimationFrame(() => {
-              pendingRafRef.current = null;
-              const width = pendingWidthRef.current;
-              pendingWidthRef.current = null;
-
-              if (width !== null) {
-                stableOnWidthChange(width);
-              }
-            });
-          }
-        }
-      }
-
-      if (last) {
-        stopDragging();
-        stableOnDragEnd(); // Notify snap zone system
-      }
-    },
-    {
-      pointer: { touch: true },
-    },
-  );
-
-  // Prevent text selection during drag
-  useEffect(() => {
-    if (isDragging) {
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "ew-resize";
-    } else {
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-    }
-  }, [isDragging]);
-
-  // Cleanup pending RAF on unmount or when drag ends
-  useEffect(() => {
-    return () => {
-      if (pendingRafRef.current !== null) {
-        cancelAnimationFrame(pendingRafRef.current);
-        pendingRafRef.current = null;
-        pendingWidthRef.current = null;
-      }
-    };
-  }, []);
-
-  // Cancel pending RAF when drag ends
-  useEffect(() => {
-    if (!isDragging && pendingRafRef.current !== null) {
-      cancelAnimationFrame(pendingRafRef.current);
-      pendingRafRef.current = null;
-      pendingWidthRef.current = null;
-    }
-  }, [isDragging]);
-
-  // Notify parent of drag state changes (for coordinating with viewport centering)
-  useEffect(() => {
-    onDraggingChange?.(isDragging);
-  }, [isDragging, onDraggingChange]);
 
   // Refs for focus management
   const panelContentRef = useRef<HTMLDivElement>(null);
@@ -401,6 +264,8 @@ export function SidePanel({
         // In fillContainer mode, skip ALL width constraints (grid controls sizing completely).
         maxWidth: isCollapsed || fillContainer ? undefined : `${maxWidth}%`,
         minWidth: isCollapsed || fillContainer ? undefined : `${minWidthPx}px`,
+        // Drag performance hints
+        ...dragStyles,
         // Force GPU layer during drag (translate3d creates composite layer)
         // Combined with backface-visibility: hidden, this ensures smooth compositor-based resize
         transform: isDragging ? "translate3d(0, 0, 0)" : undefined,
