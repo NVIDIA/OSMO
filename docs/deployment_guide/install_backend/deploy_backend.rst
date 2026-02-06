@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -31,20 +31,40 @@ Deploying the backend operator will register your compute backend with OSMO, mak
 
 .. _create_osmo_token:
 
-Step 1: Create OSMO Service Token
------------------------------------------
+Step 1: Create Service Account for Backend Operator
+----------------------------------------------------
 
-Create a service access token using OSMO CLI for backend operator authentication:
+Create a service account and access token using OSMO CLI for backend operator authentication.
+
+First, log in to OSMO:
 
 .. code-block:: bash
 
    $ osmo login https://osmo.example.com
 
-   $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
+Create a service account user for the backend operator:
+
+.. code-block:: bash
+
+   $ osmo user create backend-operator@service.local --roles osmo-backend
+
+Create a Personal Access Token for the service account:
+
+.. code-block:: bash
+
+   $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
+       --user backend-operator@service.local \
+       --expires-at <insert-date> \
+       --description "Backend Operator Token" \
+       -t json | jq -r '.token')
 
 .. note::
 
   Replace ``<insert-date>`` with an expiration date in UTC format (YYYY-MM-DD). Save the token securely as it will not be shown again.
+
+.. seealso::
+
+  See :ref:`service_accounts` for more details on creating and managing service accounts.
 
 
 Step 2: Create K8s Namespaces and Secrets
@@ -179,4 +199,16 @@ Token Expiration Error
 
   Connection failed with error: {OSMOUserError: Token is expired, but no refresh token is present}
 
-Check the ``osmo token list --service`` command to see if the token is expired. Follow :ref:`create_osmo_token` to create a new token.
+Check if the token is expired by listing the service account's tokens:
+
+.. code-block:: bash
+
+   $ osmo token list --user backend-operator@service.local
+
+If the token is expired, create a new one following :ref:`create_osmo_token`. Remember to update the Kubernetes secret with the new token:
+
+.. code-block:: bash
+
+   $ kubectl delete secret osmo-operator-token -n osmo-operator
+   $ kubectl create secret generic osmo-operator-token -n osmo-operator \
+       --from-literal=token=$OSMO_SERVICE_TOKEN

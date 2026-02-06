@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -582,14 +582,23 @@ Step 8: Install Backend Operator
       $ osmo login https://<your-domain> --method=dev --username=testuser
 
 
-3. Create the account token secret:
+3. Create the service account and token:
 
-   Generate a token for the backend operator with OSMO CLI:
+   Create a service account user and generate a token for the backend operator with OSMO CLI:
 
    .. code-block:: bash
 
-      $ export BACKEND_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
+      # Create the service account user
+      $ osmo user create backend-operator@service.local --roles osmo-backend
 
+      # Generate a token for the service account
+      $ export BACKEND_TOKEN=$(osmo token set backend-token \
+          --user backend-operator@service.local \
+          --expires-at <insert-date> \
+          --description "Backend Operator Token" \
+          -t json | jq -r '.token')
+
+      # Create the Kubernetes secret
       $ kubectl create secret generic osmo-operator-token --from-literal=token=$BACKEND_TOKEN --namespace osmo-operator
 
 

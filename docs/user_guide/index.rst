@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -226,6 +226,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store datasets a
   getting_started/install/index
   getting_started/profile
   getting_started/credentials
+  getting_started/access_tokens
   getting_started/next_steps
 
 .. toctree::
