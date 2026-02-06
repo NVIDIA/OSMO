@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
 import { useAuth } from "~/components/AuthProvider";
@@ -55,7 +56,16 @@ interface DashboardList {
 
 const createWidgetId = () => crypto.randomUUID();
 
-const generateDashboardMeta = (id: string, name: string, userType: UserFilterType, users: string[], allPools: boolean, pools: string[], widgetAllPools: boolean, widgetPools: string[]): Dashboard => {
+const generateDashboardMeta = (
+  id: string,
+  name: string,
+  userType: UserFilterType,
+  users: string[],
+  allPools: boolean,
+  pools: string[],
+  widgetAllPools: boolean,
+  widgetPools: string[],
+): Dashboard => {
   return {
     id,
     name,
@@ -120,6 +130,9 @@ const generateDashboardMeta = (id: string, name: string, userType: UserFilterTyp
 
 export default function Home() {
   const { username } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [showNewDashboard, setShowNewDashboard] = useState(false);
@@ -134,7 +147,10 @@ export default function Home() {
     refetchOnWindowFocus: false,
   });
 
-  const currentDashboard = useMemo(() => dashboards.dashboards.find((widget) => widget.id === currentDashboardID), [dashboards.dashboards, currentDashboardID]);
+  const currentDashboard = useMemo(
+    () => dashboards.dashboards.find((widget) => widget.id === currentDashboardID),
+    [dashboards.dashboards, currentDashboardID],
+  );
 
   const {
     data: resources,
@@ -153,8 +169,36 @@ export default function Home() {
   );
 
   const defaultDashboard = useMemo<Dashboard>(
-    () => generateDashboardMeta("default", "Personal", UserFilterType.CURRENT, [username], false, profile?.profile.pool ? [profile?.profile.pool] : [], true, []),
+    () =>
+      generateDashboardMeta(
+        "default",
+        "Personal",
+        UserFilterType.CURRENT,
+        [username],
+        false,
+        profile?.profile.pool ? [profile?.profile.pool] : [],
+        true,
+        [],
+      ),
     [username, profile?.profile.pool],
+  );
+
+  useEffect(() => {
+    const urlDashboardId = searchParams.get("dashboardId");
+    if (urlDashboardId) {
+      setCurrentDashboardID(urlDashboardId);
+    }
+  }, [searchParams]);
+
+  const handleDashboardChange = useCallback(
+    (id: string) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("dashboardId", id);
+      const nextQuery = params.toString();
+      const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+      router.replace(nextUrl, { scroll: false });
+    },
+    [pathname, router, searchParams],
   );
 
   const persistDashboards = (nextDashboards: DashboardList) => {
@@ -205,15 +249,31 @@ export default function Home() {
     if (storedWidgets !== null) {
       const storedDashboards = JSON.parse(storedWidgets) as DashboardList;
       setDashboards(storedDashboards);
-      setCurrentDashboardID(storedDashboards.defaultDashboardID);
     } else {
       setDashboards({
         dashboards: [defaultDashboard],
         defaultDashboardID: defaultDashboard.id,
       });
-      setCurrentDashboardID(defaultDashboard.id);
     }
   }, [defaultDashboard]);
+
+  useEffect(() => {
+    if (dashboards.dashboards.length === 0) {
+      return;
+    }
+
+    const urlDashboardId = searchParams.get("dashboardId");
+    const hasUrlDashboard =
+      !!urlDashboardId && dashboards.dashboards.some((dashboard) => dashboard.id === urlDashboardId);
+    const fallbackDashboardId = dashboards.defaultDashboardID || dashboards.dashboards[0]?.id;
+    const nextDashboardId = hasUrlDashboard ? urlDashboardId : fallbackDashboardId;
+
+    if (!nextDashboardId) {
+      return;
+    }
+
+    handleDashboardChange(nextDashboardId);
+  }, [dashboards.dashboards, dashboards.defaultDashboardID, currentDashboardID, searchParams, handleDashboardChange]);
 
   // Back-fill the default dashboard with the current user's pool if it is not already set.
   useEffect(() => {
@@ -234,24 +294,36 @@ export default function Home() {
     });
   }, [profile?.profile.pool, currentDashboard, updateCurrentDashboard, dashboards.defaultDashboardID]);
 
-  const addDashboard = (name: string, allPools: boolean, pools: string, userType: UserFilterType, selectedUsers: string) => {
-    const newDashboard = generateDashboardMeta(createWidgetId(), name, userType, selectedUsers.split(","), allPools, pools.split(","), allPools, pools.split(","));
+  const addDashboard = (
+    name: string,
+    allPools: boolean,
+    pools: string,
+    userType: UserFilterType,
+    selectedUsers: string,
+  ) => {
+    const newDashboard = generateDashboardMeta(
+      createWidgetId(),
+      name,
+      userType,
+      selectedUsers.split(","),
+      allPools,
+      pools.split(","),
+      allPools,
+      pools.split(","),
+    );
 
     setDashboards((prevDashboards) => {
       const nextDashboards = {
         ...prevDashboards,
-        dashboards: [
-          ...prevDashboards.dashboards,
-          newDashboard,
-        ],
+        dashboards: [...prevDashboards.dashboards, newDashboard],
       };
 
       persistDashboards(nextDashboards);
       return nextDashboards;
     });
 
-    setCurrentDashboardID(newDashboard.id);
-};
+    handleDashboardChange(newDashboard.id);
+  };
 
   const handleEditDashboard = (name: string, isDefault: boolean, allPools: boolean, pools: string) => {
     if (!currentDashboard) {
@@ -295,15 +367,14 @@ export default function Home() {
   return (
     <>
       <PageHeader>
-        <div className="flex flex-row flex-wrap gap-global items-center">
+        <div className="flex flex-row gap-global items-center">
           <Select
             id="dashboard-name"
             aria-label="Select a dashboard"
             value={currentDashboard?.id ?? ""}
             onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
-              setCurrentDashboardID(event.target.value);
-            }
-            }
+              handleDashboardChange(event.target.value);
+            }}
           >
             {dashboards.dashboards.map((dashboard) => (
               <option
@@ -420,51 +491,83 @@ export default function Home() {
         canPin={false}
       >
         <div className="flex flex-col gap-global p-global">
-          <button className="btn btn-action"
+          <button
+            className="btn btn-action"
             onClick={() => {
               setIsEditingMetadata(true);
-            }
-            }
-            role="listitem"><OutlinedIcon name="edit" />Edit Dashboard</button>
-          <button className="btn btn-action" role="listitem" onClick={() => {
-            updateCurrentDashboard((prevWidgets) => ({
-              ...prevWidgets,
-              workflows: [...prevWidgets.workflows, {
-                id: createWidgetId(),
-                name: "",
-                filters: {
-                  userType: UserFilterType.CURRENT,
-                  selectedUsers: "",
-                  dateRange: -2,
-                  selectedPools: "",
-                  isSelectAllPoolsChecked: false,
-                  statusFilterType: StatusFilterType.ALL,
-                  name: "",
-                },
-              }],
-            }));
-          }}><OutlinedIcon name="work_outline" />Add Workflow Widget</button>
-          <button className="btn btn-action" role="listitem" onClick={() => {
-            updateCurrentDashboard((prevWidgets) => ({
-              ...prevWidgets,
-              tasks: [...prevWidgets.tasks, {
-                id: createWidgetId(),
-                name: "",
-                filters: {
-                  userType: UserFilterType.CURRENT,
-                  selectedUsers: "",
-                  dateRange: -2,
-                  selectedPools: "",
-                  isSelectAllPoolsChecked: false,
-                  statusFilterType: StatusFilterType.ALL,
-                  name: "",
-                },
-              }],
-            }));
-          }}><OutlinedIcon name="task" />Add Task Widget</button>
-          <button className="btn btn-action" onClick={() => setShowNewDashboard(true)} role="listitem"><OutlinedIcon name="dashboard_customize" />New Dashboard</button>
-          <button className="btn btn-action" onClick={
-            () => {
+            }}
+            role="listitem"
+          >
+            <OutlinedIcon name="edit" />
+            Edit Dashboard
+          </button>
+          <button
+            className="btn btn-action"
+            role="listitem"
+            onClick={() => {
+              updateCurrentDashboard((prevWidgets) => ({
+                ...prevWidgets,
+                workflows: [
+                  ...prevWidgets.workflows,
+                  {
+                    id: createWidgetId(),
+                    name: "",
+                    filters: {
+                      userType: UserFilterType.CURRENT,
+                      selectedUsers: "",
+                      dateRange: -2,
+                      selectedPools: "",
+                      isSelectAllPoolsChecked: false,
+                      statusFilterType: StatusFilterType.ALL,
+                      name: "",
+                    },
+                  },
+                ],
+              }));
+            }}
+          >
+            <OutlinedIcon name="work_outline" />
+            Add Workflow Widget
+          </button>
+          <button
+            className="btn btn-action"
+            role="listitem"
+            onClick={() => {
+              updateCurrentDashboard((prevWidgets) => ({
+                ...prevWidgets,
+                tasks: [
+                  ...prevWidgets.tasks,
+                  {
+                    id: createWidgetId(),
+                    name: "",
+                    filters: {
+                      userType: UserFilterType.CURRENT,
+                      selectedUsers: "",
+                      dateRange: -2,
+                      selectedPools: "",
+                      isSelectAllPoolsChecked: false,
+                      statusFilterType: StatusFilterType.ALL,
+                      name: "",
+                    },
+                  },
+                ],
+              }));
+            }}
+          >
+            <OutlinedIcon name="task" />
+            Add Task Widget
+          </button>
+          <button
+            className="btn btn-action"
+            onClick={() => setShowNewDashboard(true)}
+            role="listitem"
+          >
+            <OutlinedIcon name="dashboard_customize" />
+            New Dashboard
+          </button>
+          <button
+            className="btn btn-action"
+            onClick={() => {
               setDashboards((prevDashboards) => {
                 const nextDashboards = {
                   ...prevDashboards,
@@ -473,10 +576,20 @@ export default function Home() {
                 persistDashboards(nextDashboards);
                 return nextDashboards;
               });
-              setCurrentDashboardID(dashboards.defaultDashboardID);
-            }
-          } role="listitem"><OutlinedIcon name="delete" />Delete Dashboard</button>
-          <button className="btn btn-action" role="listitem"><OutlinedIcon name="share" />Share Dashboard</button>
+              handleDashboardChange(dashboards.defaultDashboardID);
+            }}
+            role="listitem"
+          >
+            <OutlinedIcon name="delete" />
+            Delete Dashboard
+          </button>
+          <button
+            className="btn btn-action"
+            role="listitem"
+          >
+            <OutlinedIcon name="share" />
+            Share Dashboard
+          </button>
         </div>
       </SlideOut>
       <EditDashboardMetadata
