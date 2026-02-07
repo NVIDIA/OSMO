@@ -17,41 +17,20 @@
 /**
  * WorkflowDetailLayout - CSS Grid layout with PanelResizeStateMachine integration.
  *
- * Architecture:
- * - React controls ALL DOM state (no direct DOM manipulation)
- * - CSS variables computed from state machine
- * - Transition end events signal back to state machine
- * - Uses delayed unmount pattern for smooth DAG exit animation
- *
- * Phase Integration:
- * - IDLE: Normal state, transitions enabled
- * - DRAGGING: Transitions disabled for 60fps resize
- * - SNAPPING: Transition to snap target, waits for transitionend
- * - SETTLING: Double RAF before returning to IDLE
+ * React controls all DOM state via CSS variables computed from the state machine.
+ * Transition end events signal back to the machine to advance phases:
+ * IDLE -> DRAGGING -> SNAPPING -> SETTLING -> IDLE
  */
 
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
-  startTransition,
-  type ReactNode,
-  type RefObject,
-  type CSSProperties,
-} from "react";
+import { useRef, useMemo, useCallback, type ReactNode, type RefObject, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
 import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
-import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "../lib/panel-constants";
+import { PANEL_TIMING } from "../lib/panel-constants";
 
 import "../styles/layout.css";
-
-export type LayoutMode = "sideBySide" | "panelOnly";
-type DAGState = "visible" | "exiting" | "hidden";
 
 export interface WorkflowDetailLayoutProps {
   dagContent?: ReactNode;
@@ -67,56 +46,29 @@ export function WorkflowDetailLayout({
   mainAriaLabel,
 }: WorkflowDetailLayoutProps) {
   // Get state machine state and actions
-  const { phase, widthPct, isCollapsed, onTransitionComplete } = usePanelResize();
+  const { phase, widthPct, onTransitionComplete } = usePanelResize();
 
   // Subscribe to specific state slices for rendering decisions
   const dagVisible = useDisplayDagVisible();
   const isDragging = useIsDragging();
   const snapZone = useSnapZone();
 
-  // Internal state for delayed unmount pattern
-  // dagRenderState tracks: "visible" | "exiting" | "hidden"
-  // - "visible": DAG is shown, content mounted
-  // - "exiting": DAG hiding, content still mounted for animation
-  // - "hidden": DAG hidden, content unmounted
-  const [dagRenderState, setDagRenderState] = useState<DAGState>(dagVisible ? "visible" : "hidden");
-  const dagRef = useRef<HTMLElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef ?? internalContainerRef;
 
   // Compute CSS variables from state (React-controlled DOM)
+  // Always use percentage-based grid tracks for smooth CSS transitions.
+  // Mixed track types (e.g., "1fr 40px" to "50% 50%") cause browsers to fail interpolation.
   const gridStyle = useMemo((): CSSProperties => {
-    // When the panel is collapsed AND not mid-transition, anchor the activity
-    // strip to a fixed pixel width so it stays stable during viewport resize.
-    // During SNAPPING/DRAGGING we keep percentages so CSS can interpolate.
-    const useFixedStrip = isCollapsed && dagVisible && phase !== "SNAPPING" && phase !== "DRAGGING";
-
-    let gridTemplateColumns: string;
-    if (!dagVisible) {
-      // DAG hidden: panel takes full width
-      gridTemplateColumns = "0% 100%";
-    } else if (useFixedStrip) {
-      // Collapsed to activity strip: fixed pixels prevent shift on resize
-      gridTemplateColumns = `1fr ${ACTIVITY_STRIP_WIDTH_PX}px`;
-    } else {
-      // Expanded or mid-transition: percentage-based for smooth resizing
-      const dagWidthPct = 100 - widthPct;
-      const panelWidthPct = widthPct;
-      gridTemplateColumns = `${dagWidthPct}% ${panelWidthPct}%`;
-    }
+    const gridTemplateColumns = dagVisible ? `${100 - widthPct}% ${widthPct}%` : "0% 100%";
 
     return {
       gridTemplateColumns,
-      // Disable transitions during drag for 60fps performance
       transition: phase === "DRAGGING" ? "none" : `grid-template-columns ${PANEL_TIMING.TRANSITION_TIMING}`,
-      // Performance hint: prepare for grid transition during snap animation
-      // Tells browser to optimize for this property change
       willChange: phase === "SNAPPING" ? "grid-template-columns" : "auto",
-      // Force GPU layer during drag to prevent jitter from CPU layout recalculations
-      // translate3d(0,0,0) promotes to compositor layer for smoother resizing
       transform: phase === "DRAGGING" ? "translate3d(0, 0, 0)" : undefined,
     };
-  }, [dagVisible, widthPct, phase, isCollapsed]);
+  }, [dagVisible, widthPct, phase]);
 
   // Handle CSS transition end - signal to state machine
   const handleTransitionEnd = useCallback(
@@ -133,26 +85,7 @@ export function WorkflowDetailLayout({
     [phase, onTransitionComplete, containerRef],
   );
 
-  // Delayed unmount pattern: keep DAG mounted during exit animation.
-  useEffect(() => {
-    if (dagVisible) {
-      // DAG becoming visible: mount immediately
-      startTransition(() => setDagRenderState("visible"));
-    } else {
-      // DAG hiding: start exit animation, then unmount after delay
-      startTransition(() => setDagRenderState("exiting"));
-      const timer = setTimeout(() => {
-        startTransition(() => setDagRenderState("hidden"));
-      }, PANEL_TIMING.DAG_TRANSITION_MS);
-      return () => clearTimeout(timer);
-    }
-  }, [dagVisible]);
-
   // Derive visual states
-  const layoutMode: LayoutMode = dagVisible ? "sideBySide" : "panelOnly";
-  // Unmount React Flow immediately when hiding to avoid measurement warnings
-  // Container still animates smoothly via grid transition
-  const shouldRenderDag = dagVisible;
   const showSnapIndicators = isDragging && dagVisible;
   const showFullSnapPreview = showSnapIndicators && snapZone === "full";
   const showStripSnapPreview = showSnapIndicators && snapZone === "strip";
@@ -162,35 +95,30 @@ export function WorkflowDetailLayout({
       ref={containerRef}
       className={cn(
         // Grid layout - sizing controlled by React via style prop
-        "workflow-detail-grid grid h-full overflow-y-hidden",
+        // overflow-hidden (not just overflow-y-hidden) prevents horizontal scrollbar
+        // flash during snap animations. Sub-pixel rounding of percentage-based grid
+        // columns can momentarily make the panel column < 40px, causing the 40px-wide
+        // edge strip to overflow. Clipping both axes eliminates the transient scrollbar.
+        "workflow-detail-grid grid h-full overflow-hidden",
         // Containment for performance
         "contain-layout-style",
         // Background
         "bg-gray-50 dark:bg-zinc-950",
       )}
       style={gridStyle}
-      data-layout-mode={layoutMode}
-      data-dag-state={dagRenderState}
       data-phase={phase}
       onTransitionEnd={handleTransitionEnd}
     >
       {/* DAG Column - Grid handles sizing via React-controlled style.
-          ALWAYS in the tree at this position for stable React reconciliation.
-          When hidden: Grid column is 0fr, allowing graceful collapse. */}
+          Always in the tree for stable React reconciliation. */}
       <main
-        ref={dagRef}
-        className={cn(
-          "relative overflow-hidden contain-style",
-          // When DAG hidden, min-w-0 allows grid to shrink column to 0
-          !shouldRenderDag && "min-w-0",
-        )}
+        className={cn("relative overflow-hidden contain-style", !dagVisible && "min-w-0")}
         role="main"
         aria-label={mainAriaLabel ?? "Workflow DAG view"}
         aria-hidden={!dagVisible}
         data-dag-visible={dagVisible}
       >
-        {/* Only render expensive content when needed */}
-        {shouldRenderDag && (
+        {dagVisible && (
           <>
             {dagContent}
             <FullSnapOverlay isActive={showFullSnapPreview} />
@@ -198,9 +126,7 @@ export function WorkflowDetailLayout({
         )}
       </main>
 
-      {/* Panel Column - Grid gives sizing via React-controlled style.
-          ALWAYS at the same tree position for stable React reconciliation.
-          SidePanel manages its own internal width constraints. */}
+      {/* Panel Column - always at same tree position for stable reconciliation */}
       {panel}
 
       <StripSnapIndicator
