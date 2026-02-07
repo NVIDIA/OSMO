@@ -15,22 +15,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * PoolSection - Pool selection with metadata card and availability badge.
- * Fetches pools via usePools() adapter hook.
+ * PoolSection - Pool selection with metadata card and status badge.
+ *
+ * Lazy-loading strategy:
+ * 1. On mount: Show preselected pool (workflow's original pool), fetch its metadata
+ * 2. On dropdown open: Fetch ALL pools with loading indicator
+ * 3. Pools load: Enable search, populate dropdown
  */
 
 "use client";
 
 import { memo, useState, useMemo } from "react";
-import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
-import { usePools } from "@/lib/api/adapter/hooks";
-import type { Pool } from "@/lib/api/adapter/types";
+import { usePool } from "@/lib/api/adapter/hooks";
 import { PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 import { CapacityBar } from "@/components/capacity-bar";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
+import { PoolSelect } from "./PoolSelect";
 import { CollapsibleSection } from "./CollapsibleSection";
 
 export interface PoolSectionProps {
@@ -39,13 +41,6 @@ export interface PoolSectionProps {
   /** Callback when pool selection changes */
   onChange: (pool: string) => void;
 }
-
-/** Maps pool status to badge variant */
-const STATUS_VARIANT: Record<PoolStatus, "default" | "secondary" | "destructive" | "outline"> = {
-  [PoolStatus.ONLINE]: "default",
-  [PoolStatus.MAINTENANCE]: "secondary",
-  [PoolStatus.OFFLINE]: "destructive",
-};
 
 /** Maps pool status to display color */
 const STATUS_COLOR: Record<PoolStatus, string> = {
@@ -58,11 +53,7 @@ const STATUS_COLOR: Record<PoolStatus, string> = {
 };
 
 /** Metadata card showing pool capacity and configuration */
-interface PoolMetaCardProps {
-  pool: Pool;
-}
-
-const PoolMetaCard = memo(function PoolMetaCard({ pool }: PoolMetaCardProps) {
+const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: NonNullable<ReturnType<typeof usePool>["pool"]> }) {
   return (
     <div
       className="bg-muted/50 mt-3 space-y-6 rounded-md p-4"
@@ -110,12 +101,10 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: PoolMetaCardProps) {
 
 export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSectionProps) {
   const [open, setOpen] = useState(true);
-  const { pools, isLoading } = usePools();
 
-  // Show ALL pools - let backend handle validation (admin may submit to maintenance pools)
-  const availablePools = useMemo(() => pools, [pools]);
-
-  const selectedPool = useMemo(() => pools.find((p) => p.name === pool), [pools, pool]);
+  // Fetch ONLY the selected pool's metadata (for PoolMetaCard and status badge)
+  // This is a single API call, not all pools
+  const { pool: selectedPool } = usePool(pool);
 
   const statusBadge = useMemo(() => {
     if (!selectedPool) return null;
@@ -138,44 +127,13 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
       badge={statusBadge}
       selectedValue={selectedPool ? selectedPool.name : undefined}
     >
-      {isLoading ? (
-        <div
-          className="flex items-center justify-center py-6"
-          aria-label="Loading pools"
-        >
-          <Loader2 className="text-muted-foreground size-5 animate-spin" />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-0">
-          <Select
-            value={pool}
-            onValueChange={onChange}
-          >
-            <SelectTrigger
-              id="pool-select"
-              className="w-full"
-              aria-label="Select pool for execution"
-            >
-              <SelectValue placeholder="Select a pool..." />
-            </SelectTrigger>
-            <SelectContent>
-              {availablePools.map((p) => (
-                <SelectItem
-                  key={p.name}
-                  value={p.name}
-                >
-                  {p.name} ({p.quota.free} GPUs available)
-                </SelectItem>
-              ))}
-              {availablePools.length === 0 && (
-                <div className="text-muted-foreground px-2 py-4 text-center text-sm">No pools available</div>
-              )}
-            </SelectContent>
-          </Select>
+      <PoolSelect
+        value={pool}
+        onValueChange={onChange}
+        selectedPool={selectedPool ?? undefined}
+      />
 
-          {selectedPool && <PoolMetaCard pool={selectedPool} />}
-        </div>
-      )}
+      {selectedPool && <PoolMetaCard pool={selectedPool} />}
     </CollapsibleSection>
   );
 });
