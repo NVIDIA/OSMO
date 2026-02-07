@@ -284,8 +284,8 @@ export function ResizablePanel({
         }}
         role="complementary"
         aria-label={ariaLabel}
-        aria-hidden={!open}
-        tabIndex={-1}
+        aria-hidden={open ? undefined : true}
+        tabIndex={open ? undefined : -1}
       >
         {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
         {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
