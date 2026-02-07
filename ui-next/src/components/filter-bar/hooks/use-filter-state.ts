@@ -273,8 +273,9 @@ export function useFilterState<T>({
       isOpen,
       parsedInput,
       selectables,
+      fields,
     }),
-    [chips.length, focusedChipIndex, inputValue, isOpen, parsedInput, selectables],
+    [chips.length, focusedChipIndex, inputValue, isOpen, parsedInput, selectables, fields],
   );
 
   const keyboardActions: FilterKeyboardActions = useMemo(
