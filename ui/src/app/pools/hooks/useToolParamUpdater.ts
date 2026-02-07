@@ -31,7 +31,6 @@ export interface ToolParamUpdaterProps {
   pools?: string;
   allPools?: boolean;
   isShowingUsed?: boolean;
-  showGauges?: boolean;
 }
 
 // Undefined means no change; null means clear

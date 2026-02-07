@@ -1,0 +1,174 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+import React, { useEffect, useRef, useState } from "react";
+
+import useSafeTimeout from "~/hooks/useSafeTimeout";
+import { ZERO_WIDTH_SPACE } from "~/utils/string";
+
+import { OutlinedIcon } from "./Icon";
+import { Tag, Colors, TagSizes } from "./Tag";
+import { TextInput } from "./TextInput";
+
+interface RoleEditorProps {
+  required?: boolean;
+  roles: string[];
+  setRoles: (roles: string[]) => void;
+  label: string;
+  entityLabel: string;
+  message: string | null;
+  isError: boolean;
+}
+
+export const RoleEditor: React.FC<RoleEditorProps> = ({
+  required = false,
+  roles,
+  setRoles,
+  label,
+  entityLabel,
+  message,
+  isError,
+}) => {
+  const [newRole, setNewRole] = useState(""); // New role being added
+  const [lastActionText, setLastActionText] = useState<string>("");
+  const [isAdding, setIsAdding] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const { setSafeTimeout } = useSafeTimeout();
+  useEffect(() => {
+    if (isAdding) {
+      inputRef.current?.focus();
+    }
+  }, [isAdding]);
+
+  const handleAddRole = () => {
+    const trimmedRole = newRole.trim();
+
+    if (!trimmedRole) {
+      return;
+    }
+
+    if (!roles.includes(trimmedRole)) {
+      setRoles([...roles, trimmedRole]);
+    }
+
+    setNewRole("");
+    setLastActionText(`Added ${trimmedRole}`);
+  };
+
+  const handleDeleteRole = (roleToDelete: string) => {
+    setRoles(roles.filter((role) => role !== roleToDelete));
+    setLastActionText(`Deleted ${roleToDelete}`);
+
+    setSafeTimeout(() => {
+      if (isAdding) {
+        inputRef.current?.focus();
+      } else {
+        buttonRef.current?.focus();
+      }
+    }, 100);
+  };
+
+  return (
+    <>
+      <div
+        role="group"
+        className="flex flex-col gap-1"
+        aria-labelledby={label}
+      >
+        <div
+          className="font-normal text-xs block"
+          id={label}
+        >
+          {label} {required && <span className="text-red-600">*</span>}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <div
+            className="flex flex-wrap gap-1"
+            role="list"
+            aria-label={`Current ${label}`}
+          >
+            {roles.length > 0 &&
+              roles.map((role, index) => (
+                <button
+                  role="listitem"
+                  className="btn btn-badge"
+                  key={index}
+                  onClick={() => handleDeleteRole(role)}
+                  type="button"
+                  title={`Remove ${role}`}
+                >
+                  <Tag
+                    color={Colors.tag}
+                    size={TagSizes.xs}
+                    className="h-8 break-all"
+                  >
+                    {role}
+                    <OutlinedIcon name="close" />
+                  </Tag>
+                </button>
+              ))}
+          </div>
+          {isAdding ? (
+            <TextInput
+              ref={inputRef}
+              id="new-role"
+              value={newRole}
+              onChange={(e) => {
+                setNewRole(e.target.value);
+              }}
+              aria-label={entityLabel}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleAddRole();
+                  e.preventDefault();
+                } else if (e.key === "Escape") {
+                  setIsAdding(false);
+                  setNewRole("");
+                  setSafeTimeout(() => {
+                    buttonRef.current?.focus();
+                  }, 100);
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              ref={buttonRef}
+              onClick={() => setIsAdding(!isAdding)}
+              className="btn btn-badge"
+              aria-label={`Add ${entityLabel}`}
+            >
+              <Tag
+                color={Colors.tag}
+                size={TagSizes.xs}
+                className="h-8"
+              >
+                <OutlinedIcon name="add" />
+              </Tag>
+            </button>
+          )}
+        </div>
+        <p className={`${isError ? "text-red-600" : "text-success"} text-xs`}>{message ?? ZERO_WIDTH_SPACE}</p>
+      </div>
+      <p
+        aria-live="polite"
+        className="sr-only"
+      >
+        {lastActionText}
+      </p>
+    </>
+  );
+};

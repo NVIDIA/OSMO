@@ -26,7 +26,7 @@ import { type PoolResourceUsage } from "~/models";
 import { api } from "~/trpc/react";
 
 import { AggregatePanels } from "./components/AggregatePanels";
-import { PoolsFilter } from "./components/PoolsFilter";
+import { PoolsPageFilter } from "./components/PoolsFilter";
 import { PoolsTable } from "./components/PoolsTable";
 import { UsedFreeToggle } from "./components/UsedFreeToggle";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
@@ -97,7 +97,7 @@ export default function Pools() {
           aria-label="Pools Filter"
           className="border-t-0 w-80"
         >
-          <PoolsFilter
+          <PoolsPageFilter
             selectedPools={selectedPools}
             isSelectAllPoolsChecked={isSelectAllPoolsChecked}
             updateUrl={updateUrl}

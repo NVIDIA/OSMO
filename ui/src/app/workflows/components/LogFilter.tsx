@@ -165,7 +165,6 @@ const LogFilter = ({
         top={(buttonRef.current?.getBoundingClientRect().bottom ?? 0) - 2}
         left={buttonRef.current?.getBoundingClientRect().left ?? 0}
         bodyClassName="p-global"
-        dimBackground={false}
       >
         <form onSubmit={onSubmit}>
           <div className="flex flex-row gap-global">

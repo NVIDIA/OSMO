@@ -38,7 +38,7 @@ import { getWorkflowStatusArray } from "./components/StatusFilter";
 import { ToolsModal } from "./components/ToolsModal";
 import WorkflowDetails from "./components/WorkflowDetails";
 import { useWorkflow } from "./components/WorkflowLoader";
-import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./components/WorkflowsFilters";
+import { validateFilters, WorkflowsFilters, type WorkflowsFiltersDataProps } from "./components/WorkflowsFilters";
 import { getActionId, WorkflowsTable } from "./components/WorkflowsTable";
 import useToolParamUpdater, { type ToolType } from "./hooks/useToolParamUpdater";
 
@@ -109,31 +109,6 @@ export default function Workflows() {
     }
   }, [selectedWorkflow.data, selectedTaskName, retryId]);
 
-  const validateFilters = useCallback(
-    ({
-      isSelectAllPoolsChecked,
-      selectedPools,
-      dateRange,
-      submittedAfter,
-      submittedBefore,
-      statusFilterType,
-      statuses,
-    }: WorkflowsFiltersDataProps): string[] => {
-      const errors: string[] = [];
-      if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
-        errors.push("Please select at least one pool");
-      }
-      if (dateRange === customDateRange && (submittedAfter === undefined || submittedBefore === undefined)) {
-        errors.push("Please select a date range");
-      }
-      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
-        errors.push("Please select at least one status");
-      }
-      return errors;
-    },
-    [],
-  );
-
   // Show filters if the params are not valid
   useEffect(() => {
     if (statusFilterType === undefined) {
@@ -167,7 +142,6 @@ export default function Workflows() {
     nameFilter,
     statusFilterType,
     statusFilter,
-    validateFilters,
     updateUrl,
   ]);
   const { setSafeTimeout } = useSafeTimeout();
@@ -236,6 +210,41 @@ export default function Workflows() {
     }, 500);
   }, [refetch, isFetching, setSafeTimeout]);
 
+  const onSaveFilters = useCallback((data: WorkflowsFiltersDataProps) => {
+    updateUrl({
+      filterName: data.name,
+      dateRange: data.dateRange,
+      dateAfter: data.dateRange === customDateRange ? data.submittedAfter : null,
+      dateBefore: data.dateRange === customDateRange ? data.submittedBefore : null,
+      statusFilterType: data.statusFilterType,
+      status: data.statusFilterType === StatusFilterType.CUSTOM ? data.statuses : null,
+      allPools: data.isSelectAllPoolsChecked,
+      pools: data.isSelectAllPoolsChecked ? null : data.selectedPools.split(","),
+      allUsers: data.userType === UserFilterType.ALL,
+      users: data.userType === UserFilterType.ALL ? null : data.selectedUsers.split(","),
+      priority: data.priority ?? null,
+    });
+
+    forceRefetch();
+  }, [updateUrl, forceRefetch]);
+
+  const onResetFilters = useCallback(() => {
+    updateUrl({
+      filterName: null,
+      statusFilterType: StatusFilterType.ALL,
+      status: null,
+      allPools: true,
+      allUsers: false,
+      users: [username],
+      dateRange: null,
+      dateAfter: null,
+      dateBefore: null,
+      priority: null,
+    });
+
+    forceRefetch();
+  }, [updateUrl, forceRefetch, username]);
+
   return (
     <>
       <PageHeader>
@@ -259,7 +268,7 @@ export default function Workflows() {
           id="workflows-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-100 border-t-0"
+          className="filter-slideout"
           aria-label="Workflows Filter"
         >
           <WorkflowsFilters
@@ -274,10 +283,9 @@ export default function Workflows() {
             isSelectAllPoolsChecked={isSelectAllPoolsChecked}
             name={nameFilter}
             currentUserName={username}
-            onRefresh={forceRefetch}
-            validateFilters={validateFilters}
+            onSave={onSaveFilters}
+            onReset={onResetFilters}
             priority={priority}
-            updateUrl={updateUrl}
           />
         </SlideOut>
         <WorkflowsTable

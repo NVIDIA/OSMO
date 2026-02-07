@@ -21,6 +21,7 @@ SPDX-License-Identifier: Apache-2.0
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 @theme {
+  --breakpoint-xxs: 24rem;
   --breakpoint-xs: 36rem;
   --breakpoint-3xl: 120rem;
   --breakpoint-4xl: 140rem;
@@ -267,7 +268,11 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .workflow-details-slideout {
-    @apply h-full w-[25vw] overflow-y-auto;
+    @apply h-full w-80 xl:w-100 3xl:w-140 max-w-[80vw] overflow-y-auto;
+  }
+
+  .filter-slideout {
+    @apply w-[80vw] max-w-100 border-t-0;
   }
 
   .popup-header {

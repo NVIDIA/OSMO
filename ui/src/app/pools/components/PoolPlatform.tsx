@@ -111,7 +111,6 @@ export default function PoolPlatform({ pool, platform }: { pool: string; platfor
           onClose={() => setShowActions(false)}
           className="border-t-0 shadow-lg"
           bodyClassName="p-global"
-          dimBackground={false}
         >
           <PoolActions name={pool} />
         </SlideOut>
