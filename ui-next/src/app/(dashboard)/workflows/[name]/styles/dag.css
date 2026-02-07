@@ -448,17 +448,6 @@
   pointer-events: none;
 }
 
-/* GPU hint during exit transition */
-[data-dag-state="exiting"] .dag-slide-container {
-  will-change: transform, opacity;
-}
-
-/* Reset GPU hint after animation completes */
-[data-dag-state="visible"] .dag-slide-container,
-[data-dag-state="hidden"] .dag-slide-container {
-  will-change: auto;
-}
-
 /* ==========================================================================
    Panel Snap Animations
    ========================================================================== */
