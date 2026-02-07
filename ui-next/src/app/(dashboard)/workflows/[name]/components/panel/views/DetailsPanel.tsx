@@ -58,6 +58,7 @@ import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks/use-announcer";
 import { useShellContext } from "../../shell/ShellContext";
 import { usePanelResize } from "../../../lib/panel-resize-context";
+import { ACTIVITY_STRIP_WIDTH_PX } from "../../../lib/panel-constants";
 import { WorkflowEdgeStrip, type QuickAction } from "../workflow/WorkflowEdgeStrip";
 
 // =============================================================================
@@ -273,6 +274,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       onToggleCollapsed={onToggleCollapsed}
       toggleHotkey={toggleHotkey}
       edgeContent={edgeContent}
+      edgeWidth={ACTIVITY_STRIP_WIDTH_PX}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}
       className={cn("dag-details-panel", className)}
