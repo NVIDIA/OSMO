@@ -29,6 +29,8 @@ import { usePools } from "@/lib/api/adapter/hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import { PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
+import { CapacityBar } from "@/components/capacity-bar";
+import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
 import { CollapsibleSection } from "./CollapsibleSection";
 
 export interface PoolSectionProps {
@@ -38,59 +40,67 @@ export interface PoolSectionProps {
   onChange: (pool: string) => void;
 }
 
-const POOL_META_FIELDS = [
-  { key: "hardware", label: "Hardware" },
-  { key: "backend", label: "Backend" },
-  { key: "available", label: "Available" },
-  { key: "status", label: "Status" },
-] as const;
-
-/** Maps pool status to its display color class */
-const STATUS_COLOR_CLASS: Record<PoolStatus, string> = {
-  [PoolStatus.ONLINE]: "text-green-600 dark:text-green-400",
-  [PoolStatus.OFFLINE]: "text-red-600 dark:text-red-400",
-  [PoolStatus.MAINTENANCE]: "text-yellow-600 dark:text-yellow-400",
+/** Maps pool status to badge variant */
+const STATUS_VARIANT: Record<PoolStatus, "default" | "secondary" | "destructive" | "outline"> = {
+  [PoolStatus.ONLINE]: "default",
+  [PoolStatus.MAINTENANCE]: "secondary",
+  [PoolStatus.OFFLINE]: "destructive",
 };
 
-/** Metadata card showing pool details */
+/** Maps pool status to display color */
+const STATUS_COLOR: Record<PoolStatus, string> = {
+  [PoolStatus.ONLINE]: "bg-green-500/10 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800",
+  [PoolStatus.MAINTENANCE]: "bg-yellow-500/10 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800",
+  [PoolStatus.OFFLINE]: "bg-red-500/10 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-800",
+};
+
+/** Metadata card showing pool capacity and configuration */
 interface PoolMetaCardProps {
   pool: Pool;
 }
 
 const PoolMetaCard = memo(function PoolMetaCard({ pool }: PoolMetaCardProps) {
-  const hardware = useMemo(() => {
-    if (!pool.defaultPlatform) return "N/A";
-    const config = pool.platformConfigs[pool.defaultPlatform];
-    return config?.description ?? pool.defaultPlatform;
-  }, [pool.defaultPlatform, pool.platformConfigs]);
-
-  const metaValues: Record<string, string> = useMemo(
-    () => ({
-      hardware,
-      backend: pool.backend || "N/A",
-      available: `${pool.quota.free} GPUs`,
-      status: pool.status,
-    }),
-    [hardware, pool.backend, pool.quota.free, pool.status],
-  );
-
   return (
     <div
-      className="bg-muted/50 mt-3 grid grid-cols-2 gap-3 rounded-md p-3"
+      className="bg-muted/50 mt-3 space-y-6 rounded-md p-4"
       role="region"
       aria-label={`Metadata for pool ${pool.name}`}
     >
-      {POOL_META_FIELDS.map(({ key, label }) => (
-        <div
-          key={key}
-          className="flex flex-col gap-0.5"
-        >
-          <span className="text-muted-foreground text-[0.6875rem] font-medium tracking-wider uppercase">{label}</span>
-          <span className={cn("font-mono text-sm font-medium", key === "status" && STATUS_COLOR_CLASS[pool.status])}>
-            {metaValues[key]}
-          </span>
+      {/* GPU Quota */}
+      <CapacityBar
+        label="GPU Quota"
+        used={pool.quota.used}
+        total={pool.quota.limit}
+        size="sm"
+      />
+
+      {/* GPU Capacity */}
+      <CapacityBar
+        label="GPU Capacity"
+        used={pool.quota.totalUsage}
+        total={pool.quota.totalCapacity}
+        size="sm"
+      />
+
+      {/* Platforms */}
+      <div>
+        <div className="mb-2 flex items-baseline gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <span>Platforms</span>
+          {pool.defaultPlatform && (
+            <span className="text-muted-foreground text-xs">(default: {pool.defaultPlatform})</span>
+          )}
         </div>
-      ))}
+        <PlatformPills
+          platforms={pool.platforms}
+          expandable={true}
+        />
+      </div>
+
+      {/* Backend */}
+      <div>
+        <div className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">Backend</div>
+        <div className="font-mono text-sm">{pool.backend || "N/A"}</div>
+      </div>
     </div>
   );
 });
@@ -104,18 +114,14 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
 
   const selectedPool = useMemo(() => pools.find((p) => p.name === pool), [pools, pool]);
 
-  const availabilityBadge = useMemo(() => {
+  const statusBadge = useMemo(() => {
     if (!selectedPool) return null;
     return (
       <Badge
         variant="outline"
-        className="border-nvidia/20 bg-nvidia-bg text-nvidia-dark dark:border-nvidia/30 dark:bg-nvidia-bg-dark dark:text-nvidia-light"
+        className={cn("font-medium", STATUS_COLOR[selectedPool.status])}
       >
-        <span
-          className="bg-nvidia size-1.5 rounded-full"
-          aria-hidden="true"
-        />
-        {selectedPool.quota.free} Available
+        {selectedPool.status}
       </Badge>
     );
   }, [selectedPool]);
@@ -126,7 +132,8 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
       title="Target Pool"
       open={open}
       onOpenChange={setOpen}
-      badge={availabilityBadge}
+      badge={statusBadge}
+      selectedValue={selectedPool ? selectedPool.name : undefined}
     >
       {isLoading ? (
         <div
@@ -137,38 +144,31 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
         </div>
       ) : (
         <div className="flex flex-col gap-0">
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="pool-select"
-              className="text-sm font-medium"
+          <Select
+            value={pool}
+            onValueChange={onChange}
+          >
+            <SelectTrigger
+              id="pool-select"
+              className="w-full"
+              aria-label="Select pool for execution"
             >
-              Select pool for execution
-            </label>
-            <Select
-              value={pool}
-              onValueChange={onChange}
-            >
-              <SelectTrigger
-                id="pool-select"
-                className="w-full"
-              >
-                <SelectValue placeholder="Select a pool..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePools.map((p) => (
-                  <SelectItem
-                    key={p.name}
-                    value={p.name}
-                  >
-                    {p.name} ({p.quota.free} GPUs available)
-                  </SelectItem>
-                ))}
-                {availablePools.length === 0 && (
-                  <div className="text-muted-foreground px-2 py-4 text-center text-sm">No pools available</div>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+              <SelectValue placeholder="Select a pool..." />
+            </SelectTrigger>
+            <SelectContent>
+              {availablePools.map((p) => (
+                <SelectItem
+                  key={p.name}
+                  value={p.name}
+                >
+                  {p.name} ({p.quota.free} GPUs available)
+                </SelectItem>
+              ))}
+              {availablePools.length === 0 && (
+                <div className="text-muted-foreground px-2 py-4 text-center text-sm">No pools available</div>
+              )}
+            </SelectContent>
+          </Select>
 
           {selectedPool && <PoolMetaCard pool={selectedPool} />}
         </div>
