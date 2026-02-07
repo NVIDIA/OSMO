@@ -99,10 +99,8 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
   const [open, setOpen] = useState(true);
   const { pools, isLoading } = usePools();
 
-  const availablePools = useMemo(
-    () => pools.filter((p) => p.status === PoolStatus.ONLINE && p.quota.free > 0),
-    [pools],
-  );
+  // Show ALL pools - let backend handle validation (admin may submit to maintenance pools)
+  const availablePools = useMemo(() => pools, [pools]);
 
   const selectedPool = useMemo(() => pools.find((p) => p.name === pool), [pools, pool]);
 
