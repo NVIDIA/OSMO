@@ -21,6 +21,7 @@ import { useRafCallback } from "@react-hookz/web";
 
 import type { LogEntry, TailStatus } from "../types";
 import { parseLogLine } from "../adapters/log-parser";
+import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 
 export interface UseLogTailParams {
   workflowId: string;
@@ -126,7 +127,11 @@ export function useLogTail(params: UseLogTailParams): UseLogTailReturn {
         headers: { Accept: "text/plain" },
         signal: controller.signal,
         credentials: "include", // Forward cookies (Envoy session) for authentication
+        redirect: "manual", // Prevent automatic redirect following (prevents CORS errors on auth expiry)
       });
+
+      // Check for redirect responses and throw appropriate error
+      handleRedirectResponse(response, "log streaming");
 
       if (!response.ok) {
         throw new Error(`Stream failed: ${response.status} ${response.statusText}`);

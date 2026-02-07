@@ -19,6 +19,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { hasAdminRole } from "./roles";
 import { getBasePathUrl } from "@/lib/config";
+import { isRedirect } from "@/lib/api/handle-redirect";
 
 export interface User {
   id: string;
@@ -65,7 +66,17 @@ export function UserProvider({ children }: UserProviderProps) {
         const response = await fetch(getBasePathUrl("/api/me"), {
           credentials: "include",
           signal: controller.signal,
+          redirect: "manual", // Prevent automatic redirect following (prevents CORS errors on auth expiry)
         });
+
+        // Check for redirect responses - user is not authenticated
+        if (isRedirect(response)) {
+          // Don't throw error - just treat as unauthenticated
+          console.info("User auth check: redirect detected, treating as unauthenticated");
+          setUser(null);
+          return controller;
+        }
+
         if (response.ok) {
           const data = await response.json();
           const roles = data.roles || [];
