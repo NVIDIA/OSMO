@@ -31,7 +31,7 @@
 "use client";
 
 import { useState, useMemo, memo, useCallback } from "react";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
   Command,
@@ -41,13 +41,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/shadcn/command";
-import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
 import { transformPoolsResponse } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
-import { PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
+import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
 
 export interface PoolSelectProps {
   /** Currently selected pool name (from workflow's original pool) */
@@ -58,15 +57,12 @@ export interface PoolSelectProps {
   selectedPool?: Pool;
 }
 
-/** Map pool status to color classes */
-const STATUS_COLOR: Record<PoolStatus, string> = {
-  [PoolStatus.ONLINE]:
-    "bg-green-500/10 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800",
-  [PoolStatus.MAINTENANCE]:
-    "bg-yellow-500/10 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800",
-  [PoolStatus.OFFLINE]:
-    "bg-red-500/10 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-800",
-};
+/** Status icons mapping (matches pools table) */
+const STATUS_ICONS = {
+  online: CheckCircle2,
+  maintenance: Wrench,
+  offline: XCircle,
+} as const;
 
 /**
  * PoolSelect component using Popover + Command (cmdk) combobox pattern.
@@ -144,12 +140,20 @@ export const PoolSelect = memo(function PoolSelect({ value, onValueChange, selec
           {selectedPool ? (
             <div className="flex w-full items-center justify-between gap-2 py-1">
               <span className="truncate font-medium">{selectedPool.name}</span>
-              <Badge
-                variant="outline"
-                className={cn("shrink-0 text-[0.6875rem] font-medium uppercase", STATUS_COLOR[selectedPool.status])}
-              >
-                {selectedPool.status}
-              </Badge>
+              {(() => {
+                const { category, label } = getStatusDisplay(selectedPool.status);
+                const styles = STATUS_STYLES[category]?.badge;
+                const Icon = STATUS_ICONS[category as StatusCategory];
+
+                if (!styles) return null;
+
+                return (
+                  <span className={cn("inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5", styles.bg)}>
+                    <Icon className={cn("h-3.5 w-3.5", styles.icon)} />
+                    <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
+                  </span>
+                );
+              })()}
             </div>
           ) : (
             <span className="text-muted-foreground">Select pool...</span>
@@ -177,27 +181,35 @@ export const PoolSelect = memo(function PoolSelect({ value, onValueChange, selec
               <>
                 <CommandEmpty>{pools.length === 0 ? "No pools available" : "No pools found"}</CommandEmpty>
                 <CommandGroup>
-                  {pools.map((pool) => (
-                    <CommandItem
-                      key={pool.name}
-                      value={pool.name}
-                      onSelect={handleSelect}
-                      className="cursor-pointer font-mono"
-                    >
-                      <Check
-                        className={cn("mr-2 size-4 shrink-0", value === pool.name ? "opacity-100" : "opacity-0")}
-                      />
-                      <div className="flex flex-1 items-center justify-between gap-3">
-                        <span className="truncate font-medium">{pool.name}</span>
-                        <Badge
-                          variant="outline"
-                          className={cn("shrink-0 text-[0.6875rem] font-medium uppercase", STATUS_COLOR[pool.status])}
-                        >
-                          {pool.status}
-                        </Badge>
-                      </div>
-                    </CommandItem>
-                  ))}
+                  {pools.map((pool) => {
+                    const { category, label } = getStatusDisplay(pool.status);
+                    const styles = STATUS_STYLES[category]?.badge;
+                    const Icon = STATUS_ICONS[category as StatusCategory];
+
+                    return (
+                      <CommandItem
+                        key={pool.name}
+                        value={pool.name}
+                        onSelect={handleSelect}
+                        className="cursor-pointer font-mono"
+                      >
+                        <Check
+                          className={cn("mr-2 size-4 shrink-0", value === pool.name ? "opacity-100" : "opacity-0")}
+                        />
+                        <div className="flex flex-1 items-center justify-between gap-3">
+                          <span className="truncate font-medium">{pool.name}</span>
+                          {styles && (
+                            <span
+                              className={cn("inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5", styles.bg)}
+                            >
+                              <Icon className={cn("h-3.5 w-3.5", styles.icon)} />
+                              <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
+                            </span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </>
             )}

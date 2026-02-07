@@ -86,18 +86,16 @@ export const CollapsibleSection = memo(function CollapsibleSection({
           >
             {step}
           </span>
-          <div className="flex items-baseline gap-3">
-            <span className="text-sm font-medium">{title}</span>
-            {!open && selectedValue && (
-              <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
-                {selectedValue}
-              </code>
-            )}
-          </div>
+          <span className="text-sm font-medium">{title}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {badge}
+          {!open && selectedValue && (
+            <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
+              {selectedValue}
+            </code>
+          )}
+          {!open && badge}
           {action && (
             <div
               onClick={(e) => e.stopPropagation()}

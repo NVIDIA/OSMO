@@ -26,14 +26,14 @@
 "use client";
 
 import { memo, useState, useMemo } from "react";
-import { Badge } from "@/components/shadcn/badge";
+import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { usePool } from "@/lib/api/adapter/hooks";
-import { PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 import { CapacityBar } from "@/components/capacity-bar";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
 import { PoolSelect } from "./PoolSelect";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
 
 export interface PoolSectionProps {
   /** Currently selected pool name */
@@ -42,15 +42,12 @@ export interface PoolSectionProps {
   onChange: (pool: string) => void;
 }
 
-/** Maps pool status to display color */
-const STATUS_COLOR: Record<PoolStatus, string> = {
-  [PoolStatus.ONLINE]:
-    "bg-green-500/10 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800",
-  [PoolStatus.MAINTENANCE]:
-    "bg-yellow-500/10 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800",
-  [PoolStatus.OFFLINE]:
-    "bg-red-500/10 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-800",
-};
+/** Status icons mapping (matches pools table) */
+const STATUS_ICONS = {
+  online: CheckCircle2,
+  maintenance: Wrench,
+  offline: XCircle,
+} as const;
 
 /** Metadata card showing pool capacity and configuration */
 const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: NonNullable<ReturnType<typeof usePool>["pool"]> }) {
@@ -108,13 +105,18 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
 
   const statusBadge = useMemo(() => {
     if (!selectedPool) return null;
+
+    const { category, label } = getStatusDisplay(selectedPool.status);
+    const styles = STATUS_STYLES[category]?.badge;
+    const Icon = STATUS_ICONS[category as StatusCategory];
+
+    if (!styles) return null;
+
     return (
-      <Badge
-        variant="outline"
-        className={cn("font-medium", STATUS_COLOR[selectedPool.status])}
-      >
-        {selectedPool.status}
-      </Badge>
+      <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5", styles.bg)}>
+        <Icon className={cn("h-3.5 w-3.5", styles.icon)} />
+        <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
+      </span>
     );
   }, [selectedPool]);
 
