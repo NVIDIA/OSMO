@@ -144,17 +144,15 @@ export function useExpandableChips<T = string>({
   });
 
   useIsomorphicLayoutEffect(() => {
-    if (!expanded) {
-      setVisibleCount(calculateVisibleCount());
-    }
+    // Always recalculate to keep overflowCount accurate for "show less" button
+    setVisibleCount(calculateVisibleCount());
   }, [calculateVisibleCount, expanded]);
 
   useResizeObserver({
     ref: containerRef as RefObject<HTMLElement>,
     onResize: () => {
-      if (!expanded) {
-        scheduleRecalculate();
-      }
+      // Always recalculate to keep overflowCount accurate during container resize
+      scheduleRecalculate();
     },
     box: "border-box",
   });
