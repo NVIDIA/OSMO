@@ -22,6 +22,11 @@
    ============================================================================= */
 
 @layer components {
+  /* Activity Strip: Fixed pixel width for consistent appearance across all window sizes.
+     This ensures the strip is ALWAYS exactly 40px wide, preventing any flex/responsive behavior. */
+  :root {
+    --activity-strip-width: 40px;
+  }
   /* SSR-safe default: 50/50 split with DAG visible.
      PanelStateManager overrides this via direct DOM updates. */
   .workflow-detail-grid {
