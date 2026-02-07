@@ -25,7 +25,17 @@
 // Dimension Constants (pixels)
 // =============================================================================
 
-/** Width of the activity strip that remains visible when panel is minimized */
+/**
+ * Width of the activity strip that remains visible when panel is minimized.
+ *
+ * CRITICAL: This is the single source of truth for activity strip width.
+ * - Must be explicitly passed to SidePanel as `edgeWidth` prop
+ * - Used in all width calculations (snap targets, overlay geometry)
+ * - CSS variable --activity-strip-width should match this value
+ *
+ * DO NOT use PANEL.COLLAPSED_WIDTH_PX from @/components/panel - that's for other panels.
+ * Workflow panel uses this constant for precise control over snap behavior.
+ */
 export const ACTIVITY_STRIP_WIDTH_PX = 40;
 
 // =============================================================================
