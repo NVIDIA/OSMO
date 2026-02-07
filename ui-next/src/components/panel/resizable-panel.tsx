@@ -24,6 +24,7 @@ import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 import { useResizeDrag } from "./hooks/useResizeDrag";
 import { usePanelEscape } from "./hooks/usePanelEscape";
+import { useFocusReturn } from "./hooks/useFocusReturn";
 
 // =============================================================================
 // Types
@@ -170,6 +171,9 @@ export function ResizablePanel({
     enabled: open,
   });
 
+  // Focus restoration: capture trigger on open, restore on close
+  useFocusReturn({ open });
+
   // Focus management: move focus into panel when it opens
   // Uses transitionend for precise timing, with a fallback timeout for reduced-motion scenarios
   useEffect(() => {
@@ -281,6 +285,7 @@ export function ResizablePanel({
         role="complementary"
         aria-label={ariaLabel}
         aria-hidden={!open}
+        tabIndex={-1}
       >
         {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
         {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
