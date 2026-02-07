@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import json
 import logging
 import threading
 import time
+import zlib
 from typing import Callable, Optional, Dict, List, Set
 
 import fastapi
@@ -253,7 +254,8 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     job=job,
                     start_time=time.time())
 
-            await self.websocket.send_text(job.json())
+            compressed = zlib.compress(job.json().encode('utf-8'))
+            await self.websocket.send_bytes(compressed)
 
 
     async def handle_message(self, message_json: Dict, backend_name:str):

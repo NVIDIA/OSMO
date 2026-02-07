@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import os
 import threading
 import time
 import traceback
+import zlib
 from typing import Dict, Optional
 from urllib.parse import urlparse
 
@@ -202,6 +203,8 @@ async def receive_messages(websocket,
         os.path.join(config.progress_folder_path, config.worker_heartbeat_progress_file))
     while True:
         value = await websocket.recv()
+        if isinstance(value, bytes):
+            value = zlib.decompress(value).decode('utf-8')
         service_job = json.loads(value)
         if service_job.get('type', '') == 'heartbeat':
             progress_writer.report_progress()
