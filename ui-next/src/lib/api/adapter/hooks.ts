@@ -346,6 +346,7 @@ import {
   useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost,
   usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost,
   usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost,
+  useGetUsersApiUsersGet,
 } from "../generated";
 
 interface UseWorkflowParams {
@@ -426,6 +427,59 @@ export async function fetchWorkflowByName(name: string, verbose = true) {
     // 404 or other errors - return null
     return null;
   }
+}
+
+// =============================================================================
+// Async Filter Field Hooks
+// =============================================================================
+//
+// These hooks provide data for async filter fields - fields that load their
+// own data from dedicated API endpoints rather than deriving from parent data.
+//
+// Used with AsyncSearchField type in FilterBar.
+// =============================================================================
+
+/**
+ * Fetch pool names for async filter suggestions.
+ * Returns all pool names as {value, label} pairs for use in filter dropdowns.
+ *
+ * Reuses the same query key as usePools() so data is shared from cache
+ * when the pools page has already been visited.
+ */
+export function usePoolNames() {
+  const { pools, isLoading, error } = usePools();
+
+  const names = useMemo(() => pools.map((p) => p.name).sort(naturalCompare), [pools]);
+
+  return { names, isLoading, error };
+}
+
+/**
+ * Fetch all users who have submitted workflows.
+ * Uses backend /api/users endpoint.
+ *
+ * IMPORTANT: This can return 1000s of users - virtualization required in dropdown!
+ *
+ * WORKAROUND: Backend returns string[] but OpenAPI types response as string.
+ * This is the same issue as pools/resources (BACKEND_TODOS.md #1).
+ */
+export function useUsers() {
+  const { data, isLoading, error } = useGetUsersApiUsersGet({
+    query: {
+      staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
+    },
+  });
+
+  const users = useMemo(() => {
+    if (!data) return [];
+    // WORKAROUND: API returns string[] but OpenAPI types as string (BACKEND_TODOS.md #1)
+    const parsed = typeof data === "string" ? JSON.parse(data) : data;
+    const userList = parsed as unknown as string[];
+
+    return userList.sort(naturalCompare);
+  }, [data]);
+
+  return { users, isLoading, error };
 }
 
 // =============================================================================

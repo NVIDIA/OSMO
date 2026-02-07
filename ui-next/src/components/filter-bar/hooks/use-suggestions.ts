@@ -25,6 +25,7 @@
 
 import { useMemo } from "react";
 import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } from "../lib/types";
+import { getFieldValues } from "../lib/types";
 import { parseInput, getFieldHint } from "../lib/parse-input";
 
 export interface UseSuggestionsOptions<T> {
@@ -95,8 +96,8 @@ function generateSuggestions<T>(
     const currentPrefix = field.prefix;
     const prefixQuery = parsedInput.query.toLowerCase();
 
-    // Get available values from data
-    const values = field.getValues(data);
+    // Get available values (sync: from data, async: pre-loaded)
+    const values = getFieldValues(field, data);
 
     // Find sub-fields that extend this prefix (e.g., "quota:" has sub-fields "quota:free:", "quota:used:")
     const matchingSubFields = fields.filter((f) => {
