@@ -29,7 +29,7 @@
 
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
@@ -99,6 +99,21 @@ export interface WorkflowDetailInnerProps {
   name: string;
   /** Server-parsed URL state for instant panel rendering */
   initialView: InitialView;
+}
+
+// =============================================================================
+// Shared UI
+// =============================================================================
+
+function LoadingSpinner(): ReactNode {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+      <div className="text-center text-gray-500 dark:text-zinc-500">
+        <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+        <p>Loading workflow...</p>
+      </div>
+    </div>
+  );
 }
 
 // =============================================================================
@@ -514,7 +529,7 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     <DAGErrorBoundary>
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
-          {/* Resubmit workflow panel - wraps main content */}
+          {/* Resubmit workflow panel wraps main content when workflow is loaded */}
           {workflow ? (
             <ResubmitPanel
               workflow={workflow}
@@ -528,31 +543,11 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
                   panel={panelElement}
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
-                  <div className="text-center text-gray-500 dark:text-zinc-500">
-                    <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
-                    <p>Loading workflow...</p>
-                  </div>
-                </div>
+                <LoadingSpinner />
               )}
             </ResubmitPanel>
           ) : (
-            <>
-              {isReady ? (
-                <WorkflowDetailLayout
-                  containerRef={containerRef}
-                  dagContent={dagContentElement}
-                  panel={panelElement}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
-                  <div className="text-center text-gray-500 dark:text-zinc-500">
-                    <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
-                    <p>Loading workflow...</p>
-                  </div>
-                </div>
-              )}
-            </>
+            <LoadingSpinner />
           )}
 
           {/* Cancel workflow dialog */}
