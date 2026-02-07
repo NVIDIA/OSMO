@@ -74,6 +74,7 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
       title="Priority Level"
       open={open}
       onOpenChange={setOpen}
+      selectedValue={PRIORITY_LABELS[priority]}
     >
       <div className="flex flex-col gap-2">
         <div
