@@ -42,8 +42,6 @@ import {
   CommandList,
 } from "@/components/shadcn/command";
 import { Button } from "@/components/shadcn/button";
-import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
-import { transformPoolsResponse } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
 import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
@@ -55,6 +53,10 @@ export interface PoolSelectProps {
   onValueChange: (poolName: string) => void;
   /** Selected pool metadata (for displaying badge in trigger) */
   selectedPool?: Pool;
+  /** All pools data (if already fetched by parent) */
+  allPools?: Pool[];
+  /** Callback when dropdown open state changes (for parent to trigger all-pools fetch) */
+  onDropdownOpenChange?: (isOpen: boolean) => void;
 }
 
 /** Status icons mapping (matches pools table) */
@@ -74,43 +76,29 @@ const STATUS_ICONS = {
  *
  * Loading strategy:
  * 1. Initial render: Show preselected pool (passed via selectedPool prop)
- * 2. Popover open: Trigger pool fetch via TanStack Query
- * 3. During load: Show spinner in command list
- * 4. After load: cmdk handles search/filter natively
+ * 2. Popover open: Notify parent to trigger all-pools fetch
+ * 3. Use pools from parent (avoids redundant queries)
  */
-export const PoolSelect = memo(function PoolSelect({ value, onValueChange, selectedPool }: PoolSelectProps) {
+export const PoolSelect = memo(function PoolSelect({
+  value,
+  onValueChange,
+  selectedPool,
+  allPools,
+  onDropdownOpenChange,
+}: PoolSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  // Track if popover has ever been opened, to keep the query enabled after close.
-  // Once opened, the query stays enabled so TanStack Query can serve from cache
-  // without refetching on subsequent opens (governed by staleTime/gcTime).
-  const [hasEverOpened, setHasEverOpened] = useState(false);
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setIsOpen(open);
-      if (open && !hasEverOpened) {
-        setHasEverOpened(true);
-      }
+      onDropdownOpenChange?.(open);
     },
-    [hasEverOpened],
+    [onDropdownOpenChange],
   );
 
-  // Lazy-load pools: only fetch once the dropdown has been opened at least once
-  const { data: rawData, isLoading } = useGetPoolQuotasApiPoolQuotaGet(
-    { all_pools: true },
-    {
-      query: {
-        enabled: hasEverOpened,
-        select: useCallback((rawData: unknown) => {
-          if (!rawData) return { pools: [], sharingGroups: [] };
-          return transformPoolsResponse(rawData);
-        }, []),
-      },
-    },
-  );
-
-  // Memoize pools array to stabilize reference
-  const pools = useMemo(() => rawData?.pools ?? [], [rawData]);
+  // Use pools from parent if available
+  const pools = useMemo(() => allPools ?? [], [allPools]);
+  const isLoading = !allPools && isOpen;
 
   const handleSelect = useCallback(
     (poolName: string) => {
