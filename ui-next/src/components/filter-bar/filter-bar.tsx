@@ -64,6 +64,8 @@ function FilterBarInner<T>({
     hints,
     showPresets,
     showDropdown,
+    isFieldLoading,
+    loadingFieldLabel,
     handleSelect,
     handleInputChange,
     handleFocus,
@@ -160,6 +162,8 @@ function FilterBarInner<T>({
           onSelect={handleSelect}
           onBackdropClick={handleBackdropClick}
           isPresetActive={isPresetActive}
+          isFieldLoading={isFieldLoading}
+          loadingFieldLabel={loadingFieldLabel}
         />
       </Command>
     </div>

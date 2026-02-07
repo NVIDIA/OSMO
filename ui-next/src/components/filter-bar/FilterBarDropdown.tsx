@@ -35,6 +35,7 @@
 "use client";
 
 import { memo, useRef, useMemo } from "react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -80,6 +81,10 @@ export interface FilterBarDropdownProps<T> {
   onBackdropClick: (e: React.MouseEvent) => void;
   /** Check if a preset is currently active */
   isPresetActive: (preset: SearchPreset) => boolean;
+  /** Whether the active field is an async field currently loading data */
+  isFieldLoading?: boolean;
+  /** Label for the loading field (e.g., "users") - shown in loading message */
+  loadingFieldLabel?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +101,8 @@ function FilterBarDropdownInner<T>({
   onSelect,
   onBackdropClick,
   isPresetActive,
+  isFieldLoading,
+  loadingFieldLabel,
 }: FilterBarDropdownProps<T>) {
   if (!showDropdown) return null;
 
@@ -144,12 +151,17 @@ function FilterBarDropdownInner<T>({
           {/* Hints (non-interactive, shown above suggestions) */}
           {hints.length > 0 && <HintsSection hints={hints} />}
 
-          {/* Suggestions - virtualized when large */}
-          {selectables.length > 0 && (
-            <SuggestionsSection
-              selectables={selectables}
-              onSelect={onSelect}
-            />
+          {/* Async field loading state */}
+          {isFieldLoading ? (
+            <LoadingSection label={loadingFieldLabel} />
+          ) : (
+            /* Suggestions - virtualized when large */
+            selectables.length > 0 && (
+              <SuggestionsSection
+                selectables={selectables}
+                onSelect={onSelect}
+              />
+            )
           )}
         </CommandList>
 
@@ -231,6 +243,27 @@ function HintsSectionInner<T>({ hints }: HintsSectionProps<T>) {
 }
 
 const HintsSection = memo(HintsSectionInner) as typeof HintsSectionInner;
+
+// ---------------------------------------------------------------------------
+// Loading Section (async field data loading)
+// ---------------------------------------------------------------------------
+
+interface LoadingSectionProps {
+  label?: string;
+}
+
+const LoadingSection = memo(function LoadingSection({ label }: LoadingSectionProps) {
+  return (
+    <div
+      className={cn(dropdownStyles.dropdownItem, dropdownStyles.nonInteractive, "flex items-center gap-2")}
+      role="status"
+      aria-live="polite"
+    >
+      <Loader2 className={cn("size-4 animate-spin", dropdownStyles.muted)} />
+      <span className={dropdownStyles.muted}>Loading {label ? label.toLowerCase() : "suggestions"}...</span>
+    </div>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Suggestions Section (with automatic virtualization)

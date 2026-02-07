@@ -25,6 +25,7 @@
 
 import { useCallback, useState } from "react";
 import type { SearchField, SearchChip, SearchPreset } from "../lib/types";
+import { getFieldValues } from "../lib/types";
 
 export interface UseChipsOptions<T> {
   chips: SearchChip[];
@@ -81,7 +82,7 @@ export function useChips<T>({
       }
       // For fields that require valid values, check if the value is in the allowed list
       else if (field.requiresValidValue) {
-        const validValues = field.getValues(data);
+        const validValues = getFieldValues(field, data);
         const isValid = validValues.some((v) => v.toLowerCase() === value.toLowerCase());
         if (!isValid) {
           setValidationError(`"${value}" is not a valid option`);

@@ -28,19 +28,26 @@
  */
 export type ChipVariant = "free" | "used";
 
+// =============================================================================
+// Search Field: Discriminated Union (sync vs async)
+// =============================================================================
+
 /**
- * Definition of a searchable field.
- * @template T - The data item type being searched
+ * Properties shared by both sync and async search fields.
+ *
+ * Sync fields derive their values from parent data (e.g., extracting pool names
+ * from a list of pools already fetched by the page). Async fields load their own
+ * data independently (e.g., fetching all users from a dedicated API endpoint).
+ *
+ * @template T - The data item type being searched (only relevant for sync fields)
  */
-export interface SearchField<T> {
+interface BaseSearchField<T> {
   /** Unique identifier for the field */
   id: string;
   /** Display label (e.g., "Status", "Platform") */
   label: string;
   /** Prefix for typed queries (e.g., "status:", "platform:") */
   prefix: string;
-  /** Extract autocomplete values from data */
-  getValues: (data: T[]) => string[];
   /**
    * Check if an item matches this field's value (for client-side filtering).
    * Optional - omit when using server-side filtering.
@@ -86,6 +93,73 @@ export interface SearchField<T> {
    * Receives current context (like display mode) and returns the target field ID.
    */
   resolveTo?: (context: { displayMode?: "free" | "used" }) => string;
+}
+
+/**
+ * Sync search field: receives parent data to extract autocomplete values.
+ *
+ * This is the default field type. Values come from the same data that the
+ * page already has (e.g., extracting unique pool names from a list of workflows).
+ *
+ * @template T - The data item type being searched
+ */
+export interface SyncSearchField<T> extends BaseSearchField<T> {
+  /** Discriminant: sync fields receive data from parent (default if omitted) */
+  type?: "sync";
+  /** Extract autocomplete values from parent data */
+  getValues: (data: T[]) => string[];
+}
+
+/**
+ * Async search field: loads its own data independently.
+ *
+ * Used when a field needs data from a different API endpoint than the page's
+ * primary data source (e.g., a "user:" field that fetches from /api/users
+ * while the page fetches workflows).
+ *
+ * The consuming component/hook is responsible for calling the appropriate API
+ * and passing the results via getValues + isLoading.
+ *
+ * @template T - The data item type (kept for union compatibility, not used by getValues)
+ */
+export interface AsyncSearchField<T> extends BaseSearchField<T> {
+  /** Discriminant: async fields load their own data */
+  type: "async";
+  /** Returns pre-loaded autocomplete values (no data param - loaded internally) */
+  getValues: () => string[];
+  /** Whether the field's data is currently loading */
+  isLoading: boolean;
+}
+
+/**
+ * A search field that is either sync (derives values from parent data)
+ * or async (loads its own data from an API).
+ *
+ * Use the `type` discriminant to narrow:
+ * - `type: undefined | 'sync'` -> SyncSearchField (default, backward compatible)
+ * - `type: 'async'` -> AsyncSearchField (self-loading, has isLoading)
+ *
+ * @template T - The data item type being searched
+ */
+export type SearchField<T> = SyncSearchField<T> | AsyncSearchField<T>;
+
+/**
+ * Type guard: check if a field is async.
+ * Async fields load their own data and have an isLoading property.
+ */
+export function isAsyncField<T>(field: SearchField<T>): field is AsyncSearchField<T> {
+  return field.type === "async";
+}
+
+/**
+ * Get values from a field, handling both sync and async variants.
+ * For sync fields, passes the data array. For async fields, calls with no args.
+ */
+export function getFieldValues<T>(field: SearchField<T>, data: T[]): string[] {
+  if (isAsyncField(field)) {
+    return field.getValues();
+  }
+  return field.getValues(data);
 }
 
 /**
