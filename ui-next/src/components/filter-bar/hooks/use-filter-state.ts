@@ -34,6 +34,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type { SearchChip, SearchField, SearchPreset, Suggestion, ParsedInput } from "../lib/types";
+import { isAsyncField } from "../lib/types";
 import { useChips } from "./use-chips";
 import { useSuggestions } from "./use-suggestions";
 import { useFilterKeyboard } from "./use-filter-keyboard";
@@ -72,6 +73,10 @@ export interface UseFilterStateReturn<T> {
   showPresets: boolean;
   showSuggestions: boolean;
   showDropdown: boolean;
+  /** Whether the active field is an async field currently loading data */
+  isFieldLoading: boolean;
+  /** Label for the loading field (e.g., "users") */
+  loadingFieldLabel: string | undefined;
 
   // Actions (stable refs)
   handleSelect: (value: string) => void;
@@ -159,7 +164,17 @@ export function useFilterState<T>({
 
   const showPresets = isOpen && !!presets && presets.length > 0 && inputValue === "";
   const showSuggestions = isOpen && suggestions.length > 0;
-  const showDropdown = showPresets || showSuggestions || !!validationError;
+
+  // Async field loading: when user has typed a prefix that matches an async field that is still loading
+  const isFieldLoading = !!(
+    parsedInput.field &&
+    parsedInput.hasPrefix &&
+    isAsyncField(parsedInput.field) &&
+    parsedInput.field.isLoading
+  );
+  const loadingFieldLabel = isFieldLoading && parsedInput.field ? parsedInput.field.label : undefined;
+
+  const showDropdown = showPresets || showSuggestions || !!validationError || isFieldLoading;
 
   // ========== Single source of truth: resetInput ==========
 
@@ -307,6 +322,8 @@ export function useFilterState<T>({
     showPresets,
     showSuggestions,
     showDropdown,
+    isFieldLoading,
+    loadingFieldLabel,
 
     // Actions
     handleSelect,
