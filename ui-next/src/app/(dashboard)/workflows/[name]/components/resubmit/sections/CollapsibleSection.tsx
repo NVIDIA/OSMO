@@ -45,6 +45,8 @@ export interface CollapsibleSectionProps {
   action?: ReactNode;
   /** Optional badge element (e.g., availability count) */
   badge?: ReactNode;
+  /** Optional selected value to show when collapsed (e.g., pool name, priority level) */
+  selectedValue?: string;
   /** Section content */
   children: ReactNode;
 }
@@ -56,6 +58,7 @@ export const CollapsibleSection = memo(function CollapsibleSection({
   onOpenChange,
   action,
   badge,
+  selectedValue,
   children,
 }: CollapsibleSectionProps) {
   return (
@@ -83,7 +86,14 @@ export const CollapsibleSection = memo(function CollapsibleSection({
           >
             {step}
           </span>
-          <span className="text-sm font-medium">{title}</span>
+          <div className="flex items-baseline gap-3">
+            <span className="text-sm font-medium">{title}</span>
+            {!open && selectedValue && (
+              <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
+                {selectedValue}
+              </code>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
