@@ -159,7 +159,7 @@ export const ExpandableChips = memo(function ExpandableChips({
         )}
 
         {/* Collapse button */}
-        {expanded && sortedItems.length > 1 && (
+        {expanded && overflowCount > 0 && (
           <Badge
             variant="outline"
             asChild

@@ -31,7 +31,7 @@ import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
 import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
-import { CapacityBar } from "@/components/capacity-bar";
+import { Badge } from "@/components/shadcn/badge";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
 import { PoolSelect } from "./PoolSelect";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -51,48 +51,88 @@ const STATUS_ICONS = {
   offline: XCircle,
 } as const;
 
+/** Grid row layout: fixed label column + flexible value column */
+const META_ROW = "grid grid-cols-[5.625rem_1fr] items-baseline gap-6";
+/** Subtle uppercase label for metadata rows */
+const META_LABEL = "text-muted-foreground text-xs font-medium uppercase";
+
 /** Metadata card showing pool capacity and configuration */
 const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
+  const quotaFree = pool.quota.limit - pool.quota.used;
+  const capacityFree = pool.quota.totalCapacity - pool.quota.totalUsage;
+
   return (
     <div
-      className="bg-muted/50 mt-3 space-y-6 rounded-md p-4"
+      className="bg-muted/50 mt-3 rounded-md p-4"
       role="region"
       aria-label={`Metadata for pool ${pool.name}`}
     >
-      {/* GPU Quota */}
-      <CapacityBar
-        label="GPU Quota"
-        used={pool.quota.used}
-        total={pool.quota.limit}
-        size="sm"
-      />
-
-      {/* GPU Capacity */}
-      <CapacityBar
-        label="GPU Capacity"
-        used={pool.quota.totalUsage}
-        total={pool.quota.totalCapacity}
-        size="sm"
-      />
-
-      {/* Platforms */}
-      <div>
-        <div className="mb-2 flex items-baseline gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-          <span>Platforms</span>
-          {pool.defaultPlatform && (
-            <span className="text-muted-foreground text-xs">(default: {pool.defaultPlatform})</span>
-          )}
+      <div className="space-y-3">
+        {/* GPU Quota */}
+        <div className={cn(META_ROW, "border-border/50 border-b pb-2")}>
+          <div className={META_LABEL}>GPU Quota</div>
+          <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
+            <span className="text-sm font-medium">
+              {pool.quota.used}
+              <span className="text-muted-foreground/50">/</span>
+              {pool.quota.limit}
+            </span>
+            <span className="bg-muted/50 text-muted-foreground ml-px rounded px-2 py-0.5 text-xs font-medium">
+              used
+            </span>
+            <Badge
+              variant="outline"
+              className="ml-2"
+            >
+              {quotaFree} free
+            </Badge>
+          </div>
         </div>
-        <PlatformPills
-          platforms={pool.platforms}
-          expandable={true}
-        />
-      </div>
 
-      {/* Backend */}
-      <div>
-        <div className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">Backend</div>
-        <div className="font-mono text-sm">{pool.backend || "N/A"}</div>
+        {/* GPU Capacity */}
+        <div className={cn(META_ROW, "border-border/50 border-b pb-2")}>
+          <div className={META_LABEL}>GPU Capacity</div>
+          <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
+            <span className="text-sm font-medium">
+              {pool.quota.totalUsage}
+              <span className="text-muted-foreground/50">/</span>
+              {pool.quota.totalCapacity}
+            </span>
+            <span className="bg-muted/50 text-muted-foreground ml-px rounded px-2 py-0.5 text-xs font-medium">
+              used
+            </span>
+            <Badge
+              variant="outline"
+              className="ml-2"
+            >
+              {capacityFree} free
+            </Badge>
+          </div>
+        </div>
+
+        {/* Platforms */}
+        <div className={cn(META_ROW, "border-border/50 border-b pb-2")}>
+          <div className={META_LABEL}>Platforms</div>
+          <div className="min-w-0">
+            <PlatformPills
+              platforms={pool.platforms}
+              expandable={true}
+            />
+          </div>
+        </div>
+
+        {/* Backend */}
+        <div className={META_ROW}>
+          <div className={META_LABEL}>Backend</div>
+          <div>
+            <Badge
+              variant="outline"
+              className="font-mono"
+            >
+              {pool.backend || "N/A"}
+            </Badge>
+          </div>
+        </div>
       </div>
     </div>
   );
