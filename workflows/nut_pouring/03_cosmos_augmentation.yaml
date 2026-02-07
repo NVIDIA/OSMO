@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -143,21 +143,22 @@ workflow:
         path: /tmp/entry.sh
       image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
       inputs:
-      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-MP4Videos
+      - dataset: {{ input_dataset }}
       lead: true
       name: cosmos_transfer_augmentation
       outputs:
-      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedMP4
+      - dataset: {{ output_dataset }}
   name: cosmos_transfer_augmentation
   resources:
     default:
       cpu: 30
       gpu: 1
       memory: 128Gi
-      # platform: rtx6000
-      platform: ovx-a40
       storage: 256Gi
   timeout:
     exec_timeout: 3d
     queue_timeout: 1d
 
+default-values:
+  input_dataset: PhysAI-MP4Videos
+  output_dataset: PhysAI-CosmosAugmentedMP4

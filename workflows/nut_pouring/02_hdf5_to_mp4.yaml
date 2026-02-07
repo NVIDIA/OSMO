@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,10 @@ workflow:
     queue_timeout: 12h
   resources:
     default:
-      cpu: {{ ncpus }}
-      gpu: {{ ngpus }}
+      cpu: {{ num_cpu }}
+      gpu: {{ num_gpu }}
       memory: {{ memory }}
       storage: {{ storage }}
-      platform: {{ platform }}
 
   tasks:
   - name: hdf5_to_mp4_conversion
@@ -38,15 +37,14 @@ workflow:
       OMNI_KIT_ALLOW_ROOT: 1
       NO_NUCLEUS: Y
     credentials:
-      hf_token:
-        HF_TOKEN: HF_TOKEN
-    
+      huggingface_token:
+          HF_TOKEN: token
+
     inputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step1-MimicGenerated
-    
+    - dataset: {{ input_dataset }}
     outputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-MP4Videos
-    
+    - dataset: {{ output_dataset }}
+
     args:
     - /tmp/entry.sh
     command:
@@ -57,23 +55,23 @@ workflow:
 
           set -e
           set -euxo pipefail
-          
+
           echo "=== System Info ==="
           nvidia-smi
-          
+
           echo "=== Input Dataset Location ==="
           echo "groot_mimic output available at: {{input:0}}"
           ls -lah {{input:0}}
-          
+
           echo "=== Working Directory ==="
           cd /workspace/isaaclab
           pwd
-          
+
           echo "=== Find HDF5 file from input ==="
           find {{input:0}} -name "*.hdf5" -type f
           INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
           echo "Using input file: $INPUT_HDF5"
-          
+
           echo "=== Verify camera data exists in HDF5 ==="
           /workspace/isaaclab/_isaac_sim/python.sh << PYTHON_CHECK
           import h5py
@@ -81,14 +79,14 @@ workflow:
               demo_0 = f["data/demo_0"]
               obs_keys = list(demo_0["obs"].keys())
               print(f"Observation keys: {obs_keys}")
-              
+
               # Check for robot POV camera (instead of table_cam)
               base_cam = "robot_pov_cam"
               if base_cam not in obs_keys:
                   raise ValueError(f"Missing {base_cam} camera!")
-              
+
               print(f"✅ Found base camera: {base_cam}")
-              
+
               # Check for additional modalities (depth, normals, segmentation)
               additional_modalities = [f"{base_cam}_depth", f"{base_cam}_normals", f"{base_cam}_segmentation"]
               found_additional = [cam for cam in additional_modalities if cam in obs_keys]
@@ -98,7 +96,7 @@ workflow:
                   print(f"⚠️  Only RGB available - depth/normals/segmentation not found")
                   print(f"    Cosmos augmentation will use RGB only")
           PYTHON_CHECK
-          
+
           echo "=== Convert HDF5 to MP4 videos ==="
           # Use robot_pov_cam instead of table_cam
           # Try with all modalities first, script will skip missing ones
@@ -116,21 +114,22 @@ workflow:
             --video_height 704 \
             --video_width 1280 \
             --framerate 30
-          
+
           echo "=== Conversion complete ==="
           ls -lah {{output}}
           echo "Total MP4 files created:"
           find {{output}} -name "*.mp4" | wc -l
-          
+
           echo "=== HDF5 to MP4 Conversion Complete ==="
-          
+
     resource: default
 
 default-values:
   workflow_name: hdf5_to_mp4_conversion
-  image_name: nvcr.io/nvidian/isaac-lab:IsaacLab-main-5.1.0
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
   memory: 64Gi
   storage: 256Gi
-  ngpus: 1
-  ncpus: 16
-  platform: rtx6000
+  num_gpu: 1
+  num_cpu: 16
+  input_dataset: PhysAI-MimicGen
+  output_dataset: PhysAI-MP4Videos

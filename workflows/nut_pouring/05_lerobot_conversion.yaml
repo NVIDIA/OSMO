@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,30 +24,26 @@ workflow:
     queue_timeout: 48h
   resources:
     default:
-      cpu: {{ncpus}}
-      gpu: {{ngpus}}
-      memory: {{memory}}
-      storage: {{storage}}
-      platform: {{platform}}
+      cpu: {{ num_cpu }}
+      gpu: {{ num_gpu }}
+      memory: {{ memory }}
+      storage: {{ storage }}
 
   tasks:
   - name: master  # Master task for torchrun
-    image: {{image_name}} 
+    image: {{ image_name }}
     environment:
       ACCEPT_EULA: Y
       NO_NUCLEUS: Y
       OMNI_KIT_ALLOW_ROOT: 1
-      # PRIVACY_CONSENT: Y
-      OMNI_SERVER: isaac-dev.ov.nvidia.com
-    downloadType: download  # In total, download seems to be faster than mounting
-    
+
     inputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedHDF5
+    - dataset: {{ input_dataset }}
 
     outputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-LeRobotDataset
+    - dataset: {{ output_dataset }}
 
-    command: ["bash"] 
+    command: ["bash"]
     args: ["/tmp/entry.sh"]
     files:
     - path: /tmp/entry.sh
@@ -65,7 +61,7 @@ workflow:
             /workspace/isaaclab/isaaclab.sh -p "$@"
           }
 
-          pwd 
+          pwd
           cd ..
 
           apt-get update && apt-get install -y \
@@ -80,7 +76,7 @@ workflow:
           sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
           git submodule init
           git submodule update --recursive
-          
+
           echo "IsaacLabEvalTasks Cloned successfully ..."
 
           # Submodule locked gr00t to N1
@@ -94,41 +90,41 @@ workflow:
 
           # verify gr00t is installed
           isaaclab_python -c "import gr00t; print('gr00t imported successfully')"
-          
+
           echo "Verified Isaac-GR00T"
 
           # Within IsaacLabEvalTasks directory
           echo "Installing IsaacLabEvalTasks"
 
           echo "Changing directory to IsaacLabEvalTasks"
-          
+
           cd ../..
           isaaclab_python -m pip install -e source/isaaclab_eval_tasks
           echo "Installed IsaacLabEvalTasks"
-          
+
           # Display info on the system
           nvidia-smi
-          
+
           # Prepare dataset directory
           DATASET_DIR=/tmp/dataset_conversion
           mkdir -p $DATASET_DIR
-          
+
           # Find the HDF5 file
           HDF5_FILE=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
           echo "Found HDF5 file: $HDF5_FILE"
-          
+
           # Create the expected filename for the script
           cp $HDF5_FILE $DATASET_DIR/nut_pouring_task.hdf5
-          
+
           # Run data conversion script with the full path
           # First try to see what arguments are available
           isaaclab_python scripts/convert_hdf5_to_lerobot.py --help || true
-          
+
           # Run with inferred arguments based on tyro conventions
           isaaclab_python scripts/convert_hdf5_to_lerobot.py \
             --task-name nutpouring \
             --data-root $DATASET_DIR
-          
+
           # Copy converted dataset to output
           mkdir -p {{output}}
           cp -r $DATASET_DIR/nut_pouring_task {{output}}/
@@ -139,7 +135,9 @@ default-values:
   workflow_name: dataset_conversion_augmented
   memory: 128Gi
   storage: 256Gi
-  ngpus: 1
-  ncpus: 32
-  platform: rtx6000
-  image_name: nvcr.io/nvidian/isaac-lab:IsaacLab-main-5.1.0
+  num_gpu: 1
+  num_cpu: 32
+  platform: ovx-a40
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
+  input_dataset: PhysAI-CosmosAugmentedHDF5
+  output_dataset: PhysAI-LeRobotDataset

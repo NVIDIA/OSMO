@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Nut Pouring: End-to-End VLA Fine-tuning Pipeline
+# Physical AI: Nut Pouring through End-to-End VLA Fine-tuning Pipeline
 
 ## Overview
 
-End-to-end (E2E) pipeline implementation is essential for developers seeking to utilize collected teleoperation (Teleop) data to train modern robotic policies. This workflow presents a robust, six-step data preparation and augmentation pipeline designed to transform raw Teleop data into a training-ready format for the powerful **GROOT-N1.5 Vision-Language-Action (VLA)** model, leveraging **NVIDIA OSMO** for workflow orchestration.
+End-to-end (E2E) pipeline implementation is essential for developers seeking to utilize collected teleoperation (Teleop) data to train modern robotic policies. This workflow presents a robust, six-step data preparation and augmentation pipeline designed to transform raw Teleop data into a training-ready format for the powerful **GROOT-N1.5 Vision-Language-Action (VLA)** model.
 
-Using the **Nut-Pouring Task Dataset**—a multi-step industrial manipulation task—as a concrete example, we showcase the entire data lifecycle necessary to effectively leverage a foundation VLA model. The critical data pipeline steps demonstrated are:
+Using the **Nut-Pouring Task Dataset**, a multi-step industrial manipulation workflow, we showcase the entire data lifecycle necessary to effectively leverage a foundation VLA model. The critical data pipeline steps demonstrated are:
 
 - **MimicGen** - Synthetic demonstration generation
 - **Data Format Conversion** - HDF5 ↔ MP4 transformations
@@ -36,7 +36,7 @@ The pipeline culminates in a successful GROOT-N1.5 fine-tuning run, validating i
 ```
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │   Teleop     │    │   Synthetic  │    │   Augmented  │    │   LeRobot    │
-│    HDF5      │───▶│   Demos      │───▶│    Videos    │───▶│   Dataset    │
+│    HDF5      │───▶│   Data Gen   │───▶│   Videos     │───▶│   Dataset    │
 │              │    │   (HDF5)     │    │   (MP4)      │    │   (Parquet)  │
 └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
                            │                   │                   │
@@ -56,41 +56,45 @@ The pipeline culminates in a successful GROOT-N1.5 fine-tuning run, validating i
 | 5 | `05_lerobot_conversion.yaml` | Convert to LeRobot dataset format | HDF5 | LeRobot Dataset |
 | 6 | `06_groot_finetune.yaml` | Fine-tune GROOT-N1.5-3B model | LeRobot Dataset | Fine-tuned Model |
 
+> **Note:** These workflows must be run sequentially, as each step relies on data produced by the previous step.
+
 ## Prerequisites
 
 - OSMO CLI installed and authenticated
-- Access to GPU pool (RTX 6000 recommended)
+- Access to an OSMO cluster with GPU resources (RTX 6000 recommended)
 - NGC API key for GROOT model access
 
 ## Running the Pipeline
 
+Set your credential for Huggingface in order to access datasets:
+
+```bash
+osmo credential set huggingface_token --type GENERIC --payload token=<your-hf-token>
+```
+
 Execute each step sequentially:
 
 ```bash
+mkdir -p nut_pouring && cd nut_pouring
+curl https://codeload.github.com/NVIDIA/OSMO/tar.gz/main | tar -xz --strip=4 OSMO-main/workflows/nut_pouring
+
 # Step 1: MimicGen data generation
-osmo workflow submit 01_mimic_generation.yaml --pool default
+osmo workflow submit 01_mimic_generation.yaml
 
 # Step 2: HDF5 to MP4 conversion
-osmo workflow submit 02_hdf5_to_mp4.yaml --pool default
+osmo workflow submit 02_hdf5_to_mp4.yaml
 
 # Step 3: Cosmos Transfer augmentation
-osmo workflow submit 03_cosmos_augmentation.yaml --pool default
+osmo workflow submit 03_cosmos_augmentation.yaml
 
 # Step 4: MP4 to HDF5 conversion
-osmo workflow submit 04_mp4_to_hdf5.yaml --pool default
+osmo workflow submit 04_mp4_to_hdf5.yaml
 
 # Step 5: LeRobot format conversion
-osmo workflow submit 05_lerobot_conversion.yaml --pool default
+osmo workflow submit 05_lerobot_conversion.yaml
 
 # Step 6: GROOT fine-tuning
-osmo workflow submit 06_groot_finetune.yaml --pool default
-```
-
-## Monitoring
-
-```bash
-osmo workflow logs <workflow-id> -n 100
-osmo workflow list
+osmo workflow submit 06_groot_finetune.yaml
 ```
 
 ## Configuration
@@ -98,7 +102,7 @@ osmo workflow list
 Each workflow uses parameterized default values. Override as needed:
 
 ```bash
-osmo workflow submit 06_groot_finetune.yaml --pool default \
+osmo workflow submit 06_groot_finetune.yaml \
   --set max_steps=20000 \
   --set batch_size=64
 ```
@@ -106,6 +110,5 @@ osmo workflow submit 06_groot_finetune.yaml --pool default \
 ## References
 
 - [GROOT-N1.5 Documentation](https://developer.nvidia.com/groot)
-- [NVIDIA OSMO](https://developer.nvidia.com/osmo)
 - [Cosmos Transfer](https://developer.nvidia.com/cosmos)
 - [LeRobot](https://huggingface.co/lerobot)

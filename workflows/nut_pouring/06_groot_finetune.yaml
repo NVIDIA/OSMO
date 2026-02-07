@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,9 +30,6 @@ workflow:
           set -ex
 
           nvidia-smi
-          # echo "Input directory:"
-          # ls {{input:0}}/nut_pouring_task/lerobot
-          # echo "Output directory: {{output}}"
 
           # Install Dependencies
           export DEBIAN_FRONTEND=noninteractive
@@ -96,19 +93,22 @@ workflow:
         path: /tmp/entry.sh
       image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
       inputs:
-      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-LeRobotDataset
+      - dataset: {{ input_dataset }}
       lead: true
       name: master
       outputs:
-      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-GR00T-Finetuned
+      - dataset: {{ output_dataset }}
   name: groot_finetune_nut_pouring
   resources:
     default:
       cpu: 64
       gpu: 1
       memory: 512Gi
-      platform: rtx6000
       storage: 256Gi
   timeout:
     exec_timeout: 7d
     queue_timeout: 2d
+
+default-values:
+  input_dataset: PhysAI-LeRobotDataset
+  output_dataset: PhysAI-GR00T-Finetuned

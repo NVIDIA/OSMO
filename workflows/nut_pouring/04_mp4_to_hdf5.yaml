@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,10 @@ workflow:
     queue_timeout: 12h
   resources:
     default:
-      cpu: {{ ncpus }}
-      gpu: {{ ngpus }}
+      cpu: {{ num_cpu }}
+      gpu: {{ num_gpu }}
       memory: {{ memory }}
       storage: {{ storage }}
-      platform: {{ platform }}
 
   tasks:
   - name: mp4_to_hdf5_conversion
@@ -38,16 +37,15 @@ workflow:
       OMNI_KIT_ALLOW_ROOT: 1
       NO_NUCLEUS: Y
     credentials:
-      hf_token:
-        HF_TOKEN: HF_TOKEN
-    
+      huggingface_token:
+        HF_TOKEN: token
+
     inputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step1-MimicGenerated
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedMP4
-    
+    - dataset: {{ input_dataset_mimic_gen}}
+    - dataset: {{ input_dataset_cosmos_augmented_mp4}}
     outputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedHDF5
-    
+    - dataset: {{ output_dataset }}
+
     args:
     - /tmp/entry.sh
     command:
@@ -58,30 +56,30 @@ workflow:
 
           set -e
           set -euxo pipefail
-          
+
           echo "=== System Info ==="
           nvidia-smi
-          
+
           echo "=== Input Locations ==="
           echo "Original HDF5 (reference): {{input:0}}"
           echo "Augmented MP4 videos: {{input:1}}"
           ls -lah {{input:0}}
           ls -lah {{input:1}}
-          
+
           echo "=== Working Directory ==="
           cd /workspace/isaaclab
           pwd
-          
+
           echo "=== Find original HDF5 file (for structure reference) ==="
           INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
           echo "Using reference HDF5: $INPUT_HDF5"
-          
+
           echo "=== Convert augmented MP4 back to HDF5 ==="
           /workspace/isaaclab/_isaac_sim/python.sh scripts/tools/mp4_to_hdf5.py \
             --input_file $INPUT_HDF5 \
             --videos_dir {{input:1}} \
             --output_file {{output}}/cosmos_augmented_dataset.hdf5
-          
+
           echo "=== Verify output HDF5 ==="
           /workspace/isaaclab/_isaac_sim/python.sh << PYTHON_CHECK
           import h5py
@@ -92,20 +90,21 @@ workflow:
               obs_keys = list(demo_0["obs"].keys())
               print(f"Observation keys: {obs_keys}")
           PYTHON_CHECK
-          
+
           echo "=== Conversion complete ==="
           ls -lah {{output}}
-          
+
           echo "=== MP4 to HDF5 Conversion Complete ==="
-          
+
     resource: default
 
 default-values:
   workflow_name: mp4_to_hdf5_conversion
-  image_name: nvcr.io/nvidian/isaac-lab:IsaacLab-main-5.1.0
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
   memory: 64Gi
   storage: 256Gi
-  ngpus: 1
-  ncpus: 16
-  platform: rtx6000
-
+  num_gpu: 1
+  num_cpu: 16
+  input_dataset_mimic_gen: PhysAI-MimicGen
+  input_dataset_cosmos_augmented_mp4: PhysAI-CosmosAugmentedMP4
+  output_dataset: PhysAI-CosmosAugmentedHDF5
