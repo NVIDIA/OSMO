@@ -1,0 +1,143 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 5: Convert HDF5 to LeRobot dataset format for GROOT training
+# Usage: osmo workflow submit 05_lerobot_conversion.yaml --pool default
+
+workflow:
+  name: {{workflow_name}}
+  timeout:
+    exec_timeout: 168h # 7 days
+    queue_timeout: 48h
+  resources:
+    default:
+      cpu: {{ num_cpu }}
+      gpu: {{ num_gpu }}
+      memory: {{ memory }}
+      storage: {{ storage }}
+
+  tasks:
+  - name: master  # Master task for torchrun
+    image: {{ image_name }}
+    environment:
+      ACCEPT_EULA: Y
+      NO_NUCLEUS: Y
+      OMNI_KIT_ALLOW_ROOT: 1
+
+    inputs:
+    - dataset: {{ input_dataset }}
+
+    outputs:
+    - dataset: {{ output_dataset }}
+
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+
+          set -e
+          set -euxo pipefail
+          # Hide conflicting vulkan files, if needed
+          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
+            mv /usr/share/vulkan /usr/share/vulkan_hidden
+          fi
+
+          # Create function for isaaclab.sh
+          isaaclab_python() {
+            /workspace/isaaclab/isaaclab.sh -p "$@"
+          }
+
+          pwd
+          cd ..
+
+          apt-get update && apt-get install -y \
+            git \
+            ffmpeg \
+            libsm6 \
+            libxext6
+
+          # Install IsaacLabEvalTasks
+          git clone https://github.com/isaac-sim/IsaacLabEvalTasks.git
+          cd IsaacLabEvalTasks/
+          sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+          git submodule init
+          git submodule update --recursive
+
+          echo "IsaacLabEvalTasks Cloned successfully ..."
+
+          # Submodule locked gr00t to N1
+          cd submodules/Isaac-GR00T
+          isaaclab_python -m pip install --upgrade setuptools
+          isaaclab_python -m pip install -e .[base]
+          # isaaclab_python -m pip install --no-build-isolation flash-attn==2.7.1.post4
+          export PYTHONPATH=${PYTHONPATH:-}:IsaacLabEvalTasks/submodules/Isaac-GR00T
+
+          echo "Installed Isaac-GR00T"
+
+          # verify gr00t is installed
+          isaaclab_python -c "import gr00t; print('gr00t imported successfully')"
+
+          echo "Verified Isaac-GR00T"
+
+          # Within IsaacLabEvalTasks directory
+          echo "Installing IsaacLabEvalTasks"
+
+          echo "Changing directory to IsaacLabEvalTasks"
+
+          cd ../..
+          isaaclab_python -m pip install -e source/isaaclab_eval_tasks
+          echo "Installed IsaacLabEvalTasks"
+
+          # Display info on the system
+          nvidia-smi
+
+          # Prepare dataset directory
+          DATASET_DIR=/tmp/dataset_conversion
+          mkdir -p $DATASET_DIR
+
+          # Find the HDF5 file
+          HDF5_FILE=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
+          echo "Found HDF5 file: $HDF5_FILE"
+
+          # Create the expected filename for the script
+          cp $HDF5_FILE $DATASET_DIR/nut_pouring_task.hdf5
+
+          # Run data conversion script with the full path
+          # First try to see what arguments are available
+          isaaclab_python scripts/convert_hdf5_to_lerobot.py --help || true
+
+          # Run with inferred arguments based on tyro conventions
+          isaaclab_python scripts/convert_hdf5_to_lerobot.py \
+            --task-name nutpouring \
+            --data-root $DATASET_DIR
+
+          # Copy converted dataset to output
+          mkdir -p {{output}}
+          cp -r $DATASET_DIR/nut_pouring_task {{output}}/
+
+
+# Update default values
+default-values:
+  workflow_name: dataset_conversion_augmented
+  memory: 128Gi
+  storage: 256Gi
+  num_gpu: 1
+  num_cpu: 32
+  platform: ovx-a40
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
+  input_dataset: PhysAI-CosmosAugmentedHDF5
+  output_dataset: PhysAI-LeRobotDataset
