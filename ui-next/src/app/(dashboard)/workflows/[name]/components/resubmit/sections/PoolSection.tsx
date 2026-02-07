@@ -18,16 +18,18 @@
  * PoolSection - Pool selection with metadata card and status badge.
  *
  * Lazy-loading strategy:
- * 1. On mount: Show preselected pool (workflow's original pool), fetch its metadata
- * 2. On dropdown open: Fetch ALL pools with loading indicator
- * 3. Pools load: Enable search, populate dropdown
+ * 1. On mount: Fetch only selected pool's metadata
+ * 2. On dropdown open: Fetch ALL pools once, cache for subsequent selections
+ * 3. After all pools loaded: Use cached data for selected pool (no new API calls)
  */
 
 "use client";
 
-import { memo, useState, useMemo } from "react";
+import { memo, useState, useMemo, useCallback } from "react";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
-import { usePool } from "@/lib/api/adapter/hooks";
+import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
+import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
+import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
 import { CapacityBar } from "@/components/capacity-bar";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
@@ -50,7 +52,7 @@ const STATUS_ICONS = {
 } as const;
 
 /** Metadata card showing pool capacity and configuration */
-const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: NonNullable<ReturnType<typeof usePool>["pool"]> }) {
+const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
   return (
     <div
       className="bg-muted/50 mt-3 space-y-6 rounded-md p-4"
@@ -98,10 +100,63 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: NonNullable<Re
 
 export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSectionProps) {
   const [open, setOpen] = useState(true);
+  // Track if dropdown has ever been opened (triggers all-pools fetch)
+  const [hasEverOpenedDropdown, setHasEverOpenedDropdown] = useState(false);
 
-  // Fetch ONLY the selected pool's metadata (for PoolMetaCard and status badge)
-  // This is a single API call, not all pools
-  const { pool: selectedPool } = usePool(pool);
+  // Fetch individual pool metadata (ONLY before dropdown opens)
+  // Disabled after all-pools query to prevent redundant API calls
+  const { data: individualPoolData } = useGetPoolQuotasApiPoolQuotaGet(
+    {
+      pools: [pool],
+      all_pools: false,
+    },
+    {
+      query: {
+        enabled: !hasEverOpenedDropdown,
+        select: useCallback(
+          (rawData: unknown) => {
+            if (!rawData) return null;
+            return transformPoolDetail(rawData, pool);
+          },
+          [pool],
+        ),
+      },
+    },
+  );
+
+  // Lazy-load ALL pools (only after dropdown opens at least once)
+  // Once loaded, we use this data for ALL pool selections (no more individual queries)
+  const { data: allPoolsData } = useGetPoolQuotasApiPoolQuotaGet(
+    { all_pools: true },
+    {
+      query: {
+        enabled: hasEverOpenedDropdown,
+        select: useCallback((rawData: unknown) => {
+          if (!rawData) return { pools: [], sharingGroups: [] };
+          return transformPoolsResponse(rawData);
+        }, []),
+      },
+    },
+  );
+
+  // Use all-pools data if available (preferred), fallback to individual pool query
+  // This prevents new API calls when selecting different pools after all-pools is loaded
+  const allPools = allPoolsData?.pools;
+  const selectedPool = useMemo(() => {
+    if (allPools) {
+      return allPools.find((p) => p.name === pool);
+    }
+    return individualPoolData ?? null;
+  }, [allPools, individualPoolData, pool]);
+
+  const handleDropdownOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (isOpen && !hasEverOpenedDropdown) {
+        setHasEverOpenedDropdown(true);
+      }
+    },
+    [hasEverOpenedDropdown],
+  );
 
   const statusBadge = useMemo(() => {
     if (!selectedPool) return null;
@@ -133,6 +188,8 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
         value={pool}
         onValueChange={onChange}
         selectedPool={selectedPool ?? undefined}
+        allPools={allPoolsData?.pools}
+        onDropdownOpenChange={handleDropdownOpenChange}
       />
 
       {selectedPool && <PoolMetaCard pool={selectedPool} />}
