@@ -160,6 +160,7 @@ export function ResizablePanel({
     maxWidth,
     minWidthPx,
     containerRef,
+    panelRef,
   });
 
   // Shared ESC key handling with focus scoping

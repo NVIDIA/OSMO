@@ -103,6 +103,7 @@ export function SidePanel({
     maxWidth,
     minWidthPx,
     containerRef: externalContainerRef,
+    panelRef,
     batchWithRAF: true, // SidePanel uses RAF batching for smooth grid updates
     onDragStart,
     onDragEnd,
