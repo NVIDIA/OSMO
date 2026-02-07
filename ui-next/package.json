@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.26.1",
   "scripts": {
     "postinstall": "cp node_modules/elkjs/lib/elk-worker.min.js public/elk-worker.min.js 2>/dev/null || true && next telemetry disable",
+    "clean": "rm -rf .next .turbo",
     "dev": "next dev --turbopack",
     "dev:local": "NEXT_PUBLIC_OSMO_API_HOSTNAME=localhost:8000 NEXT_PUBLIC_OSMO_SSL_ENABLED=false next dev --turbopack",
     "dev:mock": "NEXT_PUBLIC_MOCK_API=true next dev --turbopack",
