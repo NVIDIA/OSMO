@@ -84,7 +84,7 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
         >
           {/* Sliding background indicator */}
           <div
-            className="bg-nvidia pointer-events-none absolute inset-y-1.5 rounded-sm shadow-sm transition-transform duration-200 ease-out"
+            className="bg-foreground/15 pointer-events-none absolute inset-y-1.5 rounded-sm transition-transform duration-200 ease-out"
             style={{
               left: `${PADDING_REM}rem`,
               width: `calc((100% - ${2 * PADDING_REM}rem - ${totalGapsRem}rem) / ${numOptions})`,
@@ -103,7 +103,7 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
                 className={cn(
                   "relative z-10 flex-1 cursor-pointer rounded-sm px-3 py-2 text-center text-sm font-medium",
                   "transition-colors duration-200 ease-out",
-                  isSelected ? "text-white" : "text-muted-foreground",
+                  isSelected ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 <input
