@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnnouncer } from "@/hooks/use-announcer";
 import { useCopy } from "@/hooks/use-copy";
+import { useFocusReturn } from "@/components/panel/hooks/useFocusReturn";
 
 import { useShell } from "../hooks/use-shell";
 import { getDisplayStatus } from "../lib/shell-state";
@@ -108,6 +109,11 @@ export const ShellTerminalImpl = memo(
     const deferredSearchQuery = useDeferredValue(searchQuery);
     const prevPhaseRef = useRef<string>(state.phase);
     const session = useShellSession(taskId);
+
+    // Focus restoration: capture trigger when search opens, restore when it closes
+    // Note: handleCloseSearch also calls focus(), but useFocusReturn provides
+    // a fallback in case focus moved elsewhere during search interaction
+    useFocusReturn({ open: isSearchOpen });
 
     useImperativeHandle(ref, () => ({
       connect,

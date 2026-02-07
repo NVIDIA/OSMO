@@ -24,6 +24,7 @@
 import { memo, useState, useId } from "react";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
+import { usePanelFocus } from "@/components/panel/hooks/usePanelFocus";
 import { CollapsibleSection } from "./CollapsibleSection";
 
 export interface PrioritySectionProps {
@@ -45,6 +46,13 @@ const PRIORITY_LABELS: Record<WorkflowPriority, string> = {
 export const PrioritySection = memo(function PrioritySection({ priority, onChange }: PrioritySectionProps) {
   const [open, setOpen] = useState(true);
   const groupId = useId();
+  const focusPanel = usePanelFocus();
+
+  // Handle priority selection: change value and focus panel so ESC works
+  const handleChange = (newPriority: WorkflowPriority) => {
+    onChange(newPriority);
+    focusPanel(); // Return focus to panel after instant action
+  };
 
   // Calculate the position of the sliding indicator.
   // Layout: container has p-1.5 (0.375rem) padding and gap-2 (0.5rem) between flex-1 items.
@@ -103,7 +111,7 @@ export const PrioritySection = memo(function PrioritySection({ priority, onChang
                   name={`${groupId}-priority`}
                   value={option}
                   checked={isSelected}
-                  onChange={() => onChange(option)}
+                  onChange={() => handleChange(option)}
                   className="sr-only"
                   aria-label={`${PRIORITY_LABELS[option]} priority`}
                 />

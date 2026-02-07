@@ -88,6 +88,7 @@ const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectS
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Filter siblings by search query
   const filteredSiblings = useMemo(() => {
@@ -115,7 +116,7 @@ const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectS
     }
   }, []);
 
-  // Focus search input and scroll current item into view when dropdown opens
+  // Focus management: focus search input on open, restore to trigger on close
   useEffect(() => {
     if (isOpen) {
       searchInputRef.current?.focus();
@@ -123,6 +124,12 @@ const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectS
       if (currentItem) {
         currentItem.scrollIntoView({ block: "center", behavior: "instant" });
       }
+    } else {
+      // Restore focus to trigger button when dropdown closes
+      // Use queueMicrotask to ensure Radix has finished its cleanup
+      queueMicrotask(() => {
+        triggerRef.current?.focus();
+      });
     }
   }, [isOpen]);
 
@@ -133,6 +140,7 @@ const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectS
     >
       <DropdownMenuTrigger asChild>
         <button
+          ref={triggerRef}
           className="flex min-w-0 items-center gap-2 rounded-md py-0.5 pr-1.5 pl-1.5 text-gray-900 transition-colors hover:bg-gray-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
           aria-label="Switch task"
         >
