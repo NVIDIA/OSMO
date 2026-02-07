@@ -31,6 +31,10 @@ import { useDrag } from "@use-gesture/react";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 
+/** Selector for finding focusable elements within a container */
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
+
 export interface UseResizeDragOptions {
   /** Current width as percentage (0-100) */
   width: number;
@@ -44,6 +48,12 @@ export interface UseResizeDragOptions {
   minWidthPx?: number;
   /** Container ref for calculating width percentages (if not provided, uses window.innerWidth) */
   containerRef?: RefObject<HTMLElement | null>;
+  /**
+   * Ref to the panel element. When provided, focus is restored to the panel
+   * after a drag ends. This ensures focus-scoped escape key handling (usePanelEscape)
+   * continues to work after resize operations.
+   */
+  panelRef?: RefObject<HTMLElement | null>;
   /** Use RAF batching for width updates (recommended for grid-based layouts) */
   batchWithRAF?: boolean;
   /** Called when drag starts (for snap zone integration) */
@@ -85,6 +95,7 @@ export function useResizeDrag({
   maxWidth = 80,
   minWidthPx = 320,
   containerRef,
+  panelRef,
   batchWithRAF = false,
   onDragStart,
   onDragEnd,
@@ -213,6 +224,32 @@ export function useResizeDrag({
           if (pendingWidthRef.current !== null) {
             stableOnWidthChange(Math.round(pendingWidthRef.current * 100) / 100);
             pendingWidthRef.current = null;
+          }
+        }
+
+        // Restore focus to the panel after drag ends.
+        // During drag, the browser moves focus to document.body (pointer events are
+        // captured at the document level by @use-gesture/react). Without restoring focus,
+        // usePanelEscape's focus-scoped check (panelRef.contains(document.activeElement))
+        // will fail, making Escape unable to close the panel after a resize.
+        const panel = panelRef?.current;
+        if (panel && !panel.contains(document.activeElement)) {
+          // Try to find a focusable element within the panel (skip the resize handle itself)
+          const focusable = panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+          if (focusable) {
+            focusable.focus();
+          } else {
+            // Fallback: focus the panel container itself.
+            // This works because the panel has role="complementary" which is focusable
+            // with tabindex, or we can temporarily make it focusable.
+            if (!panel.hasAttribute("tabindex")) {
+              panel.setAttribute("tabindex", "-1");
+              panel.focus();
+              // Remove tabindex after focus so it doesn't appear in tab order
+              panel.removeAttribute("tabindex");
+            } else {
+              panel.focus();
+            }
           }
         }
       }
