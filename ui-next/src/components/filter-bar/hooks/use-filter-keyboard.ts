@@ -31,7 +31,7 @@
  */
 
 import { useCallback } from "react";
-import type { ParsedInput, Suggestion } from "../lib/types";
+import type { ParsedInput, SearchField, Suggestion } from "../lib/types";
 
 // ---------------------------------------------------------------------------
 // Action interface: all side-effects the keyboard handler may trigger
@@ -84,6 +84,7 @@ export interface FilterKeyboardState<T> {
   isOpen: boolean;
   parsedInput: ParsedInput<T>;
   selectables: Suggestion<T>[];
+  fields: readonly SearchField<T>[];
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +267,13 @@ function handleEnter<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, a
   if (inputValue.trim() && selectables.length === 0) {
     e.preventDefault();
     e.stopPropagation();
-    actions.showError(`Use a filter prefix like "pool:" or "platform:" to create filters`);
+
+    // Generate dynamic error message using available field prefixes
+    const { fields } = state;
+    const examplePrefixes = fields.slice(0, 2).map((f) => `"${f.prefix}"`);
+    const prefixText = examplePrefixes.length > 0 ? examplePrefixes.join(" or ") : "a filter prefix";
+
+    actions.showError(`Use a filter prefix like ${prefixText} to create filters`);
   }
 }
 
