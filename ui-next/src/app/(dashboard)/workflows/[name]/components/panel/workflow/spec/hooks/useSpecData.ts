@@ -29,6 +29,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getBasePathUrl } from "@/lib/config";
+import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 
 // =============================================================================
 // Types
@@ -79,7 +80,11 @@ async function fetchSpec(workflowId: string, useTemplate: boolean): Promise<stri
       Accept: "text/plain",
     },
     credentials: "include",
+    redirect: "manual", // Prevent automatic redirect following (prevents CORS errors on auth expiry)
   });
+
+  // Check for redirect responses and throw appropriate error
+  handleRedirectResponse(response, "workflow spec");
 
   if (!response.ok) {
     throw new Error(`Failed to fetch spec: ${response.status} ${response.statusText}`, {

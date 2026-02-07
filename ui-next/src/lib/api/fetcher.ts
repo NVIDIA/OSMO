@@ -12,6 +12,7 @@
  */
 
 import { getBasePathUrl } from "@/lib/config";
+import { handleRedirectResponse } from "./handle-redirect";
 
 interface RequestConfig {
   url: string;
@@ -164,6 +165,15 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
   // In local dev: Means the token is invalid or missing
   if (response.status === 401 || response.status === 403) {
     throw createApiError(`Authentication required (${response.status})`, response.status, false);
+  }
+
+  // Handle redirect responses (3xx) - API endpoints should not redirect
+  // Wraps error in createApiError for consistent error handling
+  try {
+    handleRedirectResponse(response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw createApiError(message, response.status, false);
   }
 
   // Helper to safely parse error response (may be HTML for 404s, etc.)
