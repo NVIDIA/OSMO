@@ -72,6 +72,14 @@ Set your credential for Huggingface in order to access datasets:
 osmo credential set huggingface_token --type GENERIC --payload token=<your-hf-token>
 ```
 
+Set up the first input dataset:
+
+```bash
+mkdir -p input_mimic
+curl -O https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/dataset_annotated_gr1_nut_pouring.hdf5
+osmo dataset upload PhysAI-InputMimic dataset_annotated_gr1_nut_pouring.hdf5
+```
+
 Execute each step sequentially:
 
 ```bash

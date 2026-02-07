@@ -18,7 +18,7 @@ workflow:
           ls -lah {{input:0}}
           echo ""
           echo "=== HDF5 file ==="
-          ls -lah {{input:0}}/input_mimic/dataset_annotated_gr1_nut_pouring.hdf5
+          ls -lah {{input:0}}/{{input_dataset}}/dataset_annotated_gr1_nut_pouring.hdf5
           echo ""
           echo "=== Copying nutpour_gr1t2_base_env_cfg.py ==="
           cp /tmp/nutpour_gr1t2_base_env_cfg.py /workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/
@@ -76,13 +76,12 @@ workflow:
       cpu: 16
       gpu: 1
       memory: 20Gi
-      platform: ovx-a40
       storage: 30Gi
   timeout:
     exec_timeout: 7d
     queue_timeout: 2d
 
 default-values:
-  image_name: nvcr.io/nvidia/isaac-lab:2.2.0
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
   input_dataset: PhysAI-InputMimic
   output_dataset: PhysAI-MimicGen
