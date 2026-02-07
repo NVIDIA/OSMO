@@ -15,27 +15,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NextRequest, NextResponse } from "next/server";
-import { getJwtClaims, getUserRoles } from "@/lib/auth/jwt-helper";
+import { extractToken } from "@/lib/auth/jwt-helper";
+import { decodeUserFromToken } from "@/lib/auth/decode-user";
 
 /**
  * Get current user info from JWT
  *
+ * This endpoint exists for future SSR needs (e.g., server-side auth checks,
+ * personalized metadata, audit logging). Currently, the client decodes JWTs
+ * directly for performance.
+ *
  * In production: Envoy forwards JWT in Authorization header
- * In local dev: Use injected token from localStorage
+ * In local dev: Supports cookie fallback for mock mode
  */
 export async function GET(request: NextRequest) {
-  const claims = getJwtClaims(request);
+  const token = extractToken(request);
+  const user = decodeUserFromToken(token);
 
-  if (!claims) {
+  if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const roles = getUserRoles(request);
-
-  return NextResponse.json({
-    id: claims.sub,
-    email: claims.email || claims.preferred_username,
-    name: claims.name || claims.given_name || claims.email?.split("@")[0],
-    roles,
-  });
+  return NextResponse.json(user);
 }

@@ -48,13 +48,13 @@ export function handleRedirectResponse(response: Response, context?: string): vo
       // Cross-origin redirect to SSO - cannot follow due to CORS
       throw new Error(
         `Your session has expired. Please refresh the page to log in again. ` +
-          `(Cannot follow redirect to ${redirectUrl.origin})`
+          `(Cannot follow redirect to ${redirectUrl.origin})`,
       );
     } else {
       // Same-origin redirect - unexpected for API endpoints
       const contextMsg = context ? ` (${context})` : "";
       throw new Error(
-        `API endpoint unexpectedly redirected to ${location}${contextMsg}. ` + `This may indicate a misconfiguration.`
+        `API endpoint unexpectedly redirected to ${location}${contextMsg}. ` + `This may indicate a misconfiguration.`,
       );
     }
   } catch (err) {
