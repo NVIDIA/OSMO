@@ -137,27 +137,19 @@ export function useChips<T>({
   }, [onChipsChange]);
 
   /**
-   * Get the chips for a preset.
-   */
-  const getPresetChips = useCallback((preset: SearchPreset): SearchChip[] => {
-    return preset.chips;
-  }, []);
-
-  /**
    * Check if a preset is currently active.
    * For multi-chip presets, ALL chips must be present for the preset to be active.
    */
   const isPresetActive = useCallback(
     (preset: SearchPreset) => {
-      const presetChips = getPresetChips(preset);
-      if (presetChips.length === 0) return false;
+      if (preset.chips.length === 0) return false;
 
       // All preset chips must be present
-      return presetChips.every((presetChip) =>
+      return preset.chips.every((presetChip) =>
         chips.some((c) => c.field === presetChip.field && c.value === presetChip.value),
       );
     },
-    [chips, getPresetChips],
+    [chips],
   );
 
   /**
@@ -168,17 +160,16 @@ export function useChips<T>({
    */
   const togglePreset = useCallback(
     (preset: SearchPreset) => {
-      const presetChips = getPresetChips(preset);
-      if (presetChips.length === 0) return;
+      if (preset.chips.length === 0) return;
 
       if (isPresetActive(preset)) {
-        const presetChipSet = new Set(presetChips.map((c) => `${c.field}:${c.value}`));
+        const presetChipSet = new Set(preset.chips.map((c) => `${c.field}:${c.value}`));
         onChipsChange(chips.filter((c) => !presetChipSet.has(`${c.field}:${c.value}`)));
       } else {
         const existingSet = new Set(chips.map((c) => `${c.field}:${c.value}`));
         const newChips = [...chips];
 
-        for (const presetChip of presetChips) {
+        for (const presetChip of preset.chips) {
           if (!existingSet.has(`${presetChip.field}:${presetChip.value}`)) {
             newChips.push(presetChip);
           }
@@ -187,7 +178,7 @@ export function useChips<T>({
         onChipsChange(newChips);
       }
     },
-    [chips, onChipsChange, isPresetActive, getPresetChips],
+    [chips, onChipsChange, isPresetActive],
   );
 
   const clearValidationError = useCallback(() => {

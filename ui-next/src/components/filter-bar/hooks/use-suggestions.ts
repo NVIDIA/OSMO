@@ -25,6 +25,7 @@
 
 import { useMemo } from "react";
 import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } from "../lib/types";
+import { parseInput, getFieldHint } from "../lib/parse-input";
 
 export interface UseSuggestionsOptions<T> {
   /** Current input value */
@@ -47,46 +48,8 @@ export interface UseSuggestionsReturn<T> {
   parsedInput: ParsedInput<T>;
   /** All suggestions for the dropdown */
   suggestions: Suggestion<T>[];
-  /** Suggestions that can be selected (excludes hints) */
-  selectableSuggestions: Suggestion<T>[];
   /** Flattened preset items for navigation */
   flatPresets: SearchPreset[];
-  /** Total navigable items (presets + selectable suggestions) */
-  totalNavigableCount: number;
-}
-
-/**
- * Parse input to find the longest matching field prefix.
- * Supports hierarchical prefixes like "quota:free:" - finds longest match.
- */
-function parseInput<T>(inputValue: string, fields: readonly SearchField<T>[]): ParsedInput<T> {
-  let bestMatch: { field: SearchField<T>; prefix: string } | null = null;
-
-  for (const field of fields) {
-    if (field.prefix && inputValue.toLowerCase().startsWith(field.prefix.toLowerCase())) {
-      if (!bestMatch || field.prefix.length > bestMatch.prefix.length) {
-        bestMatch = { field, prefix: field.prefix };
-      }
-    }
-  }
-
-  if (bestMatch) {
-    return {
-      field: bestMatch.field,
-      query: inputValue.slice(bestMatch.prefix.length),
-      hasPrefix: true,
-    };
-  }
-
-  return { field: null, query: inputValue, hasPrefix: false };
-}
-
-/**
- * Get hint text for a field.
- */
-function getFieldHint<T>(field: SearchField<T>): string {
-  if (field.hint) return field.hint;
-  return field.label;
 }
 
 /**
@@ -256,23 +219,15 @@ export function useSuggestions<T>({
     [inputValue, parsedInput, fields, data, chips],
   );
 
-  // Filter to selectable suggestions (exclude hints)
-  const selectableSuggestions = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
-
   // Flatten presets for navigation
   const flatPresets = useMemo(() => {
     if (!presets || inputValue !== "") return [];
     return presets.flatMap((group) => group.items);
   }, [presets, inputValue]);
 
-  // Total navigable items
-  const totalNavigableCount = flatPresets.length + selectableSuggestions.length;
-
   return {
     parsedInput,
     suggestions,
-    selectableSuggestions,
     flatPresets,
-    totalNavigableCount,
   };
 }
