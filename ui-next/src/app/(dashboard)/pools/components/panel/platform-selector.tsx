@@ -64,6 +64,7 @@ export function PlatformSelector({
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputId = useId();
 
   const sortedPlatforms = useMemo(() => [...platforms].sort(), [platforms]);
@@ -84,16 +85,23 @@ export function PlatformSelector({
     }
   }, []);
 
-  // Focus search input and scroll current item into view when dropdown opens
+  // Focus management: focus search input on open, restore to trigger on close
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && platforms.length >= SEARCH_THRESHOLD) {
+      // Focus search input in searchable mode
       searchInputRef.current?.focus();
       const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
       if (currentItem) {
         currentItem.scrollIntoView({ block: "center", behavior: "instant" });
       }
+    } else if (!isOpen) {
+      // Restore focus to trigger button when dropdown closes
+      // Use queueMicrotask to ensure Radix has finished its cleanup
+      queueMicrotask(() => {
+        triggerRef.current?.focus();
+      });
     }
-  }, [isOpen]);
+  }, [isOpen, platforms.length]);
 
   // Single platform: Static label
   if (platforms.length === 1) {
@@ -118,6 +126,7 @@ export function PlatformSelector({
       >
         <DropdownMenuTrigger asChild>
           <button
+            ref={triggerRef}
             className="flex items-center gap-2 rounded-md py-0.5 pr-1 text-zinc-900 transition-colors hover:bg-zinc-200/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50"
             aria-label="Select platform"
           >
@@ -168,6 +177,7 @@ export function PlatformSelector({
     >
       <DropdownMenuTrigger asChild>
         <button
+          ref={triggerRef}
           className="flex items-center gap-2 rounded-md py-0.5 pr-1 text-zinc-900 transition-colors hover:bg-zinc-200/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50"
           aria-label="Select platform"
         >

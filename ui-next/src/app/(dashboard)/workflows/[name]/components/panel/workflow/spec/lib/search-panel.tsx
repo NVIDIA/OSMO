@@ -302,10 +302,17 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
  */
 export function createSearchPanel(isDark: boolean) {
   let root: Root | null = null;
+  let previousFocus: HTMLElement | null = null;
 
   return (view: EditorView): { dom: HTMLElement; top: boolean; destroy?: () => void } => {
     const dom = document.createElement("div");
     dom.className = "spec-search-panel-mount";
+
+    // Capture current focus to restore when search closes
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) {
+      previousFocus = active;
+    }
 
     root = createRoot(dom);
     root.render(
@@ -320,11 +327,27 @@ export function createSearchPanel(isDark: boolean) {
       top: true, // Position at top of editor
       destroy: () => {
         if (root) {
+          // Capture root value before nulling to avoid closure issue
+          const r = root;
+          root = null;
           // Defer unmount to avoid race condition when called during render
           queueMicrotask(() => {
-            root?.unmount();
+            r.unmount();
           });
-          root = null;
+        }
+
+        // Restore focus to the element that had focus before search opened
+        // Check disabled state for consistency with useFocusReturn pattern
+        if (
+          previousFocus &&
+          previousFocus.isConnected &&
+          !previousFocus.hasAttribute("disabled") &&
+          previousFocus.getAttribute("aria-disabled") !== "true"
+        ) {
+          queueMicrotask(() => {
+            previousFocus?.focus();
+            previousFocus = null;
+          });
         }
       },
     };
