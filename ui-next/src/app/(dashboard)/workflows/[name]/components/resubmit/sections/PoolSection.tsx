@@ -49,9 +49,12 @@ const STATUS_VARIANT: Record<PoolStatus, "default" | "secondary" | "destructive"
 
 /** Maps pool status to display color */
 const STATUS_COLOR: Record<PoolStatus, string> = {
-  [PoolStatus.ONLINE]: "bg-green-500/10 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800",
-  [PoolStatus.MAINTENANCE]: "bg-yellow-500/10 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800",
-  [PoolStatus.OFFLINE]: "bg-red-500/10 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-800",
+  [PoolStatus.ONLINE]:
+    "bg-green-500/10 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800",
+  [PoolStatus.MAINTENANCE]:
+    "bg-yellow-500/10 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800",
+  [PoolStatus.OFFLINE]:
+    "bg-red-500/10 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-800",
 };
 
 /** Metadata card showing pool capacity and configuration */

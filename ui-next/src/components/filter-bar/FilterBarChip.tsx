@@ -17,13 +17,10 @@
  */
 
 /**
- * FilterBar UI components.
+ * FilterBarChip - Individual filter chip with remove button.
  *
- * Core components for FilterBar:
- * - ChipLabel: Chip display with variants
- * - PresetContent: Wrapper for caller-provided preset rendering
- *
- * Note: Dropdown rendering is handled by cmdk (shadcn/ui Command).
+ * Displays a chip with field:value label and optional Free/Used variant styling.
+ * Keyboard-focusable with visible focus ring.
  */
 
 "use client";
@@ -32,23 +29,21 @@ import { memo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dropdownStyles, chipStyles, chipVariantStyles } from "./styles";
-import type { SearchChip, SearchPreset } from "./lib/types";
+import type { SearchChip } from "./lib/types";
 
-// ============================================================================
-// Chip Components
-// ============================================================================
-
-export interface ChipLabelProps {
+export interface FilterBarChipProps {
   chip: SearchChip;
   onRemove: () => void;
   focused?: boolean;
 }
 
 /**
- * Chip label component with variant styling for Free/Used.
+ * Renders a single filter chip with variant-aware label and remove button.
+ *
+ * Variant styling parses labels like "Quota Free: >=10" to highlight
+ * the Free/Used segment with semantic color.
  */
-export const ChipLabel = memo(function ChipLabel({ chip, onRemove, focused = false }: ChipLabelProps) {
-  // Parse label to find "Free" or "Used" for styling
+export const FilterBarChip = memo(function FilterBarChip({ chip, onRemove, focused = false }: FilterBarChipProps) {
   const renderLabel = () => {
     if (!chip.variant) return chip.label;
 
@@ -81,26 +76,4 @@ export const ChipLabel = memo(function ChipLabel({ chip, onRemove, focused = fal
       </button>
     </span>
   );
-});
-
-// ============================================================================
-// Preset Components
-// ============================================================================
-
-export interface PresetContentProps {
-  preset: SearchPreset;
-  isActive: boolean;
-  /** Whether this preset is focused via keyboard (cmdk provides this via data-selected) */
-  isFocused?: boolean;
-}
-
-/**
- * Preset content for rendering inside CommandItem.
- *
- * FilterBar is agnostic about preset content - it delegates all rendering
- * to the caller-provided render function. This enables dependency injection
- * and keeps the component decoupled from data concerns like counts.
- */
-export const PresetContent = memo(function PresetContent({ preset, isActive, isFocused = false }: PresetContentProps) {
-  return <>{preset.render({ active: isActive, focused: isFocused })}</>;
 });
