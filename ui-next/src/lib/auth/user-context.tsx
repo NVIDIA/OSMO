@@ -17,9 +17,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { hasAdminRole } from "./roles";
 import { getBasePathUrl } from "@/lib/config";
-import { isRedirect } from "@/lib/api/handle-redirect";
+import { getClientToken, decodeUserFromToken } from "./decode-user";
 
 export interface User {
   id: string;
@@ -37,14 +36,6 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-function getInitials(name: string): string {
-  return name
-    .split(/[\s@]+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || "")
-    .join("");
-}
-
 interface UserProviderProps {
   children: ReactNode;
 }
@@ -52,62 +43,28 @@ interface UserProviderProps {
 /**
  * User Provider
  *
- * In production: Fetches user from /api/me (backend reads JWT from Envoy)
- * In local dev: Mocks the /api/me endpoint with fake user data
+ * Decodes user information from JWT token stored in localStorage or cookies.
+ * No network call required - synchronous and fast.
+ *
+ * In production: Token is set by Envoy in cookies
+ * In local dev: Token is injected via localStorage or copied from staging
  */
 export function UserProvider({ children }: UserProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchUser() {
-      const controller = new AbortController();
-      try {
-        const response = await fetch(getBasePathUrl("/api/me"), {
-          credentials: "include",
-          signal: controller.signal,
-          redirect: "manual", // Prevent automatic redirect following (prevents CORS errors on auth expiry)
-        });
-
-        // Check for redirect responses - user is not authenticated
-        if (isRedirect(response)) {
-          // Don't throw error - just treat as unauthenticated
-          console.info("User auth check: redirect detected, treating as unauthenticated");
-          setUser(null);
-          return controller;
-        }
-
-        if (response.ok) {
-          const data = await response.json();
-          const roles = data.roles || [];
-          setUser({
-            id: data.id || data.sub || "",
-            name: data.name || data.email?.split("@")[0] || "User",
-            email: data.email || "",
-            isAdmin: hasAdminRole(roles),
-            initials: getInitials(data.name || data.email || "U"),
-          });
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return;
-        }
-        console.error("Failed to fetch user:", error);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-
-      return controller;
+    // Decode user from JWT token (synchronous, no network call)
+    try {
+      const token = getClientToken();
+      const decodedUser = decodeUserFromToken(token);
+      setUser(decodedUser);
+    } catch (error) {
+      console.error("Failed to decode user from token:", error);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
-
-    const fetchPromise = fetchUser();
-
-    return () => {
-      fetchPromise.then((controller) => controller?.abort());
-    };
   }, []);
 
   const logout = () => {
