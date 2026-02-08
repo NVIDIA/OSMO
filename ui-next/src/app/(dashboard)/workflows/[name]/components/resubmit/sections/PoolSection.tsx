@@ -31,7 +31,6 @@ import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
 import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/shadcn/badge";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
 import { PoolSelect } from "./PoolSelect";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -78,12 +77,8 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
               {pool.quota.limit}
             </span>
             <span className="text-muted-foreground pl-[0.3rem] text-xs font-medium">used</span>
-            <Badge
-              variant="outline"
-              className="ml-2"
-            >
-              {quotaFree} free
-            </Badge>
+            <span className="text-muted-foreground px-2">•</span>
+            <span className="text-xs font-medium">{quotaFree} free</span>
           </div>
         </div>
 
@@ -97,12 +92,8 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
               {pool.quota.totalCapacity}
             </span>
             <span className="text-muted-foreground pl-[0.3rem] text-xs font-medium">used</span>
-            <Badge
-              variant="outline"
-              className="ml-2"
-            >
-              {capacityFree} free
-            </Badge>
+            <span className="text-muted-foreground px-2">•</span>
+            <span className="text-xs font-medium">{capacityFree} free</span>
           </div>
         </div>
 
@@ -121,12 +112,7 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
         <div className={META_ROW}>
           <div className={META_LABEL}>Backend</div>
           <div>
-            <Badge
-              variant="outline"
-              className="font-mono"
-            >
-              {pool.backend || "N/A"}
-            </Badge>
+            <pre className="text-sm font-medium">{pool.backend || "N/A"}</pre>
           </div>
         </div>
       </div>
