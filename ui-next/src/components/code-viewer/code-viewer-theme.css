@@ -1,0 +1,137 @@
+/**
+ * CodeMirror Theme Overrides
+ *
+ * Structural and interactive styles for CodeMirror, using CSS custom
+ * properties from globals.css for design token consistency.
+ *
+ * IMPORTANT: This file is intentionally NOT in a @layer because
+ * CodeMirror injects unlayered <style> tags. Layered styles would
+ * lose the specificity battle regardless of selector weight.
+ *
+ * Specificity strategy: Use compound selectors (.cm-editor.cm-focused)
+ * to beat CodeMirror's base theme without !important.
+ */
+
+/* ── Mode Toggle ───────────────────────────────────────────────── */
+/* The wrapper [data-cm-readonly] attribute drives cursor visibility,
+   eliminating the need for JS-side conditional style objects.       */
+
+/* Read-only: hide cursor entirely */
+[data-cm-readonly="true"] .cm-editor .cm-cursorLayer,
+[data-cm-readonly="true"] .cm-editor.cm-focused .cm-cursorLayer {
+  display: none;
+}
+
+/* Editable: NVIDIA green cursor */
+[data-cm-readonly="false"] .cm-editor .cm-cursor,
+[data-cm-readonly="false"] .cm-editor .cm-dropCursor {
+  border-left: 2px solid var(--nvidia-green);
+  margin-left: -1px;
+  height: 1.2em;
+}
+
+[data-cm-readonly="false"] .cm-editor.cm-focused .cm-cursor {
+  animation: cm-blink-nvidia 1s step-end infinite;
+}
+
+/* Editable: active line highlight */
+[data-cm-readonly="false"] .cm-editor .cm-activeLine {
+  background-color: var(--nvidia-green-active-line);
+}
+
+/* Read-only: no active line highlight */
+[data-cm-readonly="true"] .cm-editor .cm-activeLine {
+  background-color: transparent;
+}
+
+@keyframes cm-blink-nvidia {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.1%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── Selection ─────────────────────────────────────────────────── */
+.cm-editor.cm-focused .cm-selectionBackground,
+.cm-editor .cm-selectionBackground,
+.cm-editor .cm-content ::selection {
+  background-color: var(--cm-selection-bg);
+}
+
+/* ── Gutters ───────────────────────────────────────────────────── */
+.cm-editor .cm-gutters {
+  background-color: var(--cm-gutter-bg);
+  color: var(--cm-line-number);
+  border: none;
+  border-right: 1px solid hsl(var(--border));
+  z-index: 2;
+}
+
+.cm-editor .cm-lineNumbers {
+  background-color: var(--cm-gutter-bg);
+}
+
+.cm-editor .cm-lineNumbers .cm-gutterElement {
+  padding: 0 0.75rem 0 0.5rem;
+  min-width: 2.5rem;
+  background-color: var(--cm-gutter-bg);
+}
+
+.cm-editor .cm-activeLineGutter {
+  background-color: transparent;
+  color: var(--cm-line-number-active);
+}
+
+/* ── Fold Gutter ───────────────────────────────────────────────── */
+.cm-editor .cm-foldGutter {
+  background-color: var(--cm-gutter-bg);
+}
+
+.cm-editor .cm-foldGutter .cm-gutterElement {
+  padding: 0 0 0 0.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+  background-color: var(--cm-gutter-bg);
+}
+
+.cm-editor .cm-gutters:hover .cm-foldGutter .cm-gutterElement {
+  opacity: 1;
+}
+
+/* ── Matching Bracket ──────────────────────────────────────────── */
+.cm-editor.cm-focused .cm-matchingBracket {
+  background-color: var(--cm-matching-bracket);
+  outline: 1px solid hsl(var(--border));
+}
+
+/* ── Scroller ──────────────────────────────────────────────────── */
+.cm-editor .cm-scroller {
+  overflow: auto;
+  background-color: var(--cm-bg);
+}
+
+/* ── Fold Placeholder ──────────────────────────────────────────── */
+.cm-editor .cm-foldPlaceholder {
+  background-color: hsl(var(--border));
+  border: none;
+  color: var(--cm-line-number);
+  padding: 0 0.25rem;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Reduced Motion ────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-cm-readonly="false"] .cm-editor.cm-focused .cm-cursor {
+    animation: none;
+  }
+}

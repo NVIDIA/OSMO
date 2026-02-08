@@ -239,6 +239,15 @@
   --nvidia-green-bg: #f3f9e8;
   --nvidia-green-bg-dark: #1a2e0a;
 
+  /* CodeMirror theme tokens (light mode) */
+  --cm-bg: oklch(1 0 0); /* Same as --background */
+  --cm-gutter-bg: oklch(1 0 0);
+  --cm-line-number: oklch(0.556 0 0); /* Same as --muted-foreground */
+  --cm-line-number-active: oklch(0.145 0 0); /* Same as --foreground */
+  --cm-matching-bracket: rgba(0, 0, 0, 0.1);
+  --cm-selection-bg: #f3f9e8; /* Same as --nvidia-green-bg */
+  --nvidia-green-active-line: rgba(118, 185, 0, 0.04);
+
   /* Semantic status colors */
   --status-success: oklch(0.7 0.15 145);
   --status-warning: oklch(0.75 0.15 75);
@@ -309,6 +318,15 @@
   --nvidia-green-light: #9ed439;
   --nvidia-green-bg: #f3f9e8;
   --nvidia-green-bg-dark: #1a2e0a;
+
+  /* CodeMirror theme tokens (dark mode) */
+  --cm-bg: #18181b; /* Same as --table-header (zinc-900) */
+  --cm-gutter-bg: #18181b;
+  --cm-line-number: oklch(0.708 0 0); /* Same as --muted-foreground */
+  --cm-line-number-active: oklch(0.985 0 0); /* Same as --foreground */
+  --cm-matching-bracket: rgba(255, 255, 255, 0.1);
+  --cm-selection-bg: #1a2e0a; /* Same as --nvidia-green-bg-dark */
+  --nvidia-green-active-line: rgba(118, 185, 0, 0.08);
 
   /* Status background colors (dark mode) */
   --status-success-bg: oklch(0.25 0.05 145);

@@ -63,6 +63,7 @@ import { createExtensions } from "./lib/extensions";
 import { useMounted } from "@/hooks/use-mounted";
 import type { CodeMirrorProps } from "./types";
 import "./code-viewer-search.css";
+import "./code-viewer-theme.css";
 
 export const CodeMirror = memo(function CodeMirror({
   value,
@@ -119,6 +120,7 @@ export const CodeMirror = memo(function CodeMirror({
       className={className}
       role="region"
       aria-label={ariaLabel ?? language.name}
+      data-cm-readonly={readOnly ? "true" : "false"}
     >
       <CodeMirrorLib
         value={value}

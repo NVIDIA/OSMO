@@ -90,117 +90,30 @@ const lightColors = {
 };
 
 /**
- * Creates a theme-aware CodeMirror theme.
+ * Creates a minimal CodeMirror theme for base container initialization.
+ * Structural and interactive styles are in code-viewer-theme.css.
  * @param isDark - Whether to use dark mode colors
  */
 export function createCodeViewerTheme(isDark: boolean) {
-  const colors = isDark ? darkColors : lightColors;
-  const borderColor = "hsl(var(--border))";
-
   return EditorView.theme(
     {
-      // Main editor container
+      // Base container - minimal JS-side styles for CodeMirror initialization
       "&": {
-        backgroundColor: colors.bg,
-        color: colors.text,
+        backgroundColor: "var(--cm-bg)",
+        color: "hsl(var(--foreground))",
         fontSize: "0.8125rem", // 13px - use rem for scaling
         fontFamily: "var(--font-mono)",
       },
 
       // Editor wrapper
       ".cm-editor": {
-        backgroundColor: colors.bg,
+        backgroundColor: "var(--cm-bg)",
       },
 
       // Content area
       ".cm-content": {
-        caretColor: colors.cursor,
+        caretColor: "hsl(var(--foreground))",
         padding: "0.5rem 0", // 8px in rem
-      },
-
-      // Cursor hidden -- read-only viewer
-      ".cm-cursor, .cm-dropCursor": { display: "none !important" },
-      "&.cm-focused .cm-cursor": { display: "none !important" },
-      ".cm-cursorLayer": { display: "none !important" },
-
-      // Selection
-      "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-        backgroundColor: colors.selectionBg,
-      },
-
-      // Active line - no background (VS Code behavior)
-      ".cm-activeLine": {
-        backgroundColor: "transparent",
-      },
-
-      // Gutter
-      ".cm-gutters": {
-        backgroundColor: colors.gutterBg,
-        color: colors.lineNumber,
-        border: "none",
-        borderRight: `1px solid ${borderColor}`,
-        zIndex: "2", // Ensure gutter stays above scrolling content
-      },
-
-      // Line numbers
-      ".cm-lineNumbers": {
-        backgroundColor: colors.gutterBg,
-      },
-
-      ".cm-lineNumbers .cm-gutterElement": {
-        padding: "0 0.75rem 0 0.5rem", // 0 12px 0 8px in rem
-        minWidth: "2.5rem", // 40px in rem
-        backgroundColor: colors.gutterBg,
-      },
-
-      // Active line number - only brighten text, no background (VS Code behavior)
-      ".cm-activeLineGutter": {
-        backgroundColor: "transparent",
-        color: colors.lineNumberActive,
-      },
-
-      // Fold gutter - hidden by default, fades in on hover
-      ".cm-foldGutter": {
-        backgroundColor: colors.gutterBg,
-      },
-
-      ".cm-foldGutter .cm-gutterElement": {
-        padding: "0 0 0 0.25rem", // Reduced right padding for tighter spacing
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100%",
-        lineHeight: "1",
-        opacity: "0",
-        transition: "opacity 150ms ease-in-out", // Use standard duration
-        backgroundColor: colors.gutterBg,
-      },
-
-      // Show fold icons on gutter hover (VS Code behavior)
-      ".cm-gutters:hover .cm-foldGutter .cm-gutterElement": {
-        opacity: "1",
-      },
-
-      // Matching bracket
-      "&.cm-focused .cm-matchingBracket": {
-        backgroundColor: colors.matchingBracket,
-        outline: `1px solid ${borderColor}`,
-      },
-
-      // Scrollbar
-      ".cm-scroller": {
-        overflow: "auto",
-        backgroundColor: colors.bg,
-      },
-
-      // Fold placeholder
-      ".cm-foldPlaceholder": {
-        backgroundColor: borderColor,
-        border: "none",
-        color: colors.lineNumber,
-        padding: "0 0.25rem", // 4px in rem
-        borderRadius: "var(--radius-sm)",
       },
     },
     { dark: isDark },
@@ -245,6 +158,7 @@ export function createCodeViewerHighlightStyle(isDark: boolean) {
 
 /**
  * Creates the combined theme extension for the code viewer.
+ * Structural styles are in code-viewer-theme.css.
  * @param isDark - Whether to use dark mode colors
  */
 export function createCodeViewerExtension(isDark: boolean) {

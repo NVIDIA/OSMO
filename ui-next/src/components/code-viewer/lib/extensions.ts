@@ -85,7 +85,7 @@ export function createExtensions(
   readOnly: boolean,
 ): Extension[] {
   return [
-    // Theme and syntax highlighting
+    // Theme and syntax highlighting (structural styles in code-viewer-theme.css)
     ...createCodeViewerExtension(isDark),
 
     // Language support (provided by caller)
@@ -114,21 +114,6 @@ export function createExtensions(
 
     // Read-only state (only in viewer mode)
     ...(readOnly ? [EditorState.readOnly.of(true)] : []),
-
-    // Show cursor in edit mode (theme hides it by default)
-    ...(!readOnly
-      ? [
-          EditorView.theme({
-            ".cm-cursor, .cm-dropCursor": { display: "block !important" },
-            "&.cm-focused .cm-cursor": {
-              display: "block !important",
-              borderLeftColor: "hsl(var(--foreground))",
-            },
-            ".cm-cursorLayer": { display: "block !important" },
-            ".cm-activeLine": { backgroundColor: "rgba(255, 255, 255, 0.05)" },
-          }),
-        ]
-      : []),
 
     // Accessibility
     EditorView.contentAttributes.of({ "aria-label": ariaLabel }),

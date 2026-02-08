@@ -31,10 +31,10 @@
   --search-text: #e4e4e7;
   --search-muted: #71717a;
   --search-hover-bg: rgba(255, 255, 255, 0.1);
-  --search-active-color: #76b900;
-  --search-active-hover: #8fd400;
+  --search-active-color: var(--nvidia-green);
+  --search-active-hover: var(--nvidia-green-light);
   --search-active-bg: rgba(118, 185, 0, 0.15);
-  --search-focus-border: #76b900;
+  --search-focus-border: var(--nvidia-green);
   --search-shadow: rgba(0, 0, 0, 0.3);
 }
 
@@ -47,10 +47,10 @@
   --search-muted: #71717a;
   --search-hover-bg: rgba(0, 0, 0, 0.05);
   --search-hover-text: #3f3f46;
-  --search-active-color: #76b900;
-  --search-active-hover: #65a000;
+  --search-active-color: var(--nvidia-green);
+  --search-active-hover: var(--nvidia-green-dark);
   --search-active-bg: rgba(118, 185, 0, 0.1);
-  --search-focus-border: #76b900;
+  --search-focus-border: var(--nvidia-green);
   --search-shadow: rgba(0, 0, 0, 0.1);
 }
 
