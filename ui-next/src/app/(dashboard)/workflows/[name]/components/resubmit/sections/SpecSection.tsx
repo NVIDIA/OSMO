@@ -31,12 +31,20 @@ import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/CollapsibleSection";
 
 export interface SpecSectionProps {
-  /** YAML spec content */
+  /** YAML spec content (either modified or original) */
   spec: string | null;
+  /** Original unmodified spec from server (for comparison) */
+  originalSpec: string | null;
   /** Whether spec data is loading */
   isLoading: boolean;
-  /** Callback when spec content changes (for edit mode) */
-  onSpecChange?: (spec: string) => void;
+  /** Whether the spec has been modified from the original */
+  isModified?: boolean;
+  /**
+   * Callback when spec content changes (for edit mode)
+   * - Pass the edited spec if user made changes from original
+   * - Pass undefined if user edited but content matches original (signals to use workflow_id)
+   */
+  onSpecChange?: (spec: string | undefined) => void;
 }
 
 const SpecSkeleton = memo(function SpecSkeleton() {
@@ -103,7 +111,13 @@ function SpecContent({ spec, isLoading, isEditing, editedSpec, onEditedSpecChang
   );
 }
 
-export const SpecSection = memo(function SpecSection({ spec, isLoading, onSpecChange }: SpecSectionProps) {
+export const SpecSection = memo(function SpecSection({
+  spec,
+  originalSpec,
+  isLoading,
+  isModified = false,
+  onSpecChange,
+}: SpecSectionProps) {
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedSpec, setEditedSpec] = useState(spec ?? "");
@@ -124,9 +138,12 @@ export const SpecSection = memo(function SpecSection({ spec, isLoading, onSpecCh
   }, [spec]);
 
   const handleSave = useCallback(() => {
-    onSpecChange?.(editedSpec);
+    // Only set spec if it actually changed from the original
+    // If unchanged, pass undefined to signal we should use workflow_id instead
+    const hasChanged = editedSpec !== originalSpec;
+    onSpecChange?.(hasChanged ? editedSpec : undefined);
     setIsEditing(false);
-  }, [editedSpec, onSpecChange]);
+  }, [editedSpec, originalSpec, onSpecChange]);
 
   const handleCancel = useCallback(() => {
     setEditedSpec(spec ?? "");
@@ -179,22 +196,32 @@ export const SpecSection = memo(function SpecSection({ spec, isLoading, onSpecCh
       </Button>
     </div>
   ) : (
-    <Button
-      asChild
-      variant="ghost"
-      size="sm"
-      className="text-primary h-7 px-2 text-xs"
-      aria-label="Edit workflow specification"
-    >
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={stopAndRun(handleEdit)}
-        onKeyDown={handleKeyDown(handleEdit)}
+    <div className="flex items-center gap-2">
+      {isModified && (
+        <span
+          className="text-muted-foreground text-xs italic"
+          aria-label="Specification has been modified"
+        >
+          Modified
+        </span>
+      )}
+      <Button
+        asChild
+        variant="ghost"
+        size="sm"
+        className="text-primary h-7 px-2 text-xs"
+        aria-label="Edit workflow specification"
       >
-        Edit
-      </span>
-    </Button>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={stopAndRun(handleEdit)}
+          onKeyDown={handleKeyDown(handleEdit)}
+        >
+          Edit
+        </span>
+      </Button>
+    </div>
   );
 
   return (
