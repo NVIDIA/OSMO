@@ -45,6 +45,8 @@ export interface ResizablePanelProps {
   maxWidth?: number;
   /** Minimum width in pixels (prevents too-narrow panels) */
   minWidthPx?: number;
+  /** Maximum width in pixels (prevents too-wide panels) */
+  maxWidthPx?: number;
   /** Panel content */
   children: React.ReactNode;
   /** Main content to render behind the panel */
@@ -132,6 +134,7 @@ export function ResizablePanel({
   minWidth = PANEL.MIN_WIDTH_PCT,
   maxWidth = PANEL.MAX_WIDTH_PCT,
   minWidthPx = 320,
+  maxWidthPx = 0,
   children,
   mainContent,
   backdrop = true,
@@ -160,6 +163,7 @@ export function ResizablePanel({
     minWidth,
     maxWidth,
     minWidthPx,
+    maxWidthPx,
     containerRef,
     panelRef,
   });
@@ -187,16 +191,18 @@ export function ResizablePanel({
       focused = true;
       if (!panel || panel.contains(document.activeElement)) return;
 
-      // Find first focusable element
-      const focusableSelector =
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
-      const firstFocusable = panel.querySelector<HTMLElement>(focusableSelector);
-      firstFocusable?.focus();
+      // Focus the panel container itself (requires tabIndex={-1} on the element)
+      // preventScroll: true avoids the browser auto-scrolling the overflow:hidden
+      // container to reveal the focused element, which causes a visible content shift
+      // when the panel is still mid-transition (sliding in from the right)
+      panel.focus({ preventScroll: true });
     };
 
     const handleTransitionEnd = (e: TransitionEvent) => {
-      // Only respond to the panel's own transform transition (the slide-in)
-      if (e.target !== panel || e.propertyName !== "transform") return;
+      // Only respond to the panel's own slide-in transition.
+      // Tailwind's translate-x-0/translate-x-full uses the CSS "translate" property,
+      // so transitionend fires with propertyName "translate" (not "transform").
+      if (e.target !== panel || e.propertyName !== "translate") return;
       doFocus();
     };
 
@@ -278,14 +284,14 @@ export function ResizablePanel({
           ...(effectiveCollapsed
             ? {}
             : {
-                maxWidth: `${maxWidth}%`,
+                maxWidth: maxWidthPx > 0 ? `${maxWidthPx}px` : `${maxWidth}%`,
                 minWidth: `${minWidthPx}px`,
               }),
         }}
         role="complementary"
         aria-label={ariaLabel}
         aria-hidden={open ? undefined : true}
-        tabIndex={open ? undefined : -1}
+        tabIndex={open ? -1 : undefined}
       >
         {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
         {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}

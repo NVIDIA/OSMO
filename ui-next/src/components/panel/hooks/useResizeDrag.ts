@@ -46,6 +46,8 @@ export interface UseResizeDragOptions {
   maxWidth?: number;
   /** Minimum width in pixels (prevents too-narrow panels) */
   minWidthPx?: number;
+  /** Maximum width in pixels (prevents too-wide panels) */
+  maxWidthPx?: number;
   /** Container ref for calculating width percentages (if not provided, uses window.innerWidth) */
   containerRef?: RefObject<HTMLElement | null>;
   /**
@@ -94,6 +96,7 @@ export function useResizeDrag({
   minWidth = 20,
   maxWidth = 80,
   minWidthPx = 320,
+  maxWidthPx = 0,
   containerRef,
   panelRef,
   batchWithRAF = false,
@@ -116,6 +119,7 @@ export function useResizeDrag({
   const minWidthRef = useRef(minWidth);
   const maxWidthRef = useRef(maxWidth);
   const minWidthPxRef = useRef(minWidthPx);
+  const maxWidthPxRef = useRef(maxWidthPx);
 
   // RAF batching state (for SidePanel's grid coordination)
   const rafIdRef = useRef<number | null>(null);
@@ -134,7 +138,8 @@ export function useResizeDrag({
     minWidthRef.current = minWidth;
     maxWidthRef.current = maxWidth;
     minWidthPxRef.current = minWidthPx;
-  }, [width, minWidth, maxWidth, minWidthPx]);
+    maxWidthPxRef.current = maxWidthPx;
+  }, [width, minWidth, maxWidth, minWidthPx, maxWidthPx]);
 
   // Keep startWidthRef in sync when not dragging (for reference only)
   useIsomorphicLayoutEffect(() => {
@@ -187,6 +192,18 @@ export function useResizeDrag({
         // Apply pixel constraint (prevent too-narrow panels)
         const minWidthPctFromPx = (minWidthPxRef.current / containerWidth) * 100;
         clampedWidth = Math.max(clampedWidth, minWidthPctFromPx);
+
+        // Re-apply percentage maximum (pixel minimum shouldn't override this)
+        clampedWidth = Math.min(clampedWidth, maxWidthRef.current);
+
+        // Ensure we never exceed available container space (handles viewport < minWidthPx edge case)
+        clampedWidth = Math.min(clampedWidth, 100);
+
+        // Apply pixel constraint (prevent too-wide panels)
+        if (maxWidthPxRef.current > 0) {
+          const maxWidthPctFromPx = (maxWidthPxRef.current / containerWidth) * 100;
+          clampedWidth = Math.min(clampedWidth, maxWidthPctFromPx);
+        }
 
         // Only update if there's an actual change (avoids redundant updates on click)
         // Use threshold to handle floating point precision

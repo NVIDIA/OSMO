@@ -26,13 +26,32 @@
 
 "use client";
 
-import { useMemo } from "react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { useWorkflowsPreferencesStore } from "../../../stores/workflows-table-store";
 import { ResubmitPanelHeader } from "./ResubmitPanelHeader";
 import { ResubmitPanelContent } from "./ResubmitPanelContent";
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Resubmit panel-specific constraints.
+ *
+ * Uses pixel-based minimum for content-aware bounds:
+ * - YAML editor optimal: 480-720px content + 96px padding = 576-816px panel
+ * - Pool selector optimal: 400-600px content + 96px padding = 496-696px panel
+ * - Priority selector optimal: 240-400px content + 96px padding = 336-496px panel
+ *
+ * Minimum chosen to ensure YAML remains readable and metadata fits comfortably.
+ * Maximum uses standard 80% percentage to allow flexibility on large screens.
+ */
+const RESUBMIT_PANEL = {
+  /** Minimum panel width in pixels (YAML readable, metadata fits) */
+  MIN_WIDTH_PX: 520,
+} as const;
 
 // =============================================================================
 // Types
@@ -76,17 +95,15 @@ export function ResubmitPanel({ workflow, open, onClose, children }: ResubmitPan
   const storedPanelWidth = useWorkflowsPreferencesStore((s) => s.resubmitPanelWidth);
   const setPanelWidth = useWorkflowsPreferencesStore((s) => s.setResubmitPanelWidth);
 
-  // Clamp panel width to max 80% (stored value might exceed constraint)
-  const panelWidth = useMemo(() => Math.min(storedPanelWidth, PANEL.OVERLAY_MAX_WIDTH_PCT), [storedPanelWidth]);
-
   return (
     <ResizablePanel
       open={open}
       onClose={onClose}
-      width={panelWidth}
+      width={storedPanelWidth}
       onWidthChange={setPanelWidth}
       minWidth={PANEL.MIN_WIDTH_PCT}
       maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
+      minWidthPx={RESUBMIT_PANEL.MIN_WIDTH_PX}
       mainContent={children}
       backdrop
       aria-label={`Resubmit workflow: ${workflow.name}`}
