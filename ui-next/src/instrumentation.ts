@@ -17,49 +17,36 @@
 /**
  * Next.js Instrumentation Hook
  *
- * This file is automatically loaded by Next.js before the server starts.
- * We use it to set up server-side MSW for mock mode.
+ * Sets up server-side MSW for mock mode. Uses a singleton pattern to prevent
+ * MaxListenersExceededWarning during HMR.
  *
- * PRODUCTION SAFETY:
- * This file has ZERO mock code in production builds because:
- * 1. The import is behind `NODE_ENV === "development"` condition
- * 2. Tree-shaking removes the dead code path in production
- * 3. The `@/mocks/server` import is aliased to a no-op stub via next.config.ts
- * 4. Dynamic import only executes in dev mode, never in production
- *
- * IMPORTANT: Uses a singleton pattern to prevent MaxListenersExceededWarning
- * during hot module reloading. MSW server is started exactly once.
+ * Production safety: `@/mocks/server` is aliased to a no-op stub via next.config.ts,
+ * and the dynamic import is behind NODE_ENV + MOCK_API guards.
  *
  * @see https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
- * @see https://mswjs.io/docs/integrations/node
  */
 
-// Singleton flag to prevent multiple server.listen() calls during HMR
 declare global {
   var __mswServerStarted: boolean | undefined;
 }
 
 export async function register() {
-  // Only run in Node.js runtime (not Edge) - MSW uses Node.js-specific APIs
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    // Only enable in development with mock mode
-    if (process.env.NEXT_PUBLIC_MOCK_API === "true" && process.env.NODE_ENV === "development") {
-      // Singleton guard: only start once across HMR reloads
-      if (!globalThis.__mswServerStarted) {
-        const { server } = await import("@/mocks/server");
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.NODE_ENV !== "development") return;
+  if (process.env.NEXT_PUBLIC_MOCK_API !== "true") return;
+  if (globalThis.__mswServerStarted) return;
 
-        server.listen({
-          onUnhandledRequest(req, print) {
-            // Only warn about API requests - ignore Next.js internals, static assets, etc.
-            const url = new URL(req.url);
-            if (url.pathname.startsWith("/api/") || url.pathname.includes("/api/")) {
-              print.warning();
-            }
-          },
-        });
-        globalThis.__mswServerStarted = true;
-        console.log("[MSW] Server-side mocking enabled");
+  const { server } = await import("@/mocks/server");
+
+  server.listen({
+    onUnhandledRequest(req, print) {
+      const url = new URL(req.url);
+      if (url.pathname.startsWith("/api/")) {
+        print.warning();
       }
-    }
-  }
+    },
+  });
+
+  globalThis.__mswServerStarted = true;
+  console.log("[MSW] Server-side mocking enabled");
 }
