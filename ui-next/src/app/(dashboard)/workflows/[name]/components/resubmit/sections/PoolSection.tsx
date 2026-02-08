@@ -74,12 +74,10 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
           <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
             <span className="text-sm font-medium">
               {pool.quota.used}
-              <span className="text-muted-foreground/50">/</span>
+              <span className="text-muted-foreground/50"> / </span>
               {pool.quota.limit}
             </span>
-            <span className="bg-muted/50 text-muted-foreground ml-px rounded px-2 py-0.5 text-xs font-medium">
-              used
-            </span>
+            <span className="text-muted-foreground pl-[0.3rem] text-xs font-medium">used</span>
             <Badge
               variant="outline"
               className="ml-2"
@@ -95,12 +93,10 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
           <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
             <span className="text-sm font-medium">
               {pool.quota.totalUsage}
-              <span className="text-muted-foreground/50">/</span>
+              <span className="text-muted-foreground/50"> / </span>
               {pool.quota.totalCapacity}
             </span>
-            <span className="bg-muted/50 text-muted-foreground ml-px rounded px-2 py-0.5 text-xs font-medium">
-              used
-            </span>
+            <span className="text-muted-foreground pl-[0.3rem] text-xs font-medium">used</span>
             <Badge
               variant="outline"
               className="ml-2"
