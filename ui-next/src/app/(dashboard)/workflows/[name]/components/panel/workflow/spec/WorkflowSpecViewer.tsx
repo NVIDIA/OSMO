@@ -29,8 +29,10 @@ import { memo } from "react";
 import { FileCode, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { CodeViewer } from "@/components/code-viewer/CodeViewer";
+import { CodeViewerSkeleton } from "@/components/code-viewer/CodeViewerSkeleton";
+import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { SpecToolbar } from "./SpecToolbar";
-import { SpecCodePanel } from "./SpecCodePanel";
 import { useSpecData } from "./hooks/useSpecData";
 import { useSpecViewState } from "./hooks/useSpecViewState";
 
@@ -42,13 +44,6 @@ export interface WorkflowSpecViewerProps {
   /** Workflow ID/name for fetching spec */
   workflowId: string;
 }
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Predetermined widths for skeleton lines (avoids impure Math.random in render) */
-const SKELETON_WIDTHS = ["65%", "45%", "78%", "52%", "60%", "70%", "40%", "55%"];
 
 // =============================================================================
 // Sub-components
@@ -74,22 +69,7 @@ const LoadingSkeleton = memo(function LoadingSkeleton() {
       </div>
 
       {/* Code skeleton */}
-      <div className="flex-1 bg-[#1e1e1e] p-4">
-        <div className="space-y-2">
-          {SKELETON_WIDTHS.map((width, i) => (
-            <div
-              key={i}
-              className="flex gap-4"
-            >
-              <Skeleton className="h-4 w-8 bg-zinc-700/50" />
-              <Skeleton
-                className="h-4 bg-zinc-700/50"
-                style={{ width }}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      <CodeViewerSkeleton className="flex-1" />
     </div>
   );
 });
@@ -186,13 +166,14 @@ export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflowId 
 
       <div className="relative flex-1 overflow-hidden">
         {content ? (
-          <SpecCodePanel
+          <CodeViewer
             content={content}
-            language={activeView}
+            language={YAML_LANGUAGE}
+            aria-label={`${activeView.toUpperCase()} specification`}
             className="absolute inset-0"
           />
         ) : (
-          <LoadingSkeleton />
+          <CodeViewerSkeleton className="absolute inset-0" />
         )}
       </div>
     </div>

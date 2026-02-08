@@ -29,10 +29,6 @@ import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
-// =============================================================================
-// Theme Colors
-// =============================================================================
-
 const darkColors = {
   // Backgrounds - use CSS variables from globals.css
   bg: "var(--table-header)", // #18181b (zinc-900) - matches activity strip
@@ -93,15 +89,11 @@ const lightColors = {
   tag: "#0000ff",
 };
 
-// =============================================================================
-// Theme Functions
-// =============================================================================
-
 /**
  * Creates a theme-aware CodeMirror theme.
  * @param isDark - Whether to use dark mode colors
  */
-export function createSpecViewerTheme(isDark: boolean) {
+export function createCodeViewerTheme(isDark: boolean) {
   const colors = isDark ? darkColors : lightColors;
   const borderColor = "hsl(var(--border))";
 
@@ -126,19 +118,10 @@ export function createSpecViewerTheme(isDark: boolean) {
         padding: "0.5rem 0", // 8px in rem
       },
 
-      // Cursor - hidden for read-only spec viewer
-      ".cm-cursor, .cm-dropCursor": {
-        display: "none !important", // No cursor in read-only mode
-      },
-
-      // Hide cursor in all states for read-only editor
-      "&.cm-focused .cm-cursor": {
-        display: "none !important",
-      },
-
-      ".cm-cursorLayer": {
-        display: "none !important",
-      },
+      // Cursor hidden -- read-only viewer
+      ".cm-cursor, .cm-dropCursor": { display: "none !important" },
+      "&.cm-focused .cm-cursor": { display: "none !important" },
+      ".cm-cursorLayer": { display: "none !important" },
 
       // Selection
       "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
@@ -219,29 +202,16 @@ export function createSpecViewerTheme(isDark: boolean) {
         padding: "0 0.25rem", // 4px in rem
         borderRadius: "var(--radius-sm)",
       },
-
-      // Search panel mount - position as floating overlay
-      // Actual styles are in spec-search.css (matches ShellSearch)
-      ".spec-search-panel-mount": {
-        position: "absolute",
-        top: "0",
-        right: "0",
-        pointerEvents: "none", // Allow clicks through to editor
-      },
-
-      ".spec-search-panel-mount *": {
-        pointerEvents: "auto", // Re-enable clicks on search panel itself
-      },
     },
     { dark: isDark },
   );
 }
 
 /**
- * Creates syntax highlighting for the spec viewer.
+ * Creates syntax highlighting for the code viewer.
  * @param isDark - Whether to use dark mode colors
  */
-export function createSpecHighlightStyle(isDark: boolean) {
+export function createCodeViewerHighlightStyle(isDark: boolean) {
   const colors = isDark ? darkColors : lightColors;
 
   return HighlightStyle.define([
@@ -274,9 +244,9 @@ export function createSpecHighlightStyle(isDark: boolean) {
 }
 
 /**
- * Creates the combined theme extension for the spec viewer.
+ * Creates the combined theme extension for the code viewer.
  * @param isDark - Whether to use dark mode colors
  */
-export function createSpecViewerExtension(isDark: boolean) {
-  return [createSpecViewerTheme(isDark), syntaxHighlighting(createSpecHighlightStyle(isDark))];
+export function createCodeViewerExtension(isDark: boolean) {
+  return [createCodeViewerTheme(isDark), syntaxHighlighting(createCodeViewerHighlightStyle(isDark))];
 }
