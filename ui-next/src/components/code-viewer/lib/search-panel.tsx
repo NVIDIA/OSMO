@@ -77,26 +77,21 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     updateSearch(text, caseSensitive, wholeWord, regexp);
   };
 
-  const toggleCaseSensitive = () => {
-    const newValue = !caseSensitive;
-    setCaseSensitive(newValue);
-    updateSearch(searchText, newValue, wholeWord, regexp);
-    setSelectionPos(view.state.selection.main.from);
-  };
-
-  const toggleWholeWord = () => {
-    const newValue = !wholeWord;
-    setWholeWord(newValue);
-    updateSearch(searchText, caseSensitive, newValue, regexp);
-    setSelectionPos(view.state.selection.main.from);
-  };
-
-  const toggleRegexp = () => {
-    const newValue = !regexp;
-    setRegexp(newValue);
-    updateSearch(searchText, caseSensitive, wholeWord, newValue);
-    setSelectionPos(view.state.selection.main.from);
-  };
+  const toggleOption = React.useCallback(
+    (option: "caseSensitive" | "wholeWord" | "regexp") => {
+      const next = {
+        caseSensitive: option === "caseSensitive" ? !caseSensitive : caseSensitive,
+        wholeWord: option === "wholeWord" ? !wholeWord : wholeWord,
+        regexp: option === "regexp" ? !regexp : regexp,
+      };
+      if (option === "caseSensitive") setCaseSensitive(next.caseSensitive);
+      if (option === "wholeWord") setWholeWord(next.wholeWord);
+      if (option === "regexp") setRegexp(next.regexp);
+      updateSearch(searchText, next.caseSensitive, next.wholeWord, next.regexp);
+      setSelectionPos(view.state.selection.main.from);
+    },
+    [caseSensitive, wholeWord, regexp, searchText, updateSearch, view],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Prevent browser find when search is already open
@@ -110,15 +105,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      if (e.shiftKey) {
-        findPrevious(view);
-      } else {
-        findNext(view);
-      }
-      // Trigger match info update after navigation
-      requestAnimationFrame(() => {
-        setSelectionPos(view.state.selection.main.from);
-      });
+      navigateMatch(e.shiftKey ? "previous" : "next");
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation(); // Prevent closing the workflow panel
@@ -130,21 +117,20 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
     closeSearchPanel(view);
   };
 
-  const handleFindNext = () => {
-    findNext(view);
-    // Delay update to ensure CodeMirror state has been updated
-    requestAnimationFrame(() => {
-      setSelectionPos(view.state.selection.main.from);
-    });
-  };
-
-  const handleFindPrevious = () => {
-    findPrevious(view);
-    // Delay update to ensure CodeMirror state has been updated
-    requestAnimationFrame(() => {
-      setSelectionPos(view.state.selection.main.from);
-    });
-  };
+  /** Navigate to a match and update position tracking after CodeMirror state settles */
+  const navigateMatch = React.useCallback(
+    (direction: "next" | "previous") => {
+      if (direction === "next") {
+        findNext(view);
+      } else {
+        findPrevious(view);
+      }
+      requestAnimationFrame(() => {
+        setSelectionPos(view.state.selection.main.from);
+      });
+    },
+    [view],
+  );
 
   // Handle keydown at panel level to catch Cmd+F even when input isn't focused
   const handlePanelKeyDown = React.useCallback((e: React.KeyboardEvent) => {
@@ -232,7 +218,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           <button
             type="button"
             className={cn("code-viewer-search-option", caseSensitive && "active")}
-            onClick={toggleCaseSensitive}
+            onClick={() => toggleOption("caseSensitive")}
             title="Match case (Aa)"
             aria-pressed={caseSensitive}
           >
@@ -241,7 +227,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           <button
             type="button"
             className={cn("code-viewer-search-option", wholeWord && "active")}
-            onClick={toggleWholeWord}
+            onClick={() => toggleOption("wholeWord")}
             title="Match whole word"
             aria-pressed={wholeWord}
           >
@@ -250,7 +236,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           <button
             type="button"
             className={cn("code-viewer-search-option", regexp && "active")}
-            onClick={toggleRegexp}
+            onClick={() => toggleOption("regexp")}
             title="Use regular expression"
             aria-pressed={regexp}
           >
@@ -264,7 +250,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           variant="ghost"
           size="sm"
           className="code-viewer-search-nav-button size-6 p-0"
-          onClick={handleFindPrevious}
+          onClick={() => navigateMatch("previous")}
           title="Previous match (Shift+Enter)"
           disabled={!searchText}
         >
@@ -274,7 +260,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           variant="ghost"
           size="sm"
           className="code-viewer-search-nav-button size-6 p-0"
-          onClick={handleFindNext}
+          onClick={() => navigateMatch("next")}
           title="Next match (Enter)"
           disabled={!searchText}
         >

@@ -26,15 +26,14 @@
 "use client";
 
 import { memo, useState, useMemo, useCallback } from "react";
-import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
 import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
 import { PoolSelect } from "./PoolSelect";
+import { PoolStatusBadge } from "./PoolStatusBadge";
 import { CollapsibleSection } from "./CollapsibleSection";
-import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
 
 export interface PoolSectionProps {
   /** Currently selected pool name */
@@ -42,13 +41,6 @@ export interface PoolSectionProps {
   /** Callback when pool selection changes */
   onChange: (pool: string) => void;
 }
-
-/** Status icons mapping (matches pools table) */
-const STATUS_ICONS = {
-  online: CheckCircle2,
-  maintenance: Wrench,
-  offline: XCircle,
-} as const;
 
 /** Grid row layout: fixed label column + flexible value column */
 const META_ROW = "grid grid-cols-[5.625rem_1fr] items-baseline gap-6";
@@ -180,22 +172,7 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
     [hasEverOpenedDropdown],
   );
 
-  const statusBadge = useMemo(() => {
-    if (!selectedPool) return null;
-
-    const { category, label } = getStatusDisplay(selectedPool.status);
-    const styles = STATUS_STYLES[category]?.badge;
-    const Icon = STATUS_ICONS[category as StatusCategory];
-
-    if (!styles) return null;
-
-    return (
-      <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5", styles.bg)}>
-        <Icon className={cn("h-3.5 w-3.5", styles.icon)} />
-        <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
-      </span>
-    );
-  }, [selectedPool]);
+  const statusBadge = selectedPool ? <PoolStatusBadge status={selectedPool.status} /> : null;
 
   return (
     <CollapsibleSection

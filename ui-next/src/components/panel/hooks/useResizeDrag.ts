@@ -26,10 +26,9 @@
  */
 
 import { useEffect, useRef, useMemo, type RefObject, type CSSProperties } from "react";
-import { useBoolean } from "usehooks-ts";
+import { useBoolean, useEventCallback } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
-import { useEventCallback } from "usehooks-ts";
 
 /** Selector for finding focusable elements within a container */
 const FOCUSABLE_SELECTOR =

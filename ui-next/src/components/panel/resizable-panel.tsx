@@ -188,19 +188,33 @@ export function ResizablePanel({
   // Solution: Delay content rendering by 50ms so the panel shell starts sliding first,
   // then content renders and slides in with its own animation (see slideInContent keyframe).
   // This prevents simultaneous layout + transform operations.
-  const [shouldRenderContent, setShouldRenderContent] = useState(open);
+  //
+  // Implementation: `contentDelayReady` tracks whether the 50ms delay has elapsed after
+  // opening. It is gated by `open` in the final derivation so that closing immediately
+  // hides content without calling setState synchronously in an effect (which the React
+  // Compiler flags as a cascading render).
+  const [contentDelayReady, setContentDelayReady] = useState(open);
   useEffect(() => {
-    if (open) {
-      // 50ms delay: panel shell starts sliding, then content begins rendering/animating
-      const timeoutId = setTimeout(() => {
-        setShouldRenderContent(true);
-      }, 50);
-      return () => clearTimeout(timeoutId);
-    } else {
-      // Immediately hide content when closing
-      setShouldRenderContent(false);
-    }
+    if (!open) return;
+
+    // 50ms delay: panel shell starts sliding, then content begins rendering/animating
+    const timeoutId = setTimeout(() => {
+      setContentDelayReady(true);
+    }, 50);
+
+    return () => {
+      clearTimeout(timeoutId);
+      // Reset the delay flag in cleanup so the next open triggers a fresh 50ms stagger.
+      // Placing the reset here (cleanup) instead of synchronously in the effect body
+      // avoids the React Compiler "cascading renders" error.
+      setContentDelayReady(false);
+    };
   }, [open]);
+
+  // Derive the final flag: content only renders when panel is open AND delay has elapsed.
+  // When `open` becomes false, this immediately evaluates to false without needing
+  // a synchronous setState in the effect.
+  const shouldRenderContent = open && contentDelayReady;
 
   // Focus management: move focus into panel when it opens
   // Uses transitionend for precise timing, with a fallback timeout for reduced-motion scenarios
@@ -242,11 +256,13 @@ export function ResizablePanel({
 
   // Calculate effective panel width based on collapsed state
   const effectiveCollapsed = collapsible && isCollapsed;
-  const panelWidth = effectiveCollapsed
-    ? typeof collapsedWidth === "number"
-      ? `${collapsedWidth}px`
-      : collapsedWidth
-    : `${width}%`;
+
+  let panelWidth: string;
+  if (effectiveCollapsed) {
+    panelWidth = typeof collapsedWidth === "number" ? `${collapsedWidth}px` : collapsedWidth;
+  } else {
+    panelWidth = `${width}%`;
+  }
 
   // Default collapsed content - a simple expand button
   // Used when collapsible is enabled but no custom collapsedContent is provided
