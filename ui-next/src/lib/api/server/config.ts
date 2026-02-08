@@ -31,16 +31,18 @@
  * On the server, we connect directly to the backend (no proxy needed).
  * This uses the same env vars as the client config.
  *
- * MOCK MODE: In mock mode + dev mode + no explicit hostname, returns localhost:PORT
- * to allow MSW server instrumentation to intercept requests. Otherwise uses configured hostname.
+ * MOCK MODE: In mock mode + dev mode, returns localhost:PORT
+ * to allow MSW server instrumentation to intercept requests.
+ * Hostname configuration is ignored in mock mode.
  */
 export function getServerApiBaseUrl(): string {
   const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME;
   const mockMode = process.env.NEXT_PUBLIC_MOCK_API === "true";
   const devMode = process.env.NODE_ENV === "development";
 
-  // Use localhost ONLY if: mock mode + dev mode + no explicit hostname
-  if (mockMode && devMode && !hostname) {
+  // Use localhost in mock mode (ignores configured hostname)
+  // This ensures MSW can intercept all requests
+  if (mockMode && devMode) {
     const port = process.env.PORT || "3000";
     return `http://localhost:${port}`;
   }
