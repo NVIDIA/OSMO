@@ -221,6 +221,8 @@ export interface ResubmitParams {
   poolName: string;
   /** Execution priority */
   priority: string;
+  /** Optional custom spec (if not provided, backend fetches original from workflow_id) */
+  spec?: string;
 }
 
 // =============================================================================
@@ -240,7 +242,7 @@ export interface ResubmitParams {
  * @returns Result with the new workflow name on success, or error message
  */
 export async function resubmitWorkflow(params: ResubmitParams): Promise<ResubmitResult> {
-  const { workflowId, poolName, priority } = params;
+  const { workflowId, poolName, priority, spec } = params;
 
   const queryParams = new URLSearchParams();
   queryParams.set("workflow_id", workflowId);
@@ -249,12 +251,13 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
   const endpoint = `/api/pool/${encodeURIComponent(poolName)}/workflow?${queryParams.toString()}`;
 
   try {
-    // The backend expects a TemplateSpec body, but when workflow_id is provided
-    // the backend fetches the spec itself. We send an empty file field.
+    // The backend expects a TemplateSpec body.
+    // - If spec is provided, send the custom spec content
+    // - If spec is not provided, send empty file and backend fetches original from workflow_id
     const response = await customFetch<{ name?: string }>({
       url: endpoint,
       method: "POST",
-      data: { file: "", set_variables: [] },
+      data: { file: spec ?? "", set_variables: [] },
     });
 
     const newName = response?.name;
