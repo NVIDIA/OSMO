@@ -68,6 +68,7 @@ import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/gen
 
 import { MOCK_CONFIG, type WorkflowPatterns } from "../seed/types";
 import { hashString } from "../utils";
+import { getGlobalMockConfig } from "../global-config";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
@@ -160,15 +161,21 @@ const DEFAULT_CONFIG: GeneratorConfig = {
   patterns: MOCK_CONFIG.workflows,
 };
 
+let instanceCounter = 0;
+
 export class WorkflowGenerator {
   private config: GeneratorConfig;
   // Cache for name → index mapping (populated on demand)
   private nameToIndexCache: Map<string, number> = new Map();
   // Track which indices have been cached
   private cachedUpToIndex: number = -1;
+  // Unique instance ID for debugging module duplication
+  private instanceId: number;
 
   constructor(config: Partial<GeneratorConfig> = {}) {
+    this.instanceId = ++instanceCounter;
     this.config = { ...DEFAULT_CONFIG, ...config };
+    console.log(`[WorkflowGenerator] Instance #${this.instanceId} created with total=${this.config.total}`);
   }
 
   /**
@@ -182,13 +189,23 @@ export class WorkflowGenerator {
   /**
    * Total number of workflows available.
    * Can be set to any number - generation is on-demand.
+   *
+   * IMPORTANT: Reads from global config to ensure consistency across
+   * Next.js contexts (MSW handlers vs Server Actions).
    */
   get total(): number {
-    return this.config.total;
+    const globalConfig = getGlobalMockConfig();
+    return globalConfig.workflows;
   }
 
   set total(value: number) {
-    this.config.total = value;
+    const globalConfig = getGlobalMockConfig();
+    const oldValue = globalConfig.workflows;
+    console.log(`[WorkflowGenerator #${this.instanceId}] SET total called: ${oldValue} → ${value}`);
+    globalConfig.workflows = value;
+    console.log(
+      `[WorkflowGenerator #${this.instanceId}] SET total complete: global config now ${globalConfig.workflows}`,
+    );
   }
 
   /**
@@ -425,7 +442,11 @@ export class WorkflowGenerator {
    */
   generatePage(offset: number, limit: number): { entries: MockWorkflow[]; total: number } {
     const entries: MockWorkflow[] = [];
-    const total = this.config.total;
+    const total = this.total; // Use getter to read from global config
+
+    console.log(
+      `[WorkflowGenerator #${this.instanceId}] generatePage(offset=${offset}, limit=${limit}) with total=${total}`,
+    );
 
     // Only generate items in the requested range
     const start = Math.max(0, offset);
@@ -453,14 +474,14 @@ export class WorkflowGenerator {
 
     // 2. Try hash-based guess (O(1) but may miss)
     const hash = hashString(name);
-    const guessIndex = Math.abs(hash) % this.config.total;
+    const guessIndex = Math.abs(hash) % this.total; // Use getter
     const candidate = this.generate(guessIndex);
     if (candidate.name === name) {
       return candidate;
     }
 
     // 3. Scan first N workflows to populate cache (one-time cost)
-    const SCAN_LIMIT = Math.min(1000, this.config.total);
+    const SCAN_LIMIT = Math.min(1000, this.total); // Use getter
     if (this.cachedUpToIndex < SCAN_LIMIT - 1) {
       for (let i = this.cachedUpToIndex + 1; i < SCAN_LIMIT; i++) {
         const workflow = this.generate(i);
@@ -495,7 +516,7 @@ export class WorkflowGenerator {
     const priority = this.pickWeighted(this.config.patterns.priorityDistribution) as Priority;
     const pool = faker.helpers.arrayElement(this.config.patterns.pools);
     const user = faker.helpers.arrayElement(this.config.patterns.users);
-    const pseudoIndex = nameHash % this.config.total;
+    const pseudoIndex = nameHash % this.total; // Use getter
 
     const submitTime = this.generateSubmitTime(pseudoIndex);
     const { startTime, endTime, queuedTime, duration } = this.generateTiming(status, submitTime);
@@ -567,7 +588,7 @@ export class WorkflowGenerator {
     const now = Date.now();
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
     // Newer workflows have higher indices (reverse order for typical list view)
-    const progress = 1 - index / this.config.total;
+    const progress = 1 - index / this.total; // Use getter
     const timestamp = thirtyDaysAgo + progress * (now - thirtyDaysAgo);
     return new Date(timestamp).toISOString();
   }

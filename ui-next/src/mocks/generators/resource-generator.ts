@@ -27,6 +27,7 @@ import { faker } from "@faker-js/faker";
 import { BackendResourceType, type ResourcesEntry } from "@/lib/api/generated";
 import { MOCK_CONFIG, type ResourcePatterns } from "../seed/types";
 import { hashString } from "../utils";
+import { getGlobalMockConfig } from "../global-config";
 
 // ============================================================================
 // Generator Configuration
@@ -60,19 +61,19 @@ export class ResourceGenerator {
   }
 
   get perPool(): number {
-    return this.config.perPool;
+    return getGlobalMockConfig().resourcesPerPool;
   }
 
   set perPool(value: number) {
-    this.config.perPool = value;
+    getGlobalMockConfig().resourcesPerPool = value;
   }
 
   get totalGlobal(): number {
-    return this.config.totalGlobal;
+    return getGlobalMockConfig().resourcesGlobal;
   }
 
   set totalGlobal(value: number) {
-    this.config.totalGlobal = value;
+    getGlobalMockConfig().resourcesGlobal = value;
   }
 
   /**
@@ -231,7 +232,7 @@ export class ResourceGenerator {
    */
   generatePage(poolName: string, offset: number, limit: number): { resources: ResourcesEntry[]; total: number } {
     const resources: ResourcesEntry[] = [];
-    const total = this.config.perPool;
+    const total = this.perPool; // Use getter to read from global config
 
     const start = Math.max(0, offset);
     const end = Math.min(offset + limit, total);
@@ -253,7 +254,7 @@ export class ResourceGenerator {
     limit: number,
   ): { resources: ResourcesEntry[]; total: number } {
     const resources: ResourcesEntry[] = [];
-    const total = this.config.totalGlobal;
+    const total = this.totalGlobal; // Use getter to read from global config
 
     const start = Math.max(0, offset);
     const end = Math.min(offset + limit, total);
