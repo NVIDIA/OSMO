@@ -19,25 +19,15 @@
 /**
  * MockProvider - Developer Console API for Mock Mode
  *
- * Provides `window.__mockConfig` API for adjusting mock data volumes
- * from the browser console. Changes are sent to the server via Server Actions
- * and take effect immediately (no page refresh needed!).
+ * Provides `window.__mockConfig` for adjusting mock data volumes from the
+ * browser console. Changes are sent to the server via Server Actions.
  *
- * Architecture:
- * - Browser: __mockConfig.setWorkflowTotal(100000)
- * - Server Action: setMockVolumes() runs in Node.js process
- * - Generators: Updated in the same process as MSW
- * - Next API request: MSW uses new values
- *
- * PRODUCTION SAFETY:
- * - This file is aliased to MockProvider.production.tsx in production builds
- * - Therefore, server actions and generators are never imported in production
- * - Zero mock code in production bundle
+ * Production safety: Aliased to MockProvider.production.tsx via next.config.ts.
  *
  * Console API:
- *   __mockConfig.setWorkflowTotal(100000)  // Set and apply immediately
- *   __mockConfig.getVolumes()               // See current values
- *   __mockConfig.help()                     // Show all options
+ *   __mockConfig.setWorkflowTotal(100000)
+ *   __mockConfig.getVolumes()
+ *   __mockConfig.help()
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -48,10 +38,8 @@ interface MockProviderProps {
   children: ReactNode;
 }
 
-// LocalStorage key for mock mode toggle
 export const MOCK_ENABLED_STORAGE_KEY = "osmo_use_mock_data";
 
-// Type declaration for the global mock config
 declare global {
   interface Window {
     __mockConfig?: {
@@ -74,6 +62,10 @@ declare global {
   }
 }
 
+function hasCookie(name: string): boolean {
+  return document.cookie.split(";").some((c) => c.trim().startsWith(`${name}=`));
+}
+
 export function MockProvider({ children }: MockProviderProps) {
   const initStartedRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
@@ -82,65 +74,34 @@ export function MockProvider({ children }: MockProviderProps) {
     if (initStartedRef.current) return;
     initStartedRef.current = true;
 
-    // Only set up in mock mode
     const isMockMode =
       process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
-    if (!isMockMode || typeof window === "undefined") {
+    if (!isMockMode) {
       setIsReady(true);
       return;
     }
 
-    // Initialize mock mode with proper sequencing:
-    // 1. Check/inject JWT cookie (synchronous)
-    // 2. Start MSW and wait for it to be fully ready (deterministic)
-    // 3. Only then render children (including UserProvider)
-    const initMSW = async () => {
-      // Step 1: Ensure JWT cookie exists
-      const { generateMockJWT } = await import("./inject-auth");
-
-      // Check if JWT cookie already exists
-      const cookies = document.cookie.split(";").reduce(
-        (acc, cookie) => {
-          const [key, value] = cookie.trim().split("=");
-          if (key) acc[key] = value;
-          return acc;
-        },
-        {} as Record<string, string>,
-      );
-
-      if (!cookies["IdToken"] && !cookies["BearerToken"]) {
-        // No JWT exists, inject one
+    // Ensure JWT cookie exists for mock auth, then mark ready
+    const ensureAuth = async () => {
+      if (!hasCookie("IdToken") && !hasCookie("BearerToken")) {
+        const { generateMockJWT } = await import("@/mocks/inject-auth");
         const mockJwt = generateMockJWT("dev", ["admin", "user"]);
-        document.cookie = `IdToken=${mockJwt}; path=/; max-age=28800`; // 8 hours
-        console.log("🔐 Mock JWT injected for user: dev");
-      } else {
-        console.log("🔐 Existing JWT cookie found, reusing");
+        document.cookie = `IdToken=${mockJwt}; path=/; max-age=28800`;
       }
-
-      // Step 2: No browser-side MSW needed!
-      // All mocking happens server-side via Next.js API routes.
-      // Browser makes normal fetch requests → Next.js intercepts with MSW in Node.js
-      console.log("[MSW] Client-side mocking disabled. All requests handled by server-side MSW.");
-
       setIsReady(true);
     };
 
-    initMSW().catch((err) => {
-      console.error("[MSW] Failed to initialize:", err);
-      setIsReady(true); // Continue anyway to avoid blocking the app
+    ensureAuth().catch((err) => {
+      console.error("[MockProvider] Auth initialization failed:", err);
+      setIsReady(true);
     });
 
-    // Helper to create a setter that calls the server action
-    // No browser config syncing needed - all mocking is server-side only
+    // Set up console API for mock volume control
     const createSetter = (key: keyof MockVolumes) => async (n: number) => {
-      try {
-        const volumes = await setMockVolumes({ [key]: n });
-        console.log(`✅ ${key} set to ${n.toLocaleString()}. Server updated.`);
-        console.table(volumes);
-      } catch (error) {
-        console.error(`❌ Failed to set ${key}:`, error);
-      }
+      const volumes = await setMockVolumes({ [key]: n });
+      console.log(`${key} set to ${n.toLocaleString()}`);
+      console.table(volumes);
     };
 
     window.__mockConfig = {
@@ -152,32 +113,18 @@ export function MockProvider({ children }: MockProviderProps) {
       setDatasetTotal: createSetter("datasets"),
 
       setVolumes: async (volumes: Partial<MockVolumes>) => {
-        try {
-          const result = await setMockVolumes(volumes);
-          console.log("✅ Volumes updated. Server state:");
-          console.table(result);
-        } catch (error) {
-          console.error("❌ Failed to set volumes:", error);
-        }
+        const result = await setMockVolumes(volumes);
+        console.table(result);
       },
 
       getVolumes: async () => {
-        try {
-          const volumes = await getMockVolumes();
-          console.log("📊 Current server volumes:");
-          console.table(volumes);
-          return volumes;
-        } catch (error) {
-          console.error("❌ Failed to get volumes:", error);
-          throw error;
-        }
+        const volumes = await getMockVolumes();
+        console.table(volumes);
+        return volumes;
       },
 
       help: () => {
-        console.log(`
-🎯 Mock Config API (Server Actions)
-
-All changes apply IMMEDIATELY to the server - no refresh needed!
+        console.log(`Mock Config API (Server Actions)
 
 Set individual volumes:
   await __mockConfig.setWorkflowTotal(100000)
@@ -193,65 +140,33 @@ Set multiple at once:
 Get current server state:
   await __mockConfig.getVolumes()
 
-Note: These are async functions that talk to the server.
-Changes take effect on the next API request.
-        `);
+Changes take effect on the next API request.`);
       },
     };
 
-    // Set up developer utilities for service worker management
-    // This helps when hot reload isn't working due to old service worker
+    // Developer utilities for service worker management
     import("@/lib/dev/service-worker-manager")
       .then(({ clearServiceWorker, showServiceWorkerStatus, clearAllCaches }) => {
         window.__dev = {
-          clearServiceWorker: async () => {
-            console.log("💡 Clearing service worker and reloading...");
-            await clearServiceWorker(true);
-          },
-          serviceWorkerStatus: async () => {
-            await showServiceWorkerStatus();
-          },
-          clearCaches: async () => {
-            await clearAllCaches();
-          },
+          clearServiceWorker: () => clearServiceWorker(true),
+          serviceWorkerStatus: () => showServiceWorkerStatus(),
+          clearCaches: () => clearAllCaches(),
           help: () => {
-            console.log(`
-🔧 Developer Utilities
+            console.log(`Developer Utilities
 
-Service Worker Management (for hot reload issues):
-  await __dev.clearServiceWorker()    // Unregister SW, clear caches, and reload
+  await __dev.clearServiceWorker()    // Unregister SW, clear caches, reload
   await __dev.serviceWorkerStatus()   // Check SW status
-  await __dev.clearCaches()           // Clear all caches only
-
-Note: If hot reload isn't working after code changes, run:
-  __dev.clearServiceWorker()
-
-This unregisters the old service worker and reloads the page.
-            `);
+  await __dev.clearCaches()           // Clear all caches only`);
           },
         };
-
-        console.log("🔧 Developer tools available. Type __dev.help() for options.");
       })
-      .catch((error) => {
-        console.warn("Could not load developer utilities:", error);
+      .catch(() => {
+        // Service worker manager not available - non-critical
       });
 
-    // Show initial state
-    console.log("🔧 Mock mode active. Fetching server volumes...");
-    getMockVolumes()
-      .then((volumes) => {
-        console.log("📊 Server mock volumes:");
-        console.table(volumes);
-        console.log("Type __mockConfig.help() for options.");
-      })
-      .catch((error) => {
-        console.warn("Could not fetch server volumes:", error);
-        console.log("Type __mockConfig.help() for options.");
-      });
+    console.log("[MockProvider] Mock mode active. Type __mockConfig.help() for options.");
   }, []);
 
-  // Wait for browser MSW to be ready before rendering
   if (!isReady) {
     return null;
   }

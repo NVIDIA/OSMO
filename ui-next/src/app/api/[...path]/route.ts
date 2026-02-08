@@ -1,166 +1,162 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dynamic API Proxy Route Handler
+ * Dynamic API Proxy Route Handler (Development Build)
  *
- * Proxies ALL /api/* requests to the backend API at RUNTIME.
- * This replaces the build-time rewrite in next.config.ts.
- *
- * Benefits:
- * - Backend hostname configurable at RUNTIME (not build time)
- * - Single Docker image works for all environments
- * - Perfect for open source - users set hostname via env var
- *
- * Authentication Flow:
- * - In production: Envoy injects Authorization and x-osmo-user headers
- * - In local dev: Forwards any auth headers from client
- * - This proxy simply forwards headers to backend
- *
- * This catches all /api/* routes EXCEPT:
- * - /api/health - Handled by app/api/health/route.ts
- * - /api/workflow/[name]/logs - Handled by app/api/workflow/[name]/logs/route.ts
- *
- * Route Handlers have higher priority than catch-all routes, so they work correctly.
+ * Development version with mock mode support.
+ * In production builds, this file is aliased to route.production.ts (ZERO mock code).
  */
+
+// Re-export all production functionality
+export * from "@/app/api/[...path]/route.production";
+
+// Import production implementation for composition
+import {
+  GET as prodGET,
+  POST as prodPOST,
+  PUT as prodPUT,
+  PATCH as prodPATCH,
+  DELETE as prodDELETE,
+  HEAD as prodHEAD,
+  OPTIONS as prodOPTIONS,
+} from "@/app/api/[...path]/route.production";
 
 import { type NextRequest } from "next/server";
-import { getServerApiBaseUrl } from "@/lib/api/server/config";
 import { forwardAuthHeaders } from "@/lib/api/server/proxy-headers";
+import http from "node:http";
 
 /**
- * Proxy all API requests to backend.
- * Supports: GET, POST, PUT, PATCH, DELETE
+ * Mock Mode Handler (Development Only)
+ *
+ * MSW doesn't reliably intercept Next.js 15's undici-based globalThis.fetch,
+ * but DOES intercept Node.js http.request reliably.
+ *
+ * See: https://github.com/mswjs/msw/issues/2165#issuecomment-2260578257
+ * "MSW supports global fetch in Node.js" but Next.js's undici bypasses it.
  */
-async function proxyRequest(request: NextRequest, method: string) {
-  const { pathname, searchParams } = request.nextUrl;
+function handleMockModeRequest(
+  request: NextRequest,
+  method: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+): Promise<Response> {
+  return new Promise((resolve) => {
+    const queryString = searchParams.toString();
+    const path = queryString ? `${pathname}?${queryString}` : pathname;
 
-  // Build backend URL
-  // pathname is like: /api/workflow
-  // We forward as-is to backend: http://backend/api/workflow
-  const backendUrl = getServerApiBaseUrl();
-  const backendPath = pathname; // Already has /api prefix
-  const queryString = searchParams.toString();
-  const fullUrl = queryString ? `${backendUrl}${backendPath}?${queryString}` : `${backendUrl}${backendPath}`;
+    // Use Node.js http module on non-existent port
+    // MSW intercepts http.request before connection attempt
 
-  // Forward auth headers using centralized utility
-  const headers = forwardAuthHeaders(request);
+    // Build headers object
+    const headers: Record<string, string> = {};
+    forwardAuthHeaders(request).forEach((value, key) => {
+      headers[key] = value;
+    });
 
-  // Also forward content-type for POST/PUT/PATCH requests
-  const contentType = request.headers.get("content-type");
-  if (contentType) {
-    headers.set("content-type", contentType);
-  }
-
-  // Forward request body for POST/PUT/PATCH
-  let body: BodyInit | undefined;
-  if (method !== "GET" && method !== "HEAD") {
-    try {
-      body = await request.text();
-    } catch {
-      // No body or already consumed
-    }
-  }
-
-  try {
-    // Proxy request to backend
-    const response = await fetch(fullUrl, {
+    const options: http.RequestOptions = {
+      hostname: "localhost",
+      port: 9999,
+      path,
       method,
       headers,
-      body,
-      // Don't follow redirects - let client handle them
-      redirect: "manual",
+    };
+
+    const req = http.request(options, (res) => {
+      const chunks: Buffer[] = [];
+
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        const body = Buffer.concat(chunks);
+        const headers = new Headers();
+
+        // Copy response headers
+        Object.entries(res.headers).forEach(([key, value]) => {
+          if (value) {
+            headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+          }
+        });
+
+        resolve(
+          new Response(body, {
+            status: res.statusCode,
+            statusText: res.statusMessage,
+            headers,
+          }),
+        );
+      });
     });
 
-    // Forward response headers from backend as-is (transparent proxy)
-    const responseHeaders = new Headers();
-
-    // Copy all headers from backend response
-    response.headers.forEach((value, key) => {
-      // Skip headers that cause issues with streaming
-      if (!["transfer-encoding", "connection", "keep-alive"].includes(key.toLowerCase())) {
-        responseHeaders.set(key, value);
-      }
+    req.on("error", (error) => {
+      // MSW didn't intercept
+      console.error("[Mock Mode] MSW interception failed:", error.message);
+      resolve(
+        new Response(
+          JSON.stringify({
+            error: "MSW interception failed",
+            message: `MSW did not intercept http.request. Error: ${error.message}`,
+            path: pathname,
+            hint: "Ensure instrumentation.ts started MSW server successfully",
+          }),
+          {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
     });
 
-    // Stream response body directly (zero-copy proxying)
-    // This reduces latency and memory usage by not buffering the entire response
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-    });
-  } catch (error) {
-    console.error("API proxy error:", error);
-    return new Response(
-      JSON.stringify({
-        error: "Backend API unreachable",
-        message: error instanceof Error ? error.message : "Unknown error",
-        backend: backendUrl,
-      }),
-      {
-        status: 502,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      },
-    );
-  }
-}
-
-// HTTP method handlers
-export async function GET(request: NextRequest) {
-  return proxyRequest(request, "GET");
-}
-
-export async function POST(request: NextRequest) {
-  return proxyRequest(request, "POST");
-}
-
-export async function PUT(request: NextRequest) {
-  return proxyRequest(request, "PUT");
-}
-
-export async function PATCH(request: NextRequest) {
-  return proxyRequest(request, "PATCH");
-}
-
-export async function DELETE(request: NextRequest) {
-  return proxyRequest(request, "DELETE");
-}
-
-export async function HEAD(request: NextRequest) {
-  return proxyRequest(request, "HEAD");
-}
-
-export async function OPTIONS(_request: NextRequest) {
-  // Handle CORS preflight
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-osmo-auth, x-osmo-user",
-      "Access-Control-Max-Age": "86400",
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    },
+    // Send request body for POST/PUT/PATCH
+    if (method !== "GET" && method !== "HEAD") {
+      request
+        .text()
+        .then((body) => {
+          if (body) req.write(body);
+          req.end();
+        })
+        .catch(() => req.end());
+    } else {
+      req.end();
+    }
   });
 }
+
+/**
+ * Wrap production handler with mock mode check
+ */
+function withMockMode(prodHandler: (request: NextRequest) => Promise<Response>, method: string) {
+  return async (request: NextRequest) => {
+    // Check if mock mode is active
+    const mockMode = process.env.NEXT_PUBLIC_MOCK_API === "true";
+
+    if (mockMode) {
+      const { pathname, searchParams } = request.nextUrl;
+      return handleMockModeRequest(request, method, pathname, searchParams);
+    }
+
+    // Normal mode: delegate to production handler
+    return prodHandler(request);
+  };
+}
+
+// Override exports with mock-aware handlers
+export const GET = withMockMode(prodGET, "GET");
+export const POST = withMockMode(prodPOST, "POST");
+export const PUT = withMockMode(prodPUT, "PUT");
+export const PATCH = withMockMode(prodPATCH, "PATCH");
+export const DELETE = withMockMode(prodDELETE, "DELETE");
+export const HEAD = withMockMode(prodHEAD, "HEAD");
+export const OPTIONS = prodOPTIONS; // CORS doesn't need mock handling
