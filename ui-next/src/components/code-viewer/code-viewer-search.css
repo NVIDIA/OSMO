@@ -17,14 +17,14 @@
  */
 
 /**
- * Spec Search Panel Styles
+ * Code Viewer Search Panel Styles
  *
  * Floating overlay in top-right corner matching ShellSearch design.
  * Theme-aware with light/dark mode support.
  */
 
 /* Theme-aware CSS custom properties */
-.spec-search[data-theme="dark"] {
+.code-viewer-search[data-theme="dark"] {
   --search-bg: #18181b;
   --search-border: #27272a;
   --search-input-bg: #09090b;
@@ -38,7 +38,7 @@
   --search-shadow: rgba(0, 0, 0, 0.3);
 }
 
-.spec-search[data-theme="light"] {
+.code-viewer-search[data-theme="light"] {
   --search-bg: #ffffff;
   --search-border: #e4e4e7;
   --search-input-bg: #fafafa;
@@ -55,7 +55,7 @@
 }
 
 /* Panel mount point - positions the search as a floating overlay */
-.spec-search-panel-mount {
+.code-viewer-search-panel-mount {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -64,7 +64,7 @@
 }
 
 /* Search panel container */
-.spec-search {
+.code-viewer-search {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -75,11 +75,11 @@
   box-shadow: 0 4px 12px var(--search-shadow);
 
   /* Slide down + fade in animation */
-  animation: spec-search-slide-down 150ms ease-out forwards;
+  animation: code-viewer-search-slide-down 150ms ease-out forwards;
 }
 
 /* Input wrapper - contains input and inline options */
-.spec-search-input-wrapper {
+.code-viewer-search-input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
@@ -89,12 +89,12 @@
   transition: border-color 100ms ease-out;
 }
 
-.spec-search-input-wrapper:focus-within {
+.code-viewer-search-input-wrapper:focus-within {
   border-color: var(--search-focus-border);
 }
 
 /* Input field */
-.spec-search-input {
+.code-viewer-search-input {
   width: 120px;
   height: 24px;
   padding: 0 4px 0 8px;
@@ -105,19 +105,19 @@
   color: var(--search-text);
 }
 
-.spec-search-input::placeholder {
+.code-viewer-search-input::placeholder {
   color: var(--search-muted);
 }
 
 /* Inline search options (inside input) */
-.spec-search-options {
+.code-viewer-search-options {
   display: flex;
   align-items: center;
   gap: 1px;
   padding-right: 4px;
 }
 
-.spec-search-option {
+.code-viewer-search-option {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,22 +134,22 @@
     background-color 100ms ease-out;
 }
 
-.spec-search-option:hover {
+.code-viewer-search-option:hover {
   color: var(--search-hover-text, var(--search-text));
   background: var(--search-hover-bg);
 }
 
-.spec-search-option.active {
+.code-viewer-search-option.active {
   color: var(--search-active-color);
 }
 
-.spec-search-option.active:hover {
+.code-viewer-search-option.active:hover {
   color: var(--search-active-hover);
   background: var(--search-active-bg);
 }
 
 /* Match count text */
-.spec-search-count {
+.code-viewer-search-count {
   font-size: 11px;
   white-space: nowrap;
   min-width: 32px;
@@ -158,24 +158,24 @@
 }
 
 /* Navigation and close buttons */
-.spec-search-buttons {
+.code-viewer-search-buttons {
   display: flex;
   gap: 2px;
 }
 
-.spec-search-nav-button,
-.spec-search-close-button {
+.code-viewer-search-nav-button,
+.code-viewer-search-close-button {
   color: var(--search-muted);
 }
 
-.spec-search-nav-button:hover,
-.spec-search-close-button:hover {
+.code-viewer-search-nav-button:hover,
+.code-viewer-search-close-button:hover {
   background: var(--search-hover-bg);
   color: var(--search-hover-text, var(--search-text));
 }
 
 /* Animation */
-@keyframes spec-search-slide-down {
+@keyframes code-viewer-search-slide-down {
   from {
     opacity: 0;
     transform: translateY(-8px);
@@ -190,7 +190,7 @@
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  .spec-search {
+  .code-viewer-search {
     animation: none;
   }
 }
