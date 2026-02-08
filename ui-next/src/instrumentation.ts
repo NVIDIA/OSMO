@@ -20,6 +20,13 @@
  * This file is automatically loaded by Next.js before the server starts.
  * We use it to set up server-side MSW for mock mode.
  *
+ * PRODUCTION SAFETY:
+ * This file has ZERO mock code in production builds because:
+ * 1. The import is behind `NODE_ENV === "development"` condition
+ * 2. Tree-shaking removes the dead code path in production
+ * 3. The `@/mocks/server` import is aliased to a no-op stub via next.config.ts
+ * 4. Dynamic import only executes in dev mode, never in production
+ *
  * IMPORTANT: Uses a singleton pattern to prevent MaxListenersExceededWarning
  * during hot module reloading. MSW server is started exactly once.
  *

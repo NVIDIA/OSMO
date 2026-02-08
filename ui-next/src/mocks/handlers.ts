@@ -23,7 +23,7 @@
  * Enable: NEXT_PUBLIC_MOCK_API=true or set mockApi in localStorage
  */
 
-import { http, HttpResponse, delay } from "msw";
+import { http, HttpResponse, delay, passthrough } from "msw";
 import { faker } from "@faker-js/faker";
 import { workflowGenerator } from "@/mocks/generators/workflow-generator";
 import { poolGenerator } from "@/mocks/generators/pool-generator";
@@ -1385,7 +1385,80 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
       hash: "mock-abc123",
     });
   }),
+
+  // ==========================================================================
+  // Catch-All Handler (HMR Recursion Guard)
+  // ==========================================================================
+  // This MUST be the last handler in the array. It catches any /api/* request
+  // that wasn't matched by the specific handlers above. This only happens when:
+  // 1. A handler is missing (developer error)
+  // 2. During HMR when handlers are being reset (transient)
+  //
+  // During HMR, there's a brief window where a request might not match any
+  // handler. If we let it pass through, it hits localhost:3000 (same server)
+  // and creates an infinite loop. This catch-all detects recursion and returns
+  // 503 to break the loop.
+  //
+  // Recursion detection: We track request keys in a global Set. If we see the
+  // same request twice, it means MSW passed it through and it looped back.
+  http.all("*/api/*", async ({ request }) => {
+    const url = new URL(request.url);
+    const requestKey = `${request.method} ${url.pathname}`;
+
+    // Initialize the recursion tracker on globalThis (survives HMR)
+    if (!globalThis.__mswRecursionTracker) {
+      globalThis.__mswRecursionTracker = new Set<string>();
+    }
+
+    const tracker = globalThis.__mswRecursionTracker;
+
+    // Check if we've seen this request before (recursion detected)
+    if (tracker.has(requestKey)) {
+      console.warn(
+        `[MSW] Recursion detected: ${requestKey}. ` + "This usually happens during HMR handler reset. Returning 503.",
+      );
+
+      // Remove from tracker so subsequent requests can try again
+      tracker.delete(requestKey);
+
+      return HttpResponse.json(
+        {
+          error: "Mock handler temporarily unavailable",
+          message: "Request handler unavailable during HMR reset. The client will retry automatically.",
+          path: url.pathname,
+          method: request.method,
+          retryable: true,
+        },
+        {
+          status: 503,
+          headers: {
+            "Retry-After": "1",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        },
+      );
+    }
+
+    // Track this request
+    tracker.add(requestKey);
+
+    // Clean up after a short delay (handlers should match quickly)
+    setTimeout(() => tracker.delete(requestKey), 100);
+
+    // This is a legitimate unhandled request - warn and pass through
+    // (MSW's onUnhandledRequest will log it)
+    console.warn(`[MSW] Unhandled API request: ${requestKey}. ` + "Consider adding a handler for this endpoint.");
+
+    // Passthrough to allow MSW to handle this naturally
+    // This lets the request go to the actual network (which will fail gracefully)
+    return passthrough();
+  }),
 ];
+
+// Extend globalThis for recursion tracker
+declare global {
+  var __mswRecursionTracker: Set<string> | undefined;
+}
 
 // =============================================================================
 // HMR Handler Refresh
