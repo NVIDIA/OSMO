@@ -103,10 +103,6 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       });
 
       onSuccess?.();
-
-      if (newWorkflowName) {
-        router.push(`/workflows/${newWorkflowName}`);
-      }
     },
   });
 
