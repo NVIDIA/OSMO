@@ -189,7 +189,6 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
     onSuccess: () => {
       // Show success toast with manual refresh action
       toast.success("Workflow cancellation initiated", {
-        description: "Status will update to FAILED_CANCELED within seconds to minutes.",
         action: onRefetch
           ? {
               label: "Refresh",
