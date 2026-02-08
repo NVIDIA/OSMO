@@ -194,6 +194,9 @@ const nextConfig: NextConfig = {
 
             // JWT helper (production version only trusts Envoy Authorization header)
             "@/lib/auth/jwt-helper": "@/lib/auth/jwt-helper.production",
+
+            // Server API config (production version has zero mock awareness)
+            "@/lib/api/server/config": "@/lib/api/server/config.production",
           }
         : {},
   },
