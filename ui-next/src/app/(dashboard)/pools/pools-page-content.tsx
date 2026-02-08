@@ -38,7 +38,6 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { usePanelState } from "@/hooks/use-url-state";
-import { useViewTransition } from "@/hooks/use-view-transition";
 import { PoolsDataTable } from "./components/table/pools-data-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";
@@ -50,7 +49,6 @@ import { usePoolsData } from "./hooks/use-pools-data";
 
 export function PoolsPageContent() {
   usePage({ title: "Pools" });
-  const { startTransition } = useViewTransition();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
@@ -68,21 +66,21 @@ export function PoolsPageContent() {
 
   const handlePoolSelect = useCallback(
     (poolName: string | null) => {
-      startTransition(() => setSelectedPoolName(poolName));
+      setSelectedPoolName(poolName);
     },
-    [setSelectedPoolName, startTransition],
+    [setSelectedPoolName],
   );
 
   const handlePlatformSelect = useCallback(
     (platform: string | null) => {
-      startTransition(() => setSelectedPlatform(platform));
+      setSelectedPlatform(platform);
     },
-    [setSelectedPlatform, startTransition],
+    [setSelectedPlatform],
   );
 
   const handleClose = useCallback(() => {
-    startTransition(() => clearSelectedPool());
-  }, [clearSelectedPool, startTransition]);
+    clearSelectedPool();
+  }, [clearSelectedPool]);
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
