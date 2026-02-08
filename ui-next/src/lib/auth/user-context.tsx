@@ -18,7 +18,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getBasePathUrl } from "@/lib/config";
-import { getClientToken, decodeUserFromToken } from "./decode-user";
+import { getClientToken, decodeUserFromToken } from "@/lib/auth/decode-user";
 
 export interface User {
   id: string;

@@ -30,10 +30,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { createQueryClient } from "@/lib/query-client";
-import { normalizeWorkflowTimestamps, normalizeTimestamp } from "./utils";
+import { normalizeWorkflowTimestamps, normalizeTimestamp } from "@/lib/api/adapter/utils";
 import { createApiError } from "@/lib/api/fetcher";
-import { WorkflowStatus, TaskGroupStatus } from "../generated";
-import type { WorkflowQueryResponse } from "../generated";
+import { WorkflowStatus, TaskGroupStatus } from "@/lib/api/generated";
+import type { WorkflowQueryResponse } from "@/lib/api/generated";
 
 // =============================================================================
 // Test Fixtures

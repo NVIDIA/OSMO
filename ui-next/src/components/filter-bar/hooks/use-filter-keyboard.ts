@@ -31,7 +31,7 @@
  */
 
 import { useCallback } from "react";
-import type { ParsedInput, SearchField, Suggestion } from "../lib/types";
+import type { ParsedInput, SearchField, Suggestion } from "@/components/filter-bar/lib/types";
 
 // ---------------------------------------------------------------------------
 // Action interface: all side-effects the keyboard handler may trigger

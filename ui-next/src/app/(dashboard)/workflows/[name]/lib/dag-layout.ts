@@ -19,8 +19,8 @@ import { MarkerType } from "@xyflow/react";
 import { LAYOUT_CACHE, NODE_DEFAULTS, NODE_EXPANDED, LAYOUT_SPACING, EDGE_STYLE } from "@/components/dag/constants";
 import { elkWorker } from "@/components/dag/layout/elk-worker-client";
 import type { LayoutDirection, NodeDimensions, ElkGraph } from "@/components/dag/types";
-import type { GroupWithLayout } from "./workflow-types";
-import { getStatusCategory, STATUS_STYLES } from "./status";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { getStatusCategory, STATUS_STYLES } from "@/app/(dashboard)/workflows/[name]/lib/status";
 
 // Callbacks accessed via DAGContext to prevent re-renders
 export interface GroupNodeData extends Record<string, unknown> {
@@ -252,7 +252,7 @@ export function buildNodes(
 }
 
 // Pre-computed edge styles/markers/data - created once, reused for every edge
-import type { StatusCategory } from "./status-utils";
+import type { StatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
 
 const EDGE_STYLE_SOLID = {
   strokeWidth: EDGE_STYLE.STROKE_WIDTH,

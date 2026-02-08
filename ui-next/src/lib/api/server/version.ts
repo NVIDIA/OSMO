@@ -22,7 +22,7 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import type { Version } from "../adapter/types";
+import type { Version } from "@/lib/api/adapter/types";
 
 /**
  * Fetch OSMO version info from the server.

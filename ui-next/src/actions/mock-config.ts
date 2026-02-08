@@ -26,7 +26,7 @@
  * Next.js contexts (Server Actions run in separate bundle from MSW handlers).
  */
 
-import type { MockVolumes } from "./mock-config.types";
+import type { MockVolumes } from "@/actions/mock-config.types";
 import { getGlobalMockConfig, setGlobalMockConfig } from "@/mocks/global-config";
 
 /**

@@ -22,7 +22,7 @@ import { memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
 import type { DisplayMode } from "@/stores/shared-preferences-store";
-import type { ResourceAggregates } from "../lib/computeAggregates";
+import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
 
 interface AdaptiveSummaryProps {
   /** Pre-computed aggregates from shim or server prefetch */

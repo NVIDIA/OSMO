@@ -23,7 +23,7 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import type { AllResourcesResponse, PoolResourcesResponse } from "../adapter/types";
+import type { AllResourcesResponse, PoolResourcesResponse } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Fetch Functions

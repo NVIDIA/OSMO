@@ -22,7 +22,13 @@
  * Type definitions for the DataTable component built on TanStack Table.
  */
 
-import type { SortDirection, PreferenceMode, ColumnWidthConfigType, TextAlignment, ElementType } from "./constants";
+import type {
+  SortDirection,
+  PreferenceMode,
+  ColumnWidthConfigType,
+  TextAlignment,
+  ElementType,
+} from "@/components/data-table/constants";
 
 // Re-export types from constants for convenience
 export type { SortDirection, PreferenceMode, ColumnWidthConfigType, TextAlignment, ElementType };

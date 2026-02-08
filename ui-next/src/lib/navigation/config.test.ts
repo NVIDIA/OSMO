@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { buildNavigation } from "./config";
+import { buildNavigation } from "@/lib/navigation/config";
 
 // =============================================================================
 // buildNavigation Tests

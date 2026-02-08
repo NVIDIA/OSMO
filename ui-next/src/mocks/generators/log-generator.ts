@@ -28,10 +28,10 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "../seed/types";
+import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "@/mocks/seed/types";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
-import { getWorkflowLogConfig, type WorkflowLogConfig } from "../mock-workflows";
-import { hashString } from "../utils";
+import { getWorkflowLogConfig, type WorkflowLogConfig } from "@/mocks/mock-workflows";
+import { hashString } from "@/mocks/utils";
 
 // ============================================================================
 // Constants

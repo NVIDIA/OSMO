@@ -32,7 +32,7 @@
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowByName } from "@/lib/api/server/workflows";
-import { WorkflowDetailContent } from "./workflow-detail-content";
+import { WorkflowDetailContent } from "@/app/(dashboard)/workflows/[name]/workflow-detail-content";
 import { createQueryClient } from "@/lib/query-client";
 
 interface WorkflowDetailWithDataProps {

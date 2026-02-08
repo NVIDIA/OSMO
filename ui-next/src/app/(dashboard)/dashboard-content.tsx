@@ -27,7 +27,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Link } from "@/components/link";
 import { usePage } from "@/components/chrome/page-context";
 import { usePools, useVersion } from "@/lib/api/adapter/hooks";
-import { useWorkflowsData } from "./workflows/hooks/use-workflows-data";
+import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 

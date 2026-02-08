@@ -19,15 +19,15 @@ import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-t
 import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback, usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
-import type { ColumnSizeConfig } from "../types";
+import type { ColumnSizeConfig } from "@/components/data-table/types";
 import {
   measureColumnContentWidth,
   measureMultipleColumns,
   calculateColumnWidths,
   getTruncationThreshold,
   getRemToPx,
-} from "../utils/column-sizing";
-import { PreferenceModes, type PreferenceMode } from "../constants";
+} from "@/components/data-table/utils/column-sizing";
+import { PreferenceModes, type PreferenceMode } from "@/components/data-table/constants";
 
 export interface UseColumnSizingOptions {
   columnIds: string[];
@@ -102,7 +102,7 @@ export {
   getRemToPx,
   _invalidateRemToPxCache,
   getTruncationThreshold,
-} from "../utils/column-sizing";
+} from "@/components/data-table/utils/column-sizing";
 
 interface ResizingContext {
   columnId: string;

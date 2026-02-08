@@ -31,9 +31,9 @@ import { EditorState, type Extension } from "@codemirror/state";
 import { foldGutter } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
-import { createCodeViewerExtension } from "./theme";
-import { createSearchPanel } from "./search-panel";
-import type { LanguageExtension } from "../types";
+import { createCodeViewerExtension } from "@/components/code-viewer/lib/theme";
+import { createSearchPanel } from "@/components/code-viewer/lib/search-panel";
+import type { LanguageExtension } from "@/components/code-viewer/types";
 
 /** YAML language extension preset for specs, configs, and templates */
 export const YAML_LANGUAGE: LanguageExtension = {

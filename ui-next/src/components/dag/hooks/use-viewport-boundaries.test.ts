@@ -23,7 +23,7 @@ import {
   shouldUpdateBoundariesImmediately,
   type Dimensions,
   type NodeBounds,
-} from "./use-viewport-boundaries";
+} from "@/components/dag/hooks/use-viewport-boundaries";
 import type { Node, Viewport } from "@xyflow/react";
 
 describe("useViewportBoundaries - Pure Logic", () => {

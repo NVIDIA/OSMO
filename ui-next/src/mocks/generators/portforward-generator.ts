@@ -21,7 +21,7 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { hashString } from "../utils";
+import { hashString } from "@/mocks/utils";
 
 // ============================================================================
 // Types

@@ -35,12 +35,12 @@ import {
   TimelineContainer,
   type TimeRangePreset,
   type TimelineContainerHandle,
-} from "./timeline/components/TimelineContainer";
-import { LogList } from "./LogList";
-import { Footer } from "./Footer";
-import { LogViewerSkeleton } from "./LogViewerSkeleton";
-import { useLogViewerStore } from "../store/log-viewer-store";
-import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "../lib/constants";
+} from "@/components/log-viewer/components/timeline/components/TimelineContainer";
+import { LogList } from "@/components/log-viewer/components/LogList";
+import { Footer } from "@/components/log-viewer/components/Footer";
+import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
+import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
+import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
 
 // =============================================================================
 // Helpers

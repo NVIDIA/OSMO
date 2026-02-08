@@ -25,7 +25,7 @@ import {
   type WorkflowStatus,
   type WorkflowPriority,
   type SrcServiceCoreWorkflowObjectsListEntry,
-} from "../generated";
+} from "@/lib/api/generated";
 
 // =============================================================================
 // Types

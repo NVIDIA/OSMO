@@ -33,7 +33,7 @@ import { useCopy } from "@/hooks/use-copy";
 import { useServices } from "@/contexts/service-context";
 import { toast } from "sonner";
 import { getBasePathUrl } from "@/lib/config";
-import type { SpecView } from "./hooks/useSpecData";
+import type { SpecView } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
 
 // =============================================================================
 // Types

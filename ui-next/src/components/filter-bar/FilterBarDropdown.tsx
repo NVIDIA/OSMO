@@ -39,9 +39,9 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import { dropdownStyles, chipStyles } from "./styles";
-import { FilterBarPreset } from "./FilterBarPreset";
-import type { SearchPreset, Suggestion } from "./lib/types";
+import { dropdownStyles, chipStyles } from "@/components/filter-bar/styles";
+import { FilterBarPreset } from "@/components/filter-bar/FilterBarPreset";
+import type { SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -8,7 +8,7 @@
  * because the UI should import all types from adapter, not generated.ts.
  */
 
-import type { PoolStatus, BackendResourceType } from "../generated";
+import type { PoolStatus, BackendResourceType } from "@/lib/api/generated";
 
 // =============================================================================
 // Re-exported Types (unchanged from generated, but exposed via adapter for stability)
@@ -21,7 +21,7 @@ export type {
   GroupQueryResponse,
   TaskQueryResponse,
   SrcServiceCoreWorkflowObjectsListEntry as WorkflowListEntry,
-} from "../generated";
+} from "@/lib/api/generated";
 
 // =============================================================================
 // Pool Types

@@ -31,8 +31,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useSyncedRef, usePrevious } from "@react-hookz/web";
-import type { Section } from "../types";
-import { VirtualItemTypes } from "../constants";
+import type { Section } from "@/components/data-table/types";
+import { VirtualItemTypes } from "@/components/data-table/constants";
 
 // =============================================================================
 // Types

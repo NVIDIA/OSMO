@@ -29,9 +29,9 @@ import { useCallback, useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter/types";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { usePoolsTableStore } from "../../stores/pools-table-store";
-import { PoolPanelHeader } from "./panel-header";
-import { PanelContent } from "./panel-content";
+import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
+import { PoolPanelHeader } from "@/app/(dashboard)/pools/components/panel/panel-header";
+import { PanelContent } from "@/app/(dashboard)/pools/components/panel/panel-content";
 
 // =============================================================================
 // Types

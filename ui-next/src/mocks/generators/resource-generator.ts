@@ -25,9 +25,9 @@
 
 import { faker } from "@faker-js/faker";
 import { BackendResourceType, type ResourcesEntry } from "@/lib/api/generated";
-import { MOCK_CONFIG, type ResourcePatterns } from "../seed/types";
-import { hashString } from "../utils";
-import { getGlobalMockConfig } from "../global-config";
+import { MOCK_CONFIG, type ResourcePatterns } from "@/mocks/seed/types";
+import { hashString } from "@/mocks/utils";
+import { getGlobalMockConfig } from "@/mocks/global-config";
 
 // ============================================================================
 // Generator Configuration

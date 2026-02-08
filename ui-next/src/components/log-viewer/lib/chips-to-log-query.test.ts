@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import { chipsToLogQuery, hasActiveFilters } from "./chips-to-log-query";
+import { chipsToLogQuery, hasActiveFilters } from "@/components/log-viewer/lib/chips-to-log-query";
 
 // =============================================================================
 // Helper

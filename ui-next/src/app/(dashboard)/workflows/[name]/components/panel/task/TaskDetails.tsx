@@ -40,19 +40,28 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import { useTick } from "@/hooks/use-tick";
-import { ShellConnectPrompt } from "./TaskShell";
-import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
-import type { GroupWithLayout } from "../../../lib/workflow-types";
-import type { TaskTab } from "../../../hooks/use-navigation-state";
-import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
-import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
-import { TaskTimeline } from "./TaskTimeline";
-import { DependencyPill } from "../views/DependencyPills";
-import { useShellPortal } from "../../shell/ShellPortalContext";
-import { useShellContext } from "../../shell/ShellContext";
+import { ShellConnectPrompt } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskShell";
+import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { TaskTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
+import {
+  getStatusIcon,
+  getStatusCategory,
+  getStatusStyle,
+  getStatusLabel,
+} from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
+import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskTimeline";
+import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DependencyPills";
+import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
+import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
 import { StatusDot } from "@/components/shell/components/StatusDot";
 import { useShellSession } from "@/components/shell/lib/shell-cache";
-import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
+import type {
+  TaskDetailsProps,
+  SiblingTask,
+  BreadcrumbSegment,
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
 
 interface OverviewTabProps {

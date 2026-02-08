@@ -42,12 +42,12 @@ import { usePanelState } from "@/hooks/use-url-state";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import type { Resource } from "@/lib/api/adapter/types";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
-import { ResourcesTable } from "./components/table/resources-table";
-import { ResourcePanelLayout } from "./components/panel/resource-panel";
-import { ResourcesToolbar } from "./components/resources-toolbar";
-import { AdaptiveSummary } from "./components/resource-summary-card";
-import { useResourcesData } from "./hooks/use-resources-data";
-import type { ResourceAggregates } from "./lib/computeAggregates";
+import { ResourcesTable } from "@/app/(dashboard)/resources/components/table/resources-table";
+import { ResourcePanelLayout } from "@/app/(dashboard)/resources/components/panel/resource-panel";
+import { ResourcesToolbar } from "@/app/(dashboard)/resources/components/resources-toolbar";
+import { AdaptiveSummary } from "@/app/(dashboard)/resources/components/resource-summary-card";
+import { useResourcesData } from "@/app/(dashboard)/resources/hooks/use-resources-data";
+import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
 
 // =============================================================================
 // Client Component

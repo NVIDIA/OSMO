@@ -22,7 +22,7 @@
 
 "use client";
 
-import { PlainTextAdapter } from "../adapters/plain-text-adapter";
+import { PlainTextAdapter } from "@/lib/api/log-adapter/adapters/plain-text-adapter";
 
 // =============================================================================
 // Singleton Adapter

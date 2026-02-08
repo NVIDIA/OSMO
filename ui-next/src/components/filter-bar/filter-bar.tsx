@@ -34,10 +34,10 @@
 import { useRef, useCallback, useEffect, memo, useId } from "react";
 import { cn } from "@/lib/utils";
 import { Command } from "@/components/shadcn/command";
-import type { FilterBarProps } from "./lib/types";
-import { useFilterState } from "./hooks/use-filter-state";
-import { FilterBarInput } from "./FilterBarInput";
-import { FilterBarDropdown } from "./FilterBarDropdown";
+import type { FilterBarProps } from "@/components/filter-bar/lib/types";
+import { useFilterState } from "@/components/filter-bar/hooks/use-filter-state";
+import { FilterBarInput } from "@/components/filter-bar/FilterBarInput";
+import { FilterBarDropdown } from "@/components/filter-bar/FilterBarDropdown";
 
 function FilterBarInner<T>({
   data,

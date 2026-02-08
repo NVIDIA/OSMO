@@ -27,9 +27,9 @@ import { memo, useMemo, useCallback } from "react";
 import { AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { DependenciesSection } from "@/components/panel/dependencies-section";
-import { GroupTimeline } from "./GroupTimeline";
-import { DependencyPill } from "../views/DependencyPills";
-import type { GroupWithLayout } from "../../../lib/workflow-types";
+import { GroupTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/group/GroupTimeline";
+import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DependencyPills";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // =============================================================================
 // Constants

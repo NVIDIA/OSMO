@@ -40,7 +40,7 @@
  */
 
 import { setupServer, type SetupServer } from "msw/node";
-import { handlers } from "./handlers";
+import { handlers } from "@/mocks/handlers";
 
 // Extend globalThis to hold the singleton server instance
 declare global {

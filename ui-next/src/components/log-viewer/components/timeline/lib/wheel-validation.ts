@@ -21,7 +21,12 @@
  * These functions encapsulate constraint checking logic and can be tested independently.
  */
 
-import { MIN_RANGE_MS, MAX_RANGE_MS, MIN_BUCKET_COUNT, MAX_BUCKET_COUNT } from "./timeline-constants";
+import {
+  MIN_RANGE_MS,
+  MAX_RANGE_MS,
+  MIN_BUCKET_COUNT,
+  MAX_BUCKET_COUNT,
+} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 // =============================================================================
 // Types

@@ -34,16 +34,20 @@ import { cn } from "@/lib/utils";
 import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
-import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
-import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
-import type { GroupDetailsProps } from "../../../lib/panel-types";
-import type { TaskWithDuration } from "../../../lib/workflow-types";
-import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
+import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import {
+  computeTaskStats,
+  computeGroupStatus,
+  computeGroupDuration,
+} from "@/app/(dashboard)/workflows/[name]/lib/status";
+import type { GroupDetailsProps } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
+import type { TaskWithDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
 import { useTick } from "@/hooks/use-tick";
-import type { BreadcrumbSegment } from "../../../lib/panel-types";
-import { GroupOverviewTab } from "./GroupOverviewTab";
-import { GroupTasksTab } from "./GroupTasksTab";
-import type { GroupTab } from "../../../hooks/use-navigation-state";
+import type { BreadcrumbSegment } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
+import { GroupOverviewTab } from "@/app/(dashboard)/workflows/[name]/components/panel/group/GroupOverviewTab";
+import { GroupTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/group/GroupTasksTab";
+import type { GroupTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 
 // =============================================================================
 // Component

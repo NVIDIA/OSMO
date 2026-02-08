@@ -15,7 +15,13 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses, isLevelAtLeast, getLevelsAtLeast } from "./level-utils";
+import {
+  getLevelBadgeClasses,
+  getLevelLabel,
+  getLogRowClasses,
+  isLevelAtLeast,
+  getLevelsAtLeast,
+} from "@/components/log-viewer/lib/level-utils";
 import type { LogLevel } from "@/lib/api/log-adapter/types";
 
 // =============================================================================

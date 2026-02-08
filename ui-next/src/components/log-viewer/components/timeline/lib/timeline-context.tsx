@@ -38,7 +38,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import type { HistogramBucket } from "@/lib/api/log-adapter/types";
-import type { useTimelineState } from "../hooks/use-timeline-state";
+import type { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
 
 // =============================================================================
 // Types

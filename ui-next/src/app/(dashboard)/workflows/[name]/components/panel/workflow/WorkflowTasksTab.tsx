@@ -25,8 +25,8 @@
 
 import { memo } from "react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
-import type { GroupWithLayout, TaskQueryResponse } from "../../../lib/workflow-types";
-import { WorkflowTasksTable } from "../../table/WorkflowTasksTable";
+import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { WorkflowTasksTable } from "@/app/(dashboard)/workflows/[name]/components/table/WorkflowTasksTable";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 
 export interface WorkflowTasksTabProps {

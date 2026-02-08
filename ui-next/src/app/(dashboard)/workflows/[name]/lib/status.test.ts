@@ -43,7 +43,7 @@ import {
   STATUS_SORT_ORDER,
   STATE_CATEGORIES,
   type StatusCategory,
-} from "./status";
+} from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { TaskGroupStatus } from "@/lib/api/generated";
 
 // =============================================================================

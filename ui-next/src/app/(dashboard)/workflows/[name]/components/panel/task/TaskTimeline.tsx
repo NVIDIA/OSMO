@@ -17,15 +17,15 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import type { TaskQueryResponse } from "../../../lib/workflow-types";
-import { Timeline, type TimelinePhase } from "../views/Timeline";
+import type { TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { Timeline, type TimelinePhase } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
 import {
   useTimelineSetup,
   parseCommonTimestamps,
   buildPreExecutionPhases,
   buildTerminalPhase,
   parseTime,
-} from "../../../lib/timeline-utils";
+} from "@/app/(dashboard)/workflows/[name]/lib/timeline-utils";
 
 interface TaskTimelineProps {
   task: TaskQueryResponse;

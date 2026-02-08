@@ -29,17 +29,17 @@
  * @example
  * ```typescript
  * // Import specific slices you need
- * import type { WorkflowDataState, WorkflowNavigationState } from "./state-types";
+ * import type { WorkflowDataState, WorkflowNavigationState } from "@/app/(dashboard)/workflows/[name]/lib/state-types";
  *
  * // Or import the full composed state
- * import type { WorkflowDetailState } from "./state-types";
+ * import type { WorkflowDetailState } from "@/app/(dashboard)/workflows/[name]/lib/state-types";
  * ```
  */
 
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
-import type { GroupWithLayout, TaskQueryResponse } from "./workflow-types";
-import type { NavigationContext, WorkflowProgress } from "./workflow-selectors";
-import type { TaskTab, WorkflowTab, GroupTab } from "../hooks/use-navigation-state";
+import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { NavigationContext, WorkflowProgress } from "@/app/(dashboard)/workflows/[name]/lib/workflow-selectors";
+import type { TaskTab, WorkflowTab, GroupTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 
 // =============================================================================
 // Data Slice (Server State)

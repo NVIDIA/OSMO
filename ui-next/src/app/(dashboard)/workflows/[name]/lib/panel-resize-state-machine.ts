@@ -47,7 +47,10 @@
  *       └───────────────────────┴──────────────────────────────────────────────────────────┘
  */
 
-import { calculateStripSnapTargetPct, SNAP_ZONES as SNAP_ZONE_CONSTANTS } from "./panel-constants";
+import {
+  calculateStripSnapTargetPct,
+  SNAP_ZONES as SNAP_ZONE_CONSTANTS,
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 // =============================================================================
 // Types

@@ -35,7 +35,7 @@ import {
   getGroupsByLevel,
   getRootGroups,
   getLeafGroups,
-} from "./workflow-layout";
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-layout";
 import type { GroupQueryResponse } from "@/lib/api/adapter/types";
 
 // =============================================================================

@@ -38,26 +38,30 @@ import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useTick } from "@/hooks/use-tick";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { useIsSuspended, usePanelResizeMachine } from "../../lib/panel-resize-context";
+import { useIsSuspended, usePanelResizeMachine } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 
-import { calculateTaskDuration } from "../../lib/workflow-types";
+import { calculateTaskDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import { computeTaskStats, STATUS_SORT_ORDER } from "../../lib/status";
-import { createTaskColumns } from "../../lib/task-column-defs";
+import { computeTaskStats, STATUS_SORT_ORDER } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { createTaskColumns } from "@/app/(dashboard)/workflows/[name]/lib/task-column-defs";
 import {
   TASK_WITH_TREE_COLUMN_SIZE_CONFIG,
   MANDATORY_COLUMN_IDS,
   OPTIONAL_COLUMNS_ALPHABETICAL,
   asTaskColumnIds,
-} from "../../lib/task-columns";
-import { useTaskTableStore } from "../../stores/task-table-store";
-import { TreeConnector } from "./tree/TreeConnector";
-import { SplitGroupHeader } from "./tree/SplitGroupHeader";
+} from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
+import { useTaskTableStore } from "@/app/(dashboard)/workflows/[name]/stores/task-table-store";
+import { TreeConnector } from "@/app/(dashboard)/workflows/[name]/components/table/tree/TreeConnector";
+import { SplitGroupHeader } from "@/app/(dashboard)/workflows/[name]/components/table/tree/SplitGroupHeader";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
+import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
 
-import type { GroupWithLayout, TaskQueryResponse, TaskWithDuration } from "../../lib/workflow-types";
+import type {
+  GroupWithLayout,
+  TaskQueryResponse,
+  TaskWithDuration,
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // =============================================================================
 // Types

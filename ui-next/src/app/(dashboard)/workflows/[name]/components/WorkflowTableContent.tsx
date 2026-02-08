@@ -28,15 +28,15 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
-import { WorkflowTasksTable } from "./table/WorkflowTasksTable";
-import { WorkflowTasksToolbar } from "./table/WorkflowTasksToolbar";
-import { TASK_SEARCH_FIELDS } from "../lib/task-search-fields";
+import { WorkflowTasksTable } from "@/app/(dashboard)/workflows/[name]/components/table/WorkflowTasksTable";
+import { WorkflowTasksToolbar } from "@/app/(dashboard)/workflows/[name]/components/table/WorkflowTasksToolbar";
+import { TASK_SEARCH_FIELDS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
 import type {
   TaskWithDuration,
   GroupWithLayout,
   TaskQueryResponse,
   WorkflowQueryResponse,
-} from "../lib/workflow-types";
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // =============================================================================
 // Types

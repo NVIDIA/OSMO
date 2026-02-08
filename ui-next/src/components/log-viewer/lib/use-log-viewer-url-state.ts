@@ -71,9 +71,9 @@
 "use client";
 
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import type { TimeRangePreset } from "../components/timeline/components/TimelineContainer";
-import { useFilterChipsUrlState } from "./use-filter-chips-url-state";
-import { useTimeRangeUrlState } from "./use-time-range-url-state";
+import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/TimelineContainer";
+import { useFilterChipsUrlState } from "@/components/log-viewer/lib/use-filter-chips-url-state";
+import { useTimeRangeUrlState } from "@/components/log-viewer/lib/use-time-range-url-state";
 
 // =============================================================================
 // Types

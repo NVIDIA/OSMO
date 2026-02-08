@@ -12,7 +12,7 @@
  */
 
 import { getBasePathUrl } from "@/lib/config";
-import { handleRedirectResponse } from "./handle-redirect";
+import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 
 interface RequestConfig {
   url: string;

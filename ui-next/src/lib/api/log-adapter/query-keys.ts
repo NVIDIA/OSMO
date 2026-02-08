@@ -24,7 +24,7 @@
  * be imported from server components.
  */
 
-import type { LogLevel, LogSourceType } from "./types";
+import type { LogLevel, LogSourceType } from "@/lib/api/log-adapter/types";
 
 // =============================================================================
 // Types

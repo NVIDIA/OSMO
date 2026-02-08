@@ -16,7 +16,7 @@
 
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { ExperimentalPageClient } from "./experimental-client";
+import { ExperimentalPageClient } from "@/app/(dashboard)/experimental/experimental-client";
 
 /**
  * Experimental Pages Index

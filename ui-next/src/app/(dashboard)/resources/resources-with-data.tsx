@@ -33,11 +33,11 @@
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchResourcesList, buildResourcesQueryKey } from "@/lib/api/server/resources";
-import { ResourcesPageContent } from "./resources-page-content";
+import { ResourcesPageContent } from "@/app/(dashboard)/resources/resources-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createQueryClient } from "@/lib/query-client";
 import type { PaginatedResourcesResult } from "@/lib/api/adapter/resources-shim";
-import type { ResourceAggregates } from "./lib/computeAggregates";
+import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
 
 interface ResourcesWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
