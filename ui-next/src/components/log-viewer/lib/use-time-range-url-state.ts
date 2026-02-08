@@ -65,8 +65,8 @@
 
 import { useMemo, useCallback, useEffect } from "react";
 import { useQueryStates, parseAsIsoDateTime } from "nuqs";
-import type { TimeRangePreset } from "../components/timeline/components/TimelineContainer";
-import { validateTimeRange } from "./use-log-viewer-url-state";
+import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/TimelineContainer";
+import { validateTimeRange } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 
 // =============================================================================
 // Types

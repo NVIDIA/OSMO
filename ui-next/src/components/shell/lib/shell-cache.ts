@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { useSyncExternalStore, useCallback } from "react";
-import type { ShellState, TerminalAddons } from "./shell-state";
+import type { ShellState, TerminalAddons } from "@/components/shell/lib/shell-state";
 
 export interface CachedSession {
   readonly key: string;

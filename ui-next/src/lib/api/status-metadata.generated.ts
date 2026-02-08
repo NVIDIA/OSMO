@@ -24,7 +24,7 @@
  *         external/src/utils/job/workflow.py (WorkflowStatus)
  */
 
-import { TaskGroupStatus, WorkflowStatus } from "./generated";
+import { TaskGroupStatus, WorkflowStatus } from "@/lib/api/generated";
 
 export type StatusCategory = "waiting" | "pending" | "running" | "completed" | "failed";
 

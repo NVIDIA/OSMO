@@ -30,8 +30,8 @@ import {
 import { useSidebar } from "@/components/shadcn/sidebar";
 import { useUser } from "@/lib/auth/user-context";
 import { useVersion } from "@/lib/api/adapter/hooks";
-import { usePageConfig, type BreadcrumbSegment } from "./page-context";
-import { useBreadcrumbOrigin } from "./breadcrumb-origin-context";
+import { usePageConfig, type BreadcrumbSegment } from "@/components/chrome/page-context";
+import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
 import { useRouter, usePathname } from "next/navigation";
 
 export function Header() {

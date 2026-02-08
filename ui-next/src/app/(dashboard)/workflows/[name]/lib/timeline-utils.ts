@@ -22,14 +22,14 @@
  */
 
 import { useTick } from "@/hooks/use-tick";
-import { getStatusCategory } from "./status";
+import { getStatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import {
   type TimelinePhase,
   parseTime,
   createPhaseDurationCalculator,
   finalizeTimelinePhases,
   type TimelineFinalizeContext,
-} from "../components/panel/views/Timeline";
+} from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
 
 /**
  * Status flags derived from a status string.

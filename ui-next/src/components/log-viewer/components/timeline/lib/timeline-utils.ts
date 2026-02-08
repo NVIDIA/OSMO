@@ -21,8 +21,15 @@
  * These functions are unit-tested and handle all constraint logic.
  */
 
-import { calculateInvalidZonePositions, calculateBucketWidth } from "./invalid-zones";
-import { NOW_THRESHOLD_MS, DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "./timeline-constants";
+import {
+  calculateInvalidZonePositions,
+  calculateBucketWidth,
+} from "@/components/log-viewer/components/timeline/lib/invalid-zones";
+import {
+  NOW_THRESHOLD_MS,
+  DISPLAY_PADDING_RATIO,
+  MIN_PADDING_MS,
+} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 // =============================================================================
 // Pure Calculation Functions

@@ -24,9 +24,9 @@ import type { SearchChip } from "@/stores/types";
 import type { ResultsCount } from "@/components/filter-bar/lib/types";
 import { DisplayModeToggle } from "@/components/data-table/DisplayModeToggle";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
-import { useResourcesTableStore } from "../stores/resources-table-store";
-import { OPTIONAL_COLUMNS } from "../lib/resource-columns";
-import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
+import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
+import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/resources/lib/resource-columns";
+import { RESOURCE_SEARCH_FIELDS } from "@/app/(dashboard)/resources/lib/resource-search-fields";
 
 export interface ResourcesToolbarProps {
   resources: Resource[];

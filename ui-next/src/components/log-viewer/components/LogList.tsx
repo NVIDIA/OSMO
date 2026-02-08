@@ -21,10 +21,15 @@ import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import { LogEntryRow } from "./LogEntryRow";
-import { useLogViewerStore } from "../store/log-viewer-store";
-import { ROW_HEIGHT_ESTIMATE, DATE_SEPARATOR_HEIGHT, OVERSCAN_COUNT, SCROLL_BOTTOM_THRESHOLD } from "../lib/constants";
-import { useIncrementalFlatten } from "../lib/use-incremental-flatten";
+import { LogEntryRow } from "@/components/log-viewer/components/LogEntryRow";
+import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
+import {
+  ROW_HEIGHT_ESTIMATE,
+  DATE_SEPARATOR_HEIGHT,
+  OVERSCAN_COUNT,
+  SCROLL_BOTTOM_THRESHOLD,
+} from "@/components/log-viewer/lib/constants";
+import { useIncrementalFlatten } from "@/components/log-viewer/lib/use-incremental-flatten";
 
 // =============================================================================
 // Types

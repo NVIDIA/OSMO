@@ -23,8 +23,8 @@
 "use client";
 
 import { useId } from "react";
-import { TimeRangePresets } from "./TimeRangePresets";
-import type { TimeRangePreset } from "../lib/timeline-constants";
+import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/TimeRangePresets";
+import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 // =============================================================================
 // Types

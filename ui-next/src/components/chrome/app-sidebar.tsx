@@ -22,7 +22,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config";
 import { useNavigation } from "@/lib/navigation/use-navigation";
-import { NvidiaLogo } from "./nvidia-logo";
+import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
 import { cn, isMac } from "@/lib/utils";
 import {
   Sidebar,

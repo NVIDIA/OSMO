@@ -29,23 +29,23 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import type { SortState } from "@/components/data-table/types";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
-import { STATUS_SORT_ORDER } from "../../../lib/status";
-import type { TaskWithDuration, GroupWithLayout } from "../../../lib/workflow-types";
-import type { TaskQueryResponse } from "../../../lib/workflow-types";
+import { STATUS_SORT_ORDER } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import type { TaskWithDuration, GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import {
   OPTIONAL_COLUMNS_ALPHABETICAL,
   MANDATORY_COLUMN_IDS,
   TASK_COLUMN_SIZE_CONFIG,
   asTaskColumnIds,
-} from "../../../lib/task-columns";
-import { createTaskColumns } from "../../../lib/task-column-defs";
+} from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
+import { createTaskColumns } from "@/app/(dashboard)/workflows/[name]/lib/task-column-defs";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-fields";
-import { useTaskTableStore } from "../../../stores/task-table-store";
+import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
+import { useTaskTableStore } from "@/app/(dashboard)/workflows/[name]/stores/task-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks/use-results-count";
-import { useIsSuspended, usePanelResizeMachine } from "../../../lib/panel-resize-context";
+import { useIsSuspended, usePanelResizeMachine } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 
 // =============================================================================
 // Constants

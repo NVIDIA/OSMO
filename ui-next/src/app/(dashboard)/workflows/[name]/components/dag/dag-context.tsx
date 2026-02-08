@@ -25,7 +25,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 import { useEventCallback } from "usehooks-ts";
-import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-types";
+import type { TaskQueryResponse, GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // ============================================================================
 // Workflow-Specific Context

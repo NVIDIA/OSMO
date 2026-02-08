@@ -15,8 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { filterByChips } from "./filter";
-import type { SearchField, SearchChip } from "./types";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
+import type { SearchField, SearchChip } from "@/components/filter-bar/lib/types";
 
 // =============================================================================
 // Test Fixtures

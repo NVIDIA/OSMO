@@ -23,14 +23,21 @@ import { computeHistogram } from "@/lib/api/log-adapter/adapters/compute";
 import { useLogData } from "@/lib/api/log-adapter/hooks/use-log-data";
 import { useLogTail } from "@/lib/api/log-adapter/hooks/use-log-tail";
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
-import { LogViewer } from "./LogViewer";
-import type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "./LogViewer";
-import { LogViewerSkeleton } from "./LogViewerSkeleton";
-import { chipsToLogQuery } from "../lib/chips-to-log-query";
-import { useCombinedEntries } from "../lib/use-combined-entries";
-import { useLogViewerUrlState } from "../lib/use-log-viewer-url-state";
+import { LogViewer } from "@/components/log-viewer/components/LogViewer";
+import type {
+  LogViewerDataProps,
+  LogViewerFilterProps,
+  LogViewerTimelineProps,
+} from "@/components/log-viewer/components/LogViewer";
+import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
+import { chipsToLogQuery } from "@/components/log-viewer/lib/chips-to-log-query";
+import { useCombinedEntries } from "@/components/log-viewer/lib/use-combined-entries";
+import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 import { useTick, useTickController } from "@/hooks/use-tick";
-import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "./timeline/lib/timeline-constants";
+import {
+  DISPLAY_PADDING_RATIO,
+  MIN_PADDING_MS,
+} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 interface PendingDisplayRange {
   start: Date;

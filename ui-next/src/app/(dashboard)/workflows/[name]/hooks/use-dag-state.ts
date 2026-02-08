@@ -45,14 +45,18 @@ import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
 import { VIEWPORT } from "@/components/dag/constants";
 import type { LayoutDirection } from "@/components/dag/types";
-import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
-import { transformGroups as defaultTransformGroups } from "../lib/workflow-layout";
+import type {
+  GroupWithLayout,
+  TaskQueryResponse,
+  GroupQueryResponse,
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { transformGroups as defaultTransformGroups } from "@/app/(dashboard)/workflows/[name]/lib/workflow-layout";
 import {
   calculateLayout as defaultCalculateLayout,
   computeInitialExpandedGroups as defaultComputeInitialExpandedGroups,
   clearLayoutCache as defaultClearLayoutCache,
   type GroupNodeData,
-} from "../lib/dag-layout";
+} from "@/app/(dashboard)/workflows/[name]/lib/dag-layout";
 
 // =============================================================================
 // Types

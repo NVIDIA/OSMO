@@ -31,10 +31,16 @@ import {
   transition,
   hasTerminal,
   hasWebSocket,
-} from "../lib/shell-state";
-import { _getSession, _createSession, _updateSession, _deleteSession, useShellSession } from "../lib/shell-cache";
-import { shellKeyboardManager } from "../lib/shell-keyboard-manager";
-import { SHELL_CONFIG, SHELL_THEME } from "../lib/types";
+} from "@/components/shell/lib/shell-state";
+import {
+  _getSession,
+  _createSession,
+  _updateSession,
+  _deleteSession,
+  useShellSession,
+} from "@/components/shell/lib/shell-cache";
+import { shellKeyboardManager } from "@/components/shell/lib/shell-keyboard-manager";
+import { SHELL_CONFIG, SHELL_THEME } from "@/components/shell/lib/types";
 
 import "@xterm/xterm/css/xterm.css";
 

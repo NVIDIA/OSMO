@@ -37,10 +37,10 @@ import { useUrlChips } from "@/hooks/use-url-chips";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { useCallback, useTransition } from "react";
 import { useQueryState, parseAsBoolean } from "nuqs";
-import { WorkflowsDataTable } from "./components/table/workflows-data-table";
-import { WorkflowsToolbar } from "./components/workflows-toolbar";
-import { useWorkflowsData } from "./hooks/use-workflows-data";
-import { useWorkflowsTableStore } from "./stores/workflows-table-store";
+import { WorkflowsDataTable } from "@/app/(dashboard)/workflows/components/table/workflows-data-table";
+import { WorkflowsToolbar } from "@/app/(dashboard)/workflows/components/workflows-toolbar";
+import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
+import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 
 // =============================================================================
 // Client Component

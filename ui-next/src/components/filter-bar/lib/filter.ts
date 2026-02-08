@@ -23,7 +23,7 @@
  * Could be used on server-side or in workers.
  */
 
-import type { SearchChip, SearchField } from "./types";
+import type { SearchChip, SearchField } from "@/components/filter-bar/lib/types";
 
 /**
  * Filter items by chips.

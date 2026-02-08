@@ -19,10 +19,10 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import type { LogEntry, LogDataResult, HistogramResult, FieldFacet } from "../types";
-import { PlainTextAdapter } from "../adapters/plain-text-adapter";
-import { FACETABLE_FIELDS, LOG_QUERY_DEFAULTS } from "../constants";
-import { createLogDataQueryKey, type LogDataQueryKeyParams } from "../query-keys";
+import type { LogEntry, LogDataResult, HistogramResult, FieldFacet } from "@/lib/api/log-adapter/types";
+import { PlainTextAdapter } from "@/lib/api/log-adapter/adapters/plain-text-adapter";
+import { FACETABLE_FIELDS, LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter/constants";
+import { createLogDataQueryKey, type LogDataQueryKeyParams } from "@/lib/api/log-adapter/query-keys";
 
 export interface UseLogDataParams extends LogDataQueryKeyParams {
   enabled?: boolean;
@@ -44,7 +44,7 @@ export interface UseLogDataReturn {
   refetch: () => void;
 }
 
-export { createLogDataQueryKey } from "../query-keys";
+export { createLogDataQueryKey } from "@/lib/api/log-adapter/query-keys";
 
 const EMPTY_HISTOGRAM: HistogramResult = { buckets: [], intervalMs: 60_000 };
 const EMPTY_FACETS: FieldFacet[] = [];

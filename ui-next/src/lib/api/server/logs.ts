@@ -16,12 +16,12 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import { getServerApiBaseUrl, getServerFetchHeaders } from "./config";
-import { parseLogBatch } from "../log-adapter/adapters/log-parser";
-import { computeHistogram, computeFacets } from "../log-adapter/adapters/compute";
-import { FACETABLE_FIELDS, LOG_QUERY_DEFAULTS } from "../log-adapter/constants";
-import type { LogDataResult } from "../log-adapter/types";
-import { createLogDataQueryKey, type LogDataQueryKeyParams } from "../log-adapter/query-keys";
+import { getServerApiBaseUrl, getServerFetchHeaders } from "@/lib/api/server/config";
+import { parseLogBatch } from "@/lib/api/log-adapter/adapters/log-parser";
+import { computeHistogram, computeFacets } from "@/lib/api/log-adapter/adapters/compute";
+import { FACETABLE_FIELDS, LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter/constants";
+import type { LogDataResult } from "@/lib/api/log-adapter/types";
+import { createLogDataQueryKey, type LogDataQueryKeyParams } from "@/lib/api/log-adapter/query-keys";
 
 export interface PrefetchLogDataParams {
   workflowId: string;

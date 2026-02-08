@@ -57,15 +57,15 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
-import { formatDuration } from "../../../lib/workflow-types";
-import { getStatusIcon } from "../../../lib/status";
-import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../../lib/status";
-import { DetailsPanelHeader } from "../views/DetailsPanelHeader";
-import { WorkflowTimeline } from "./WorkflowTimeline";
-import { parseTime } from "../views/Timeline";
+import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { getStatusIcon } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
+import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTimeline";
+import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
 import { useTick } from "@/hooks/use-tick";
-import type { WorkflowTab } from "../../../hooks/use-navigation-state";
-import { WorkflowTasksTab } from "./WorkflowTasksTab";
+import type { WorkflowTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
+import { WorkflowTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTasksTab";
 
 // Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)
 // Saves ~92 KB from initial bundle (CodeMirror + YAML parser + Lezer)

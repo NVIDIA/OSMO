@@ -38,7 +38,7 @@
 
 import { useEffect, useMemo, useCallback } from "react";
 import { useQueryState, parseAsString, parseAsInteger } from "nuqs";
-import type { GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
+import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // =============================================================================
 // Types

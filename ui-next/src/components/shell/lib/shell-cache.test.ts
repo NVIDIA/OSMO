@@ -15,8 +15,15 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { _createSession, _updateSession, _getSession, _deleteSession, getAllSessions, hasSession } from "./shell-cache";
-import type { CachedSession } from "./shell-cache";
+import {
+  _createSession,
+  _updateSession,
+  _getSession,
+  _deleteSession,
+  getAllSessions,
+  hasSession,
+} from "@/components/shell/lib/shell-cache";
+import type { CachedSession } from "@/components/shell/lib/shell-cache";
 
 describe("shell-cache", () => {
   // Create a test session factory

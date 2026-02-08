@@ -20,8 +20,8 @@ import { memo } from "react";
 import { Check, Loader2, Clock, AlertCircle, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExpandableChips } from "@/hooks/use-expandable-chips";
-import type { GroupWithLayout } from "../../../lib/workflow-types";
-import { getStatusCategory } from "../../../lib/status";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { getStatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status";
 
 interface DependencyPillsProps {
   upstreamGroups: GroupWithLayout[];

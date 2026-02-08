@@ -26,7 +26,7 @@
  * SOLUTION: Use Node.js global object as the single source of truth.
  */
 
-import { DEFAULT_VOLUME } from "./seed/types";
+import { DEFAULT_VOLUME } from "@/mocks/seed/types";
 
 interface GlobalMockConfig {
   workflows: number;

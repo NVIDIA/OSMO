@@ -26,7 +26,11 @@
  * - DOM measurement for content width detection
  */
 
-import { CELL_PADDING_REM, RESIZE_HANDLE_WIDTH_PX, MEASUREMENT_BUFFER_PX } from "./column-constants";
+import {
+  CELL_PADDING_REM,
+  RESIZE_HANDLE_WIDTH_PX,
+  MEASUREMENT_BUFFER_PX,
+} from "@/components/data-table/utils/column-constants";
 
 // =============================================================================
 // Constants
@@ -121,8 +125,8 @@ export function getTruncationThreshold(contentWidth: number): number {
 // =============================================================================
 
 import type { ColumnSizingState } from "@tanstack/react-table";
-import type { ColumnSizingPreferences } from "../types";
-import { PreferenceModes, assertNever } from "../constants";
+import type { ColumnSizingPreferences } from "@/components/data-table/types";
+import { PreferenceModes, assertNever } from "@/components/data-table/constants";
 
 /**
  * Calculate column widths based on container width and preferences.

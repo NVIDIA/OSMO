@@ -23,7 +23,11 @@
  */
 
 import { createTableStore } from "@/stores/create-table-store";
-import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT } from "../lib/task-columns";
+import {
+  DEFAULT_VISIBLE_COLUMNS,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_SORT,
+} from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
 
 /**
  * Task table store for persisting column visibility, order, and sort state.

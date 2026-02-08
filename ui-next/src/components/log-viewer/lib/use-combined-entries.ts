@@ -19,7 +19,7 @@
 import { useMemo } from "react";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { filterEntries, type FilterParams } from "@/lib/api/log-adapter/adapters/compute";
-import { debugWarn } from "./debug";
+import { debugWarn } from "@/components/log-viewer/lib/debug";
 
 /**
  * Combines query entries with live streaming entries.

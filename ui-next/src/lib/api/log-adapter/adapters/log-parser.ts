@@ -27,7 +27,7 @@
  * - OSMO ctrl: `{YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}`
  */
 
-import type { LogEntry, LogLevel, LogIOType, LogSourceType } from "../types";
+import type { LogEntry, LogLevel, LogIOType, LogSourceType } from "@/lib/api/log-adapter/types";
 
 // =============================================================================
 // Pre-compiled Regexes (compiled once at module load)

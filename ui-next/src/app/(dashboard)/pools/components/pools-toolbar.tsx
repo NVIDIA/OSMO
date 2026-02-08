@@ -26,10 +26,10 @@ import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
 import { DisplayModeToggle } from "@/components/data-table/DisplayModeToggle";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
-import { usePoolsTableStore } from "../stores/pools-table-store";
-import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
-import { createPoolSearchFields } from "../lib/pool-search-fields";
-import { STATUS_STYLES, type StatusCategory } from "../lib/constants";
+import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
+import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/pools/lib/pool-columns";
+import { createPoolSearchFields } from "@/app/(dashboard)/pools/lib/pool-search-fields";
+import { STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
 
 /** Status icons matching the table column badges */
 const STATUS_ICONS = {

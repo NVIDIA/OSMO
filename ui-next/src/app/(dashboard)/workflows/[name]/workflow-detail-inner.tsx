@@ -48,18 +48,18 @@ import {
   useIsPanelCollapsed,
   usePersistedPanelWidth,
   usePanelWidth,
-} from "./lib/panel-resize-context";
-import { ACTIVITY_STRIP_WIDTH_PX } from "./lib/panel-constants";
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
+import { ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 // Route-level components
 import { DAGErrorBoundary } from "@/components/dag/components/DAGErrorBoundary";
-import { ShellPortalProvider } from "./components/shell/ShellPortalContext";
-import { ShellProvider } from "./components/shell/ShellContext";
-import { WorkflowDetailLayout } from "./components/WorkflowDetailLayout";
-import { WorkflowDAGContent } from "./components/WorkflowDAGContent";
-import { DetailsPanel } from "./components/panel/views/DetailsPanel";
-import type { DetailsPanelView } from "./lib/panel-types";
-import { CancelWorkflowDialog } from "./components/panel/workflow/CancelWorkflowDialog";
+import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
+import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
+import { WorkflowDetailLayout } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDetailLayout";
+import { WorkflowDAGContent } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDAGContent";
+import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanel";
+import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
+import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/CancelWorkflowDialog";
 
 // Lazy-load ResubmitPanel (only loads when user clicks resubmit button)
 // Saves ~20 KB from initial bundle (panel + form logic)
@@ -69,14 +69,14 @@ const ResubmitPanel = dynamic(
 );
 
 // Route-level hooks
-import { useWorkflowDetail } from "./hooks/use-workflow-detail";
-import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
-import { useNavigationState } from "./hooks/use-navigation-state";
-import { usePanelProps } from "./hooks/use-panel-props";
+import { useWorkflowDetail } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail";
+import { useSidebarCollapsed } from "@/app/(dashboard)/workflows/[name]/hooks/use-sidebar-collapsed";
+import { useNavigationState } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
+import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";
 
 // Types
-import type { GroupWithLayout, TaskQueryResponse } from "./lib/workflow-types";
-import type { InitialView } from "./workflow-detail-content";
+import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { InitialView } from "@/app/(dashboard)/workflows/[name]/workflow-detail-content";
 import { WorkflowStatus } from "@/lib/api/generated";
 
 // Shell container is heavy (xterm.js), load dynamically

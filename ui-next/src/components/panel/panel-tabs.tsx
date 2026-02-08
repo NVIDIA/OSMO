@@ -14,7 +14,7 @@ import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
 import { useViewTransition } from "@/hooks/use-view-transition";
 
-import "./panel-tabs.css";
+import "@/components/panel/panel-tabs.css";
 
 export interface PanelTab {
   id: string;

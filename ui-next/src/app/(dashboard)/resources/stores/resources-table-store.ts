@@ -22,7 +22,7 @@ import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_SORT,
   DEFAULT_PANEL_WIDTH,
-} from "../lib/resource-columns";
+} from "@/app/(dashboard)/resources/lib/resource-columns";
 
 /**
  * Resources table store for column/sort/panel preferences.

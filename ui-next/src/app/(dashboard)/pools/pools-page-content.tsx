@@ -38,10 +38,10 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { usePanelState } from "@/hooks/use-url-state";
-import { PoolsDataTable } from "./components/table/pools-data-table";
-import { PoolPanelLayout } from "./components/panel/pool-panel";
-import { PoolsToolbar } from "./components/pools-toolbar";
-import { usePoolsData } from "./hooks/use-pools-data";
+import { PoolsDataTable } from "@/app/(dashboard)/pools/components/table/pools-data-table";
+import { PoolPanelLayout } from "@/app/(dashboard)/pools/components/panel/pool-panel";
+import { PoolsToolbar } from "@/app/(dashboard)/pools/components/pools-toolbar";
+import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
 
 // =============================================================================
 // Client Component

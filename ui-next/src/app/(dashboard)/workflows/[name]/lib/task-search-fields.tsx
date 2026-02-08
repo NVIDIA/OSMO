@@ -26,9 +26,14 @@
 
 import { cn } from "@/lib/utils";
 import type { SearchField, SearchPreset, SearchChip } from "@/components/filter-bar/lib/types";
-import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, STATUS_LABELS, type StateCategory } from "./status";
+import {
+  STATE_CATEGORIES,
+  STATE_CATEGORY_NAMES,
+  STATUS_LABELS,
+  type StateCategory,
+} from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import type { TaskWithDuration } from "./workflow-types";
+import type { TaskWithDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // ============================================================================
 // Lazy-loaded chrono-node with idle prefetch

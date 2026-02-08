@@ -20,8 +20,13 @@ import {
   validateZoomOutConstraints,
   calculateSymmetricZoom,
   calculatePan,
-} from "./wheel-validation";
-import { MIN_RANGE_MS, MAX_RANGE_MS, MIN_BUCKET_COUNT, MAX_BUCKET_COUNT } from "./timeline-constants";
+} from "@/components/log-viewer/components/timeline/lib/wheel-validation";
+import {
+  MIN_RANGE_MS,
+  MAX_RANGE_MS,
+  MIN_BUCKET_COUNT,
+  MAX_BUCKET_COUNT,
+} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 describe("validateZoomInConstraints", () => {
   const BUCKET_WIDTH_MS = 1000; // 1 second buckets

@@ -32,7 +32,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { Section } from "../types";
+import type { Section } from "@/components/data-table/types";
 
 // =============================================================================
 // Pure Functions Extracted from useVirtualizedTable

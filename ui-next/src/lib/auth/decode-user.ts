@@ -15,9 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { jwtDecode } from "jwt-decode";
-import type { JwtClaims } from "./jwt-helper.production";
-import { hasAdminRole } from "./roles";
-import type { User } from "./user-context";
+import type { JwtClaims } from "@/lib/auth/jwt-helper.production";
+import { hasAdminRole } from "@/lib/auth/roles";
+import type { User } from "@/lib/auth/user-context";
 
 /**
  * Get JWT token from client-side storage (localStorage or cookies).

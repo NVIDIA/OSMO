@@ -20,7 +20,13 @@
 
 import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, type QueryKey } from "@tanstack/react-query";
-import type { PaginatedResponse, PaginationParams, PaginatedDataConfig, PaginatedDataResult, PageParam } from "./types";
+import type {
+  PaginatedResponse,
+  PaginationParams,
+  PaginatedDataConfig,
+  PaginatedDataResult,
+  PageParam,
+} from "@/lib/api/pagination/types";
 
 const DEFAULT_CONFIG: Required<PaginatedDataConfig> = {
   pageSize: 50,

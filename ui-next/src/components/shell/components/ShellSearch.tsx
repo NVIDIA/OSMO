@@ -21,7 +21,7 @@ import { useEventCallback } from "usehooks-ts";
 import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
-import type { SearchResultInfo } from "../lib/types";
+import type { SearchResultInfo } from "@/components/shell/lib/types";
 
 export interface ShellSearchProps {
   query: string;

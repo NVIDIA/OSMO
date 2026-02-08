@@ -33,7 +33,7 @@ import {
   createPresetChips,
   isPresetActive,
   togglePreset,
-} from "./workflow-search-fields";
+} from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
 import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 

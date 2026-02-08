@@ -38,7 +38,7 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchLogData } from "@/lib/api/server/logs";
 import { fetchWorkflowByName } from "@/lib/api/server/workflows";
-import { LogViewerPageContent } from "./log-viewer-page-content";
+import { LogViewerPageContent } from "@/app/(dashboard)/log-viewer/components/log-viewer-page-content";
 import { createQueryClient } from "@/lib/query-client";
 
 interface LogViewerWithDataProps {

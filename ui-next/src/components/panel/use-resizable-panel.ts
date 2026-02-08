@@ -34,7 +34,7 @@ import { useDrag } from "@use-gesture/react";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useBoolean } from "usehooks-ts";
 import { useEventCallback } from "usehooks-ts";
-import { PANEL } from "./panel-header-controls";
+import { PANEL } from "@/components/panel/panel-header-controls";
 
 // ============================================================================
 // Types

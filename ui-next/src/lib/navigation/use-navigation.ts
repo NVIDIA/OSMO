@@ -20,7 +20,7 @@
 
 import { useMemo } from "react";
 import { useUser } from "@/lib/auth/user-context";
-import { buildNavigation, type Navigation } from "./config";
+import { buildNavigation, type Navigation } from "@/lib/navigation/config";
 
 interface UseNavigationResult extends Navigation {
   isLoading: boolean;

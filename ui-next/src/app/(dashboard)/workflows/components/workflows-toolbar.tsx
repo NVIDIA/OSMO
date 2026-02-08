@@ -23,15 +23,15 @@ import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
-import { useWorkflowsTableStore } from "../stores/workflows-table-store";
-import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
+import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
+import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/workflows/lib/workflow-columns";
 import {
   WORKFLOW_SEARCH_FIELDS,
   createPresetChips,
   type WorkflowListEntry,
   type StatusPresetId,
-} from "../lib/workflow-search-fields";
-import { STATUS_STYLES, type StatusCategory } from "../lib/workflow-constants";
+} from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+import { STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/workflows/lib/workflow-constants";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,

@@ -20,7 +20,7 @@ import { memo } from "react";
 import { Download, ExternalLink, RefreshCcw, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { ScrollPinControl } from "./ScrollPinControl";
+import { ScrollPinControl } from "@/components/log-viewer/components/ScrollPinControl";
 
 // =============================================================================
 // Types

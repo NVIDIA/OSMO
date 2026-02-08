@@ -36,13 +36,17 @@ import type { SortState, ColumnSizingPreference } from "@/components/data-table/
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
-import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "../../lib/pool-columns";
-import { createPoolColumns } from "./pool-column-defs";
-import { usePoolsTableStore } from "../../stores/pools-table-store";
-import { useSortedPools } from "../../hooks/use-sorted-pools";
+import {
+  MANDATORY_COLUMN_IDS,
+  asPoolColumnIds,
+  POOL_COLUMN_SIZE_CONFIG,
+} from "@/app/(dashboard)/pools/lib/pool-columns";
+import { createPoolColumns } from "@/app/(dashboard)/pools/components/table/pool-column-defs";
+import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
+import { useSortedPools } from "@/app/(dashboard)/pools/hooks/use-sorted-pools";
 import { useCssVarDimensions } from "@/lib/css-utils";
-import { getStatusDisplay } from "../../lib/constants";
-import "../../styles/pools.css";
+import { getStatusDisplay } from "@/app/(dashboard)/pools/lib/constants";
+import "@/app/(dashboard)/pools/styles/pools.css";
 
 // =============================================================================
 // Types

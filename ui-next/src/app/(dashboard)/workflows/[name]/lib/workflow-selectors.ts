@@ -30,7 +30,7 @@
  *
  * @example
  * ```typescript
- * import { selectCurrentContext, calculateWorkflowProgress } from "./workflow-selectors";
+ * import { selectCurrentContext, calculateWorkflowProgress } from "@/app/(dashboard)/workflows/[name]/lib/workflow-selectors";
  *
  * const context = selectCurrentContext(groups, "step-1", "task-a", 0);
  * const progress = calculateWorkflowProgress(groups);
@@ -40,7 +40,7 @@
 import { WorkflowStatus } from "@/lib/api/generated";
 import { isTaskTerminal, isTaskOngoing, isTaskFailed } from "@/lib/api/status-metadata.generated";
 import type { TaskQueryResponse } from "@/lib/api/adapter/types";
-import type { GroupWithLayout } from "./workflow-types";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // =============================================================================
 // Domain Types (Pure, no React)

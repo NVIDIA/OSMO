@@ -35,8 +35,8 @@ import { useReactFlow } from "@xyflow/react";
 import { ZoomIn, ZoomOut, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
-import type { LayoutDirection } from "../types";
-import { ANIMATION } from "../constants";
+import type { LayoutDirection } from "@/components/dag/types";
+import { ANIMATION } from "@/components/dag/constants";
 
 export interface DAGControlsProps {
   /** Current layout direction */

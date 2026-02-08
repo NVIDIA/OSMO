@@ -22,8 +22,8 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { hashString } from "../utils";
-import { getGlobalMockConfig } from "../global-config";
+import { hashString } from "@/mocks/utils";
+import { getGlobalMockConfig } from "@/mocks/global-config";
 
 // ============================================================================
 // Types

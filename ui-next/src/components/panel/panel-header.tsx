@@ -30,7 +30,7 @@
 import { memo } from "react";
 import { ChevronLeft, ArrowRightToLine } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PanelHeaderContainer } from "./panel-header-controls";
+import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 
 // =============================================================================
 // Types

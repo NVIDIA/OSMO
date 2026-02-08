@@ -106,14 +106,14 @@ export {
   getRootGroups,
   getLeafGroups,
   type TopologicalLevelOptions,
-} from "./workflow-layout";
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-layout";
 
 // ============================================================================
 // Status Helpers
 // ============================================================================
 
 // Re-export canonical implementations from status utilities
-export { getStatusCategory, isTaskFailed, isTaskOngoing } from "./status";
+export { getStatusCategory, isTaskFailed, isTaskOngoing } from "@/app/(dashboard)/workflows/[name]/lib/status";
 
 // ============================================================================
 // Duration Helpers

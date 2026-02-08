@@ -54,9 +54,16 @@
 
 import { useWheel, useDrag } from "@use-gesture/react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { useTimelineState } from "./use-timeline-state";
-import { clampTimeToRange, validateInvalidZoneLimits } from "../lib/timeline-utils";
-import { validateZoomInConstraints, validateZoomOutConstraints, calculateSymmetricZoom } from "../lib/wheel-validation";
+import type { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
+import {
+  clampTimeToRange,
+  validateInvalidZoneLimits,
+} from "@/components/log-viewer/components/timeline/lib/timeline-utils";
+import {
+  validateZoomInConstraints,
+  validateZoomOutConstraints,
+  calculateSymmetricZoom,
+} from "@/components/log-viewer/components/timeline/lib/wheel-validation";
 import {
   PAN_FACTOR,
   ZOOM_IN_FACTOR,
@@ -65,15 +72,18 @@ import {
   NOW_THRESHOLD_MS,
   GAP_BUCKET_MULTIPLIER,
   MAX_INVALID_ZONE_PERCENT_PER_SIDE,
-} from "../lib/timeline-constants";
-import { calculateBucketWidth, calculateInvalidZonePositions } from "../lib/invalid-zones";
+} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+import {
+  calculateBucketWidth,
+  calculateInvalidZonePositions,
+} from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 import {
   initTimelineDebug,
   logTimelineEvent,
   isTimelineDebugEnabled,
   type DebugContext,
   type WheelDebugEvent,
-} from "../lib/timeline-debug";
+} from "@/components/log-viewer/components/timeline/lib/timeline-debug";
 
 // Re-export zoom factors for external use
 export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };

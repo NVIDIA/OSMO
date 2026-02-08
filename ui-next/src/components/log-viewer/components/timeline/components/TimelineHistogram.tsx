@@ -44,7 +44,10 @@ import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { LOG_LEVELS, LOG_LEVEL_STYLES, LOG_LEVEL_LABELS } from "@/lib/api/log-adapter/constants";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
-import { calculateBucketWidth, calculateInvalidZonePositions } from "../lib/invalid-zones";
+import {
+  calculateBucketWidth,
+  calculateInvalidZonePositions,
+} from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 
 // =============================================================================
 // Types

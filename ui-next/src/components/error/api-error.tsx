@@ -18,7 +18,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import { ErrorDetails } from "./error-details";
+import { ErrorDetails } from "@/components/error/error-details";
 import { cn } from "@/lib/utils";
 
 /** Error-like object that has at least a message or detail */

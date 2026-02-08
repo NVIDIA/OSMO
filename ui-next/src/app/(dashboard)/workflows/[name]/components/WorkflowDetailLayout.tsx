@@ -26,11 +26,16 @@
 
 import { useRef, useMemo, useCallback, type ReactNode, type RefObject, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
-import { FullSnapOverlay, StripSnapIndicator } from "./SnapZoneIndicator";
-import { usePanelResize, useDisplayDagVisible, useIsDragging, useSnapZone } from "../lib/panel-resize-context";
-import { PANEL_TIMING } from "../lib/panel-constants";
+import { FullSnapOverlay, StripSnapIndicator } from "@/app/(dashboard)/workflows/[name]/components/SnapZoneIndicator";
+import {
+  usePanelResize,
+  useDisplayDagVisible,
+  useIsDragging,
+  useSnapZone,
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
+import { PANEL_TIMING } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
-import "../styles/layout.css";
+import "@/app/(dashboard)/workflows/[name]/styles/layout.css";
 
 export interface WorkflowDetailLayoutProps {
   dagContent?: ReactNode;

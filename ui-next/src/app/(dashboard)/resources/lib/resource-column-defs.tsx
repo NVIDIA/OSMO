@@ -25,11 +25,15 @@
 import { memo, useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
-import { getResourceAllocationTypeDisplay } from "./constants";
+import { getResourceAllocationTypeDisplay } from "@/app/(dashboard)/resources/lib/constants";
 import type { Resource } from "@/lib/api/adapter/types";
 import type { DisplayMode } from "@/stores/shared-preferences-store";
-import { CapacityCell } from "../components/cells/capacity-cell";
-import { type ResourceColumnId, COLUMN_LABELS, RESOURCE_COLUMN_SIZE_CONFIG } from "./resource-columns";
+import { CapacityCell } from "@/app/(dashboard)/resources/components/cells/capacity-cell";
+import {
+  type ResourceColumnId,
+  COLUMN_LABELS,
+  RESOURCE_COLUMN_SIZE_CONFIG,
+} from "@/app/(dashboard)/resources/lib/resource-columns";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { ExpandableChips } from "@/components/expandable-chips";
 

@@ -19,8 +19,8 @@
 import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import { useRafCallback } from "@react-hookz/web";
 
-import type { LogEntry, TailStatus } from "../types";
-import { parseLogLine } from "../adapters/log-parser";
+import type { LogEntry, TailStatus } from "@/lib/api/log-adapter/types";
+import { parseLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 
 export interface UseLogTailParams {

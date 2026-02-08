@@ -12,7 +12,7 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { formatTime24UTC } from "@/lib/format-date";
-import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses } from "../lib/level-utils";
+import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses } from "@/components/log-viewer/lib/level-utils";
 
 // =============================================================================
 // Types

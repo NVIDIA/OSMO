@@ -22,7 +22,7 @@
  */
 
 import { AlertCircle, Monitor, ListTree, RotateCcw, type LucideIcon } from "lucide-react";
-import type { LogLevel, LogIOType, LogSourceType } from "./types";
+import type { LogLevel, LogIOType, LogSourceType } from "@/lib/api/log-adapter/types";
 
 // =============================================================================
 // Log Levels

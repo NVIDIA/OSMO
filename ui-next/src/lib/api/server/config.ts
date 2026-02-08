@@ -22,10 +22,10 @@
  */
 
 // Re-export all production functionality
-export * from "./config.production";
+export * from "@/lib/api/server/config.production";
 
 // Import production implementation for composition
-import { getServerApiBaseUrl as getProductionApiBaseUrl } from "./config.production";
+import { getServerApiBaseUrl as getProductionApiBaseUrl } from "@/lib/api/server/config.production";
 
 // =============================================================================
 // Development-Only Mock Mode Overlay

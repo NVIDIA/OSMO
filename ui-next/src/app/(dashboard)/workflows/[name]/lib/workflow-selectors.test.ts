@@ -23,7 +23,7 @@
 
 import { describe, it, expect } from "vitest";
 import { TaskGroupStatus, WorkflowStatus } from "@/lib/api/generated";
-import type { GroupWithLayout } from "./workflow-types";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import {
   selectCurrentContext,
   selectGroupByName,
@@ -38,7 +38,7 @@ import {
   hasActiveSelection,
   getAllTasks,
   countTotalTasks,
-} from "./workflow-selectors";
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-selectors";
 
 // =============================================================================
 // Test Fixtures

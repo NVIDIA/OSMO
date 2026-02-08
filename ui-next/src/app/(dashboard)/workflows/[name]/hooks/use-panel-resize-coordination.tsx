@@ -32,7 +32,7 @@
 "use client";
 
 import { useEffect, useCallback, useContext, createContext } from "react";
-import { usePanelResizeMachine, useIsSuspended } from "../lib/panel-resize-context";
+import { usePanelResizeMachine, useIsSuspended } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 
 /**
  * Hook for tables that need to coordinate with panel resize.

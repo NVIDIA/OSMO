@@ -21,9 +21,13 @@
  * Consolidates duplicate type definitions into a single source of truth.
  */
 
-import type { GroupWithLayout, TaskQueryResponse, WorkflowQueryResponse } from "./workflow-types";
-import type { DetailsPanelView } from "./panel-types";
-import type { WorkflowTab, TaskTab, GroupTab } from "../hooks/use-navigation-state";
+import type {
+  GroupWithLayout,
+  TaskQueryResponse,
+  WorkflowQueryResponse,
+} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
+import type { WorkflowTab, TaskTab, GroupTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 
 /**
  * Selection state props shared between DAG and Table views.

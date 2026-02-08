@@ -28,7 +28,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useIsHydrated } from "@/hooks/use-hydrated-store";
 import { calculateLiveDuration, useTick } from "@/hooks/use-tick";
 import { formatDateTimeFull, formatDateTimeRelative } from "@/lib/format-date";
-import { formatDuration } from "../../../lib/workflow-types";
+import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 export function parseTime(timeStr?: string | null): Date | null {
   if (!timeStr) return null;

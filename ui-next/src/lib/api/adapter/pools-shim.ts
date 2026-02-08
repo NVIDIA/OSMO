@@ -57,8 +57,8 @@ import { naturalCompare } from "@/lib/utils";
  * See: BACKEND_TODOS.md#12 for detailed backend requirements.
  */
 
-import type { Pool } from "./types";
-import { PoolStatus } from "../generated";
+import type { Pool } from "@/lib/api/adapter/types";
+import { PoolStatus } from "@/lib/api/generated";
 
 /**
  * Map status category names to raw PoolStatus values.

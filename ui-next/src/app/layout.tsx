@@ -17,9 +17,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
-import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/shadcn/sonner";
+import "@/app/globals.css";
 
 // Optimized font loading with display: swap for faster FCP
 const geistSans = Geist({

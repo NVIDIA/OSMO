@@ -26,8 +26,8 @@
 
 import { memo } from "react";
 import { createPortal } from "react-dom";
-import { TaskShell } from "../panel/task/TaskShell";
-import { useShellPortal } from "./ShellPortalContext";
+import { TaskShell } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskShell";
+import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
 import { useShellSessions } from "@/components/shell/lib/shell-cache";
 
 // =============================================================================

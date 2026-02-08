@@ -51,13 +51,19 @@ import { cn } from "@/lib/utils";
 import { formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import { TimelineHistogram } from "./TimelineHistogram";
-import { TimeRangePresets } from "./TimeRangePresets";
-import { TimeRangeHeader } from "./TimeRangeHeader";
-import { useTimelineState } from "../hooks/use-timeline-state";
-import { useTimelineWheelGesture, useTimelineZoomControls } from "../hooks/use-timeline-gestures";
-import { isEndTimeNow as checkIsEndTimeNow } from "../lib/timeline-utils";
-import { DEFAULT_HEIGHT, type TimeRangePreset } from "../lib/timeline-constants";
+import { TimelineHistogram } from "@/components/log-viewer/components/timeline/components/TimelineHistogram";
+import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/TimeRangePresets";
+import { TimeRangeHeader } from "@/components/log-viewer/components/timeline/components/TimeRangeHeader";
+import { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
+import {
+  useTimelineWheelGesture,
+  useTimelineZoomControls,
+} from "@/components/log-viewer/components/timeline/hooks/use-timeline-gestures";
+import { isEndTimeNow as checkIsEndTimeNow } from "@/components/log-viewer/components/timeline/lib/timeline-utils";
+import {
+  DEFAULT_HEIGHT,
+  type TimeRangePreset,
+} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 // =============================================================================
 // Types

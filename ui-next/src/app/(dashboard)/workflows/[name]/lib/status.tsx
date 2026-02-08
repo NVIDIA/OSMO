@@ -22,7 +22,7 @@ import { memo, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { Clock, Loader2, CheckCircle, XCircle, AlertCircle, Check, Circle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { GroupNodeData } from "./dag-layout";
+import type { GroupNodeData } from "@/app/(dashboard)/workflows/[name]/lib/dag-layout";
 
 export {
   // Types
@@ -52,10 +52,10 @@ export {
   isTaskTerminal,
   isTaskFailed,
   isTaskInQueue,
-} from "./status-utils";
+} from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
 
-import { getStatusCategory, STATUS_STYLES } from "./status-utils";
-import type { StatusCategory } from "./status-utils";
+import { getStatusCategory, STATUS_STYLES } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
+import type { StatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
 
 const ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string }> = {
   waiting: { Icon: Clock, className: "text-gray-400 dark:text-zinc-400" },

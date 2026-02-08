@@ -50,7 +50,7 @@
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { preloadElkWorker } from "@/components/dag/layout/elk-worker-client";
-import { WorkflowDetailInnerWithProvider } from "./workflow-detail-inner";
+import { WorkflowDetailInnerWithProvider } from "@/app/(dashboard)/workflows/[name]/workflow-detail-inner";
 
 // =============================================================================
 // Direct Import for ReactFlow

@@ -32,7 +32,11 @@ import { cn } from "@/lib/utils";
 import { ShellSessionIcon } from "@/components/shell/components/ShellSessionIcon";
 import { useShellSessions } from "@/components/shell/lib/shell-cache";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import { usePanelResizeMachine, useDisplayDagVisible, useIsPanelCollapsed } from "../../../lib/panel-resize-context";
+import {
+  usePanelResizeMachine,
+  useDisplayDagVisible,
+  useIsPanelCollapsed,
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 
 // =============================================================================
 // Types

@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { getDateKey, fullFlatten } from "./use-incremental-flatten";
+import { getDateKey, fullFlatten } from "@/components/log-viewer/lib/use-incremental-flatten";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 
 /**

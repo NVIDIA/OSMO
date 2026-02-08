@@ -25,19 +25,19 @@
 
 import { http, HttpResponse, delay } from "msw";
 import { faker } from "@faker-js/faker";
-import { workflowGenerator } from "./generators/workflow-generator";
-import { poolGenerator } from "./generators/pool-generator";
-import { resourceGenerator } from "./generators/resource-generator";
-import { logGenerator } from "./generators/log-generator";
-import { eventGenerator } from "./generators/event-generator";
-import { bucketGenerator } from "./generators/bucket-generator";
-import { datasetGenerator } from "./generators/dataset-generator";
-import { profileGenerator } from "./generators/profile-generator";
-import { portForwardGenerator } from "./generators/portforward-generator";
-import { ptySimulator, type PTYScenario } from "./generators/pty-simulator";
-import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString } from "./utils";
-import { getMockWorkflow, getWorkflowLogConfig } from "./mock-workflows";
-import { MOCK_CONFIG } from "./seed/types";
+import { workflowGenerator } from "@/mocks/generators/workflow-generator";
+import { poolGenerator } from "@/mocks/generators/pool-generator";
+import { resourceGenerator } from "@/mocks/generators/resource-generator";
+import { logGenerator } from "@/mocks/generators/log-generator";
+import { eventGenerator } from "@/mocks/generators/event-generator";
+import { bucketGenerator } from "@/mocks/generators/bucket-generator";
+import { datasetGenerator } from "@/mocks/generators/dataset-generator";
+import { profileGenerator } from "@/mocks/generators/profile-generator";
+import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
+import { ptySimulator, type PTYScenario } from "@/mocks/generators/pty-simulator";
+import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString } from "@/mocks/utils";
+import { getMockWorkflow, getWorkflowLogConfig } from "@/mocks/mock-workflows";
+import { MOCK_CONFIG } from "@/mocks/seed/types";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -1407,7 +1407,14 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 // imports. The type is declared in server.ts; here we use a safe property check.
 
 if ("__mswServer" in globalThis && globalThis.__mswServer) {
-  globalThis.__mswServer.resetHandlers(...handlers);
+  try {
+    globalThis.__mswServer.resetHandlers(...handlers);
+    console.log(`[MSW] HMR: Reset ${handlers.length} handlers successfully`);
+  } catch (error) {
+    // If resetHandlers fails, the server still has the old handlers which
+    // continue to work. Log the error but don't crash the module evaluation.
+    console.error("[MSW] HMR: Failed to reset handlers:", error);
+  }
 }
 
 // =============================================================================

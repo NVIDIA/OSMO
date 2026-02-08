@@ -28,10 +28,10 @@
 import { memo } from "react";
 import { flexRender, type Row } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
-import type { VirtualizedRow } from "./hooks/use-virtualized-table";
-import type { Section } from "./types";
-import { getColumnCSSValue } from "./utils/column-sizing";
-import { VirtualItemTypes } from "./constants";
+import type { VirtualizedRow } from "@/components/data-table/hooks/use-virtualized-table";
+import type { Section } from "@/components/data-table/types";
+import { getColumnCSSValue } from "@/components/data-table/utils/column-sizing";
+import { VirtualItemTypes } from "@/components/data-table/constants";
 
 // =============================================================================
 // Types

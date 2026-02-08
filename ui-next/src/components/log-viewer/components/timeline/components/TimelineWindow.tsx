@@ -46,7 +46,7 @@
 
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { DraggerGesture } from "../hooks/use-timeline-gestures";
+import type { DraggerGesture } from "@/components/log-viewer/components/timeline/hooks/use-timeline-gestures";
 
 // =============================================================================
 // Timeline Dragger (colocated - only used by TimelineWindow)

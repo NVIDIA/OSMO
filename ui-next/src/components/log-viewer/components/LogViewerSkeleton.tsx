@@ -25,7 +25,7 @@
 
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ROW_HEIGHT_ESTIMATE, HISTOGRAM_HEIGHT, SKELETON_WIDTHS } from "../lib/constants";
+import { ROW_HEIGHT_ESTIMATE, HISTOGRAM_HEIGHT, SKELETON_WIDTHS } from "@/components/log-viewer/lib/constants";
 
 // =============================================================================
 // Types

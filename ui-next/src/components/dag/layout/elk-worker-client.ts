@@ -31,7 +31,7 @@
 
 import ELK from "elkjs/lib/elk-api.js";
 import { getBasePathUrl } from "@/lib/config";
-import type { ElkGraph, ElkLayoutResult } from "../types";
+import type { ElkGraph, ElkLayoutResult } from "@/components/dag/types";
 
 // ELK worker script URL - served from our public folder
 // Uses getBasePathUrl to ensure it works with basePath (/v2) in production

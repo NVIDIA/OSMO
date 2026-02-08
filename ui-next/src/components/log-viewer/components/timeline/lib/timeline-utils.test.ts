@@ -23,7 +23,7 @@ import {
   calculateDisplayRangeWithPadding,
   calculateOverlayPositions,
   isEndTimeNow,
-} from "./timeline-utils";
+} from "@/components/log-viewer/components/timeline/lib/timeline-utils";
 
 describe("calculatePositionPercent", () => {
   it("should return 0% at start of range", () => {

@@ -21,8 +21,8 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { MOCK_CONFIG, type EventPatterns, type MockVolume } from "../seed/types";
-import { hashString } from "../utils";
+import { MOCK_CONFIG, type EventPatterns, type MockVolume } from "@/mocks/seed/types";
+import { hashString } from "@/mocks/utils";
 
 // ============================================================================
 // Types
