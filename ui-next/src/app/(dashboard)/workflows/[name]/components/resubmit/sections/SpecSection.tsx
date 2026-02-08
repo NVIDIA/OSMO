@@ -22,9 +22,10 @@
 
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useCallback, type MouseEvent } from "react";
 import { FileCode } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button } from "@/components/shadcn/button";
 import { CodeMirror } from "@/components/code-viewer/CodeMirror";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -107,83 +108,93 @@ export const SpecSection = memo(function SpecSection({ spec, isLoading, onSpecCh
   const [isEditing, setIsEditing] = useState(false);
   const [editedSpec, setEditedSpec] = useState(spec ?? "");
 
-  const handleEdit = () => {
+  /** Stops propagation to prevent CollapsibleTrigger from toggling, then runs the action */
+  const stopAndRun = useCallback(
+    (action: () => void) => (e: MouseEvent) => {
+      e.stopPropagation();
+      action();
+    },
+    [],
+  );
+
+  const handleEdit = useCallback(() => {
     setEditedSpec(spec ?? "");
     setIsEditing(true);
     setOpen(true);
-  };
+  }, [spec]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     onSpecChange?.(editedSpec);
     setIsEditing(false);
-  };
+  }, [editedSpec, onSpecChange]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setEditedSpec(spec ?? "");
     setIsEditing(false);
-  };
+  }, [spec]);
+
+  const handleKeyDown = useCallback(
+    (action: () => void) => (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        action();
+      }
+    },
+    [],
+  );
 
   const actionButton = isEditing ? (
     <div className="flex gap-2">
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          handleCancel();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            handleCancel();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        className="hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      <Button
+        asChild
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs"
         aria-label="Cancel editing"
       >
-        Cancel
-      </span>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          handleSave();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            handleSave();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={stopAndRun(handleCancel)}
+          onKeyDown={handleKeyDown(handleCancel)}
+        >
+          Cancel
+        </span>
+      </Button>
+      <Button
+        asChild
+        size="sm"
+        className="h-7 px-2 text-xs"
         aria-label="Save changes"
       >
-        Save
-      </span>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={stopAndRun(handleSave)}
+          onKeyDown={handleKeyDown(handleSave)}
+        >
+          Save
+        </span>
+      </Button>
     </div>
   ) : (
-    <span
-      onClick={(e) => {
-        e.stopPropagation();
-        handleEdit();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          e.stopPropagation();
-          handleEdit();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-      className="text-primary hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+    <Button
+      asChild
+      variant="ghost"
+      size="sm"
+      className="text-primary h-7 px-2 text-xs"
       aria-label="Edit workflow specification"
     >
-      Edit
-    </span>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={stopAndRun(handleEdit)}
+        onKeyDown={handleKeyDown(handleEdit)}
+      >
+        Edit
+      </span>
+    </Button>
   );
 
   return (
