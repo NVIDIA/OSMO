@@ -32,7 +32,7 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
@@ -63,24 +63,6 @@ export function PoolsPageContent() {
     setConfig: setSelectedPlatform,
     clear: clearSelectedPool,
   } = usePanelState();
-
-  const handlePoolSelect = useCallback(
-    (poolName: string | null) => {
-      setSelectedPoolName(poolName);
-    },
-    [setSelectedPoolName],
-  );
-
-  const handlePlatformSelect = useCallback(
-    (platform: string | null) => {
-      setSelectedPlatform(platform);
-    },
-    [setSelectedPlatform],
-  );
-
-  const handleClose = useCallback(() => {
-    clearSelectedPool();
-  }, [clearSelectedPool]);
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
@@ -115,10 +97,10 @@ export function PoolsPageContent() {
     <PoolPanelLayout
       pool={selectedPool}
       sharingGroups={sharingGroups}
-      onClose={handleClose}
-      onPoolSelect={handlePoolSelect}
+      onClose={clearSelectedPool}
+      onPoolSelect={setSelectedPoolName}
       selectedPlatform={selectedPlatform}
-      onPlatformSelect={handlePlatformSelect}
+      onPlatformSelect={setSelectedPlatform}
     >
       <div className="flex h-full flex-col gap-4 p-6">
         {/* Toolbar with search and controls */}
@@ -150,7 +132,7 @@ export function PoolsPageContent() {
               isLoading={isLoading}
               error={error ?? undefined}
               onRetry={refetch}
-              onPoolSelect={handlePoolSelect}
+              onPoolSelect={setSelectedPoolName}
               selectedPoolName={selectedPoolName}
               onSearchChipsChange={setSearchChips}
             />
