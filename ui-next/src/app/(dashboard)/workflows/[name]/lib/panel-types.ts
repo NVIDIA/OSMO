@@ -21,8 +21,8 @@
  */
 
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
-import type { TaskQueryResponse, GroupWithLayout } from "./workflow-types";
-import type { TaskTab, WorkflowTab, GroupTab } from "../hooks/use-navigation-state";
+import type { TaskQueryResponse, GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { TaskTab, WorkflowTab, GroupTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 
 // ============================================================================
 // Panel View Types

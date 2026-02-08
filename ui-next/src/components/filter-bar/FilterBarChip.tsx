@@ -28,8 +28,8 @@
 import { memo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { dropdownStyles, chipStyles, chipVariantStyles } from "./styles";
-import type { SearchChip } from "./lib/types";
+import { dropdownStyles, chipStyles, chipVariantStyles } from "@/components/filter-bar/styles";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
 
 export interface FilterBarChipProps {
   chip: SearchChip;

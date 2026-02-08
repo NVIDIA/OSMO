@@ -66,9 +66,9 @@ import { faker } from "@faker-js/faker";
 // Import status and priority enums from generated API spec - prevents drift!
 import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/generated";
 
-import { MOCK_CONFIG, type WorkflowPatterns } from "../seed/types";
-import { hashString } from "../utils";
-import { getGlobalMockConfig } from "../global-config";
+import { MOCK_CONFIG, type WorkflowPatterns } from "@/mocks/seed/types";
+import { hashString } from "@/mocks/utils";
+import { getGlobalMockConfig } from "@/mocks/global-config";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 

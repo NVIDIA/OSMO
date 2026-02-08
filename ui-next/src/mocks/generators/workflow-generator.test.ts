@@ -15,9 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { WorkflowGenerator, WorkflowStatus, TaskGroupStatus, type MockWorkflow } from "./workflow-generator";
+import {
+  WorkflowGenerator,
+  WorkflowStatus,
+  TaskGroupStatus,
+  type MockWorkflow,
+} from "@/mocks/generators/workflow-generator";
 
-import type { MockTask } from "./workflow-generator";
+import type { MockTask } from "@/mocks/generators/workflow-generator";
 
 /**
  * Timeline Phase Invariant Validator

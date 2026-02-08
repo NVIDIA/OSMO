@@ -28,9 +28,9 @@
 import { memo, useCallback, type RefObject } from "react";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { inputStyles, dropdownStyles } from "./styles";
-import { FilterBarChip } from "./FilterBarChip";
-import type { SearchChip, ResultsCount } from "./lib/types";
+import { inputStyles, dropdownStyles } from "@/components/filter-bar/styles";
+import { FilterBarChip } from "@/components/filter-bar/FilterBarChip";
+import type { SearchChip, ResultsCount } from "@/components/filter-bar/lib/types";
 
 export interface FilterBarInputProps {
   /** Current filter chips */

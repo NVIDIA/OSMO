@@ -24,7 +24,7 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { getGlobalMockConfig } from "../global-config";
+import { getGlobalMockConfig } from "@/mocks/global-config";
 
 // Import types directly from generated API spec
 import type {
@@ -37,7 +37,7 @@ import type {
 } from "@/lib/api/generated";
 import { PoolStatus } from "@/lib/api/generated";
 
-import { MOCK_CONFIG, type PoolPatterns } from "../seed/types";
+import { MOCK_CONFIG, type PoolPatterns } from "@/mocks/seed/types";
 
 // Re-export for convenience
 export type { PoolResourceUsage, PoolResponse };

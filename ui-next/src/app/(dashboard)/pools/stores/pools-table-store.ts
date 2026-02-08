@@ -20,7 +20,12 @@ import { createTableStore } from "@/stores/create-table-store";
 import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT, DEFAULT_PANEL_WIDTH } from "../lib/pool-columns";
+import {
+  DEFAULT_VISIBLE_COLUMNS,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_SORT,
+  DEFAULT_PANEL_WIDTH,
+} from "@/app/(dashboard)/pools/lib/pool-columns";
 
 /**
  * Pool-specific extended state.

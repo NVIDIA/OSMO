@@ -21,8 +21,8 @@ import {
   transformResourcesResponse,
   transformAllResourcesResponse,
   transformVersionResponse,
-} from "./transforms";
-import { PoolStatus, BackendResourceType } from "../generated";
+} from "@/lib/api/adapter/transforms";
+import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
 
 // =============================================================================
 // Test fixtures - minimal data to verify transforms

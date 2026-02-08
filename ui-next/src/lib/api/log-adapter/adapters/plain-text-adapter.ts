@@ -21,10 +21,15 @@
  * Caching is handled by React Query at the hook level.
  */
 
-import type { LogAdapter, LogDataResult, AdapterCapabilities } from "../types";
-import { PLAIN_TEXT_ADAPTER_CAPABILITIES, LOG_QUERY_DEFAULTS, FACETABLE_FIELDS } from "../constants";
-import { parseLogBatch } from "./log-parser";
-import { filterEntries, computeHistogram, computeFacets, type FilterParams } from "./compute";
+import type { LogAdapter, LogDataResult, AdapterCapabilities } from "@/lib/api/log-adapter/types";
+import { PLAIN_TEXT_ADAPTER_CAPABILITIES, LOG_QUERY_DEFAULTS, FACETABLE_FIELDS } from "@/lib/api/log-adapter/constants";
+import { parseLogBatch } from "@/lib/api/log-adapter/adapters/log-parser";
+import {
+  filterEntries,
+  computeHistogram,
+  computeFacets,
+  type FilterParams,
+} from "@/lib/api/log-adapter/adapters/compute";
 
 export interface PlainTextAdapterConfig {
   baseUrl?: string;

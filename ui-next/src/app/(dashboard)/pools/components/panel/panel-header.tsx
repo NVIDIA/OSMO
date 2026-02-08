@@ -35,7 +35,7 @@ import type { Pool } from "@/lib/api/adapter/types";
 import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
 import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
 import { SeparatedParts } from "@/components/panel/separated-parts";
-import { getStatusDisplay, getStatusStyles } from "../../lib/constants";
+import { getStatusDisplay, getStatusStyles } from "@/app/(dashboard)/pools/lib/constants";
 
 export interface PoolPanelHeaderProps {
   pool: Pool;

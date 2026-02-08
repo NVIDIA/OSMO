@@ -16,7 +16,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { ConnectionStatus } from "../lib/types";
+import type { ConnectionStatus } from "@/components/shell/lib/types";
 
 export const STATUS_DOT_STYLES: Record<ConnectionStatus, string> = {
   idle: "bg-zinc-500",

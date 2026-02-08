@@ -23,13 +23,13 @@
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import { getGetWorkflowApiWorkflowNameGetQueryKey } from "../generated";
+import { getGetWorkflowApiWorkflowNameGetQueryKey } from "@/lib/api/generated";
 import type {
   WorkflowQueryResponse,
   SrcServiceCoreWorkflowObjectsListResponse,
   WorkflowPriority,
   WorkflowStatus,
-} from "../generated";
+} from "@/lib/api/generated";
 
 /** Type alias for better readability */
 type WorkflowsListResponse = SrcServiceCoreWorkflowObjectsListResponse;

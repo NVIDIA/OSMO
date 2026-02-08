@@ -17,14 +17,14 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import type { GroupWithLayout } from "../../../lib/workflow-types";
-import { Timeline, type TimelinePhase } from "../views/Timeline";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { Timeline, type TimelinePhase } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
 import {
   useTimelineSetup,
   parseCommonTimestamps,
   buildPreExecutionPhases,
   buildTerminalPhase,
-} from "../../../lib/timeline-utils";
+} from "@/app/(dashboard)/workflows/[name]/lib/timeline-utils";
 
 interface GroupTimelineProps {
   group: GroupWithLayout;

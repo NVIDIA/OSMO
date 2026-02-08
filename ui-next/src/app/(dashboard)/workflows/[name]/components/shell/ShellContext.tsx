@@ -19,7 +19,7 @@
 import { createContext, useContext, useCallback, useMemo, type ReactNode } from "react";
 import { useShellSessions, hasSession, disconnectSession, reconnectSession } from "@/components/shell/lib/shell-cache";
 import { _createSession, _deleteSession } from "@/components/shell/lib/shell-cache";
-import { ShellNavigationGuard } from "./ShellNavigationGuard";
+import { ShellNavigationGuard } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellNavigationGuard";
 
 interface ShellContextValue {
   /** Create a shell session (called by TaskDetails on Connect click) */

@@ -35,20 +35,20 @@ import { cn } from "@/lib/utils";
 
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { SortableCell } from "./SortableCell";
-import { SortButton } from "./SortButton";
-import { VirtualTableBody } from "./VirtualTableBody";
-import { ResizeHandle } from "./ResizeHandle";
-import { TableSkeleton } from "./TableSkeleton";
-import { useVirtualizedTable } from "./hooks/use-virtualized-table";
-import { useTableDnd } from "./hooks/use-column-reordering";
-import { useColumnSizing } from "./hooks/use-column-sizing";
-import { useRowNavigation } from "./hooks/use-row-navigation";
-import type { Section, SortState, ColumnSizeConfig } from "./types";
-import { getColumnCSSValue, measureColumnContentWidth } from "./utils/column-sizing";
-import { SortDirections, VirtualItemTypes } from "./constants";
+import { SortableCell } from "@/components/data-table/SortableCell";
+import { SortButton } from "@/components/data-table/SortButton";
+import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { ResizeHandle } from "@/components/data-table/ResizeHandle";
+import { TableSkeleton } from "@/components/data-table/TableSkeleton";
+import { useVirtualizedTable } from "@/components/data-table/hooks/use-virtualized-table";
+import { useTableDnd } from "@/components/data-table/hooks/use-column-reordering";
+import { useColumnSizing } from "@/components/data-table/hooks/use-column-sizing";
+import { useRowNavigation } from "@/components/data-table/hooks/use-row-navigation";
+import type { Section, SortState, ColumnSizeConfig } from "@/components/data-table/types";
+import { getColumnCSSValue, measureColumnContentWidth } from "@/components/data-table/utils/column-sizing";
+import { SortDirections, VirtualItemTypes } from "@/components/data-table/constants";
 
-import "./styles.css";
+import "@/components/data-table/styles.css";
 
 export interface DataTableProps<TData, TSectionMeta = unknown> {
   data: TData[];

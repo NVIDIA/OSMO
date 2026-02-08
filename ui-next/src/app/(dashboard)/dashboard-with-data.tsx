@@ -31,7 +31,7 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPoolsForDashboard } from "@/lib/api/server/pools";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
-import { DashboardContent } from "./dashboard-content";
+import { DashboardContent } from "@/app/(dashboard)/dashboard-content";
 import { createQueryClient } from "@/lib/query-client";
 
 export async function DashboardWithData() {

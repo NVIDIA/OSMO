@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { cn, formatCompact, formatBytes, formatBytesPair, naturalCompare } from "./utils";
+import { cn, formatCompact, formatBytes, formatBytesPair, naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // naturalCompare (alphanumeric sorting)

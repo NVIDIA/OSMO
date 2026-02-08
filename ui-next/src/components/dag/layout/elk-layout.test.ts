@@ -26,8 +26,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { findRootNodes, computeInitialExpandedNodes, buildEdges } from "./elk-layout";
-import type { DAGInputNode } from "../types";
+import { findRootNodes, computeInitialExpandedNodes, buildEdges } from "@/components/dag/layout/elk-layout";
+import type { DAGInputNode } from "@/components/dag/types";
 
 // =============================================================================
 // Test Helpers

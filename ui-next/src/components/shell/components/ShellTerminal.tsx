@@ -19,7 +19,7 @@
 import dynamic from "next/dynamic";
 import { forwardRef, memo } from "react";
 import { cn } from "@/lib/utils";
-import type { ShellTerminalProps, ShellTerminalRef } from "../lib/types";
+import type { ShellTerminalProps, ShellTerminalRef } from "@/components/shell/lib/types";
 
 const ShellLoadingSkeleton = memo(function ShellLoadingSkeleton({ className }: { className?: string }) {
   return (

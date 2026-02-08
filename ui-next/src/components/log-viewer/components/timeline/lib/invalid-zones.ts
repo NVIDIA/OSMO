@@ -21,7 +21,7 @@
  * Invalid zones indicate areas where logs cannot exist (before workflow start or after completion).
  */
 
-import { GAP_BUCKET_MULTIPLIER } from "./timeline-constants";
+import { GAP_BUCKET_MULTIPLIER } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 export interface InvalidZonePositions {
   /** Left zone width as percentage (0-100) */

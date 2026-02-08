@@ -22,10 +22,10 @@ import { ChevronLeft } from "lucide-react";
 import { cn, isInteractiveTarget } from "@/lib/utils";
 import { usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
-import { ResizeHandle } from "./resize-handle";
-import { PANEL } from "./panel-header-controls";
-import { useResizeDrag } from "./hooks/useResizeDrag";
-import { usePanelEscape } from "./hooks/usePanelEscape";
+import { ResizeHandle } from "@/components/panel/resize-handle";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
+import { usePanelEscape } from "@/components/panel/hooks/usePanelEscape";
 
 export interface SidePanelProps {
   width: number;

@@ -23,7 +23,7 @@ import type {
   UseQueryResult
 } from '@tanstack/react-query';
 
-import { customFetch } from './fetcher';
+import { customFetch } from '@/lib/api/fetcher'
 /**
  * Single Pool Entry 
  */

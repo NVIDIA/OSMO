@@ -27,9 +27,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { calculateColumnWidths } from "./column-sizing";
-import type { ColumnSizingPreferences } from "../types";
-import { PreferenceModes } from "../constants";
+import { calculateColumnWidths } from "@/components/data-table/utils/column-sizing";
+import type { ColumnSizingPreferences } from "@/components/data-table/types";
+import { PreferenceModes } from "@/components/data-table/constants";
 
 // =============================================================================
 // calculateColumnWidths - Algorithm Tests

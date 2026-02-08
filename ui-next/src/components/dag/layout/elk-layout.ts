@@ -33,9 +33,9 @@ import type {
   ElkGraph,
   DAGInputNode,
   EdgeStyle,
-} from "../types";
-import { LAYOUT_SPACING, EDGE_STYLE, LAYOUT_CACHE } from "../constants";
-import { elkWorker } from "./elk-worker-client";
+} from "@/components/dag/types";
+import { LAYOUT_SPACING, EDGE_STYLE, LAYOUT_CACHE } from "@/components/dag/constants";
+import { elkWorker } from "@/components/dag/layout/elk-worker-client";
 
 // ============================================================================
 // Layout Cache

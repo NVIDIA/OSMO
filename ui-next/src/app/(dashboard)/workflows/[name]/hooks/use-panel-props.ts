@@ -24,10 +24,10 @@
 
 import { useMemo } from "react";
 import type { RefObject } from "react";
-import type { WorkflowViewCommonProps } from "../lib/view-types";
-import type { DetailsPanelProps } from "../lib/panel-types";
-import type { GroupWithLayout } from "../lib/workflow-types";
-import { ACTIVITY_STRIP_WIDTH_PX, PANEL_CONSTRAINTS } from "../lib/panel-constants";
+import type { WorkflowViewCommonProps } from "@/app/(dashboard)/workflows/[name]/lib/view-types";
+import type { DetailsPanelProps } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { ACTIVITY_STRIP_WIDTH_PX, PANEL_CONSTRAINTS } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 interface UsePanelPropsOptions extends WorkflowViewCommonProps {
   /** Optional override for allGroups (DAG view uses dagGroups with layout) */

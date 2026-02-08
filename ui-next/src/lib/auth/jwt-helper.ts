@@ -8,8 +8,8 @@
 import { jwtDecode } from "jwt-decode";
 
 // Re-export types and utilities that don't depend on extractToken
-export type { JwtClaims } from "./jwt-helper.production";
-export { getUserRoles, hasRole, isTokenExpired } from "./jwt-helper.production";
+export type { JwtClaims } from "@/lib/auth/jwt-helper.production";
+export { getUserRoles, hasRole, isTokenExpired } from "@/lib/auth/jwt-helper.production";
 
 /**
  * Extract JWT token from Authorization header or cookies.

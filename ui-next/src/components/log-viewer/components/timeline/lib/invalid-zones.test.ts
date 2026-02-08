@@ -15,7 +15,10 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { calculateBucketWidth, calculateInvalidZonePositions } from "./invalid-zones";
+import {
+  calculateBucketWidth,
+  calculateInvalidZonePositions,
+} from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 
 describe("calculateBucketWidth", () => {
   it("should return 0 for empty array", () => {

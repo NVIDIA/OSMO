@@ -33,12 +33,12 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import type { SearchChip, SearchField, SearchPreset, Suggestion, ParsedInput } from "../lib/types";
-import { isAsyncField } from "../lib/types";
-import { useChips } from "./use-chips";
-import { useSuggestions } from "./use-suggestions";
-import { useFilterKeyboard } from "./use-filter-keyboard";
-import type { FilterKeyboardActions, FilterKeyboardState } from "./use-filter-keyboard";
+import type { SearchChip, SearchField, SearchPreset, Suggestion, ParsedInput } from "@/components/filter-bar/lib/types";
+import { isAsyncField } from "@/components/filter-bar/lib/types";
+import { useChips } from "@/components/filter-bar/hooks/use-chips";
+import { useSuggestions } from "@/components/filter-bar/hooks/use-suggestions";
+import { useFilterKeyboard } from "@/components/filter-bar/hooks/use-filter-keyboard";
+import type { FilterKeyboardActions, FilterKeyboardState } from "@/components/filter-bar/hooks/use-filter-keyboard";
 
 // ---------------------------------------------------------------------------
 // Options

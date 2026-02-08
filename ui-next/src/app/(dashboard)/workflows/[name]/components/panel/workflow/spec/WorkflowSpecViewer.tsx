@@ -32,9 +32,9 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { CodeMirror } from "@/components/code-viewer/CodeMirror";
 import { CodeViewerSkeleton } from "@/components/code-viewer/CodeViewerSkeleton";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
-import { SpecToolbar } from "./SpecToolbar";
-import { useSpecData } from "./hooks/useSpecData";
-import { useSpecViewState } from "./hooks/useSpecViewState";
+import { SpecToolbar } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/SpecToolbar";
+import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
+import { useSpecViewState } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecViewState";
 
 // =============================================================================
 // Types

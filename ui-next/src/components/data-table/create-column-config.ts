@@ -40,8 +40,8 @@
  * ```
  */
 
-import type { ColumnSizeConfig } from "./types";
-import type { ColumnDefinition } from "./TableToolbar";
+import type { ColumnSizeConfig } from "@/components/data-table/types";
+import type { ColumnDefinition } from "@/components/data-table/TableToolbar";
 
 // =============================================================================
 // Types

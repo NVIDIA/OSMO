@@ -23,7 +23,7 @@ import {
   type PoolResourceUsage,
   type ResourcesResponse,
   type ResourcesEntry,
-} from "../generated";
+} from "@/lib/api/generated";
 
 import type {
   Pool,
@@ -38,7 +38,7 @@ import type {
   ResourceCapacity,
   PoolMembership,
   Version,
-} from "./types";
+} from "@/lib/api/adapter/types";
 import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================

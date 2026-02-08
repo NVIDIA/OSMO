@@ -38,8 +38,8 @@ import type {
   HistogramResult,
   FieldFacet,
   FacetValue,
-} from "../types";
-import { LOG_LEVELS } from "../constants";
+} from "@/lib/api/log-adapter/types";
+import { LOG_LEVELS } from "@/lib/api/log-adapter/constants";
 
 // =============================================================================
 // Types

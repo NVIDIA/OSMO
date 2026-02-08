@@ -23,7 +23,7 @@
  * Used by useSuggestions and useFilterKeyboard for input interpretation.
  */
 
-import type { SearchField, ParsedInput } from "./types";
+import type { SearchField, ParsedInput } from "@/components/filter-bar/lib/types";
 
 /**
  * Parse input to find the longest matching field prefix.

@@ -33,9 +33,9 @@ import {
   TASK_ROW_HEIGHT,
   NODE_HEADER_HEIGHT,
   NODE_BORDER_WIDTH,
-} from "./dag-layout";
+} from "@/app/(dashboard)/workflows/[name]/lib/dag-layout";
 import { NODE_DEFAULTS, NODE_EXPANDED } from "@/components/dag/constants";
-import type { GroupWithLayout } from "./workflow-types";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // =============================================================================
 // Test Helpers

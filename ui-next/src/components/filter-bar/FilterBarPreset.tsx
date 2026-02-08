@@ -26,7 +26,7 @@
 "use client";
 
 import { memo } from "react";
-import type { SearchPreset } from "./lib/types";
+import type { SearchPreset } from "@/components/filter-bar/lib/types";
 
 export interface FilterBarPresetProps {
   preset: SearchPreset;

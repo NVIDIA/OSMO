@@ -60,8 +60,8 @@
 
 import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination/types";
 import { matchesSearch } from "@/lib/utils";
-import type { Resource } from "./types";
-import { transformAllResourcesResponse } from "./transforms";
+import type { Resource } from "@/lib/api/adapter/types";
+import { transformAllResourcesResponse } from "@/lib/api/adapter/transforms";
 import { computeAggregates, type ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
 
 /**

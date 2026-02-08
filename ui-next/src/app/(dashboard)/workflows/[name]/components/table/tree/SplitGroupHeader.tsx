@@ -48,9 +48,9 @@
 
 import { memo } from "react";
 import { ChevronRight } from "lucide-react";
-import type { GroupWithLayout } from "../../../lib/workflow-types";
-import { TreeExpandIndicator } from "./TreeExpandIndicator";
-import { GroupNameCell } from "./GroupNameCell";
+import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { TreeExpandIndicator } from "@/app/(dashboard)/workflows/[name]/components/table/tree/TreeExpandIndicator";
+import { GroupNameCell } from "@/app/(dashboard)/workflows/[name]/components/table/tree/GroupNameCell";
 
 // =============================================================================
 // Types

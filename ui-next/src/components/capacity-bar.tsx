@@ -18,7 +18,7 @@
 
 import { memo, type ReactNode } from "react";
 import { cn, formatCompact, formatBytesPair } from "@/lib/utils";
-import { ProgressBar } from "./progress-bar";
+import { ProgressBar } from "@/components/progress-bar";
 
 // =============================================================================
 // Types

@@ -59,11 +59,11 @@ import { useTheme } from "next-themes";
 import CodeMirrorLib from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { closeSearchPanel } from "@codemirror/search";
-import { createExtensions } from "./lib/extensions";
+import { createExtensions } from "@/components/code-viewer/lib/extensions";
 import { useMounted } from "@/hooks/use-mounted";
-import type { CodeMirrorProps } from "./types";
-import "./code-viewer-search.css";
-import "./code-viewer-theme.css";
+import type { CodeMirrorProps } from "@/components/code-viewer/types";
+import "@/components/code-viewer/code-viewer-search.css";
+import "@/components/code-viewer/code-viewer-theme.css";
 
 export const CodeMirror = memo(function CodeMirror({
   value,

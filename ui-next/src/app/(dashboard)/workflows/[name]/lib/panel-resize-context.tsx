@@ -51,7 +51,7 @@ import {
   type ResizeState,
   type SnapZone,
   isCollapsedWidth,
-} from "./panel-resize-state-machine";
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-state-machine";
 
 // =============================================================================
 // Context
@@ -321,4 +321,8 @@ export function useIsDragging(): boolean {
 // =============================================================================
 
 export type { ResizePhase, ResizeState, SnapZone };
-export { SNAP_ZONES, classifySnapZone, isCollapsedWidth } from "./panel-resize-state-machine";
+export {
+  SNAP_ZONES,
+  classifySnapZone,
+  isCollapsedWidth,
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-state-machine";

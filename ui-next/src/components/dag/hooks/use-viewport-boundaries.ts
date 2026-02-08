@@ -87,8 +87,8 @@ import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@
 import { useResizeObserver } from "usehooks-ts";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { clamp } from "@/lib/utils";
-import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
-import type { LayoutDirection } from "../types";
+import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "@/components/dag/constants";
+import type { LayoutDirection } from "@/components/dag/types";
 
 // ============================================================================
 // Types

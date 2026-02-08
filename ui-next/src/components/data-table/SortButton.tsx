@@ -21,8 +21,8 @@
 import { memo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SortButtonProps } from "./types";
-import { SortDirections, TextAlignments } from "./constants";
+import type { SortButtonProps } from "@/components/data-table/types";
+import { SortDirections, TextAlignments } from "@/components/data-table/constants";
 
 /**
  * Sort button for table column headers.

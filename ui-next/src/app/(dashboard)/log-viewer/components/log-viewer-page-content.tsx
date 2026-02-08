@@ -19,7 +19,7 @@
 import { useEffect } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
-import { addRecentWorkflow } from "../lib/recent-workflows";
+import { addRecentWorkflow } from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
 import { WorkflowStatus } from "@/lib/api/generated";
 
 /**

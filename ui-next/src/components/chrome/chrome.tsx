@@ -17,9 +17,9 @@
 "use client";
 
 import { memo, Suspense } from "react";
-import { AppSidebar } from "./app-sidebar";
-import { Header } from "./header";
-import { SIDEBAR_CSS_VARS } from "./constants";
+import { AppSidebar } from "@/components/chrome/app-sidebar";
+import { Header } from "@/components/chrome/header";
+import { SIDEBAR_CSS_VARS } from "@/components/chrome/constants";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";

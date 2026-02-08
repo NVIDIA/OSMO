@@ -14,7 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import type { HotkeyRegistry } from "./types";
+import type { HotkeyRegistry } from "@/lib/hotkeys/types";
 
 /**
  * Global keyboard shortcuts that work across the entire application.

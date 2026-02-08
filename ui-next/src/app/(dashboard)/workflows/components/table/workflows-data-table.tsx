@@ -37,11 +37,15 @@ import type { SortState, ColumnSizingPreference } from "@/components/data-table/
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
-import { MANDATORY_COLUMN_IDS, asWorkflowColumnIds, WORKFLOW_COLUMN_SIZE_CONFIG } from "../../lib/workflow-columns";
-import { getStatusDisplay } from "../../lib/workflow-constants";
-import { createWorkflowColumns } from "./workflow-column-defs";
-import { useWorkflowsTableStore } from "../../stores/workflows-table-store";
+import type { WorkflowListEntry } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+import {
+  MANDATORY_COLUMN_IDS,
+  asWorkflowColumnIds,
+  WORKFLOW_COLUMN_SIZE_CONFIG,
+} from "@/app/(dashboard)/workflows/lib/workflow-columns";
+import { getStatusDisplay } from "@/app/(dashboard)/workflows/lib/workflow-constants";
+import { createWorkflowColumns } from "@/app/(dashboard)/workflows/components/table/workflow-column-defs";
+import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
 
 // =============================================================================

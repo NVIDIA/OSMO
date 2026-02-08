@@ -8,7 +8,7 @@ import {
   useGetVersionApiVersionGet,
   getResourcesApiResourcesGet,
   getPoolQuotasApiPoolQuotaGet,
-} from "../generated";
+} from "@/lib/api/generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
 
@@ -18,24 +18,24 @@ import {
   transformResourcesResponse,
   transformAllResourcesResponse,
   transformVersionResponse,
-} from "./transforms";
+} from "@/lib/api/adapter/transforms";
 
-import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
+import type { PoolResourcesResponse, AllResourcesResponse } from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
   invalidateResourcesCache,
   getResourceFilterOptions,
   type ResourceFilterParams,
-} from "./resources-shim";
+} from "@/lib/api/adapter/resources-shim";
 import {
   applyPoolFiltersSync,
   hasActiveFilters,
   type PoolFilterParams,
   type FilteredPoolsResult,
   type PoolMetadata,
-} from "./pools-shim";
+} from "@/lib/api/adapter/pools-shim";
 import type { PaginationParams } from "@/lib/api/pagination/types";
-import { normalizeWorkflowTimestamps } from "./utils";
+import { normalizeWorkflowTimestamps } from "@/lib/api/adapter/utils";
 
 export function usePools() {
   const { data, isLoading, error, refetch } = useGetPoolQuotasApiPoolQuotaGet(
@@ -203,9 +203,9 @@ export function useVersion() {
   };
 }
 
-import type { PoolMembership, Resource, TaskConfig, Pool } from "./types";
-import type { ResourcesResponse } from "../generated";
-import type { PaginatedResourcesResult } from "./resources-shim";
+import type { PoolMembership, Resource, TaskConfig, Pool } from "@/lib/api/adapter/types";
+import type { ResourcesResponse } from "@/lib/api/generated";
+import type { PaginatedResourcesResult } from "@/lib/api/adapter/resources-shim";
 
 // SHIM: Client-side pagination until backend supports it (Issue: BACKEND_TODOS.md#11)
 export async function fetchResources(
@@ -347,7 +347,7 @@ import {
   usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost,
   usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost,
   useGetUsersApiUsersGet,
-} from "../generated";
+} from "@/lib/api/generated";
 
 interface UseWorkflowParams {
   name: string;

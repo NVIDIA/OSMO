@@ -53,7 +53,7 @@
 
 import { useState, useLayoutEffect, type ReactNode, type CSSProperties, type RefObject } from "react";
 import { usePrevious } from "@react-hookz/web";
-import type { ResizePhase } from "../../../lib/panel-resize-state-machine";
+import type { ResizePhase } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-state-machine";
 
 interface ContentSlideWrapperProps {
   /** Current resize phase from state machine */

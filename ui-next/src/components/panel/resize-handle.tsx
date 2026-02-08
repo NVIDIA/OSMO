@@ -19,7 +19,7 @@
 import { memo, useMemo } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PANEL } from "./panel-header-controls";
+import { PANEL } from "@/components/panel/panel-header-controls";
 
 // =============================================================================
 // Types

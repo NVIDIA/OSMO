@@ -30,8 +30,15 @@
  */
 
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import { _createSession, _updateSession, _getSession, _deleteSession, getAllSessions, hasSession } from "./shell-cache";
-import type { CachedSession } from "./shell-cache";
+import {
+  _createSession,
+  _updateSession,
+  _getSession,
+  _deleteSession,
+  getAllSessions,
+  hasSession,
+} from "@/components/shell/lib/shell-cache";
+import type { CachedSession } from "@/components/shell/lib/shell-cache";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { SearchAddon } from "@xterm/addon-search";

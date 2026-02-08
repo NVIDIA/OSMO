@@ -21,10 +21,19 @@ import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowUp, ArrowDow
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
-import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
-import { WORKFLOW_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type WorkflowColumnId } from "../../lib/workflow-columns";
-import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay, type StatusCategory } from "../../lib/workflow-constants";
-import { formatDuration } from "../../[name]/lib/workflow-types";
+import type { WorkflowListEntry } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+import {
+  WORKFLOW_COLUMN_SIZE_CONFIG,
+  COLUMN_LABELS,
+  type WorkflowColumnId,
+} from "@/app/(dashboard)/workflows/lib/workflow-columns";
+import {
+  getStatusDisplay,
+  STATUS_STYLES,
+  getPriorityDisplay,
+  type StatusCategory,
+} from "@/app/(dashboard)/workflows/lib/workflow-constants";
+import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { WorkflowStatus } from "@/lib/api/generated";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {

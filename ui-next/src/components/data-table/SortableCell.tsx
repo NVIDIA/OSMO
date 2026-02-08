@@ -22,7 +22,7 @@ import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/hooks/use-mounted";
-import type { SortableCellProps } from "./types";
+import type { SortableCellProps } from "@/components/data-table/types";
 
 /**
  * Drag-and-drop enabled header cell.

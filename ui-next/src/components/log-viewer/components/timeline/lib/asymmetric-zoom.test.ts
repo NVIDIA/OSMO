@@ -28,8 +28,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { validateInvalidZoneLimits } from "./timeline-utils";
-import { GAP_BUCKET_MULTIPLIER } from "./timeline-constants";
+import { validateInvalidZoneLimits } from "@/components/log-viewer/components/timeline/lib/timeline-utils";
+import { GAP_BUCKET_MULTIPLIER } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 describe("Asymmetric Zoom - Right Side Constrained", () => {
   // Test setup matching the user's debug output

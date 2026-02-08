@@ -28,7 +28,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createTableStore } from "@/stores/create-table-store";
-import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT } from "../lib/workflow-columns";
+import {
+  DEFAULT_VISIBLE_COLUMNS,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_SORT,
+} from "@/app/(dashboard)/workflows/lib/workflow-columns";
 
 /**
  * Workflows table store for column/sort preferences.
