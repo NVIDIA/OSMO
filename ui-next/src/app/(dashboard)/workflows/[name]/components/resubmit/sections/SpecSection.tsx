@@ -77,7 +77,7 @@ function SpecContent({ spec, isLoading, isEditing, editedSpec, onEditedSpecChang
   // Split into edit vs view mode for type safety
   if (isEditing) {
     return (
-      <div className="h-96 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
+      <div className="duration-moderate h-[calc(100vh-22rem)] overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 transition-[height] ease-out">
         <CodeMirror
           value={editedSpec}
           onChange={onEditedSpecChange}
@@ -90,7 +90,7 @@ function SpecContent({ spec, isLoading, isEditing, editedSpec, onEditedSpecChang
   }
 
   return (
-    <div className="h-72 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
+    <div className="duration-moderate h-72 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 transition-[height] ease-out">
       <CodeMirror
         value={spec}
         language={YAML_LANGUAGE}
