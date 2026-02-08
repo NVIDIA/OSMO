@@ -17,7 +17,7 @@
 import type { Extension } from "@codemirror/state";
 
 /**
- * Language extension configuration for CodeViewer
+ * Language extension configuration for CodeMirror
  *
  * Defines the syntax highlighting and language-specific behavior.
  */
@@ -29,13 +29,11 @@ export interface LanguageExtension {
 }
 
 /**
- * Props for the CodeViewer component
- *
- * Generic code viewing interface that works with any language.
+ * Base props shared by both read-only and editable modes
  */
-export interface CodeViewerProps {
-  /** Content to display */
-  content: string;
+interface CodeMirrorSharedProps {
+  /** Current value */
+  value: string;
   /** Language extension for syntax highlighting */
   language: LanguageExtension;
   /** Accessible label for the editor */
@@ -43,3 +41,32 @@ export interface CodeViewerProps {
   /** Additional class name */
   className?: string;
 }
+
+/**
+ * Props for read-only mode
+ */
+interface CodeMirrorReadOnlyProps extends CodeMirrorSharedProps {
+  /** Read-only mode (no editing) */
+  readOnly: true;
+  /** onChange not allowed in read-only mode */
+  onChange?: never;
+}
+
+/**
+ * Props for editable mode
+ */
+interface CodeMirrorEditableProps extends CodeMirrorSharedProps {
+  /** Editable mode (default) */
+  readOnly?: false;
+  /** Callback when content changes (required in editable mode) */
+  onChange: (value: string) => void;
+}
+
+/**
+ * Props for the CodeMirror component
+ *
+ * Discriminated union based on readOnly flag:
+ * - readOnly={true}: onChange not allowed
+ * - readOnly={false} or omitted: onChange required
+ */
+export type CodeMirrorProps = CodeMirrorReadOnlyProps | CodeMirrorEditableProps;

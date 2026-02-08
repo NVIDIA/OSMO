@@ -70,13 +70,19 @@ function createChevronMarker(open: boolean): HTMLElement {
 }
 
 /**
- * Creates CodeMirror extensions for the code viewer.
+ * Creates CodeMirror extensions for both viewer and editor modes.
  * Caller should memoize the result to avoid recreating on every render.
+ *
+ * @param languageExtension - Language-specific syntax highlighting
+ * @param ariaLabel - Accessible label for the editor
+ * @param isDark - Whether dark theme is active
+ * @param readOnly - Whether the editor is read-only (viewer mode)
  */
 export function createExtensions(
   languageExtension: Extension | Extension[],
   ariaLabel: string,
   isDark: boolean,
+  readOnly: boolean,
 ): Extension[] {
   return [
     // Theme and syntax highlighting
@@ -87,7 +93,7 @@ export function createExtensions(
 
     // Indentation markers (VS Code-style vertical guides)
     indentationMarkers({
-      highlightActiveBlock: false,
+      highlightActiveBlock: !readOnly, // Highlight active block only in edit mode
       hideFirstIndent: false,
       markerType: "fullScope",
       thickness: 1,
@@ -106,13 +112,28 @@ export function createExtensions(
     search({ createPanel: createSearchPanel(isDark) }),
     keymap.of(searchKeymap),
 
-    // Read-only (viewer, not editor -- cursor is hidden in theme)
-    EditorState.readOnly.of(true),
+    // Read-only state (only in viewer mode)
+    ...(readOnly ? [EditorState.readOnly.of(true)] : []),
+
+    // Show cursor in edit mode (theme hides it by default)
+    ...(!readOnly
+      ? [
+          EditorView.theme({
+            ".cm-cursor, .cm-dropCursor": { display: "block !important" },
+            "&.cm-focused .cm-cursor": {
+              display: "block !important",
+              borderLeftColor: "hsl(var(--foreground))",
+            },
+            ".cm-cursorLayer": { display: "block !important" },
+            ".cm-activeLine": { backgroundColor: "rgba(255, 255, 255, 0.05)" },
+          }),
+        ]
+      : []),
 
     // Accessibility
     EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
 
-    // Scroll margin for comfortable reading
+    // Scroll margin for comfortable reading/editing
     EditorView.scrollMargins.of(() => ({ top: 50, bottom: 50 })),
   ];
 }
