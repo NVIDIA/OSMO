@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEventCallback } from "usehooks-ts";
@@ -25,6 +25,7 @@ import { PANEL } from "./panel-header-controls";
 import { useResizeDrag } from "./hooks/useResizeDrag";
 import { usePanelEscape } from "./hooks/usePanelEscape";
 import { useFocusReturn } from "./hooks/useFocusReturn";
+import "./resizable-panel.css";
 
 // =============================================================================
 // Types
@@ -178,6 +179,29 @@ export function ResizablePanel({
   // Focus restoration: capture trigger on open, restore on close
   useFocusReturn({ open });
 
+  // Staggered content rendering to prevent layout thrashing
+  //
+  // Problem: Rendering complex content (e.g., multiple ExpandableChips, cards) during
+  // the panel slide animation causes layout recalculation competing with GPU transform,
+  // creating visible reflow in the background table.
+  //
+  // Solution: Delay content rendering by 50ms so the panel shell starts sliding first,
+  // then content renders and slides in with its own animation (see slideInContent keyframe).
+  // This prevents simultaneous layout + transform operations.
+  const [shouldRenderContent, setShouldRenderContent] = useState(open);
+  useEffect(() => {
+    if (open) {
+      // 50ms delay: panel shell starts sliding, then content begins rendering/animating
+      const timeoutId = setTimeout(() => {
+        setShouldRenderContent(true);
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    } else {
+      // Immediately hide content when closing
+      setShouldRenderContent(false);
+    }
+  }, [open]);
+
   // Focus management: move focus into panel when it opens
   // Uses transitionend for precise timing, with a fallback timeout for reduced-motion scenarios
   useEffect(() => {
@@ -271,15 +295,17 @@ export function ResizablePanel({
         className={cn(
           // Note: NO overflow-hidden here - allows resize handle to extend past left edge
           "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
-          open ? "translate-x-0" : "translate-x-full",
           // Disable ALL transitions during drag for buttery smooth 60fps resizing
-          // Only enable transitions when not dragging (for open/close animations)
-          isDragging ? "transition-none" : "transition-all duration-200 ease-out",
+          isDragging ? "transition-none" : "transition-[transform,opacity] duration-200 ease-out",
           className,
         )}
         style={{
           width: panelWidth,
-          // Performance: CSS containment already applied via .contain-layout-style class
+          // Use transform instead of translate property to avoid layout recalculation
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          opacity: open ? 1 : 0,
+          // Force GPU compositing layer to prevent layout thrashing
+          willChange: open ? "transform" : "auto",
           ...dragStyles,
           ...(effectiveCollapsed
             ? {}
@@ -319,12 +345,16 @@ export function ResizablePanel({
         )}
 
         {/* Panel content - visible when expanded (overflow-hidden for proper content clipping) */}
-        {open && (
+        {/* Staggered animation: content slides in after panel starts moving */}
+        {shouldRenderContent && (
           <div
             className={cn(
-              "flex h-full w-full flex-col overflow-hidden transition-opacity duration-200 ease-out",
+              "flex h-full w-full flex-col overflow-hidden",
               effectiveCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
             )}
+            style={{
+              animation: effectiveCollapsed ? undefined : "slideInContent 150ms ease-out",
+            }}
           >
             {children}
           </div>
