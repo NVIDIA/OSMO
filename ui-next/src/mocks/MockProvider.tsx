@@ -43,7 +43,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setMockVolumes, getMockVolumes } from "@/actions/mock-config";
 import type { MockVolumes } from "@/actions/mock-config.types";
-import { getBasePath } from "@/lib/config";
 
 interface MockProviderProps {
   children: ReactNode;
@@ -119,55 +118,10 @@ export function MockProvider({ children }: MockProviderProps) {
         console.log("🔐 Existing JWT cookie found, reusing");
       }
 
-      // Step 2: Start MSW and wait for it to be fully ready
-      const basePath = getBasePath();
-
-      const getServiceWorkerUrl = () => {
-        if (!basePath) {
-          return "/mockServiceWorker.js";
-        }
-        // Ensure basePath doesn't end with / and path starts with /
-        const normalizedBasePath = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
-        return `${normalizedBasePath}/mockServiceWorker.js`;
-      };
-
-      // Service worker scope: use default (root) for reliable control
-      // MSW will only intercept requests that have handlers
-      // No scope restriction needed - the worker controls the whole origin
-
-      const { worker } = await import("./browser");
-
-      await worker.start({
-        onUnhandledRequest: "bypass",
-        serviceWorker: {
-          url: getServiceWorkerUrl(),
-          // Use default scope for reliable control
-        },
-        quiet: true, // Disable request logging in console
-      });
-
-      console.log("[MSW] Service worker registered");
-
-      // On first load, the service worker won't be controlling the page yet.
-      // We need to reload once to let it take control.
-      if (!navigator.serviceWorker.controller) {
-        // Check if we've already reloaded once to avoid infinite reload loop
-        const hasReloaded = sessionStorage.getItem("msw_reloaded");
-
-        if (!hasReloaded) {
-          console.log("[MSW] First load: reloading to activate service worker...");
-          sessionStorage.setItem("msw_reloaded", "true");
-          window.location.reload();
-          return; // Don't set isReady, page will reload
-        } else {
-          // We've already reloaded but SW still not controlling - proceed anyway
-          console.warn("[MSW] Service worker not controlling after reload, proceeding anyway");
-        }
-      } else {
-        console.log("[MSW] Service worker is controlling");
-        // Clear reload flag since SW is working
-        sessionStorage.removeItem("msw_reloaded");
-      }
+      // Step 2: No browser-side MSW needed!
+      // All mocking happens server-side via Next.js API routes.
+      // Browser makes normal fetch requests → Next.js intercepts with MSW in Node.js
+      console.log("[MSW] Client-side mocking disabled. All requests handled by server-side MSW.");
 
       setIsReady(true);
     };
@@ -178,6 +132,7 @@ export function MockProvider({ children }: MockProviderProps) {
     });
 
     // Helper to create a setter that calls the server action
+    // No browser config syncing needed - all mocking is server-side only
     const createSetter = (key: keyof MockVolumes) => async (n: number) => {
       try {
         const volumes = await setMockVolumes({ [key]: n });

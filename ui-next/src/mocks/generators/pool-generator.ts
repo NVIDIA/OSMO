@@ -24,6 +24,7 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { getGlobalMockConfig } from "../global-config";
 
 // Import types directly from generated API spec
 import type {
@@ -71,11 +72,11 @@ export class PoolGenerator {
   }
 
   get total(): number {
-    return this.config.total;
+    return getGlobalMockConfig().pools;
   }
 
   set total(value: number) {
-    this.config.total = value;
+    getGlobalMockConfig().pools = value;
   }
 
   /**
@@ -187,7 +188,7 @@ export class PoolGenerator {
    */
   generatePage(offset: number, limit: number): { entries: PoolResourceUsage[]; total: number } {
     const entries: PoolResourceUsage[] = [];
-    const total = this.config.total;
+    const total = this.total; // Use getter to read from global config
 
     const start = Math.max(0, offset);
     const end = Math.min(offset + limit, total);
@@ -211,7 +212,7 @@ export class PoolGenerator {
       poolList = pools.map((name) => this.getByName(name)).filter((p): p is PoolResourceUsage => p !== null);
     } else {
       // Return all pools
-      poolList = this.generatePage(0, this.config.total).entries;
+      poolList = this.generatePage(0, this.total).entries; // Use getter to read from global config
     }
 
     // Calculate resource sum
@@ -246,7 +247,8 @@ export class PoolGenerator {
   getByName(name: string): PoolResourceUsage | null {
     // Check known names first
     const knownIndex = this.config.patterns.names.indexOf(name);
-    if (knownIndex >= 0 && knownIndex < this.config.total) {
+    if (knownIndex >= 0 && knownIndex < this.total) {
+      // Use getter
       return this.generate(knownIndex);
     }
 
@@ -257,7 +259,8 @@ export class PoolGenerator {
       const baseIndex = this.config.patterns.names.indexOf(baseName);
       if (baseIndex >= 0) {
         const index = baseIndex + parseInt(numStr, 10) * this.config.patterns.names.length;
-        if (index < this.config.total) {
+        if (index < this.total) {
+          // Use getter
           return this.generate(index);
         }
       }
@@ -272,7 +275,8 @@ export class PoolGenerator {
    */
   getPoolNames(): string[] {
     const names: string[] = [];
-    for (let i = 0; i < this.config.total; i++) {
+    for (let i = 0; i < this.total; i++) {
+      // Use getter
       const baseName = this.config.patterns.names[i % this.config.patterns.names.length];
       const name =
         i < this.config.patterns.names.length

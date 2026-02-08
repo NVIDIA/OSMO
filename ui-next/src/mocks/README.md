@@ -4,10 +4,25 @@ Development mocking system for the OSMO UI. Includes API mocking (MSW) and auth 
 
 **⚠️ Production Safety:** All mock code is automatically removed from production builds via Turbopack aliasing (see `next.config.ts`). Zero production impact.
 
+## Architecture
+
+**Server-Side Only Mocking** - MSW runs exclusively in Node.js (via `src/instrumentation.ts`). The browser makes normal fetch requests to Next.js API routes, which are intercepted by MSW in the Node.js process.
+
+Benefits:
+- ✅ Single source of truth (no browser/server config syncing)
+- ✅ Simpler architecture (generators only instantiated once)
+- ✅ Matches production behavior (client → API routes → backend)
+- ✅ No service worker management or cache issues
+
+```
+Browser Request → Next.js API Route → MSW (Node.js) → Mock Handlers
+                  /api/workflow         server.ts       handlers.ts
+```
+
 ## Components
 
 ### 1. API Mocking (MSW)
-Mock API responses for local development and testing.
+Mock API responses for local development and testing. Runs server-side only in Node.js.
 
 ### 2. Auth Injection
 Utilities for injecting auth tokens when testing against real or mock backends.
@@ -86,67 +101,44 @@ When adding new mock handlers:
 
 ## Troubleshooting
 
-### Hot Reload Not Working in Mock Mode
+### Mock Data Not Showing
 
-**Symptom:** UI code changes don't appear after saving, even with hard refresh (Cmd+Shift+R). Changes only appear in incognito mode.
+**Symptom:** API requests return 401 Unauthorized or other errors instead of mock data.
 
-**Root Cause:** The MSW service worker is registered with a **limited scope** to only intercept API requests (`/api/*` or `/v2/api/*` with basePath). This prevents it from caching static assets. However, if you had an older version of the service worker registered with root scope `/`, it may still be active and interfering with hot reload.
+**Root Causes:**
+1. **Hostname configured in `.env.local`** - If `NEXT_PUBLIC_OSMO_API_HOSTNAME` is set, make sure `NEXT_PUBLIC_MOCK_API=true` is also set. The code prioritizes mock mode and ignores the hostname setting.
 
-**Quick Fix:**
+2. **MSW not started** - Check the terminal for `[MSW] Server-side mocking enabled` log. If missing, verify `NEXT_PUBLIC_MOCK_API=true` in your environment.
+
+3. **Handler not matching** - Check for MSW warnings like "No handler found for GET /api/...". Add the missing handler in `src/mocks/handlers.ts`.
+
+**Quick Checks:**
+```bash
+# Verify mock mode is enabled
+echo $NEXT_PUBLIC_MOCK_API  # Should print "true"
+
+# Check terminal logs for MSW startup message
+# Should see: [MSW] Server-side mocking enabled
+```
+
+### Developer Tools
+
+The browser console provides tools for managing mock data volumes and service workers:
+
+**Mock Configuration:**
 ```javascript
-// In browser console
-__dev.clearServiceWorker()
+__mockConfig.setWorkflowTotal(20)  // Change workflow count
+__mockConfig.getVolumes()           // See current volumes
+__mockConfig.help()                 // Show all options
 ```
 
-This will:
-1. Unregister all service workers
-2. Clear all caches
-3. Reload the page
-
-The new service worker will register with the correct scope automatically.
-
-**Check Service Worker Status:**
+**Service Worker Management (legacy):**
 ```javascript
-__dev.serviceWorkerStatus()
+__dev.clearServiceWorker()   // Clear any old service workers
+__dev.serviceWorkerStatus()  // Check service worker status
 ```
 
-**Expected scope:**
-- Without basePath: `/api/` (only intercepts `/api/*`)
-- With basePath `/v2`: `/v2/api/` (only intercepts `/v2/api/*`)
-
-**What the scoped service worker does:**
-- ✅ Intercepts API requests for mocking
-- ❌ Does NOT intercept static assets (`/_next/static/*`)
-- ❌ Does NOT interfere with hot reload
-
-**Manual cleanup (if __dev is not available):**
-1. Open DevTools → Application → Service Workers
-2. Click "Unregister" for all service workers
-3. Clear site data (Application → Storage → Clear site data)
-4. Hard refresh (Cmd+Shift+R)
-
-**Why incognito mode works:**
-Incognito mode starts with a fresh browser profile, so no service worker is registered.
-
-### Service Worker Scope
-
-The MSW service worker is configured with a **basePath-aware scope** to only intercept API requests:
-
-```typescript
-// From src/mocks/MockProvider.tsx
-const basePath = getBasePath();
-const scope = basePath ? `${basePath}/api/` : "/api/";
-
-worker.start({
-  serviceWorker: {
-    url: getServiceWorkerUrl(),
-    options: { scope }, // Limits interception to API routes only
-  },
-});
-```
-
-This ensures:
-- MSW only sees API requests (`/api/*` or `/v2/api/*`)
+Note: Service workers are no longer used for mocking (server-side only), but these tools remain useful for clearing old service workers from previous versions.
 - Static assets are handled by browser's normal caching (respects Next.js cache headers)
 - Hot reload works correctly with Turbopack
 
