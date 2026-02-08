@@ -23,6 +23,7 @@
 
 import { faker } from "@faker-js/faker";
 import { hashString } from "../utils";
+import { getGlobalMockConfig } from "../global-config";
 
 // ============================================================================
 // Types
@@ -113,11 +114,11 @@ export class BucketGenerator {
   }
 
   get totalBuckets(): number {
-    return this.config.totalBuckets;
+    return getGlobalMockConfig().buckets;
   }
 
   set totalBuckets(value: number) {
-    this.config.totalBuckets = value;
+    getGlobalMockConfig().buckets = value;
   }
 
   /**
@@ -156,7 +157,7 @@ export class BucketGenerator {
    */
   generateBucketPage(offset: number, limit: number): { entries: GeneratedBucket[]; total: number } {
     const entries: GeneratedBucket[] = [];
-    const total = this.config.totalBuckets;
+    const total = this.totalBuckets; // Use getter to read from global config
 
     const start = Math.max(0, offset);
     const end = Math.min(offset + limit, total);
@@ -247,7 +248,7 @@ export class BucketGenerator {
     }
     // Generate from hash
     const hash = hashString(name);
-    const bucket = this.generateBucket(Math.abs(hash) % this.config.totalBuckets);
+    const bucket = this.generateBucket(Math.abs(hash) % this.totalBuckets); // Use getter
     return { ...bucket, name };
   }
 

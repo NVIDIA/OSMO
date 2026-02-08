@@ -21,72 +21,48 @@
  * Usage (from browser console):
  *   __mockConfig.setWorkflowTotal(100000)
  *   __mockConfig.getVolumes()
+ *
+ * ARCHITECTURE NOTE: Uses global config store to ensure consistency across
+ * Next.js contexts (Server Actions run in separate bundle from MSW handlers).
  */
 
 import type { MockVolumes } from "./mock-config.types";
+import { getGlobalMockConfig, setGlobalMockConfig } from "@/mocks/global-config";
 
 /**
  * Set mock data volumes on the server.
  * Changes take effect immediately for subsequent API requests.
+ *
+ * Uses global config store to ensure changes are visible across all
+ * Next.js contexts (Server Actions, MSW handlers, etc.).
  */
 export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<MockVolumes> {
-  // Dynamic imports ensure generators are only loaded when this action runs
-  const [wf, pool, resource, bucket, dataset] = await Promise.all([
-    import("@/mocks/generators/workflow-generator"),
-    import("@/mocks/generators/pool-generator"),
-    import("@/mocks/generators/resource-generator"),
-    import("@/mocks/generators/bucket-generator"),
-    import("@/mocks/generators/dataset-generator"),
-  ]);
+  console.log("[Mock Config] Setting volumes:", volumes);
 
+  // Update global config (shared across all Next.js contexts)
+  setGlobalMockConfig(volumes);
+
+  // Clear generator caches so they regenerate with new totals
   if (volumes.workflows !== undefined) {
-    wf.setWorkflowTotal(volumes.workflows);
-  }
-  if (volumes.pools !== undefined) {
-    pool.setPoolTotal(volumes.pools);
-  }
-  if (volumes.resourcesPerPool !== undefined) {
-    resource.setResourcePerPool(volumes.resourcesPerPool);
-  }
-  if (volumes.resourcesGlobal !== undefined) {
-    resource.setResourceTotalGlobal(volumes.resourcesGlobal);
-  }
-  if (volumes.buckets !== undefined) {
-    bucket.setBucketTotal(volumes.buckets);
-  }
-  if (volumes.datasets !== undefined) {
-    dataset.setDatasetTotal(volumes.datasets);
+    try {
+      const generators = await import("@/mocks/handlers");
+      generators.workflowGenerator.clearCache();
+      console.log("[Mock Config] Cleared workflow generator cache");
+    } catch (err) {
+      console.warn("[Mock Config] Could not clear cache:", err);
+    }
   }
 
-  // Return current volumes
-  return {
-    workflows: wf.getWorkflowTotal(),
-    pools: pool.getPoolTotal(),
-    resourcesPerPool: resource.getResourcePerPool(),
-    resourcesGlobal: resource.getResourceTotalGlobal(),
-    buckets: bucket.getBucketTotal(),
-    datasets: dataset.getDatasetTotal(),
-  };
+  // Return current volumes from global config
+  return getGlobalMockConfig();
 }
 
 /**
  * Get current mock data volumes from the server.
+ * Reads from global config store.
  */
 export async function getMockVolumes(): Promise<MockVolumes> {
-  const [wf, pool, resource, bucket, dataset] = await Promise.all([
-    import("@/mocks/generators/workflow-generator"),
-    import("@/mocks/generators/pool-generator"),
-    import("@/mocks/generators/resource-generator"),
-    import("@/mocks/generators/bucket-generator"),
-    import("@/mocks/generators/dataset-generator"),
-  ]);
-
-  return {
-    workflows: wf.getWorkflowTotal(),
-    pools: pool.getPoolTotal(),
-    resourcesPerPool: resource.getResourcePerPool(),
-    resourcesGlobal: resource.getResourceTotalGlobal(),
-    buckets: bucket.getBucketTotal(),
-    datasets: dataset.getDatasetTotal(),
-  };
+  const volumes = getGlobalMockConfig();
+  console.log("[Mock Config] Current volumes:", volumes);
+  return volumes;
 }

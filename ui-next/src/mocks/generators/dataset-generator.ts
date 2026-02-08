@@ -23,6 +23,7 @@
 
 import { faker } from "@faker-js/faker";
 import { hashString } from "../utils";
+import { getGlobalMockConfig } from "../global-config";
 
 // ============================================================================
 // Types
@@ -103,11 +104,11 @@ export class DatasetGenerator {
   }
 
   get totalDatasets(): number {
-    return this.config.totalDatasets;
+    return getGlobalMockConfig().datasets;
   }
 
   set totalDatasets(value: number) {
-    this.config.totalDatasets = value;
+    getGlobalMockConfig().datasets = value;
   }
 
   /**
@@ -154,7 +155,7 @@ export class DatasetGenerator {
    */
   generatePage(offset: number, limit: number): { entries: GeneratedDataset[]; total: number } {
     const entries: GeneratedDataset[] = [];
-    const total = this.config.totalDatasets;
+    const total = this.totalDatasets; // Use getter to read from global config
 
     const start = Math.max(0, offset);
     const end = Math.min(offset + limit, total);
@@ -203,7 +204,7 @@ export class DatasetGenerator {
    */
   getByName(name: string): GeneratedDataset | null {
     // Search through datasets
-    for (let i = 0; i < Math.min(this.config.totalDatasets, 1000); i++) {
+    for (let i = 0; i < Math.min(this.totalDatasets, 1000); i++) {
       const dataset = this.generate(i);
       if (dataset.name === name) {
         return dataset;
@@ -211,7 +212,7 @@ export class DatasetGenerator {
     }
     // Fallback: generate from hash
     const hash = hashString(name);
-    const dataset = this.generate(Math.abs(hash) % this.config.totalDatasets);
+    const dataset = this.generate(Math.abs(hash) % this.totalDatasets); // Use getter
     return { ...dataset, name };
   }
 }

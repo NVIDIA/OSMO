@@ -1386,3 +1386,22 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     });
   }),
 ];
+
+// =============================================================================
+// Export Generator Singletons
+// =============================================================================
+// These exports allow server actions to modify the SAME generator instances
+// that MSW handlers use. This ensures config changes take effect immediately.
+
+export {
+  workflowGenerator,
+  poolGenerator,
+  resourceGenerator,
+  logGenerator,
+  eventGenerator,
+  bucketGenerator,
+  datasetGenerator,
+  profileGenerator,
+  portForwardGenerator,
+  ptySimulator,
+};
