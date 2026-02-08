@@ -77,7 +77,9 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
       >
         <SpecSection
           spec={form.spec ?? spec}
+          originalSpec={spec}
           isLoading={isSpecLoading}
+          isModified={form.spec !== undefined && form.spec !== spec}
           onSpecChange={form.setSpec}
         />
         <PoolSection

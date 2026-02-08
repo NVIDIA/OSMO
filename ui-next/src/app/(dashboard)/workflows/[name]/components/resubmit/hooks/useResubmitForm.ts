@@ -49,7 +49,11 @@ export interface UseResubmitFormReturn {
   priority: WorkflowPriority;
   /** Update selected priority */
   setPriority: (priority: WorkflowPriority) => void;
-  /** Custom spec (if edited, otherwise undefined = use original) */
+  /**
+   * Custom spec (if edited AND changed, otherwise undefined = use original via workflow_id)
+   * - undefined: User hasn't edited OR edited but content is identical → backend uses workflow_id
+   * - string: User edited and changed the content → backend uses template_spec
+   */
   spec: string | undefined;
   /** Update custom spec */
   setSpec: (spec: string | undefined) => void;

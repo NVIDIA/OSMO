@@ -221,7 +221,13 @@ export interface ResubmitParams {
   poolName: string;
   /** Execution priority */
   priority: string;
-  /** Optional custom spec (if not provided, backend fetches original from workflow_id) */
+  /**
+   * Optional custom spec (if user edited and changed it)
+   * - undefined: Backend fetches original spec via workflow_id (efficient)
+   * - string: Backend uses this custom spec (ignores workflow_id)
+   *
+   * Backend constraint: EITHER template_spec OR workflow_id, never both.
+   */
   spec?: string;
 }
 
@@ -233,32 +239,43 @@ export interface ResubmitParams {
  * Resubmit a workflow to a (potentially different) pool with a given priority.
  *
  * Uses the existing submission endpoint:
- *   POST /api/pool/{pool_name}/workflow?workflow_id={id}&priority={priority}
+ *   POST /api/pool/{pool_name}/workflow
  *
- * The backend fetches the original spec from the workflow_id and creates a
- * new workflow in the specified pool.
+ * Backend constraint: EITHER template_spec OR workflow_id can be provided, never both.
+ * - If spec is provided: sends template_spec in body (custom workflow)
+ * - If spec is NOT provided: sends workflow_id query param (reuses original spec)
  *
- * @param params - Resubmit configuration (workflowId, poolName, priority)
+ * @param params - Resubmit configuration (workflowId, poolName, priority, optional spec)
  * @returns Result with the new workflow name on success, or error message
  */
 export async function resubmitWorkflow(params: ResubmitParams): Promise<ResubmitResult> {
   const { workflowId, poolName, priority, spec } = params;
 
   const queryParams = new URLSearchParams();
-  queryParams.set("workflow_id", workflowId);
   queryParams.set("priority", priority);
+
+  // Backend constraint: EITHER template_spec OR workflow_id, never both
+  if (!spec) {
+    // No custom spec: send workflow_id to reuse original spec
+    queryParams.set("workflow_id", workflowId);
+  }
 
   const endpoint = `/api/pool/${encodeURIComponent(poolName)}/workflow?${queryParams.toString()}`;
 
   try {
-    // The backend expects a TemplateSpec body.
-    // - If spec is provided, send the custom spec content
-    // - If spec is not provided, send empty file and backend fetches original from workflow_id
-    const response = await customFetch<{ name?: string }>({
+    // Build request configuration based on whether custom spec is provided
+    const requestConfig: Parameters<typeof customFetch>[0] = {
       url: endpoint,
       method: "POST",
-      data: { file: spec ?? "", set_variables: [] },
-    });
+    };
+
+    if (spec) {
+      // Custom spec: send in body (no workflow_id in query params)
+      requestConfig.data = { file: spec, set_variables: [] };
+    }
+    // If no spec: backend fetches original from workflow_id query param (no body needed)
+
+    const response = await customFetch<{ name?: string }>(requestConfig);
 
     const newName = response?.name;
 
