@@ -46,6 +46,10 @@ export interface UseResubmitFormReturn {
   priority: WorkflowPriority;
   /** Update selected priority */
   setPriority: (priority: WorkflowPriority) => void;
+  /** Custom spec (if edited, otherwise undefined = use original) */
+  spec: string | undefined;
+  /** Update custom spec */
+  setSpec: (spec: string | undefined) => void;
   /** Whether the form is valid for submission */
   isValid: boolean;
   /** Whether submission is possible (valid + not pending) */
@@ -79,6 +83,7 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
 
   const [pool, setPool] = useState(() => workflow.pool ?? "");
   const [priority, setPriority] = useState<WorkflowPriority>(() => deriveInitialPriority(workflow));
+  const [spec, setSpec] = useState<string | undefined>(undefined);
 
   const isValid = pool.length > 0;
 
@@ -114,12 +119,14 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       workflowId: workflow.name,
       poolName: pool,
       priority,
+      spec,
     });
-  }, [canSubmit, execute, workflow.name, pool, priority]);
+  }, [canSubmit, execute, workflow.name, pool, priority, spec]);
 
   const reset = useCallback(() => {
     setPool(workflow.pool ?? "");
     setPriority(deriveInitialPriority(workflow));
+    setSpec(undefined);
     resetError();
   }, [workflow, resetError]);
 
@@ -129,6 +136,8 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       setPool,
       priority,
       setPriority,
+      spec,
+      setSpec,
       isValid,
       canSubmit,
       handleSubmit,
@@ -137,6 +146,6 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       reset,
       resetError,
     }),
-    [pool, priority, isValid, canSubmit, handleSubmit, isPending, error, reset, resetError],
+    [pool, priority, spec, isValid, canSubmit, handleSubmit, isPending, error, reset, resetError],
   );
 }

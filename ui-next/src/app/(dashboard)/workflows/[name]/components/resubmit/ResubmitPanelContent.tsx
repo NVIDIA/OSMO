@@ -76,8 +76,9 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
         aria-label="Resubmit workflow form"
       >
         <SpecSection
-          spec={spec}
+          spec={form.spec ?? spec}
           isLoading={isSpecLoading}
+          onSpecChange={form.setSpec}
         />
         <PoolSection
           pool={form.pool}
