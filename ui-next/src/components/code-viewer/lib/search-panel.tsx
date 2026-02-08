@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * Custom search panel for CodeMirror spec viewer
+ * Custom search panel for CodeMirror code viewer
  *
  * Floating overlay in top-right corner, matching ShellSearch design.
  * Icon-based controls for case sensitivity, whole word, and regex.
@@ -213,11 +213,11 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
 
   return (
     <div
-      className="spec-search"
+      className="code-viewer-search"
       data-theme={isDark ? "dark" : "light"}
       onKeyDown={handlePanelKeyDown}
     >
-      <div className="spec-search-input-wrapper">
+      <div className="code-viewer-search-input-wrapper">
         <input
           ref={inputRef}
           type="text"
@@ -225,13 +225,13 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder="Find..."
-          className="spec-search-input"
-          aria-label="Search spec"
+          className="code-viewer-search-input"
+          aria-label="Search code"
         />
-        <div className="spec-search-options">
+        <div className="code-viewer-search-options">
           <button
             type="button"
-            className={cn("spec-search-option", caseSensitive && "active")}
+            className={cn("code-viewer-search-option", caseSensitive && "active")}
             onClick={toggleCaseSensitive}
             title="Match case (Aa)"
             aria-pressed={caseSensitive}
@@ -240,7 +240,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           </button>
           <button
             type="button"
-            className={cn("spec-search-option", wholeWord && "active")}
+            className={cn("code-viewer-search-option", wholeWord && "active")}
             onClick={toggleWholeWord}
             title="Match whole word"
             aria-pressed={wholeWord}
@@ -249,7 +249,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
           </button>
           <button
             type="button"
-            className={cn("spec-search-option", regexp && "active")}
+            className={cn("code-viewer-search-option", regexp && "active")}
             onClick={toggleRegexp}
             title="Use regular expression"
             aria-pressed={regexp}
@@ -259,11 +259,11 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
         </div>
       </div>
 
-      <div className="spec-search-buttons flex gap-0.5">
+      <div className="code-viewer-search-buttons flex gap-0.5">
         <Button
           variant="ghost"
           size="sm"
-          className="spec-search-nav-button size-6 p-0"
+          className="code-viewer-search-nav-button size-6 p-0"
           onClick={handleFindPrevious}
           title="Previous match (Shift+Enter)"
           disabled={!searchText}
@@ -273,7 +273,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="spec-search-nav-button size-6 p-0"
+          className="code-viewer-search-nav-button size-6 p-0"
           onClick={handleFindNext}
           title="Next match (Enter)"
           disabled={!searchText}
@@ -282,12 +282,12 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
         </Button>
       </div>
 
-      {matchInfo && <span className="spec-search-count">{matchInfo}</span>}
+      {matchInfo && <span className="code-viewer-search-count">{matchInfo}</span>}
 
       <Button
         variant="ghost"
         size="sm"
-        className="spec-search-close-button size-6 p-0"
+        className="code-viewer-search-close-button size-6 p-0"
         onClick={handleClose}
         title="Close (Escape)"
       >
@@ -306,7 +306,7 @@ export function createSearchPanel(isDark: boolean) {
 
   return (view: EditorView): { dom: HTMLElement; top: boolean; destroy?: () => void } => {
     const dom = document.createElement("div");
-    dom.className = "spec-search-panel-mount";
+    dom.className = "code-viewer-search-panel-mount";
 
     // Capture current focus to restore when search closes
     const active = document.activeElement;
