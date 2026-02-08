@@ -48,7 +48,6 @@ declare global {
 const isServer = typeof globalThis.process !== "undefined";
 
 if (isServer && !globalThis.__mockConfigData) {
-  console.log("[Global Config] Initializing mock config (server-side)");
   globalThis.__mockConfigData = {
     workflows: DEFAULT_VOLUME.workflows,
     pools: DEFAULT_VOLUME.pools,
@@ -80,5 +79,4 @@ export function setGlobalMockConfig(updates: Partial<GlobalMockConfig>): void {
   }
 
   Object.assign(globalThis.__mockConfigData, updates);
-  console.log("[Global Config] Updated:", globalThis.__mockConfigData);
 }
