@@ -192,8 +192,10 @@ const nextConfig: NextConfig = {
             // Server API config (production version has zero mock awareness)
             "@/lib/api/server/config": "@/lib/api/server/config.production",
 
-            // API proxy route (production version has zero mock code)
-            "@/app/api/[...path]/route": "@/app/api/[...path]/route.production",
+            // API proxy route implementation - alias to production version (zero mock code)
+            // The route.ts file is a thin wrapper that re-exports from route.impl.ts
+            // This allows Turbopack aliasing to work (aliases work for imports, not file discovery)
+            "@/app/api/[...path]/route.impl": "@/app/api/[...path]/route.impl.production",
           }
         : {},
   },
