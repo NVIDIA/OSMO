@@ -44,13 +44,6 @@ export function parsePagination(url: URL, defaults?: Partial<PaginationParams>):
   };
 }
 
-/**
- * Calculate if there are more entries for pagination.
- */
-export function hasMoreEntries(offset: number, limit: number, total: number): boolean {
-  return offset + limit < total;
-}
-
 // ============================================================================
 // Filter Parsing
 // ============================================================================

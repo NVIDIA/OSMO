@@ -26,20 +26,12 @@
  * SOLUTION: Use Node.js global object as the single source of truth.
  */
 
+import type { MockVolumes } from "@/actions/mock-config.types";
 import { DEFAULT_VOLUME } from "@/mocks/seed/types";
-
-interface GlobalMockConfig {
-  workflows: number;
-  pools: number;
-  resourcesPerPool: number;
-  resourcesGlobal: number;
-  buckets: number;
-  datasets: number;
-}
 
 // Extend Node.js global type
 declare global {
-  var __mockConfigData: GlobalMockConfig | undefined;
+  var __mockConfigData: MockVolumes | undefined;
 }
 
 // Initialize global config on first import (server-side only)
@@ -62,7 +54,7 @@ if (isServer && !globalThis.__mockConfigData) {
  * Get the global mock configuration.
  * Returns the same object across all Next.js contexts.
  */
-export function getGlobalMockConfig(): GlobalMockConfig {
+export function getGlobalMockConfig(): MockVolumes {
   if (!globalThis.__mockConfigData) {
     throw new Error("[Global Config] Not initialized");
   }
@@ -73,7 +65,7 @@ export function getGlobalMockConfig(): GlobalMockConfig {
  * Update the global mock configuration.
  * Changes are immediately visible to all contexts (MSW handlers, Server Actions).
  */
-export function setGlobalMockConfig(updates: Partial<GlobalMockConfig>): void {
+export function setGlobalMockConfig(updates: Partial<MockVolumes>): void {
   if (!globalThis.__mockConfigData) {
     throw new Error("[Global Config] Not initialized");
   }

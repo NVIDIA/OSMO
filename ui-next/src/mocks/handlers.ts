@@ -57,11 +57,6 @@ const MOCK_DELAY = getMockDelay();
 const WORKFLOW_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/logs$/;
 const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
-// (No helpers needed currently - removed cache-related utilities)
-
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -1389,113 +1384,51 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   // ==========================================================================
   // Catch-All Handler (HMR Recursion Guard)
   // ==========================================================================
-  // This MUST be the last handler in the array. It catches any /api/* request
-  // that wasn't matched by the specific handlers above. This only happens when:
-  // 1. A handler is missing (developer error)
-  // 2. During HMR when handlers are being reset (transient)
-  //
-  // During HMR, there's a brief window where a request might not match any
-  // handler. If we let it pass through, it hits localhost:3000 (same server)
-  // and creates an infinite loop. This catch-all detects recursion and returns
-  // 503 to break the loop.
-  //
-  // Recursion detection: We track request keys in a global Set. If we see the
-  // same request twice, it means MSW passed it through and it looped back.
+  // MUST be the last handler. During HMR, there's a brief window where
+  // requests may not match any handler. If passed through, they hit
+  // localhost:3000 (same server) creating an infinite loop. This catch-all
+  // detects recursion via a global Set and returns 503 to break the loop.
   http.all("*/api/*", async ({ request }) => {
     const url = new URL(request.url);
     const requestKey = `${request.method} ${url.pathname}`;
 
-    // Initialize the recursion tracker on globalThis (survives HMR)
     if (!globalThis.__mswRecursionTracker) {
       globalThis.__mswRecursionTracker = new Set<string>();
     }
 
     const tracker = globalThis.__mswRecursionTracker;
 
-    // Check if we've seen this request before (recursion detected)
     if (tracker.has(requestKey)) {
-      console.warn(
-        `[MSW] Recursion detected: ${requestKey}. ` + "This usually happens during HMR handler reset. Returning 503.",
-      );
-
-      // Remove from tracker so subsequent requests can try again
       tracker.delete(requestKey);
-
       return HttpResponse.json(
-        {
-          error: "Mock handler temporarily unavailable",
-          message: "Request handler unavailable during HMR reset. The client will retry automatically.",
-          path: url.pathname,
-          method: request.method,
-          retryable: true,
-        },
-        {
-          status: 503,
-          headers: {
-            "Retry-After": "1",
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-          },
-        },
+        { error: "Mock handler temporarily unavailable (HMR reset)", retryable: true },
+        { status: 503, headers: { "Retry-After": "1" } },
       );
     }
 
-    // Track this request
     tracker.add(requestKey);
-
-    // Clean up after a short delay (handlers should match quickly)
     setTimeout(() => tracker.delete(requestKey), 100);
 
-    // This is a legitimate unhandled request - warn and pass through
-    // (MSW's onUnhandledRequest will log it)
-    console.warn(`[MSW] Unhandled API request: ${requestKey}. ` + "Consider adding a handler for this endpoint.");
-
-    // Passthrough to allow MSW to handle this naturally
-    // This lets the request go to the actual network (which will fail gracefully)
     return passthrough();
   }),
 ];
 
-// Extend globalThis for recursion tracker
 declare global {
   var __mswRecursionTracker: Set<string> | undefined;
 }
 
-// =============================================================================
-// HMR Handler Refresh
-// =============================================================================
-// When Turbopack re-evaluates this module during HMR (because a generator or
-// handler changed), the `handlers` array above contains FRESH handler instances
-// with up-to-date generator references. We push them onto the running MSW server.
-//
-// This is necessary because:
-// - The MSW server (globalThis.__mswServer) was created and .listen()-ed once
-// - It holds references to the OLD handler functions from the initial evaluation
-// - resetHandlers() atomically replaces all handlers without restarting the server
-//
-// NOTE: On first load, __mswServer may not exist yet (instrumentation.ts hasn't
-// run). That's fine - instrumentation.ts will import server.ts which creates the
-// server with the initial handlers. This code only matters for subsequent HMR cycles.
-//
-// We access globalThis.__mswServer directly (set by server.ts) to avoid circular
-// imports. The type is declared in server.ts; here we use a safe property check.
-
-if ("__mswServer" in globalThis && globalThis.__mswServer) {
+// HMR Handler Refresh: When Turbopack re-evaluates this module, push fresh
+// handler instances onto the running MSW server singleton. On first load,
+// __mswServer may not exist yet (instrumentation.ts creates it later).
+if (globalThis.__mswServer) {
   try {
     globalThis.__mswServer.resetHandlers(...handlers);
-    console.log(`[MSW] HMR: Reset ${handlers.length} handlers successfully`);
   } catch (error) {
-    // If resetHandlers fails, the server still has the old handlers which
-    // continue to work. Log the error but don't crash the module evaluation.
     console.error("[MSW] HMR: Failed to reset handlers:", error);
   }
 }
 
-// =============================================================================
-// Export Generator Singletons
-// =============================================================================
-// These exports allow server actions to modify the SAME generator instances
-// that MSW handlers use. This ensures config changes take effect immediately.
-
+// Export generator singletons so server actions can modify the same instances
 export {
   workflowGenerator,
   poolGenerator,

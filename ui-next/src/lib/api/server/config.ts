@@ -36,18 +36,17 @@ import { getServerApiBaseUrl as getProductionApiBaseUrl } from "@/lib/api/server
  *
  * Development version: Adds mock mode detection on top of production logic.
  *
- * MOCK MODE: In mock mode + dev mode, returns localhost:PORT
- * to allow MSW server instrumentation to intercept requests.
- * Otherwise delegates to production implementation.
+ * MOCK MODE: Returns a localhost URL on a non-existent port.
+ * MSW intercepts the fetch() before it tries to connect.
+ * If MSW fails to intercept, the request will fail quickly with connection refused.
  */
 export function getServerApiBaseUrl(): string {
   const mockMode = process.env.NEXT_PUBLIC_MOCK_API === "true";
   const devMode = process.env.NODE_ENV === "development";
 
-  // Mock mode: Route to localhost where MSW is running
+  // Mock mode: Use localhost with non-existent port for MSW to intercept
   if (mockMode && devMode) {
-    const port = process.env.PORT || "3000";
-    return `http://localhost:${port}`;
+    return "http://localhost:9999";
   }
 
   // Normal mode: Delegate to production implementation

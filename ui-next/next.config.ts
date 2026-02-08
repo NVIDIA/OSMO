@@ -176,27 +176,24 @@ const nextConfig: NextConfig = {
             // ============================================================
 
             // MSW handlers - the root of all mock code
-            // fetch.ts imports handlers -> handlers imports generators -> generators imports faker
-            // Aliasing handlers eliminates the entire mock dependency tree
+            // handlers imports generators -> generators import faker
+            // Aliasing this eliminates the entire mock dependency tree
             "@/mocks/handlers": "@/mocks/handlers.production",
 
-            // Client-side mock provider
+            // Client-side mock provider (eliminates faker, msw, server actions)
             "@/mocks/MockProvider": "@/mocks/MockProvider.production",
 
             // Server-side MSW server (used in instrumentation.ts)
             "@/mocks/server": "@/mocks/server.production",
-
-            // Mock generators (used in /experimental pages)
-            "@/mocks/generators": "@/mocks/generators/index.production",
-
-            // Auth helpers (cookie parsing for mock JWT injection)
-            "@/mocks/inject-auth": "@/mocks/inject-auth.production",
 
             // JWT helper (production version only trusts Envoy Authorization header)
             "@/lib/auth/jwt-helper": "@/lib/auth/jwt-helper.production",
 
             // Server API config (production version has zero mock awareness)
             "@/lib/api/server/config": "@/lib/api/server/config.production",
+
+            // API proxy route (production version has zero mock code)
+            "@/app/api/[...path]/route": "@/app/api/[...path]/route.production",
           }
         : {},
   },
