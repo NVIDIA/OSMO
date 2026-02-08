@@ -32,7 +32,6 @@
   /* Layout dimensions */
   --pools-row-height: 3rem;
   --pools-row-height-compact: 2rem;
-  --pools-table-min-height: 25rem;
   --pools-border-width: 0.1875rem;
 
   /* Surface colors */
@@ -61,7 +60,6 @@
 
 .pools-table-container {
   @apply relative flex flex-col;
-  min-height: var(--pools-table-min-height);
 }
 
 /* =============================================================================
