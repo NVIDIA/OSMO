@@ -190,6 +190,39 @@ import { usePoolsData } from '@/app/(dashboard)/pools';
 - ✅ React Server Components safe (no client/server mixing)
 - ✅ No phantom module references in Turbopack
 
+### Import Patterns: Absolute Imports Only
+
+**MANDATORY: ALL imports must use absolute @/ paths. Relative imports are STRICTLY FORBIDDEN.**
+
+This rule has **NO EXCEPTIONS, NO EXEMPTIONS, NO TRANSITIONAL PERIOD**. Every import in the codebase must use the `@/` prefix.
+
+```typescript
+// ✅ REQUIRED: Absolute imports with @/ prefix
+import { Button } from "@/components/shadcn/button";
+import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
+import { PoolCard } from "@/app/(dashboard)/pools/components/PoolCard";
+import { calculateDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+
+// ❌ FORBIDDEN: Relative imports (ESLint will ERROR)
+import { Button } from "./button";
+import { Button } from "../shadcn/button";
+import { Button } from "../../components/shadcn/button";
+import { usePoolsData } from "../hooks/use-pools-data";
+```
+
+**Why absolute imports are mandatory:**
+- ✅ **Refactor-safe**: Moving files never breaks imports
+- ✅ **HMR stability**: Clearer module graph, no path resolution ambiguity
+- ✅ **Searchable**: Grep finds exact import paths across codebase
+- ✅ **Consistent**: Zero decision fatigue, one pattern always
+- ✅ **Clear boundaries**: Can see immediately if crossing feature boundaries
+- ✅ **Onboarding**: New developers learn one pattern, not context-dependent rules
+
+**Enforcement:**
+- ESLint rule errors on any relative import pattern (`./*`, `../*`)
+- No overrides, no disable comments allowed
+- CI will fail if relative imports are detected
+
 ### Import Patterns: The Direct Import Rule
 
 **CRITICAL:** All imports must be direct to source files. Barrel exports (index.ts) are **forbidden**.
@@ -254,6 +287,19 @@ import { createTableStore } from "@/stores";
 - ✅ **Turbopack compatibility**: No phantom module references or HMR bugs
 
 ## Forbidden Patterns - NEVER DO THESE
+
+```typescript
+// ❌ FORBIDDEN: Relative imports (STRICT - NO EXCEPTIONS)
+import { Button } from "./button";
+import { Button } from "../components/button";
+import { usePoolsData } from "../../hooks/use-pools-data";
+import { PoolCard } from "./PoolCard";
+
+// ✅ REQUIRED: Absolute imports with @/ prefix ALWAYS
+import { Button } from "@/components/shadcn/button";
+import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
+import { PoolCard } from "@/app/(dashboard)/pools/components/PoolCard";
+```
 
 ```typescript
 // ❌ FORBIDDEN: String literals for enums
@@ -1009,7 +1055,8 @@ Before submitting any code, verify:
 
 - [ ] Did I run `pnpm type-check && pnpm lint && pnpm test --run` with ZERO errors/warnings?
 - [ ] Did I check `@/components/` before creating a new component?
-- [ ] Are ALL imports from public APIs (`index.ts` exports)?
+- [ ] Are ALL imports using absolute @/ paths (NO relative imports like `./` or `../`)?
+- [ ] Are ALL imports direct to source files (NO barrel exports like `@/components/shadcn`)?
 - [ ] Are types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
 - [ ] Am I using enum values (e.g., `PoolStatus.ONLINE`) instead of string literals (`"ONLINE"`)?
 - [ ] Is every interactive element keyboard accessible?

@@ -109,6 +109,37 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // ============================================================================
+  // MANDATORY: Absolute Imports Only
+  // ============================================================================
+  // All imports must use absolute @/ paths. Relative imports are FORBIDDEN.
+  // This ensures:
+  // - Refactor-safety (moving files never breaks imports)
+  // - HMR stability (clearer module graph)
+  // - Searchability (grep finds all usages)
+  // - Consistency (zero decision fatigue)
+  //
+  // Good: import { Button } from "@/components/shadcn/button";
+  // Bad:  import { Button } from "./button";
+  // Bad:  import { Button } from "../shadcn/button";
+  //
+  // NO EXCEPTIONS. NO EXEMPTIONS. This is strictly enforced.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["./*", "../*"],
+              message:
+                "Relative imports are FORBIDDEN. Use absolute imports with @/ prefix. Example: import { Button } from '@/components/shadcn/button' (not './button' or '../button')",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
