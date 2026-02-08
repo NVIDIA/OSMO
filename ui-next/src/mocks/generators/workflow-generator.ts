@@ -175,7 +175,6 @@ export class WorkflowGenerator {
   constructor(config: Partial<GeneratorConfig> = {}) {
     this.instanceId = ++instanceCounter;
     this.config = { ...DEFAULT_CONFIG, ...config };
-    console.log(`[WorkflowGenerator] Instance #${this.instanceId} created with total=${this.config.total}`);
   }
 
   /**
@@ -200,12 +199,7 @@ export class WorkflowGenerator {
 
   set total(value: number) {
     const globalConfig = getGlobalMockConfig();
-    const oldValue = globalConfig.workflows;
-    console.log(`[WorkflowGenerator #${this.instanceId}] SET total called: ${oldValue} → ${value}`);
     globalConfig.workflows = value;
-    console.log(
-      `[WorkflowGenerator #${this.instanceId}] SET total complete: global config now ${globalConfig.workflows}`,
-    );
   }
 
   /**
@@ -443,10 +437,6 @@ export class WorkflowGenerator {
   generatePage(offset: number, limit: number): { entries: MockWorkflow[]; total: number } {
     const entries: MockWorkflow[] = [];
     const total = this.total; // Use getter to read from global config
-
-    console.log(
-      `[WorkflowGenerator #${this.instanceId}] generatePage(offset=${offset}, limit=${limit}) with total=${total}`,
-    );
 
     // Only generate items in the requested range
     const start = Math.max(0, offset);

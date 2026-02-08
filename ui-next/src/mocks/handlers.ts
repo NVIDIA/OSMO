@@ -1388,6 +1388,29 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 ];
 
 // =============================================================================
+// HMR Handler Refresh
+// =============================================================================
+// When Turbopack re-evaluates this module during HMR (because a generator or
+// handler changed), the `handlers` array above contains FRESH handler instances
+// with up-to-date generator references. We push them onto the running MSW server.
+//
+// This is necessary because:
+// - The MSW server (globalThis.__mswServer) was created and .listen()-ed once
+// - It holds references to the OLD handler functions from the initial evaluation
+// - resetHandlers() atomically replaces all handlers without restarting the server
+//
+// NOTE: On first load, __mswServer may not exist yet (instrumentation.ts hasn't
+// run). That's fine - instrumentation.ts will import server.ts which creates the
+// server with the initial handlers. This code only matters for subsequent HMR cycles.
+//
+// We access globalThis.__mswServer directly (set by server.ts) to avoid circular
+// imports. The type is declared in server.ts; here we use a safe property check.
+
+if ("__mswServer" in globalThis && globalThis.__mswServer) {
+  globalThis.__mswServer.resetHandlers(...handlers);
+}
+
+// =============================================================================
 // Export Generator Singletons
 // =============================================================================
 // These exports allow server actions to modify the SAME generator instances
