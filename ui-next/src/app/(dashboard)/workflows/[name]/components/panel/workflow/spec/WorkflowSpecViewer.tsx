@@ -29,7 +29,7 @@ import { memo } from "react";
 import { FileCode, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { CodeViewer } from "@/components/code-viewer/CodeViewer";
+import { CodeMirror } from "@/components/code-viewer/CodeMirror";
 import { CodeViewerSkeleton } from "@/components/code-viewer/CodeViewerSkeleton";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { SpecToolbar } from "./SpecToolbar";
@@ -166,11 +166,12 @@ export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflowId 
 
       <div className="relative flex-1 overflow-hidden">
         {content ? (
-          <CodeViewer
-            content={content}
+          <CodeMirror
+            value={content}
             language={YAML_LANGUAGE}
             aria-label={`${activeView.toUpperCase()} specification`}
             className="absolute inset-0"
+            readOnly
           />
         ) : (
           <CodeViewerSkeleton className="absolute inset-0" />

@@ -15,16 +15,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * SpecSection - Collapsible read-only YAML spec viewer.
- * Starts collapsed by default to reduce cognitive load.
+ * SpecSection - Collapsible YAML spec viewer/editor.
+ * Shows sophisticated CodeMirror-based viewer with syntax highlighting.
+ * Switches to editable mode when "Edit" is clicked.
  */
 
 "use client";
 
 import { memo, useState } from "react";
 import { FileCode } from "lucide-react";
-import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { CodeMirror } from "@/components/code-viewer/CodeMirror";
+import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { CollapsibleSection } from "./CollapsibleSection";
 
 export interface SpecSectionProps {
@@ -32,6 +34,8 @@ export interface SpecSectionProps {
   spec: string | null;
   /** Whether spec data is loading */
   isLoading: boolean;
+  /** Callback when spec content changes (for edit mode) */
+  onSpecChange?: (spec: string) => void;
 }
 
 const SpecSkeleton = memo(function SpecSkeleton() {
@@ -57,49 +61,129 @@ const SpecEmpty = memo(function SpecEmpty() {
   );
 });
 
-function SpecContent({ spec, isLoading }: SpecSectionProps) {
+interface SpecContentProps {
+  spec: string | null;
+  isLoading: boolean;
+  isEditing: boolean;
+  editedSpec: string;
+  onEditedSpecChange: (value: string) => void;
+}
+
+function SpecContent({ spec, isLoading, isEditing, editedSpec, onEditedSpecChange }: SpecContentProps) {
   if (isLoading) return <SpecSkeleton />;
 
   if (!spec) return <SpecEmpty />;
 
+  // Split into edit vs view mode for type safety
+  if (isEditing) {
+    return (
+      <div className="h-96 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
+        <CodeMirror
+          value={editedSpec}
+          onChange={onEditedSpecChange}
+          language={YAML_LANGUAGE}
+          aria-label="YAML specification editor"
+          className="h-full"
+        />
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="scrollbar-styled max-h-72 overflow-auto rounded-md bg-zinc-900 p-4"
-      role="region"
-      aria-label="YAML specification preview"
-    >
-      <pre className="font-mono text-[0.8125rem] leading-relaxed text-zinc-300">
-        <code>{spec}</code>
-      </pre>
+    <div className="h-72 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
+      <CodeMirror
+        value={spec}
+        language={YAML_LANGUAGE}
+        aria-label="YAML specification"
+        className="h-full"
+        readOnly
+      />
     </div>
   );
 }
 
-export const SpecSection = memo(function SpecSection({ spec, isLoading }: SpecSectionProps) {
+export const SpecSection = memo(function SpecSection({ spec, isLoading, onSpecChange }: SpecSectionProps) {
   const [open, setOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedSpec, setEditedSpec] = useState(spec ?? "");
 
-  const editButton = (
-    <Button
-      variant="ghost"
-      size="sm"
-      asChild
-      className="text-primary h-7 px-2 text-xs font-medium"
-      aria-label="Edit workflow specification"
-    >
+  const handleEdit = () => {
+    setEditedSpec(spec ?? "");
+    setIsEditing(true);
+    setOpen(true);
+  };
+
+  const handleSave = () => {
+    onSpecChange?.(editedSpec);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditedSpec(spec ?? "");
+    setIsEditing(false);
+  };
+
+  const actionButton = isEditing ? (
+    <div className="flex gap-2">
       <span
-        onClick={() => setOpen(true)}
-        role="button"
-        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleCancel();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setOpen(true);
+            e.stopPropagation();
+            handleCancel();
           }
         }}
+        role="button"
+        tabIndex={0}
+        className="hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        aria-label="Cancel editing"
       >
-        Edit
+        Cancel
       </span>
-    </Button>
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          handleSave();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSave();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        aria-label="Save changes"
+      >
+        Save
+      </span>
+    </div>
+  ) : (
+    <span
+      onClick={(e) => {
+        e.stopPropagation();
+        handleEdit();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          handleEdit();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      className="text-primary hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      aria-label="Edit workflow specification"
+    >
+      Edit
+    </span>
   );
 
   return (
@@ -108,11 +192,14 @@ export const SpecSection = memo(function SpecSection({ spec, isLoading }: SpecSe
       title="Workflow Specification"
       open={open}
       onOpenChange={setOpen}
-      action={editButton}
+      action={actionButton}
     >
       <SpecContent
         spec={spec}
         isLoading={isLoading}
+        isEditing={isEditing}
+        editedSpec={editedSpec}
+        onEditedSpecChange={setEditedSpec}
       />
     </CollapsibleSection>
   );

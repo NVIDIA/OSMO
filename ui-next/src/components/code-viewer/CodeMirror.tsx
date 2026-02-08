@@ -15,35 +15,40 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * CodeViewer - Read-only code viewing component
+ * CodeMirror - Unified code viewer/editor component
  *
- * Language-agnostic CodeMirror-based viewer with syntax highlighting,
+ * Language-agnostic CodeMirror-based component with syntax highlighting,
  * search (Cmd+F), code folding, line numbers, indentation guides,
  * and theme-aware light/dark mode.
+ *
+ * Supports both read-only viewing and editing modes via the readOnly prop.
+ * TypeScript enforces that onChange is required when readOnly is false/omitted.
  *
  * The `language` prop must be a referentially stable object (module-level
  * constant or useMemo'd) to avoid unnecessary CodeMirror re-renders.
  *
- * @example YAML viewer
+ * @example Read-only viewer
  * ```tsx
- * import { CodeViewer } from "@/components/code-viewer/CodeViewer";
+ * import { CodeMirror } from "@/components/code-viewer/CodeMirror";
  * import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
  *
- * <CodeViewer
- *   content={yamlContent}
+ * <CodeMirror
+ *   value={yamlContent}
  *   language={YAML_LANGUAGE}
- *   aria-label="YAML configuration"
+ *   readOnly
  * />
  * ```
  *
- * @example JSON viewer (define constant at module level)
+ * @example Editable editor
  * ```tsx
- * import { CodeViewer } from "@/components/code-viewer/CodeViewer";
- * import { json } from "@codemirror/lang-json";
+ * import { CodeMirror } from "@/components/code-viewer/CodeMirror";
+ * import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
  *
- * const JSON_LANGUAGE = { name: "JSON", extension: json() };
- *
- * <CodeViewer content={jsonContent} language={JSON_LANGUAGE} />
+ * <CodeMirror
+ *   value={yamlContent}
+ *   onChange={setYamlContent}
+ *   language={YAML_LANGUAGE}
+ * />
  * ```
  */
 
@@ -51,20 +56,22 @@
 
 import { memo, useMemo, useRef, useEffect } from "react";
 import { useTheme } from "next-themes";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirrorLib from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { closeSearchPanel } from "@codemirror/search";
 import { createExtensions } from "./lib/extensions";
 import { useMounted } from "@/hooks/use-mounted";
-import type { CodeViewerProps } from "./types";
+import type { CodeMirrorProps } from "./types";
 import "./code-viewer-search.css";
 
-export const CodeViewer = memo(function CodeViewer({
-  content,
+export const CodeMirror = memo(function CodeMirror({
+  value,
+  onChange,
   language,
+  readOnly = false,
   "aria-label": ariaLabel,
   className,
-}: CodeViewerProps) {
+}: CodeMirrorProps) {
   const mounted = useMounted();
   const { theme, resolvedTheme } = useTheme();
   const viewRef = useRef<EditorView | null>(null);
@@ -73,8 +80,32 @@ export const CodeViewer = memo(function CodeViewer({
   const isDark = !mounted ? true : (resolvedTheme ?? theme ?? "dark") === "dark";
 
   const extensions = useMemo(
-    () => createExtensions(language.extension, ariaLabel ?? language.name, isDark),
-    [language.extension, language.name, ariaLabel, isDark],
+    () => createExtensions(language.extension, ariaLabel ?? language.name, isDark, readOnly),
+    [language.extension, language.name, ariaLabel, isDark, readOnly],
+  );
+
+  const basicSetup = useMemo(
+    () => ({
+      lineNumbers: true,
+      highlightActiveLineGutter: !readOnly,
+      highlightActiveLine: true,
+      foldGutter: false, // We use our own fold gutter
+      dropCursor: !readOnly,
+      allowMultipleSelections: !readOnly,
+      indentOnInput: !readOnly,
+      bracketMatching: true,
+      closeBrackets: !readOnly,
+      autocompletion: !readOnly,
+      rectangularSelection: !readOnly,
+      crosshairCursor: false,
+      highlightSelectionMatches: true,
+      closeBracketsKeymap: !readOnly,
+      searchKeymap: false, // Provided by createExtensions with custom search panel
+      foldKeymap: true,
+      completionKeymap: !readOnly,
+      lintKeymap: false,
+    }),
+    [readOnly],
   );
 
   useEffect(() => {
@@ -89,34 +120,16 @@ export const CodeViewer = memo(function CodeViewer({
       role="region"
       aria-label={ariaLabel ?? language.name}
     >
-      <CodeMirror
-        value={content}
+      <CodeMirrorLib
+        value={value}
+        onChange={onChange}
         theme={isDark ? "dark" : "light"}
         extensions={extensions}
-        readOnly
+        readOnly={readOnly}
         onCreateEditor={(view) => {
           viewRef.current = view;
         }}
-        basicSetup={{
-          lineNumbers: true,
-          highlightActiveLineGutter: false,
-          highlightActiveLine: true,
-          foldGutter: false, // We use our own fold gutter
-          dropCursor: false,
-          allowMultipleSelections: false,
-          indentOnInput: false,
-          bracketMatching: true,
-          closeBrackets: false,
-          autocompletion: false,
-          rectangularSelection: false,
-          crosshairCursor: false,
-          highlightSelectionMatches: true,
-          closeBracketsKeymap: false,
-          searchKeymap: false, // Provided by createExtensions with custom search panel
-          foldKeymap: true,
-          completionKeymap: false,
-          lintKeymap: false,
-        }}
+        basicSetup={basicSetup}
         height="100%"
         style={{ height: "100%" }}
       />
