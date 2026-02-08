@@ -24,6 +24,7 @@
  */
 
 import { http, HttpResponse, delay } from "msw";
+import { faker } from "@faker-js/faker";
 import { workflowGenerator } from "./generators/workflow-generator";
 import { poolGenerator } from "./generators/pool-generator";
 import { resourceGenerator } from "./generators/resource-generator";
@@ -34,8 +35,9 @@ import { datasetGenerator } from "./generators/dataset-generator";
 import { profileGenerator } from "./generators/profile-generator";
 import { portForwardGenerator } from "./generators/portforward-generator";
 import { ptySimulator, type PTYScenario } from "./generators/pty-simulator";
-import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay } from "./utils";
+import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString } from "./utils";
 import { getMockWorkflow, getWorkflowLogConfig } from "./mock-workflows";
+import { MOCK_CONFIG } from "./seed/types";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -296,6 +298,51 @@ export const handlers = [
 
     return HttpResponse.json({ message: `Group ${groupName} in workflow ${name} retry initiated` });
   }),
+
+  // ==========================================================================
+  // Workflow Submission / Resubmit
+  // ==========================================================================
+
+  // Submit/Resubmit workflow to pool
+  // POST /api/pool/{pool_name}/workflow?workflow_id={id}&priority={priority}
+  // Body: TemplateSpec with { file, set_variables, ... }
+  // Returns: SubmitResponse with new workflow name
+  http.post("*/api/pool/:poolName/workflow", async ({ params, request }) => {
+    await delay(MOCK_DELAY);
+
+    const poolName = params.poolName as string;
+    const url = new URL(request.url);
+    const workflowId = url.searchParams.get("workflow_id");
+
+    // Validate pool exists
+    const pool = poolGenerator.getByName(poolName);
+    if (!pool) {
+      return HttpResponse.json({ detail: `Pool ${poolName} not found` }, { status: 404 });
+    }
+
+    // Generate a new workflow name for the resubmitted workflow
+    // Use deterministic seeding based on workflow_id + timestamp for uniqueness
+    const seed = workflowId ? hashString(workflowId + Date.now()) : Math.floor(Math.random() * 1000000);
+    faker.seed(seed);
+
+    const prefix = faker.helpers.arrayElement(MOCK_CONFIG.workflows.namePatterns.prefixes);
+    const suffix = faker.helpers.arrayElement(MOCK_CONFIG.workflows.namePatterns.suffixes);
+    const id = faker.string.alphanumeric(8).toLowerCase();
+    const newWorkflowName = `${prefix}-${suffix}-${id}`;
+
+    // Return SubmitResponse format (matching generated API types)
+    return HttpResponse.json({
+      name: newWorkflowName,
+      overview: `/api/workflow/${newWorkflowName}`,
+      logs: `/api/workflow/${newWorkflowName}/logs`,
+      spec: `/api/workflow/${newWorkflowName}/spec`,
+      dashboard_url: `/workflows/${newWorkflowName}`,
+    });
+  }),
+
+  // ==========================================================================
+  // Workflow Logs
+  // ==========================================================================
 
   // Workflow logs (with streaming support)
   // Matches real backend: /api/workflow/{name}/logs from workflow_service.py:711-749

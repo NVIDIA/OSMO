@@ -262,14 +262,10 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
 
     const newName = response?.name;
 
-    // Revalidate workflow list and individual workflow caches
-    updateTag("workflows");
-    if (newName) {
-      updateTag(`workflow-${newName}`);
-      revalidatePath(`/workflows/${newName}`, "page");
-    }
-    revalidatePath("/workflows", "page");
-    refresh();
+    // No cache revalidation needed - creating a new workflow doesn't affect:
+    // - Current workflow page (unchanged)
+    // - New workflow page (will fetch fresh when user navigates to it)
+    // - Workflows list (will fetch fresh when user navigates to it)
 
     return { success: true, newWorkflowName: newName };
   } catch (error) {
