@@ -37,8 +37,6 @@ import { getGlobalMockConfig, setGlobalMockConfig } from "@/mocks/global-config"
  * Next.js contexts (Server Actions, MSW handlers, etc.).
  */
 export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<MockVolumes> {
-  console.log("[Mock Config] Setting volumes:", volumes);
-
   // Update global config (shared across all Next.js contexts)
   setGlobalMockConfig(volumes);
 
@@ -47,9 +45,8 @@ export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<Moc
     try {
       const generators = await import("@/mocks/handlers");
       generators.workflowGenerator.clearCache();
-      console.log("[Mock Config] Cleared workflow generator cache");
-    } catch (err) {
-      console.warn("[Mock Config] Could not clear cache:", err);
+    } catch {
+      // Cache clear failed, not critical
     }
   }
 
@@ -62,7 +59,5 @@ export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<Moc
  * Reads from global config store.
  */
 export async function getMockVolumes(): Promise<MockVolumes> {
-  const volumes = getGlobalMockConfig();
-  console.log("[Mock Config] Current volumes:", volumes);
-  return volumes;
+  return getGlobalMockConfig();
 }
