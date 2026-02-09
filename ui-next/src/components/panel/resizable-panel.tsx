@@ -287,11 +287,11 @@ export function ResizablePanel({
         ref={panelRef}
         className={cn(
           // Note: NO overflow-hidden here - allows resize handle to extend past left edge
-          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
+          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900",
           // Disable ALL transitions during drag for buttery smooth 60fps resizing
           isDragging
             ? "transition-none"
-            : "transition-[transform,opacity,width] duration-200 ease-out motion-reduce:transition-none",
+            : "transition-[transform,width] duration-200 ease-out motion-reduce:transition-none",
           className,
         )}
         style={{
@@ -301,10 +301,9 @@ export function ResizablePanel({
           // translateX(100%) and the CSS transition slides the panel off-screen.
           // Content stays mounted inside during the slide, creating a synchronized exit.
           transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
-          opacity: panelSlideIn ? 1 : 0,
           // Force GPU compositing layer only when actively animating to prevent layout thrashing.
           // Reset to "auto" when closed to release the GPU memory.
-          willChange: shellMounted ? "transform, opacity" : "auto",
+          willChange: shellMounted ? "transform" : "auto",
           ...dragStyles,
           ...(effectiveCollapsed
             ? {}
