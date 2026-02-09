@@ -87,7 +87,9 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       enableSorting: false,
       cell: ({ row }) => {
         const sizeBytes = row.original.size_bytes || 0;
-        const formatted = formatBytes(sizeBytes);
+        // Convert bytes to GiB (formatBytes expects GiB)
+        const sizeGib = sizeBytes / 1024 ** 3;
+        const formatted = formatBytes(sizeGib);
         return (
           <span className="truncate font-mono text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
             {formatted.display}
