@@ -53,6 +53,14 @@ export interface GeneratedDatasetVersion {
   created_by: string;
 }
 
+export interface DatasetFile {
+  name: string;
+  type: "file" | "folder";
+  size?: number;
+  modified?: string;
+  checksum?: string;
+}
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -214,6 +222,90 @@ export class DatasetGenerator {
     const hash = hashString(name);
     const dataset = this.generate(Math.abs(hash) % this.totalDatasets); // Use getter
     return { ...dataset, name };
+  }
+
+  /**
+   * Generate file tree for a dataset at a specific path.
+   * DETERMINISTIC: Same dataset + path always produces the same files.
+   *
+   * @param datasetName - Dataset name
+   * @param path - Path within dataset (e.g., "/", "/train", "/train/n01440764")
+   * @returns Array of files and folders at that path
+   */
+  generateFileTree(datasetName: string, path: string = "/"): DatasetFile[] {
+    // Normalize path
+    const normalizedPath = path === "/" ? "" : path.replace(/^\//, "").replace(/\/$/, "");
+    const depth = normalizedPath === "" ? 0 : normalizedPath.split("/").length;
+
+    // Seed based on dataset name + path for deterministic generation
+    faker.seed(this.config.baseSeed + hashString(datasetName + path));
+
+    const files: DatasetFile[] = [];
+
+    // Root level: standard dataset structure
+    if (depth === 0) {
+      files.push(
+        { name: "train", type: "folder" },
+        { name: "validation", type: "folder" },
+        { name: "test", type: "folder" },
+        {
+          name: "metadata.json",
+          type: "file",
+          size: faker.number.int({ min: 1024, max: 10240 }),
+          modified: faker.date.recent({ days: 30 }).toISOString(),
+          checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        },
+        {
+          name: "README.md",
+          type: "file",
+          size: faker.number.int({ min: 512, max: 5120 }),
+          modified: faker.date.recent({ days: 60 }).toISOString(),
+          checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        },
+      );
+    }
+
+    // Level 1: split folders (train, validation, test)
+    else if (depth === 1) {
+      const numClasses = faker.number.int({ min: 10, max: 100 });
+      for (let i = 0; i < numClasses; i++) {
+        files.push({
+          name: `n${String(i).padStart(8, "0")}`,
+          type: "folder",
+        });
+      }
+    }
+
+    // Level 2+: class folders with files
+    else if (depth >= 2) {
+      const numFiles = faker.number.int({ min: 50, max: 500 });
+      const format = faker.helpers.arrayElement(["parquet", "jpg", "png", "tfrecord"]);
+      const extension = format === "parquet" ? ".parquet" : format === "tfrecord" ? ".tfrecord" : `.${format}`;
+
+      for (let i = 0; i < numFiles; i++) {
+        const fileName = `${String(i).padStart(6, "0")}${extension}`;
+        files.push({
+          name: fileName,
+          type: "file",
+          size: faker.number.int({ min: 10240, max: 10485760 }), // 10KB - 10MB
+          modified: faker.date.recent({ days: 90 }).toISOString(),
+          checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        });
+      }
+
+      // Add a few metadata files
+      if (faker.datatype.boolean(0.3)) {
+        files.push({
+          name: "_metadata.json",
+          type: "file",
+          size: faker.number.int({ min: 512, max: 2048 }),
+          modified: faker.date.recent({ days: 90 }).toISOString(),
+          checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        });
+      }
+    }
+
+    return files;
   }
 }
 

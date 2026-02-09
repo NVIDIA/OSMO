@@ -1302,7 +1302,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
   // Get dataset info
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/bucket/:bucket/dataset/:name/info", async ({ params }) => {
+  http.get("*/api/bucket/:bucket/dataset/:name/info", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
@@ -1314,6 +1314,21 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
     const versions = datasetGenerator.generateVersions(name);
 
+    // Check if path parameter is provided for file listing
+    const url = new URL(request.url);
+    const path = url.searchParams.get("path");
+
+    // If path is provided, include files array in response
+    if (path !== null) {
+      const files = datasetGenerator.generateFileTree(name, path);
+      return HttpResponse.json({
+        ...dataset,
+        versions,
+        files,
+      });
+    }
+
+    // Default response without files
     return HttpResponse.json({
       ...dataset,
       versions,
