@@ -178,6 +178,7 @@ To rotate a token:
    .. code-block:: bash
 
       $ osmo token delete backend-token --user backend-operator
+
 Delete a Service Account
 ------------------------
 
@@ -300,6 +301,7 @@ Permission Denied
 .. code-block:: bash
 
    $ osmo user get backend-operator
+
 Add necessary roles if missing:
 
 .. code-block:: bash
