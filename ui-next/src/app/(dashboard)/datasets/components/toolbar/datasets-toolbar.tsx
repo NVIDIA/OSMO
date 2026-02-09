@@ -17,6 +17,8 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { User, Users } from "lucide-react";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { SearchChip } from "@/stores/types";
 import type { ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
@@ -30,13 +32,42 @@ export interface DatasetsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
+  /** Show all users' datasets (true) or only current user's (false) */
+  showAllUsers: boolean;
+  /** Whether the show all users toggle is pending (async URL update) */
+  showAllUsersPending: boolean;
+  /** Callback when show all users toggle is clicked */
+  onToggleShowAllUsers: () => void;
 }
+
+interface UserToggleProps {
+  showAllUsers: boolean;
+  isTransitioning: boolean;
+  onToggle: () => void;
+}
+
+const UserToggle = memo(function UserToggle({ showAllUsers, isTransitioning, onToggle }: UserToggleProps) {
+  return (
+    <SemiStatefulButton
+      onClick={onToggle}
+      currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
+      nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
+      label={showAllUsers ? "Show My Datasets" : "Show All Datasets"}
+      aria-label={showAllUsers ? "Currently showing all users' datasets" : "Currently showing my datasets"}
+      tooltipSide="top"
+      isTransitioning={isTransitioning}
+    />
+  );
+});
 
 export const DatasetsToolbar = memo(function DatasetsToolbar({
   datasets,
   searchChips,
   onSearchChipsChange,
   resultsCount,
+  showAllUsers,
+  showAllUsersPending,
+  onToggleShowAllUsers,
 }: DatasetsToolbarProps) {
   const visibleColumnIds = useDatasetsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useDatasetsTableStore((s) => s.toggleColumn);
@@ -55,6 +86,12 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search datasets... (try 'name:', 'format:', 'bucket:')"
       resultsCount={resultsCount}
-    />
+    >
+      <UserToggle
+        showAllUsers={showAllUsers}
+        isTransitioning={showAllUsersPending}
+        onToggle={onToggleShowAllUsers}
+      />
+    </TableToolbar>
   );
 });
