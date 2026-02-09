@@ -1316,7 +1316,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
       hash_location: d.path,
       hash_location_size: d.size_bytes,
       version_id: `v${d.version}`, // Format version as "v1", "v2", etc.
-      type: d.format.toUpperCase(), // Backend uses uppercase format as type
+      type: "DATASET", // Backend type is either DATASET or COLLECTION
     }));
 
     // DataListResponse expects 'datasets' array
