@@ -33,21 +33,17 @@ message InitBackendResponse {
   string message = 2;
 }
 
+// NodeConditionStreamRequest is the request for NodeConditionStream (backend-name in metadata).
+message NodeConditionStreamRequest {}
+
 // ListenerService handles bidirectional streaming connections from workflow backends
 service ListenerService {
   // Bidirectional stream for backend communication (workflow updates, resource events, etc.)
   rpc ListenerStream(stream ListenerMessage) returns (stream AckMessage);
 
+  // Server stream: send initial node conditions from DB, then push on Redis queue updates.
+  rpc NodeConditionStream(NodeConditionStreamRequest) returns (stream NodeConditionsMessage);
+
   // Initialize a workflow backend
   rpc InitBackend(InitBackendRequest) returns (InitBackendResponse);
 }
-
-// NodeConditionStreamRequest is the request for NodeConditionStream (backend-name in metadata).
-message NodeConditionStreamRequest {}
-
-// ConfigService streams node conditions to workflow backends (DB + Redis queue).
-service ConfigService {
-  // Server stream: send initial node conditions from DB, then push on Redis queue updates.
-  rpc NodeConditionStream(NodeConditionStreamRequest) returns (stream NodeConditionsMessage);
-}
-
