@@ -1442,16 +1442,55 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     // Check if updating existing credential
     const existing = mockCredentials.get(name);
 
+    // Determine credential type and transform backend format to UI format
+    let credentialType: "registry" | "data" | "generic" = "generic";
+    let credentialData: Record<string, unknown> = {};
+
+    if (body.registry_credential && typeof body.registry_credential === "object") {
+      credentialType = "registry";
+      const reg = body.registry_credential as Record<string, unknown>;
+      credentialData = {
+        registry: {
+          url: reg.registry || "",
+          username: reg.username || "",
+          password: reg.auth || "",
+        },
+      };
+    } else if (body.data_credential && typeof body.data_credential === "object") {
+      credentialType = "data";
+      const data = body.data_credential as Record<string, unknown>;
+      credentialData = {
+        data: {
+          endpoint: data.endpoint || "",
+          access_key: data.access_key_id || "",
+          secret_key: data.access_key || "",
+        },
+      };
+    } else if (body.generic_credential && typeof body.generic_credential === "object") {
+      credentialType = "generic";
+      const gen = body.generic_credential as Record<string, unknown>;
+      const cred = gen.credential as Record<string, unknown> | undefined;
+      if (cred) {
+        const [key, value] = Object.entries(cred)[0] || ["", ""];
+        credentialData = {
+          generic: {
+            key: String(key),
+            value: String(value),
+          },
+        };
+      }
+    }
+
     const credential = {
       id: existing && typeof existing === "object" && "id" in existing ? (existing.id as string) : faker.string.uuid(),
       name,
-      type: body.type || "generic",
+      type: credentialType,
       created_at:
         existing && typeof existing === "object" && "created_at" in existing
           ? (existing.created_at as string)
           : new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      ...body,
+      ...credentialData,
     };
 
     // Store the credential

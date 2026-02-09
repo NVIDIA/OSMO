@@ -197,13 +197,21 @@ export class ProfileGenerator {
 
   /**
    * Generate credentials list
+   * Ensures at least one credential of each type (registry, data, generic)
    */
   generateCredentials(count: number = 5): GeneratedCredential[] {
     faker.seed(this.baseSeed + 2000);
     const credentials: GeneratedCredential[] = [];
 
-    for (let i = 0; i < count; i++) {
-      const type = faker.helpers.arrayElement(["registry", "data", "generic"] as const);
+    // Ensure we have at least one of each type
+    const types: Array<"registry" | "data" | "generic"> = ["registry", "data", "generic"];
+    const minCount = Math.max(count, types.length);
+
+    for (let i = 0; i < minCount; i++) {
+      // For the first 3 credentials, guarantee one of each type
+      // After that, pick randomly
+      const type = i < types.length ? types[i] : faker.helpers.arrayElement(types);
+
       const name = faker.helpers.arrayElement([
         "my-ngc-cred",
         "docker-hub-cred",
