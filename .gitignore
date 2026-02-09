@@ -1,5 +1,5 @@
-# Ignore bazel cache files
-bazel-*
+# Ignore bazel artifact symlinks at repo root
+/bazel-*
 MODULE.bazel.lock
 
 # Ignore python cache files
