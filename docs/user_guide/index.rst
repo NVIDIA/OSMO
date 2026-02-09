@@ -226,7 +226,6 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store datasets a
   getting_started/install/index
   getting_started/profile
   getting_started/credentials
-  getting_started/access_tokens
   getting_started/next_steps
 
 .. toctree::

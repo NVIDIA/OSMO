@@ -204,7 +204,9 @@ Check if the token is expired by listing the service account's tokens:
 .. code-block:: bash
 
    $ osmo token list --user backend-operator
-If the token is expired, create a new one following :ref:`create_osmo_token`. Remember to update the Kubernetes secret with the new token:
+
+If the token is expired, create a new one following :ref:`create_osmo_token`. Remember to update
+the Kubernetes secret with the new token:
 
 .. code-block:: bash
 

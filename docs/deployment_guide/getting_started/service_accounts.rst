@@ -120,6 +120,7 @@ View details including assigned roles:
 .. code-block:: bash
 
    $ osmo user get backend-operator
+
 **Example output:**
 
 .. code-block:: text
@@ -138,6 +139,7 @@ View all tokens for a service account:
 .. code-block:: bash
 
    $ osmo token list --user backend-operator
+
 Update Service Account Roles
 ----------------------------
 
@@ -184,6 +186,12 @@ Delete the service account user (this also deletes all associated tokens):
 .. code-block:: bash
 
    $ osmo user delete backend-operator
+
+.. seealso::
+
+   - :ref:`cli_reference_token` for token CLI reference
+   - :ref:`cli_reference_user` for user CLI reference
+
 Common Service Account Patterns
 ===============================
 
@@ -238,6 +246,11 @@ For monitoring systems or automation scripts:
 
    # Run monitoring commands
    osmo workflow list --format-type json | process_metrics.py
+
+.. seealso::
+
+   - :ref:`access_tokens` for personal access token documentation
+   - :ref:`deploy_backend` for backend operator deployment
 
 Best Practices
 ==============
@@ -303,10 +316,3 @@ User Not Found
 .. code-block:: bash
 
    $ osmo user create backend-operator --roles osmo-backend
-
-.. seealso::
-
-   - :ref:`access_tokens` for personal access token documentation
-   - :ref:`deploy_backend` for backend operator deployment
-   - :ref:`cli_reference_token` for token CLI reference
-   - :ref:`cli_reference_user` for user CLI reference
