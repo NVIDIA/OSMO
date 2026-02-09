@@ -170,9 +170,23 @@ function createInitialState(
   // Normalize persisted percentage to ensure it's in valid range
   const normalizedPersisted = normalizePersistedPct(initialPersistedPct);
 
-  // If initially collapsed, set widthPct to strip target
-  // Otherwise use the persisted percentage
-  const widthPct = initialCollapsed ? stripSnapTargetPct : normalizedPersisted;
+  // If initially collapsed, determine the best collapsed width:
+  // - If initialPersistedPct is in the collapsed range (< 20%), it was persisted by
+  //   updateStripSnapTarget and represents a pixel-accurate strip width. Use it directly.
+  // - Otherwise fall back to stripSnapTargetPct (which may be the default 2% if no
+  //   container measurements were available at construction time).
+  //
+  // This prevents the stale 2% default from overriding a previously-computed
+  // accurate value (e.g., 3.31% for a 40px strip on a 1208px container).
+  let widthPct: number;
+  if (initialCollapsed) {
+    widthPct =
+      isCollapsedWidth(initialPersistedPct) && initialPersistedPct > stripSnapTargetPct
+        ? initialPersistedPct
+        : stripSnapTargetPct;
+  } else {
+    widthPct = normalizedPersisted;
+  }
 
   return {
     phase: "IDLE",
@@ -562,9 +576,12 @@ export class PanelResizeStateMachine {
       // ACTIVITY_STRIP_WIDTH_PX (the hard stop).
       this.minPct = newTarget;
 
-      // If currently collapsed, update widthPct to match new target
+      // If currently collapsed, update widthPct to match new target.
+      // Also persist the corrected value so subsequent page loads use the
+      // pixel-accurate strip width instead of the stale 2% default.
       if (this.isCollapsed() && this.state.phase === "IDLE") {
         this.setState({ widthPct: newTarget });
+        this.onPersist(newTarget);
       }
     }
   }

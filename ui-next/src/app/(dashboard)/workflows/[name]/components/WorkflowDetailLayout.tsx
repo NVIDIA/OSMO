@@ -24,7 +24,7 @@
 
 "use client";
 
-import { useRef, useMemo, useCallback, type ReactNode, type RefObject, type CSSProperties } from "react";
+import { useRef, useEffect, useMemo, useCallback, type ReactNode, type RefObject, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "@/app/(dashboard)/workflows/[name]/components/SnapZoneIndicator";
 import {
@@ -33,7 +33,7 @@ import {
   useIsDragging,
   useSnapZone,
 } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
-import { PANEL_TIMING } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
+import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 import "@/app/(dashboard)/workflows/[name]/styles/layout.css";
 
@@ -51,7 +51,7 @@ export function WorkflowDetailLayout({
   mainAriaLabel,
 }: WorkflowDetailLayoutProps) {
   // Get state machine state and actions
-  const { phase, widthPct, onTransitionComplete } = usePanelResize();
+  const { phase, widthPct, onTransitionComplete, updateStripSnapTarget } = usePanelResize();
 
   // Subscribe to specific state slices for rendering decisions
   const dagVisible = useDisplayDagVisible();
@@ -60,6 +60,47 @@ export function WorkflowDetailLayout({
 
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef ?? internalContainerRef;
+
+  // Keep strip snap target in sync with actual container width.
+  //
+  // This effect MUST live in WorkflowDetailLayout (not the parent) because
+  // the grid container ref is only populated when this component renders.
+  // The parent conditionally renders this component (isReady gate), so a
+  // useEffect in the parent cannot reliably access containerRef.current.
+  //
+  // The ResizeObserver recalculates the pixel-accurate strip target percentage
+  // whenever the container resizes (e.g., window resize, sidebar toggle).
+  // Without this, the collapsed panel uses a stale percentage that may not
+  // correspond to ACTIVITY_STRIP_WIDTH_PX at the current container width.
+  //
+  // NOTE: Empty dependency array is intentional. The effect runs once when
+  // WorkflowDetailLayout mounts (which only happens when isReady is true,
+  // guaranteeing containerRef.current is available). The ResizeObserver
+  // persists for the component's lifetime and handles all subsequent resize
+  // events. Using updateStripSnapTarget in deps would cause the observer to
+  // be torn down and re-created on every state machine update, missing
+  // resize events in the gap.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateTarget = () => {
+      const containerWidth = container.clientWidth;
+      if (containerWidth > 0) {
+        updateStripSnapTarget(ACTIVITY_STRIP_WIDTH_PX, containerWidth);
+      }
+    };
+
+    // Initial measurement
+    updateTarget();
+
+    // Update on container resize
+    const resizeObserver = new ResizeObserver(updateTarget);
+    resizeObserver.observe(container);
+
+    return () => resizeObserver.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Compute CSS variables from state (React-controlled DOM)
   // Always use percentage-based grid tracks for smooth CSS transitions.
