@@ -22,6 +22,13 @@ cd external/ui-next && pnpm type-check && pnpm lint && pnpm test --run
 pnpm format
 ```
 
+## Communication Guidelines
+
+**When the user asks to save something as a document or plan:**
+- Save it immediately as the requested file format (e.g., markdown file at project root)
+- Do NOT start implementing the plan or writing code unless explicitly asked to implement
+- Focus on documentation first, implementation second
+
 ## Development Commands
 
 ### Daily Workflow
@@ -286,6 +293,23 @@ import { createTableStore } from "@/stores";
 - ✅ **Type safety**: Backend changes → TypeScript errors (not silent failures)
 - ✅ **Turbopack compatibility**: No phantom module references or HMR bugs
 
+## Critical Rules
+
+### Production/Mock Code Separation
+
+**NEVER add mock-related code, debug logic, or test instrumentation to production source files.**
+
+Mock systems must be completely isolated from production code paths. If you find yourself importing mock utilities or adding conditional mock checks in production files, STOP and find an alternative approach:
+
+- ✅ Use aliasing (e.g., next.config.ts rewrites)
+- ✅ Use separate entry points
+- ✅ Use build-time substitution
+- ❌ NEVER import from `src/mocks/` in production files
+- ❌ NEVER add `if (process.env.NODE_ENV === 'development')` mock checks in production code
+- ❌ NEVER add MSW handlers or mock utilities to production source files
+
+**Why this matters:** Production bundles must be clean, secure, and contain zero test/mock infrastructure. Mock code leaking into production creates security vulnerabilities, increases bundle size, and can cause runtime errors.
+
 ## Forbidden Patterns - NEVER DO THESE
 
 ```typescript
@@ -411,6 +435,43 @@ function useConfig() {
 //
 // TanStack Query's structural sharing helps with query RESULTS,
 // but cannot fix unstable objects in query KEYS or hook dependencies.
+```
+
+## Debugging Guidelines
+
+### UI Animation and Layout Issues
+
+**When fixing UI animation or layout issues, do NOT shotgun multiple CSS property changes.**
+
+Trying multiple fixes at once (will-change, transform, contain, animation-delay, RAF deferral) makes it impossible to identify what actually worked.
+
+**Required systematic approach:**
+
+1. **Add debug instrumentation FIRST** to identify the actual root cause:
+   - Layout thrashing (use Performance timeline)
+   - Reflow frequency (monitor in DevTools)
+   - Paint storms (check Paint Flashing)
+   - Animation frame timing issues
+
+2. **Then apply ONE targeted fix** based on the diagnostic data
+
+3. **Verify the fix works** before moving on to other issues
+
+**Common root causes to check:**
+- Layout thrashing from reading layout properties then immediately writing
+- Animating non-GPU properties (width, height, margin, padding)
+- Rendering heavy content simultaneously with animations
+- Missing CSS containment on virtualized containers
+- Synchronous re-renders blocking the main thread
+
+**Example diagnostic approach:**
+```typescript
+// Add performance marks
+performance.mark('animation-start');
+// ... animation code ...
+performance.mark('animation-end');
+performance.measure('animation-duration', 'animation-start', 'animation-end');
+console.log(performance.getEntriesByType('measure'));
 ```
 
 ## Common Development Tasks
@@ -784,6 +845,104 @@ in Forbidden Patterns section).
 ### 💡 The "Reactive vs. Non-Reactive" Rule
 - If the logic should **trigger** an update when values change → Use `useEffect` with dependencies.
 - If the logic should **react** to an event but only **read** the latest values → Use `useEffectEvent`.
+
+## React / Next.js Debugging Patterns
+
+**When debugging React rendering issues (infinite loops, hydration errors, reflows), check for these common patterns FIRST:**
+
+### 1. setState Called During Render
+```typescript
+// ❌ FORBIDDEN: Setting state during render causes infinite loop
+function Component({ data }) {
+  const [processed, setProcessed] = useState(null);
+  if (data && !processed) {
+    setProcessed(transform(data)); // BAD: setState during render!
+  }
+  return <div>{processed}</div>;
+}
+
+// ✅ REQUIRED: Use derived state from props
+function Component({ data }) {
+  const processed = useMemo(() => data ? transform(data) : null, [data]);
+  return <div>{processed}</div>;
+}
+```
+
+### 2. Nested Interactive Elements
+```typescript
+// ❌ FORBIDDEN: Button inside button is invalid HTML
+<button onClick={handleOuter}>
+  <button onClick={handleInner}>Click</button>
+</button>
+
+// ✅ REQUIRED: Use asChild to merge props instead of nesting
+import { Slot } from "@radix-ui/react-slot";
+<button onClick={handleOuter} asChild>
+  <CustomButton onClick={handleInner}>Click</CustomButton>
+</button>
+```
+
+### 3. Cache Revalidation or startTransition Causing Unexpected Reflows
+```typescript
+// ❌ PROBLEM: revalidatePath in server action causes full page reflow
+async function updateData() {
+  "use server";
+  await db.update(...);
+  revalidatePath("/"); // Causes everything to re-render!
+}
+
+// ✅ BETTER: Use targeted revalidation or optimistic updates
+async function updateData() {
+  "use server";
+  await db.update(...);
+  revalidatePath("/specific/path"); // Only revalidate what changed
+}
+
+// Or use optimistic updates with React Query for instant feedback
+const mutation = useMutation({
+  onMutate: async (newData) => {
+    await queryClient.cancelQueries({ queryKey: ['data'] });
+    const previous = queryClient.getQueryData(['data']);
+    queryClient.setQueryData(['data'], newData); // Optimistic update
+    return { previous };
+  },
+});
+```
+
+### 4. Dual/Conflicting State Sources for the Same UI Concern
+```typescript
+// ❌ FORBIDDEN: Two sources of truth for the same state
+function Panel() {
+  const [isOpen, setIsOpen] = useState(false); // State 1
+  const [urlOpen] = useQueryState('open'); // State 2 - URL state
+  // Which one is the source of truth?
+
+  return <div>{isOpen ? 'open' : 'closed'}</div>;
+}
+
+// ✅ REQUIRED: Single source of truth
+function Panel() {
+  const [isOpen, setIsOpen] = useQueryState('open'); // URL is the ONLY source
+  return <div>{isOpen ? 'open' : 'closed'}</div>;
+}
+
+// OR derive UI state from single source
+function Panel() {
+  const [urlOpen] = useQueryState('open');
+  const isOpen = urlOpen === 'true'; // Derived, not duplicated
+  return <div>{isOpen ? 'open' : 'closed'}</div>;
+}
+```
+
+### Common Symptoms and Their Root Causes
+
+| Symptom | Common Root Cause | Where to Look |
+|---------|-------------------|---------------|
+| Infinite re-render loop | setState during render | Component body, useMemo without deps |
+| "Cannot nest buttons" error | Nested interactive elements | Button/Link components with children |
+| Flashing/jank after mutation | Unnecessary cache revalidation | Server actions, revalidatePath calls |
+| State resets unexpectedly | Dual state sources fighting | useState + URL state, props + local state |
+| Hydration mismatch | SSR rendering differs from client | localStorage, Date.now(), random values |
 
 ## Accessibility Requirements
 
