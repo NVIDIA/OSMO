@@ -1306,9 +1306,22 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
       filtered = filtered.filter((d) => d.user === mockCurrentUser);
     }
 
+    // Transform to backend API shape (DataListEntry)
+    const datasets = filtered.map((d) => ({
+      name: d.name,
+      id: d.name, // Use name as id for mock
+      bucket: d.bucket,
+      create_time: d.created_at,
+      last_created: d.updated_at,
+      hash_location: d.path,
+      hash_location_size: d.size_bytes,
+      version_id: `v${d.version}`, // Format version as "v1", "v2", etc.
+      type: d.format.toUpperCase(), // Backend uses uppercase format as type
+    }));
+
     // DataListResponse expects 'datasets' array
     return HttpResponse.json({
-      datasets: filtered,
+      datasets,
     });
   }),
 
