@@ -1,0 +1,1305 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>osmo dataset &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/appendix/cli/cli_dataset';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="osmo login" href="cli_login.html" />
+    <link rel="prev" title="osmo data" href="cli_data.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">CLI Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_data.html">osmo data</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">CLI Reference</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">osmo dataset</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="osmo-dataset">
+<h1>osmo dataset<a class="headerlink" href="#osmo-dataset" title="Link to this heading">#</a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">osmo</span> <span class="n">dataset</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span>
+                    <span class="p">{</span><span class="n">info</span><span class="p">,</span><span class="n">upload</span><span class="p">,</span><span class="n">delete</span><span class="p">,</span><span class="n">download</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">recollect</span><span class="p">,</span><span class="nb">list</span><span class="p">,</span><span class="n">tag</span><span class="p">,</span><span class="n">label</span><span class="p">,</span><span class="n">metadata</span><span class="p">,</span><span class="n">rename</span><span class="p">,</span><span class="n">query</span><span class="p">,</span><span class="n">collect</span><span class="p">,</span><span class="n">inspect</span><span class="p">,</span><span class="n">checksum</span><span class="p">,</span><span class="n">migrate</span><span class="p">,</span><span class="n">check</span><span class="p">}</span>
+                    <span class="o">...</span>
+</pre></div>
+</div>
+<section id="src.cli.main_parser-create_cli_parser-positional-arguments">
+<h2>Positional Arguments<a class="headerlink" href="#src.cli.main_parser-create_cli_parser-positional-arguments" title="Link to this heading">#</a></h2>
+<dl class="option-list">
+<dt id="cli_reference_dataset_command"><kbd>command</kbd><a class="headerlink" href="#cli_reference_dataset_command" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: info, upload, delete, download, update, recollect, list, tag, label, metadata, rename, query, collect, inspect, checksum, migrate, check</p>
+</dd>
+</dl>
+</section>
+<section id="Sub-commands">
+<h2>Sub-commands<a class="headerlink" href="#Sub-commands" title="Link to this heading">#</a></h2>
+<section id="cli_reference_dataset_info">
+<span id="info"></span><h3>info<a class="headerlink" href="#cli_reference_dataset_info" title="Link to this heading">#</a></h3>
+<p>Provide details of the dataset/collection</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">all</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">count</span> <span class="n">COUNT</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">order</span> <span class="p">{</span><span class="n">asc</span><span class="p">,</span><span class="n">desc</span><span class="p">}]</span>
+                  <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span>
+                  <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_info_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_info_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_info_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_info_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket with [bucket/]DS.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_info_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_info_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_info_all"><kbd>--all, -a</kbd><a class="headerlink" href="#cli_reference_dataset_info_all" title="Link to this argument">#</a></dt>
+<dd><p>Display all versions in any state.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_info_count"><kbd>--count, -c</kbd><a class="headerlink" href="#cli_reference_dataset_info_count" title="Link to this argument">#</a></dt>
+<dd><p>For Datasets. Display the given number of versions. Default 100.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">100</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_info_order"><kbd>--order, -o</kbd><a class="headerlink" href="#cli_reference_dataset_info_order" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: asc, desc</p>
+<p>For Datasets. Display in the given order based on date created</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'asc'</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_info_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_info_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset info DS1 –format-type json</p>
+</section>
+<section id="cli_reference_dataset_upload">
+<span id="upload"></span><h3>upload<a class="headerlink" href="#cli_reference_dataset_upload" title="Link to this heading">#</a></h3>
+<p>Upload a new Dataset/Collection</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">upload</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">desc</span> <span class="n">DESCRIPTION</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">metadata</span> <span class="n">METADATA</span> <span class="p">[</span><span class="n">METADATA</span> <span class="o">...</span><span class="p">]]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">labels</span> <span class="n">LABELS</span> <span class="p">[</span><span class="n">LABELS</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">regex</span> <span class="n">REGEX</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">resume</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">processes</span> <span class="n">PROCESSES</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">threads</span> <span class="n">THREADS</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">benchmark</span><span class="o">-</span><span class="n">out</span> <span class="n">BENCHMARK_OUT</span><span class="p">]</span>
+                    <span class="n">name</span> <span class="n">path</span> <span class="p">[</span><span class="n">path</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_upload_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_upload_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_upload_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_upload_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag with [bucket/]DS[:tag].If you want to continue an upload, then the most recent PENDING version is chosen</p>
+</dd>
+<dt id="cli_reference_dataset_upload_path"><kbd>path</kbd><a class="headerlink" href="#cli_reference_dataset_upload_path" title="Link to this argument">#</a></dt>
+<dd><p>Path where the dataset lies.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_upload_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_upload_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_upload_desc"><kbd>--desc, -d</kbd><a class="headerlink" href="#cli_reference_dataset_upload_desc" title="Link to this argument">#</a></dt>
+<dd><p>Description of dataset.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">''</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_upload_metadata"><kbd>--metadata, -m</kbd><a class="headerlink" href="#cli_reference_dataset_upload_metadata" title="Link to this argument">#</a></dt>
+<dd><p>Yaml files of metadata to assign to dataset version</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_upload_labels"><kbd>--labels, -l</kbd><a class="headerlink" href="#cli_reference_dataset_upload_labels" title="Link to this argument">#</a></dt>
+<dd><p>Yaml files of labels to assign to dataset</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_upload_regex"><kbd>--regex, -x</kbd><a class="headerlink" href="#cli_reference_dataset_upload_regex" title="Link to this argument">#</a></dt>
+<dd><p>Regex to filter which types of files to upload</p>
+</dd>
+<dt id="cli_reference_dataset_upload_resume"><kbd>--resume, -r</kbd><a class="headerlink" href="#cli_reference_dataset_upload_resume" title="Link to this argument">#</a></dt>
+<dd><p>Resume a canceled/failed upload. To resume, there must be atag.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_upload_processes"><kbd>--processes, -p</kbd><a class="headerlink" href="#cli_reference_dataset_upload_processes" title="Link to this argument">#</a></dt>
+<dd><p>Number of processes. Defaults to 4</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">4</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_upload_threads"><kbd>--threads, -T</kbd><a class="headerlink" href="#cli_reference_dataset_upload_threads" title="Link to this argument">#</a></dt>
+<dd><p>Number of threads per process. Defaults to 20</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">20</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_upload_benchmark_out"><kbd>--benchmark-out, -b</kbd><a class="headerlink" href="#cli_reference_dataset_upload_benchmark_out" title="Link to this argument">#</a></dt>
+<dd><p>Path to folder where benchmark data will be written to.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset upload DS1:latest /path/to/file –desc “My description”</p>
+</section>
+<section id="cli_reference_dataset_delete">
+<span id="delete"></span><h3>delete<a class="headerlink" href="#cli_reference_dataset_delete" title="Link to this heading">#</a></h3>
+<p>Marks a Dataset version(s) as PENDING_DELETE. If all versions are marked, prompts the user to delete the dataset from storage. Collection are deleted</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">delete</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">all</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span> <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_delete_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_delete_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_delete_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_delete_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_delete_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_delete_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_delete_all"><kbd>--all, -a</kbd><a class="headerlink" href="#cli_reference_dataset_delete_all" title="Link to this argument">#</a></dt>
+<dd><p>Deletes all versions.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_delete_force"><kbd>--force, -f</kbd><a class="headerlink" href="#cli_reference_dataset_delete_force" title="Link to this argument">#</a></dt>
+<dd><p>Deletes without confirmation.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_delete_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_delete_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset delete DS1:latest –force –format-type json</p>
+</section>
+<section id="cli_reference_dataset_download">
+<span id="download"></span><h3>download<a class="headerlink" href="#cli_reference_dataset_download" title="Link to this heading">#</a></h3>
+<p>Download the dataset</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">download</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">regex</span> <span class="n">REGEX</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">resume</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">processes</span> <span class="n">PROCESSES</span><span class="p">]</span>
+                      <span class="p">[</span><span class="o">--</span><span class="n">threads</span> <span class="n">THREADS</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">benchmark</span><span class="o">-</span><span class="n">out</span> <span class="n">BENCHMARK_OUT</span><span class="p">]</span>
+                      <span class="n">name</span> <span class="n">path</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_download_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_download_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_download_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_download_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+<dt id="cli_reference_dataset_download_path"><kbd>path</kbd><a class="headerlink" href="#cli_reference_dataset_download_path" title="Link to this argument">#</a></dt>
+<dd><p>Location where the dataset is downloaded to.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_download_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_download_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_download_regex"><kbd>--regex, -x</kbd><a class="headerlink" href="#cli_reference_dataset_download_regex" title="Link to this argument">#</a></dt>
+<dd><p>Regex to filter which types of files to download</p>
+</dd>
+<dt id="cli_reference_dataset_download_resume"><kbd>--resume, -r</kbd><a class="headerlink" href="#cli_reference_dataset_download_resume" title="Link to this argument">#</a></dt>
+<dd><p>Resume a canceled/failed download.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_download_processes"><kbd>--processes, -p</kbd><a class="headerlink" href="#cli_reference_dataset_download_processes" title="Link to this argument">#</a></dt>
+<dd><p>Number of processes. Defaults to 4</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">4</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_download_threads"><kbd>--threads, -T</kbd><a class="headerlink" href="#cli_reference_dataset_download_threads" title="Link to this argument">#</a></dt>
+<dd><p>Number of threads per process. Defaults to 20</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">20</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_download_benchmark_out"><kbd>--benchmark-out, -b</kbd><a class="headerlink" href="#cli_reference_dataset_download_benchmark_out" title="Link to this argument">#</a></dt>
+<dd><p>Path to folder where benchmark data will be written to.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset download DS1:latest /path/to/folder</p>
+</section>
+<section id="cli_reference_dataset_update">
+<span id="update"></span><h3>update<a class="headerlink" href="#cli_reference_dataset_update" title="Link to this heading">#</a></h3>
+<p>Creates a new dataset version from an existing version by adding or removing files.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">add</span> <span class="n">ADD</span> <span class="p">[</span><span class="n">ADD</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">remove</span> <span class="n">REMOVE</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">metadata</span> <span class="n">METADATA</span> <span class="p">[</span><span class="n">METADATA</span> <span class="o">...</span><span class="p">]]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">labels</span> <span class="n">LABELS</span> <span class="p">[</span><span class="n">LABELS</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">resume</span> <span class="n">RESUME</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">processes</span> <span class="n">PROCESSES</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">threads</span> <span class="n">THREADS</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">benchmark</span><span class="o">-</span><span class="n">out</span> <span class="n">BENCHMARK_OUT</span><span class="p">]</span>
+                    <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_update_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_update_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_update_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_update_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_update_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_update_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_update_add"><kbd>--add, -a</kbd><a class="headerlink" href="#cli_reference_dataset_update_add" title="Link to this argument">#</a></dt>
+<dd><p>Local paths/Remote URIs to append to the dataset. To specify path in the dataset where the files should be stored, use “:” to delineate local/path:remote/path. Files in the local path will be stored with the prefix of the remote path. If the path contains “:”, use “:” in the path.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_update_remove"><kbd>--remove, -r</kbd><a class="headerlink" href="#cli_reference_dataset_update_remove" title="Link to this argument">#</a></dt>
+<dd><p>Regex to filter which types of files to remove.</p>
+</dd>
+<dt id="cli_reference_dataset_update_metadata"><kbd>--metadata, -m</kbd><a class="headerlink" href="#cli_reference_dataset_update_metadata" title="Link to this argument">#</a></dt>
+<dd><p>Yaml files of metadata to assign to the newly created dataset version</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_update_labels"><kbd>--labels, -l</kbd><a class="headerlink" href="#cli_reference_dataset_update_labels" title="Link to this argument">#</a></dt>
+<dd><p>Yaml files of labels to assign to the dataset</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_update_resume"><kbd>--resume</kbd><a class="headerlink" href="#cli_reference_dataset_update_resume" title="Link to this argument">#</a></dt>
+<dd><p>Resume a canceled/failed update. To resume, specify the PENDING version to continue.</p>
+</dd>
+<dt id="cli_reference_dataset_update_processes"><kbd>--processes, -p</kbd><a class="headerlink" href="#cli_reference_dataset_update_processes" title="Link to this argument">#</a></dt>
+<dd><p>Number of processes. Defaults to 4</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">4</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_update_threads"><kbd>--threads, -T</kbd><a class="headerlink" href="#cli_reference_dataset_update_threads" title="Link to this argument">#</a></dt>
+<dd><p>Number of threads per process. Defaults to 20</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">20</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_update_benchmark_out"><kbd>--benchmark-out, -b</kbd><a class="headerlink" href="#cli_reference_dataset_update_benchmark_out" title="Link to this argument">#</a></dt>
+<dd><p>Path to folder where benchmark data will be written to.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset update DS1 –add relative/path:remote/path /other/local/path s3://path:remote/path
+Ex. osmo dataset update DS1 –remove “.*.(yaml|json)$”</p>
+</section>
+<section id="cli_reference_dataset_recollect">
+<span id="recollect"></span><h3>recollect<a class="headerlink" href="#cli_reference_dataset_recollect" title="Link to this heading">#</a></h3>
+<p>Add or remove datasets from a collection.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">recollect</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">add</span> <span class="n">ADD</span> <span class="p">[</span><span class="n">ADD</span> <span class="o">...</span><span class="p">]]</span>
+                       <span class="p">[</span><span class="o">--</span><span class="n">remove</span> <span class="n">REMOVE</span> <span class="p">[</span><span class="n">REMOVE</span> <span class="o">...</span><span class="p">]]</span>
+                       <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_recollect_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_recollect_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_recollect_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_recollect_name" title="Link to this argument">#</a></dt>
+<dd><p>Collection name. Specify bucket with [bucket/]Collection.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_recollect_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_recollect_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_recollect_add"><kbd>--add, -a</kbd><a class="headerlink" href="#cli_reference_dataset_recollect_add" title="Link to this argument">#</a></dt>
+<dd><p>Datasets to add to collection.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_recollect_remove"><kbd>--remove, -r</kbd><a class="headerlink" href="#cli_reference_dataset_recollect_remove" title="Link to this argument">#</a></dt>
+<dd><p>Datasets to remove from collection. The remove operation happens before the add.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset recollect C1 –remove DS1 –add DS2:4</p>
+</section>
+<section id="cli_reference_dataset_list">
+<span id="list"></span><h3>list<a class="headerlink" href="#cli_reference_dataset_list" title="Link to this heading">#</a></h3>
+<p>List all Datasets/Collections uploaded by the user</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="nb">list</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">name</span> <span class="n">NAME</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">user</span> <span class="n">USER</span> <span class="p">[</span><span class="n">USER</span> <span class="o">...</span><span class="p">]]</span>
+                  <span class="p">[</span><span class="o">--</span><span class="n">bucket</span> <span class="n">BUCKET</span> <span class="p">[</span><span class="n">BUCKET</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="nb">all</span><span class="o">-</span><span class="n">users</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">count</span> <span class="n">COUNT</span><span class="p">]</span>
+                  <span class="p">[</span><span class="o">--</span><span class="n">order</span> <span class="p">{</span><span class="n">asc</span><span class="p">,</span><span class="n">desc</span><span class="p">}]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_list_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_list_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_list_name"><kbd>--name, -n</kbd><a class="headerlink" href="#cli_reference_dataset_list_name" title="Link to this argument">#</a></dt>
+<dd><p>Display datasets that have the given substring in their name</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">''</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_list_user"><kbd>--user, -u</kbd><a class="headerlink" href="#cli_reference_dataset_list_user" title="Link to this argument">#</a></dt>
+<dd><p>Display all datasets where the user has uploaded to.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_list_bucket"><kbd>--bucket, -b</kbd><a class="headerlink" href="#cli_reference_dataset_list_bucket" title="Link to this argument">#</a></dt>
+<dd><p>Display all datasets from the given buckets.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_list_all_users"><kbd>--all-users, -a</kbd><a class="headerlink" href="#cli_reference_dataset_list_all_users" title="Link to this argument">#</a></dt>
+<dd><p>Display all datasets with no filtering on users</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_list_count"><kbd>--count, -c</kbd><a class="headerlink" href="#cli_reference_dataset_list_count" title="Link to this argument">#</a></dt>
+<dd><p>Display the given number of datasets. Default 20. Max 1000.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">20</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_list_order"><kbd>--order, -o</kbd><a class="headerlink" href="#cli_reference_dataset_list_order" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: asc, desc</p>
+<p>Display in the given order. asc means latest at the bottom. desc means latest at the top</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'asc'</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_list_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_list_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset list –all-users or osmo dataset list –user abc xyz</p>
+</section>
+<section id="cli_reference_dataset_tag">
+<span id="tag"></span><h3>tag<a class="headerlink" href="#cli_reference_dataset_tag" title="Link to this heading">#</a></h3>
+<p>Update Dataset Version tags</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">tag</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">set</span> <span class="n">SET</span> <span class="p">[</span><span class="n">SET</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">delete</span> <span class="n">DELETE</span> <span class="p">[</span><span class="n">DELETE</span> <span class="o">...</span><span class="p">]]</span>
+                 <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_tag_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_tag_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_tag_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_tag_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name to update. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_tag_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_tag_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_tag_set"><kbd>--set, -s</kbd><a class="headerlink" href="#cli_reference_dataset_tag_set" title="Link to this argument">#</a></dt>
+<dd><p>Set tag to dataset version.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_tag_delete"><kbd>--delete, -d</kbd><a class="headerlink" href="#cli_reference_dataset_tag_delete" title="Link to this argument">#</a></dt>
+<dd><p>Delete tag from dataset version.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset tag DS1 –set tag1 –delete tag2</p>
+</section>
+<section id="cli_reference_dataset_label">
+<span id="label"></span><h3>label<a class="headerlink" href="#cli_reference_dataset_label" title="Link to this heading">#</a></h3>
+<p>Update Dataset labels.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">label</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">file</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">set</span> <span class="n">SET</span> <span class="p">[</span><span class="n">SET</span> <span class="o">...</span><span class="p">]]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">delete</span> <span class="n">DELETE</span> <span class="p">[</span><span class="n">DELETE</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span>
+                   <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_label_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_label_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_label_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_label_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name to update. Specify bucket with [bucket/][DS].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_label_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_label_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_label_file"><kbd>--file, -f</kbd><a class="headerlink" href="#cli_reference_dataset_label_file" title="Link to this argument">#</a></dt>
+<dd><p>If enabled, the inputs to set and delete must be files.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_label_set"><kbd>--set, -s</kbd><a class="headerlink" href="#cli_reference_dataset_label_set" title="Link to this argument">#</a></dt>
+<dd><p>Set label for dataset in the form “&lt;key&gt;:&lt;type&gt;:&lt;value&gt;” where type is string or numericor the file-path</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_label_delete"><kbd>--delete, -d</kbd><a class="headerlink" href="#cli_reference_dataset_label_delete" title="Link to this argument">#</a></dt>
+<dd><p>Delete labels from dataset in the form “&lt;key&gt;”or the file-path</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_label_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_label_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset label DS1 –set key1:string:value1 –delete key2</p>
+</section>
+<section id="cli_reference_dataset_metadata">
+<span id="metadata"></span><h3>metadata<a class="headerlink" href="#cli_reference_dataset_metadata" title="Link to this heading">#</a></h3>
+<p>Update Dataset Version metadata. A tag/version is required.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">metadata</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">file</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">set</span> <span class="n">SET</span> <span class="p">[</span><span class="n">SET</span> <span class="o">...</span><span class="p">]]</span>
+                      <span class="p">[</span><span class="o">--</span><span class="n">delete</span> <span class="n">DELETE</span> <span class="p">[</span><span class="n">DELETE</span> <span class="o">...</span><span class="p">]]</span>
+                      <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span>
+                      <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_metadata_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_metadata_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_metadata_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_metadata_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name to update. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_metadata_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_metadata_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_metadata_file"><kbd>--file, -f</kbd><a class="headerlink" href="#cli_reference_dataset_metadata_file" title="Link to this argument">#</a></dt>
+<dd><p>If enabled, the inputs to set and delete must be files.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_metadata_set"><kbd>--set, -s</kbd><a class="headerlink" href="#cli_reference_dataset_metadata_set" title="Link to this argument">#</a></dt>
+<dd><p>Set metadata from dataset in the form “&lt;key&gt;:&lt;type&gt;:&lt;value&gt;” where type is string or numericor the file-path</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_metadata_delete"><kbd>--delete, -d</kbd><a class="headerlink" href="#cli_reference_dataset_metadata_delete" title="Link to this argument">#</a></dt>
+<dd><p>Delete metadata from dataset in the form “&lt;key&gt;”or the file-path</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_metadata_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_metadata_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset metadata DS1:latest –set key1:string:value1 –delete key2</p>
+</section>
+<section id="cli_reference_dataset_rename">
+<span id="rename"></span><h3>rename<a class="headerlink" href="#cli_reference_dataset_rename" title="Link to this heading">#</a></h3>
+<p>Rename dataset/collection</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">rename</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="n">original_name</span> <span class="n">new_name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_rename_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_rename_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_rename_original_name"><kbd>original_name</kbd><a class="headerlink" href="#cli_reference_dataset_rename_original_name" title="Link to this argument">#</a></dt>
+<dd><p>Old dataset/collection name. Specify bucket with [bucket/][DS].</p>
+</dd>
+<dt id="cli_reference_dataset_rename_new_name"><kbd>new_name</kbd><a class="headerlink" href="#cli_reference_dataset_rename_new_name" title="Link to this argument">#</a></dt>
+<dd><p>New dataset/collection name.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset rename original_name new_name</p>
+</section>
+<section id="cli_reference_dataset_query">
+<span id="query"></span><h3>query<a class="headerlink" href="#cli_reference_dataset_query" title="Link to this heading">#</a></h3>
+<p>Query datasets based on metadata</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">query</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">bucket</span> <span class="n">BUCKET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span> <span class="n">file</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_query_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_query_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_query_file"><kbd>file</kbd><a class="headerlink" href="#cli_reference_dataset_query_file" title="Link to this argument">#</a></dt>
+<dd><p>The Query file to submit</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_query_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_query_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_query_bucket"><kbd>--bucket, -b</kbd><a class="headerlink" href="#cli_reference_dataset_query_bucket" title="Link to this argument">#</a></dt>
+<dd><p>bucket to query.</p>
+</dd>
+<dt id="cli_reference_dataset_query_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_query_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset query file.yaml</p>
+</section>
+<section id="cli_reference_dataset_collect">
+<span id="collect"></span><h3>collect<a class="headerlink" href="#cli_reference_dataset_collect" title="Link to this heading">#</a></h3>
+<p>Create a Collection</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">collect</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="n">name</span> <span class="n">datasets</span> <span class="p">[</span><span class="n">datasets</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_collect_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_collect_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_collect_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_collect_name" title="Link to this argument">#</a></dt>
+<dd><p>Collection name. Specify bucket and with [bucket/][C]. All datasets and collections added to this collection are based off of this bucket</p>
+</dd>
+<dt id="cli_reference_dataset_collect_datasets"><kbd>datasets</kbd><a class="headerlink" href="#cli_reference_dataset_collect_datasets" title="Link to this argument">#</a></dt>
+<dd><p>Each Dataset to add to collection. To create a collection from another collection, add the collection name.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset collect CName C1 DS1 DS2 DS3:latest</p>
+</section>
+<section id="cli_reference_dataset_inspect">
+<span id="inspect"></span><h3>inspect<a class="headerlink" href="#cli_reference_dataset_inspect" title="Link to this heading">#</a></h3>
+<p>Display Dataset Directory</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">inspect</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">text</span><span class="p">,</span><span class="n">tree</span><span class="p">,</span><span class="n">json</span><span class="p">}]</span> <span class="p">[</span><span class="o">--</span><span class="n">regex</span> <span class="n">REGEX</span><span class="p">]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="n">count</span> <span class="n">COUNT</span><span class="p">]</span>
+                     <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_inspect_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_inspect_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_inspect_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_inspect_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_inspect_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_inspect_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_inspect_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_dataset_inspect_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: text, tree, json</p>
+<p>Type text is that files are just printed out. Type tree displays a better representation of the directory structure. Type json prints out the list of json objects with both URI and URL links.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_inspect_regex"><kbd>--regex, -x</kbd><a class="headerlink" href="#cli_reference_dataset_inspect_regex" title="Link to this argument">#</a></dt>
+<dd><p>Regex to filter which types of files to inspect</p>
+</dd>
+<dt id="cli_reference_dataset_inspect_count"><kbd>--count, -c</kbd><a class="headerlink" href="#cli_reference_dataset_inspect_count" title="Link to this argument">#</a></dt>
+<dd><p>Number of files to print. Default 1,000.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">1000</span></code></p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset inspect DS1:latest –format-type json</p>
+</section>
+<section id="cli_reference_dataset_checksum">
+<span id="checksum"></span><h3>checksum<a class="headerlink" href="#cli_reference_dataset_checksum" title="Link to this heading">#</a></h3>
+<p>Calculate Directory Checksum</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">checksum</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="n">path</span> <span class="p">[</span><span class="n">path</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_checksum_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_checksum_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_checksum_path"><kbd>path</kbd><a class="headerlink" href="#cli_reference_dataset_checksum_path" title="Link to this argument">#</a></dt>
+<dd><p>Paths where the folder lies.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset checksum /path/to/folder</p>
+</section>
+<section id="cli_reference_dataset_migrate">
+<span id="migrate"></span><h3>migrate<a class="headerlink" href="#cli_reference_dataset_migrate" title="Link to this heading">#</a></h3>
+<p>Migrate a legacy (non-manifest based) dataset to a new manifest based dataset.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">migrate</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">processes</span> <span class="n">PROCESSES</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">threads</span> <span class="n">THREADS</span><span class="p">]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="n">benchmark</span><span class="o">-</span><span class="n">out</span> <span class="n">BENCHMARK_OUT</span><span class="p">]</span>
+                     <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_migrate_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_migrate_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_migrate_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_migrate_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_migrate_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_migrate_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_migrate_processes"><kbd>--processes, -p</kbd><a class="headerlink" href="#cli_reference_dataset_migrate_processes" title="Link to this argument">#</a></dt>
+<dd><p>Number of processes. Defaults to 4</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">4</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_migrate_threads"><kbd>--threads, -T</kbd><a class="headerlink" href="#cli_reference_dataset_migrate_threads" title="Link to this argument">#</a></dt>
+<dd><p>Number of threads per process. Defaults to 20</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">20</span></code></p>
+</dd>
+<dt id="cli_reference_dataset_migrate_benchmark_out"><kbd>--benchmark-out, -b</kbd><a class="headerlink" href="#cli_reference_dataset_migrate_benchmark_out" title="Link to this argument">#</a></dt>
+<dd><p>Path to folder where benchmark data will be written to.</p>
+</dd>
+</dl>
+</section>
+<p>Ex. osmo dataset migrate DS1:latest</p>
+</section>
+<section id="cli_reference_dataset_check">
+<span id="check"></span><h3>check<a class="headerlink" href="#cli_reference_dataset_check" title="Link to this heading">#</a></h3>
+<p>Check access permissions for dataset operations</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">dataset</span> <span class="n">check</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">access</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">READ</span><span class="p">,</span><span class="n">WRITE</span><span class="p">,</span><span class="n">DELETE</span><span class="p">}]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">config</span><span class="o">-</span><span class="n">file</span> <span class="n">CONFIG_FILE</span><span class="p">]</span>
+                   <span class="n">name</span>
+</pre></div>
+</div>
+<section id="cli_reference_dataset_check_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_dataset_check_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_check_name"><kbd>name</kbd><a class="headerlink" href="#cli_reference_dataset_check_name" title="Link to this argument">#</a></dt>
+<dd><p>Dataset name. Specify bucket and tag/version with [bucket/]DS[:tag/version].</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_dataset_check_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_dataset_check_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_dataset_check_access_type"><kbd>--access-type, -a</kbd><a class="headerlink" href="#cli_reference_dataset_check_access_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: READ, WRITE, DELETE</p>
+<p>Access type to check access to the dataset.</p>
+</dd>
+<dt id="cli_reference_dataset_check_config_file"><kbd>--config-file, -c</kbd><a class="headerlink" href="#cli_reference_dataset_check_config_file" title="Link to this argument">#</a></dt>
+<dd><p>Path to the config file to use for the access check.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="cli_data.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">osmo data</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="cli_login.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">osmo login</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#src.cli.main_parser-create_cli_parser-positional-arguments">Positional Arguments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#Sub-commands">Sub-commands</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_info">info</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_upload">upload</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_delete">delete</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_download">download</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_update">update</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_recollect">recollect</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_list">list</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_tag">tag</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_label">label</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_metadata">metadata</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_rename">rename</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_query">query</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_collect">collect</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_inspect">inspect</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_checksum">checksum</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_migrate">migrate</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_dataset_check">check</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,1328 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Minimal Deployment &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/appendix/deploy_minimal';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Understanding Task Execution" href="workflow_execution.html" />
+    <link rel="prev" title="Local Deployment" href="deploy_local.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="authentication/index.html">AuthN/AuthZ</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="authentication/authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication/roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication/keycloak_setup.html">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Minimal Deployment</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="minimal-deployment">
+<span id="deploy-minimal"></span><h1>Minimal Deployment<a class="headerlink" href="#minimal-deployment" title="Link to this heading">#</a></h1>
+<p>This guide provides instructions for deploying OSMO in a minimal configuration suitable for testing, development, and evaluation purposes. This setup of OSMO creates the service and backend operator in the same kubernetes cluster, is suitable for single-tenant, has no authentication, and is designed for quick setup and experimentation.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Minimal deployment is <strong>not</strong> recommended for production use as it lacks authentication and has limited features.</p>
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>The minimal OSMO deployment includes:</p>
+<ul class="simple">
+<li><p>API Service</p></li>
+<li><p>Web UI</p></li>
+<li><p>Router</p></li>
+<li><p>External PostgreSQL database (configurable)</p></li>
+<li><p>External Redis cache (configurable)</p></li>
+<li><p>No authentication or authorization</p></li>
+<li><p>Single namespace deployment</p></li>
+<li><p>Single replica per service</p></li>
+<li><p>Minimal resource requirements</p></li>
+</ul>
+<a class="reference internal image-reference" href="../../_images/deploy_minimal.svg"><img alt="../../_images/deploy_minimal.svg" class="align-center" src="../../_images/deploy_minimal.svg" style="width: 80%;" /></a>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<p>Refer to <a class="reference internal" href="../requirements/prereqs.html#prerequisites"><span class="std std-ref">Cloud</span></a> for the setup of the Kubernetes cluster, PostgreSQL database, and Redis instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Ingress must be installed as part of networking setup to use exec or port forwarding features in OSMO workflows.</p>
+</div>
+</section>
+<section id="step-1-create-namespace">
+<h2>Step 1: Create Namespace<a class="headerlink" href="#step-1-create-namespace" title="Link to this heading">#</a></h2>
+<p>Create a dedicated namespace to deploy OSMO service:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+</section>
+<section id="step-2-add-helm-repository">
+<h2>Step 2: Add Helm Repository<a class="headerlink" href="#step-2-add-helm-repository" title="Link to this heading">#</a></h2>
+<p>Add the NVIDIA OSMO Helm repository:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>add<span class="w"> </span>osmo<span class="w"> </span>https://helm.ngc.nvidia.com/nvidia/osmo
+
+$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="step-3-create-k8s-secrets">
+<h2>Step 3: Create K8s Secrets<a class="headerlink" href="#step-3-create-k8s-secrets" title="Link to this heading">#</a></h2>
+<p>Create secret for database and redis passwords:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>db-secret<span class="w"> </span>--from-literal<span class="o">=</span>db-password<span class="o">=</span>&lt;your-db-password&gt;<span class="w"> </span>--namespace<span class="w"> </span>osmo-minimal
+$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>redis-secret<span class="w"> </span>--from-literal<span class="o">=</span>redis-password<span class="o">=</span>&lt;your-redis-password&gt;<span class="w"> </span>--namespace<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+<p>Create the master encryption key (MEK) for database encryption:</p>
+<ol class="arabic">
+<li><p><strong>Generate a new master encryption key</strong>:</p>
+<p>The MEK should be a JSON Web Key (JWK) with the following format:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;k&quot;</span><span class="p">:</span><span class="s2">&quot;&lt;base64-encoded-32-byte-key&gt;&quot;</span><span class="p">,</span><span class="nt">&quot;kid&quot;</span><span class="p">:</span><span class="s2">&quot;key1&quot;</span><span class="p">,</span><span class="nt">&quot;kty&quot;</span><span class="p">:</span><span class="s2">&quot;oct&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Generate the key using OpenSSL</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate a 32-byte (256-bit) random key and base64 encode it</span>
+<span class="nv">RANDOM_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+
+<span class="c1"># Create the JWK format</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;{\&quot;k\&quot;:\&quot;</span><span class="nv">$RANDOM_KEY</span><span class="s2">\&quot;,\&quot;kid\&quot;:\&quot;key1\&quot;,\&quot;kty\&quot;:\&quot;oct\&quot;}&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Base64 encode the entire JWK</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Take the JWK output from step 2 and base64 encode it</span>
+<span class="nv">JWK_JSON</span><span class="o">=</span><span class="s1">&#39;{&quot;k&quot;:&quot;&lt;your-base64-key&gt;&quot;,&quot;kid&quot;:&quot;key1&quot;,&quot;kty&quot;:&quot;oct&quot;}&#39;</span>
+<span class="nv">ENCODED_JWK</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$JWK_JSON</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+<span class="nb">echo</span><span class="w"> </span><span class="nv">$ENCODED_JWK</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Create the ConfigMap with your generated MEK</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">apiVersion: v1</span>
+<span class="s">kind: ConfigMap</span>
+<span class="s">metadata:</span>
+<span class="s">  name: mek-config</span>
+<span class="s">  namespace: osmo-minimal</span>
+<span class="s">data:</span>
+<span class="s">  mek.yaml: |</span>
+<span class="s">    currentMek: key1</span>
+<span class="s">    meks:</span>
+<span class="s">      key1: $ENCODED_JWK</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<div class="important admonition">
+<p class="admonition-title">Security Considerations</p>
+<ul class="simple">
+<li><p>Store the original JWK securely as you’ll need it for backups and recovery</p></li>
+<li><p>Never commit the MEK to version control</p></li>
+<li><p>Use a secure key management system, such as Vault in production</p></li>
+<li><p>The MEK is used to encrypt sensitive data in the database</p></li>
+</ul>
+</div>
+<p><strong>Example MEK generation script</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+<span class="c1"># Generate MEK for OSMO</span>
+
+<span class="c1"># Generate random 32-byte key</span>
+<span class="nv">RANDOM_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+
+<span class="c1"># Create JWK</span>
+<span class="nv">JWK_JSON</span><span class="o">=</span><span class="s2">&quot;{\&quot;k\&quot;:\&quot;</span><span class="nv">$RANDOM_KEY</span><span class="s2">\&quot;,\&quot;kid\&quot;:\&quot;key1\&quot;,\&quot;kty\&quot;:\&quot;oct\&quot;}&quot;</span>
+
+<span class="c1"># Base64 encode the JWK</span>
+<span class="nv">ENCODED_JWK</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$JWK_JSON</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Generated JWK: </span><span class="nv">$JWK_JSON</span><span class="s2">&quot;</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Encoded JWK: </span><span class="nv">$ENCODED_JWK</span><span class="s2">&quot;</span>
+
+<span class="c1"># Create ConfigMap</span>
+$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">apiVersion: v1</span>
+<span class="s">kind: ConfigMap</span>
+<span class="s">metadata:</span>
+<span class="s">  name: mek-config</span>
+<span class="s">  namespace: osmo-minimal</span>
+<span class="s">data:</span>
+<span class="s">  mek.yaml: |</span>
+<span class="s">    currentMek: key1</span>
+<span class="s">    meks:</span>
+<span class="s">      key1: $ENCODED_JWK</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+</section>
+<section id="step-4-configure-postgresql">
+<h2>Step 4: Configure PostgreSQL<a class="headerlink" href="#step-4-configure-postgresql" title="Link to this heading">#</a></h2>
+<p>Create a database for OSMO using the following command.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_DB_HOST</span><span class="o">=</span>&lt;your-db-host&gt;
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_PGPASSWORD</span><span class="o">=</span>&lt;your-postgres-password&gt;
+
+$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">  apiVersion: v1</span>
+<span class="s">  kind: Pod</span>
+<span class="s">  metadata:</span>
+<span class="s">    name: osmo-db-ops</span>
+<span class="s">  spec:</span>
+<span class="s">    containers:</span>
+<span class="s">      - name: osmo-db-ops</span>
+<span class="s">        image: alpine/psql:17.5</span>
+<span class="s">        command: [&quot;/bin/sh&quot;, &quot;-c&quot;]</span>
+<span class="s">        args:</span>
+<span class="s">          - &quot;PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c &#39;CREATE DATABASE osmo_db;&#39;&quot;</span>
+<span class="s">    restartPolicy: Never</span>
+<span class="s">  EOF</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Ignore <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">OSMO_PGPASSWORD=&lt;your-postgres-password&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">PGPASSWORD=$OSMO_PGPASSWORD</span></code> if your PostgreSQL was configured without a password.</p>
+</div>
+<p>Verify that the process <code class="docutils literal notranslate"><span class="pre">Completed</span></code> with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pod</span> <span class="pre">osmo-db-ops</span></code>. Then delete the pod with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>osmo-db-ops
+</pre></div>
+</div>
+</section>
+<section id="step-5-prepare-service-values">
+<h2>Step 5: Prepare Service Values<a class="headerlink" href="#step-5-prepare-service-values" title="Link to this heading">#</a></h2>
+<p>Create the following values files for the minimal deployment:</p>
+<p><strong>API Service Values</strong> (<code class="docutils literal notranslate"><span class="pre">osmo_values.yaml</span></code>):</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">osmo_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">global</span><span class="p">:</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-registry&gt;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-tag&gt;</span>
+</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">configFile</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="nt">postgres</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Set to true if you want Postgres to be deployed as</span>
+<span class="w">    </span><span class="c1"># part of the OSMO install, otherwise set to false to</span>
+<span class="w">    </span><span class="c1"># use an external Postgres database</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="hll"><span class="w">    </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-postgres-host&gt;</span>
+</span>
+<span class="w">    </span><span class="c1"># This should match the database name in the prior configuration step</span>
+<span class="hll"><span class="w">    </span><span class="nt">db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo_db</span>
+</span>
+<span class="w">  </span><span class="nt">redis</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Set to true if you want Redis to be deployed as</span>
+<span class="w">    </span><span class="c1"># part of the OSMO install, otherwise set to false to</span>
+<span class="w">    </span><span class="c1"># use an external Redis cache</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="hll"><span class="w">    </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-redis-host&gt;</span>
+</span><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6379</span>
+<span class="w">    </span><span class="nt">tlsEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Set to false if your Redis does not require TLS</span>
+
+<span class="w">  </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+
+<span class="w">    </span><span class="c1"># Set your domain for ingress if you want to enable ingress for external access</span>
+<span class="w">    </span><span class="c1"># hostname: &lt;your-domain&gt;</span>
+<span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if you want to enable ingress for external access</span>
+
+<span class="w">      </span><span class="c1"># Example: Using alb as ingress</span>
+<span class="w">      </span><span class="c1"># ingress:</span>
+<span class="w">      </span><span class="c1">#   enabled: true</span>
+<span class="w">      </span><span class="c1">#   ingressClass: alb</span>
+<span class="w">      </span><span class="c1">#   sslEnabled: true</span>
+<span class="w">      </span><span class="c1">#   albAnnotations:</span>
+<span class="w">      </span><span class="c1">#     enabled: true</span>
+<span class="w">      </span><span class="c1">#     sslCertArn: &lt;your-ssl-cert-arn&gt;</span>
+<span class="w">      </span><span class="c1">#   annotations:</span>
+<span class="w">      </span><span class="c1">#     ## the alb scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB</span>
+<span class="w">      </span><span class="c1">#     # alb.ingress.kubernetes.io/scheme: internet-facing</span>
+
+<span class="w">      </span><span class="c1"># Example: Using nginx as ingress</span>
+<span class="w">      </span><span class="c1"># ingress:</span>
+<span class="w">      </span><span class="c1">#   enabled: true</span>
+<span class="w">      </span><span class="c1">#   ingressClass: nginx</span>
+<span class="w">      </span><span class="c1">#   annotations:</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-buffer-size: &quot;16k&quot;</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-buffers: &quot;8 16k&quot;</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: &quot;32k&quot;</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/large-client-header-buffers: &quot;4 16k&quot;</span>
+
+<span class="w">  </span><span class="nt">agent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+
+<span class="w">  </span><span class="nt">worker</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+
+<span class="w">  </span><span class="nt">logger</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">envoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">  </span><span class="nt">logAgent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">    </span><span class="nt">logrotate</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">  </span><span class="nt">otel</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">  </span><span class="nt">rateLimit</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</div>
+</details><p><strong>UI Service Values</strong> (<code class="docutils literal notranslate"><span class="pre">ui_values.yaml</span></code>):</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">ui_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">global</span><span class="p">:</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-registry&gt;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-tag&gt;</span>
+</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ui</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Set your domain for UI ingress if you want to enable ingress for external access</span>
+<span class="hll"><span class="w">    </span><span class="c1"># hostname: &lt;your-domain&gt;</span>
+</span>
+<span class="w">    </span><span class="nt">apiHostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-service.osmo-minimal.svc.cluster.local:80</span><span class="w"> </span><span class="c1"># update to your namespace if not using osmo-minimal namespace</span>
+
+<span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if you want to enable ingress for external access</span>
+
+<span class="w">    </span><span class="c1"># Example: Using alb as ingress</span>
+<span class="w">    </span><span class="c1"># ingress:</span>
+<span class="w">    </span><span class="c1">#   enabled: true</span>
+<span class="w">    </span><span class="c1">#   ingressClass: alb</span>
+<span class="w">    </span><span class="c1">#   sslEnabled: true</span>
+<span class="w">    </span><span class="c1">#   albAnnotations:</span>
+<span class="w">    </span><span class="c1">#     enabled: true</span>
+<span class="w">    </span><span class="c1">#     sslCertArn: &lt;your-ssl-cert-arn&gt;</span>
+<span class="w">    </span><span class="c1">#   annotations:</span>
+<span class="w">    </span><span class="c1">#     ## the alb scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB</span>
+<span class="w">    </span><span class="c1">#     # alb.ingress.kubernetes.io/scheme: internet-facing</span>
+
+<span class="w">    </span><span class="c1"># Example: Using nginx as ingress</span>
+<span class="w">    </span><span class="c1"># ingress:</span>
+<span class="w">    </span><span class="c1">#   enabled: true</span>
+<span class="w">    </span><span class="c1">#   ingressClass: nginx</span>
+<span class="w">    </span><span class="c1">#   annotations:</span>
+<span class="w">    </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-buffer-size: &quot;16k&quot;</span>
+<span class="w">    </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-buffers: &quot;8 16k&quot;</span>
+<span class="w">    </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: &quot;32k&quot;</span>
+<span class="w">    </span><span class="c1">#     nginx.ingress.kubernetes.io/large-client-header-buffers: &quot;4 16k&quot;</span>
+
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">envoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</div>
+</details><p><strong>Router Service Values</strong> (<code class="docutils literal notranslate"><span class="pre">router_values.yaml</span></code>):</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">router_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">global</span><span class="p">:</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-registry&gt;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-tag&gt;</span>
+</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">configFile</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="nt">postgres</span><span class="p">:</span>
+<span class="hll"><span class="w">    </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-postgres-host&gt;</span>
+</span>
+<span class="w">    </span><span class="c1"># This should match the database name in the prior configuration step</span>
+<span class="hll"><span class="w">    </span><span class="nt">db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo_db</span>
+</span>
+<span class="w">  </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="c1"># Set your domain for router ingress if you want to enable ingress for external access</span>
+<span class="w">    </span><span class="c1"># hostname: &lt;your-domain&gt;</span>
+<span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if you want to enable ingress for external access</span>
+
+<span class="w">      </span><span class="c1"># Example: Using alb as ingress</span>
+<span class="w">      </span><span class="c1"># ingress:</span>
+<span class="w">      </span><span class="c1">#   enabled: true</span>
+<span class="w">      </span><span class="c1">#   ingressClass: alb</span>
+<span class="w">      </span><span class="c1">#   sslEnabled: true</span>
+<span class="w">      </span><span class="c1">#   albAnnotations:</span>
+<span class="w">      </span><span class="c1">#     enabled: true</span>
+<span class="w">      </span><span class="c1">#     sslCertArn: &lt;your-ssl-cert-arn&gt;</span>
+<span class="w">      </span><span class="c1">#   annotations:</span>
+<span class="w">      </span><span class="c1">#     ## the alb scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB</span>
+<span class="w">      </span><span class="c1">#     # alb.ingress.kubernetes.io/scheme: internet-facing</span>
+
+<span class="w">      </span><span class="c1"># Example: Using nginx as ingress</span>
+<span class="w">      </span><span class="c1"># ingress:</span>
+<span class="w">      </span><span class="c1">#   enabled: true</span>
+<span class="w">      </span><span class="c1">#   ingressClass: nginx</span>
+<span class="w">      </span><span class="c1">#   annotations:</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-buffer-size: &quot;16k&quot;</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-buffers: &quot;8 16k&quot;</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: &quot;32k&quot;</span>
+<span class="w">      </span><span class="c1">#     nginx.ingress.kubernetes.io/large-client-header-buffers: &quot;4 16k&quot;</span>
+
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">envoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">  </span><span class="nt">logAgent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">  </span><span class="nt">otel</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</div>
+</details><div class="admonition important">
+<p class="admonition-title">Important</p>
+<ol class="arabic simple">
+<li><p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;insert-osmo-image-tag&gt;</span></code> with the desired OSMO version you want to deploy</p></li>
+<li><p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;your-domain&gt;</span></code> with your domain name (e.g., <code class="docutils literal notranslate"><span class="pre">osmo.example.com</span></code>) if you want to enable ingress for external access</p></li>
+<li><p>Update the <code class="docutils literal notranslate"><span class="pre">serviceName</span></code> for postgres and redis to match your external services</p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">ingressClass</span></code> and <code class="docutils literal notranslate"><span class="pre">ingress</span></code> to match your cluster’s ingress controller and ingress configuration</p></li>
+<li><p>Ensure your DNS points to the ingress controller’s load balancer if you want to enable ingress for external access</p></li>
+</ol>
+</div>
+</section>
+<section id="step-6-helm-deploy">
+<h2>Step 6: Helm Deploy<a class="headerlink" href="#step-6-helm-deploy" title="Link to this heading">#</a></h2>
+<p>Deploy the OSMO components using the minimal configuration:</p>
+<ol class="arabic">
+<li><p><strong>Deploy OSMO Service</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>osmo-minimal<span class="w"> </span>osmo/service<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>./osmo_values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+</li>
+<li><p><strong>Deploy OSMO UI</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>ui-minimal<span class="w"> </span>osmo/web-ui<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>./ui_values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+</li>
+<li><p><strong>Deploy OSMO Router</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>router-minimal<span class="w"> </span>osmo/router<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>./router_values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="step-7-verify-deployment">
+<h2>Step 7: Verify Deployment<a class="headerlink" href="#step-7-verify-deployment" title="Link to this heading">#</a></h2>
+<ol class="arabic">
+<li><p>Verify that all pods are running:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+<p>You should see pods similar to the following example:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NAME                                    READY   STATUS    RESTARTS   AGE
+osmo-agent-xxx                          1/1     Running   0          2m
+osmo-delayed-job-monitor-xxx            1/1     Running   0          2m
+osmo-service-xxx                        1/1     Running   0          2m
+osmo-worker-xxx                         1/1     Running   0          2m
+osmo-logger-xxx                         1/1     Running   0          2m
+osmo-ui-xxx                             1/1     Running   0          2m
+osmo-router-xxx                         1/1     Running   0          2m
+</pre></div>
+</div>
+</li>
+<li><p>Verify that all services are running:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>services<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+</li>
+<li><p>Verify that ingress configuration is set up correctly:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you have enabled ingress for external access, you should see ingress resources similar to the following:</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+<p>You should see ingress resources similar to:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NAME                     CLASS   HOSTS              ADDRESS         PORTS   AGE
+osmo-agent-ingress       nginx   &lt;your-domain&gt;      &lt;lb-ip&gt;         80      2m
+osmo-service-ingress     nginx   &lt;your-domain&gt;      &lt;lb-ip&gt;         80      2m
+osmo-logger-ingress      nginx   &lt;your-domain&gt;      &lt;lb-ip&gt;         80      2m
+osmo-ui-ingress          nginx   &lt;your-domain&gt;      &lt;lb-ip&gt;         80      2m
+osmo-router-ingress      nginx   &lt;your-domain&gt;      &lt;lb-ip&gt;         80      2m
+</pre></div>
+</div>
+</li>
+<li><p>Port forward to access the OSMO UI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>service/osmo-ui<span class="w"> </span><span class="m">3000</span>:80<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+<p>Visit <a class="reference external" href="http://localhost:3000" rel="noreferrer" target="_blank">http://localhost:3000 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> in your web browser to access the OSMO UI dashboard as a guest user.</p>
+</li>
+</ol>
+</section>
+<section id="step-8-install-backend-operator">
+<h2>Step 8: Install Backend Operator<a class="headerlink" href="#step-8-install-backend-operator" title="Link to this heading">#</a></h2>
+<ol class="arabic">
+<li><p>Prepare <code class="docutils literal notranslate"><span class="pre">backend_operator_values.yaml</span></code> file:</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">backend_operator_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">global</span><span class="p">:</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-registry&gt;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;insert-osmo-image-tag&gt;</span>
+</span><span class="w">  </span><span class="c1"># update to the actual service URL if you have enabled ingress for external access</span>
+<span class="hll"><span class="w">  </span><span class="nt">serviceUrl</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://osmo-agent.osmo-minimal.svc.cluster.local</span>
+</span><span class="w">  </span><span class="nt">agentNamespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-operator</span>
+<span class="w">  </span><span class="nt">backendNamespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-workflows</span>
+<span class="w">  </span><span class="nt">backendName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">  </span><span class="nt">accountTokenSecret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-operator-token</span>
+<span class="w">  </span><span class="nt">loginMethod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">token</span>
+
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">backendListener</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;125m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;128Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;250m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;256Mi&quot;</span>
+<span class="w">  </span><span class="nt">backendWorker</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;125m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;128Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;250m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;256Mi&quot;</span>
+
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">otel</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</div>
+</details></li>
+<li><p>Login to OSMO:</p>
+<p>If ingress is disabled, you can port forward the OSMO API server and login to OSMO</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>service/osmo-service<span class="w"> </span><span class="m">9000</span>:80<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+
+$<span class="w"> </span>osmo<span class="w"> </span>login<span class="w"> </span>http://localhost:9000<span class="w"> </span>--method<span class="o">=</span>dev<span class="w"> </span>--username<span class="o">=</span>testuser
+</pre></div>
+</div>
+<p>If ingress is enabled, you can login to OSMO through your domain:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>login<span class="w"> </span>https://&lt;your-domain&gt;<span class="w"> </span>--method<span class="o">=</span>dev<span class="w"> </span>--username<span class="o">=</span>testuser
+</pre></div>
+</div>
+</li>
+<li><p>Create the account token secret:</p>
+<p>Generate a token for the backend operator with OSMO CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">BACKEND_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span>--service<span class="w"> </span>--roles<span class="w"> </span>osmo-backend<span class="w"> </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>
+
+$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>osmo-operator-token<span class="w"> </span>--from-literal<span class="o">=</span><span class="nv">token</span><span class="o">=</span><span class="nv">$BACKEND_TOKEN</span><span class="w"> </span>--namespace<span class="w"> </span>osmo-operator
+</pre></div>
+</div>
+</li>
+<li><p>Deploy the backend operator:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>osmo-operator<span class="w"> </span>osmo/backend-operator<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>./backend_operator_values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>osmo-operator
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="step-9-access-osmo">
+<h2>Step 9: Access OSMO<a class="headerlink" href="#step-9-access-osmo" title="Link to this heading">#</a></h2>
+<section id="with-ingress">
+<h3>With Ingress<a class="headerlink" href="#with-ingress" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p><strong>Access OSMO Service API</strong>:</p>
+<p>Visit <code class="docutils literal notranslate"><span class="pre">https://&lt;your-domain&gt;/api/docs</span></code> in your web browser to access the OSMO API.</p>
+</li>
+<li><p><strong>Access OSMO UI</strong>:</p>
+<p>Visit <code class="docutils literal notranslate"><span class="pre">https://&lt;your-domain&gt;</span></code> in your web browser to access the OSMO UI.</p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ol class="arabic simple">
+<li><p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;your-domain&gt;</span></code> with your domain name or use the alternative approach below</p></li>
+<li><p>Ensure your DNS is configured to point to your ingress controller’s load balancer</p></li>
+<li><p>If you need to test without DNS setup, you can use port forwarding as an alternative as well</p></li>
+</ol>
+</div>
+</section>
+<section id="without-ingress">
+<h3>Without Ingress<a class="headerlink" href="#without-ingress" title="Link to this heading">#</a></h3>
+<p>If you haven’t set up DNS yet, you can access OSMO using port forwarding as an alternative:</p>
+<ol class="arabic">
+<li><p><strong>Access OSMO Service API</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>service/osmo-service<span class="w"> </span><span class="m">9000</span>:80<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+<p>Then access the OSMO API at <a class="reference external" href="http://localhost:9000/api/docs" rel="noreferrer" target="_blank">http://localhost:9000/api/docs <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> in your web browser. You can interact with the API using the OSMO CLI.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>login<span class="w"> </span>http://localhost:9000<span class="w"> </span>--method<span class="o">=</span>dev<span class="w"> </span>--username<span class="o">=</span>testuser
+
+$<span class="w"> </span>osmo<span class="w"> </span>resource<span class="w"> </span>list<span class="w"> </span>-p<span class="w"> </span>default
+Node<span class="w">             </span>Pool<span class="w">      </span>Platform<span class="w">      </span>Storage<span class="w"> </span><span class="o">[</span>Gi<span class="o">]</span><span class="w">   </span>CPU<span class="w"> </span><span class="o">[</span><span class="c1">#]   Memory [Gi]   GPU [#]</span>
+<span class="o">========================================================================================</span>
+&lt;node-name&gt;<span class="w">       </span>default<span class="w">   </span>default<span class="w">        </span><span class="m">0</span>/2028<span class="w">         </span><span class="m">0</span>/2<span class="w">       </span><span class="m">1</span>/32<span class="w">         </span><span class="m">0</span>/8
+<span class="o">========================================================================================</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Access OSMO UI</strong> (in a separate terminal):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>service/osmo-ui<span class="w"> </span><span class="m">3000</span>:80<span class="w"> </span>-n<span class="w"> </span>osmo-minimal
+</pre></div>
+</div>
+<p>Then access the OSMO UI at <a class="reference external" href="http://localhost:3000" rel="noreferrer" target="_blank">http://localhost:3000 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> in your web browser. You should be able to see the OSMO UI dashboard as a guest user.</p>
+</li>
+</ol>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<ul class="simple">
+<li><p>If you are accessing OSMO with port forwarding, the router service will not be accessible</p></li>
+<li><p>Consequently, <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">workflow</span> <span class="pre">port-forward</span></code> or <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">workflow</span> <span class="pre">exec</span></code> commands are not expected to work</p></li>
+</ul>
+</div>
+</section>
+</section>
+<section id="step-10-basic-configuration">
+<h2>Step 10: Basic Configuration<a class="headerlink" href="#step-10-basic-configuration" title="Link to this heading">#</a></h2>
+<p>After deployment, you need to configure a central storage for workflow spec, workflow logs, and task’s artifacts data before you can start running workflows:</p>
+<ol class="arabic">
+<li><p>Follow the <a class="reference internal" href="../getting_started/configure_data.html#configure-data"><span class="std std-ref">Configure Data Storage</span></a> guide to setup data storage.</p></li>
+<li><p>Follow the <a class="reference internal" href="../install_backend/dependencies/dependencies.html#installing-required-dependencies"><span class="std std-ref">Install Dependencies</span></a> guide to install the KAI scheduler for running workflows.</p></li>
+<li><p><strong>(Optional)</strong> If you your ingress is not configured, you will need to set the following config with OSMO CLI for workflows to run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; /tmp/osmo_logger_config.json</span>
+<span class="s">{</span>
+<span class="s">&quot;service_base_url&quot;: &quot;http://osmo-logger.osmo-minimal.svc.cluster.local:80&quot;</span>
+<span class="s">}</span>
+<span class="s">EOF</span>
+
+$<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </span>update<span class="w"> </span>SERVICE<span class="w"> </span>--file<span class="w"> </span>/tmp/osmo_logger_config.json
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="testing-your-deployment">
+<h2>Testing Your Deployment<a class="headerlink" href="#testing-your-deployment" title="Link to this heading">#</a></h2>
+<p>Follow the <a class="reference internal" href="../install_backend/validate_osmo.html#validate-osmo"><span class="std std-ref">Run Workflows</span></a> guide to test basic OSMO functionality.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>When accessing OSMO through port forwarding, you will not be able to run interactive workflows involving <code class="docutils literal notranslate"><span class="pre">port-forwarding</span></code> or <code class="docutils literal notranslate"><span class="pre">exec</span></code> functionality.</p>
+</div>
+</section>
+<section id="what-s-next">
+<h2>What’s Next<a class="headerlink" href="#what-s-next" title="Link to this heading">#</a></h2>
+<p>Once you have tested OSMO with the minimal deployment and are ready for production use, consider the following steps:</p>
+<ol class="arabic simple">
+<li><p>Consider upgrading to production deployment (<a class="reference internal" href="../getting_started/deploy_service.html#deploy-service"><span class="std std-ref">Deploy Service</span></a>)</p></li>
+<li><p>Setup SSO authentication and authorization (<a class="reference internal" href="authentication/authentication_flow.html#authentication-flow-sso"><span class="std std-ref">Advanced Keycloak Configuration</span></a>)</p></li>
+<li><p>Configure persistent storage (<a class="reference internal" href="../getting_started/configure_data.html#configure-data"><span class="std std-ref">Configure Data Storage</span></a>)</p></li>
+<li><p>Add observability and monitoring solutions (<a class="reference internal" href="../install_backend/observability.html#adding-observability"><span class="std std-ref">Add Observability (Optional)</span></a>)</p></li>
+</ol>
+</section>
+<section id="cleanup">
+<h2>Cleanup<a class="headerlink" href="#cleanup" title="Link to this heading">#</a></h2>
+<p>To remove the minimal deployment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Uninstall all helm releases</span>
+$<span class="w"> </span>helm<span class="w"> </span>uninstall<span class="w"> </span>osmo-minimal<span class="w"> </span>--namespace<span class="w"> </span>osmo-minimal
+$<span class="w"> </span>helm<span class="w"> </span>uninstall<span class="w"> </span>ui-minimal<span class="w"> </span>--namespace<span class="w"> </span>osmo-minimal
+$<span class="w"> </span>helm<span class="w"> </span>uninstall<span class="w"> </span>router-minimal<span class="w"> </span>--namespace<span class="w"> </span>osmo-minimal
+$<span class="w"> </span>helm<span class="w"> </span>uninstall<span class="w"> </span>osmo-operator<span class="w"> </span>--namespace<span class="w"> </span>osmo-operator
+
+<span class="c1"># Delete the namespace</span>
+$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>namespace<span class="w"> </span>osmo-minimal
+$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>namespace<span class="w"> </span>osmo-operator
+</pre></div>
+</div>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="common-issues">
+<h3>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p><strong>Pods not starting</strong>: Check resource availability and image pull secrets</p></li>
+<li><p><strong>Database connection issues</strong>: Verify PostgreSQL database is accessible from the OSMO service and you have the correct credentials</p></li>
+<li><p><strong>Redis connection issues</strong>: Verify Redis is accessible from the OSMO service and you have the correct credentials, common issues are:</p>
+<ul class="simple">
+<li><p>TLS is enabled but <cite>tlsEnabled</cite> is set to false in the values file</p></li>
+</ul>
+</li>
+<li><p><strong>Port forwarding issues</strong>: Ensure no other services are using the same port</p></li>
+</ol>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="deploy_local.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Local Deployment</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="workflow_execution.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Understanding Task Execution</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-create-namespace">Step 1: Create Namespace</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-add-helm-repository">Step 2: Add Helm Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-create-k8s-secrets">Step 3: Create K8s Secrets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-configure-postgresql">Step 4: Configure PostgreSQL</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-prepare-service-values">Step 5: Prepare Service Values</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-helm-deploy">Step 6: Helm Deploy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-verify-deployment">Step 7: Verify Deployment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-8-install-backend-operator">Step 8: Install Backend Operator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-9-access-osmo">Step 9: Access OSMO</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#with-ingress">With Ingress</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#without-ingress">Without Ingress</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-10-basic-configuration">Step 10: Basic Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-your-deployment">Testing Your Deployment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-next">What’s Next</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cleanup">Cleanup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#common-issues">Common Issues</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

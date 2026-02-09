@@ -1,0 +1,839 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Troubleshooting &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/troubleshooting/index';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="NCCL Errors" href="nccl.html" />
+    <link rel="prev" title="FAQs" href="../faq/index.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../workflows/index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../workflows/specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflows/submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflows/lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../workflows/interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../workflows/interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflows/exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflows/apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Troubleshooting</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../appendix/cli/index.html">CLI Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Troubleshooting</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="troubleshooting">
+<span id="id1"></span><h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h1>
+<section id="credentials">
+<span id="troubleshooting-credentials"></span><h2>Credentials<a class="headerlink" href="#credentials" title="Link to this heading">#</a></h2>
+<p>Below are some common errors you might run into when using the credential CLI. Please follow the
+suggested steps to troubleshoot. Please also refer to <a class="reference internal" href="../getting_started/credentials.html#credentials"><span class="std std-ref">Setup Credentials</span></a> for more information</p>
+<section id="could-not-connect-to-the-endpoint-url">
+<h3>Could not connect to the endpoint URL<a class="headerlink" href="#could-not-connect-to-the-endpoint-url" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">400</span>
+Data<span class="w"> </span>validation<span class="w"> </span>failed<span class="w"> </span>with<span class="w"> </span>error:<span class="w"> </span>Could<span class="w"> </span>not<span class="w"> </span>connect<span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>endpoint<span class="w"> </span>URL:<span class="w"> </span><span class="s2">&quot;{your_data_endpoint_url}&quot;</span>
+</pre></div>
+</div>
+<p>Please confirm if the data endpoint URL is valid</p>
+</section>
+<section id="extra-fields-not-permitted">
+<h3>Extra fields not permitted<a class="headerlink" href="#extra-fields-not-permitted" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">422</span>
+<span class="o">{</span><span class="s1">&#39;detail&#39;</span>:<span class="w"> </span><span class="o">[{</span><span class="s1">&#39;loc&#39;</span>:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;body&#39;</span>,<span class="w"> </span><span class="s1">&#39;xxxx_credential&#39;</span>,<span class="w"> </span><span class="s1">&#39;xxx&#39;</span><span class="o">]</span>,<span class="w"> </span><span class="s1">&#39;msg&#39;</span>:<span class="w"> </span><span class="s1">&#39;extra fields not permitted&#39;</span>,<span class="w"> </span><span class="s1">&#39;type&#39;</span>:<span class="w"> </span><span class="s1">&#39;value_error.extra&#39;</span><span class="o">}]}</span>
+</pre></div>
+</div>
+<p>Please make sure you don’t provide extra field when setting credentials with payload. The
+tabulated information illustrates the keys that are compulsory and those that are optional
+for the payload corresponding to each type of credential.</p>
+</section>
+<section id="signaturedoesnotmatch">
+<h3>SignatureDoesNotMatch<a class="headerlink" href="#signaturedoesnotmatch" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">400</span>
+Data<span class="w"> </span>validation<span class="w"> </span>failed<span class="w"> </span>with<span class="w"> </span>error:<span class="w"> </span>An<span class="w"> </span>error<span class="w"> </span>occurred<span class="w"> </span><span class="o">(</span>SignatureDoesNotMatch<span class="o">)</span><span class="w"> </span>when<span class="w"> </span>calling<span class="w"> </span>the<span class="w"> </span>ListBuckets<span class="w"> </span>operation:<span class="w"> </span>The<span class="w"> </span>request<span class="w"> </span>signature<span class="w"> </span>we<span class="w"> </span>calculated<span class="w"> </span>does<span class="w"> </span>not<span class="w"> </span>match<span class="w"> </span>the<span class="w"> </span>signature<span class="w"> </span>you<span class="w"> </span>provided.<span class="w"> </span>Check<span class="w"> </span>your<span class="w"> </span>key<span class="w"> </span>and<span class="w"> </span>signing<span class="w"> </span>method.
+</pre></div>
+</div>
+<p>Please check if you access_key_id and access_key are valid.</p>
+</section>
+<section id="authorizationheadermalformed">
+<h3>AuthorizationHeaderMalformed<a class="headerlink" href="#authorizationheadermalformed" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">400</span>
+Data<span class="w"> </span>validation<span class="w"> </span>failed<span class="w"> </span>with<span class="w"> </span>error:<span class="w"> </span>An<span class="w"> </span>error<span class="w"> </span>occurred<span class="w"> </span><span class="o">(</span>AuthorizationHeaderMalformed<span class="o">)</span><span class="w"> </span>when<span class="w"> </span>calling<span class="w"> </span>the<span class="w"> </span>ListBuckets<span class="w"> </span>operation:<span class="w"> </span>The<span class="w"> </span>authorization<span class="w"> </span>header<span class="w"> </span>is<span class="w"> </span>malformed<span class="p">;</span><span class="w"> </span>the<span class="w"> </span>region<span class="w"> </span><span class="s1">&#39;us-east-3&#39;</span><span class="w"> </span>is<span class="w"> </span>wrong<span class="p">;</span><span class="w"> </span>expecting<span class="w"> </span><span class="s1">&#39;us-east-1&#39;</span>
+</pre></div>
+</div>
+<p>Please correct the region based on the suggestion.</p>
+</section>
+<section id="max-retries-exceeded-with-url">
+<h3>Max retries exceeded with url<a class="headerlink" href="#max-retries-exceeded-with-url" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">400</span>
+Registry<span class="w"> </span>connection<span class="w"> </span>error<span class="w"> </span><span class="k">for</span><span class="w"> </span>https://your_registry/v2/:
+HTTPSConnectionPool<span class="o">(</span><span class="nv">host</span><span class="o">=</span><span class="s1">&#39;your_registry&#39;</span>,<span class="w"> </span><span class="nv">port</span><span class="o">=</span><span class="m">443</span><span class="o">)</span>:<span class="w"> </span>Max<span class="w"> </span>retries<span class="w"> </span>exceeded<span class="w"> </span>with<span class="w"> </span>url:<span class="w"> </span>/v2/<span class="w"> </span><span class="o">(</span>Caused<span class="w"> </span>by<span class="w"> </span>NewConnectionError<span class="o">(</span><span class="s1">&#39;&lt;urllib3.connection.HTTPSConnection object at 0x7fe07c119e40&gt;: Failed to establish a new connection: [Errno -2] Name or service not known&#39;</span><span class="o">))</span>
+</pre></div>
+</div>
+<p>Please check if your registry is valid.</p>
+</section>
+<section id="registry-authentication-failed">
+<h3>Registry authentication failed<a class="headerlink" href="#registry-authentication-failed" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">400</span>
+Registry<span class="w"> </span>authentication<span class="w"> </span>failed.
+</pre></div>
+</div>
+<p>Please check if you registry username and auth is valid.</p>
+</section>
+<section id="duplicate-key-value">
+<h3>Duplicate key value<a class="headerlink" href="#duplicate-key-value" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>client<span class="w"> </span><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>common:<span class="w"> </span>Server<span class="w"> </span>responded<span class="w"> </span>with<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">400</span>
+<span class="o">{</span><span class="s1">&#39;message&#39;</span>:<span class="w"> </span><span class="s1">&#39; duplicate key value violates unique constraint &quot;credential_pkey&quot;\nDETAIL:  Key (user_name, cred_name)=(your_user_name, your_cred_name) already exists.\n&#39;</span>,<span class="w"> </span><span class="s1">&#39;error_code&#39;</span>:<span class="w"> </span><span class="s1">&#39;USER&#39;</span><span class="o">}</span>
+</pre></div>
+</div>
+<p>Please rename your credential or delete it with <code class="docutils literal notranslate"><span class="pre">$</span> <span class="pre">osmo</span> <span class="pre">credential</span> <span class="pre">delete</span> <span class="pre">&lt;your_cred_name&gt;</span></code>
+and then reset it.</p>
+</section>
+</section>
+<section id="dataset">
+<span id="troubleshooting-dataset"></span><h2>Dataset<a class="headerlink" href="#dataset" title="Link to this heading">#</a></h2>
+<p>Below are some common errors you might run into when using the dataset CLI. Please follow the
+suggested steps to troubleshoot. Please also refer to <a class="reference internal" href="../getting_started/credentials.html#credentials-data"><span class="std std-ref">Data</span></a> or
+<a class="reference internal" href="../tutorials/data/index.html#tutorials-working-with-data"><span class="std std-ref">Working with Data</span></a> for more information.</p>
+<section id="validation-error">
+<h3>Validation error<a class="headerlink" href="#validation-error" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>Data<span class="w"> </span>upload<span class="w"> </span>failed<span class="w"> </span>with<span class="w"> </span>error:
+
+Data<span class="w"> </span>key<span class="w"> </span>validation<span class="w"> </span>error:<span class="w"> </span>access_key_id<span class="w"> </span>&lt;&gt;<span class="w"> </span>not<span class="w"> </span>valid<span class="w"> </span><span class="k">for</span><span class="w"> </span>&lt;&gt;
+Data<span class="w"> </span>key<span class="w"> </span>validation<span class="w"> </span>error:<span class="w"> </span>access_key_id<span class="w"> </span>has<span class="w"> </span>no<span class="w"> </span><span class="nb">read</span><span class="w"> </span>access<span class="w"> </span><span class="k">for</span><span class="w"> </span>&lt;&gt;
+Data<span class="w"> </span>key<span class="w"> </span>validation<span class="w"> </span>error:<span class="w"> </span>access_key_id<span class="w"> </span>has<span class="w"> </span>no<span class="w"> </span>write<span class="w"> </span>access<span class="w"> </span><span class="k">for</span><span class="w"> </span>&lt;&gt;
+</pre></div>
+</div>
+<p>Please confirm if the <code class="docutils literal notranslate"><span class="pre">access_key_id</span></code> set for your data credentials is the same as the Shared
+Storage S3 ACL Access User found at <a class="reference internal" href="../getting_started/credentials.html#credentials-data"><span class="std std-ref">Data</span></a>
+If the access_key_id does not have the correct permissions, ask an admin for permission.</p>
+</section>
+<section id="no-default-bucket">
+<h3>No default bucket<a class="headerlink" href="#no-default-bucket" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>No<span class="w"> </span>default<span class="w"> </span>bucket<span class="w"> </span>set.<span class="w"> </span>Specify<span class="w"> </span>default<span class="w"> </span>bucket<span class="w"> </span>using<span class="w"> </span>the<span class="w"> </span><span class="s2">&quot;osmo profile set&quot;</span><span class="w"> </span>CLI.
+</pre></div>
+</div>
+<p>Please set a default bucket as specified at <a class="reference internal" href="../getting_started/credentials.html#credentials-data"><span class="std std-ref">Data</span></a></p>
+</section>
+</section>
+<section id="resources">
+<span id="troubleshooting-resources"></span><h2>Resources<a class="headerlink" href="#resources" title="Link to this heading">#</a></h2>
+<p>Please make change to the workflow resource specs based on the detailed error message. Please
+also refer <a class="reference internal" href="../resource_pools/index.html#concepts-resources-pools-platforms"><span class="std std-ref">Overview</span></a> to make sure your resource spec is correct. Set the labels,
+cpu/gpu, memory, storage based on the current pool/platform availability <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">resource</span> <span class="pre">list</span></code></p>
+<p>Some common errors are listed below:</p>
+<section id="too-high-for-label-memory">
+<h3>Too high for label memory<a class="headerlink" href="#too-high-for-label-memory" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>Resource<span class="w"> </span>memory<span class="w"> </span>error
+E.g.<span class="w"> </span>Value<span class="w"> </span><span class="s2">&quot;1000000&quot;</span><span class="w"> </span>too<span class="w"> </span>high<span class="w"> </span><span class="k">for</span><span class="w"> </span>label<span class="w"> </span>memory
+</pre></div>
+</div>
+<p>Please check the available memory and set it correctly.</p>
+</section>
+<section id="too-high-for-label-cpu">
+<h3>Too high for label cpu<a class="headerlink" href="#too-high-for-label-cpu" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>Resource<span class="w"> </span>cpu/gpu<span class="w"> </span>error
+E.g.<span class="w"> </span>Value<span class="w"> </span><span class="s2">&quot;1000000&quot;</span><span class="w"> </span>too<span class="w"> </span>high<span class="w"> </span><span class="k">for</span><span class="w"> </span>label<span class="w"> </span>cpu
+</pre></div>
+</div>
+<p>Please check the available cpu and set it correctly.</p>
+</section>
+<section id="too-high-for-label-storage">
+<h3>Too high for label storage<a class="headerlink" href="#too-high-for-label-storage" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>Resource<span class="w"> </span>storage<span class="w"> </span>error
+E.g.<span class="w"> </span>Value<span class="w"> </span><span class="s2">&quot;1000000&quot;</span><span class="w"> </span>too<span class="w"> </span>high<span class="w"> </span><span class="k">for</span><span class="w"> </span>label<span class="w"> </span>storage
+</pre></div>
+</div>
+<p>Please check the available storage and set it correctly.</p>
+</section>
+<section id="does-not-allow-mount">
+<h3>Does not allow mount<a class="headerlink" href="#does-not-allow-mount" title="Link to this heading">#</a></h3>
+<div class="no-copybutton highlight-bash notranslate"><div class="highlight"><pre><span></span>Mount<span class="w"> </span>error:
+E.g.<span class="w"> </span>Mount<span class="w"> </span>/bad_mount<span class="w"> </span>not<span class="w"> </span>allowed<span class="w"> </span><span class="k">for</span><span class="w"> </span>selected<span class="w"> </span>platform<span class="w"> </span>dgx-h100
+</pre></div>
+</div>
+<p>If you need specific host mounts, reach out to admin to update the platform configs.</p>
+</section>
+</section>
+<section id="workflow">
+<span id="troubleshooting-workflow"></span><h2>Workflow<a class="headerlink" href="#workflow" title="Link to this heading">#</a></h2>
+<p>When a workflow fails, refer to <a class="reference internal" href="../appendix/cli/cli_workflow.html#cli_reference_workflow_query"><span class="std std-ref">query</span></a> to gain an overview of the workflow tasks
+statuses on which pods failed as well as their failure messages. Refer to <a class="reference internal" href="../workflows/lifecycle/index.html#workflow-lifecycle-status"><span class="std std-ref">Status Reference</span></a>
+that contains more information regarding different workflow statuses.</p>
+<p>Use <a class="reference internal" href="../appendix/cli/cli_workflow.html#cli_reference_workflow_logs"><span class="std std-ref">logs</span></a> for a better insight of what happened during the workflow runtime.</p>
+<section id="error-code">
+<span id="troubleshooting-137-error-code"></span><h3>137 Error Code<a class="headerlink" href="#error-code" title="Link to this heading">#</a></h3>
+<p>When a task exits with exit code <code class="docutils literal notranslate"><span class="pre">137</span></code>, it usually signifies that your task was killed due to
+using too much memory.</p>
+<p>A user can confirm this if the admins have setup a Grafana Dashboard for detailed
+workflow usage information. To see the dashboard, users can click on the <code class="docutils literal notranslate"><span class="pre">Resource</span> <span class="pre">Usage</span></code> button
+in the UI on the detailed workflow information page.</p>
+<p>To resolve the memory issue, users can try increasing the amount of memory requested or lower
+the memory usage within the task. To learn more about workflow resources, refer to
+<a class="reference internal" href="../resource_pools/index.html#concepts-resources-pools-platforms"><span class="std std-ref">Overview</span></a>.</p>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../faq/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">FAQs</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="nccl.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">NCCL Errors</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#credentials">Credentials</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#could-not-connect-to-the-endpoint-url">Could not connect to the endpoint URL</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#extra-fields-not-permitted">Extra fields not permitted</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#signaturedoesnotmatch">SignatureDoesNotMatch</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#authorizationheadermalformed">AuthorizationHeaderMalformed</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#max-retries-exceeded-with-url">Max retries exceeded with url</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#registry-authentication-failed">Registry authentication failed</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#duplicate-key-value">Duplicate key value</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset">Dataset</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#validation-error">Validation error</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#no-default-bucket">No default bucket</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resources">Resources</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#too-high-for-label-memory">Too high for label memory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#too-high-for-label-cpu">Too high for label cpu</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#too-high-for-label-storage">Too high for label storage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#does-not-allow-mount">Does not allow mount</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#workflow">Workflow</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-code">137 Error Code</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

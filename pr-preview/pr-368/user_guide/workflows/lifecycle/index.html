@@ -1,0 +1,1163 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Workflow Lifecycle &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/workflows/lifecycle/index';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Interactive Workflows" href="../interactive/index.html" />
+    <link rel="prev" title="Workflow Submission" href="../submission.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../submission.html">Workflow Submission</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../appendix/cli/index.html">CLI Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Workflow Lifecycle</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="workflow-lifecycle">
+<span id="id1"></span><h1>Workflow Lifecycle<a class="headerlink" href="#workflow-lifecycle" title="Link to this heading">#</a></h1>
+<p>When you submit a workflow, it progresses through distinct phases from submission to completion.
+This page explains what happens at each stage and what you should expect to see.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Every successful workflow follows this path:</p>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-3 sd-row-cols-xs-3 sd-row-cols-sm-3 sd-row-cols-md-3 sd-row-cols-lg-3 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header card-pending text-dark docutils">
+<p class="sd-card-text"><strong>PENDING</strong> ⏱️</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Setting up resources and preparing to run</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><strong>What’s happening:</strong> Validating, queuing, and initializing</p>
+<p class="sd-card-text"><span class="badge bg-pending badge-pending">Active</span></p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header card-running text-white docutils">
+<p class="sd-card-text"><strong>RUNNING</strong> ▶️</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Your tasks are executing</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><strong>What’s happening:</strong> Commands running, transferring data</p>
+<p class="sd-card-text"><span class="badge bg-running badge-running">Active</span></p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header card-completed text-white docutils">
+<p class="sd-card-text"><strong>COMPLETED</strong> ✓</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">All tasks finished successfully</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><strong>What’s happening:</strong> Outputs uploaded, workflow done</p>
+<p class="sd-card-text"><span class="badge bg-completed badge-completed">Terminal</span></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Most workflows follow this simple progression.</strong> If you see other statuses like <kbd class="kbd docutils literal notranslate">WAITING</kbd>
+or various <kbd class="kbd docutils literal notranslate">FAILED</kbd> states, see the sections below to understand what’s happening.</p>
+</div>
+</section>
+<hr class="docutils" />
+<section id="task-lifecycle">
+<h2>Task Lifecycle<a class="headerlink" href="#task-lifecycle" title="Link to this heading">#</a></h2>
+<div class="sd-tab-set lifecycle-tabs docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-0">
+SUBMITTING</label><div class="sd-tab-content docutils">
+<p><strong>What’s happening:</strong></p>
+<ul class="simple">
+<li><p>Workflow YAML is being validated (syntax, names, resources)</p></li>
+<li><p>Credentials are checked (registry and data access)</p></li>
+<li><p>Resource requests are matched against pool capacity</p></li>
+</ul>
+<p><strong>Common issues:</strong></p>
+<ul class="simple">
+<li><p><strong>Invalid/missing credentials</strong> → Configure with <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">credential</span> <span class="pre">set</span></code></p></li>
+<li><p><strong>Resource requests too large</strong> → Reduce GPU/CPU/memory or verify with <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">pool</span> <span class="pre">list</span></code> or <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">resource</span> <span class="pre">list</span></code></p></li>
+</ul>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-1">
+WAITING</label><div class="sd-tab-content docutils">
+<p><strong>What’s happening:</strong></p>
+<ul class="simple">
+<li><p>Task is waiting for upstream tasks to complete</p></li>
+<li><p>No resources are being consumed during this phase</p></li>
+</ul>
+<p><strong>Common issues:</strong></p>
+<ul class="simple">
+<li><p>Upstream task failures will cause dependent tasks to fail</p></li>
+<li><p>Long wait times if upstream tasks are slow or queued</p></li>
+</ul>
+</div>
+<input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-2">
+PROCESSING</label><div class="sd-tab-content docutils">
+<p><strong>What’s happening:</strong></p>
+<ul class="simple">
+<li><p>Converting task specification to backend format</p></li>
+<li><p>Submitting task to backend scheduler</p></li>
+</ul>
+<p><strong>Common issues:</strong></p>
+<ul class="simple">
+<li><p>Rare - usually internal processing errors</p></li>
+<li><p>If stuck here, please contact your administrator</p></li>
+</ul>
+</div>
+<input id="sd-tab-item-3" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-3">
+SCHEDULING</label><div class="sd-tab-content docutils">
+<p><strong>What’s happening:</strong></p>
+<ul class="simple">
+<li><p>Task is in the backend queue</p></li>
+<li><p>Waiting for nodes with requested resources (CPU, GPU, memory)</p></li>
+<li><p><a class="reference internal" href="../../resource_pools/scheduling/index.html#concepts-priority"><span class="std std-ref">Priority</span></a> and queue position determine the order in which tasks are scheduled</p></li>
+</ul>
+<p><strong>Common issues:</strong></p>
+<ul class="simple">
+<li><p><strong>Insufficient resources in pool</strong> → Check pool capacity: <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">pool</span> <span class="pre">list</span></code></p></li>
+<li><p><strong>Resource requests too large</strong> → Reduce GPU/CPU/memory requests or request a larger pool</p></li>
+<li><p><strong>Queue timeout exceeded</strong> → Increase <code class="docutils literal notranslate"><span class="pre">queue_timeout</span></code> (see <a class="reference internal" href="../specification/timeouts.html#workflow-spec-timeouts"><span class="std std-ref">Timeouts</span></a>)</p></li>
+</ul>
+</div>
+<input id="sd-tab-item-4" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-4">
+INITIALIZING</label><div class="sd-tab-content docutils">
+<p><strong>What’s happening:</strong></p>
+<ul class="simple">
+<li><p>Pulling Docker image (if not already cached on the node)</p></li>
+<li><p>Running preflight tests</p></li>
+<li><p>Preparing container environment</p></li>
+</ul>
+<p><strong>Common issues:</strong></p>
+<ul class="simple">
+<li><p><strong>Image doesn’t exist</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_IMAGE_PULL</span></code> - Check image name and registry</p></li>
+<li><p><strong>No pull credentials</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_IMAGE_PULL</span></code> - Verify registry credentials</p></li>
+<li><p><strong>Image pull timeout</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_START_TIMEOUT</span></code> - Image too large or network issues</p></li>
+<li><p><strong>Preflight test failures</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_START_ERROR</span></code> - Container startup problems</p></li>
+</ul>
+</div>
+<input id="sd-tab-item-5" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-5">
+RUNNING</label><div class="sd-tab-content docutils">
+<p><strong>What’s happening:</strong></p>
+<p>Three sequential activities occur during the <kbd class="kbd docutils literal notranslate">RUNNING</kbd> phase:</p>
+<ol class="arabic simple">
+<li><p><strong>Input download</strong> - Sidecar container downloads any specified inputs from:</p>
+<ul class="simple">
+<li><p>Upstream task outputs</p></li>
+<li><p>Datasets</p></li>
+<li><p>Cloud storage URLs</p></li>
+</ul>
+</li>
+<li><p><strong>Command execution</strong> - Your code runs in the container:</p>
+<ul class="simple">
+<li><p>Standard output/error is captured in logs</p></li>
+<li><p>Exec and port-forwarding are available during this time</p></li>
+<li><p>You can interact with the running task</p></li>
+</ul>
+</li>
+<li><p><strong>Output upload</strong> - After your command completes, sidecar uploads outputs:</p>
+<ul class="simple">
+<li><p>Files from the output directory are uploaded</p></li>
+<li><p>Uploads to specified locations or intermediate storage</p></li>
+<li><p>Happens before status changes to <kbd class="kbd docutils literal notranslate">COMPLETED</kbd></p></li>
+</ul>
+</li>
+</ol>
+<p><strong>Common issues:</strong></p>
+<ul class="simple">
+<li><p><strong>Execution timeout exceeded</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_EXEC_TIMEOUT</span></code> - Increase <code class="docutils literal notranslate"><span class="pre">exec_timeout</span></code> or optimize code</p></li>
+<li><p><strong>Memory limits exceeded</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_EVICTED</span></code> - Request more memory or reduce usage</p></li>
+<li><p><strong>Storage limits exceeded</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_EVICTED</span></code> - Clean up intermediate files or request more storage</p></li>
+<li><p><strong>Node failures</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED_BACKEND_ERROR</span></code> - Infrastructure issue, consider auto-reschedule</p></li>
+<li><p><strong>Command exits with error</strong> → <code class="docutils literal notranslate"><span class="pre">FAILED</span></code> - Check logs: <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">workflow</span> <span class="pre">logs</span> <span class="pre">&lt;workflow-id&gt;</span> <span class="pre">&lt;task-name&gt;</span></code></p></li>
+</ul>
+</div>
+<input id="sd-tab-item-6" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label phase-tab" for="sd-tab-item-6">
+COMPLETED</label><div class="sd-tab-content docutils">
+<p><span class="badge bg-completed badge-completed">COMPLETED</span></p>
+<ul class="simple">
+<li><p>Task finished successfully (exit code <code class="docutils literal notranslate"><span class="pre">0</span></code>)</p></li>
+<li><p>All outputs have been uploaded</p></li>
+<li><p>Task is done and cannot transition to any other state</p></li>
+</ul>
+<p><span class="badge bg-failed badge-failed">FAILED</span></p>
+<ul class="simple">
+<li><p>Task encountered an error and stopped</p></li>
+<li><p>See <a class="reference internal" href="#workflow-lifecycle-status"><span class="std std-ref">Status Reference</span></a> for all failure types</p></li>
+<li><p>Check logs to diagnose: <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">workflow</span> <span class="pre">logs</span> <span class="pre">&lt;workflow-id&gt;</span> <span class="pre">&lt;task-name&gt;</span></code></p></li>
+<li><p>Check exit code (see <a class="reference internal" href="../exit_codes.html#workflow-exit-codes"><span class="std std-ref">Exit Codes</span></a>)</p></li>
+</ul>
+</div>
+</div>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file-moved" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-3.5a.75.75 0 0 1 0-1.5h3.5a.25.25 0 0 0 .25-.25V4.664a.25.25 0 0 0-.073-.177l-2.914-2.914a.25.25 0 0 0-.177-.073H3.75a.25.25 0 0 0-.25.25v6.5a.75.75 0 0 1-1.5 0v-6.5Z"></path><path d="m5.427 15.573 3.146-3.146a.25.25 0 0 0 0-.354L5.427 8.927A.25.25 0 0 0 5 9.104V11.5H.75a.75.75 0 0 0 0 1.5H5v2.396c0 .223.27.335.427.177Z"></path></svg></span><span class="sd-summary-text">Task’s Output Behavior</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text"><strong>When are outputs uploaded?</strong></p>
+<p class="sd-card-text">Outputs are uploaded when the task completes successfully. However:</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p class="sd-card-text">If the task is canceled or terminated (due to backend error, eviction, or preemption), outputs are <strong>NOT uploaded</strong>.</p>
+</div>
+<p class="sd-card-text"><strong>Where are outputs uploaded?</strong></p>
+<p class="sd-card-text">OSMO determines the upload destination based on your configuration:</p>
+<ul class="simple">
+<li><p class="sd-card-text"><strong>Custom location</strong> - If you specify <code class="docutils literal notranslate"><span class="pre">outputs</span></code> in the task spec
+→ See <a class="reference internal" href="../specification/inputs_and_outputs.html#workflow-spec-outputs"><span class="std std-ref">Outputs</span></a></p></li>
+<li><p class="sd-card-text"><strong>Intermediate storage</strong> - In these cases:</p>
+<ul>
+<li><p class="sd-card-text">Task has downstream dependencies (outputs needed by other tasks)</p></li>
+<li><p class="sd-card-text">Task has no downstream dependencies <strong>AND</strong> no <code class="docutils literal notranslate"><span class="pre">outputs</span></code> specified (automatic backup)</p></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-sync" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"></path></svg></span><span class="sd-summary-text">How to recover from task failures?</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">When tasks fail, you can configure automatic recovery using <a class="reference internal" href="../specification/exit_actions.html#workflow-spec-exit-actions"><span class="std std-ref">Exit Actions</span></a>:</p>
+<ul class="simple">
+<li><p class="sd-card-text"><strong>Reschedule</strong> (creates new task) - Use for:</p>
+<ul>
+<li><p class="sd-card-text">Node failures (<code class="docutils literal notranslate"><span class="pre">FAILED_BACKEND_ERROR</span></code>)</p></li>
+<li><p class="sd-card-text">Preemption (<code class="docutils literal notranslate"><span class="pre">FAILED_PREEMPTED</span></code>)</p></li>
+<li><p class="sd-card-text">Image pull issues (<code class="docutils literal notranslate"><span class="pre">FAILED_IMAGE_PULL</span></code>)</p></li>
+</ul>
+</li>
+<li><p class="sd-card-text"><strong>Restart</strong> (re-runs command on same task) - Use for:</p>
+<ul>
+<li><p class="sd-card-text">Code crashes that can resume from checkpoints</p></li>
+<li><p class="sd-card-text">Timeouts where work can continue</p></li>
+<li><p class="sd-card-text">Temporary failures that don’t require a fresh start</p></li>
+</ul>
+</li>
+</ul>
+<p class="sd-card-text"><strong>Example configuration:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resilient-task</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-image</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="w">    </span><span class="nt">exitActions</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">COMPLETE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0-10</span>
+<span class="w">      </span><span class="nt">RESTART</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">11-20</span>
+<span class="w">      </span><span class="nt">RESCHEDULE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">21-255</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p class="sd-card-text">Please contact your administrator to enable/configure maximum number of retries.</p>
+</div>
+</div>
+</details><hr class="docutils" />
+</section>
+<section id="group-lifecycle">
+<span id="workflow-lifecycle-group"></span><h2>Group Lifecycle<a class="headerlink" href="#group-lifecycle" title="Link to this heading">#</a></h2>
+<p>Groups allow multiple tasks to run together and communicate. Understanding group lifecycle
+is important when using distributed training or multi-task coordination.</p>
+<p>Groups follow a similar lifecycle to tasks, but represent the <strong>collective state</strong> of all
+tasks within the group:</p>
+<ol class="arabic simple">
+<li><p><strong>SUBMITTING</strong> → Group is being submitted</p></li>
+<li><p><strong>WAITING</strong> → Group waits for upstream groups (if any)</p></li>
+<li><p><strong>PROCESSING</strong> → Service is preparing the group</p></li>
+<li><p><strong>SCHEDULING</strong> → Group is waiting to be scheduled</p></li>
+<li><p><strong>INITIALIZING</strong> → Tasks are pulling images</p></li>
+<li><p><strong>RUNNING</strong> → At least one task in the group is running</p></li>
+<li><p><strong>COMPLETED</strong> or <strong>FAILED</strong> → Group finished</p></li>
+</ol>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-gear" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0a8.2 8.2 0 0 1 .701.031C9.444.095 9.99.645 10.16 1.29l.288 1.107c.018.066.079.158.212.224.231.114.454.243.668.386.123.082.233.09.299.071l1.103-.303c.644-.176 1.392.021 1.82.63.27.385.506.792.704 1.218.315.675.111 1.422-.364 1.891l-.814.806c-.049.048-.098.147-.088.294.016.257.016.515 0 .772-.01.147.038.246.088.294l.814.806c.475.469.679 1.216.364 1.891a7.977 7.977 0 0 1-.704 1.217c-.428.61-1.176.807-1.82.63l-1.102-.302c-.067-.019-.177-.011-.3.071a5.909 5.909 0 0 1-.668.386c-.133.066-.194.158-.211.224l-.29 1.106c-.168.646-.715 1.196-1.458 1.26a8.006 8.006 0 0 1-1.402 0c-.743-.064-1.289-.614-1.458-1.26l-.289-1.106c-.018-.066-.079-.158-.212-.224a5.738 5.738 0 0 1-.668-.386c-.123-.082-.233-.09-.299-.071l-1.103.303c-.644.176-1.392-.021-1.82-.63a8.12 8.12 0 0 1-.704-1.218c-.315-.675-.111-1.422.363-1.891l.815-.806c.05-.048.098-.147.088-.294a6.214 6.214 0 0 1 0-.772c.01-.147-.038-.246-.088-.294l-.815-.806C.635 6.045.431 5.298.746 4.623a7.92 7.92 0 0 1 .704-1.217c.428-.61 1.176-.807 1.82-.63l1.102.302c.067.019.177.011.3-.071.214-.143.437-.272.668-.386.133-.066.194-.158.211-.224l.29-1.106C6.009.645 6.556.095 7.299.03 7.53.01 7.764 0 8 0Zm-.571 1.525c-.036.003-.108.036-.137.146l-.289 1.105c-.147.561-.549.967-.998 1.189-.173.086-.34.183-.5.29-.417.278-.97.423-1.529.27l-1.103-.303c-.109-.03-.175.016-.195.045-.22.312-.412.644-.573.99-.014.031-.021.11.059.19l.815.806c.411.406.562.957.53 1.456a4.709 4.709 0 0 0 0 .582c.032.499-.119 1.05-.53 1.456l-.815.806c-.081.08-.073.159-.059.19.162.346.353.677.573.989.02.03.085.076.195.046l1.102-.303c.56-.153 1.113-.008 1.53.27.161.107.328.204.501.29.447.222.85.629.997 1.189l.289 1.105c.029.109.101.143.137.146a6.6 6.6 0 0 0 1.142 0c.036-.003.108-.036.137-.146l.289-1.105c.147-.561.549-.967.998-1.189.173-.086.34-.183.5-.29.417-.278.97-.423 1.529-.27l1.103.303c.109.029.175-.016.195-.045.22-.313.411-.644.573-.99.014-.031.021-.11-.059-.19l-.815-.806c-.411-.406-.562-.957-.53-1.456a4.709 4.709 0 0 0 0-.582c-.032-.499.119-1.05.53-1.456l.815-.806c.081-.08.073-.159.059-.19a6.464 6.464 0 0 0-.573-.989c-.02-.03-.085-.076-.195-.046l-1.102.303c-.56.153-1.113.008-1.53-.27a4.44 4.44 0 0 0-.501-.29c-.447-.222-.85-.629-.997-1.189l-.289-1.105c-.029-.11-.101-.143-.137-.146a6.6 6.6 0 0 0-1.142 0ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM9.5 8a1.5 1.5 0 1 0-3.001.001A1.5 1.5 0 0 0 9.5 8Z"></path></svg></span><span class="sd-summary-text">How <code class="docutils literal notranslate"><span class="pre">ignoreNonleadStatus</span></code> Affects Group Behavior</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Every group must have exactly one <strong>lead task</strong>. The <code class="docutils literal notranslate"><span class="pre">ignoreNonleadStatus</span></code> field (default: <code class="docutils literal notranslate"><span class="pre">true</span></code>)
+determines how non-lead task failures affect the group:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 45.0%" />
+<col style="width: 45.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p class="sd-card-text"><strong>Value</strong></p></th>
+<th class="head"><p class="sd-card-text"><strong>Finished Status</strong></p></th>
+<th class="head"><p class="sd-card-text"><strong>Reschedule Behavior</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p class="sd-card-text">The group’s status is dependent <strong>only on the lead task</strong>.</p></td>
+<td><p class="sd-card-text">When a task is rescheduled, other tasks in the group <strong>continue running</strong>.</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p class="sd-card-text">The group’s status is dependent on <strong>all the tasks</strong> in the group. If any task fails,
+the group will fail.</p></td>
+<td><p class="sd-card-text">When a task is rescheduled, the other tasks in the group are restarted and the group
+status stays at <code class="docutils literal notranslate"><span class="pre">RUNNING</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="sd-card-text">Learn more about group fields at <a class="reference internal" href="../specification/index.html#workflow-spec-group"><span class="std std-ref">Group</span></a>.</p>
+</div>
+</details></section>
+<section id="status-reference">
+<span id="workflow-lifecycle-status"></span><h2>Status Reference<a class="headerlink" href="#status-reference" title="Link to this heading">#</a></h2>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-secondary sd-bg-text-secondary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-list-unordered" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.75 2.5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM2 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM2 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg></span><span class="sd-summary-text">Workflow Statuses</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p class="sd-card-text"><strong>Status</strong></p></th>
+<th class="head"><p class="sd-card-text"><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">PENDING</span></p></td>
+<td><p class="sd-card-text">Workflow is waiting for a group to start running</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">WAITING</span></p></td>
+<td><p class="sd-card-text">Workflow has started but doesn’t have any tasks running. Either a downstream task is waiting to be scheduled, or a task is waiting to be rescheduled</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-running badge-running">RUNNING</span></p></td>
+<td><p class="sd-card-text">Workflow is running at least one group</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-completed badge-completed">COMPLETED</span></p></td>
+<td><p class="sd-card-text">Workflow execution was successful and all tasks have completed</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED</span></p></td>
+<td><p class="sd-card-text">Workflow failed to complete. One or more tasks have failed</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_EXEC_TIMEOUT</span></p></td>
+<td><p class="sd-card-text">Workflow was running longer than the set execution timeout (see <a class="reference internal" href="../specification/timeouts.html#workflow-spec-timeouts"><span class="std std-ref">Timeouts</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_QUEUE_TIMEOUT</span></p></td>
+<td><p class="sd-card-text">Workflow was queued longer than the set queue timeout (see <a class="reference internal" href="../specification/timeouts.html#workflow-spec-timeouts"><span class="std std-ref">Timeouts</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_SUBMISSION</span></p></td>
+<td><p class="sd-card-text">Workflow failed to submit due to resource or credential validation failure</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_SERVER_ERROR</span></p></td>
+<td><p class="sd-card-text">Workflow failed due to internal server error</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_CANCELED</span></p></td>
+<td><p class="sd-card-text">Workflow was canceled by a user</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-secondary sd-bg-text-secondary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-list-unordered" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.75 2.5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM2 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM2 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg></span><span class="sd-summary-text">Task Statuses</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p class="sd-card-text"><strong>Status</strong></p></th>
+<th class="head"><p class="sd-card-text"><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">SUBMITTING</span></p></td>
+<td><p class="sd-card-text">Task is being submitted</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">WAITING</span></p></td>
+<td><p class="sd-card-text">Task is waiting for an upstream task to complete</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">PROCESSING</span></p></td>
+<td><p class="sd-card-text">Task is being processed by the service to be sent to the backend</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">SCHEDULING</span></p></td>
+<td><p class="sd-card-text">Task is in the backend queue waiting to run</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">INITIALIZING</span></p></td>
+<td><p class="sd-card-text">Task is pulling images and running preflight tests</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-running badge-running">RUNNING</span></p></td>
+<td><p class="sd-card-text">Task is running (downloading inputs → executing command → uploading outputs)</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">RESCHEDULED</span></p></td>
+<td><p class="sd-card-text">Task has finished and a new task with the same spec has been created</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-completed badge-completed">COMPLETED</span></p></td>
+<td><p class="sd-card-text">Task has finished successfully</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED</span></p></td>
+<td><p class="sd-card-text">Task has failed (your command returned non-zero exit code)</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_CANCELED</span></p></td>
+<td><p class="sd-card-text">Task was canceled by the user</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_SERVER_ERROR</span></p></td>
+<td><p class="sd-card-text">Task has failed due to internal service error</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_BACKEND_ERROR</span></p></td>
+<td><p class="sd-card-text">Task has failed due to some backend error like the node entering a Not Ready state</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_EXEC_TIMEOUT</span></p></td>
+<td><p class="sd-card-text">Workflow ran longer than the set execution timeout (see <a class="reference internal" href="../specification/timeouts.html#workflow-spec-timeouts"><span class="std std-ref">Timeouts</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_QUEUE_TIMEOUT</span></p></td>
+<td><p class="sd-card-text">Workflow was queued longer than the set queue timeout (see <a class="reference internal" href="../specification/timeouts.html#workflow-spec-timeouts"><span class="std std-ref">Timeouts</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_IMAGE_PULL</span></p></td>
+<td><p class="sd-card-text">Task has failed to pull Docker image</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_UPSTREAM</span></p></td>
+<td><p class="sd-card-text">Task has failed due to failed upstream dependencies</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_EVICTED</span></p></td>
+<td><p class="sd-card-text">Task was evicted due to memory or storage usage exceeding limits</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_PREEMPTED</span></p></td>
+<td><p class="sd-card-text">Task was preempted to make space for a higher priority task</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_START_ERROR</span></p></td>
+<td><p class="sd-card-text">Task failed to start up properly during the initialization process</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_START_TIMEOUT</span></p></td>
+<td><p class="sd-card-text">Task timed-out while initializing</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-secondary sd-bg-text-secondary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-list-unordered" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.75 2.5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM2 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM2 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg></span><span class="sd-summary-text">Group Statuses</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p class="sd-card-text"><strong>Status</strong></p></th>
+<th class="head"><p class="sd-card-text"><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">SUBMITTING</span></p></td>
+<td><p class="sd-card-text">Group is being submitted</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">WAITING</span></p></td>
+<td><p class="sd-card-text">Group is waiting for an upstream group to complete</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">PROCESSING</span></p></td>
+<td><p class="sd-card-text">Group is being processed by the service to be sent to the backend</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">SCHEDULING</span></p></td>
+<td><p class="sd-card-text">Group is waiting to be scheduled in the backend</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-pending badge-pending">INITIALIZING</span></p></td>
+<td><p class="sd-card-text">All tasks in the group are initializing</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-running badge-running">RUNNING</span></p></td>
+<td><p class="sd-card-text">Any task in the group is running</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-completed badge-completed">COMPLETED</span></p></td>
+<td><p class="sd-card-text">Task completed status as defined by the <code class="docutils literal notranslate"><span class="pre">ignoreNonleadStatus</span></code> field. See <a class="reference internal" href="#workflow-lifecycle-group"><span class="std std-ref">Group Lifecycle</span></a> for more information.</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED</span></p></td>
+<td><p class="sd-card-text">If the lead task has failed or if <code class="docutils literal notranslate"><span class="pre">ignoreNonleadStatus</span></code> is set to <code class="docutils literal notranslate"><span class="pre">false</span></code> and any of the non-lead tasks have failed</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_UPSTREAM</span></p></td>
+<td><p class="sd-card-text">Upstream group has failed</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_SERVER_ERROR</span></p></td>
+<td><p class="sd-card-text">Some OSMO internal error occurred</p></td>
+</tr>
+<tr class="row-even"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_PREEMPTED</span></p></td>
+<td><p class="sd-card-text">Any of the tasks in the group were preempted</p></td>
+</tr>
+<tr class="row-odd"><td><p class="sd-card-text"><span class="badge bg-failed badge-failed">FAILED_EVICTED</span></p></td>
+<td><p class="sd-card-text">Any of the tasks in the group were evicted</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</details><hr class="docutils" />
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><strong>Related Documentation:</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../specification/index.html#workflow-spec-group"><span class="std std-ref">Group</span></a> - Group configuration and behavior</p></li>
+<li><p><a class="reference internal" href="../specification/timeouts.html#workflow-spec-timeouts"><span class="std std-ref">Timeouts</span></a> - Set execution and queue timeouts</p></li>
+<li><p><a class="reference internal" href="../exit_codes.html#workflow-exit-codes"><span class="std std-ref">Exit Codes</span></a> - Understanding exit codes</p></li>
+<li><p><a class="reference internal" href="../specification/exit_actions.html#workflow-spec-exit-actions"><span class="std std-ref">Exit Actions</span></a> - Configure automatic retry behavior</p></li>
+</ul>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../submission.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Workflow Submission</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../interactive/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Interactive Workflows</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-lifecycle">Task Lifecycle</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#group-lifecycle">Group Lifecycle</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#status-reference">Status Reference</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
