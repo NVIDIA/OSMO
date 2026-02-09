@@ -159,6 +159,32 @@ services:
     ##
     passwordSecretKey: password
 
+  ## Default admin user configuration
+  ## When configured, the service will create an admin user on startup with the osmo-admin role
+  ## and a PAT (Personal Access Token) set to the specified password
+  ##
+  defaultAdmin:
+    ## Enable default admin user creation
+    ## When enabled, username and password secrets must be configured
+    ##
+    enabled: false
+
+    ## Name of the Kubernetes secret containing the default admin username
+    ##
+    usernameSecretName: default-admin-secret
+
+    ## Key name in the secret that contains the default admin username
+    ##
+    usernameSecretKey: username
+
+    ## Name of the Kubernetes secret containing the default admin password (PAT value)
+    ##
+    passwordSecretName: default-admin-secret
+
+    ## Key name in the secret that contains the default admin password
+    ##
+    passwordSecretKey: password
+
   ## Redis cache service configuration
   ## Set enabled to false if using an external Redis deployment
   ##

@@ -165,6 +165,18 @@ spec:
               name: redis-secret
               key: redis-password
         {{- end }}
+        {{- if .Values.services.defaultAdmin.enabled }}
+        - name: OSMO_DEFAULT_ADMIN_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.services.defaultAdmin.usernameSecretName }}
+              key: {{ .Values.services.defaultAdmin.usernameSecretKey }}
+        - name: OSMO_DEFAULT_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.services.defaultAdmin.passwordSecretName }}
+              key: {{ .Values.services.defaultAdmin.passwordSecretKey }}
+        {{- end }}
         imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false
