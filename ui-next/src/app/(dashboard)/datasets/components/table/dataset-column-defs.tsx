@@ -98,6 +98,25 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       },
     },
     {
+      id: "created_at",
+      accessorKey: "created_at",
+      header: COLUMN_LABELS.created_at,
+      minSize: getMinSize("created_at"),
+      enableSorting: false,
+      cell: ({ row }) => {
+        const createdAt = row.original.created_at;
+        if (!createdAt) return <span className="text-sm text-zinc-400">—</span>;
+        return (
+          <span
+            className="truncate text-sm text-zinc-500 dark:text-zinc-400"
+            title={formatDateTimeFull(createdAt)}
+          >
+            {formatDateTimeSuccinct(createdAt)}
+          </span>
+        );
+      },
+    },
+    {
       id: "updated_at",
       accessorKey: "updated_at",
       header: COLUMN_LABELS.updated_at,
