@@ -21,17 +21,18 @@ import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User, Users } fro
 import { cn } from "@/lib/utils";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { SearchChip } from "@/stores/types";
-import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
+import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/workflows/lib/workflow-columns";
 import {
-  WORKFLOW_SEARCH_FIELDS,
+  WORKFLOW_STATIC_FIELDS,
   createPresetChips,
   type WorkflowListEntry,
   type StatusPresetId,
 } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
 import { STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/workflows/lib/workflow-constants";
+import { useWorkflowAsyncFields } from "@/app/(dashboard)/workflows/hooks/use-workflow-async-fields";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
@@ -95,6 +96,25 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useWorkflowsTableStore((s) => s.toggleColumn);
 
+  // Async fields for user and pool filters
+  // These fetch from dedicated endpoints with complete suggestion lists
+  const { userField, poolField } = useWorkflowAsyncFields();
+
+  // Compose all search fields: static + async
+  // Memoized to prevent FilterBar re-renders
+  const searchFields = useMemo(
+    (): readonly SearchField<WorkflowListEntry>[] => [
+      WORKFLOW_STATIC_FIELDS[0], // name
+      WORKFLOW_STATIC_FIELDS[1], // status
+      userField, // async - complete user list
+      poolField, // async - complete pool list
+      WORKFLOW_STATIC_FIELDS[2], // priority
+      WORKFLOW_STATIC_FIELDS[3], // app
+      WORKFLOW_STATIC_FIELDS[4], // tag
+    ],
+    [userField, poolField],
+  );
+
   // Create status presets that expand to multiple chips
   const statusPresets = useMemo(
     (): SearchPreset[] =>
@@ -132,7 +152,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   return (
     <TableToolbar
       data={workflows}
-      searchFields={WORKFLOW_SEARCH_FIELDS}
+      searchFields={searchFields}
       columns={OPTIONAL_COLUMNS}
       visibleColumnIds={visibleColumnIds}
       onToggleColumn={toggleColumn}
