@@ -30,15 +30,15 @@ describe("buildNavigation", () => {
       const nav = buildNavigation(false);
       const userItems = nav.sections[0].items;
 
-      expect(userItems).toHaveLength(5);
-      expect(userItems.map((i) => i.href)).toEqual(["/", "/workflows", "/pools", "/resources", "/log-viewer"]);
+      expect(userItems).toHaveLength(4);
+      expect(userItems.map((i) => i.href)).toEqual(["/", "/workflows", "/pools", "/resources"]);
     });
 
     it("has correct route names", () => {
       const nav = buildNavigation(false);
       const userItems = nav.sections[0].items;
 
-      expect(userItems.map((i) => i.name)).toEqual(["Dashboard", "Workflows", "Pools", "Resources", "Log Viewer"]);
+      expect(userItems.map((i) => i.name)).toEqual(["Dashboard", "Workflows", "Pools", "Resources"]);
     });
 
     it("does not include admin section", () => {
@@ -67,22 +67,27 @@ describe("buildNavigation", () => {
       const nav = buildNavigation(true);
       const adminItems = nav.sections[1].items;
 
-      expect(adminItems).toHaveLength(3);
-      expect(adminItems.map((i) => i.href)).toEqual(["/admin/settings", "/admin/roles", "/admin/tokens"]);
+      expect(adminItems).toHaveLength(4);
+      expect(adminItems.map((i) => i.href)).toEqual([
+        "/log-viewer",
+        "/admin/settings",
+        "/admin/roles",
+        "/admin/tokens",
+      ]);
     });
 
     it("admin section has correct route names", () => {
       const nav = buildNavigation(true);
       const adminItems = nav.sections[1].items;
 
-      expect(adminItems.map((i) => i.name)).toEqual(["Settings", "Roles", "API Tokens"]);
+      expect(adminItems.map((i) => i.name)).toEqual(["Log Viewer", "Settings", "Roles", "API Tokens"]);
     });
 
     it("still includes user routes", () => {
       const nav = buildNavigation(true);
       const userItems = nav.sections[0].items;
 
-      expect(userItems).toHaveLength(5);
+      expect(userItems).toHaveLength(4);
       expect(userItems[0].href).toBe("/");
     });
   });

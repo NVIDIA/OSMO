@@ -18,6 +18,7 @@ import { Suspense } from "react";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
 import { LogViewerWithData } from "@/app/(dashboard)/log-viewer/components/log-viewer-with-data";
 import { WorkflowSelector } from "@/app/(dashboard)/log-viewer/components/workflow-selector";
+import { hasServerAdminRole } from "@/lib/auth/server";
 
 /**
  * Log Viewer Page (Server Component)
@@ -43,6 +44,22 @@ interface PageProps {
 }
 
 export default async function LogViewerPage({ searchParams }: PageProps) {
+  // Admin-only check
+  const isAdmin = await hasServerAdminRole();
+
+  if (!isAdmin) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <div className="max-w-md text-center">
+          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Unauthorized</h1>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            This page is only accessible to administrators.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const params = await searchParams;
   const workflowId = params.workflow;
 
