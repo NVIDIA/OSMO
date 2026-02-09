@@ -38,12 +38,12 @@ jobs:
       ui: ${{ steps.filter.outputs.ui }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0  # Fetch all history for accurate diffing
 
       - name: Check which paths changed
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           # Use empty token to force git-based detection
@@ -100,7 +100,7 @@ jobs:
           df -h
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
@@ -128,6 +128,7 @@ jobs:
           bazel test --test_output=errors -- //... -//ui/...
 
   ci-internal:
+    timeout-minutes: 30
     needs: [check-paths]
     if: |
       (github.event_name == 'workflow_dispatch') ||
@@ -140,28 +141,60 @@ jobs:
     runs-on: self-hosted
     environment:
       name: internal-ci
+    env:
+      # Unique identifiers for Docker resources to prevent collisions
+      COMPOSE_PROJECT_NAME: ci-${{ github.run_id }}
+      DOCKER_BUILDKIT: "1"
     container:
-      image: python:3.10-bullseye
+      # python:3.10.18-bullseye pinned to digest for security (amd64)
+      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
+      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096
     services:
       docker:
-        image: docker:dind
+        # docker:29.2.1-dind pinned to digest for security
+        image: docker:29.2.1-dind@sha256:2658fda9e8779b94ea1581f4d25214dac9ed144b407902842e5328cce8f861f5
         env:
           DOCKER_TLS_CERTDIR: ""
           DOCKER_DRIVER: overlay2
-        options: --privileged
+        options: --privileged --memory=4g --cpus=2
         ports:
           - 2375:2375
     steps:
-      - name: Install dependencies
+      - name: Install Node.js, Docker CLI, and dependencies
         run: |
           apt-get update
-          apt-get install -y git-lfs
+          apt-get install -y ca-certificates curl gnupg git-lfs
+
+          # Add Docker's official GPG key and repository
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          # Add Node.js 20.x from NodeSource
+          curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list > /dev/null
+
+          apt-get update
+
+          # Install Docker CLI (client only, connects to DinD service)
+          apt-get install -y docker-ce-cli
+
+          # Remove Debian's nodejs package if present and install from NodeSource
+          apt-get remove -y nodejs || true
+          apt-get install -y nodejs=20.*
+
+          # Verify installations
+          echo "Node.js version: $(node --version)"
+          echo "npm version: $(npm --version)"
+          echo "Docker version: $(docker --version)"
+          echo "Git LFS version: $(git-lfs --version)"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
@@ -173,13 +206,103 @@ jobs:
 
       - name: Run Tests
         run: |
-          bazel test --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+          bazel test --config=ci \
+            --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             -- \
             //... \
             -//ui/...
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          echo "=== Docker Cleanup ==="
+
+          # Stop all running containers
+          docker ps -q | xargs -r docker stop --time=5 || true
+
+          # Remove all containers
+          docker ps -aq | xargs -r docker rm -f || true
+
+          # Remove all volumes
+          docker volume ls -q | xargs -r docker volume rm -f || true
+
+          # Remove custom networks
+          docker network ls --filter type=custom -q | xargs -r docker network rm || true
+
+          echo "Docker disk usage after cleanup:"
+          docker system df || true
+
+      - name: Workspace cleanup
+        if: always()
+        run: |
+          echo "=== Workspace Cleanup ==="
+
+          # Remove test outputs and temporary files
+          rm -rf /tmp/pytest-* /tmp/tmp* || true
+
+          # Show remaining disk usage
+          echo "Disk usage summary:"
+          df -h / || true
+
+  #######################
+  #   Runner Cleanup    #
+  #######################
+  cleanup-runner:
+    runs-on: self-hosted
+    needs: [ci-internal]
+    if: always()
+    timeout-minutes: 5
+    concurrency:
+      group: cleanup-host-${{ github.run_id }}
+      cancel-in-progress: false  # Critical: never cancel cleanup
+    steps:
+      - name: Host cleanup (concurrent-safe)
+        run: |
+          echo "=== Host Cleanup for Run ${{ github.run_id }} ==="
+
+          # Tag-based cleanup: remove containers from this run (if labeled)
+          RUN_ID="${{ github.run_id }}"
+          echo "Checking for containers from run $RUN_ID..."
+          docker ps -aq --filter "label=github.run_id=$RUN_ID" 2>/dev/null | xargs -r docker rm -f || true
+
+          # Fallback: remove old exited containers (>5 mins ago - clearly orphaned)
+          echo "Checking for old exited containers..."
+          OLD_CONTAINERS=$(docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null || echo "")
+          if [ -n "$OLD_CONTAINERS" ]; then
+            echo "Removing old exited containers:"
+            echo "$OLD_CONTAINERS"
+            docker rm -f $OLD_CONTAINERS 2>/dev/null || true
+          else
+            echo "No old exited containers found"
+          fi
+
+          # Prune dangling resources (safe - not in use)
+          echo "Pruning dangling volumes..."
+          docker volume prune -f 2>/dev/null || true
+
+          echo "Pruning unused networks..."
+          docker network prune -f 2>/dev/null || true
+
+          echo "Pruning dangling images..."
+          docker image prune -f 2>/dev/null || true
+
+          # Show runner health
+          echo "Runner process status:"
+          if pgrep -f "Runner.Listener" > /dev/null; then
+            echo "✓ Runner.Listener is running"
+          else
+            echo "⚠️  Runner.Listener not running - may need recovery"
+          fi
+
+          # Show disk usage
+          echo "Disk usage after cleanup:"
+          docker system df 2>/dev/null || true
+          df -h / | grep -E '^Filesystem|/$' || true
+
+          echo "✓ Cleanup complete (safe for concurrent jobs)"
 
   #######################
   #    Docs Build       #
@@ -190,13 +313,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 
       - name: Setup Python
         if: github.event.action != 'closed'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.10.18'
 
@@ -217,7 +340,7 @@ jobs:
           fi
 
       - name: Deploy preview
-        uses: rossjrw/pr-preview-action@v1
+        uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
         with:
           source-dir: ./docs/public/
           preview-branch: gh-pages/documentation
@@ -236,7 +359,7 @@ jobs:
 
       - name: Restore lychee cache
         if: github.event.action != 'closed'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .lycheecache
           key: cache-lychee-pr-${{ github.event.pull_request.number }}
@@ -245,13 +368,13 @@ jobs:
       - name: Link Checker
         id: link-checker
         if: github.event.action != 'closed'
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2.7.0
         with:
           args: --config docs/lychee.toml --no-progress '**/*.html' docs/public
           output: docs/link_check_error_logs/lychee-report.md
 
       - name: Save lychee cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         if: github.event.action != 'closed' && steps.link-checker.outcome == 'success'
         with:
           path: .lycheecache
@@ -270,7 +393,7 @@ jobs:
 
       - name: Upload build artifacts
         if: always() && github.event.action != 'closed'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: documentation-build
           path: |
@@ -291,7 +414,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
 

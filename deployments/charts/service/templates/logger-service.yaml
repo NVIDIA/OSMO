@@ -106,9 +106,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end}}
-        {{- range .Values.services.logger.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -124,7 +121,7 @@ spec:
         - logger_service
         {{- end }}
         {{- range $arg := .Values.services.logger.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         {{- include "osmo.extra-env" .Values.services.logger | nindent 8 }}

@@ -201,11 +201,6 @@ go_deps.module(
     sum = "h1:iW4rZ826su+pqaw19uhpSCzhj44qo35pNgKFGqzDKkU=",
     version = "v0.0.0-20191104093116-d3cd4ed1dbcf",
 )
-go_deps.module(
-    path = "golang.org/x/crypto",
-    sum = "h1:kJNSjF/Xp7kU0iB2Z+9viTPMW4EqqsrywMXLJOOsXSE=",
-    version = "v0.37.0",
-)
 use_repo(
     go_deps,
     "com_github_conduitio_bwlimit",

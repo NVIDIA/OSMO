@@ -1371,6 +1371,10 @@ sidecars:
       clientSecretKey: client_secret
       hmacSecretKey: hmac_secret
 
+      ## Force re-authentication when IdToken is missing on refresh
+      ##
+      forceReauthOnMissingIdToken: false
+
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:

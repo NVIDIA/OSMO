@@ -129,4 +129,5 @@ class NetworkFixture(unittest.TestCase):
         try:
             cls._clean_up_docker_network()
         finally:
+            cls.networked_containers.clear()
             super().tearDownClass()

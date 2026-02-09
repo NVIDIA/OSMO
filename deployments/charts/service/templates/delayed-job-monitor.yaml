@@ -92,9 +92,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end}}
-        {{- range .Values.services.delayedJobMonitor.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -113,7 +110,7 @@ spec:
         - --enable_metrics
         {{- end }}
         {{- range $arg := .Values.services.delayedJobMonitor.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         {{- include "osmo.extra-env" .Values.services.delayedJobMonitor | nindent 8 }}

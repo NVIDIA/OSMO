@@ -125,6 +125,15 @@ class RedisConnector:
         logging.debug('Finished connecting to redis database')
         RedisConnector._instance = self
 
+    def close(self):
+        """Close the Redis client connection."""
+        if self.client:
+            try:
+                self.client.close()
+                logging.debug('Redis connection closed')
+            except Exception as e:  # pylint: disable=broad-except
+                logging.warning('Error closing Redis connection: %s', e)
+
 
 class IOType(enum.Enum):
     """ Represents the io_type of a log line. """

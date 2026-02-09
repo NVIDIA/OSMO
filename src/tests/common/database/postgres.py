@@ -75,6 +75,10 @@ class PostgresFixture(network.NetworkFixture):
             cls.postgres_params.port)
         cls.postgres_container.with_network(cls.network)
         cls.postgres_container.with_network_aliases(POSTGRES_NAME)
+        cls.postgres_container.with_kwargs(
+            mem_limit='512m',
+            memswap_limit='512m'
+        )
 
         logger.info(
             'Waiting for Postgres database testcontainer to be ready ...')

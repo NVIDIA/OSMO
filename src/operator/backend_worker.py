@@ -44,7 +44,7 @@ from src.utils.progress_check import progress
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 QUEUE_RETRY_INTERVAL = 0.05
 COMMAND_QUEUE_SIZE = 256
-MAX_MESSAGE_SIZE = 10 * 1024 * 1024
+MAX_MESSAGE_SIZE = 16 * 1024 * 1024
 
 
 class JobContext(backend_jobs.BackendJobExecutionContext):

@@ -1,5 +1,5 @@
 <!--
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -128,6 +128,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name (when useKubernetesSecrets is true) | `oidc-secrets` |
 | `sidecars.envoy.oauth2Filter.clientSecretKey` | Secret key for OAuth2 client secret | `client_secret` |
 | `sidecars.envoy.oauth2Filter.hmacSecretKey` | Secret key for OAuth2 HMAC secret | `hmac_secret` |
+| `sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken` | Force re-auth when IdToken missing on refresh | `false` |
 
 #### Log Agent Sidecar
 

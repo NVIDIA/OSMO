@@ -274,8 +274,6 @@ service:
         value: "true"
       - name: AWS_DEFAULT_REGION
         value: us-east-1
-      - name: OSMO_SKIP_DATA_AUTH
-        value: "1"
 
     ## Worker service configuration for background job processing
     ##
@@ -834,4 +832,3 @@ backend-operator:
       ## Enable OTEL collector sidecar for metrics and tracing
       ##
       enabled: false
-
