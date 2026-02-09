@@ -197,8 +197,11 @@ def get_container_id() -> str:
     Resolves the container ID of the Python Runtime (if we are inside a Docker container).
     """
     client = docker.from_env()
-    container = client.containers.get(socket.gethostname())
-    return container.id
+    try:
+        container = client.containers.get(socket.gethostname())
+        return container.id
+    finally:
+        client.close()
 
 
 @cache

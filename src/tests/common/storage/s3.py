@@ -72,6 +72,10 @@ class S3StorageFixture(network.NetworkFixture):
         cls.s3_container.with_network(cls.network)
         cls.s3_container.with_network_aliases(S3_NAME)
         cls.s3_container.with_services('s3')
+        cls.s3_container.with_kwargs(
+            mem_limit='1g',
+            memswap_limit='1g'
+        )
 
         logger.info('Waiting for S3 testcontainer to be ready ...')
         cls.s3_container.start()

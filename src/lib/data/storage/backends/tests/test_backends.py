@@ -22,10 +22,11 @@ import unittest
 from typing import cast
 from unittest import mock
 
-from src.lib.data.storage.backends import backends, s3
+from src.lib.data.storage.backends import azure, backends, s3
 from src.lib.data.storage.credentials import credentials
 from src.lib.data.storage.core import header
 from src.lib.utils import osmo_errors
+from src.utils.connectors import postgres
 
 
 class TestBackends(unittest.TestCase):
@@ -221,6 +222,173 @@ class TestBackends(unittest.TestCase):
 
                     self.assertIn('Data credential not found', str(context.exception))
                     self.assertIn(expected_profile, str(context.exception))
+
+
+class AzureDefaultDataCredentialTest(unittest.TestCase):
+    """Tests for Azure DefaultDataCredential support."""
+
+    @mock.patch('src.lib.data.storage.backends.azure.DefaultAzureCredential')
+    @mock.patch('src.lib.data.storage.backends.azure.blob.BlobServiceClient')
+    def test_create_client_with_default_credential(
+        self,
+        mock_blob_client,
+        mock_azure_cred,
+    ):
+        """Test create_client uses DefaultAzureCredential."""
+        # Arrange
+        mock_credential_instance = mock.Mock()
+        mock_azure_cred.return_value = mock_credential_instance
+
+        data_cred = credentials.DefaultDataCredential(
+            endpoint='azure://mystorageaccount',
+            region=None,
+        )
+
+        # Act
+        azure.create_client(
+            data_cred,
+            account_url='https://mystorageaccount.blob.core.windows.net',
+        )
+
+        # Assert
+        mock_azure_cred.assert_called_once()
+        mock_blob_client.assert_called_once_with(
+            account_url='https://mystorageaccount.blob.core.windows.net',
+            credential=mock_credential_instance,
+        )
+
+
+class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
+    """Tests for account key extraction from Azure connection strings."""
+
+    def test_standard_connection_string(self):
+        """Test extraction from standard Azure Storage connection string."""
+        conn_str = (
+            'DefaultEndpointsProtocol=https;'
+            'AccountName=mystorageaccount;'
+            'AccountKey=abc123def456ghi789;'
+            'EndpointSuffix=core.windows.net'
+        )
+        # pylint: disable=protected-access
+        result = azure._extract_account_key_from_connection_string(conn_str)
+        self.assertEqual(result, 'abc123def456ghi789')
+
+    def test_connection_string_with_base64_key(self):
+        """Test extraction when key contains base64 characters including equals."""
+        conn_str = (
+            'DefaultEndpointsProtocol=https;'
+            'AccountName=mystorageaccount;'
+            'AccountKey=abc123+def/456==;'
+            'EndpointSuffix=core.windows.net'
+        )
+        # pylint: disable=protected-access
+        result = azure._extract_account_key_from_connection_string(conn_str)
+        self.assertEqual(result, 'abc123+def/456==')
+
+    def test_missing_account_key_raises(self):
+        """Test that missing AccountKey raises ValueError."""
+        conn_str = 'DefaultEndpointsProtocol=https;AccountName=mystorageaccount'
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            azure._extract_account_key_from_connection_string(conn_str)
+        self.assertIn('AccountKey not found', str(context.exception))
+
+
+class IsNonAwsS3EndpointConfiguredTest(unittest.TestCase):
+    """Tests for non-AWS S3-compatible endpoint detection."""
+
+    # pylint: disable=protected-access
+
+    def test_no_endpoint_returns_false(self):
+        """No endpoint env var set returns False."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertFalse(backends._is_non_aws_s3_endpoint_configured())
+
+    def test_aws_endpoints_return_false(self):
+        """AWS S3 endpoints are not S3-compatible (they use IAM)."""
+        for endpoint in ['https://s3.amazonaws.com', 'https://s3.us-east-1.amazonaws.com']:
+            with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': endpoint}):
+                self.assertFalse(backends._is_non_aws_s3_endpoint_configured())
+
+    def test_s3_compatible_endpoints_return_true(self):
+        """MinIO, Ceph, localstack endpoints return True."""
+        for endpoint in ['http://minio:9000', 'http://localstack:4566']:
+            with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': endpoint}):
+                self.assertTrue(backends._is_non_aws_s3_endpoint_configured())
+
+    def test_env_var_precedence(self):
+        """AWS_ENDPOINT_URL_S3 takes precedence over AWS_ENDPOINT_URL."""
+        with mock.patch.dict('os.environ', {
+            'AWS_ENDPOINT_URL_S3': 'http://minio:9000',
+            'AWS_ENDPOINT_URL': 'https://s3.amazonaws.com',
+        }):
+            self.assertTrue(backends._is_non_aws_s3_endpoint_configured())
+
+
+class IsAwsEndpointTest(unittest.TestCase):
+    """Tests for _is_aws_endpoint helper."""
+
+    # pylint: disable=protected-access
+
+    def test_aws_endpoints(self):
+        """Various AWS endpoint formats are detected."""
+        aws_urls = [
+            'https://s3.amazonaws.com',
+            'https://s3.us-east-1.amazonaws.com',
+            'https://bucket.s3.amazonaws.com',
+            's3.amazonaws.com',  # no scheme
+        ]
+        for url in aws_urls:
+            self.assertTrue(backends._is_aws_endpoint(url), url)
+
+    def test_non_aws_endpoints(self):
+        """Non-AWS endpoints return False."""
+        non_aws_urls = [
+            'http://minio:9000',
+            'http://localhost:9000',
+            'http://fakeamazonaws.com',
+            'http://amazonaws.com.evil.com',
+        ]
+        for url in non_aws_urls:
+            self.assertFalse(backends._is_aws_endpoint(url), url)
+
+    def test_malformed_urls_return_false(self):
+        """Malformed URLs return False (safe fallback)."""
+        for url in ['', '   ', 'not-a-url']:
+            self.assertFalse(backends._is_aws_endpoint(url), url)
+
+
+class WorkflowConfigCredentialTest(unittest.TestCase):
+    """Tests for WorkflowConfig credential type support."""
+
+    def test_workflow_config_with_static_credential(self):
+        """Test WorkflowConfig accepts StaticDataCredential."""
+        static_cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket.io/workflows',
+            access_key_id='mykey',
+            access_key='mysecret',
+            region='us-east-1',
+        )
+
+        # Act
+        config = postgres.WorkflowConfig(
+            workflow_data=postgres.DataConfig(credential=static_cred),
+        )
+
+        # Assert
+        self.assertIsInstance(
+            config.workflow_data.credential,
+            credentials.StaticDataCredential,
+        )
+
+    def test_workflow_config_with_null_credential(self):
+        """Test WorkflowConfig accepts None credential."""
+        config = postgres.WorkflowConfig(
+            workflow_data=postgres.DataConfig(credential=None),
+        )
+
+        # Assert
+        self.assertIsNone(config.workflow_data.credential)
 
 
 if __name__ == '__main__':
