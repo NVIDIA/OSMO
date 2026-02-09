@@ -78,12 +78,7 @@ export function MockProvider({ children }: MockProviderProps) {
       process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
     if (!isMockMode || typeof window === "undefined") {
-      // Not in mock mode - show auth transfer helper for regular dev mode
-      if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-        import("@/lib/dev/auth-transfer-helper").then(({ initAuthTransferHelper }) => {
-          initAuthTransferHelper();
-        });
-      }
+      // Not in mock mode - auth transfer helper is handled by DevAuthInit component
       setIsReady(true);
       return;
     }
