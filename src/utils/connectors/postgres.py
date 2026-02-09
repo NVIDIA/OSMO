@@ -1,6 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -773,6 +772,7 @@ class PostgresConnector:
                 parsed_pod_template JSONB,
                 enable_maintenance BOOLEAN,
                 resources JSONB,
+                topology_keys JSONB,
                 PRIMARY KEY (name)
             );
         '''
@@ -1830,6 +1830,19 @@ class OsmoImageConfig(ExtraArgBaseModel):
         registry='', username='', auth='')
 
 
+class TopologyRequirementType(str, enum.Enum):
+    """Specifies whether requirement blocks scheduling or is best-effort"""
+    REQUIRED = 'required'
+    PREFERRED = 'preferred'
+
+
+class TopologyRequirement(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    """Single topology requirement for a resource"""
+    key: str  # References pool's topology_keys[].key
+    group: str = 'default'  # Logical grouping of tasks
+    requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED  # pylint: disable=invalid-name
+
+
 class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """ Represents the resource spec in an OSMO2 workflow. """
     cpu: int | None = None
@@ -1837,7 +1850,8 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     memory: str | None = None
     gpu: int | None = None
     platform: str | None = None
-    nodesExcluded: List[str] = [] # pylint: disable=invalid-name
+    nodesExcluded: List[str] = []  # pylint: disable=invalid-name
+    topology: List[TopologyRequirement] = []
 
     def update(self, other: 'ResourceSpec') -> 'ResourceSpec':
         """ Apply all fields from the other resource spec to this one """
@@ -3262,6 +3276,12 @@ class PoolResources(pydantic.BaseModel):
     gpu: PoolResourceCountable | None = None
 
 
+class TopologyKey(pydantic.BaseModel):
+    """Defines a topology key for pool configuration"""
+    key: str  # User-friendly name (e.g., "rack", "zone", "gpu-clique")
+    label: str  # Kubernetes node label (e.g., "topology.kubernetes.io/rack")
+
+
 class PoolBase(pydantic.BaseModel):
     """ Pool schema to expose through API endpoint. """
     name: str = ''
@@ -3277,6 +3297,7 @@ class PoolBase(pydantic.BaseModel):
     max_queue_timeout: str = ''
     default_exit_actions: Dict[str, str] = {}
     resources: PoolResources = PoolResources()
+    topology_keys: List[TopologyKey] = []
 
 class PoolMinimal(PoolBase):
     platforms: Dict[str, PlatformMinimal] = {}
@@ -3546,6 +3567,20 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
             raise osmo_errors.OSMOUsageError(
                 f'Default platform {self.default_platform} not in platforms')
 
+        # Validate topology_keys is only set for schedulers that support it
+        if self.topology_keys:
+            # Import inside function to avoid circular dependency:
+            # connectors/__init__.py -> postgres.py -> kb_objects.py -> connectors
+            from src.utils.job import kb_objects  # type: ignore  # pylint: disable=import-outside-toplevel
+            backend = Backend.fetch_from_db(database, self.backend)
+            factory = kb_objects.get_k8s_object_factory(backend)
+            if not factory.topology_supported():
+                scheduler_type = backend.scheduler_settings.scheduler_type
+                raise osmo_errors.OSMOUsageError(
+                    f'Topology keys cannot be set for pool "{name}" because backend '
+                    f'"{self.backend}" uses scheduler "{scheduler_type}" '
+                    f'which does not support topology constraints')
+
         insert_cmd = '''
             INSERT INTO pools
             (name, description, backend, download_type, default_platform, platforms,
@@ -3553,8 +3588,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              max_exec_timeout, max_queue_timeout, default_exit_actions,
              common_default_variables, common_resource_validations, parsed_resource_validations,
              common_pod_template, parsed_pod_template, enable_maintenance,
-             resources)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             resources, topology_keys)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
@@ -3573,7 +3608,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 common_pod_template = EXCLUDED.common_pod_template,
                 parsed_pod_template = EXCLUDED.parsed_pod_template,
                 enable_maintenance = EXCLUDED.enable_maintenance,
-                resources = EXCLUDED.resources;
+                resources = EXCLUDED.resources,
+                topology_keys = EXCLUDED.topology_keys;
             '''
         database.execute_commit_command(
             insert_cmd,
@@ -3588,7 +3624,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              self.common_resource_validations, json.dumps(self.parsed_resource_validations),
              self.common_pod_template, json.dumps(self.parsed_pod_template),
              self.enable_maintenance,
-             json.dumps(self.resources, default=common.pydantic_encoder)))
+             json.dumps(self.resources, default=common.pydantic_encoder),
+             json.dumps(self.topology_keys, default=common.pydantic_encoder)))
 
 
 class VerbosePoolConfig(pydantic.BaseModel):
