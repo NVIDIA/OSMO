@@ -25,7 +25,7 @@ import { FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter/types";
 import type { AnnouncerService } from "@/contexts/service-context";
-import { SelectableList, type SelectableListItem } from "./SelectableList";
+import { SelectableList, type SelectableListItem } from "@/app/(dashboard)/profile/components/SelectableList";
 
 // Bucket edits - stores only the user's bucket change
 interface BucketEdits {

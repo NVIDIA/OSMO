@@ -37,7 +37,6 @@ import type {
   AllResourcesResponse,
   ProfileUpdate,
   CredentialCreate,
-  UserProfile,
 } from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
