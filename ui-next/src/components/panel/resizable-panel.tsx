@@ -291,7 +291,7 @@ export function ResizablePanel({
           // Disable ALL transitions during drag for buttery smooth 60fps resizing
           isDragging
             ? "transition-none"
-            : "transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
+            : "transition-[transform,opacity,width] duration-200 ease-out motion-reduce:transition-none",
           className,
         )}
         style={{
