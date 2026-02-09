@@ -53,14 +53,14 @@ const DEVTOOLS_KEY = "osmo:devtools:enabled";
  * @see {@link https://tanstack.com/query/latest/docs/react/devtools}
  */
 export function QueryDevtools() {
-  const [enabled, setEnabled] = useState(false);
+  // Initialize from localStorage after hydration (SSR-safe)
+  const [enabled, setEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(DEVTOOLS_KEY) === "true";
+  });
   const mounted = useMounted();
 
   useEffect(() => {
-    // After hydration, check localStorage
-    const stored = localStorage.getItem(DEVTOOLS_KEY);
-    setEnabled(stored === "true");
-
     // Create console helper
     const toggleDevtools = (enable?: boolean) => {
       const shouldEnable = enable ?? localStorage.getItem(DEVTOOLS_KEY) !== "true";
