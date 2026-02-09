@@ -23,8 +23,8 @@ import { Button } from "@/components/shadcn/button";
 import { Switch } from "@/components/shadcn/switch";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter";
-import type { AnnouncerService } from "@/contexts";
+import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter/types";
+import type { AnnouncerService } from "@/contexts/service-context";
 
 // Notification edits - stores only the user's changes, not the full state
 // This pattern avoids useEffect synchronization issues with React Compiler

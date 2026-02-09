@@ -1233,7 +1233,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   // ==========================================================================
 
   // List buckets - returns BucketInfoResponse format
-  http.get("/api/bucket", async ({ request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/bucket", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);

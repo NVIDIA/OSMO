@@ -92,7 +92,7 @@ export function MockProvider({ children }: MockProviderProps) {
     const ensureAuth = async () => {
       if (!hasCookie("IdToken") && !hasCookie("BearerToken")) {
         const { generateMockJWT } = await import("@/mocks/inject-auth");
-        const mockJwt = generateMockJWT("dev", ["admin", "user"]);
+        const mockJwt = generateMockJWT("john.doe", ["admin", "user"]);
         document.cookie = `IdToken=${mockJwt}; path=/; max-age=28800`;
       }
       setIsReady(true);

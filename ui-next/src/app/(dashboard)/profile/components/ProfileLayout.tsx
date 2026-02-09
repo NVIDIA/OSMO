@@ -19,11 +19,11 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePage } from "@/components/chrome";
-import { useProfile, useCredentials, useUpdateProfile } from "@/lib/api/adapter";
-import type { ProfileUpdate } from "@/lib/api/adapter";
+import { usePage } from "@/components/chrome/page-context";
+import { useProfile, useCredentials, useUpdateProfile } from "@/lib/api/adapter/hooks";
+import type { ProfileUpdate } from "@/lib/api/adapter/types";
 import { User, Loader2 } from "lucide-react";
-import { useServices } from "@/contexts";
+import { useServices } from "@/contexts/service-context";
 
 import { UserInfoCard } from "./UserInfoCard";
 import { NotificationsCard } from "./NotificationsCard";
