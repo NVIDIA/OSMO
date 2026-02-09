@@ -42,7 +42,6 @@ interface NotificationsCardProps {
 
 export function NotificationsCard({ profile, updateProfile, isUpdating, announcer }: NotificationsCardProps) {
   // Store only the user's edits (delta from profile)
-  // When profile refetches after save, edits are cleared, and we see the new values
   const [notificationEdits, setNotificationEdits] = useState<NotificationEdits>({});
 
   // Compute effective staged values: profile values with edits applied
@@ -82,7 +81,7 @@ export function NotificationsCard({ profile, updateProfile, isUpdating, announce
           slack: stagedNotifications.slack,
         },
       });
-      // Clear edits after successful save - profile will refetch with new values
+      // Clear edits after mutation settles (mutation now waits for refetch to complete)
       setNotificationEdits({});
       toast.success("Notification preferences saved successfully");
       announcer.announce("Notification preferences saved successfully", "polite");

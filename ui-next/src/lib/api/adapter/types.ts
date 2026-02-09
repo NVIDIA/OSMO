@@ -203,9 +203,7 @@ export interface Version {
  * User profile information.
  */
 export interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
+  // Note: User's name and email come from JWT token via useUser() hook, not from profile settings
   notifications: {
     email: boolean;
     slack: boolean;
