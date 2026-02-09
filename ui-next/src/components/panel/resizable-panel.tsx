@@ -16,16 +16,19 @@
 
 "use client";
 
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEventCallback } from "usehooks-ts";
-import { ResizeHandle } from "./resize-handle";
-import { PANEL } from "./panel-header-controls";
-import { useResizeDrag } from "./hooks/useResizeDrag";
-import { usePanelEscape } from "./hooks/usePanelEscape";
-import { useFocusReturn } from "./hooks/useFocusReturn";
-import "./resizable-panel.css";
+import { usePrevious } from "@react-hookz/web";
+import { ResizeHandle } from "@/components/panel/resize-handle";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
+import { usePanelEscape } from "@/components/panel/hooks/usePanelEscape";
+import { useFocusReturn } from "@/components/panel/hooks/useFocusReturn";
+import { usePanelAnimation } from "@/components/panel/hooks/usePanelAnimation";
+import { PanelAnimationProvider } from "@/components/panel/panel-animation-context";
+import "@/components/panel/resizable-panel.css";
 
 // =============================================================================
 // Types
@@ -89,11 +92,24 @@ export interface ResizablePanelProps {
  * - Escape key to close (respects open dropdowns)
  * - Optional collapsible mode with edge strip
  * - Custom escape key handling for multi-layer navigation
- * - Smooth slide-in/out animation
+ * - Deterministic, symmetric slide-in/out animation (CSS-driven sequencing)
  * - Accessible with proper ARIA attributes
+ * - Respects prefers-reduced-motion
  *
- * The panel is positioned absolutely within its container, making it suitable
- * for embedding in any layout context (full page, split views, tabs, etc.).
+ * Animation architecture (4-phase state machine):
+ *   closed -> opening -> open -> closing -> closed
+ *
+ * On open, the panel slides in first, then content fades/slides in after an
+ * 80ms CSS animation-delay. This stagger prevents the "transform storm" where
+ * child layout calculations compete with the parent's GPU-accelerated slide.
+ *
+ * On close, content stays mounted and visible inside the panel. The panel
+ * slides out as one visual unit (synchronized exit). Content unmounts only
+ * after the panel's transitionend event fires.
+ *
+ * The content wrapper uses `contain: layout paint` to isolate rasterization
+ * during the open stagger, so mounting complex children does not force the
+ * panel's compositor layer to re-rasterize.
  *
  * @example
  * ```tsx
@@ -157,7 +173,6 @@ export function ResizablePanel({
   const stableOnClose = useEventCallback(onClose);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? onClose);
 
-  // Shared resize drag machinery
   const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
     width,
     onWidthChange,
@@ -169,92 +184,50 @@ export function ResizablePanel({
     panelRef,
   });
 
-  // Shared ESC key handling with focus scoping
   usePanelEscape({
     panelRef,
     onEscape: stableOnEscapeKey,
     enabled: open,
   });
 
-  // Focus restoration: capture trigger on open, restore on close
   useFocusReturn({ open });
 
-  // Staggered content rendering to prevent layout thrashing
-  //
-  // Problem: Rendering complex content (e.g., multiple ExpandableChips, cards) during
-  // the panel slide animation causes layout recalculation competing with GPU transform,
-  // creating visible reflow in the background table.
-  //
-  // Solution: Delay content rendering by 50ms so the panel shell starts sliding first,
-  // then content renders and slides in with its own animation (see slideInContent keyframe).
-  // This prevents simultaneous layout + transform operations.
-  //
-  // Implementation: `contentDelayReady` tracks whether the 50ms delay has elapsed after
-  // opening. It is gated by `open` in the final derivation so that closing immediately
-  // hides content without calling setState synchronously in an effect (which the React
-  // Compiler flags as a cascading render).
-  const [contentDelayReady, setContentDelayReady] = useState(open);
+  // ---------------------------------------------------------------------------
+  // Animation state machine (extracted to hook for React Compiler compatibility)
+  // ---------------------------------------------------------------------------
+
+  const {
+    phase,
+    shellMounted,
+    contentMounted,
+    panelSlideIn,
+    contentState,
+    contentRef,
+    handleContentAnimationEnd,
+    handlePanelTransitionEnd,
+  } = usePanelAnimation(open);
+
+  // ---------------------------------------------------------------------------
+  // Focus management
+  // ---------------------------------------------------------------------------
+
+  const prevPhase = usePrevious(phase);
   useEffect(() => {
-    if (!open) return;
-
-    // 50ms delay: panel shell starts sliding, then content begins rendering/animating
-    const timeoutId = setTimeout(() => {
-      setContentDelayReady(true);
-    }, 50);
-
-    return () => {
-      clearTimeout(timeoutId);
-      // Reset the delay flag in cleanup so the next open triggers a fresh 50ms stagger.
-      // Placing the reset here (cleanup) instead of synchronously in the effect body
-      // avoids the React Compiler "cascading renders" error.
-      setContentDelayReady(false);
-    };
-  }, [open]);
-
-  // Derive the final flag: content only renders when panel is open AND delay has elapsed.
-  // When `open` becomes false, this immediately evaluates to false without needing
-  // a synchronous setState in the effect.
-  const shouldRenderContent = open && contentDelayReady;
-
-  // Focus management: move focus into panel when it opens
-  // Uses transitionend for precise timing, with a fallback timeout for reduced-motion scenarios
-  useEffect(() => {
-    if (!open || !panelRef.current) return;
+    const justOpened = prevPhase !== "open" && phase === "open";
+    if (!justOpened || !panelRef.current) return;
 
     const panel = panelRef.current;
-    let focused = false;
+    if (panel.contains(document.activeElement)) return;
 
-    const doFocus = () => {
-      if (focused) return;
-      focused = true;
-      if (!panel || panel.contains(document.activeElement)) return;
+    // preventScroll: true avoids the browser auto-scrolling the overflow:hidden
+    // container to reveal the focused element, which causes a visible content shift
+    panel.focus({ preventScroll: true });
+  }, [phase, prevPhase]);
 
-      // Focus the panel container itself (requires tabIndex={-1} on the element)
-      // preventScroll: true avoids the browser auto-scrolling the overflow:hidden
-      // container to reveal the focused element, which causes a visible content shift
-      // when the panel is still mid-transition (sliding in from the right)
-      panel.focus({ preventScroll: true });
-    };
+  // ---------------------------------------------------------------------------
+  // Panel width calculation
+  // ---------------------------------------------------------------------------
 
-    const handleTransitionEnd = (e: TransitionEvent) => {
-      // Only respond to the panel's own slide-in transition.
-      // Tailwind's translate-x-0/translate-x-full uses the CSS "translate" property,
-      // so transitionend fires with propertyName "translate" (not "transform").
-      if (e.target !== panel || e.propertyName !== "translate") return;
-      doFocus();
-    };
-
-    panel.addEventListener("transitionend", handleTransitionEnd);
-    // Fallback: if transition doesn't fire within 250ms (e.g., prefers-reduced-motion), focus anyway
-    const fallbackId = setTimeout(doFocus, 250);
-
-    return () => {
-      panel.removeEventListener("transitionend", handleTransitionEnd);
-      clearTimeout(fallbackId);
-    };
-  }, [open]);
-
-  // Calculate effective panel width based on collapsed state
   const effectiveCollapsed = collapsible && isCollapsed;
 
   let panelWidth: string;
@@ -264,8 +237,6 @@ export function ResizablePanel({
     panelWidth = `${width}%`;
   }
 
-  // Default collapsed content - a simple expand button
-  // Used when collapsible is enabled but no custom collapsedContent is provided
   const defaultCollapsedContent = useMemo(
     () =>
       onToggleCollapsed ? (
@@ -280,21 +251,23 @@ export function ResizablePanel({
     [onToggleCollapsed],
   );
 
-  // Use provided collapsedContent or fall back to default
   const effectiveCollapsedContent = collapsedContent ?? defaultCollapsedContent;
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden"
+      className="relative h-full w-full overflow-hidden contain-strict"
     >
       {/* Main content - always full width */}
-      <div className="h-full w-full">{mainContent}</div>
+      <div className="h-full w-full contain-strict">{mainContent}</div>
 
       {/* Optional backdrop - absolute within container */}
-      {backdrop && open && !effectiveCollapsed && (
+      {backdrop && shellMounted && !effectiveCollapsed && (
         <div
-          className="absolute inset-0 z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
+          className={cn(
+            "absolute inset-0 z-40 bg-white/80 transition-opacity duration-200 dark:bg-black/60",
+            !panelSlideIn && "opacity-0",
+          )}
           onClick={() => {
             // Don't close if we're in the middle of a resize drag
             if (!isDragging) {
@@ -312,16 +285,22 @@ export function ResizablePanel({
           // Note: NO overflow-hidden here - allows resize handle to extend past left edge
           "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
           // Disable ALL transitions during drag for buttery smooth 60fps resizing
-          isDragging ? "transition-none" : "transition-[transform,opacity] duration-200 ease-out",
+          isDragging
+            ? "transition-none"
+            : "transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
           className,
         )}
         style={{
           width: panelWidth,
-          // Use transform instead of translate property to avoid layout recalculation
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          opacity: open ? 1 : 0,
-          // Force GPU compositing layer to prevent layout thrashing
-          willChange: open ? "transform" : "auto",
+          // Panel is at translateX(0) during opening and open phases.
+          // On close (sliding-out), panelSlideIn becomes false, which sets
+          // translateX(100%) and the CSS transition slides the panel off-screen.
+          // Content stays mounted inside during the slide, creating a synchronized exit.
+          transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
+          opacity: panelSlideIn ? 1 : 0,
+          // Force GPU compositing layer only when actively animating to prevent layout thrashing.
+          // Reset to "auto" when closed to release the GPU memory.
+          willChange: shellMounted ? "transform, opacity" : "auto",
           ...dragStyles,
           ...(effectiveCollapsed
             ? {}
@@ -330,14 +309,15 @@ export function ResizablePanel({
                 minWidth: `${minWidthPx}px`,
               }),
         }}
+        onTransitionEnd={handlePanelTransitionEnd}
         role="complementary"
         aria-label={ariaLabel}
-        aria-hidden={open ? undefined : true}
-        tabIndex={open ? -1 : undefined}
+        aria-hidden={shellMounted ? undefined : true}
+        tabIndex={shellMounted ? -1 : undefined}
       >
         {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
         {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
-        {open && !effectiveCollapsed && (
+        {shellMounted && !effectiveCollapsed && (
           <ResizeHandle
             bindResizeHandle={bindResizeHandle}
             isDragging={isDragging}
@@ -360,19 +340,28 @@ export function ResizablePanel({
           </div>
         )}
 
-        {/* Panel content - visible when expanded (overflow-hidden for proper content clipping) */}
-        {/* Staggered animation: content slides in after panel starts moving */}
-        {shouldRenderContent && (
+        {/* Panel content wrapper
+            - Content mounts ONE FRAME after shell via RAF (prevents transform storm).
+            - Uses contain: strict during entering, then contain: layout paint.
+              This isolates layout/paint from the panel's GPU layer during slide-in.
+            - The data-content-state attribute drives CSS animations declaratively.
+            - Content is mounted during opening (after RAF), open, AND closing phases
+              so it visually exits with the panel as one unit.
+            - Content unmounts only in the "closed" phase (after transitionend).
+        */}
+        {contentMounted && (
           <div
+            ref={contentRef}
             className={cn(
-              "flex h-full w-full flex-col overflow-hidden",
-              effectiveCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
+              "resizable-panel-content contain-layout-paint flex h-full w-full flex-col overflow-hidden",
+              // Always use contain: layout paint - no mode switching to prevent forced layout.
+              // The wrapper has explicit dimensions (h-full w-full) so intrinsic sizing cannot leak.
+              effectiveCollapsed && "pointer-events-none opacity-0",
             )}
-            style={{
-              animation: effectiveCollapsed ? undefined : "slideInContent 150ms ease-out",
-            }}
+            data-content-state={effectiveCollapsed ? "visible" : contentState}
+            onAnimationEnd={handleContentAnimationEnd}
           >
-            {children}
+            <PanelAnimationProvider value={{ phase }}>{children}</PanelAnimationProvider>
           </div>
         )}
       </aside>

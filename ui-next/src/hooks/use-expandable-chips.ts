@@ -26,6 +26,12 @@ export interface UseExpandableChipsOptions<T = string> {
   items: T[];
   sortAlphabetically?: boolean;
   getKey?: (item: T) => string;
+  /**
+   * When true, defers the initial measurement until explicitly allowed.
+   * Useful when the component is mounting during an animation to avoid
+   * forced synchronous layout that can cause transform storms.
+   */
+  deferMeasurement?: boolean;
 }
 
 export interface UseExpandableChipsResult<T = string> {
@@ -52,6 +58,7 @@ export function useExpandableChips<T = string>({
   items,
   sortAlphabetically,
   getKey,
+  deferMeasurement = false,
 }: UseExpandableChipsOptions<T>): UseExpandableChipsResult<T> {
   const [expandedState, setExpandedState] = useState<{ items: T[]; value: boolean }>({
     items,
@@ -67,6 +74,7 @@ export function useExpandableChips<T = string>({
   const [visibleCount, setVisibleCount] = useState(items.length);
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  const lastWidthRef = useRef(0);
 
   const shouldSort = sortAlphabetically ?? isStringArray(items);
 
@@ -143,16 +151,39 @@ export function useExpandableChips<T = string>({
     setVisibleCount(calculateVisibleCount());
   });
 
+  // Schedule calculation via RAF to avoid forced synchronous layout during
+  // panel opening animation. The RAF callback defers the measurement by one
+  // frame, which is invisible to the user since the content wrapper starts
+  // at opacity: 0 during the entering animation.
+  //
+  // When deferMeasurement is true (during panel entering phase), skip the
+  // measurement entirely to prevent layout thrashing during GPU animations.
   useIsomorphicLayoutEffect(() => {
-    // Always recalculate to keep overflowCount accurate for "show less" button
-    setVisibleCount(calculateVisibleCount());
-  }, [calculateVisibleCount, expanded]);
+    if (!deferMeasurement) {
+      // Always recalculate to keep overflowCount accurate for "show less" button
+      scheduleRecalculate();
+    }
+  }, [scheduleRecalculate, expanded, deferMeasurement]);
 
   useResizeObserver({
     ref: containerRef as RefObject<HTMLElement>,
     onResize: () => {
-      // Always recalculate to keep overflowCount accurate during container resize
-      scheduleRecalculate();
+      // Skip resize recalculation during deferred measurement phase to avoid
+      // layout thrashing during the initial mount animation
+      if (!deferMeasurement) {
+        // Filter subpixel jitter: Only recalculate if width changed by more than 2px.
+        // This prevents compositor-induced subpixel changes from triggering unnecessary
+        // chip recalculation when the panel opens (e.g., backdrop-filter effects).
+        const container = containerRef.current;
+        if (container) {
+          const currentWidth = container.offsetWidth;
+          const widthDelta = Math.abs(currentWidth - lastWidthRef.current);
+          if (widthDelta > 2) {
+            lastWidthRef.current = currentWidth;
+            scheduleRecalculate();
+          }
+        }
+      }
     },
     box: "border-box",
   });
