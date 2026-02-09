@@ -50,6 +50,8 @@ import { QUERY_STALE_TIME } from "@/lib/config";
 interface UseDatasetsDataParams {
   /** Search chips from FilterBar */
   searchChips: SearchChip[];
+  /** Show all users' datasets (default: false = current user only) */
+  showAllUsers?: boolean;
   /** Number of datasets per page (default: 50) */
   pageSize?: number;
 }
@@ -83,9 +85,13 @@ interface UseDatasetsDataReturn {
 // Hook
 // =============================================================================
 
-export function useDatasetsData({ searchChips, pageSize = 50 }: UseDatasetsDataParams): UseDatasetsDataReturn {
-  // Build stable query key - changes when filters change, which resets pagination
-  const queryKey = useMemo(() => buildDatasetsQueryKey(searchChips), [searchChips]);
+export function useDatasetsData({
+  searchChips,
+  showAllUsers = false,
+  pageSize = 50,
+}: UseDatasetsDataParams): UseDatasetsDataReturn {
+  // Build stable query key - changes when filters or showAllUsers change, which resets pagination
+  const queryKey = useMemo(() => buildDatasetsQueryKey(searchChips, showAllUsers), [searchChips, showAllUsers]);
 
   // Use paginated data hook for infinite scroll
   const {
@@ -103,7 +109,7 @@ export function useDatasetsData({ searchChips, pageSize = 50 }: UseDatasetsDataP
     queryFn: async (params: PaginationParams & DatasetFilterParams): Promise<PaginatedResponse<Dataset>> => {
       return fetchPaginatedDatasets(params);
     },
-    params: { searchChips },
+    params: { searchChips, showAllUsers },
     config: {
       pageSize,
       // Datasets are relatively static - use STATIC stale time (5 minutes)

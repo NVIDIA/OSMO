@@ -24,6 +24,7 @@
 import { faker } from "@faker-js/faker";
 import { hashString } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
+import { MOCK_CONFIG } from "@/mocks/seed/types";
 
 // ============================================================================
 // Types
@@ -42,6 +43,7 @@ export interface GeneratedDataset {
   labels: Record<string, string>;
   retention_policy?: string;
   description?: string;
+  user?: string;
 }
 
 export interface GeneratedDatasetVersion {
@@ -137,6 +139,7 @@ export class DatasetGenerator {
 
     const bucket = faker.helpers.arrayElement(DATASET_PATTERNS.buckets);
     const format = faker.helpers.arrayElement(DATASET_PATTERNS.formats);
+    const user = faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
 
     return {
       name,
@@ -155,6 +158,7 @@ export class DatasetGenerator {
       },
       retention_policy: faker.helpers.arrayElement(DATASET_PATTERNS.retentionPolicies),
       description: `${baseName} dataset (${variant} split) for ML training and evaluation`,
+      user,
     };
   }
 

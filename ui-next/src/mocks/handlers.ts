@@ -1293,14 +1293,22 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
     const url = new URL(request.url);
     const count = parseInt(url.searchParams.get("count") || "50", 10);
+    const allUsers = url.searchParams.get("all_users") !== "false";
 
     // Generate requested number of datasets
-    // No filtering here - client adapter does all filtering
     const { entries } = datasetGenerator.generatePage(0, count);
+
+    // Filter by user if all_users=false
+    let filtered = entries;
+    if (!allUsers) {
+      // For mock: use first user from config as the "current user"
+      const mockCurrentUser = MOCK_CONFIG.workflows.users[0];
+      filtered = filtered.filter((d) => d.user === mockCurrentUser);
+    }
 
     // DataListResponse expects 'datasets' array
     return HttpResponse.json({
-      datasets: entries,
+      datasets: filtered,
     });
   }),
 

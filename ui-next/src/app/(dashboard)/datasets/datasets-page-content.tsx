@@ -34,7 +34,8 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback } from "react";
+import { useCallback, useTransition } from "react";
+import { useQueryState, parseAsBoolean } from "nuqs";
 import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
 import { useDatasetsData } from "@/app/(dashboard)/datasets/hooks/use-datasets-data";
@@ -47,9 +48,12 @@ export function DatasetsPageContent() {
   usePage({ title: "Datasets" });
   const { startTransition: startViewTransition } = useViewTransition();
 
+  // Track pending state for show all users toggle
+  const [showAllUsersPending, startShowAllUsersTransition] = useTransition();
+
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
-  // URL: /datasets?f=format:parquet&f=bucket:training
+  // URL: /datasets?f=format:parquet&f=bucket:training&all=true
   // ==========================================================================
 
   // Filter chips - URL-synced via shared hook
@@ -61,6 +65,23 @@ export function DatasetsPageContent() {
     },
     [setSearchChips, startViewTransition],
   );
+
+  // Show all users toggle - URL-synced (default: false = my datasets only)
+  // URL param: ?all=true (shows all users), omitted/false (shows my datasets)
+  const [showAllUsers, setShowAllUsers] = useQueryState(
+    "all",
+    parseAsBoolean.withDefault(false).withOptions({
+      shallow: true,
+      history: "replace", // Don't pollute history with toggle changes
+      clearOnDefault: true, // Remove param when false (cleaner URLs)
+    }),
+  );
+
+  const handleToggleShowAllUsers = useCallback(() => {
+    startShowAllUsersTransition(() => {
+      void setShowAllUsers((prev) => !prev);
+    });
+  }, [setShowAllUsers]);
 
   // ==========================================================================
   // Data Fetching with FilterBar filtering and pagination
@@ -81,6 +102,7 @@ export function DatasetsPageContent() {
     hasActiveFilters,
   } = useDatasetsData({
     searchChips,
+    showAllUsers,
   });
 
   // Results count for FilterBar display (consolidated hook)
@@ -103,6 +125,9 @@ export function DatasetsPageContent() {
             searchChips={searchChips}
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
+            showAllUsers={showAllUsers}
+            showAllUsersPending={showAllUsersPending}
+            onToggleShowAllUsers={handleToggleShowAllUsers}
           />
         </InlineErrorBoundary>
       </div>
