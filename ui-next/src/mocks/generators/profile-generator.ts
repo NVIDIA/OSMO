@@ -67,6 +67,13 @@ export interface GeneratedApiKey {
   expires_at?: string;
 }
 
+// Match production format
+export interface GeneratedCredential {
+  cred_name: string;
+  cred_type: "REGISTRY" | "DATA" | "GENERIC";
+  profile: string | null;
+}
+
 // ============================================================================
 // Generator Class
 // ============================================================================
@@ -76,6 +83,13 @@ export class ProfileGenerator {
 
   constructor(baseSeed: number = 66666) {
     this.baseSeed = baseSeed;
+  }
+
+  /**
+   * Capitalize first letter of a string
+   */
+  private capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   /**
@@ -104,18 +118,35 @@ export class ProfileGenerator {
   }
 
   /**
+   * Get available bucket names (matches bucket generator's list)
+   */
+  getBucketNames(): string[] {
+    return [
+      "osmo-artifacts",
+      "osmo-checkpoints",
+      "osmo-datasets",
+      "osmo-models",
+      "ml-experiments",
+      "training-outputs",
+      "inference-cache",
+      "model-registry",
+    ];
+  }
+
+  /**
    * Generate user settings
    */
   generateSettings(username?: string): GeneratedProfileSettings {
     faker.seed(this.baseSeed + (username ? hashString(username) : 0) + 1000);
 
     const pools = MOCK_CONFIG.pools.names;
+    const buckets = this.getBucketNames();
 
     return {
-      default_pool: faker.datatype.boolean({ probability: 0.7 }) ? faker.helpers.arrayElement(pools) : null,
-      default_bucket: faker.datatype.boolean({ probability: 0.6 })
-        ? faker.helpers.arrayElement(["osmo-artifacts", "osmo-checkpoints"])
-        : null,
+      // Always return a default pool (matching v4 prototype behavior)
+      default_pool: faker.helpers.arrayElement(pools),
+      // Always return a default bucket (matching v4 prototype behavior)
+      default_bucket: faker.helpers.arrayElement(buckets),
       default_priority: "NORMAL",
       notifications: {
         email: faker.datatype.boolean({ probability: 0.8 }),
@@ -165,8 +196,59 @@ export class ProfileGenerator {
     return keys;
   }
 
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
+  /**
+   * Generate credentials list in production format
+   * Ensures at least one credential of each type (registry, data, generic)
+   */
+  generateCredentials(count: number = 5): GeneratedCredential[] {
+    faker.seed(this.baseSeed + 2000);
+    const credentials: GeneratedCredential[] = [];
+
+    // Ensure we have at least one of each type
+    const types: Array<"REGISTRY" | "DATA" | "GENERIC"> = ["REGISTRY", "DATA", "GENERIC"];
+    const minCount = Math.max(count, types.length);
+
+    for (let i = 0; i < minCount; i++) {
+      // For the first 3 credentials, guarantee one of each type
+      // After that, pick randomly
+      const cred_type = i < types.length ? types[i] : faker.helpers.arrayElement(types);
+
+      const baseName = faker.helpers.arrayElement([
+        "my-ngc-cred",
+        "docker-hub-cred",
+        "s3-data-cred",
+        "azure-storage-cred",
+        "api-token",
+        "ssh-key",
+        "github-token",
+      ]);
+
+      const cred_name = `${baseName}-${i}`;
+
+      // Production format: profile field contains the URL/endpoint for registry/data, null for generic
+      let profile: string | null = null;
+      if (cred_type === "REGISTRY") {
+        profile = faker.helpers.arrayElement(["nvcr.io", "docker.io", "ghcr.io", "quay.io"]);
+      } else if (cred_type === "DATA") {
+        profile = `s3://${faker.location.countryCode().toLowerCase()}-bucket-${i}`;
+      }
+
+      credentials.push({
+        cred_name,
+        cred_type,
+        profile,
+      });
+    }
+
+    return credentials;
+  }
+
+  /**
+   * Get credential by name
+   */
+  getCredentialByName(name: string): GeneratedCredential | undefined {
+    const credentials = this.generateCredentials(10);
+    return credentials.find((c) => c.cred_name === name);
   }
 }
 

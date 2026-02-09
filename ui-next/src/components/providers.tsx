@@ -18,8 +18,6 @@
 
 import { QueryClientProvider, HydrationBoundary } from "@tanstack/react-query";
 import type { DehydratedState } from "@tanstack/react-query";
-// React Query Devtools available via Chrome extension:
-// https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
@@ -30,6 +28,7 @@ import { ServiceProvider } from "@/contexts/service-context";
 import { UserProvider } from "@/lib/auth/user-context";
 import { MockProvider } from "@/mocks/MockProvider";
 import { createQueryClient } from "@/lib/query-client";
+import { QueryDevtools } from "@/components/QueryDevtools";
 
 // =============================================================================
 // Provider Props
@@ -98,6 +97,7 @@ export function Providers({ children, dehydratedState }: ProvidersProps) {
                   </UserProvider>
                 </ThemeProvider>
               </HydrationBoundary>
+              <QueryDevtools />
             </QueryClientProvider>
           </NuqsAdapter>
         </MockProvider>

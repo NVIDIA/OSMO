@@ -128,13 +128,17 @@ export function decodeUserFromToken(token: string | null): User | null {
     // Extract roles from multiple possible locations
     const roles = extractRoles(claims);
 
+    // Extract email from multiple possible sources
+    // Some auth providers use 'email', others use 'preferred_username'
+    const email = claims.email || claims.preferred_username || "";
+
     // Build User object
     return {
       id: claims.sub || "",
-      name: claims.name || claims.email?.split("@")[0] || "User",
-      email: claims.email || "",
+      name: claims.name || email.split("@")[0] || "User",
+      email,
       isAdmin: hasAdminRole(roles),
-      initials: getInitials(claims.name || claims.email || "U"),
+      initials: getInitials(claims.name || email || "U"),
     };
   } catch (error) {
     console.error("Failed to decode JWT:", error);
