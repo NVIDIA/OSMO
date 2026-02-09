@@ -38,6 +38,8 @@ import type {
   ResourceCapacity,
   PoolMembership,
   Version,
+  UserProfile,
+  Credential,
 } from "@/lib/api/adapter/types";
 import { naturalCompare } from "@/lib/utils";
 
@@ -446,4 +448,116 @@ export function transformAllResourcesResponse(rawResponse: unknown): AllResource
     pools: Array.from(poolSet).sort(naturalCompare),
     platforms: Array.from(platformSet).sort(naturalCompare),
   };
+}
+
+// =============================================================================
+// Profile Transforms
+// =============================================================================
+
+/**
+ * Transform backend user profile response to ideal UserProfile type.
+ *
+ * WORKAROUND: Backend may return numeric IDs as strings.
+ * Ensures all fields have proper defaults and types.
+ *
+ * @param data - The raw API response from GET /api/profile
+ */
+export function transformUserProfile(data: unknown): UserProfile {
+  if (!data || typeof data !== "object") {
+    return {
+      notifications: { email: true, slack: false },
+      bucket: { default: "", accessible: [] },
+      pool: { default: "", accessible: [] },
+    };
+  }
+
+  const raw = data as Record<string, unknown>;
+
+  // Backend structure:
+  // {
+  //   username?: string;           (contains email, but unused - get from JWT via useUser() instead)
+  //   email_notification?: boolean;
+  //   slack_notification?: boolean;
+  //   bucket?: string;             (just a string, not an object)
+  //   pool?: string;               (just a string, not an object)
+  // }
+  //
+  // Note: User's name and email come from JWT token via useUser() hook, not from profile settings.
+  // Accessible bucket/pool lists come from ProfileResponse.pools at the parent level.
+
+  return {
+    notifications: {
+      email: Boolean(raw.email_notification ?? true),
+      slack: Boolean(raw.slack_notification ?? false),
+    },
+    bucket: {
+      default: String(raw.bucket || ""),
+      accessible: [], // Populated separately from ProfileResponse
+    },
+    pool: {
+      default: String(raw.pool || ""),
+      accessible: [], // Populated separately from ProfileResponse.pools
+    },
+  };
+}
+
+/**
+ * Transform backend credential response to ideal Credential type.
+ *
+ * WORKAROUND: Backend returns inconsistent field names.
+ * Production: { cred_name, cred_type, profile }
+ * Expected: { name, type, registry/data/generic }
+ *
+ * @param data - The raw API response for a single credential
+ */
+export function transformCredential(data: unknown): Credential {
+  if (!data || typeof data !== "object") {
+    return {
+      cred_name: "",
+      cred_type: "GENERIC",
+      profile: null,
+    };
+  }
+
+  const raw = data as Record<string, unknown>;
+
+  // Normalize cred_type to uppercase to handle any case variations
+  const rawType = String(raw.cred_type || "GENERIC").toUpperCase();
+  const cred_type: Credential["cred_type"] =
+    rawType === "REGISTRY" || rawType === "DATA" || rawType === "GENERIC" ? rawType : "GENERIC";
+
+  return {
+    cred_name: String(raw.cred_name || ""),
+    cred_type,
+    profile: raw.profile ? String(raw.profile) : null,
+  };
+}
+
+/**
+ * Transform backend credentials list response to array of Credentials.
+ *
+ * WORKAROUND: Backend may return various formats:
+ * - Production: { json: [...] }
+ * - Mock: direct array [...]
+ * - Alternative: { credentials: [...] } or { items: [...] }
+ *
+ * @param data - The raw API response from GET /api/credentials
+ */
+export function transformCredentialList(data: unknown): Credential[] {
+  if (!data) return [];
+
+  if (Array.isArray(data)) {
+    return data.map(transformCredential);
+  }
+
+  if (typeof data === "object") {
+    const raw = data as Record<string, unknown>;
+    // Production returns { json: [...] }
+    const credArray = raw.json || raw.credentials || raw.items;
+    if (Array.isArray(credArray)) {
+      return credArray.map(transformCredential);
+    }
+  }
+
+  return [];
 }

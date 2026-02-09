@@ -194,3 +194,79 @@ export interface Version {
   revision: string;
   hash?: string;
 }
+
+// =============================================================================
+// Profile Types
+// =============================================================================
+
+/**
+ * User profile information.
+ */
+export interface UserProfile {
+  // Note: User's name and email come from JWT token via useUser() hook, not from profile settings
+  notifications: {
+    email: boolean;
+    slack: boolean;
+  };
+  bucket: {
+    default: string;
+    accessible: string[]; // List of bucket names user has access to
+  };
+  pool: {
+    default: string;
+    accessible: string[]; // List of pool names user has access to
+  };
+}
+
+/**
+ * Profile update request payload.
+ */
+export interface ProfileUpdate {
+  notifications?: {
+    email?: boolean;
+    slack?: boolean;
+  };
+  bucket?: {
+    default?: string;
+  };
+  pool?: {
+    default?: string;
+  };
+}
+
+// =============================================================================
+// Credential Types
+// =============================================================================
+
+/**
+ * A credential entry (matches production format).
+ * Supports multiple credential types: registry, data, and generic.
+ */
+export interface Credential {
+  cred_name: string;
+  cred_type: "REGISTRY" | "DATA" | "GENERIC";
+  profile: string | null; // URL/endpoint for registry/data, null for generic
+}
+
+/**
+ * Payload for creating a new credential.
+ * Maps to backend's CredentialOptions structure.
+ * The cred_name is used as the URL path parameter, the rest goes in the body.
+ */
+export interface CredentialCreate {
+  cred_name: string;
+  registry_credential?: {
+    registry?: string;
+    username?: string;
+    auth: string;
+  };
+  data_credential?: {
+    endpoint: string;
+    region?: string;
+    access_key_id: string;
+    access_key: string;
+  };
+  generic_credential?: {
+    credential: Record<string, string>;
+  };
+}

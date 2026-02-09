@@ -1,13 +1,22 @@
 // React Query hooks with transformation to ideal types. Use these instead of generated hooks.
 
 import { useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
   useGetVersionApiVersionGet,
   getResourcesApiResourcesGet,
   getPoolQuotasApiPoolQuotaGet,
+  // Profile/Credentials API
+  useGetNotificationSettingsApiProfileSettingsGet,
+  useSetNotificationSettingsApiProfileSettingsPost,
+  useGetBucketInfoApiBucketGet,
+  useGetUserCredentialApiCredentialsGet,
+  useSetUserCredentialApiCredentialsCredNamePost,
+  useDeleteUsersCredentialApiCredentialsCredNameDelete,
+  type CredentialOptions,
+  type UserProfile as BackendUserProfile,
 } from "@/lib/api/generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -18,9 +27,18 @@ import {
   transformResourcesResponse,
   transformAllResourcesResponse,
   transformVersionResponse,
+  transformUserProfile,
+  transformCredentialList,
+  transformCredential,
 } from "@/lib/api/adapter/transforms";
 
-import type { PoolResourcesResponse, AllResourcesResponse } from "@/lib/api/adapter/types";
+import type {
+  PoolResourcesResponse,
+  AllResourcesResponse,
+  ProfileUpdate,
+  CredentialCreate,
+  UserProfile,
+} from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
   invalidateResourcesCache,
@@ -648,4 +666,323 @@ export function usePortForwardWebserver() {
       gcTime: 0,
     },
   });
+}
+
+// =============================================================================
+// Profile and Credentials Hooks
+// =============================================================================
+
+/**
+ * Query keys for profile-related cache management.
+ * Use these for cache invalidation and prefetching.
+ */
+export const profileKeys = {
+  all: ["profile"] as const,
+  detail: () => [...profileKeys.all, "detail"] as const,
+  credentials: () => [...profileKeys.all, "credentials"] as const,
+};
+
+/**
+ * Fetch user profile settings.
+ *
+ * Returns notification preferences, bucket, and pool settings.
+ * Uses GET /api/profile/settings and GET /api/bucket endpoints.
+ *
+ * Note: For user's name and email, use useUser() hook which reads from JWT token.
+ * Note: Buckets are fetched separately because backend doesn't include them in ProfileResponse.
+ *
+ * @example
+ * ```ts
+ * const { profile, isLoading, error } = useProfile();
+ * if (profile) {
+ *   console.log(profile.notifications, profile.bucket.default, profile.pool.default);
+ * }
+ * ```
+ */
+export function useProfile() {
+  // Fetch profile settings
+  const profileQuery = useGetNotificationSettingsApiProfileSettingsGet({
+    query: {
+      queryKey: profileKeys.detail(),
+      staleTime: QUERY_STALE_TIME.STANDARD,
+      select: useCallback((rawData: unknown) => {
+        if (!rawData) return null;
+        // Backend returns ProfileResponse { profile: UserProfile, pools: string[] }
+        const response = rawData as { profile?: unknown; pools?: string[] };
+        const profile = transformUserProfile(response.profile);
+        // Merge accessible pools from the response
+        if (response.pools && Array.isArray(response.pools)) {
+          profile.pool.accessible = response.pools;
+        }
+        return profile;
+      }, []),
+    },
+  });
+
+  // Fetch buckets separately (backend inconsistency - pools are in ProfileResponse, buckets are not)
+  const bucketsQuery = useGetBucketInfoApiBucketGet(
+    undefined, // No params needed
+    {
+      query: {
+        queryKey: [...profileKeys.all, "buckets"] as const,
+        staleTime: QUERY_STALE_TIME.STANDARD,
+        select: useCallback((rawData: unknown) => {
+          if (!rawData || typeof rawData !== "object") return [];
+          const response = rawData as { buckets?: Record<string, unknown> };
+          return response.buckets ? Object.keys(response.buckets) : [];
+        }, []),
+      },
+    },
+  );
+
+  // Merge buckets into profile
+  const profile = useMemo(() => {
+    if (!profileQuery.data) return null;
+    return {
+      ...profileQuery.data,
+      bucket: {
+        ...profileQuery.data.bucket,
+        accessible: bucketsQuery.data ?? [],
+      },
+    };
+  }, [profileQuery.data, bucketsQuery.data]);
+
+  return {
+    profile,
+    isLoading: profileQuery.isLoading || bucketsQuery.isLoading,
+    error: profileQuery.error || bucketsQuery.error,
+    refetch: useCallback(() => {
+      profileQuery.refetch();
+      bucketsQuery.refetch();
+    }, [profileQuery, bucketsQuery]),
+  };
+}
+
+/**
+ * Fetch available buckets and default bucket.
+ *
+ * Returns list of accessible bucket names and the user's default bucket.
+ * Uses GET /api/bucket endpoint.
+ *
+ * @example
+ * ```ts
+ * const { buckets, defaultBucket, isLoading } = useBuckets();
+ * console.log(`Default: ${defaultBucket}, Available: ${buckets.join(', ')}`);
+ * ```
+ */
+export function useBuckets() {
+  const { data, isLoading, error, refetch } = useGetBucketInfoApiBucketGet(
+    undefined, // No params needed
+    {
+      query: {
+        queryKey: [...profileKeys.all, "buckets"] as const,
+        staleTime: QUERY_STALE_TIME.STANDARD,
+        select: useCallback((rawData: unknown) => {
+          if (!rawData || typeof rawData !== "object") {
+            return { buckets: [], defaultBucket: "" };
+          }
+          const response = rawData as { default?: string; buckets?: Record<string, unknown> };
+          const bucketNames = response.buckets ? Object.keys(response.buckets) : [];
+          return {
+            buckets: bucketNames,
+            defaultBucket: response.default || "",
+          };
+        }, []),
+      },
+    },
+  );
+
+  return {
+    buckets: data?.buckets ?? [],
+    defaultBucket: data?.defaultBucket ?? "",
+    isLoading,
+    error,
+    refetch,
+  };
+}
+
+/**
+ * Fetch user credentials list.
+ *
+ * Returns all credentials (registry, data, generic types).
+ * Uses GET /api/credentials endpoint.
+ *
+ * @example
+ * ```ts
+ * const { credentials, isLoading } = useCredentials();
+ * for (const cred of credentials) {
+ *   console.log(cred.name, cred.type);
+ * }
+ * ```
+ */
+export function useCredentials() {
+  const { data, isLoading, error, refetch } = useGetUserCredentialApiCredentialsGet({
+    query: {
+      queryKey: profileKeys.credentials(),
+      staleTime: QUERY_STALE_TIME.STANDARD,
+      select: useCallback((rawData: unknown) => {
+        if (!rawData) return [];
+        // Backend returns string that needs parsing
+        const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+        return transformCredentialList(parsed);
+      }, []),
+    },
+  });
+
+  return {
+    credentials: data ?? [],
+    isLoading,
+    error,
+    refetch,
+  };
+}
+
+/**
+ * Update user profile settings.
+ *
+ * Supports partial updates (only send changed fields).
+ * Invalidates profile cache on success.
+ * Uses POST /api/profile/settings endpoint.
+ *
+ * @example
+ * ```ts
+ * const { mutateAsync: updateProfile, isPending } = useUpdateProfile();
+ * await updateProfile({
+ *   notifications: { email: false },
+ *   pool: { default: "my-pool" },
+ * });
+ * ```
+ */
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+
+  const mutation = useSetNotificationSettingsApiProfileSettingsPost({
+    mutation: {
+      onSuccess: async () => {
+        // Invalidate and wait for refetch to complete
+        await queryClient.invalidateQueries({ queryKey: profileKeys.detail() });
+      },
+    },
+  });
+
+  // Wrap to provide cleaner API with our types
+  const mutateAsync = useCallback(
+    async (update: ProfileUpdate) => {
+      // Transform our ProfileUpdate to backend's UserProfile format
+      const backendPayload: BackendUserProfile = {};
+      if (update.notifications?.email !== undefined) {
+        backendPayload.email_notification = update.notifications.email;
+      }
+      if (update.notifications?.slack !== undefined) {
+        backendPayload.slack_notification = update.notifications.slack;
+      }
+      if (update.bucket?.default !== undefined) {
+        backendPayload.bucket = update.bucket.default;
+      }
+      if (update.pool?.default !== undefined) {
+        backendPayload.pool = update.pool.default;
+      }
+
+      const result = await mutation.mutateAsync({ data: backendPayload });
+      return transformUserProfile(result);
+    },
+    [mutation],
+  );
+
+  return {
+    mutateAsync,
+    isPending: mutation.isPending,
+    isError: mutation.isError,
+    error: mutation.error,
+    reset: mutation.reset,
+  };
+}
+
+/**
+ * Create or update a credential.
+ *
+ * Invalidates credentials cache on success.
+ * Uses POST /api/credentials/{credName} endpoint.
+ *
+ * @example
+ * ```ts
+ * const { mutateAsync: upsertCredential, isPending } = useUpsertCredential();
+ * await upsertCredential({
+ *   name: "my-registry",
+ *   type: "registry",
+ *   registry: { url: "docker.io", username: "user", password: "pass" },
+ * });
+ * ```
+ */
+export function useUpsertCredential() {
+  const queryClient = useQueryClient();
+
+  const mutation = useSetUserCredentialApiCredentialsCredNamePost({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: profileKeys.credentials() });
+      },
+    },
+  });
+
+  // Wrap to provide cleaner API with our types
+  const mutateAsync = useCallback(
+    async (credential: CredentialCreate) => {
+      // Extract cred_name for URL path, rest is the body payload
+      const { cred_name, ...backendPayload } = credential;
+
+      const result = await mutation.mutateAsync({
+        credName: cred_name,
+        data: backendPayload as CredentialOptions,
+      });
+      return transformCredential(result);
+    },
+    [mutation],
+  );
+
+  return {
+    mutateAsync,
+    isPending: mutation.isPending,
+    isError: mutation.isError,
+    error: mutation.error,
+  };
+}
+
+/**
+ * Delete a credential.
+ *
+ * Invalidates credentials cache on success.
+ * Uses DELETE /api/credentials/{credName} endpoint.
+ *
+ * @example
+ * ```ts
+ * const { mutateAsync: deleteCredential, isPending } = useDeleteCredential();
+ * await deleteCredential("my-registry");
+ * ```
+ */
+export function useDeleteCredential() {
+  const queryClient = useQueryClient();
+
+  const mutation = useDeleteUsersCredentialApiCredentialsCredNameDelete({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: profileKeys.credentials() });
+      },
+    },
+  });
+
+  // Wrap to provide cleaner API
+  const mutateAsync = useCallback(
+    async (credentialName: string) => {
+      await mutation.mutateAsync({ credName: credentialName });
+    },
+    [mutation],
+  );
+
+  return {
+    mutateAsync,
+    isPending: mutation.isPending,
+    isError: mutation.isError,
+    error: mutation.error,
+  };
 }

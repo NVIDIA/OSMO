@@ -43,6 +43,22 @@ import { MOCK_CONFIG } from "@/mocks/seed/types";
 const MOCK_DELAY = getMockDelay();
 
 // =============================================================================
+// Stateful Mock Data (persists changes during session)
+// =============================================================================
+
+// Store profile settings that can be updated via POST
+const mockProfileSettings: {
+  email_notification?: boolean;
+  slack_notification?: boolean;
+  bucket?: string;
+  pool?: string;
+} = {};
+
+// Store credentials that can be created/updated/deleted
+// Maps credential name -> credential object
+const mockCredentials: Map<string, unknown> = new Map();
+
+// =============================================================================
 // URL Matching Patterns
 // =============================================================================
 // MSW v2's `*` wildcard should match any origin, but in Next.js + Turbopack,
@@ -1217,7 +1233,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   // ==========================================================================
 
   // List buckets - returns BucketInfoResponse format
-  http.get("/api/bucket", async ({ request }) => {
+  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  http.get("*/api/bucket", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -1317,8 +1334,38 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   http.get("*/api/profile/settings", async () => {
     await delay(MOCK_DELAY);
 
+    const userProfile = profileGenerator.generateProfile("current.user");
     const settings = profileGenerator.generateSettings("current.user");
-    return HttpResponse.json(settings);
+    // Use all pool names from patterns, not limited by volume config
+    const pools = MOCK_CONFIG.pools.names;
+
+    // Merge stored settings with generated defaults
+    const emailNotification = mockProfileSettings.email_notification ?? settings.notifications.email;
+    const slackNotification = mockProfileSettings.slack_notification ?? settings.notifications.slack;
+    const defaultBucket = mockProfileSettings.bucket ?? settings.default_bucket;
+    const defaultPool = mockProfileSettings.pool ?? settings.default_pool;
+
+    // Ensure default pool is in accessible pools list
+    const accessiblePools =
+      defaultPool !== null && pools.includes(defaultPool)
+        ? pools
+        : defaultPool !== null
+          ? [defaultPool, ...pools]
+          : pools;
+
+    // Backend returns flat structure: { profile: { username, email_notification, slack_notification, bucket, pool }, pools: string[] }
+    // Adapter transforms to nested structure for UI
+    // Note: Accessible buckets come from separate /api/bucket endpoint
+    return HttpResponse.json({
+      profile: {
+        username: userProfile.email, // Backend uses email as username
+        email_notification: emailNotification,
+        slack_notification: slackNotification,
+        bucket: defaultBucket,
+        pool: defaultPool,
+      },
+      pools: accessiblePools,
+    });
   }),
 
   // Update profile settings (POST, not PUT - matching backend)
@@ -1327,8 +1374,94 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     await delay(MOCK_DELAY);
 
     const body = (await request.json()) as Record<string, unknown>;
-    // In a real implementation, this would persist the settings
+
+    // Persist settings to mock storage
+    if ("email_notification" in body) {
+      mockProfileSettings.email_notification = body.email_notification as boolean;
+    }
+    if ("slack_notification" in body) {
+      mockProfileSettings.slack_notification = body.slack_notification as boolean;
+    }
+    if ("bucket" in body) {
+      mockProfileSettings.bucket = body.bucket as string;
+    }
+    if ("pool" in body) {
+      mockProfileSettings.pool = body.pool as string;
+    }
+
     return HttpResponse.json({ ...body, updated_at: new Date().toISOString() });
+  }),
+
+  // ==========================================================================
+  // Credentials
+  // ==========================================================================
+
+  // Get credentials list (production format: { json: [...] })
+  http.get("*/api/credentials", async () => {
+    await delay(MOCK_DELAY);
+
+    // If we have stored credentials, return those; otherwise return generated defaults
+    if (mockCredentials.size > 0) {
+      const credentials = Array.from(mockCredentials.values());
+      return HttpResponse.json({ json: credentials });
+    }
+
+    // First time: generate defaults and store them
+    const credentials = profileGenerator.generateCredentials(5);
+    for (const cred of credentials) {
+      if (cred && typeof cred === "object" && "cred_name" in cred) {
+        mockCredentials.set(cred.cred_name as string, cred);
+      }
+    }
+    return HttpResponse.json({ json: credentials });
+  }),
+
+  // Create credential (POST /api/credentials/{name})
+  // Note: Updates are not supported - credentials must be deleted and recreated
+  http.post("*/api/credentials/:name", async ({ params, request }) => {
+    await delay(MOCK_DELAY);
+
+    const name = params.name as string;
+    const body = (await request.json()) as Record<string, unknown>;
+
+    // Determine credential type and extract profile value
+    let cred_type: "REGISTRY" | "DATA" | "GENERIC" = "GENERIC";
+    let profile: string | null = null;
+
+    if (body.registry_credential && typeof body.registry_credential === "object") {
+      cred_type = "REGISTRY";
+      const reg = body.registry_credential as Record<string, unknown>;
+      profile = String(reg.registry || "");
+    } else if (body.data_credential && typeof body.data_credential === "object") {
+      cred_type = "DATA";
+      const data = body.data_credential as Record<string, unknown>;
+      profile = String(data.endpoint || "");
+    } else if (body.generic_credential && typeof body.generic_credential === "object") {
+      cred_type = "GENERIC";
+      profile = null; // Generic credentials don't have a profile
+    }
+
+    // Create credential in production format
+    const credential = {
+      cred_name: name,
+      cred_type,
+      profile,
+    };
+
+    // Store the credential
+    mockCredentials.set(name, credential);
+
+    return HttpResponse.json(credential);
+  }),
+
+  // Delete credential
+  http.delete("*/api/credentials/:name", async ({ params }) => {
+    await delay(MOCK_DELAY);
+
+    const name = params.name as string;
+    // Remove from storage
+    mockCredentials.delete(name);
+    return HttpResponse.json({ message: `Credential ${name} deleted` });
   }),
 
   // ==========================================================================
