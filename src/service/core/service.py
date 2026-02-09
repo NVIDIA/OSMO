@@ -154,6 +154,7 @@ app.include_router(misc_router)
 @app.exception_handler(osmo_errors.OSMOCredentialError)
 @app.exception_handler(osmo_errors.OSMODatabaseError)
 @app.exception_handler(osmo_errors.OSMOUserError)
+@app.exception_handler(osmo_errors.OSMOSubmissionError)
 async def user_error_handler(request: fastapi.Request, error: osmo_errors.OSMOError):
     """ Returns user readable error responses. """
     # pylint: disable=unused-argument
