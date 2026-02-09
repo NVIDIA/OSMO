@@ -1,0 +1,942 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Authentication Flow &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/appendix/authentication/authentication_flow';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Roles and Policies" href="roles_policies.html" />
+    <link rel="prev" title="AuthN/AuthZ" href="index.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">AuthN/AuthZ</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="keycloak_setup.html">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">AuthN/AuthZ</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Authentication Flow</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="authentication-flow">
+<span id="authentication-flow-with-keycloak"></span><span id="id1"></span><h1>Authentication Flow<a class="headerlink" href="#authentication-flow" title="Link to this heading">#</a></h1>
+<p>This guide describes the detailed authentication flow in the OSMO platform.</p>
+<section id="architecture-components">
+<h2>Architecture Components<a class="headerlink" href="#architecture-components" title="Link to this heading">#</a></h2>
+<p>The authentication system consists of the following components:</p>
+<ol class="arabic simple">
+<li><p><strong>User</strong>: The end-user or entity accessing the OSMO platform. To use OSMO, the user must first acquire a signed JWT with roles and username claims (From Keycloak or from OSMO itself in the case of service accounts). Then it can make a request to OSMO using the JWT.</p></li>
+<li><p><strong>Keycloak</strong>: Stores mapping between users and groups and between groups and roles. It can be used to handle user authentication directly, or as an intermediary between users and external identity providers.</p></li>
+<li><p><strong>Identity Provider (IdP)</strong>: Optional external authentication service (e.g., Microsoft Azure AD, etc.) that verifies user identity</p></li>
+<li><p><strong>Envoy</strong>: API gateway that ensures requests to OSMO are authenticated with a properly signed and validated JWT. All requests to OSMO must pass through the following two internal components (or filters) of Envoy:</p>
+<ul class="simple">
+<li><p><strong>OAuth2 Filter</strong>: Redirects the user to Keycloak’s authentication endpoint if the user is not authenticated (Missing or invalid <code class="docutils literal notranslate"><span class="pre">OAuthHMAC</span></code> cookie or <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header is not present).</p></li>
+<li><p><strong>JWT Filter</strong>: Validates JWT token (provided either through the <code class="docutils literal notranslate"><span class="pre">IdToken</span></code> cookie or the <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header)</p></li>
+</ul>
+</li>
+<li><p><strong>OSMO Service</strong>: Backend services providing platform functionality. They evaluate the roles provided in the JWT and determine if the user has access to the requested resource.</p></li>
+</ol>
+</section>
+<section id="user-login-with-keycloak">
+<h2>User Login with Keycloak<a class="headerlink" href="#user-login-with-keycloak" title="Link to this heading">#</a></h2>
+<p>For a human user, logging in is done through a web browser using Keycloak.</p>
+<section id="overview">
+<h3>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h3>
+<p>The below diagram illustrates the high level flow for a human user logging into OSMO.</p>
+<a class="reference internal image-reference" href="../../../_images/authn_authz_arch_user.png"><img alt="Authentication and Authorization flow" class="align-center" src="../../../_images/authn_authz_arch_user.png" style="width: 100%;" /></a>
+<p>The flow contains the following steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Login:</strong> A user logs in with Keycloak. Keycloak supports multiple OAuth 2.0 flows such as device flow, and code flow. Keycloak may be configured to accept username and password directly, or redirect to an external identity provider.</p></li>
+<li><p><strong>Lookup roles:</strong> Keycloak looks up what roles a user has based on their group memberships. The roles from all groups are aggregated into a single list of roles.</p></li>
+<li><p><strong>Grant JWT:</strong> Keycloak issues a JWT token containing the user’s username (in the <code class="docutils literal notranslate"><span class="pre">preferred_username</span></code> claim) and roles (in the <code class="docutils literal notranslate"><span class="pre">roles</span></code> claim).</p></li>
+<li><p><strong>Make request with JWT:</strong> The user makes a request to OSMO using the JWT token in the <code class="docutils literal notranslate"><span class="pre">IdToken</span></code> cookie (For the Web UI accessed through a browser) or <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header (For the CLI client).</p></li>
+<li><p><strong>Validate and unpack JWT:</strong> Envoy validates the JWT token (Correct signature, not expired, correct <code class="docutils literal notranslate"><span class="pre">aud</span></code> and <code class="docutils literal notranslate"><span class="pre">iss</span></code> claims). It then unpacks the <code class="docutils literal notranslate"><span class="pre">roles</span></code> claim into a comma separated list in the <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> header and the <code class="docutils literal notranslate"><span class="pre">preferred_username</span></code> claim into the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> header.</p></li>
+<li><p><strong>Make request with headers:</strong> Envoy then forwards the request to the OSMO service with the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> and <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> headers set.</p></li>
+<li><p><strong>Check request is allowed by roles:</strong> The OSMO service checks the definitions of the roles in its database, and compares with the request the user is trying to perform. If none of the roles provided allow the request, then OSMO will return a <code class="docutils literal notranslate"><span class="pre">403</span> <span class="pre">Forbidden</span></code> error.</p></li>
+<li><p><strong>Handle request:</strong> The OSMO service will now handle the request and return the response to the user.</p></li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The OSMO service accepts the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> and <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> headers sent to it and does not validate the JWT.
+To use OSMO securely, be sure to only allow access to the OSMO service through Envoy or some other reverse proxy that does the following:</p>
+<ul class="simple">
+<li><p>Validates the authenticity of the JWT passed to it.</p></li>
+<li><p>Strips <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> and <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> headers from the downstream request.</p></li>
+<li><p>Sets the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> and <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> headers in the upstream request from the contents of the JWT.</p></li>
+</ul>
+</div>
+</section>
+<section id="initialization">
+<h3>Initialization<a class="headerlink" href="#initialization" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>During system initialization, Envoy retrieves public keys from Keycloak by making a request to <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;keycloak&gt;/realms/osmo/protocol/openid-connect/certs</span></code></p></li>
+<li><p>Keycloak returns the public keys (HTTP 200) used to verify JWT token signatures</p></li>
+</ol>
+</section>
+<section id="browser-based-login">
+<h3>Browser Based Login<a class="headerlink" href="#browser-based-login" title="Link to this heading">#</a></h3>
+<p>Users attempting to access OSMO through the Web UI will go through the browser based login flow.</p>
+<section id="logging-in">
+<h4>Logging In<a class="headerlink" href="#logging-in" title="Link to this heading">#</a></h4>
+<ol class="arabic simple">
+<li><p>The user attempts to access the OSMO web UI, or an OSMO API resources (e.g., <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;osmo&gt;/api/workflows</span></code>)</p></li>
+<li><p>The OAuth2 Filter in Envoy checks for authentication credentials and determines that:</p>
+<ul class="simple">
+<li><p>No <code class="docutils literal notranslate"><span class="pre">OAuthHMAC</span></code> cookie is present</p></li>
+<li><p>No <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header is present</p></li>
+</ul>
+</li>
+<li><p>Since the user is not authenticated, the OAuth2 Filter initiates the OAuth 2.0 Authorization Code flow (<a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.1" rel="noreferrer" target="_blank">RFC 6749 Section 4.1 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>).
+In the OAuth 2.0 flow, Envoy acts as the client, Keycloak acts as the authorization server, and the user’s web browser acts as the user agent.</p>
+<ol class="loweralpha simple">
+<li><p>Envoy returns a redirect (HTTP 302) to Keycloak’s authentication endpoint: <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;keycloak&gt;/realms/osmo/protocol/openid-connect/auth</span></code>.</p></li>
+<li><p>The user authenticates with Keycloak. The user may authenticate directly with Keycloak using a username and password, or Keycloak may be configured to delegate authentication with the OAuth 2.0 Authorization Code flow to an external identity provider.</p></li>
+<li><p>Keycloak redirects the user back to Envoy with a Keycloak authorization code (HTTP 302 to <code class="docutils literal notranslate"><span class="pre">&lt;osmo&gt;/api/auth/getAToken?code=&lt;keycloak-code&gt;</span></code>).</p></li>
+<li><p>Envoy exchanges the Keycloak authorization code for a JWT token by requesting from Keycloak (<code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;keycloak&gt;/realms/osmo/protocol/openid-connect/token?code=&lt;keycloak-code&gt;&amp;...&amp;grant_type=authorization_code</span></code>).</p></li>
+<li><p>Keycloak generates JWT tokens with user roles based on the user’s group memberships and returns them to the OSMO service, as well as a refresh token (HTTP 200).</p></li>
+<li><p>Envoy finally redirects the user back to the original request (e.g., <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;osmo&gt;/api/workflows</span></code>) with the following cookies set:</p>
+<ul class="simple">
+<li><p><strong>OAuthHMAC</strong>: A hash-based message authentication code for session identification</p></li>
+<li><p><strong>BearerToken</strong>: The access token for API requests</p></li>
+<li><p><strong>IdToken</strong>: Contains user identity information (username, roles, etc.). This is the JWT token validated by the JWT filter and whose roles are extracted and passed to the OSMO Service.</p></li>
+<li><p><strong>RefreshToken</strong>: Used to obtain new tokens when the current ones expire</p></li>
+</ul>
+</li>
+</ol>
+</li>
+</ol>
+</section>
+<section id="authenticated-requests">
+<h4>Authenticated Requests<a class="headerlink" href="#authenticated-requests" title="Link to this heading">#</a></h4>
+<p>After logging in, all subsequent requests to OSMO will include the <code class="docutils literal notranslate"><span class="pre">OAuthHMAC</span></code> cookie (So they will not go back through the OAuth 2.0 Authorization Code flow again). They contain a valid <code class="docutils literal notranslate"><span class="pre">IdToken</span></code>, so they will pass the JWT filter as well.</p>
+</section>
+<section id="using-refresh-tokens">
+<h4>Using Refresh Tokens<a class="headerlink" href="#using-refresh-tokens" title="Link to this heading">#</a></h4>
+<p>Eventually, the <code class="docutils literal notranslate"><span class="pre">IdToken</span></code> and <code class="docutils literal notranslate"><span class="pre">BearerToken</span></code> will expire. When the user makes a request after these tokens expire, the OAuth2 filter will attempt to automatically use the refresh token as described in <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc6749#section-6" rel="noreferrer" target="_blank">RFC 6749 Section 6 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.</p>
+<ol class="arabic simple">
+<li><p>Envoy will call Keycloak’s token endpoint to get a new access token and id token <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">&lt;keycloak&gt;/realms/osmo/protocol/openid-connect/token?grant_type=refresh_token&amp;refresh_token=&lt;refresh_token&gt;&amp;...</span></code></p></li>
+<li><p>Envoy will include these new tokens as cookies as the request passes through the JWT filter and on to the OSMO Service.</p></li>
+<li><p>When envoy returns the response, it will include <code class="docutils literal notranslate"><span class="pre">Set-Cookie</span></code> headers for the new tokens so they will be used in subsequent requests.</p></li>
+</ol>
+</section>
+</section>
+<section id="cli-based-login">
+<h3>CLI Based Login<a class="headerlink" href="#cli-based-login" title="Link to this heading">#</a></h3>
+<p>Users attempting to access OSMO through the CLI will go through the CLI based login flow.</p>
+<section id="id2">
+<h4>Logging In<a class="headerlink" href="#id2" title="Link to this heading">#</a></h4>
+<ol class="arabic simple">
+<li><p>The user runs the <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">login</span> <span class="pre">https://&lt;osmo&gt;</span></code> command. The OSMO CLI calls the <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;osmo&gt;/api/auth/login</span></code> endpoint to get the endpoint that will be used for device authorization login.</p></li>
+<li><p>The OSMO CLI client will initiate the OAuth 2.0 Device Authorization flow as specified in <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8628" rel="noreferrer" target="_blank">RFC 8628 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.
+In the OAuth 2.0 flow, Keycloak acts as the authorization server, and the OSMO CLI acts as the device client.</p>
+<ol class="loweralpha simple">
+<li><p>The OSMO CLI will call Keycloak’s device authorization endpoint to get a device code and user code <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">&lt;keycloak&gt;/realms/osmo/protocol/openid-connect/auth/device</span></code></p></li>
+<li><p>Keycloak returns a device code, user code, and verification URL to the OSMO CLI.</p></li>
+<li><p>The OSMO CLI will display the user code and Keycloak URL to the user to visit to complete the authentication.</p></li>
+<li><p>The user visits the Keycloak verification URL (e.g. <code class="docutils literal notranslate"><span class="pre">&lt;keycloak&gt;/realms/osmo/device?user_code=&lt;user-code&gt;</span></code>) and completes authentication.</p></li>
+<li><p>The OSMO CLI continuously polls keycloak using the device code to check if authentication is complete.</p></li>
+<li><p>Once authentication is complete, Keycloak will return an access token, id token and refresh token to the OSMO CLI.</p></li>
+</ol>
+</li>
+</ol>
+</section>
+<section id="id3">
+<h4>Authenticated Requests<a class="headerlink" href="#id3" title="Link to this heading">#</a></h4>
+<p>The OSMO CLI client will now include the id token in the <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header for all requests to the OSMO service.</p>
+</section>
+<section id="id4">
+<h4>Using Refresh Tokens<a class="headerlink" href="#id4" title="Link to this heading">#</a></h4>
+<p>Eventually, the <code class="docutils literal notranslate"><span class="pre">IdToken</span></code> will expire. When the user attempts the use the CLI, the CLI will check if the id token is expired. If it is, the CLI will use the refresh token as described in <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc6749#section-6" rel="noreferrer" target="_blank">RFC 6749 Section 6 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> to get a new id token before making the request.</p>
+</section>
+</section>
+</section>
+<section id="token-based-login-directly-through-osmo">
+<h2>Token Based Login Directly through OSMO<a class="headerlink" href="#token-based-login-directly-through-osmo" title="Link to this heading">#</a></h2>
+<p>For a service account or script, logging in through Keycloak is cumbersome due to the usage of a web browser in the auth flow. For use cases like this,
+OSMO allows the creation of tokens that can be exchanged for a JWT that is signed by OSMO.</p>
+<section id="id6">
+<h3>Overview<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<p>The below diagram illustrates the high level flow for a service account or script logging into OSMO.</p>
+<a class="reference internal image-reference" href="../../../_images/authn_authz_arch_token.png"><img alt="Authentication and Authorization flow" class="align-center" src="../../../_images/authn_authz_arch_token.png" style="width: 100%;" /></a>
+<p>The flow contains the following steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Use token to get JWT:</strong> The script uses the token (With either the <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/access_token</span></code> or <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/refresh_token</span></code> endpoints depending on the token type)
+to request a signed JWT token from OSMO. Envoy will allow requests to these endpoints to proceed without authentication.</p></li>
+<li><p><strong>Validate token, lookup roles:</strong> OSMO will validate that the token is valid and not expired and will lookup the roles corresponding to the token.</p></li>
+<li><p><strong>Grant JWT:</strong> OSMO will generate a JWT token containing the roles and username corresponding to the name of the token.</p></li>
+<li><p><strong>Make request with JWT:</strong> The user makes a request to OSMO using the JWT token in the <code class="docutils literal notranslate"><span class="pre">IdToken</span></code> cookie (For the Web UI accessed through a browser) or <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header (For the CLI client).</p></li>
+<li><p><strong>Validate and unpack JWT:</strong> Envoy validates the JWT token (Correct signature, not expired, correct <code class="docutils literal notranslate"><span class="pre">aud</span></code> and <code class="docutils literal notranslate"><span class="pre">iss</span></code> claims). It then unpacks the <code class="docutils literal notranslate"><span class="pre">roles</span></code> claim into a comma separated list in the <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> header and the <code class="docutils literal notranslate"><span class="pre">preferred_username</span></code> claim into the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> header.</p></li>
+<li><p><strong>Make request with headers:</strong> Envoy then forwards the request to the OSMO service with the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> and <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> headers set.</p></li>
+<li><p><strong>Check request is allowed by roles:</strong> The OSMO service checks the definitions of the roles in its database, and compares with the request the user is trying to perform. If none of the roles provided allow the request, then OSMO will return a <code class="docutils literal notranslate"><span class="pre">403</span> <span class="pre">Forbidden</span></code> error.</p></li>
+<li><p><strong>Handle request:</strong> The OSMO service will now handle the request and return the response to the user.</p></li>
+</ol>
+</section>
+<section id="id7">
+<h3>Initialization<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>During system initialization, the OSMO service will generate a public/private key pair for signing/validating tokens if one is not already present (See <a class="reference internal" href="../../references/configs_definitions/service.html#service-config"><span class="std std-ref">/api/configs/service</span></a> for more information).</p></li>
+<li><p>Envoy will request the public key from the OSMO service by making a request to <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">&lt;osmo&gt;/api/auth/jwt/public_key</span></code></p></li>
+<li><p>OSMO will return the public key (HTTP 200) used to verify JWT token signatures</p></li>
+</ol>
+</section>
+<section id="id8">
+<h3>Logging In<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
+<p>When token based login is used, the CLI or other service will use the <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/access_token</span></code> or <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/refresh_token</span></code> endpoints to get a JWT token.</p>
+<ul class="simple">
+<li><p>Tokens created through the <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">token</span></code> API will use the <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/access_token</span></code> endpoint.</p></li>
+<li><p>Running workflows that need to log in to OSMO to push logs will use the <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/refresh_token</span></code> endpoint.</p></li>
+</ul>
+</section>
+<section id="id9">
+<h3>Authenticated Requests<a class="headerlink" href="#id9" title="Link to this heading">#</a></h3>
+<p>Authenticated requests will include the returned JWT token in the <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header. This JWT token will be signed by OSMO rather than Keycloak, so
+Envoy’s JWT filter must be configured to recognize OSMO’s public key as well as the Keycloak public key.</p>
+<p>If the JWT token is expired or will expire soon, the CLI or workflow will request a new one using the same <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/access_token</span></code> or <code class="docutils literal notranslate"><span class="pre">/api/auth/jwt/refresh_token</span></code> endpoint.</p>
+</section>
+</section>
+<section id="token-validation-and-authorization">
+<h2>Token Validation and Authorization<a class="headerlink" href="#token-validation-and-authorization" title="Link to this heading">#</a></h2>
+<p>The JWT filter will look for a JWT either in the <code class="docutils literal notranslate"><span class="pre">IdToken</span></code> cookie or the <code class="docutils literal notranslate"><span class="pre">x-osmo-auth</span></code> header.</p>
+<p>The JWT Filter performs the following validations on each request:</p>
+<ol class="arabic simple">
+<li><p><strong>Signature Verification</strong>: Ensures the token was issued by Keycloak or by OSMO using the public keys obtained during initialization</p></li>
+<li><p><strong>Expiration Check</strong>: Verifies that the token has not expired (<code class="docutils literal notranslate"><span class="pre">exp</span></code> claim is in the past)</p></li>
+<li><p><strong>Claim Validation</strong>: Validates essential claims such as:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">iss</span></code> (Issuer): Must match the expected Keycloak realm URL</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">aud</span></code> (Audience): Must include the OSMO client ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sub</span></code> (Subject): Identifies the user</p></li>
+</ul>
+</li>
+</ol>
+<p>Below is an example of a JWT token payload used in the authentication flow:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;exp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1741819596</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;iat&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1741819296</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;jti&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;4273aa49-bb31-420a-936a-54238388619f&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;iss&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://&lt;your-keycloak-domain&gt;/realms/osmo&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;aud&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;osmo-browser-flow&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;sub&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;user-id&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;typ&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ID&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;azp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;osmo-browser-flow&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;sid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;session-id&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;at_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;hash&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;roles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;osmo-admin&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;dashboard-user&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;osmo-user&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;grafana-user&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;dashboard-admin&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;osmo-sre&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;grafana-admin&quot;</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;user-name&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;preferred_username&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;user-email&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;given_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;user-first-name&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;family_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;user-last-name&gt;&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Envoy will then extract the <code class="docutils literal notranslate"><span class="pre">roles</span></code> claim and set the <code class="docutils literal notranslate"><span class="pre">x-osmo-roles</span></code> header to a comma separated list of the roles. It will also extract the <code class="docutils literal notranslate"><span class="pre">preferred_username</span></code> claim and set the <code class="docutils literal notranslate"><span class="pre">x-osmo-user</span></code> header to the username.</p>
+</section>
+<section id="advanced-keycloak-configuration">
+<span id="authentication-flow-sso"></span><h2>Advanced Keycloak Configuration<a class="headerlink" href="#advanced-keycloak-configuration" title="Link to this heading">#</a></h2>
+<p>Keycloak can be configured to allow users to log in directly with a username and password.</p>
+<p>Keycloak can also be configured to integrate with an external identity provider (such as Azure AD, Google Workspace, and others) for improved integration with your organization’s authentication systems. For more information on integrating external identity providers with Keycloak, refer to the <a class="reference external" href="https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker" rel="noreferrer" target="_blank">Keycloak documentation <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.</p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="common-authentication-issues">
+<h3>Common Authentication Issues<a class="headerlink" href="#common-authentication-issues" title="Link to this heading">#</a></h3>
+<dl class="simple">
+<dt><strong>User Cannot Log In</strong></dt><dd><ul class="simple">
+<li><p>Verify identity provider configuration</p></li>
+<li><p>Check identity provider logs for authentication errors</p></li>
+<li><p>Ensure the user has the necessary permissions in the identity provider</p></li>
+</ul>
+</dd>
+<dt><strong>Missing Group Memberships</strong></dt><dd><ul class="simple">
+<li><p>Verify identity provider mapper configuration</p></li>
+<li><p>Check that the expected claims are present in the identity provider token</p></li>
+<li><p>Review Keycloak logs for mapping errors</p></li>
+</ul>
+</dd>
+<dt><strong>Token Validation Failures</strong></dt><dd><ul class="simple">
+<li><p>Ensure Keycloak’s public key is correctly configured in OSMO services</p></li>
+<li><p>Check for clock skew between services</p></li>
+<li><p>Verify token signature algorithm matches the expected algorithm</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.keycloak.org/documentation" rel="noreferrer" target="_blank">Keycloak Documentation <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p></li>
+<li><p><a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc6749" rel="noreferrer" target="_blank">OAuth 2.0 RFC 6749 <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p></li>
+<li><p><a class="reference internal" href="keycloak_setup.html"><span class="doc">Keycloak Group and Role Management</span></a> for configuring Keycloak roles and groups</p></li>
+<li><p><a class="reference internal" href="roles_policies.html"><span class="doc">Roles and Policies</span></a> for understanding OSMO roles and policies</p></li>
+</ul>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">AuthN/AuthZ</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="roles_policies.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Roles and Policies</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-components">Architecture Components</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#user-login-with-keycloak">User Login with Keycloak</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#initialization">Initialization</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#browser-based-login">Browser Based Login</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#logging-in">Logging In</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#authenticated-requests">Authenticated Requests</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#using-refresh-tokens">Using Refresh Tokens</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli-based-login">CLI Based Login</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Logging In</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Authenticated Requests</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Using Refresh Tokens</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#token-based-login-directly-through-osmo">Token Based Login Directly through OSMO</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Overview</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Initialization</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Logging In</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">Authenticated Requests</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#token-validation-and-authorization">Token Validation and Authorization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-keycloak-configuration">Advanced Keycloak Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#common-authentication-issues">Common Authentication Issues</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

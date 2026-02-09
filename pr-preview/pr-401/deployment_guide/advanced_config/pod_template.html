@@ -1,0 +1,1096 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Pod Templates &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/advanced_config/pod_template';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Scheduler Configuration" href="scheduler.html" />
+    <link rel="prev" title="Resource Validation" href="resource_validation.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../appendix/authentication/index.html">AuthN/AuthZ</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/keycloak_setup.html">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Pod Templates</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="pod-templates">
+<span id="pod-template"></span><h1>Pod Templates<a class="headerlink" href="#pod-templates" title="Link to this heading">#</a></h1>
+<p>Pod templates define how workflow tasks execute as Kubernetes pods. After configuring <a class="reference internal" href="pool.html#pool"><span class="std std-ref">pools</span></a> and <a class="reference internal" href="resource_validation.html#resource-validation"><span class="std std-ref">resource validation</span></a>, create pod templates to specify scheduling constraints, security policies, and resource allocations that apply across your pools.</p>
+<section id="why-use-pod-templates">
+<h2>Why Use Pod Templates?<a class="headerlink" href="#why-use-pod-templates" title="Link to this heading">#</a></h2>
+<p>Pod templates provide standardized configurations that simplify cluster management:</p>
+<dl class="simple">
+<dt>✓ <strong>Target Specific Hardware</strong></dt><dd><p>Use node selectors and tolerations to route workflows to the right GPU types, CPU architectures, or instance types.</p>
+</dd>
+<dt>✓ <strong>Enforce Security Policies</strong></dt><dd><p>Apply consistent security contexts, capabilities, and access controls across all workflow tasks.</p>
+</dd>
+<dt>✓ <strong>Optimize Resource Allocation</strong></dt><dd><p>Set appropriate resource requests and limits with conditional logic based on workflow requirements.</p>
+</dd>
+<dt>✓ <strong>Simplify User Experience</strong></dt><dd><p>Users select pools without needing to understand complex Kubernetes scheduling—templates handle all the details.</p>
+</dd>
+</dl>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
+<section id="template-application-flow">
+<h3>Template Application Flow<a class="headerlink" href="#template-application-flow" title="Link to this heading">#</a></h3>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-4 sd-row-cols-xs-4 sd-row-cols-sm-4 sd-row-cols-md-4 sd-row-cols-lg-4 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-info sd-text-white docutils">
+<p class="sd-card-text"><strong>1. Define Templates</strong> 📋</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Create reusable specs</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Node selectors, tolerations, resrcs</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-primary sd-text-white docutils">
+<p class="sd-card-text"><strong>2. Reference in Pools</strong> 🔗</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Attach to pools</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Multiple templates per pool</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-warning sd-text-white docutils">
+<p class="sd-card-text"><strong>3. Merge Templates</strong> 🔄</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Combine specifications</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Later templates override earlier</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-success sd-text-white docutils">
+<p class="sd-card-text"><strong>4. Create K8s Pods</strong> ✅</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Build Kubernetes pods</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Apply to workflow tasks</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="template-structure">
+<h3>Template Structure<a class="headerlink" href="#template-structure" title="Link to this heading">#</a></h3>
+<p>Pod templates use the standard <a class="reference external" href="https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates" rel="noreferrer" target="_blank">Kubernetes PodSpec <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> format with OSMO enhancements:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;template_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;nodeSelector&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;node-label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;value&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;tolerations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;taint-key&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NoSchedule&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;containers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_CONTAINER_NAME}}&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;limits&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">              </span><span class="nt">&quot;cpu&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_CPU}}&quot;</span><span class="p">,</span>
+<span class="w">              </span><span class="nt">&quot;memory&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_MEMORY}}&quot;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="key-features">
+<h3>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Variable Substitution</strong>: Use <code class="docutils literal notranslate"><span class="pre">{{USER_CPU}}</span></code>, <code class="docutils literal notranslate"><span class="pre">{{WF_ID}}</span></code>, etc. are resolved at runtime</p></li>
+<li><p><strong>Template Merging</strong>: Combine multiple templates; later ones override earlier ones</p></li>
+<li><p><strong>Conditional Logic</strong>: Use Jinja2 expressions for dynamic values (For example, to accept all user requests of CPU &gt; 2 else override to 2, use <code class="docutils literal notranslate"><span class="pre">{%</span> <span class="pre">if</span> <span class="pre">USER_CPU</span> <span class="pre">&gt;</span> <span class="pre">2</span> <span class="pre">%}2{%</span> <span class="pre">else</span> <span class="pre">%}{{USER_CPU}}{%</span> <span class="pre">endif</span> <span class="pre">%}</span></code>)</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Merge Behavior</strong></p>
+<ul class="simple">
+<li><p>Fields are overridden by your templates</p></li>
+<li><p>Lists are merged by <code class="docutils literal notranslate"><span class="pre">name</span></code> field (same name = recursive merge, different name = append)</p></li>
+<li><p>Templates are applied in order (later overrides earlier)</p></li>
+</ul>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For detailed configuration fields and all available variables, see <a class="reference internal" href="../references/configs_definitions/pod_template.html#pod-template-config"><span class="std std-ref">/api/configs/pod_template</span></a> in the API reference.</p>
+</div>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-info" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg></span><span class="sd-summary-text"><strong>Base Pod Specification Details</strong></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">OSMO creates a base pod spec with three containers (osmo-init, osmo-ctrl, user container). Your templates are merged on top of it.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">osmo.workflow_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;workflow name&gt;</span>
+<span class="w">    </span><span class="nt">osmo.submitted_by</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;user name&gt;</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="nv">USER_CONTAINER_NAME</span><span class="p p-Indicator">}}</span><span class="w">  </span><span class="c1"># Your code runs here</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/osmo/bin/osmo_exec&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-ctrl</span><span class="w">  </span><span class="c1"># Manages data transfer</span>
+<span class="w">  </span><span class="nt">initContainers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-init</span><span class="w">  </span><span class="c1"># Sets up environment</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+</section>
+<section id="practical-guide">
+<h2>Practical Guide<a class="headerlink" href="#practical-guide" title="Link to this heading">#</a></h2>
+<section id="standard-pod-templates">
+<h3>Standard Pod Templates<a class="headerlink" href="#standard-pod-templates" title="Link to this heading">#</a></h3>
+<p>Create templates that target specific hardware and handle Kubernetes scheduling constraints.</p>
+<p><strong>Step 1: Understanding Template Variables</strong></p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text"><strong>Special Variables</strong></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<dl class="simple">
+<dt><strong>Resource Variables:</strong></dt><dd><ul class="simple">
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_CPU}}</span></code> - CPU count</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_GPU}}</span></code> - GPU count</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_MEMORY}}</span></code> - Memory (e.g., “8Gi”)</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_STORAGE}}</span></code> - Storage (e.g., “100Gi”)</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_CONTAINER_NAME}}</span></code> - Name of user container</p></li>
+</ul>
+</dd>
+<dt><strong>Workflow Variables:</strong></dt><dd><ul class="simple">
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{WF_ID}}</span></code> - Workflow name/ID</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{WF_UUID}}</span></code> - Unique workflow ID</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{WF_TASK_NAME}}</span></code> - Task name</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{WF_SUBMITTED_BY}}</span></code> - Username</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{WF_POOL}}</span></code> - Pool name</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{WF_PLATFORM}}</span></code> - Platform name</p></li>
+</ul>
+</dd>
+<dt><strong>Conditional Logic:</strong></dt><dd><ul class="simple">
+<li><p class="sd-card-text">Use Jinja2: <code class="docutils literal notranslate"><span class="pre">{%</span> <span class="pre">if</span> <span class="pre">USER_CPU</span> <span class="pre">&gt;</span> <span class="pre">2</span> <span class="pre">%}2{%</span> <span class="pre">else</span> <span class="pre">%}{{USER_CPU}}{%</span> <span class="pre">endif</span> <span class="pre">%}</span></code></p></li>
+</ul>
+</dd>
+</dl>
+</div>
+</details><p><strong>Step 2: Template Configuration File</strong></p>
+<p>Create a configuration file with base templates for architecture, control container, and user container:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; pod_templates.json</span>
+<span class="s">{</span>
+<span class="s">  # Target specific architecture</span>
+<span class="s">  &quot;default_amd64&quot;: {</span>
+<span class="s">    &quot;spec&quot;: {</span>
+<span class="s">      &quot;nodeSelector&quot;: {&quot;kubernetes.io/arch&quot;: &quot;amd64&quot;}</span>
+<span class="s">    }</span>
+<span class="s">  },</span>
+<span class="s">  &quot;default_ctrl&quot;: {</span>
+<span class="s">    &quot;spec&quot;: {</span>
+<span class="s">      # Control container</span>
+<span class="s">      &quot;containers&quot;: [{</span>
+<span class="s">        &quot;name&quot;: &quot;osmo-ctrl&quot;,</span>
+<span class="s">        &quot;resources&quot;: {</span>
+<span class="s">          # Use user specified resources as limits</span>
+<span class="s">          &quot;limits&quot;: {</span>
+<span class="s">            &quot;cpu&quot;: &quot;{{USER_CPU}}&quot;,</span>
+<span class="s">            &quot;memory&quot;: &quot;{{USER_MEMORY}}&quot;,</span>
+<span class="s">            &quot;ephemeral-storage&quot;: &quot;{{USER_STORAGE}}&quot;</span>
+<span class="s">          },</span>
+<span class="s">          # Use a default value of 2 if user requests are less than 2</span>
+<span class="s">          &quot;requests&quot;: {</span>
+<span class="s">            &quot;cpu&quot;: &quot;{% if USER_CPU &gt; 2 %}2{% else %}{{USER_CPU}}{% endif %}&quot;,</span>
+<span class="s">            &quot;memory&quot;: &quot;1Gi&quot;,</span>
+<span class="s">            &quot;ephemeral-storage&quot;: &quot;4Gi&quot;</span>
+<span class="s">          }</span>
+<span class="s">        }</span>
+<span class="s">      }]</span>
+<span class="s">    }</span>
+<span class="s">  },</span>
+<span class="s">  &quot;default_user&quot;: {</span>
+<span class="s">    &quot;spec&quot;: {</span>
+<span class="s">      # User container</span>
+<span class="s">      &quot;containers&quot;: [{</span>
+<span class="s">        &quot;name&quot;: &quot;{{USER_CONTAINER_NAME}}&quot;,</span>
+<span class="s">        # Use user specified resources for requests and limits</span>
+<span class="s">        &quot;resources&quot;: {</span>
+<span class="s">          &quot;limits&quot;: {</span>
+<span class="s">            &quot;cpu&quot;: &quot;{{USER_CPU}}&quot;,</span>
+<span class="s">            &quot;memory&quot;: &quot;{{USER_MEMORY}}&quot;,</span>
+<span class="s">            &quot;nvidia.com/gpu&quot;: &quot;{{USER_GPU}}&quot;,</span>
+<span class="s">            &quot;ephemeral-storage&quot;: &quot;{{USER_STORAGE}}&quot;</span>
+<span class="s">          },</span>
+<span class="s">          &quot;requests&quot;: {</span>
+<span class="s">            &quot;cpu&quot;: &quot;{{USER_CPU}}&quot;,</span>
+<span class="s">            &quot;memory&quot;: &quot;{{USER_MEMORY}}&quot;,</span>
+<span class="s">            &quot;nvidia.com/gpu&quot;: &quot;{{USER_GPU}}&quot;,</span>
+<span class="s">            &quot;ephemeral-storage&quot;: &quot;{{USER_STORAGE}}&quot;</span>
+<span class="s">          }</span>
+<span class="s">        }</span>
+<span class="s">      }]</span>
+<span class="s">    }</span>
+<span class="s">  }</span>
+<span class="s">}</span>
+<span class="s">EOF</span>
+
+$<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </span>update<span class="w"> </span>POD_TEMPLATE<span class="w"> </span>--file<span class="w"> </span>pod_templates.json
+</pre></div>
+</div>
+<p><strong>Step 3: Reference Templates in Pools</strong></p>
+<p>Add templates to your pool’s <code class="docutils literal notranslate"><span class="pre">common_pod_template</span></code> field:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;my-pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;common_pod_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="hll"><span class="w">      </span><span class="s2">&quot;default_amd64&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="w">      </span><span class="s2">&quot;default_ctrl&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="w">      </span><span class="s2">&quot;default_user&quot;</span>
+</span><span class="w">    </span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="additional-examples">
+<h3>Additional Examples<a class="headerlink" href="#additional-examples" title="Link to this heading">#</a></h3>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-cpu" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5.75V2h3V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75V5h1.25a.75.75 0 0 1 0 1.5H14v3h1.25a.75.75 0 0 1 0 1.5H14v1.25A1.75 1.75 0 0 1 12.25 14H11v1.25a.75.75 0 0 1-1.5 0V14h-3v1.25a.75.75 0 0 1-1.5 0V14H3.75A1.75 1.75 0 0 1 2 12.25V11H.75a.75.75 0 0 1 0-1.5H2v-3H.75a.75.75 0 0 1 0-1.5H2V3.75C2 2.784 2.784 2 3.75 2H5V.75a.75.75 0 0 1 1.5 0Zm5.75 11.75a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25ZM5.75 5h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-4.5A.75.75 0 0 1 5.75 5Zm.75 4.5h3v-3h-3Z"></path></svg></span><span class="sd-summary-text"><strong>GPU-Specific Templates</strong> - Target Specific GPU Types</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Create templates for different GPU hardware (H100, L40, T4):</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;training_h100&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;nodeSelector&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;nvidia.com/gpu.product&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NVIDIA-H100&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;tolerations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">        </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;training-dedicated&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;h100&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NoSchedule&quot;</span>
+<span class="w">      </span><span class="p">}]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;simulation_l40&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;nodeSelector&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;nvidia.com/gpu.product&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NVIDIA-L40&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;tolerations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">        </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;simulation-dedicated&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;l40&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NoSchedule&quot;</span>
+<span class="w">      </span><span class="p">}]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-server" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v4c0 .372-.116.717-.314 1 .198.283.314.628.314 1v4a1.75 1.75 0 0 1-1.75 1.75H1.75A1.75 1.75 0 0 1 0 12.75v-4c0-.358.109-.707.314-1a1.739 1.739 0 0 1-.314-1v-4C0 1.784.784 1 1.75 1ZM1.5 2.75v4c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-4a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25Zm.25 5.75a.25.25 0 0 0-.25.25v4c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-4a.25.25 0 0 0-.25-.25ZM7 4.75A.75.75 0 0 1 7.75 4h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 7 4.75ZM7.75 10h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM3 4.75A.75.75 0 0 1 3.75 4h.5a.75.75 0 0 1 0 1.5h-.5A.75.75 0 0 1 3 4.75ZM3.75 10h.5a.75.75 0 0 1 0 1.5h-.5a.75.75 0 0 1 0-1.5Z"></path></svg></span><span class="sd-summary-text"><strong>CPU Instance Types</strong> - Target Specific Instance Classes</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Target CPU-optimized instances:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;cpu_compute&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;nodeSelector&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;node.kubernetes.io/instance-type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c5.4xlarge&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-shield" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.467.133a1.748 1.748 0 0 1 1.066 0l5.25 1.68A1.75 1.75 0 0 1 15 3.48V7c0 1.566-.32 3.182-1.303 4.682-.983 1.498-2.585 2.813-5.032 3.855a1.697 1.697 0 0 1-1.33 0c-2.447-1.042-4.049-2.357-5.032-3.855C1.32 10.182 1 8.566 1 7V3.48a1.75 1.75 0 0 1 1.217-1.667Zm.61 1.429a.25.25 0 0 0-.153 0l-5.25 1.68a.25.25 0 0 0-.174.238V7c0 1.358.275 2.666 1.057 3.86.784 1.194 2.121 2.34 4.366 3.297a.196.196 0 0 0 .154 0c2.245-.956 3.582-2.104 4.366-3.298C13.225 9.666 13.5 8.36 13.5 7V3.48a.251.251 0 0 0-.174-.237l-5.25-1.68ZM8.75 4.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 1.5 0ZM9 10.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg></span><span class="sd-summary-text"><strong>Security Templates</strong> - Apply Security Contexts</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Enforce security policies:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;secure_workload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;securityContext&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;runAsNonRoot&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;runAsUser&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1000</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;fsGroup&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1000</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;containers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_CONTAINER_NAME}}&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;securityContext&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;allowPrivilegeEscalation&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;readOnlyRootFilesystem&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;capabilities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;drop&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ALL&quot;</span><span class="p">]}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-x-circle" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.344 2.343h-.001a8 8 0 0 1 11.314 11.314A8.002 8.002 0 0 1 .234 10.089a8 8 0 0 1 2.11-7.746Zm1.06 10.253a6.5 6.5 0 1 0 9.108-9.275 6.5 6.5 0 0 0-9.108 9.275ZM6.03 4.97 8 6.94l1.97-1.97a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l1.97 1.97a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-1.97 1.97a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L6.94 8 4.97 6.03a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018Z"></path></svg></span><span class="sd-summary-text"><strong>Node Exclusion</strong> - Exclude Specific Nodes</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Use node affinity to exclude nodes from user requests. This rule can be used to avoid gpu fragmentation with in the cluster by satisfying user requests on the same node, before the scheduler chooses other nodes to schedule tasks.</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;node_exclusion&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;affinity&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;nodeAffinity&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;requiredDuringSchedulingIgnoredDuringExecution&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;nodeSelectorTerms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">              </span><span class="nt">&quot;matchExpressions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">                </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;kubernetes.io/hostname&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NotIn&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;values&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_EXCLUDED_NODES}}&quot;</span>
+<span class="w">              </span><span class="p">}]</span>
+<span class="w">            </span><span class="p">}]</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-database" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 3.5c0-.626.292-1.165.7-1.59.406-.422.956-.767 1.579-1.041C4.525.32 6.195 0 8 0c1.805 0 3.475.32 4.722.869.622.274 1.172.62 1.578 1.04.408.426.7.965.7 1.591v9c0 .626-.292 1.165-.7 1.59-.406.422-.956.767-1.579 1.041C11.476 15.68 9.806 16 8 16c-1.805 0-3.475-.32-4.721-.869-.623-.274-1.173-.62-1.579-1.04-.408-.426-.7-.965-.7-1.591Zm1.5 0c0 .133.058.318.282.551.227.237.591.483 1.101.707C4.898 5.205 6.353 5.5 8 5.5c1.646 0 3.101-.295 4.118-.742.508-.224.873-.471 1.1-.708.224-.232.282-.417.282-.55 0-.133-.058-.318-.282-.551-.227-.237-.591-.483-1.101-.707C11.102 1.795 9.647 1.5 8 1.5c-1.646 0-3.101.295-4.118.742-.508.224-.873.471-1.1.708-.224.232-.282.417-.282.55Zm0 4.5c0 .133.058.318.282.551.227.237.591.483 1.101.707C4.898 9.705 6.353 10 8 10c1.646 0 3.101-.295 4.118-.742.508-.224.873-.471 1.1-.708.224-.232.282-.417.282-.55V5.724c-.241.15-.503.286-.778.407C11.475 6.68 9.805 7 8 7c-1.805 0-3.475-.32-4.721-.869a6.15 6.15 0 0 1-.779-.407Zm0 2.225V12.5c0 .133.058.318.282.55.227.237.592.484 1.1.708 1.016.447 2.471.742 4.118.742 1.647 0 3.102-.295 4.117-.742.51-.224.874-.47 1.101-.707.224-.233.282-.418.282-.551v-2.275c-.241.15-.503.285-.778.406-1.247.549-2.917.869-4.722.869-1.805 0-3.475-.32-4.721-.869a6.327 6.327 0 0 1-.779-.406Z"></path></svg></span><span class="sd-summary-text"><strong>Shared Memory</strong> - Add /dev/shm Volume</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Add shared memory for workflows requiring IPC (Example: TensorRT, PyTorch, etc.)</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;shared_memory&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;containers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_CONTAINER_NAME}}&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;volumeMounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">          </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shm&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;mountPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/dev/shm&quot;</span>
+<span class="w">        </span><span class="p">}]</span>
+<span class="w">      </span><span class="p">}],</span>
+<span class="w">      </span><span class="nt">&quot;volumes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shm&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;emptyDir&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;medium&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Memory&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;sizeLimit&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1Gi&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section id="troubleshooting">
+<h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h3>
+<dl class="simple">
+<dt><strong>Template Not Found</strong></dt><dd><ul class="simple">
+<li><p>Verify template name matches exactly in pool configuration</p></li>
+<li><p>Check template exists: <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">config</span> <span class="pre">get</span> <span class="pre">POD_TEMPLATE</span> <span class="pre">&lt;template_name&gt;</span></code></p></li>
+</ul>
+</dd>
+<dt><strong>Variable Substitution Errors</strong></dt><dd><ul class="simple">
+<li><p>Ensure all variables used are valid OSMO variables</p></li>
+<li><p>Check for typos in variable names (case-sensitive)</p></li>
+<li><p>Review logs for specific variable resolution errors</p></li>
+</ul>
+</dd>
+<dt><strong>Resource Constraints</strong></dt><dd><ul class="simple">
+<li><p>Verify resource requests match available node capacity</p></li>
+<li><p>Check nodeSelector labels exist on cluster nodes</p></li>
+<li><p>Ensure tolerations match node taints</p></li>
+</ul>
+</dd>
+<dt><strong>Debugging Tips</strong></dt><dd><ul class="simple">
+<li><p>Start with simple templates and add complexity gradually</p></li>
+<li><p>Validate JSON syntax before applying</p></li>
+<li><p>Test with different workflow configurations</p></li>
+<li><p>Review OSMO service logs for detailed errors</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Best Practices</strong></p>
+<ul class="simple">
+<li><p>Use descriptive template names (e.g., <code class="docutils literal notranslate"><span class="pre">gpu_h100_training</span></code>, <code class="docutils literal notranslate"><span class="pre">cpu_inference</span></code>)</p></li>
+<li><p>Create modular templates for reusability across different pools (Example: architecture, security, resources)</p></li>
+<li><p>Use conditional logic to optimize resource requests</p></li>
+<li><p>Add labels and annotations for monitoring</p></li>
+<li><p>Test templates thoroughly before production use</p></li>
+</ul>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<ul class="simple">
+<li><p>Do not override <code class="docutils literal notranslate"><span class="pre">image</span></code>, <code class="docutils literal notranslate"><span class="pre">command</span></code>, or <code class="docutils literal notranslate"><span class="pre">args</span></code> fields in containers — OSMO manages these internally.</p></li>
+<li><p>Template changes only apply to new workflows and NOT running workflow tasks</p></li>
+</ul>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="resource_validation.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Resource Validation</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="scheduler.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Scheduler Configuration</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-use-pod-templates">Why Use Pod Templates?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#template-application-flow">Template Application Flow</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#template-structure">Template Structure</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-features">Key Features</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#practical-guide">Practical Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-pod-templates">Standard Pod Templates</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-examples">Additional Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

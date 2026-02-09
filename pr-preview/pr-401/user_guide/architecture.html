@@ -1,0 +1,999 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Architecture &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/architecture';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="What’s Next" href="whats_next.html" />
+    <link rel="prev" title="User Guide" href="index.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Overview</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tutorials/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="workflows/index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="workflows/specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows/submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows/lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="workflows/interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="workflows/interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workflows/interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows/exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows/apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="appendix/cli/index.html">CLI Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="appendix/cli/cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Architecture</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="architecture">
+<h1>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h1>
+<p>OSMO follows a <strong>modular</strong>, <strong>cloud-native</strong> architecture designed to orchestrate complex AI and
+robotics workflows across <strong>heterogeneous</strong> compute resources.</p>
+<img alt="../_images/arch.svg" class="transparent-bg no-scaled-link zoomable align-center" src="../_images/arch.svg" style="width: 100%;" />
+<section id="control-plane">
+<h2>Control Plane<a class="headerlink" href="#control-plane" title="Link to this heading">#</a></h2>
+<p>The OSMO control plane manages the entire lifecycle of your workflows:</p>
+<dl class="simple">
+<dt><strong>API Server</strong></dt><dd><p>Provides RESTful APIs for workflow submission, monitoring, and management.
+Accessible through both CLI and Web UI interfaces.</p>
+</dd>
+<dt><strong>Workflow Engine</strong></dt><dd><p>Parses YAML workflow specifications, orchestrates task execution, handles
+dependencies, and manages the workflow state machine.</p>
+</dd>
+<dt><strong>Authentication &amp; Authorization</strong></dt><dd><p>Integrates with external identity providers (OIDC, SAML) to
+manage user access and permissions.</p>
+</dd>
+</dl>
+</section>
+<section id="compute-layer">
+<h2>Compute Layer<a class="headerlink" href="#compute-layer" title="Link to this heading">#</a></h2>
+<p>OSMO connects to multiple Kubernetes clusters as compute backends:</p>
+<dl class="simple">
+<dt><strong>Pools &amp; Platforms</strong></dt><dd><p>Resources are organized into pools (logical groupings) and platforms
+(specific hardware types) allowing precise targeting of workloads.</p>
+</dd>
+<dt><strong>Heterogeneous Support</strong></dt><dd><p>Connect cloud clusters (AKS, EKS, GKE), on-premise bare-metal
+clusters, and edge devices (NVIDIA Jetson) simultaneously.</p>
+</dd>
+<dt><strong>Scheduler</strong></dt><dd><p>Leverages <a class="reference external" href="https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/" rel="noreferrer" target="_blank">NVIDIA Run:AI <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>
+to intelligently allocate GPU and CPU resources across workflows, optimizing for utilization
+and fairness.</p>
+</dd>
+<dt><strong>Container Orchestration</strong></dt><dd><p>Each task in a workflow runs as a Kubernetes pod with specified
+container images, resource requirements, and environment configurations.</p>
+</dd>
+</dl>
+</section>
+<section id="data-layer">
+<h2>Data Layer<a class="headerlink" href="#data-layer" title="Link to this heading">#</a></h2>
+<p>OSMO manages data through an abstraction layer:</p>
+<dl class="simple">
+<dt><strong>Storage Backends</strong></dt><dd><p>Supports S3-compatible object storage and Azure Blob Storage with
+configurable credentials.</p>
+</dd>
+<dt><strong>Data Injection</strong></dt><dd><p>Automatically injects data into task containers at specified paths,
+enabling seamless access to inputs and outputs.</p>
+</dd>
+<dt><strong>Working with Control Plane</strong></dt><dd><p>Integrates with the control plane’s <strong>Dataset Service</strong> to enable version-controlled storage for
+training data, models, and artifacts using <a class="reference external" href="https://en.wikipedia.org/wiki/Content-addressable_storage" rel="noreferrer" target="_blank">content-addressable storage <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.</p>
+</dd>
+</dl>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
+<section id="submitting">
+<h3>Submitting<a class="headerlink" href="#submitting" title="Link to this heading">#</a></h3>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  autonumber
+  participant User
+
+  box Control Plane
+  participant API as API Server
+  participant Workflow as Workflow Engine
+  end
+
+  box Compute Layer
+  participant Scheduler as Scheduler
+  end
+
+  User-&gt;&gt;API: Submit workflow&lt;br/&gt;(CLI or Web UI)
+  API-&gt;&gt;API: Validate&lt;br/&gt;specification
+  API-&gt;&gt;Workflow: Generates&lt;br/&gt;execution graph
+  Workflow-&gt;&gt;Scheduler: Enqueues task(s)
+    </pre><ol class="arabic simple">
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">User</span> submits a workflow via the CLI or Web UI</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">API Server</span> authenticates the user and validates the workflow specification</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Workflow Engine</span> parses and builds the workflow execution graph (<a class="reference external" href="https://en.wikipedia.org/wiki/Directed_acyclic_graph" rel="noreferrer" target="_blank">DAG <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> of tasks)</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Workflow Engine</span> enqueues tasks to the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Scheduler</span> for resource allocation</p></li>
+</ol>
+</section>
+<section id="scheduling">
+<h3>Scheduling<a class="headerlink" href="#scheduling" title="Link to this heading">#</a></h3>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  box Control Plane
+  participant Workflow as Workflow Engine
+  end
+
+  box Compute Layer
+  participant Scheduler as Scheduler
+  participant Cluster as Compute Nodes
+  end
+
+  Workflow--&gt;&gt;Scheduler: Enqueues a task
+  autonumber 1
+  Scheduler-&gt;&gt;Scheduler: Evaluates&lt;br/&gt;requirements
+  Scheduler-&gt;&gt;Cluster: Assigns resources
+  Cluster-&gt;&gt;Cluster: Provisions pod
+    </pre><p>After a task is enqueued to the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Scheduler</span>:</p>
+<ol class="arabic simple">
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Scheduler</span> evaluates the task’s resource requirements</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Scheduler</span> assigns the task to appropriate pools and platforms with available capacity</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Compute Cluster</span> creates a pod with specified container image, credentials, and environment variables</p></li>
+</ol>
+</section>
+<section id="executing">
+<h3>Executing<a class="headerlink" href="#executing" title="Link to this heading">#</a></h3>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  box Control Plane
+  participant Dataset as Dataset Service
+  end
+
+  box Compute Layer
+  participant Cluster as Compute Nodes
+  end
+
+  box Data Layer
+  participant Storage as Storage
+  end
+
+  opt When using a dataset⁺
+    Cluster--&gt;&gt;Dataset: Fetches data metadata
+  end
+
+  autonumber 1
+  Storage-&gt;&gt;Cluster: Injects inputs
+  Cluster-&gt;&gt;Cluster: Executes task
+  Cluster-&gt;&gt;Storage: Persists outputs
+  autonumber off
+
+  opt When using a dataset⁺
+    Cluster--&gt;&gt;Dataset: Writes data metadata
+  end
+    </pre><ol class="arabic simple">
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Storage</span> injects task inputs into the container</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Compute Nodes</span> executes the task using the injected inputs</p></li>
+<li><p>Task outputs are persisted to <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Storage</span> for downstream tasks and external access</p></li>
+</ol>
+<blockquote>
+<div><p><sup>+</sup> For <code class="docutils literal notranslate"><span class="pre">datasets</span></code>, a task uses the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Dataset Service</span> to index the data for
+efficient storage and retrieval.</p>
+</div></blockquote>
+</section>
+<section id="orchestrating">
+<h3>Orchestrating<a class="headerlink" href="#orchestrating" title="Link to this heading">#</a></h3>
+<section id="serial-workflows">
+<h4>Serial Workflows<a class="headerlink" href="#serial-workflows" title="Link to this heading">#</a></h4>
+<p>Tasks with dependencies execute sequentially in topological order:</p>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  box Control Plane
+  participant Workflow as Workflow Engine
+  end
+
+  box Compute Layer
+  participant Scheduler as Scheduler
+  participant Cluster as Compute Nodes
+  end
+
+  Workflow-&gt;&gt;Scheduler: Enqueues Task 1 first
+  Scheduler-&gt;&gt;Cluster: Executing Task 1
+  activate Cluster
+  Cluster--&gt;&gt;Workflow: Task 1 completed
+  deactivate Cluster
+
+  Workflow-&gt;&gt;Scheduler: Enqueues Task 2 next
+  Scheduler-&gt;&gt;Cluster: Executing Task 2
+  activate Cluster
+  Cluster--&gt;&gt;Workflow: Task 2 completed
+  deactivate Cluster
+    </pre></section>
+<section id="parallel-workflows">
+<h4>Parallel Workflows<a class="headerlink" href="#parallel-workflows" title="Link to this heading">#</a></h4>
+<p>Independent tasks execute in parallel for maximum throughput:</p>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  box Control Plane
+  participant Workflow as Workflow Engine
+  end
+
+  box Compute Layer
+  participant Scheduler as Scheduler
+  participant Cluster as Compute Nodes
+  end
+
+  Workflow-&gt;&gt;Scheduler: Enqueues Task 1 &amp; Task 2
+
+  par
+    Scheduler-&gt;&gt;Cluster: Executing Task 1
+    activate Cluster
+    Cluster--&gt;&gt;Workflow: Task 1 completed
+    deactivate Cluster
+
+  and
+    Scheduler-&gt;&gt;Cluster: Executing Task 2
+    activate Cluster
+    Cluster--&gt;&gt;Workflow: Task 2 completed
+    deactivate Cluster
+  end
+    </pre></section>
+<section id="status-monitoring">
+<h4>Status Monitoring<a class="headerlink" href="#status-monitoring" title="Link to this heading">#</a></h4>
+<p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Workflow Engine</span> monitors task states and orchestrates execution based on
+dependencies and outcomes:</p>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  box Control Plane
+  participant Workflow as Workflow Engine
+  end
+
+  box Compute Layer
+  participant Scheduler as Scheduler
+  participant Cluster as Compute Nodes
+  end
+
+  alt
+    autonumber 1
+    Cluster--&gt;&gt;Workflow: Task completed
+    autonumber off
+    Workflow-&gt;&gt;Scheduler: Enqueues&lt;br/&gt;downstream tasks
+  else
+    autonumber 2
+    Cluster--&gt;&gt;Workflow: Task failed (retryable)
+    autonumber off
+    Workflow-&gt;&gt;Scheduler: Re-enqueues task
+    Scheduler-&gt;&gt;Cluster: Task is rescheduled
+  else
+    autonumber 3
+    Cluster--&gt;&gt;Workflow: Task failed (non-retryable)
+    autonumber off
+    Workflow-xWorkflow: Blocks downstream tasks
+  end
+    </pre><ol class="arabic simple">
+<li><p><span class="badge bg-completed badge-completed">Completed</span> tasks trigger their dependent downstream tasks</p></li>
+<li><p><span class="badge bg-failed badge-failed">Failed</span> retryable tasks are re-enqueued for <strong>automatic recovery</strong></p></li>
+<li><p><span class="badge bg-failed badge-failed">Failed</span> non-retryable tasks block their downstream dependencies</p></li>
+</ol>
+</section>
+</section>
+<section id="interacting">
+<h3>Interacting<a class="headerlink" href="#interacting" title="Link to this heading">#</a></h3>
+<section id="observability">
+<h4>Observability<a class="headerlink" href="#observability" title="Link to this heading">#</a></h4>
+<p>Tasks publishes logs and metrics to the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">API Server</span>, enabling <strong>real-time observability</strong>.</p>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  participant User
+
+  box Control Plane
+  participant API as API Server
+  end
+
+  box Compute Layer
+  participant Cluster as Compute Nodes
+  end
+
+  Cluster-&gt;&gt;API: Publishes logs &amp; metrics
+  API--&gt;&gt;User: Streams logs &amp; metrics
+    </pre></section>
+<section id="interactive-access">
+<h4>Interactive Access<a class="headerlink" href="#interactive-access" title="Link to this heading">#</a></h4>
+<p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">User</span> can access <span class="badge bg-running badge-running">RUNNING</span> tasks for real-time interactive development
+and debugging:</p>
+<pre  class="mermaid">
+        %%{init: {'theme':'base'}}%%
+sequenceDiagram
+  autonumber
+  participant User
+
+  box Control Plane
+  participant API as API Server
+  end
+
+  box Compute Layer
+  participant Cluster as Compute Nodes
+  end
+
+  User-&gt;&gt;API: Initiates handshake
+  API-&gt;&gt;Cluster: Establishes handshake
+  User&lt;&lt;--&gt;&gt;Cluster: Bi-directional streaming
+    </pre><ol class="arabic simple">
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">User</span> initiates interactive access through the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">API Server</span></p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">API Server</span> coordinates with the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Compute Nodes</span> to establish a secured connection</p></li>
+<li><p><span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">User</span> can interact with the <span class="sd-sphinx-override sd-badge sd-bg-primary sd-bg-text-primary">Compute Nodes</span> using the bi-directional streaming connection
+(e.g. <code class="docutils literal notranslate"><span class="pre">SSH</span></code>, <code class="docutils literal notranslate"><span class="pre">VSCode</span> <span class="pre">Remote</span></code>, <code class="docutils literal notranslate"><span class="pre">Jupyter</span></code>, etc.).</p></li>
+</ol>
+</section>
+</section>
+</section>
+<section id="summary">
+<h2>Summary<a class="headerlink" href="#summary" title="Link to this heading">#</a></h2>
+<p>This architecture enables OSMO to scale from a single developer workstation to massive cloud
+deployments while maintaining a consistent interface and workflow experience.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>For detailed deployment procedures, refer to the <a class="reference internal" href="../deployment_guide/index.html#deployment-guide-welcome"><span class="std std-ref">Deployment Guide</span></a>.</p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title"><strong>User Guide</strong></p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="whats_next.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">What’s Next</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#control-plane">Control Plane</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#compute-layer">Compute Layer</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-layer">Data Layer</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#submitting">Submitting</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scheduling">Scheduling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#executing">Executing</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#orchestrating">Orchestrating</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#serial-workflows">Serial Workflows</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#parallel-workflows">Parallel Workflows</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#status-monitoring">Status Monitoring</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interacting">Interacting</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#observability">Observability</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-access">Interactive Access</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary">Summary</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

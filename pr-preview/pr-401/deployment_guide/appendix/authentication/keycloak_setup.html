@@ -1,0 +1,903 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Keycloak Group and Role Management &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/appendix/authentication/keycloak_setup';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="prev" title="Roles and Policies" href="roles_policies.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">AuthN/AuthZ</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">AuthN/AuthZ</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Keycloak Group and Role Management</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="keycloak-group-and-role-management">
+<span id="keycloak-setup"></span><span id="keycloak-roles-group-management"></span><h1>Keycloak Group and Role Management<a class="headerlink" href="#keycloak-group-and-role-management" title="Link to this heading">#</a></h1>
+<p>This guide describes how to configure Keycloak roles and groups to manage access control in the OSMO platform.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>OSMO uses Keycloak’s role-based access control to manage permissions for pool access and other resources. The configuration follows a hierarchical structure:</p>
+<ol class="arabic simple">
+<li><p><strong>Roles</strong>: Represent specific permissions within OSMO (e.g., <code class="docutils literal notranslate"><span class="pre">osmo-group1</span></code> grants permission to submit workflows to <code class="docutils literal notranslate"><span class="pre">group1-*</span></code> pools)</p></li>
+<li><p><strong>Groups</strong>: Collections of users that share the same access requirements. When a role is assigned to a group, all members inherit the associated permissions</p></li>
+<li><p><strong>Users</strong>: Individual accounts that belong to one or more groups and inherit the roles assigned to those groups</p></li>
+</ol>
+<p>This hierarchical approach simplifies access management by allowing administrators to grant permissions to entire teams at once rather than configuring each user individually.</p>
+</section>
+<section id="configuration-workflow">
+<h2>Configuration Workflow<a class="headerlink" href="#configuration-workflow" title="Link to this heading">#</a></h2>
+<p>The typical workflow for setting up access control is:</p>
+<ol class="arabic simple">
+<li><p>Create roles in Keycloak clients (<code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> and <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code>)</p></li>
+<li><p>Create groups in Keycloak</p></li>
+<li><p>Assign roles to groups</p></li>
+<li><p>Add users to groups (manually or via identity provider mappings)</p></li>
+<li><p>Create matching pools in OSMO</p></li>
+<li><p>Verify access</p></li>
+</ol>
+</section>
+<section id="creating-roles-in-keycloak">
+<span id="keycloak-create-roles"></span><h2>Creating Roles in Keycloak<a class="headerlink" href="#creating-roles-in-keycloak" title="Link to this heading">#</a></h2>
+<p>Roles must be created in both Keycloak clients that OSMO uses:</p>
+<ol class="arabic">
+<li><p>Access the Keycloak admin console and select the OSMO realm</p></li>
+<li><p>Navigate to the “Clients” tab and select the <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> client</p></li>
+<li><p>Click on the “Roles” tab, then click “Create Role”</p></li>
+<li><p>Enter a name for the role following the format <code class="docutils literal notranslate"><span class="pre">osmo-&lt;pool-group-name&gt;</span></code></p>
+<p>For example: <code class="docutils literal notranslate"><span class="pre">osmo-group1</span></code></p>
+</li>
+<li><p>Click “Save”</p></li>
+<li><p>Repeat steps 2-5 for the <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code> client</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The role name is format-sensitive. You must use the exact format <code class="docutils literal notranslate"><span class="pre">osmo-&lt;pool-group-name&gt;</span></code> for pool access roles.</p>
+</div>
+</section>
+<section id="creating-groups-in-keycloak">
+<span id="keycloak-create-groups"></span><h2>Creating Groups in Keycloak<a class="headerlink" href="#creating-groups-in-keycloak" title="Link to this heading">#</a></h2>
+<p>Groups are used to organize users and assign roles to multiple users at once:</p>
+<ol class="arabic">
+<li><p>In the Keycloak admin console, select the OSMO realm</p></li>
+<li><p>Navigate to the “Groups” tab and click “Create Group”</p></li>
+<li><p>Enter a name for the group following the format <code class="docutils literal notranslate"><span class="pre">OSMO</span> <span class="pre">&lt;pool-group-name&gt;</span></code></p>
+<p>For example: <code class="docutils literal notranslate"><span class="pre">OSMO</span> <span class="pre">group1</span></code></p>
+</li>
+<li><p>Click “Save”</p></li>
+</ol>
+<section id="assigning-roles-to-groups">
+<span id="keycloak-assign-roles-to-groups"></span><h3>Assigning Roles to Groups<a class="headerlink" href="#assigning-roles-to-groups" title="Link to this heading">#</a></h3>
+<p>After creating the group, assign the appropriate roles:</p>
+<ol class="arabic simple">
+<li><p>Click into the group you just created</p></li>
+<li><p>Select the “Role Mapping” tab</p></li>
+<li><p>Click “Assign Role”</p></li>
+<li><p>Click on the filter dropdown and select “Filter by clients”</p></li>
+<li><p>Search for <code class="docutils literal notranslate"><span class="pre">osmo-&lt;pool-group-name&gt;</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">osmo-group1</span></code>)</p></li>
+<li><p>Select both roles (one from <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> and one from <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code> client)</p></li>
+<li><p>Click “Assign”</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> client is used for the Web UI and the <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code> client is used for the CLI.
+You must assign roles from both clients for full functionality.</p>
+</div>
+</section>
+</section>
+<section id="managing-users">
+<span id="keycloak-assign-users-to-groups"></span><h2>Managing Users<a class="headerlink" href="#managing-users" title="Link to this heading">#</a></h2>
+<section id="adding-users-manually">
+<h3>Adding Users Manually<a class="headerlink" href="#adding-users-manually" title="Link to this heading">#</a></h3>
+<p>To manually add users to groups:</p>
+<ol class="arabic simple">
+<li><p>Navigate to the “Users” tab in the Keycloak admin console</p></li>
+<li><p>Search for and select the user you want to add</p></li>
+<li><p>Click on the “Groups” tab</p></li>
+<li><p>Click “Join Group”</p></li>
+<li><p>Select the group you want to add the user to</p></li>
+<li><p>Click “Join”</p></li>
+</ol>
+</section>
+<section id="configuring-identity-provider-mappings">
+<span id="identity-provider-mappings"></span><h3>Configuring Identity Provider Mappings<a class="headerlink" href="#configuring-identity-provider-mappings" title="Link to this heading">#</a></h3>
+<p>Instead of manually adding users to groups, you can configure identity provider mappings to automatically add users to groups based on claims or metadata provided by the identity provider.
+For more information, see the <a class="reference external" href="https://www.keycloak.org/docs/latest/server_admin/index.html#_mappers" rel="noreferrer" target="_blank">Keycloak documentation <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.</p>
+</section>
+</section>
+<section id="verification-and-testing">
+<h2>Verification and Testing<a class="headerlink" href="#verification-and-testing" title="Link to this heading">#</a></h2>
+<section id="verifying-user-access">
+<h3>Verifying User Access<a class="headerlink" href="#verifying-user-access" title="Link to this heading">#</a></h3>
+<p>To verify that a user has the correct roles:</p>
+<ol class="arabic simple">
+<li><p>Have the user log in to OSMO</p></li>
+<li><p>In the Keycloak admin console, go to “Users” and find the user</p></li>
+<li><p>Click on the user and select the “Groups” tab</p></li>
+<li><p>Verify the user is in the expected groups</p></li>
+<li><p>Select the “Role Mapping” tab and click “View all assigned roles”</p></li>
+<li><p>Confirm the user has the expected roles (both from <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> and <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code>)</p></li>
+</ol>
+</section>
+<section id="testing-pool-access">
+<h3>Testing Pool Access<a class="headerlink" href="#testing-pool-access" title="Link to this heading">#</a></h3>
+<p>Test that the user can access the pool:</p>
+<ol class="arabic">
+<li><p>Log in to OSMO as the user</p></li>
+<li><p>List available pools:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>pool<span class="w"> </span>list
+</pre></div>
+</div>
+</li>
+<li><p>Submit a test workflow to the pool:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>workflow<span class="w"> </span>submit<span class="w"> </span>my-workflow.yaml<span class="w"> </span>--pool<span class="w"> </span>group1-h100-gpu
+</pre></div>
+</div>
+</li>
+<li><p>If successful, the user has proper access</p></li>
+</ol>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="user-cannot-access-pool">
+<h3>User Cannot Access Pool<a class="headerlink" href="#user-cannot-access-pool" title="Link to this heading">#</a></h3>
+<p><strong>Symptoms</strong>: User receives “Permission denied” or cannot see the pool</p>
+<p><strong>Solutions</strong>:</p>
+<ol class="arabic">
+<li><p><strong>Verify Role Policy in OSMO</strong>:</p>
+<ul class="simple">
+<li><p>Ensure the corresponding role has been created in OSMO.</p></li>
+<li><p>Follow the steps in <a class="reference internal" href="roles_policies.html#troubleshooting-roles-policies"><span class="std std-ref">Troubleshooting</span></a>.</p></li>
+</ul>
+</li>
+<li><p><strong>Verify Role Names</strong>:</p>
+<ul class="simple">
+<li><p>Pool access roles must start with <code class="docutils literal notranslate"><span class="pre">osmo-</span></code> prefix (See <a class="reference internal" href="roles_policies.html#role-naming-for-pools"><span class="std std-ref">Role Naming for Pools</span></a>).</p></li>
+<li><p>Pool names must match the role suffix</p></li>
+<li><p>Example: Role <code class="docutils literal notranslate"><span class="pre">osmo-team1</span></code> will make pools named <code class="docutils literal notranslate"><span class="pre">team1*</span></code> visible</p></li>
+</ul>
+</li>
+<li><p><strong>Check Both Clients</strong>:</p>
+<ul class="simple">
+<li><p>Ensure roles are created in <strong>both</strong> <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> and <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code> clients</p></li>
+<li><p>Both roles must be assigned to the group</p></li>
+</ul>
+</li>
+<li><p><strong>Verify Group Membership</strong>:</p>
+<ul>
+<li><p>In Keycloak admin console, check if the user appears in the group</p></li>
+<li><p>If using IdP Mappings (see <a class="reference internal" href="#identity-provider-mappings"><span class="std std-ref">Configuring Identity Provider Mappings</span></a>):</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Verify the mapping configuration</p></li>
+<li><p>Check IdP logs to ensure claims are being sent</p></li>
+<li><p>Have the user log out and log back in again. Check Keycloak logs during login and verify that the IdP claim matches the mapper configuration.</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</li>
+</ol>
+</section>
+<section id="roles-not-appearing-in-jwt-token">
+<h3>Roles Not Appearing in JWT Token<a class="headerlink" href="#roles-not-appearing-in-jwt-token" title="Link to this heading">#</a></h3>
+<p><strong>Symptoms</strong>: User can log in but has no permissions</p>
+<p><strong>Solutions</strong>:</p>
+<ol class="arabic simple">
+<li><p><strong>Check Client Scope</strong>:</p>
+<ul class="simple">
+<li><p>Verify that <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> client has the correct client scopes</p></li>
+<li><p>Verify that <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code> client has the correct client scopes</p></li>
+</ul>
+</li>
+<li><p><strong>Review Token</strong>:</p>
+<ul class="simple">
+<li><p>Decode the JWT token to see what roles are included</p></li>
+<li><p>Use a tool like jwt.io to inspect the token</p></li>
+</ul>
+</li>
+</ol>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">#</a></h2>
+<section id="naming-conventions">
+<h3>Naming Conventions<a class="headerlink" href="#naming-conventions" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Roles</strong>: Use lowercase with hyphens: <code class="docutils literal notranslate"><span class="pre">osmo-&lt;team&gt;-&lt;purpose&gt;</span></code></p></li>
+<li><p><strong>Groups</strong>: Use title case: <code class="docutils literal notranslate"><span class="pre">OSMO</span> <span class="pre">&lt;Team&gt;</span> <span class="pre">&lt;Purpose&gt;</span></code></p></li>
+<li><p><strong>Pools</strong>: Match role suffix: <code class="docutils literal notranslate"><span class="pre">&lt;team&gt;-&lt;resource-type&gt;</span></code></p></li>
+</ul>
+<dl class="simple">
+<dt>Examples:</dt><dd><ul class="simple">
+<li><p>Role: <code class="docutils literal notranslate"><span class="pre">osmo-ml-team</span></code></p></li>
+<li><p>Group: <code class="docutils literal notranslate"><span class="pre">OSMO</span> <span class="pre">ML</span> <span class="pre">Team</span></code></p></li>
+<li><p>Pools: <code class="docutils literal notranslate"><span class="pre">ml-team-training</span></code>, <code class="docutils literal notranslate"><span class="pre">ml-team-inference</span></code></p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="group-organization">
+<h3>Group Organization<a class="headerlink" href="#group-organization" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p><strong>Use Hierarchy</strong>: Create parent groups for departments and child groups for teams</p></li>
+<li><p><strong>Document Purpose</strong>: Add descriptions to groups explaining their purpose</p></li>
+<li><p><strong>Regular Audits</strong>: Periodically review group memberships</p></li>
+</ol>
+</section>
+<section id="security-considerations">
+<h3>Security Considerations<a class="headerlink" href="#security-considerations" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p><strong>Principle of Least Privilege</strong>: Only grant necessary pool access</p></li>
+<li><p><strong>Regular Reviews</strong>: Audit role assignments quarterly</p></li>
+<li><p><strong>Offboarding</strong>: Remove users from groups when they leave teams</p></li>
+<li><p><strong>Monitor Access</strong>: Review Keycloak audit logs for unusual activity</p></li>
+<li><p><strong>Test Changes</strong>: Always test role/group changes with a test user first</p></li>
+</ol>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="roles_policies.html"><span class="doc">Roles and Policies</span></a> for understanding OSMO roles and policies</p></li>
+<li><p><a class="reference internal" href="authentication_flow.html"><span class="doc">Authentication Flow</span></a> for authentication flow details</p></li>
+<li><p><a class="reference internal" href="../../install_backend/configure_pool.html"><span class="doc">Create Resource Pools</span></a> for pool configuration</p></li>
+<li><p><a class="reference external" href="https://www.keycloak.org/documentation" rel="noreferrer" target="_blank">Keycloak Documentation <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="roles_policies.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Roles and Policies</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-workflow">Configuration Workflow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-roles-in-keycloak">Creating Roles in Keycloak</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-groups-in-keycloak">Creating Groups in Keycloak</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assigning-roles-to-groups">Assigning Roles to Groups</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#managing-users">Managing Users</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-users-manually">Adding Users Manually</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-identity-provider-mappings">Configuring Identity Provider Mappings</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification-and-testing">Verification and Testing</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-user-access">Verifying User Access</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-pool-access">Testing Pool Access</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#user-cannot-access-pool">User Cannot Access Pool</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#roles-not-appearing-in-jwt-token">Roles Not Appearing in JWT Token</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#best-practices">Best Practices</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#naming-conventions">Naming Conventions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#group-organization">Group Organization</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#security-considerations">Security Considerations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See Also</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
