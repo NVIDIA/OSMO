@@ -121,7 +121,7 @@ function getPrefersReducedMotion(): boolean {
  * - Prop-change detection via state (derive state from props pattern)
  * - All other state transitions in event handlers
  */
-export function usePanelAnimation(open: boolean): UsePanelAnimationReturn {
+export function usePanelAnimation(open: boolean, onClosed?: () => void): UsePanelAnimationReturn {
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const [enterComplete, setEnterComplete] = useState(false);
@@ -209,9 +209,12 @@ export function usePanelAnimation(open: boolean): UsePanelAnimationReturn {
         // (In reduced-motion mode, these are set immediately in the render-phase block)
         setSlideOutComplete(true);
         setContentReady(false);
+
+        // Notify parent that close animation is complete
+        onClosed?.();
       }
     },
-    [open],
+    [open, onClosed],
   );
 
   return {

@@ -39,12 +39,18 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { usePanelState } from "@/hooks/use-url-state";
+import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
+import { usePanelWidth } from "@/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import type { Resource } from "@/lib/api/adapter/types";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { ResourcePanelHeader } from "@/app/(dashboard)/resources/components/panel/panel-header";
+import { ResourcePanelContent } from "@/app/(dashboard)/resources/components/panel/panel-content";
 import { ResourcesTable } from "@/app/(dashboard)/resources/components/table/resources-table";
-import { ResourcePanelLayout } from "@/app/(dashboard)/resources/components/panel/resource-panel";
 import { ResourcesToolbar } from "@/app/(dashboard)/resources/components/resources-toolbar";
+import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
 import { AdaptiveSummary } from "@/app/(dashboard)/resources/components/resource-summary-card";
 import { useResourcesData } from "@/app/(dashboard)/resources/hooks/use-resources-data";
 import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
@@ -89,10 +95,6 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
     [setSelectedPoolConfig, startTransition],
   );
 
-  const handleClose = useCallback(() => {
-    startTransition(() => clearSelectedResource());
-  }, [clearSelectedResource, startTransition]);
-
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
 
@@ -133,14 +135,24 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
   const aggregates = queryAggregates ?? initialAggregates;
 
   // ==========================================================================
-  // Resource Selection
+  // Resource Panel State - URL state controls both selection and mounting
   // ==========================================================================
 
-  // Find selected resource
-  const selectedResource = useMemo<Resource | null>(
-    () => (selectedResourceName ? (resources.find((r) => r.name === selectedResourceName) ?? null) : null),
+  // Find selected resource from URL
+  const selectedResource = useMemo(
+    () => (selectedResourceName ? resources.find((r) => r.name === selectedResourceName) : undefined),
     [resources, selectedResourceName],
   );
+
+  // Panel lifecycle - handles open/close/closing animation state machine
+  const {
+    isPanelOpen,
+    handleClose: handleClosePanel,
+    handleClosed: handlePanelClosed,
+  } = usePanelLifecycle({
+    hasSelection: Boolean(selectedResourceName && selectedResource),
+    onClosed: () => startTransition(() => clearSelectedResource()),
+  });
 
   // Handle resource click
   const handleResourceClick = useCallback(
@@ -150,79 +162,111 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
     [handleResourceSelect],
   );
 
+  // Panel width management
+  const { panelWidth, setPanelWidth, handleWidthPreset } = usePanelWidth({
+    storedWidth: useResourcesTableStore((s) => s.panelWidth),
+    setStoredWidth: useResourcesTableStore((s) => s.setPanelWidth),
+  });
+
   // ==========================================================================
-  // Render
+  // Render - Always render ResizablePanel to keep content in same tree position
   // ==========================================================================
 
-  return (
-    <ResourcePanelLayout
-      resource={selectedResource}
-      onClose={handleClose}
-      selectedPool={selectedPoolConfig}
-      onPoolSelect={handlePoolSelect}
-    >
-      <div className="flex h-full flex-col gap-4 p-6">
-        {/* Toolbar with FilterBar */}
+  // Page content - always rendered in the same position (as mainContent)
+  const pageContent = (
+    <div className="flex h-full flex-col gap-4 p-6">
+      {/* Toolbar with FilterBar */}
+      <div className="shrink-0">
+        <InlineErrorBoundary
+          title="Toolbar error"
+          compact
+        >
+          <ResourcesToolbar
+            resources={allResources}
+            searchChips={searchChips}
+            onSearchChipsChange={setSearchChips}
+            resultsCount={resultsCount}
+          />
+        </InlineErrorBoundary>
+      </div>
+
+      {/* Adaptive resource summary cards */}
+      {!error && aggregates && (
         <div className="shrink-0">
+          <AdaptiveSummary
+            aggregates={aggregates}
+            displayMode={displayMode}
+            isLoading={isLoading}
+            forceCompact={compactMode}
+          />
+        </div>
+      )}
+
+      {/* Error display */}
+      {error && (
+        <ApiError
+          error={error as ApiErrorProps["error"]}
+          onRetry={refetch}
+          title="Unable to load resources"
+          authAware
+          loginMessage="You need to log in to view resources."
+        />
+      )}
+
+      {/* Main resources table */}
+      {!error && (
+        <div className="min-h-0 flex-1">
           <InlineErrorBoundary
-            title="Toolbar error"
-            compact
+            title="Unable to display resources table"
+            resetKeys={[resources.length]}
+            onReset={refetch}
           >
-            <ResourcesToolbar
-              resources={allResources}
-              searchChips={searchChips}
-              onSearchChipsChange={setSearchChips}
-              resultsCount={resultsCount}
+            <ResourcesTable
+              resources={resources}
+              totalCount={totalCount}
+              isLoading={isLoading}
+              showPoolsColumn
+              onResourceClick={handleResourceClick}
+              selectedResourceId={selectedResourceName ?? undefined}
+              hasNextPage={hasNextPage}
+              onLoadMore={fetchNextPage}
+              isFetchingNextPage={isFetchingNextPage}
             />
           </InlineErrorBoundary>
         </div>
+      )}
+    </div>
+  );
 
-        {/* Adaptive resource summary cards */}
-        {!error && aggregates && (
-          <div className="shrink-0">
-            <AdaptiveSummary
-              aggregates={aggregates}
-              displayMode={displayMode}
-              isLoading={isLoading}
-              forceCompact={compactMode}
-            />
-          </div>
-        )}
-
-        {/* Error display */}
-        {error && (
-          <ApiError
-            error={error as ApiErrorProps["error"]}
-            onRetry={refetch}
-            title="Unable to load resources"
-            authAware
-            loginMessage="You need to log in to view resources."
+  return (
+    <ResizablePanel
+      open={isPanelOpen}
+      onClose={handleClosePanel}
+      onClosed={handlePanelClosed}
+      width={panelWidth}
+      onWidthChange={setPanelWidth}
+      minWidth={PANEL.MIN_WIDTH_PCT}
+      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
+      mainContent={pageContent}
+      backdrop={false}
+      aria-label={selectedResource ? `Resource details: ${selectedResource.name}` : "Resources"}
+      className="resources-panel"
+    >
+      {/* Panel content - only rendered when resource is selected */}
+      {selectedResource && (
+        <>
+          <ResourcePanelHeader
+            resource={selectedResource}
+            onClose={handleClosePanel}
+            onWidthPreset={handleWidthPreset}
           />
-        )}
-
-        {/* Main resources table */}
-        {!error && (
-          <div className="min-h-0 flex-1">
-            <InlineErrorBoundary
-              title="Unable to display resources table"
-              resetKeys={[resources.length]}
-              onReset={refetch}
-            >
-              <ResourcesTable
-                resources={resources}
-                totalCount={totalCount}
-                isLoading={isLoading}
-                showPoolsColumn
-                onResourceClick={handleResourceClick}
-                selectedResourceId={selectedResourceName ?? undefined}
-                hasNextPage={hasNextPage}
-                onLoadMore={fetchNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-              />
-            </InlineErrorBoundary>
-          </div>
-        )}
-      </div>
-    </ResourcePanelLayout>
+          <ResourcePanelContent
+            resource={selectedResource}
+            selectedPool={selectedPoolConfig}
+            onPoolSelect={handlePoolSelect}
+          />
+        </>
+      )}
+    </ResizablePanel>
   );
 }
