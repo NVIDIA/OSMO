@@ -340,7 +340,8 @@ func TestCheckPolicyAccess(t *testing.T) {
 					},
 				},
 			},
-			path:       "/api/pool",
+			// Use workflow/* which maps to workflow:Read
+			path:       "/api/workflow/abc123",
 			method:     "GET",
 			wantAccess: true,
 		},
