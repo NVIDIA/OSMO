@@ -1337,7 +1337,6 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const settings = profileGenerator.generateSettings("current.user");
     // Use all pool names from patterns, not limited by volume config
     const pools = MOCK_CONFIG.pools.names;
-    const buckets = profileGenerator.getBucketNames();
 
     // Merge stored settings with generated defaults
     const emailNotification = mockProfileSettings.email_notification ?? settings.notifications.email;
@@ -1353,32 +1352,16 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
           ? [defaultPool, ...pools]
           : pools;
 
-    // Ensure default bucket is in accessible buckets list
-    const accessibleBuckets =
-      defaultBucket !== null && buckets.includes(defaultBucket)
-        ? buckets
-        : defaultBucket !== null
-          ? [defaultBucket, ...buckets]
-          : buckets;
-
-    // Backend returns { profile: UserProfile, pools: string[] }
+    // Backend returns flat structure: { profile: { username, email_notification, slack_notification, bucket, pool }, pools: string[] }
+    // Adapter transforms to nested structure for UI
+    // Note: Accessible buckets come from separate /api/bucket endpoint
     return HttpResponse.json({
       profile: {
-        id: userProfile.username,
-        name: userProfile.display_name,
-        email: userProfile.email,
-        notifications: {
-          email: emailNotification,
-          slack: slackNotification,
-        },
-        bucket: {
-          default: defaultBucket,
-          accessible: accessibleBuckets,
-        },
-        pool: {
-          default: defaultPool,
-          accessible: accessiblePools,
-        },
+        username: userProfile.email, // Backend uses email as username
+        email_notification: emailNotification,
+        slack_notification: slackNotification,
+        bucket: defaultBucket,
+        pool: defaultPool,
       },
       pools: accessiblePools,
     });
@@ -1432,65 +1415,36 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     return HttpResponse.json({ json: credentials });
   }),
 
-  // Create or update credential (POST /api/credentials/{name})
+  // Create credential (POST /api/credentials/{name})
+  // Note: Updates are not supported - credentials must be deleted and recreated
   http.post("*/api/credentials/:name", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
     const body = (await request.json()) as Record<string, unknown>;
 
-    // Check if updating existing credential
-    const existing = mockCredentials.get(name);
-
-    // Determine credential type and transform backend format to UI format
-    let credentialType: "registry" | "data" | "generic" = "generic";
-    let credentialData: Record<string, unknown> = {};
+    // Determine credential type and extract profile value
+    let cred_type: "REGISTRY" | "DATA" | "GENERIC" = "GENERIC";
+    let profile: string | null = null;
 
     if (body.registry_credential && typeof body.registry_credential === "object") {
-      credentialType = "registry";
+      cred_type = "REGISTRY";
       const reg = body.registry_credential as Record<string, unknown>;
-      credentialData = {
-        registry: {
-          url: reg.registry || "",
-          username: reg.username || "",
-          password: reg.auth || "",
-        },
-      };
+      profile = String(reg.registry || "");
     } else if (body.data_credential && typeof body.data_credential === "object") {
-      credentialType = "data";
+      cred_type = "DATA";
       const data = body.data_credential as Record<string, unknown>;
-      credentialData = {
-        data: {
-          endpoint: data.endpoint || "",
-          access_key: data.access_key_id || "",
-          secret_key: data.access_key || "",
-        },
-      };
+      profile = String(data.endpoint || "");
     } else if (body.generic_credential && typeof body.generic_credential === "object") {
-      credentialType = "generic";
-      const gen = body.generic_credential as Record<string, unknown>;
-      const cred = gen.credential as Record<string, unknown> | undefined;
-      if (cred) {
-        const [key, value] = Object.entries(cred)[0] || ["", ""];
-        credentialData = {
-          generic: {
-            key: String(key),
-            value: String(value),
-          },
-        };
-      }
+      cred_type = "GENERIC";
+      profile = null; // Generic credentials don't have a profile
     }
 
+    // Create credential in production format
     const credential = {
-      id: existing && typeof existing === "object" && "id" in existing ? (existing.id as string) : faker.string.uuid(),
-      name,
-      type: credentialType,
-      created_at:
-        existing && typeof existing === "object" && "created_at" in existing
-          ? (existing.created_at as string)
-          : new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...credentialData,
+      cred_name: name,
+      cred_type,
+      profile,
     };
 
     // Store the credential

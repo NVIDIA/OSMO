@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
@@ -42,16 +42,6 @@ interface PoolsCardProps {
 export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: PoolsCardProps) {
   // Store only the user's edits (delta from profile)
   const [poolEdits, setPoolEdits] = useState<PoolEdits>({});
-
-  // Auto-clear edits when profile data matches staged value (after successful save + refetch)
-  useEffect(() => {
-    const stagedPool = poolEdits.pool ?? profile.pool.default;
-
-    // If profile matches our staged value, we can clear the edit
-    if (poolEdits.pool !== undefined && stagedPool === profile.pool.default) {
-      setPoolEdits({});
-    }
-  }, [profile.pool.default, poolEdits]);
 
   // Track initial default for stable sorting (only sort once on mount)
   const [initialDefault] = useState(profile.pool.default);
@@ -84,8 +74,8 @@ export function PoolsCard({ profile, updateProfile, isUpdating, announcer }: Poo
       await updateProfile({
         pool: { default: stagedPool },
       });
-      // Note: Edits are NOT cleared here to prevent thrashing
-      // They will be auto-cleared by useEffect when profile refetches with matching value
+      // Clear edits after successful save - profile will refetch with new value
+      setPoolEdits({});
       toast.success("Default pool saved successfully");
       announcer.announce("Default pool saved successfully", "polite");
     } catch (error) {

@@ -118,10 +118,19 @@ export class ProfileGenerator {
   }
 
   /**
-   * Get available bucket names
+   * Get available bucket names (matches bucket generator's list)
    */
   getBucketNames(): string[] {
-    return ["osmo-artifacts", "osmo-checkpoints", "ml-data-bucket", "team-storage"];
+    return [
+      "osmo-artifacts",
+      "osmo-checkpoints",
+      "osmo-datasets",
+      "osmo-models",
+      "ml-experiments",
+      "training-outputs",
+      "inference-cache",
+      "model-registry",
+    ];
   }
 
   /**
