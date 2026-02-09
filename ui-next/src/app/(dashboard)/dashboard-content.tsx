@@ -23,6 +23,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, startTransition } from "react";
+import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Link } from "@/components/link";
 import { usePage } from "@/components/chrome/page-context";
@@ -30,6 +31,11 @@ import { usePools, useVersion } from "@/lib/api/adapter/hooks";
 import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
+import {
+  getStatusDisplay,
+  STATUS_STYLES,
+  type StatusCategory,
+} from "@/app/(dashboard)/workflows/lib/workflow-constants";
 
 // =============================================================================
 // Dashboard Content
@@ -106,13 +112,13 @@ export function DashboardContent() {
           title="Active Workflows"
           value={workflowsLoading ? undefined : workflowStats.running}
           href="/workflows?f=status:RUNNING"
-          color="text-green-500"
+          color="text-blue-500"
         />
         <StatCard
           title="Completed (24h)"
           value={workflowsLoading ? undefined : workflowStats.completed}
           href="/workflows?f=status:COMPLETED"
-          color="text-blue-500"
+          color="text-green-500"
         />
         <StatCard
           title="Failed (24h)"
@@ -191,6 +197,15 @@ export function DashboardContent() {
 // Subcomponents
 // =============================================================================
 
+const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
+  waiting: Clock,
+  pending: Loader2,
+  running: Loader2,
+  completed: CheckCircle2,
+  failed: XCircle,
+  unknown: AlertTriangle,
+};
+
 interface StatCardProps {
   title: string;
   value?: string | number;
@@ -212,26 +227,14 @@ function StatCard({ title, value, href, color = "text-zinc-900 dark:text-zinc-10
 }
 
 function StatusBadge({ status }: { status: WorkflowStatus }) {
-  const statusConfig: Record<string, { label: string; className: string }> = {
-    [WorkflowStatus.RUNNING]: {
-      label: "Running",
-      className: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
-    },
-    [WorkflowStatus.PENDING]: {
-      label: "Pending",
-      className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400",
-    },
-    [WorkflowStatus.COMPLETED]: {
-      label: "Completed",
-      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",
-    },
-    [WorkflowStatus.FAILED]: {
-      label: "Failed",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400",
-    },
-  };
+  const { category, label } = getStatusDisplay(status);
+  const styles = STATUS_STYLES[category];
+  const Icon = STATUS_ICONS[category];
 
-  const config = statusConfig[status] ?? { label: status, className: "bg-zinc-100 text-zinc-700" };
-
-  return <span className={cn("rounded-full px-2 py-1 text-xs font-medium", config.className)}>{config.label}</span>;
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
+      <Icon className={cn("size-3.5", styles.icon, category === "running" && "animate-spin")} />
+      <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
+    </span>
+  );
 }
