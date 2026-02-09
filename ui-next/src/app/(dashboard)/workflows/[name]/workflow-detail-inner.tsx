@@ -49,7 +49,6 @@ import {
   usePersistedPanelWidth,
   usePanelWidth,
 } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
-import { ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 // Route-level components
 import { DAGErrorBoundary } from "@/components/dag/components/DAGErrorBoundary";
@@ -160,8 +159,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 
 function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) {
   // Get state machine actions and state via hooks
-  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed, updateStripSnapTarget } =
-    usePanelResize();
+  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed } = usePanelResize();
 
   // Subscribe to specific state slices
   const displayPct = usePanelWidth();
@@ -247,28 +245,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     }
   }, [sidebarCollapsed, phase, setCollapsed, isPanelCollapsed]);
 
-  // Update strip snap target based on actual container width (deterministic calculation)
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const updateTarget = () => {
-      const containerWidth = container.clientWidth;
-      if (containerWidth > 0) {
-        updateStripSnapTarget(ACTIVITY_STRIP_WIDTH_PX, containerWidth);
-      }
-    };
-
-    // Initial measurement
-    updateTarget();
-
-    // Update on window resize
-    const resizeObserver = new ResizeObserver(updateTarget);
-    resizeObserver.observe(container);
-
-    return () => resizeObserver.disconnect();
-  }, [updateStripSnapTarget]);
-
   // Synchronized tick for live durations - only tick when workflow is active
   // PERFORMANCE: Pause ticking during pan/zoom AND panel drag
   const workflowStatus = workflow?.status;
@@ -340,6 +316,11 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
 
   // Content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
+
+  // NOTE: Strip snap target updates (ResizeObserver for container width) are handled
+  // inside WorkflowDetailLayout, which has direct access to the grid container ref.
+  // This avoids the timing issue where containerRef.current is null in the parent's
+  // useEffect because the grid only mounts when isReady becomes true.
 
   // Panel override content for loading/error states
   const panelOverrideContent = useMemo(() => {
