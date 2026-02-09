@@ -44,60 +44,36 @@ export function OverviewTab({ dataset }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           <InfoRow
+            label="ID"
+            value={dataset.id}
+          />
+          <InfoRow
             label="Bucket"
             value={dataset.bucket}
           />
           <InfoRow
-            label="Format"
-            value={dataset.format}
+            label="Created By"
+            value={dataset.created_by || "—"}
           />
           <InfoRow
-            label="Version"
-            value={dataset.version && dataset.version > 0 ? `v${dataset.version}` : "—"}
-          />
-          <InfoRow
-            label="Size"
-            value={formattedSize.display}
-          />
-          <InfoRow
-            label="Files"
-            value={dataset.num_files > 0 ? dataset.num_files.toLocaleString() : "—"}
-          />
-          <InfoRow
-            label="Retention"
-            value={dataset.retention_policy || "—"}
-          />
-          <InfoRow
-            label="Created"
+            label="Created Date"
             value={formatDateTimeFull(dataset.created_at)}
           />
           <InfoRow
-            label="Updated"
-            value={formatDateTimeFull(dataset.updated_at)}
+            label="Storage Size"
+            value={formattedSize.display}
           />
         </CardContent>
       </Card>
 
-      {/* Description */}
+      {/* Labels */}
       <Card>
         <CardHeader>
-          <CardTitle>Description</CardTitle>
+          <CardTitle>Labels</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {dataset.description || "No description available."}
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Labels - Full width if present */}
-      {dataset.labels && Object.keys(dataset.labels).length > 0 && (
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Labels</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {dataset.labels && Object.keys(dataset.labels).length > 0 ? (
+            <div className="space-y-2">
               {Object.entries(dataset.labels).map(([key, value]) => (
                 <InfoRow
                   key={key}
@@ -106,19 +82,9 @@ export function OverviewTab({ dataset }: Props) {
                 />
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Version History - Full width */}
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Version History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Version history will be displayed here (requires backend support).
-          </p>
+          ) : (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">None</p>
+          )}
         </CardContent>
       </Card>
     </div>

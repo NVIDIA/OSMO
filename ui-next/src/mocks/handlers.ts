@@ -1339,6 +1339,20 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
     const versions = datasetGenerator.generateVersions(name);
 
+    // Transform to backend API shape (DataInfoResponse)
+    const response = {
+      id: dataset.name, // Use name as id for mock
+      name: dataset.name,
+      bucket: dataset.bucket,
+      created_by: dataset.user,
+      created_date: dataset.created_at,
+      hash_location: dataset.path,
+      hash_location_size: dataset.size_bytes,
+      labels: dataset.labels || {},
+      type: "DATASET",
+      versions,
+    };
+
     // Check if path parameter is provided for file listing
     const url = new URL(request.url);
     const path = url.searchParams.get("path");
@@ -1347,17 +1361,13 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     if (path !== null) {
       const files = datasetGenerator.generateFileTree(name, path);
       return HttpResponse.json({
-        ...dataset,
-        versions,
+        ...response,
         files,
       });
     }
 
     // Default response without files
-    return HttpResponse.json({
-      ...dataset,
-      versions,
-    });
+    return HttpResponse.json(response);
   }),
 
   // NOTE: /api/bucket/collections was removed - not a real backend endpoint
