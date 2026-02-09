@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 
+	"go.corp.nvidia.com/osmo/service/operator/config_service"
 	"go.corp.nvidia.com/osmo/service/operator/listener_service"
 	"go.corp.nvidia.com/osmo/service/operator/utils"
 )
@@ -105,6 +106,10 @@ func main() {
 	listenerService := listener_service.NewListenerService(
 		logger, redisClient.Client(), pgClient.Pool(), &args)
 	listener_service.RegisterServices(grpcServer, listenerService)
+
+	configService := config_service.NewConfigService(
+		logger, redisClient.Client(), pgClient.Pool())
+	config_service.RegisterServices(grpcServer, configService)
 
 	// Start gRPC server
 	addr := fmt.Sprintf("%s:%d", host, port)

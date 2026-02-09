@@ -133,3 +133,8 @@ message PodEventBody {
   string message = 3;
   string timestamp = 4;  // ISO 8601 timestamp
 }
+
+// NodeConditionsMessage carries node condition rules to the backend (e.g. Ready: "True")
+message NodeConditionsMessage {
+  map<string, string> rules = 1;
+}
