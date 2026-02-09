@@ -71,7 +71,12 @@ function printAuthInstructions() {
     "color: #22d3ee; font-family: monospace;",
   );
   console.log("");
-  console.log("%cRun %ccopyAuthFromProduction()%c to see these instructions again", "color: #64748b;", "color: #22d3ee; font-family: monospace;", "color: #64748b;");
+  console.log(
+    "%cRun %ccopyAuthFromProduction()%c to see these instructions again",
+    "color: #64748b;",
+    "color: #22d3ee; font-family: monospace;",
+    "color: #64748b;",
+  );
   console.log("");
 }
 

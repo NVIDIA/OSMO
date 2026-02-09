@@ -504,42 +504,42 @@ export function transformUserProfile(data: unknown): UserProfile {
 /**
  * Transform backend credential response to ideal Credential type.
  *
- * WORKAROUND: Backend may return numeric IDs as strings.
- * Ensures all fields have proper defaults and types.
+ * WORKAROUND: Backend returns inconsistent field names.
+ * Production: { cred_name, cred_type, profile }
+ * Expected: { name, type, registry/data/generic }
  *
  * @param data - The raw API response for a single credential
  */
 export function transformCredential(data: unknown): Credential {
   if (!data || typeof data !== "object") {
     return {
-      id: "",
-      name: "",
-      type: "generic",
-      created_at: "",
-      updated_at: "",
+      cred_name: "",
+      cred_type: "GENERIC",
+      profile: null,
     };
   }
 
   const raw = data as Record<string, unknown>;
-  const credType = raw.type as "registry" | "data" | "generic" | undefined;
+
+  // Normalize cred_type to uppercase to handle any case variations
+  const rawType = String(raw.cred_type || "GENERIC").toUpperCase();
+  const cred_type: Credential["cred_type"] =
+    rawType === "REGISTRY" || rawType === "DATA" || rawType === "GENERIC" ? rawType : "GENERIC";
 
   return {
-    id: String(raw.id || ""),
-    name: String(raw.name || ""),
-    type: credType || "generic",
-    created_at: String(raw.created_at || ""),
-    updated_at: String(raw.updated_at || ""),
-    registry: raw.registry as Credential["registry"],
-    data: raw.data as Credential["data"],
-    generic: raw.generic as Credential["generic"],
+    cred_name: String(raw.cred_name || ""),
+    cred_type,
+    profile: raw.profile ? String(raw.profile) : null,
   };
 }
 
 /**
  * Transform backend credentials list response to array of Credentials.
  *
- * WORKAROUND: Backend may return either an array or an object with 'items' key.
- * Handles both response formats gracefully.
+ * WORKAROUND: Backend may return various formats:
+ * - Production: { json: [...] }
+ * - Mock: direct array [...]
+ * - Alternative: { credentials: [...] } or { items: [...] }
  *
  * @param data - The raw API response from GET /api/credentials
  */
@@ -552,9 +552,10 @@ export function transformCredentialList(data: unknown): Credential[] {
 
   if (typeof data === "object") {
     const raw = data as Record<string, unknown>;
-    const items = raw.items;
-    if (Array.isArray(items)) {
-      return items.map(transformCredential);
+    // Production returns { json: [...] }
+    const credArray = raw.json || raw.credentials || raw.items;
+    if (Array.isArray(credArray)) {
+      return credArray.map(transformCredential);
     }
   }
 

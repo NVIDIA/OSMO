@@ -33,31 +33,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/shadcn/dialog";
-import { Collapsible, CollapsibleContent } from "@/components/shadcn/collapsible";
-import { Key, Database, Lock, Package, Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Key, Database, Lock, Package, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useServices } from "@/contexts";
 import { useMounted } from "@/hooks";
 import { useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter";
 import type { Credential, CredentialCreate } from "@/lib/api/adapter";
-import { cn } from "@/lib/utils";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type CredentialType = "registry" | "data" | "generic";
+type CredentialType = "REGISTRY" | "DATA" | "GENERIC";
 
 interface CredentialFormData {
   name: string;
   type: CredentialType;
   registry: { url: string; username: string; password: string };
   data: { endpoint: string; access_key: string; secret_key: string };
-  generic: { key: string; value: string };
-}
-
-// Edits are tracked per credential ID - maps ID to edited form data
-interface CredentialEdits {
-  [credentialId: string]: CredentialFormData;
+  generic: Array<{ key: string; value: string }>;
 }
 
 // =============================================================================
@@ -67,44 +60,59 @@ interface CredentialEdits {
 function createEmptyFormData(): CredentialFormData {
   return {
     name: "",
-    type: "registry",
+    type: "REGISTRY",
     registry: { url: "", username: "", password: "" },
     data: { endpoint: "", access_key: "", secret_key: "" },
-    generic: { key: "", value: "" },
-  };
-}
-
-function createFormDataFromCredential(credential: Credential): CredentialFormData {
-  return {
-    name: credential.name,
-    type: credential.type,
-    registry: credential.registry ?? { url: "", username: "", password: "" },
-    data: credential.data ?? { endpoint: "", access_key: "", secret_key: "" },
-    generic: credential.generic ?? { key: "", value: "" },
+    generic: [{ key: "", value: "" }],
   };
 }
 
 function formDataToCredentialCreate(formData: CredentialFormData): CredentialCreate {
-  const base = { name: formData.name, type: formData.type };
+  const base = { cred_name: formData.name };
 
-  if (formData.type === "registry") {
-    return { ...base, registry: formData.registry };
-  } else if (formData.type === "data") {
-    return { ...base, data: formData.data };
+  if (formData.type === "REGISTRY") {
+    return {
+      ...base,
+      registry_credential: {
+        registry: formData.registry.url,
+        username: formData.registry.username,
+        auth: formData.registry.password, // Backend expects 'auth' field
+      },
+    };
+  } else if (formData.type === "DATA") {
+    return {
+      ...base,
+      data_credential: {
+        endpoint: formData.data.endpoint,
+        access_key_id: formData.data.access_key,
+        access_key: formData.data.secret_key,
+      },
+    };
   } else {
-    return { ...base, generic: formData.generic };
+    // Convert array of key-value pairs to a single record
+    const credential: Record<string, string> = {};
+    for (const pair of formData.generic) {
+      credential[pair.key] = pair.value;
+    }
+    return {
+      ...base,
+      generic_credential: {
+        credential,
+      },
+    };
   }
 }
 
 function isFormValid(formData: CredentialFormData): boolean {
   if (!formData.name.trim()) return false;
 
-  if (formData.type === "registry") {
+  if (formData.type === "REGISTRY") {
     return !!(formData.registry.url.trim() && formData.registry.username.trim() && formData.registry.password.trim());
-  } else if (formData.type === "data") {
+  } else if (formData.type === "DATA") {
     return !!(formData.data.endpoint.trim() && formData.data.access_key.trim() && formData.data.secret_key.trim());
   } else {
-    return !!(formData.generic.key.trim() && formData.generic.value.trim());
+    // For generic, all pairs must have non-empty keys and values
+    return formData.generic.length > 0 && formData.generic.every((pair) => pair.key.trim() && pair.value.trim());
   }
 }
 
@@ -115,9 +123,9 @@ function groupCredentialsByType(credentials: Credential[]) {
   const generic: Credential[] = [];
 
   for (const cred of credentials) {
-    if (cred.type === "registry") {
+    if (cred.cred_type === "REGISTRY") {
       registry.push(cred);
-    } else if (cred.type === "data") {
+    } else if (cred.cred_type === "DATA") {
       data.push(cred);
     } else {
       generic.push(cred);
@@ -125,24 +133,6 @@ function groupCredentialsByType(credentials: Credential[]) {
   }
 
   return { registry, data, generic };
-}
-
-// Format relative time for credential display
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return "Updated today";
-  if (diffDays === 1) return "Updated 1 day ago";
-  if (diffDays < 7) return `Updated ${diffDays} days ago`;
-  if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7);
-    return `Updated ${weeks} week${weeks > 1 ? "s" : ""} ago`;
-  }
-  const months = Math.floor(diffDays / 30);
-  return `Updated ${months} month${months > 1 ? "s" : ""} ago`;
 }
 
 // =============================================================================
@@ -323,7 +313,7 @@ function DataFields({
   );
 }
 
-// Form fields for generic credentials
+// Form fields for generic credentials (supports multiple key-value pairs)
 function GenericFields({
   values,
   onChange,
@@ -331,59 +321,94 @@ function GenericFields({
   showValue,
   onToggleValueVisibility,
 }: {
-  values: { key: string; value: string };
-  onChange: (key: "key" | "value", value: string) => void;
+  values: Array<{ key: string; value: string }>;
+  onChange: (pairs: Array<{ key: string; value: string }>) => void;
   disabled: boolean;
   showValue: boolean;
   onToggleValueVisibility: () => void;
 }) {
+  const handlePairChange = useCallback(
+    (index: number, field: "key" | "value", value: string) => {
+      const newPairs = [...values];
+      newPairs[index] = { ...newPairs[index], [field]: value };
+      onChange(newPairs);
+    },
+    [values, onChange],
+  );
+
+  const handleAddPair = useCallback(() => {
+    onChange([...values, { key: "", value: "" }]);
+  }, [values, onChange]);
+
+  const handleRemovePair = useCallback(
+    (index: number) => {
+      if (values.length === 1) return; // Keep at least one pair
+      const newPairs = values.filter((_, i) => i !== index);
+      onChange(newPairs);
+    },
+    [values, onChange],
+  );
+
   return (
     <div className="space-y-3">
-      <div>
-        <label
-          htmlFor="cred-generic-key"
-          className="mb-1.5 block text-sm font-medium"
-        >
-          Key
-        </label>
-        <Input
-          id="cred-generic-key"
-          type="text"
-          placeholder="Secret key name"
-          value={values.key}
-          onChange={(e) => onChange("key", e.target.value)}
+      <div className="mb-1.5 flex items-center justify-between">
+        <label className="text-sm font-medium">Key-Value Pairs</label>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onToggleValueVisibility}
           disabled={disabled}
-        />
-      </div>
-      <div>
-        <label
-          htmlFor="cred-generic-value"
-          className="mb-1.5 block text-sm font-medium"
+          title={showValue ? "Hide values" : "Show values"}
         >
-          Value
-        </label>
-        <div className="relative">
+          {showValue ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </Button>
+      </div>
+      {values.map((pair, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-2"
+        >
           <Input
-            id="cred-generic-value"
-            type={showValue ? "text" : "password"}
-            placeholder="Secret value"
-            value={values.value}
-            onChange={(e) => onChange("value", e.target.value)}
+            type="text"
+            placeholder="Key"
+            value={pair.key}
+            onChange={(e) => handlePairChange(index, "key", e.target.value)}
             disabled={disabled}
-            className="pr-10"
+            className="flex-1"
+          />
+          <Input
+            type={showValue ? "text" : "password"}
+            placeholder="Value"
+            value={pair.value}
+            onChange={(e) => handlePairChange(index, "value", e.target.value)}
+            disabled={disabled}
+            className="flex-1"
           />
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="absolute top-1/2 right-1 -translate-y-1/2"
-            onClick={onToggleValueVisibility}
-            disabled={disabled}
-            title={showValue ? "Hide value" : "Show value"}
+            onClick={() => handleRemovePair(index)}
+            disabled={disabled || values.length === 1}
+            title={values.length === 1 ? "At least one pair required" : "Remove pair"}
+            className="text-muted-foreground hover:text-destructive disabled:opacity-30"
           >
-            {showValue ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            <Trash2 className="size-4" />
           </Button>
         </div>
+      ))}
+      <div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={handleAddPair}
+          disabled={disabled}
+          title="Add another pair"
+        >
+          <Plus className="size-4" />
+        </Button>
       </div>
     </div>
   );
@@ -432,8 +457,8 @@ function NewCredentialForm({
   );
 
   const handleGenericChange = useCallback(
-    (key: "key" | "value", value: string) => {
-      onChange({ ...formData, generic: { ...formData.generic, [key]: value } });
+    (pairs: Array<{ key: string; value: string }>) => {
+      onChange({ ...formData, generic: pairs });
     },
     [formData, onChange],
   );
@@ -479,19 +504,19 @@ function NewCredentialForm({
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="registry">
+              <SelectItem value="REGISTRY">
                 <div className="flex items-center gap-2">
                   <Package className="size-4" />
                   Registry
                 </div>
               </SelectItem>
-              <SelectItem value="data">
+              <SelectItem value="DATA">
                 <div className="flex items-center gap-2">
                   <Database className="size-4" />
                   Data
                 </div>
               </SelectItem>
-              <SelectItem value="generic">
+              <SelectItem value="GENERIC">
                 <div className="flex items-center gap-2">
                   <Lock className="size-4" />
                   Generic
@@ -503,7 +528,7 @@ function NewCredentialForm({
       )}
 
       {/* Type-specific fields */}
-      {formData.type === "registry" && (
+      {formData.type === "REGISTRY" && (
         <RegistryFields
           values={formData.registry}
           onChange={handleRegistryChange}
@@ -512,7 +537,7 @@ function NewCredentialForm({
           onTogglePasswordVisibility={onTogglePassword}
         />
       )}
-      {formData.type === "data" && (
+      {formData.type === "DATA" && (
         <DataFields
           values={formData.data}
           onChange={handleDataChange}
@@ -521,7 +546,7 @@ function NewCredentialForm({
           onToggleSecretVisibility={onTogglePassword}
         />
       )}
-      {formData.type === "generic" && (
+      {formData.type === "GENERIC" && (
         <GenericFields
           values={formData.generic}
           onChange={handleGenericChange}
@@ -552,189 +577,44 @@ function NewCredentialForm({
   );
 }
 
-// Individual credential item with stage+commit pattern
+// Individual credential item (read-only display with delete option)
 function CredentialItem({
   credential,
-  isExpanded,
-  isEditing,
-  stagedData,
-  isDirty,
-  onToggleExpand,
-  onStartEdit,
   onDelete,
-  onFormChange,
-  onSave,
-  onReset,
-  onCancel,
   isSaving,
-  showPassword,
-  onTogglePassword,
 }: {
   credential: Credential;
-  isExpanded: boolean;
-  isEditing: boolean;
-  stagedData: CredentialFormData | null;
-  isDirty: boolean;
-  onToggleExpand: () => void;
-  onStartEdit: () => void;
   onDelete: () => void;
-  onFormChange: (data: CredentialFormData) => void;
-  onSave: () => void;
-  onReset: () => void;
-  onCancel: () => void;
   isSaving: boolean;
-  showPassword: boolean;
-  onTogglePassword: () => void;
 }) {
-  // Get a display value based on credential type
-  const displayValue =
-    credential.type === "registry"
-      ? credential.registry?.url
-      : credential.type === "data"
-        ? credential.data?.endpoint
-        : credential.generic?.key;
-
-  const handleRegistryChange = useCallback(
-    (key: "url" | "username" | "password", value: string) => {
-      if (!stagedData) return;
-      onFormChange({ ...stagedData, registry: { ...stagedData.registry, [key]: value } });
-    },
-    [stagedData, onFormChange],
-  );
-
-  const handleDataChange = useCallback(
-    (key: "endpoint" | "access_key" | "secret_key", value: string) => {
-      if (!stagedData) return;
-      onFormChange({ ...stagedData, data: { ...stagedData.data, [key]: value } });
-    },
-    [stagedData, onFormChange],
-  );
-
-  const handleGenericChange = useCallback(
-    (key: "key" | "value", value: string) => {
-      if (!stagedData) return;
-      onFormChange({ ...stagedData, generic: { ...stagedData.generic, [key]: value } });
-    },
-    [stagedData, onFormChange],
-  );
-
-  const valid = stagedData ? isFormValid(stagedData) : false;
+  // Get display value from profile field (URL/endpoint for registry/data, null for generic)
+  const displayValue = credential.profile;
 
   return (
-    <Collapsible
-      open={isExpanded}
-      onOpenChange={onToggleExpand}
-    >
-      <div className={cn("overflow-hidden rounded-md border transition-colors", isDirty && "border-nvidia")}>
-        {/* Header */}
-        <div className="flex w-full items-center justify-between px-4 py-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">{credential.name}</span>
-            <div className="text-muted-foreground flex items-center gap-3 text-xs">
-              <Badge
-                variant="outline"
-                className="rounded font-mono text-[0.6875rem] tracking-wide uppercase"
-              >
-                {credential.type}
-              </Badge>
-              {displayValue && <span>{displayValue}</span>}
-              <span className="text-muted-foreground">{formatRelativeTime(credential.updated_at)}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditing && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Edit credential"
-                  onClick={() => {
-                    if (!isExpanded) {
-                      onStartEdit();
-                      onToggleExpand();
-                    }
-                  }}
-                  disabled={isSaving}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Delete credential"
-                  className="text-destructive hover:text-destructive"
-                  onClick={onDelete}
-                  disabled={isSaving}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Expanded content - only show fields if editing */}
-        <CollapsibleContent>
-          {isExpanded && isEditing && stagedData && (
-            <div className="space-y-4 border-t px-4 py-4">
-              {/* Type-specific fields */}
-              {stagedData.type === "registry" && (
-                <RegistryFields
-                  values={stagedData.registry}
-                  onChange={handleRegistryChange}
-                  disabled={isSaving}
-                  showPassword={showPassword}
-                  onTogglePasswordVisibility={onTogglePassword}
-                />
-              )}
-              {stagedData.type === "data" && (
-                <DataFields
-                  values={stagedData.data}
-                  onChange={handleDataChange}
-                  disabled={isSaving}
-                  showSecret={showPassword}
-                  onToggleSecretVisibility={onTogglePassword}
-                />
-              )}
-              {stagedData.type === "generic" && (
-                <GenericFields
-                  values={stagedData.generic}
-                  onChange={handleGenericChange}
-                  disabled={isSaving}
-                  showValue={showPassword}
-                  onToggleValueVisibility={onTogglePassword}
-                />
-              )}
-
-              {/* Cancel/Reset/Save buttons */}
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="ghost"
-                  onClick={onCancel}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={onReset}
-                  disabled={!isDirty || isSaving}
-                >
-                  Reset
-                </Button>
-                <Button
-                  className="bg-nvidia hover:bg-nvidia-dark disabled:opacity-50"
-                  onClick={onSave}
-                  disabled={!valid || !isDirty || isSaving}
-                >
-                  Save
-                </Button>
-              </div>
+    <div className="overflow-hidden rounded-md border">
+      <div className="flex w-full items-center justify-between px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium">{credential.cred_name}</span>
+          {displayValue && (
+            <div className="text-muted-foreground text-xs">
+              <span>{displayValue}</span>
             </div>
           )}
-        </CollapsibleContent>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Delete credential"
+            className="text-destructive hover:text-destructive"
+            onClick={onDelete}
+            disabled={isSaving}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
       </div>
-    </Collapsible>
+    </div>
   );
 }
 
@@ -807,12 +687,7 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newFormData, setNewFormData] = useState<CredentialFormData | null>(null);
 
-  // State for editing existing credentials (stage+commit pattern)
-  const [credentialEdits, setCredentialEdits] = useState<CredentialEdits>({});
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
-
-  // Password visibility state (per credential)
+  // Password visibility state for new credential form
   const [passwordVisibility, setPasswordVisibility] = useState<{ [key: string]: boolean }>({});
 
   // Delete confirmation state
@@ -849,103 +724,6 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
     }
   }, [newFormData, upsertCredential, announcer]);
 
-  // Handlers for expanding/collapsing
-  const handleToggleExpand = useCallback((credentialId: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(credentialId)) {
-        next.delete(credentialId);
-      } else {
-        next.add(credentialId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Handlers for editing (stage+commit)
-  const handleStartEdit = useCallback((credential: Credential) => {
-    setEditingIds((prev) => new Set(prev).add(credential.id));
-    setCredentialEdits((prev) => ({
-      ...prev,
-      [credential.id]: createFormDataFromCredential(credential),
-    }));
-  }, []);
-
-  const handleFormChange = useCallback((credentialId: string, data: CredentialFormData) => {
-    setCredentialEdits((prev) => ({
-      ...prev,
-      [credentialId]: data,
-    }));
-  }, []);
-
-  const handleSaveEdit = useCallback(
-    async (credentialId: string) => {
-      const formData = credentialEdits[credentialId];
-      if (!formData || !isFormValid(formData)) return;
-
-      try {
-        await upsertCredential(formDataToCredentialCreate(formData));
-        toast.success(`Credential "${formData.name}" updated successfully`);
-        announcer.announce(`Credential "${formData.name}" updated successfully`, "polite");
-        // Clear editing state after successful save
-        setEditingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(credentialId);
-          return next;
-        });
-        setCredentialEdits((prev) => {
-          const next = { ...prev };
-          delete next[credentialId];
-          return next;
-        });
-        // Collapse the credential
-        setExpandedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(credentialId);
-          return next;
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to update credential";
-        toast.error(message);
-        announcer.announce(`Error: ${message}`, "assertive");
-      }
-    },
-    [credentialEdits, upsertCredential, announcer],
-  );
-
-  const handleResetEdit = useCallback(
-    (credentialId: string) => {
-      const credential = credentials.find((c) => c.id === credentialId);
-      if (!credential) return;
-      setCredentialEdits((prev) => ({
-        ...prev,
-        [credentialId]: createFormDataFromCredential(credential),
-      }));
-    },
-    [credentials],
-  );
-
-  const handleCancelEdit = useCallback((credentialId: string) => {
-    // Clear editing state
-    setEditingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(credentialId);
-      return next;
-    });
-    // Clear edits
-    setCredentialEdits((prev) => {
-      const next = { ...prev };
-      delete next[credentialId];
-      return next;
-    });
-    // Collapse the credential
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(credentialId);
-      return next;
-    });
-  }, []);
-
   // Handlers for deleting credential
   const handleStartDelete = useCallback((credentialName: string) => {
     setDeleteConfirmName(credentialName);
@@ -978,20 +756,6 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
     }));
   }, []);
 
-  // Check if credential has unsaved edits
-  const isCredentialDirty = useCallback(
-    (credentialId: string): boolean => {
-      const credential = credentials.find((c) => c.id === credentialId);
-      if (!credential) return false;
-      const edit = credentialEdits[credentialId];
-      if (!edit) return false;
-
-      const original = createFormDataFromCredential(credential);
-      return JSON.stringify(original) !== JSON.stringify(edit);
-    },
-    [credentials, credentialEdits],
-  );
-
   const isMutating = isUpserting || isDeleting;
 
   return (
@@ -1008,8 +772,8 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
           </Badge>
         </CardTitle>
         <CardDescription>
-          Manage credentials for container registries, data storage, and generic secrets. Click a credential to expand,
-          then click Edit to modify.
+          Manage credentials for container registries, data storage, and generic secrets. Credentials cannot be edited -
+          delete and recreate to update.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -1043,96 +807,60 @@ export function CredentialsCard({ credentials }: CredentialsCardProps) {
           <p className="text-muted-foreground text-sm">No credentials configured</p>
         ) : (
           <div className="space-y-8">
-            {/* Registry Credentials */}
+            {/* Registry */}
             {grouped.registry.length > 0 && (
               <div>
                 <CredentialSectionHeader
                   icon={Package}
-                  title="Registry Credentials"
+                  title="Registry"
                 />
                 <div className="space-y-2">
                   {grouped.registry.map((cred: Credential) => (
                     <CredentialItem
-                      key={cred.id}
+                      key={cred.cred_name}
                       credential={cred}
-                      isExpanded={expandedIds.has(cred.id)}
-                      isEditing={editingIds.has(cred.id)}
-                      stagedData={credentialEdits[cred.id] ?? null}
-                      isDirty={isCredentialDirty(cred.id)}
-                      onToggleExpand={() => handleToggleExpand(cred.id)}
-                      onStartEdit={() => handleStartEdit(cred)}
-                      onDelete={() => handleStartDelete(cred.name)}
-                      onFormChange={(data) => handleFormChange(cred.id, data)}
-                      onSave={() => handleSaveEdit(cred.id)}
-                      onReset={() => handleResetEdit(cred.id)}
-                      onCancel={() => handleCancelEdit(cred.id)}
-                      isSaving={isUpserting}
-                      showPassword={passwordVisibility[cred.id] ?? false}
-                      onTogglePassword={() => handleTogglePassword(cred.id)}
+                      onDelete={() => handleStartDelete(cred.cred_name)}
+                      isSaving={isMutating}
                     />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Data Credentials */}
+            {/* Data */}
             {grouped.data.length > 0 && (
               <div>
                 <CredentialSectionHeader
                   icon={Database}
-                  title="Data Credentials"
+                  title="Data"
                 />
                 <div className="space-y-2">
                   {grouped.data.map((cred: Credential) => (
                     <CredentialItem
-                      key={cred.id}
+                      key={cred.cred_name}
                       credential={cred}
-                      isExpanded={expandedIds.has(cred.id)}
-                      isEditing={editingIds.has(cred.id)}
-                      stagedData={credentialEdits[cred.id] ?? null}
-                      isDirty={isCredentialDirty(cred.id)}
-                      onToggleExpand={() => handleToggleExpand(cred.id)}
-                      onStartEdit={() => handleStartEdit(cred)}
-                      onDelete={() => handleStartDelete(cred.name)}
-                      onFormChange={(data) => handleFormChange(cred.id, data)}
-                      onSave={() => handleSaveEdit(cred.id)}
-                      onReset={() => handleResetEdit(cred.id)}
-                      onCancel={() => handleCancelEdit(cred.id)}
-                      isSaving={isUpserting}
-                      showPassword={passwordVisibility[cred.id] ?? false}
-                      onTogglePassword={() => handleTogglePassword(cred.id)}
+                      onDelete={() => handleStartDelete(cred.cred_name)}
+                      isSaving={isMutating}
                     />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Generic Credentials */}
+            {/* Generic */}
             {grouped.generic.length > 0 && (
               <div>
                 <CredentialSectionHeader
                   icon={Lock}
-                  title="Generic Credentials"
+                  title="Generic"
                 />
                 <div className="space-y-2">
                   {grouped.generic.map((cred: Credential) => (
                     <CredentialItem
-                      key={cred.id}
+                      key={cred.cred_name}
                       credential={cred}
-                      isExpanded={expandedIds.has(cred.id)}
-                      isEditing={editingIds.has(cred.id)}
-                      stagedData={credentialEdits[cred.id] ?? null}
-                      isDirty={isCredentialDirty(cred.id)}
-                      onToggleExpand={() => handleToggleExpand(cred.id)}
-                      onStartEdit={() => handleStartEdit(cred)}
-                      onDelete={() => handleStartDelete(cred.name)}
-                      onFormChange={(data) => handleFormChange(cred.id, data)}
-                      onSave={() => handleSaveEdit(cred.id)}
-                      onReset={() => handleResetEdit(cred.id)}
-                      onCancel={() => handleCancelEdit(cred.id)}
-                      isSaving={isUpserting}
-                      showPassword={passwordVisibility[cred.id] ?? false}
-                      onTogglePassword={() => handleTogglePassword(cred.id)}
+                      onDelete={() => handleStartDelete(cred.cred_name)}
+                      isSaving={isMutating}
                     />
                   ))}
                 </div>

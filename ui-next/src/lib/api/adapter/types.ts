@@ -239,50 +239,34 @@ export interface ProfileUpdate {
 // =============================================================================
 
 /**
- * A credential entry with all relevant information.
+ * A credential entry (matches production format).
  * Supports multiple credential types: registry, data, and generic.
  */
 export interface Credential {
-  id: string;
-  name: string;
-  type: "registry" | "data" | "generic";
-  created_at: string;
-  updated_at: string;
-  // Type-specific fields
-  registry?: {
-    url: string;
-    username: string;
-    password: string;
-  };
-  data?: {
-    endpoint: string;
-    access_key: string;
-    secret_key: string;
-  };
-  generic?: {
-    key: string;
-    value: string;
-  };
+  cred_name: string;
+  cred_type: "REGISTRY" | "DATA" | "GENERIC";
+  profile: string | null; // URL/endpoint for registry/data, null for generic
 }
 
 /**
  * Payload for creating a new credential.
+ * Maps to backend's CredentialOptions structure.
+ * The cred_name is used as the URL path parameter, the rest goes in the body.
  */
 export interface CredentialCreate {
-  name: string;
-  type: "registry" | "data" | "generic";
-  registry?: {
-    url: string;
-    username: string;
-    password: string;
+  cred_name: string;
+  registry_credential?: {
+    registry?: string;
+    username?: string;
+    auth: string;
   };
-  data?: {
+  data_credential?: {
     endpoint: string;
+    region?: string;
+    access_key_id: string;
     access_key: string;
-    secret_key: string;
   };
-  generic?: {
-    key: string;
-    value: string;
+  generic_credential?: {
+    credential: Record<string, string>;
   };
 }
