@@ -206,8 +206,12 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
   // Filter versions to only include dataset entries (not collections)
   const datasetVersions = (raw.versions || []).filter(isDatasetEntry);
 
-  // Extract current version from versions array (latest version)
-  const latestVersion = datasetVersions.length > 0 ? datasetVersions[0] : null;
+  // Find highest version number (current version)
+  const currentVersionNumber =
+    datasetVersions.length > 0 ? Math.max(...datasetVersions.map((v) => parseInt(v.version, 10))) : 0;
+
+  // Find the latest version entry (for metadata)
+  const latestVersion = datasetVersions.find((v) => parseInt(v.version, 10) === currentVersionNumber) || null;
 
   return {
     dataset: {
@@ -215,7 +219,7 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
       name: raw.name,
       bucket: raw.bucket,
       path: raw.hash_location || "",
-      version: latestVersion ? parseInt(latestVersion.version, 10) : 0,
+      version: currentVersionNumber,
       created_at: raw.created_date || "",
       created_by: raw.created_by,
       updated_at: latestVersion?.created_date || raw.created_date || "",

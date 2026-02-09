@@ -25,11 +25,14 @@
 
 import { usePage } from "@/components/chrome/page-context";
 import { useQueryState } from "nuqs";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
+import { Info, History, FolderTree } from "lucide-react";
+import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
+import { TabPanel } from "@/components/panel/tab-panel";
 import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
 import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
-import { VersionsTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/VersionsTab";
+import { VersionsTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/VersionsTable";
 import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
+import { useMemo, useCallback } from "react";
 
 interface Props {
   bucket: string;
@@ -46,13 +49,30 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     history: "replace",
   });
 
+  // Tab configuration matching workflows pattern
+  const tabs = useMemo<PanelTab[]>(
+    () => [
+      { id: "overview", label: "Overview", icon: Info },
+      { id: "versions", label: "Versions", icon: History },
+      { id: "files", label: "File Browser", icon: FolderTree },
+    ],
+    [],
+  );
+
+  // Handle tab change
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value);
+    },
+    [setActiveTab],
+  );
+
   // Set page title and breadcrumbs with bucket filter link
   usePage({
     title: dataset ? dataset.name : name,
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
-      { label: name, href: null },
     ],
   });
 
@@ -72,45 +92,50 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <DatasetDetailHeader dataset={dataset} />
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 p-6">
+        <DatasetDetailHeader dataset={dataset} />
+      </div>
 
-      <Tabs
+      {/* Tab Navigation - Chrome-style tabs matching workflows */}
+      <PanelTabs
+        tabs={tabs}
         value={activeTab}
-        onValueChange={setActiveTab}
-      >
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="versions">Versions</TabsTrigger>
-          <TabsTrigger value="files">File Browser</TabsTrigger>
-        </TabsList>
+        onValueChange={handleTabChange}
+      />
 
-        <TabsContent
-          value="overview"
-          className="mt-6"
+      {/* Tab Content */}
+      <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
+        <TabPanel
+          tab="overview"
+          activeTab={activeTab}
+          padding="with-bottom"
         >
           <OverviewTab dataset={dataset} />
-        </TabsContent>
+        </TabPanel>
 
-        <TabsContent
-          value="versions"
-          className="mt-6"
+        <TabPanel
+          tab="versions"
+          activeTab={activeTab}
+          padding="with-bottom"
         >
-          <VersionsTab
+          <VersionsTable
             versions={versions}
             currentVersion={dataset.version}
           />
-        </TabsContent>
+        </TabPanel>
 
-        <TabsContent
-          value="files"
-          className="mt-6"
+        <TabPanel
+          tab="files"
+          activeTab={activeTab}
+          centered
+          className="p-4"
         >
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">File Browser (Phase 6)</p>
           </div>
-        </TabsContent>
-      </Tabs>
+        </TabPanel>
+      </div>
     </div>
   );
 }
