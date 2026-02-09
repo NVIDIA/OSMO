@@ -1412,24 +1412,24 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
   // Credentials
   // ==========================================================================
 
-  // Get credentials list
+  // Get credentials list (production format: { json: [...] })
   http.get("*/api/credentials", async () => {
     await delay(MOCK_DELAY);
 
     // If we have stored credentials, return those; otherwise return generated defaults
     if (mockCredentials.size > 0) {
       const credentials = Array.from(mockCredentials.values());
-      return HttpResponse.json(credentials);
+      return HttpResponse.json({ json: credentials });
     }
 
     // First time: generate defaults and store them
     const credentials = profileGenerator.generateCredentials(5);
     for (const cred of credentials) {
-      if (cred && typeof cred === "object" && "name" in cred) {
-        mockCredentials.set(cred.name as string, cred);
+      if (cred && typeof cred === "object" && "cred_name" in cred) {
+        mockCredentials.set(cred.cred_name as string, cred);
       }
     }
-    return HttpResponse.json(credentials);
+    return HttpResponse.json({ json: credentials });
   }),
 
   // Create or update credential (POST /api/credentials/{name})

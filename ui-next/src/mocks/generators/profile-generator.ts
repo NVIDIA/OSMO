@@ -67,26 +67,11 @@ export interface GeneratedApiKey {
   expires_at?: string;
 }
 
+// Match production format
 export interface GeneratedCredential {
-  id: string;
-  name: string;
-  type: "registry" | "data" | "generic";
-  created_at: string;
-  updated_at: string;
-  registry?: {
-    url: string;
-    username: string;
-    password: string;
-  };
-  data?: {
-    endpoint: string;
-    access_key: string;
-    secret_key: string;
-  };
-  generic?: {
-    key: string;
-    value: string;
-  };
+  cred_name: string;
+  cred_type: "REGISTRY" | "DATA" | "GENERIC";
+  profile: string | null;
 }
 
 // ============================================================================
@@ -98,6 +83,13 @@ export class ProfileGenerator {
 
   constructor(baseSeed: number = 66666) {
     this.baseSeed = baseSeed;
+  }
+
+  /**
+   * Capitalize first letter of a string
+   */
+  private capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   /**
@@ -196,7 +188,7 @@ export class ProfileGenerator {
   }
 
   /**
-   * Generate credentials list
+   * Generate credentials list in production format
    * Ensures at least one credential of each type (registry, data, generic)
    */
   generateCredentials(count: number = 5): GeneratedCredential[] {
@@ -204,15 +196,15 @@ export class ProfileGenerator {
     const credentials: GeneratedCredential[] = [];
 
     // Ensure we have at least one of each type
-    const types: Array<"registry" | "data" | "generic"> = ["registry", "data", "generic"];
+    const types: Array<"REGISTRY" | "DATA" | "GENERIC"> = ["REGISTRY", "DATA", "GENERIC"];
     const minCount = Math.max(count, types.length);
 
     for (let i = 0; i < minCount; i++) {
       // For the first 3 credentials, guarantee one of each type
       // After that, pick randomly
-      const type = i < types.length ? types[i] : faker.helpers.arrayElement(types);
+      const cred_type = i < types.length ? types[i] : faker.helpers.arrayElement(types);
 
-      const name = faker.helpers.arrayElement([
+      const baseName = faker.helpers.arrayElement([
         "my-ngc-cred",
         "docker-hub-cred",
         "s3-data-cred",
@@ -222,41 +214,21 @@ export class ProfileGenerator {
         "github-token",
       ]);
 
-      const baseCredential = {
-        id: faker.string.uuid(),
-        name: `${name}-${i}`,
-        type,
-        created_at: faker.date.past({ years: 1 }).toISOString(),
-        updated_at: faker.date.recent({ days: 30 }).toISOString(),
-      };
+      const cred_name = `${baseName}-${i}`;
 
-      if (type === "registry") {
-        credentials.push({
-          ...baseCredential,
-          registry: {
-            url: faker.helpers.arrayElement(["nvcr.io", "docker.io", "ghcr.io", "quay.io"]),
-            username: faker.helpers.arrayElement(["$oauthtoken", faker.internet.username()]),
-            password: faker.string.alphanumeric(32),
-          },
-        });
-      } else if (type === "data") {
-        credentials.push({
-          ...baseCredential,
-          data: {
-            endpoint: `s3.${faker.location.countryCode().toLowerCase()}-${faker.helpers.arrayElement(["east", "west"])}-1.amazonaws.com`,
-            access_key: `AKIA${faker.string.alphanumeric(16).toUpperCase()}`,
-            secret_key: faker.string.alphanumeric(40),
-          },
-        });
-      } else {
-        credentials.push({
-          ...baseCredential,
-          generic: {
-            key: faker.helpers.arrayElement(["API_TOKEN", "SSH_KEY", "GITHUB_TOKEN", "SLACK_WEBHOOK"]),
-            value: faker.string.alphanumeric(32),
-          },
-        });
+      // Production format: profile field contains the URL/endpoint for registry/data, null for generic
+      let profile: string | null = null;
+      if (cred_type === "REGISTRY") {
+        profile = faker.helpers.arrayElement(["nvcr.io", "docker.io", "ghcr.io", "quay.io"]);
+      } else if (cred_type === "DATA") {
+        profile = `s3://${faker.location.countryCode().toLowerCase()}-bucket-${i}`;
       }
+
+      credentials.push({
+        cred_name,
+        cred_type,
+        profile,
+      });
     }
 
     return credentials;
@@ -267,11 +239,7 @@ export class ProfileGenerator {
    */
   getCredentialByName(name: string): GeneratedCredential | undefined {
     const credentials = this.generateCredentials(10);
-    return credentials.find((c) => c.name === name);
-  }
-
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return credentials.find((c) => c.cred_name === name);
   }
 }
 

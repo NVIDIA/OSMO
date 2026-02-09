@@ -32,7 +32,13 @@ import {
   transformCredential,
 } from "@/lib/api/adapter/transforms";
 
-import type { PoolResourcesResponse, AllResourcesResponse, ProfileUpdate, CredentialCreate, UserProfile } from "@/lib/api/adapter/types";
+import type {
+  PoolResourcesResponse,
+  AllResourcesResponse,
+  ProfileUpdate,
+  CredentialCreate,
+  UserProfile,
+} from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
   invalidateResourcesCache,
@@ -922,30 +928,12 @@ export function useUpsertCredential() {
   // Wrap to provide cleaner API with our types
   const mutateAsync = useCallback(
     async (credential: CredentialCreate) => {
-      // Transform our CredentialCreate to backend's CredentialOptions format
-      const backendPayload: CredentialOptions = {};
-
-      if (credential.type === "registry" && credential.registry) {
-        backendPayload.registry_credential = {
-          registry: credential.registry.url,
-          username: credential.registry.username,
-          auth: credential.registry.password,
-        };
-      } else if (credential.type === "data" && credential.data) {
-        backendPayload.data_credential = {
-          endpoint: credential.data.endpoint,
-          access_key_id: credential.data.access_key,
-          access_key: credential.data.secret_key,
-        };
-      } else if (credential.type === "generic" && credential.generic) {
-        backendPayload.generic_credential = {
-          credential: { [credential.generic.key]: credential.generic.value },
-        };
-      }
+      // Extract cred_name for URL path, rest is the body payload
+      const { cred_name, ...backendPayload } = credential;
 
       const result = await mutation.mutateAsync({
-        credName: credential.name,
-        data: backendPayload,
+        credName: cred_name,
+        data: backendPayload as CredentialOptions,
       });
       return transformCredential(result);
     },
