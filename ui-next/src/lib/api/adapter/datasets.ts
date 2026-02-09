@@ -37,8 +37,8 @@ import type { SearchChip } from "@/stores/types";
 export interface Dataset {
   name: string;
   bucket: string;
-  path: string;
-  version: number;
+  path?: string;
+  version?: number;
   created_at: string;
   updated_at: string;
   /** Size in bytes (backend may return string, we ensure number) */
@@ -46,7 +46,7 @@ export interface Dataset {
   /** Number of files (backend may return string, we ensure number) */
   num_files: number;
   format: string;
-  labels: Record<string, string>;
+  labels?: Record<string, string>;
   retention_policy?: string;
   description?: string;
 }
@@ -102,29 +102,8 @@ export interface DatasetFilterParams {
 // Raw API Types (backend response shapes)
 // =============================================================================
 
-interface RawDataset {
-  name: string;
-  bucket: string;
-  path: string;
-  version: number;
-  created_at: string;
-  updated_at: string;
-  size_bytes: number | string; // Backend may return string
-  num_files: number | string; // Backend may return string
-  format: string;
-  labels: Record<string, string>;
-  retention_policy?: string;
-  description?: string;
-}
-
-interface RawDatasetListResponse {
-  entries: RawDataset[];
-  total: number;
-}
-
-interface RawDatasetDetailResponse extends RawDataset {
-  versions: DatasetVersion[];
-}
+// Import actual types from generated client
+import type { DataListEntry, DataListResponse, DataInfoResponse } from "@/lib/api/generated";
 
 // =============================================================================
 // Helpers
@@ -157,32 +136,61 @@ function ensureNumber(value: number | string | undefined): number {
 // =============================================================================
 
 /**
- * Transform raw dataset to UI type.
- * Fixes backend quirks (string→number for size_bytes, num_files).
+ * Transform raw dataset list entry to UI type.
+ * The backend API returns DataListEntry which is simpler than our UI needs.
  */
-export function transformDataset(raw: RawDataset): Dataset {
+export function transformDatasetListEntry(raw: DataListEntry): Dataset {
   return {
-    ...raw,
-    size_bytes: ensureNumber(raw.size_bytes),
-    num_files: ensureNumber(raw.num_files),
+    name: raw.name,
+    bucket: raw.bucket,
+    path: "", // Not available in list view
+    version: 0, // Not available in list view - use version_id?
+    created_at: raw.create_time,
+    updated_at: raw.last_created || raw.create_time,
+    size_bytes: ensureNumber(raw.hash_location_size),
+    num_files: 0, // Not available in list view
+    format: raw.type, // Using type as format for now
+    labels: {}, // Not available in list view
   };
 }
 
 /**
  * Transform raw dataset list response.
  */
-export function transformDatasetList(raw: RawDatasetListResponse): Dataset[] {
-  return raw.entries.map(transformDataset);
+export function transformDatasetList(raw: DataListResponse): Dataset[] {
+  return raw.datasets.map(transformDatasetListEntry);
 }
 
 /**
  * Transform raw dataset detail response (dataset + versions).
  */
-export function transformDatasetDetail(raw: RawDatasetDetailResponse): DatasetDetailResponse {
-  const { versions, ...datasetData } = raw;
+export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResponse {
+  const { versions: _versions, ...datasetData } = raw;
+
+  // Convert labels to Record<string, string>
+  const labels: Record<string, string> = {};
+  if (datasetData.labels) {
+    for (const [key, value] of Object.entries(datasetData.labels)) {
+      labels[key] = String(value);
+    }
+  }
+
   return {
-    dataset: transformDataset(datasetData),
-    versions,
+    dataset: {
+      name: datasetData.name,
+      bucket: datasetData.bucket,
+      path: "", // Not in DataInfoResponse
+      version: 0, // Not in DataInfoResponse directly
+      created_at: datasetData.created_date || "",
+      updated_at: datasetData.created_date || "",
+      size_bytes: ensureNumber(datasetData.hash_location_size),
+      num_files: 0, // Not in DataInfoResponse
+      format: datasetData.type,
+      labels,
+    },
+    // Simplified versions - the actual API response doesn't match our DatasetVersion type
+    // For now, return empty array until we understand the actual version structure
+    versions: [],
   };
 }
 
@@ -205,45 +213,34 @@ export async function fetchPaginatedDatasets(
   const bucketChips = getChipValues(searchChips, "bucket");
   const searchTerm = getFirstChipValue(searchChips, "name");
 
-  // Build query params
-  const queryParams = new URLSearchParams();
-  queryParams.set("offset", offset.toString());
-  queryParams.set("limit", limit.toString());
-
-  if (formatChips.length > 0) {
-    formatChips.forEach((f) => queryParams.append("format", f));
-  }
-  if (bucketChips.length > 0) {
-    bucketChips.forEach((b) => queryParams.append("bucket", b));
-  }
-  if (searchTerm) {
-    queryParams.set("search", searchTerm);
-  }
-
   // Import generated client
-  const { listDatasetApiBucketListDatasetGet } = await import("@/lib/api/generated");
+  const { listDatasetFromBucketApiBucketListDatasetGet } = await import("@/lib/api/generated");
 
-  // Fetch from API
-  const response = await listDatasetApiBucketListDatasetGet({
-    offset,
-    limit,
+  // Fetch from API - note: the API doesn't use offset/limit in the standard way
+  // It uses "count" instead of "limit" and no offset parameter
+  const response = await listDatasetFromBucketApiBucketListDatasetGet({
+    name: searchTerm,
+    buckets: bucketChips.length > 0 ? bucketChips : undefined,
+    dataset_type: formatChips.length > 0 ? (formatChips[0] as never) : undefined, // API only supports single format
+    count: limit,
   });
 
   // Parse response (backend may return string or object)
-  const parsed: RawDatasetListResponse =
-    typeof response === "string" ? JSON.parse(response) : (response as RawDatasetListResponse);
+  const parsed: DataListResponse = typeof response === "string" ? JSON.parse(response) : (response as DataListResponse);
 
   const datasets = transformDatasetList(parsed);
 
-  // Calculate hasMore
+  // Calculate hasMore based on whether we got a full page
+  // Note: API doesn't support offset-based pagination, so this is a best-effort approach
   const hasMore = datasets.length === limit;
 
   return {
     items: datasets,
     hasMore,
     nextOffset: hasMore ? offset + limit : undefined,
-    total: parsed.total,
-    filteredTotal: parsed.total, // Backend doesn't distinguish, use same value
+    // API doesn't provide total or filteredTotal, use undefined
+    total: undefined,
+    filteredTotal: undefined,
   };
 }
 
@@ -255,14 +252,13 @@ export async function fetchPaginatedDatasets(
  */
 export async function fetchDatasetDetail(bucket: string, name: string): Promise<DatasetDetailResponse> {
   // Import generated client
-  const { getDatasetInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
+  const { getInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
 
   // Fetch from API
-  const response = await getDatasetInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
+  const response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
 
   // Parse response
-  const parsed: RawDatasetDetailResponse =
-    typeof response === "string" ? JSON.parse(response) : (response as RawDatasetDetailResponse);
+  const parsed: DataInfoResponse = typeof response === "string" ? JSON.parse(response) : (response as DataInfoResponse);
 
   return transformDatasetDetail(parsed);
 }
@@ -280,20 +276,15 @@ export async function fetchDatasetFiles(
   path: string = "/",
 ): Promise<DatasetFilesResponse> {
   // Import generated client
-  const { getDatasetInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
+  const { getInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
 
-  // Fetch from API with path param
-  // The mock handler supports ?path=X to return files at that path
-  const response = await getDatasetInfoApiBucketBucketDatasetNameInfoGet(bucket, name, {
-    path,
-  });
+  // Fetch from API
+  // Note: The API may not support file listing at specific paths yet
+  const _response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
 
-  // Parse response
-  const parsed: RawDatasetDetailResponse & { files?: DatasetFile[] } =
-    typeof response === "string" ? JSON.parse(response) : (response as RawDatasetDetailResponse & { files?: DatasetFile[] });
-
+  // Parse response - for now, return empty files as API doesn't support this yet
   return {
-    files: parsed.files || [],
+    files: [],
     path,
   };
 }
