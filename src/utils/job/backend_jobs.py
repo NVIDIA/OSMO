@@ -282,11 +282,8 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
         need_retry = False
         err_message = None
 
-        # Normalize cleanup_specs to always be a list (backwards compatibility)
-        cleanup_specs_list = (
-            self.cleanup_specs if isinstance(self.cleanup_specs, list)
-            else [self.cleanup_specs]
-        )
+        # cleanup_specs is already a List[BackendCleanupSpec]
+        cleanup_specs_list = self.cleanup_specs
 
         def create_cleanup_message(before: bool, resources: Any, error: str | None = None):
             resources_list = [resource.metadata.name for resource in resources.items] \
@@ -605,7 +602,7 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
         """
         Executes the job. Synchronizes all scheduler K8s objects.
         """
-        # Normalize cleanup_specs to always be a list (backwards compatibility)
+        # Normalize cleanup_specs to always be a list (Union type allows single item)
         cleanup_specs_list = (
             self.cleanup_specs if isinstance(self.cleanup_specs, list)
             else [self.cleanup_specs]
