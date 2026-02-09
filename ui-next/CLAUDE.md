@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this Next.js 16 + React 19 codebase.
 
 ## 🚨 CRITICAL - Verification Before Declaring Done
 
@@ -17,66 +17,33 @@ cd external/ui-next && pnpm type-check && pnpm lint && pnpm test --run
 - ❌ NEVER use `any` type
 - ✅ ALWAYS resolve the root cause properly
 
-**After all checks pass, format the code:**
+**After all checks pass:**
 ```bash
 pnpm format
 ```
 
-## Communication Guidelines
-
-**When the user asks to save something as a document or plan:**
-- Save it immediately as the requested file format (e.g., markdown file at project root)
-- Do NOT start implementing the plan or writing code unless explicitly asked to implement
-- Focus on documentation first, implementation second
-
 ## Development Commands
 
-### Daily Workflow
 ```bash
-pnpm dev                    # Start dev server (default backend from .env.local)
-pnpm dev:local              # Dev server → localhost:8000
-pnpm dev:mock               # Dev with mock data (no backend needed!)
-```
+# Daily workflow
+pnpm dev                    # Start dev server
+pnpm dev:mock               # Dev with mock data (no backend)
 
-### Code Quality
-```bash
-pnpm lint                   # ESLint (includes React Compiler checks)
+# Code quality
+pnpm lint                   # ESLint + React Compiler checks
 pnpm type-check             # TypeScript check
 pnpm format                 # Prettier format
 
-# Before commit
-pnpm type-check && pnpm lint && pnpm test && pnpm build
+# Testing
+pnpm test                   # Unit tests (Vitest)
+pnpm test:e2e:ui            # E2E tests interactive UI
+pnpm test:all               # All tests
+
+# API generation
+pnpm generate-api           # Regenerate from backend OpenAPI spec
 ```
 
-### Testing
-```bash
-# Unit tests (Vitest)
-pnpm test                   # Run once
-pnpm test:watch             # Watch mode
-pnpm test -- transforms     # Filter by name
-
-# E2E tests (Playwright)
-pnpm test:e2e               # Headless
-pnpm test:e2e:ui            # Interactive UI (best for debugging)
-pnpm test:e2e -- auth       # Filter by file name
-
-# Run all tests
-pnpm test:all
-```
-
-### API Generation
-```bash
-pnpm generate-api           # Regenerate API client from backend OpenAPI spec
-```
-
-This runs from the parent directory (`external/`):
-1. `bazel run //src/service:export_openapi` → exports `openapi.json`
-2. `bazel run //src/service:export_status_metadata` → generates status metadata
-3. `orval` → generates TypeScript client in `src/lib/api/generated.ts`
-
-## Architecture Overview
-
-### Layer Pattern
+## Architecture: The Critical Layer Pattern
 
 ```
 Page → Headless Hook → Adapter Hook → Generated API → Backend
@@ -84,633 +51,141 @@ Page → Headless Hook → Adapter Hook → Generated API → Backend
      Themed Components
 ```
 
-**Critical concept**: The UI is designed for an **ideal backend** that doesn't fully exist yet. The adapter layer bridges the gap.
-
-### Directory Structure
-
-```
-src/
-├── app/                    # Next.js App Router pages
-│   ├── (dashboard)/        # Authenticated pages (pools, resources, workflows)
-│   ├── auth/               # Auth API routes (handled by Envoy in production)
-│   └── api/                # Proxy routes to backend
-│
-├── components/
-│   ├── shadcn/             # shadcn/ui primitives (Button, Input, etc.)
-│   ├── shell/              # Layout (Header, Sidebar)
-│   ├── data-table/         # Reusable data table with virtualization
-│   ├── filter-bar/         # SmartSearch component
-│   ├── log-viewer/         # Terminal/log viewer (xterm.js)
-│   └── dag/                # Workflow DAG visualization
-│
-├── lib/
-│   ├── api/
-│   │   ├── adapter/        # **THE CRITICAL LAYER** - transforms backend → ideal types
-│   │   ├── generated.ts    # Auto-generated from OpenAPI (NEVER EDIT)
-│   │   └── fetcher.ts      # Auth-aware fetch wrapper
-│   ├── auth/               # Authentication logic (Envoy in prod, local dev mode)
-│   ├── hooks/              # Shared React hooks
-│   └── [utils...]          # Utility functions
-│
-├── mocks/                  # MSW mock handlers for hermetic dev mode
-│   ├── generators/         # Deterministic data generators
-│   └── seed/               # Mock configuration
-│
-└── stores/                 # Zustand stores (minimal global state)
-```
-
-### The Adapter Layer (Critical!)
-
-Location: `src/lib/api/adapter/`
-
-**Purpose**: Transforms backend responses that don't match UI expectations.
+**Critical concept**: The adapter layer (`src/lib/api/adapter/`) transforms backend responses to match UI expectations. The backend has quirks—the adapter bridges the gap.
 
 ```typescript
-// ❌ DON'T import generated types/hooks directly in pages/components
+// ❌ DON'T import generated types/hooks directly
 import { usePools } from '@/lib/api/generated';
 
-// ✅ DO use adapter hooks and types (domain-based)
+// ✅ DO use adapter hooks and types
 import { usePools, type Pool } from '@/lib/api/adapter/pools';
 import { useResources, type Resource } from '@/lib/api/adapter/resources';
-import { useWorkflows, type WorkflowQueryResponse } from '@/lib/api/adapter/workflows';
+import { useWorkflows } from '@/lib/api/adapter/workflows';
+
+// ✅ Enums MUST come from generated for type safety
+import { PoolStatus, WorkflowStatus, WorkflowPriority } from '@/lib/api/generated';
 ```
 
-**Why it exists**: The backend has quirks (numeric fields as strings, missing pagination, etc.). The adapter transforms responses to what the UI expects. When backend is fixed, remove the transform.
+**See `src/lib/api/adapter/BACKEND_TODOS.md`** for 22 backend issues and workarounds.
 
-**Domain-based organization:**
-- `pools.ts` - Pool types + hooks + transforms
-- `resources.ts` - Resource types + hooks + transforms
-- `workflows.ts` - Workflow types + hooks + transforms
-- `transforms.ts` - Shared transform utilities
-- `BACKEND_TODOS.md` - Documents 22 backend issues and workarounds
+## Import Rules: Absolute + Direct Only
 
-**Important**: When adding new API usage, add domain-specific types and hooks to the appropriate file (pools/resources/workflows).
-
-### Authentication
-
-**Production**: Handled by Envoy sidecar. Next.js receives `x-osmo-user` header and `Authorization: Bearer <token>`.
-
-**Local Development**: Use `pnpm dev` with `.env.local`:
-```bash
-NEXT_PUBLIC_OSMO_API_HOSTNAME=staging.example.com
-AUTH_CLIENT_SECRET=your-keycloak-secret
-```
-
-Open http://localhost:3000 and follow the login prompt to transfer your session.
-
-**See**: `src/lib/auth/README.md` for details.
-
-### Feature Modules
-
-Each feature (`pools`, `resources`, `workflows`) follows a **flat, co-located structure**:
-
-```
-app/(dashboard)/pools/
-├── page.tsx                    # Next.js page (composition only)
-├── PoolsPageContent.tsx        # Page content component
-├── PoolsToolbar.tsx            # Toolbar component
-├── PoolsTable.tsx              # Table component
-├── use-pools-data.ts           # Business logic hook
-├── pool-columns.ts             # Column configuration
-├── pool-constants.ts           # Feature constants
-├── pool-search-fields.ts       # Search configuration
-└── stores/
-    └── pools-table-store.ts    # Zustand store
-```
-
-**Import rule**: Always use **direct imports** to source files. No barrel exports (index.ts).
-
-```typescript
-// ✅ REQUIRED: Direct imports
-import { usePoolsData } from '@/app/(dashboard)/pools/use-pools-data';
-import { POOL_SEARCH_FIELDS } from '@/app/(dashboard)/pools/pool-search-fields';
-import { usePoolsTableStore } from '@/app/(dashboard)/pools/stores/pools-table-store';
-
-// ❌ FORBIDDEN: Barrel exports (ESLint will error)
-import { usePoolsData } from '@/app/(dashboard)/pools';
-```
-
-**Why direct imports:**
-- ✅ Perfect tree shaking (only bundle what's imported)
-- ✅ Fast HMR (changing one file doesn't invalidate entire module)
-- ✅ Clear dependencies (explicit what depends on what)
-- ✅ React Server Components safe (no client/server mixing)
-- ✅ No phantom module references in Turbopack
-
-### Import Patterns: Absolute Imports Only
-
-**MANDATORY: ALL imports must use absolute @/ paths. Relative imports are STRICTLY FORBIDDEN.**
-
-This rule has **NO EXCEPTIONS, NO EXEMPTIONS, NO TRANSITIONAL PERIOD**. Every import in the codebase must use the `@/` prefix.
+**MANDATORY: All imports MUST use absolute @/ paths. Relative imports are STRICTLY FORBIDDEN.**
 
 ```typescript
 // ✅ REQUIRED: Absolute imports with @/ prefix
 import { Button } from "@/components/shadcn/button";
-import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
-import { PoolCard } from "@/app/(dashboard)/pools/components/PoolCard";
-import { calculateDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { usePoolsData } from "@/app/(dashboard)/pools/use-pools-data";
+import { DataTable } from "@/components/data-table/DataTable";
 
 // ❌ FORBIDDEN: Relative imports (ESLint will ERROR)
 import { Button } from "./button";
 import { Button } from "../shadcn/button";
-import { Button } from "../../components/shadcn/button";
-import { usePoolsData } from "../hooks/use-pools-data";
 ```
 
-**Why absolute imports are mandatory:**
-- ✅ **Refactor-safe**: Moving files never breaks imports
-- ✅ **HMR stability**: Clearer module graph, no path resolution ambiguity
-- ✅ **Searchable**: Grep finds exact import paths across codebase
-- ✅ **Consistent**: Zero decision fatigue, one pattern always
-- ✅ **Clear boundaries**: Can see immediately if crossing feature boundaries
-- ✅ **Onboarding**: New developers learn one pattern, not context-dependent rules
-
-**Enforcement:**
-- ESLint rule errors on any relative import pattern (`./*`, `../*`)
-- No overrides, no disable comments allowed
-- CI will fail if relative imports are detected
-
-### Import Patterns: The Direct Import Rule
-
-**CRITICAL:** All imports must be direct to source files. Barrel exports (index.ts) are **forbidden**.
-
-#### Type Imports: Adapter vs Generated
-
-```typescript
-// ❌ FORBIDDEN: Types from generated change without notice
-import type { Pool } from "@/lib/api/generated";
-
-// ✅ REQUIRED: Types from adapter (domain-based)
-import type { Pool } from "@/lib/api/adapter/pools";
-import type { Resource } from "@/lib/api/adapter/resources";
-import type { WorkflowQueryResponse } from "@/lib/api/adapter/workflows";
-
-// ✅ REQUIRED: Enums MUST come from generated for type safety
-import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
-```
-
-#### Component Imports
-
-```typescript
-// ✅ REQUIRED: Direct imports (follows shadcn/ui pattern)
-import { Button } from "@/components/shadcn/button";
-import { Dialog } from "@/components/shadcn/dialog";
-import { DataTable } from "@/components/data-table/DataTable";
-import { FilterBar } from "@/components/filter-bar/FilterBar";
-
-// ❌ FORBIDDEN: Barrel exports (ESLint will error)
-import { Button, Dialog } from "@/components/shadcn";
-import { DataTable } from "@/components/data-table";
-```
-
-#### Hook Imports
-
-```typescript
-// ✅ REQUIRED: Direct to source file
-import { useCopy } from "@/hooks/use-copy";
-import { useAnnouncer } from "@/hooks/use-announcer";
-import { usePanelState } from "@/hooks/use-url-state";
-
-// ❌ FORBIDDEN: Barrel exports
-import { useCopy, useAnnouncer } from "@/hooks";
-```
-
-#### Store Imports
+**CRITICAL: All imports must be direct to source files. Barrel exports (index.ts) are forbidden.**
 
 ```typescript
 // ✅ REQUIRED: Direct imports
+import { useCopy } from "@/hooks/use-copy";
 import { createTableStore } from "@/stores/create-table-store";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
 
 // ❌ FORBIDDEN: Barrel exports
+import { useCopy } from "@/hooks";
 import { createTableStore } from "@/stores";
 ```
 
-**Why direct imports matter:**
-- ✅ **Tree shaking**: Bundler only includes imported files (not entire barrel)
-- ✅ **HMR performance**: Editing one file doesn't invalidate barrel consumers
-- ✅ **RSC safety**: Clear client/server boundaries, no accidental mixing
-- ✅ **Type safety**: Backend changes → TypeScript errors (not silent failures)
-- ✅ **Turbopack compatibility**: No phantom module references or HMR bugs
+**Why:** Perfect tree shaking, fast HMR, clear dependencies, RSC safety, Turbopack compatibility.
 
-## Critical Rules
-
-### Production/Mock Code Separation
-
-**NEVER add mock-related code, debug logic, or test instrumentation to production source files.**
-
-Mock systems must be completely isolated from production code paths. If you find yourself importing mock utilities or adding conditional mock checks in production files, STOP and find an alternative approach:
-
-- ✅ Use aliasing (e.g., next.config.ts rewrites)
-- ✅ Use separate entry points
-- ✅ Use build-time substitution
-- ❌ NEVER import from `src/mocks/` in production files
-- ❌ NEVER add `if (process.env.NODE_ENV === 'development')` mock checks in production code
-- ❌ NEVER add MSW handlers or mock utilities to production source files
-
-**Why this matters:** Production bundles must be clean, secure, and contain zero test/mock infrastructure. Mock code leaking into production creates security vulnerabilities, increases bundle size, and can cause runtime errors.
-
-## Forbidden Patterns - NEVER DO THESE
+## Forbidden Patterns
 
 ```typescript
-// ❌ FORBIDDEN: Relative imports (STRICT - NO EXCEPTIONS)
-import { Button } from "./button";
-import { Button } from "../components/button";
-import { usePoolsData } from "../../hooks/use-pools-data";
-import { PoolCard } from "./PoolCard";
-
-// ✅ REQUIRED: Absolute imports with @/ prefix ALWAYS
-import { Button } from "@/components/shadcn/button";
-import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
-import { PoolCard } from "@/app/(dashboard)/pools/components/PoolCard";
-```
-
-```typescript
-// ❌ FORBIDDEN: String literals for enums
+// ❌ String literals for enums
 if (pool.status === "ONLINE") { ... }
-if (workflow.priority === "HIGH") { ... }
-const statuses = ["RUNNING", "COMPLETED"];
 
-// ✅ REQUIRED: Use generated enums for type safety
-import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
+// ✅ Use generated enums
+import { PoolStatus } from "@/lib/api/generated";
 if (pool.status === PoolStatus.ONLINE) { ... }
-if (workflow.priority === WorkflowPriority.HIGH) { ... }
-const statuses = [WorkflowStatus.RUNNING, WorkflowStatus.COMPLETED];
 ```
 
 ```typescript
-// ❌ FORBIDDEN: Manual fetch patterns
+// ❌ Manual fetch patterns
 const [data, setData] = useState(null);
-const [loading, setLoading] = useState(true);
 useEffect(() => { fetch(...).then(setData); }, []);
 
-// ✅ REQUIRED: TanStack Query via adapter hooks
-const { pools, isLoading, error } = usePools();
-```
-
-```typescript
-// ❌ FORBIDDEN: Non-semantic interactive elements
-<div onClick={handleClick}>Click me</div>
-<span role="button" onClick={handleClick}>Action</span>
-
-// ✅ REQUIRED: Semantic HTML or shadcn components
-<Button onClick={handleClick}>Click me</Button>
-<button onClick={handleClick}>Action</button>
-```
-
-```tsx
-// ❌ FORBIDDEN: Buttons that show only the action (not current state)
-<Tooltip>
-  <TooltipTrigger asChild>
-    <Button onClick={toggleCompactMode}>
-      <Rows4 className="size-4" /> {/* Always shows compact icon */}
-    </Button>
-  </TooltipTrigger>
-  <TooltipContent>Switch to compact</TooltipContent>
-</Tooltip>
-
-// ✅ REQUIRED: SemiStatefulButton for state-aware toggles
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-<SemiStatefulButton
-  onClick={toggleCompactMode}
-  currentStateIcon={compactMode ? <Rows4 /> : <Rows3 />}
-  nextStateIcon={compactMode ? <Rows3 /> : <Rows4 />}
-  currentStateLabel={compactMode ? "Compact View" : "Comfortable View"}
-  nextStateLabel={compactMode ? "Switch to Comfortable" : "Switch to Compact"}
-/>
-```
-
-```typescript
-// ❌ FORBIDDEN: Defining your own enum-like types
-type Priority = "HIGH" | "NORMAL" | "LOW";
-type Status = "ONLINE" | "OFFLINE";
-
-// ✅ REQUIRED: Derive from generated enums
-import { WorkflowPriority, PoolStatus } from "@/lib/api/generated";
-type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
-```
-
-```typescript
-// ❌ FORBIDDEN: Hardcoded arrays of enum values
-const ALL_STATUSES = ["PENDING", "RUNNING", "COMPLETED", "FAILED"];
-
-// ✅ REQUIRED: Derive from generated enum
-import { WorkflowStatus } from "@/lib/api/generated";
-const ALL_STATUSES = Object.values(WorkflowStatus);
+// ✅ TanStack Query via adapter
+const { pools, isLoading } = usePools();
 ```
 
 ```typescript
 // ❌ CRITICAL BUG: Returning new objects every render
-// This causes cascading re-renders, canceled requests, and performance issues
 function useConfig() {
   const [value] = useQueryState("key");
   return {
-    params: { key: value },           // NEW object every render!
-    options: { flag: true },          // NEW object every render!
+    params: { key: value },  // NEW object every render!
   };
 }
 
-// ✅ REQUIRED: Memoize returned objects to stabilize references
+// ✅ Memoize returned objects
 function useConfig() {
   const [value] = useQueryState("key");
-
-  // Memoize objects - only create new instance when dependencies change
   const params = useMemo(() => ({ key: value }), [value]);
-  const options = useMemo(() => ({ flag: true }), []); // Constant, no deps
+  return { params };
+}
+// WHY: React Query uses object refs in query keys. New objects → cascading re-renders, canceled requests.
+```
 
-  return { params, options };
+```typescript
+// ❌ Non-semantic interactive elements
+<div onClick={handleClick}>Click me</div>
+
+// ✅ Semantic HTML or shadcn components
+<Button onClick={handleClick}>Click me</Button>
+```
+
+```typescript
+// ❌ setState during render (causes infinite loop)
+function Component({ data }) {
+  const [processed, setProcessed] = useState(null);
+  if (data && !processed) {
+    setProcessed(transform(data)); // BAD!
+  }
+  return <div>{processed}</div>;
 }
 
-// WHY THIS MATTERS:
-// - React Query uses object references in query keys
-// - useEffect/useMemo dependencies compare by reference
-// - New objects trigger cascading updates even when values are identical
-// - Causes: canceled requests, unnecessary re-renders, infinite loops
-//
-// REAL EXAMPLE from log viewer (caused 3 canceled requests on every render):
-// - useScenario() returned new { log_scenario: "streaming" } every render
-// - LogViewerContainer received new devParams prop
-// - useLogData regenerated query key -> canceled & restarted request
-// - useLogTail restarted streaming connection -> canceled & restarted
-//
-// TanStack Query's structural sharing helps with query RESULTS,
-// but cannot fix unstable objects in query KEYS or hook dependencies.
+// ✅ Use derived state
+function Component({ data }) {
+  const processed = useMemo(() => data ? transform(data) : null, [data]);
+  return <div>{processed}</div>;
+}
 ```
-
-## Debugging Guidelines
-
-### UI Animation and Layout Issues
-
-**When fixing UI animation or layout issues, do NOT shotgun multiple CSS property changes.**
-
-Trying multiple fixes at once (will-change, transform, contain, animation-delay, RAF deferral) makes it impossible to identify what actually worked.
-
-**Required systematic approach:**
-
-1. **Add debug instrumentation FIRST** to identify the actual root cause:
-   - Layout thrashing (use Performance timeline)
-   - Reflow frequency (monitor in DevTools)
-   - Paint storms (check Paint Flashing)
-   - Animation frame timing issues
-
-2. **Then apply ONE targeted fix** based on the diagnostic data
-
-3. **Verify the fix works** before moving on to other issues
-
-**Common root causes to check:**
-- Layout thrashing from reading layout properties then immediately writing
-- Animating non-GPU properties (width, height, margin, padding)
-- Rendering heavy content simultaneously with animations
-- Missing CSS containment on virtualized containers
-- Synchronous re-renders blocking the main thread
-
-**Example diagnostic approach:**
-```typescript
-// Add performance marks
-performance.mark('animation-start');
-// ... animation code ...
-performance.mark('animation-end');
-performance.measure('animation-duration', 'animation-start', 'animation-end');
-console.log(performance.getEntriesByType('measure'));
-```
-
-## Common Development Tasks
-
-### Adding a New API Endpoint
-
-1. Update backend API
-2. Run `pnpm generate-api` to regenerate types
-3. Add transform in `src/lib/api/adapter/transforms.ts` (if needed)
-4. Add hook in `src/lib/api/adapter/hooks.ts`
-5. Export from `src/lib/api/adapter/index.ts`
-6. Use in your feature hook or component
-
-### Adding a New Feature Page
-
-1. Create `src/app/(dashboard)/your-feature/page.tsx`
-2. Create `src/app/(dashboard)/your-feature/hooks/use-your-feature.ts`
-3. Create `src/app/(dashboard)/your-feature/components/`
-4. Export from `src/app/(dashboard)/your-feature/index.ts`
-
-### Using Filters with SmartSearch
-
-The `SmartSearch` component provides URL-synced filtering with auto-suggest:
 
 ```typescript
-import { SmartSearch } from '@/components/filter-bar';
+// ❌ Dual state sources for same UI concern
+const [isOpen, setIsOpen] = useState(false);
+const [urlOpen] = useQueryState('open');
+// Which is source of truth?
 
-// Define search fields
-const searchFields = [
-  {
-    key: 'pool',
-    label: 'Pool',
-    type: 'select' as const,
-    values: pools.map(p => ({ value: p.name, label: p.name })),
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    type: 'select' as const,
-    values: statusOptions,
-  },
-];
-
-<SmartSearch
-  searchFields={searchFields}
-  onChipsChange={(chips) => {
-    // Convert chips to filter params
-  }}
-/>
+// ✅ Single source of truth
+const [isOpen, setIsOpen] = useQueryState('open');
 ```
 
-Filters are synced to URL via `nuqs`, making them shareable via link.
+## Production/Mock Code Separation
 
-### Adding UI Components
+**NEVER add mock-related code to production source files.**
 
-```bash
-npx shadcn@latest add dialog   # Add from shadcn/ui
-```
+- ❌ NEVER import from `src/mocks/` in production files
+- ❌ NEVER add `if (process.env.NODE_ENV === 'development')` mock checks
+- ✅ Use aliasing, separate entry points, build-time substitution
 
-Components are added to `src/components/shadcn/`. For custom components, add to `src/components/[feature]/`.
+**Why:** Security vulnerabilities, bundle bloat, runtime errors.
 
-### Semi-Stateful Button Pattern
+## SSR/Hydration Safety
 
-**Design Philosophy:** For buttons that toggle between two states (e.g., "My Workflows" ↔ "All Workflows"), use the **semi-stateful** pattern where the button shows the **current state icon** by default, then transitions to show the **next state icon** on hover/focus.
-
-**Why:** This provides clear visual feedback about what state the user is in, while previewing what will happen if they click.
-
-**When to use:**
-- View filters (My Workflows ↔ All Workflows)
-- Display mode toggles (Available ↔ Used)
-- Layout toggles (Compact ↔ Comfortable)
-- Any button that switches between two mutually exclusive states
-
-**Implementation:**
+**localStorage + SSR = hydration mismatches.** Server renders default state, client has different localStorage values.
 
 ```tsx
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import { User, Users } from "lucide-react";
-
-// Example: User filter toggle
-<SemiStatefulButton
-  onClick={toggleShowAllUsers}
-  currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
-  nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
-  label={showAllUsers ? "Show My Workflows" : "Show All Workflows"}
-  aria-label={showAllUsers ? "Currently showing all users' workflows" : "Currently showing my workflows"}
-/>
-```
-
-**Behavior:**
-1. **Default (not hovering):** Shows current state icon (no tooltip)
-2. **Hover/Focus:** Transitions to next state icon + shows tooltip with action label
-3. **Click:** Executes the action, committing to the new state
-
-**Examples in codebase:**
-- `UserToggle` in `workflows-toolbar.tsx` - My Workflows ↔ All Workflows
-- `DisplayModeToggle` in `DisplayModeToggle.tsx` - Available ↔ Used
-- Compact/Comfortable toggle in `TableToolbar.tsx`
-
-### Check Existing Components First
-
-**Before creating ANY component, search these locations:**
-
-| Need | Check First | Common Files |
-|------|-------------|--------------|
-| UI primitives | `@/components/shadcn/` | button, dialog, input, select, tooltip, popover |
-| Composed components | `@/components/` | DataTable, SmartSearch, Panel, TableToolbar |
-| Hooks | `@/hooks/` | useCopy, useAnnouncer, useServices, usePanelState |
-| Table stores | `@/stores/` | createTableStore factory |
-| Utilities | `@/lib/utils.ts` | cn, formatters, validators |
-| Library hooks | `usehooks-ts`, `@react-hookz/web` | useDebounce, useLocalStorage, etc. |
-
-**Rule: If it exists, USE it. If it's close, EXTEND it. Only then CREATE.**
-
-## Backend Integration Notes
-
-### Critical: Backend Has Known Issues
-
-See `src/lib/api/adapter/BACKEND_TODOS.md` for the complete list of 22 backend issues and workarounds.
-
-**High-priority issues**:
-
-1. **Resources API needs pagination** - Currently returns all resources at once. UI shims with client-side pagination. See BACKEND_TODOS.md #11.
-
-2. **Workflow list `more_entries` always false** - Bug in backend pagination logic. UI infers `hasMore` from item count. See BACKEND_TODOS.md #14.
-
-3. **Workflow list `order` parameter ignored** - Backend always fetches DESC then re-sorts. UI shows wrong sort order. See BACKEND_TODOS.md #17.
-
-4. **Response types are wrong** - Several endpoints typed as `string` but return objects. UI casts to `unknown`. See BACKEND_TODOS.md #1.
-
-5. **Shell resize corrupts input** - WebSocket resize messages corrupt PTY input buffer. Partial client-side filter doesn't fix root cause. See BACKEND_TODOS.md #22.
-
-**When backend is fixed**: Run `pnpm generate-api`, remove corresponding transform, update BACKEND_TODOS.md.
-
-### Production vs Development Behavior
-
-| Feature | Development | Production |
-|---------|-------------|------------|
-| **Backend routing** | `next.config.ts` proxy to configured hostname | Same (runtime config) |
-| **Login screen** | Shows cookie paste UI (`LocalDevLogin`) | SSO button only (Envoy handles auth) |
-| **Auth client secret** | Uses `.env.local` | Uses environment variable |
-| **Mock mode** | `pnpm dev:mock` for offline dev | N/A (not bundled) |
-
-**Production-first design**: Dev features have zero impact on production builds. Dev components use `next/dynamic` for code splitting.
-
-### Base Path for Deployment
-
-This UI can be deployed at a subpath (e.g., `/v2`) alongside legacy UI:
-
-```bash
-NEXT_PUBLIC_BASE_PATH=/v2 pnpm build
-```
-
-All routes become `/v2/*`. API rewrites still forward to backend `/api/*` (no prefix).
-
-## Testing Philosophy
-
-### Unit Tests (Vitest)
-
-**Only test high-value, low-brittleness areas:**
-- `transforms.ts` - Backend data transformations (catches API changes)
-- `utils.ts` - Pure functions (easy to test, unlikely to break)
-
-**Don't test**: UI components, generated code, shadcn/ui primitives.
-
-**Location**: `src/**/*.test.ts`
-
-### E2E Tests (Playwright)
-
-**Focus**: Verify user outcomes, not implementation details.
-
-**Structure**:
-```
-e2e/
-├── fixtures.ts             # Playwright test + withData/withAuth
-├── journeys/               # User journey tests
-│   ├── auth.spec.ts
-│   ├── pools.spec.ts
-│   └── resources.spec.ts
-└── mocks/                  # Type-safe mock data factories
-```
-
-**Key principles**:
-- Use semantic selectors (`getByRole`, `getByLabel`)
-- Tests run offline (Playwright route mocking)
-- Tests should survive virtualization, pagination, filter UI changes
-- Co-locate mock data with assertions (not in separate fixtures)
-
-**Example**:
-```typescript
-import { test, expect, createPoolResponse } from "../fixtures";
-
-test("shows pool list", async ({ page, withData }) => {
-  // ARRANGE: Data co-located with test
-  await withData({
-    pools: createPoolResponse([
-      { name: "pool-alpha", status: "ONLINE" },
-    ]),
-  });
-
-  // ACT
-  await page.goto("/pools");
-
-  // ASSERT
-  await expect(page.getByRole("heading")).toContainText("pool-alpha");
-});
-```
-
-## Performance Optimizations
-
-### Build-Time
-- `optimizeCss` - Extracts and inlines critical CSS
-- `optimizePackageImports` - Tree-shakes lucide-react, Radix UI
-- Console stripping - Removes `console.log` in production
-- Turbopack - Default bundler (fast builds)
-
-### Runtime
-- **Virtualization** - TanStack Virtual for large lists
-- **CSS Containment** - `contain: strict` on containers (`.contain-strict` utility)
-- **GPU Transforms** - `translate3d()` for positioning (`.gpu-layer` utility)
-- **Deferred Values** - `useDeferredValue` for search filters
-- **URL State** - `nuqs` for shareable filter URLs
-- **React Query** - `staleTime: 60s`, `gcTime: 300s`, structural sharing
-
-### React 19 Features
-- `use()` hook for async params/searchParams
-- `cacheComponents` (production only - PPR via cache layering)
-- Compiler optimizations via React Compiler
-
-**IMPORTANT**: `cacheComponents: false` in development (causes constant re-rendering). Only enabled in production builds.
-
-## SSR/PPR Hydration Safety
-
-**SSR with localStorage causes hydration mismatches.** The server renders with default state, but the client has different values in localStorage. React sees different HTML → hydration error.
-
-### Zustand Stores with Persistence
-
-```tsx
-// ❌ FORBIDDEN: Direct store access for persisted values in SSR components
+// ❌ FORBIDDEN: Direct store access for persisted values
 const displayMode = useSharedPreferences((s) => s.displayMode);
 
 // ✅ REQUIRED: Use hydration-safe selectors from @/stores
@@ -718,408 +193,96 @@ import { useDisplayMode, useCompactMode, useSidebarOpen } from "@/stores";
 const displayMode = useDisplayMode();
 ```
 
-| Selector | SSR Value | After Hydration |
-|----------|-----------|-----------------|
-| `useDisplayMode()` | `"free"` | localStorage value |
-| `useCompactMode()` | `false` | localStorage value |
-| `useSidebarOpen()` | `true` | localStorage value |
-| `useDetailsExpanded()` | `false` | localStorage value |
-| `useDetailsPanelCollapsed()` | `false` | localStorage value |
-| `usePanelWidthPct()` | `50` | localStorage value |
-
-### Date/Time Formatting
-
 ```tsx
 // ❌ FORBIDDEN: Locale-dependent formatting during SSR
 date.toLocaleString();
-new Date().toDateString() === date.toDateString(); // "is today" check
 
-// ✅ REQUIRED: SSR-safe formatters from @/lib/format-date
+// ✅ REQUIRED: SSR-safe formatters
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
-formatDateTimeFull(date);      // "Jan 15, 2026, 2:30:45 PM"
-formatDateTimeSuccinct(date);  // "1/15/26 2:30p"
+formatDateTimeFull(date);
 ```
 
-For relative time ("today"), use after hydration check:
-
 ```tsx
-import { useIsHydrated } from "@/hooks";
-import { formatDateTimeRelative, formatDateTimeFull } from "@/lib/format-date";
-
-const isHydrated = useIsHydrated();
-const time = isHydrated ? formatDateTimeRelative(date) : formatDateTimeFull(date);
-```
-
-### Client-Only UI (Radix dropdowns, DnD)
-
-```tsx
-// ❌ FORBIDDEN: Radix components without hydration guard (generates different IDs)
+// ❌ FORBIDDEN: Radix components without hydration guard
 return <DropdownMenu>...</DropdownMenu>;
 
 // ✅ REQUIRED: Guard with useMounted
 import { useMounted } from "@/hooks";
-
 const mounted = useMounted();
 if (!mounted) return <Button disabled>...</Button>;
 return <DropdownMenu>...</DropdownMenu>;
 ```
 
-### Creating Hydration-Safe Selectors for Custom Stores
+## Debugging React Issues: Check These First
 
-```tsx
-import { createHydratedSelector } from "@/hooks";
-import { useMyStore, initialState } from "./my-store";
+| Symptom | Root Cause | Where to Look |
+|---------|------------|---------------|
+| Infinite re-render loop | setState during render | Component body, useMemo without deps |
+| "Cannot nest buttons" error | Nested interactive elements | Button/Link with children |
+| Flashing/jank after mutation | Unnecessary cache revalidation | revalidatePath calls |
+| State resets unexpectedly | Dual state sources | useState + URL state |
+| Hydration mismatch | SSR differs from client | localStorage, Date.now(), random values |
 
-export const useMyValue = createHydratedSelector(
-  useMyStore,
-  (s) => s.myValue,
-  initialState.myValue,
-);
-```
+**Animation/Layout issues:** Don't shotgun CSS changes. Add debug instrumentation FIRST to identify root cause, then apply ONE targeted fix, then verify.
 
-### Performance Requirements
+## Single Source of Truth
+
+| What | Source | NOT |
+|------|--------|-----|
+| API types | `@/lib/api/adapter/` | `@/lib/api/generated.ts` |
+| Enums ONLY | `@/lib/api/generated.ts` | String literals |
+| Row heights, spacing | `useConfig()` → `table.rowHeights` | Magic numbers |
+| CSS variables | `globals.css` | Inline hex colors |
+| Clipboard operations | `useServices().clipboard` | `navigator.clipboard` |
+| URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
+
+## Performance Requirements
 
 | Scenario | MUST Use | Reason |
 |----------|----------|--------|
 | Lists > 50 items | TanStack Virtual + `contain-strict` | Prevent DOM bloat |
 | Search inputs | `useDeferredValue` | Don't block typing |
 | Heavy state updates | `startTransition` | Keep UI responsive |
-| Scroll containers | `overscroll-behavior: contain` | Prevent scroll chaining |
 
 **Animation rules:**
 - ✅ Animate: `transform`, `opacity` (GPU-accelerated)
 - ❌ NEVER animate: `width`, `height`, `margin`, `padding` (causes reflow)
 
-### Loop Optimization
-
-```typescript
-// ❌ SLOW
-const edges = groups.flatMap((g) => g.edges.map(...));
-
-// ✅ FAST
-const edges: Edge[] = [];
-for (const g of groups) {
-  for (const e of g.edges) edges.push(e);
-}
-```
-
-### Concurrent Features
-
-```typescript
-import { startTransition } from "react";
-startTransition(() => {
-  setNodes(result.nodes);
-});
-```
-
-### Data Attribute Handlers
-
-```typescript
-const handleClick = useCallback((e) => {
-  const idx = Number(e.currentTarget.dataset.index);
-}, [items]);
-
-<button data-index={i} onClick={handleClick} />
-```
-
-## React 19: useEffectEvent Usage
-
-⚠️ **CRITICAL WARNING (React 19.2.x):** `useEffectEvent` may cause infinite `reconnectPassiveEffects`
-loops in Next.js 16 + TanStack Query environments. If you encounter infinite rendering or console
-spam, immediately revert to primitive unpacking with `useMemo` instead (see "Returning new objects"
-in Forbidden Patterns section).
-
-`useEffectEvent` is used to extract **non-reactive** logic from Effects. It allows an Effect to read the latest props/state without re-running when those values change.
-
-### ✅ When to use
-- **Effect Synchronization**: When logic inside a `useEffect` needs to access the latest state/props but shouldn't trigger the effect to re-run.
-- **Event Listeners**: Inside an effect that attaches a DOM/Window listener (e.g., `keydown`, `resize`) to ensure the handler always sees fresh state.
-- **Bridging External Systems**: Bridging React state to non-React systems (WebSockets, Maps API, etc.) inside an effect.
-
-### ❌ When NOT to use
-- **UI Event Handlers**: Never use for `onClick`, `onChange`, or other handlers passed to JSX. Use `useCallback` or standard functions instead.
-- **Prop Drilling**: Never pass a function returned by `useEffectEvent` as a prop to other components.
-- **During Render**: Never call an Effect Event during the render phase (e.g., inside `useMemo` or the component body).
-- **Dependency Arrays**: Never include an Effect Event in a dependency array (it is a stable reference by design).
-
-### 💡 The "Reactive vs. Non-Reactive" Rule
-- If the logic should **trigger** an update when values change → Use `useEffect` with dependencies.
-- If the logic should **react** to an event but only **read** the latest values → Use `useEffectEvent`.
-
-## React / Next.js Debugging Patterns
-
-**When debugging React rendering issues (infinite loops, hydration errors, reflows), check for these common patterns FIRST:**
-
-### 1. setState Called During Render
-```typescript
-// ❌ FORBIDDEN: Setting state during render causes infinite loop
-function Component({ data }) {
-  const [processed, setProcessed] = useState(null);
-  if (data && !processed) {
-    setProcessed(transform(data)); // BAD: setState during render!
-  }
-  return <div>{processed}</div>;
-}
-
-// ✅ REQUIRED: Use derived state from props
-function Component({ data }) {
-  const processed = useMemo(() => data ? transform(data) : null, [data]);
-  return <div>{processed}</div>;
-}
-```
-
-### 2. Nested Interactive Elements
-```typescript
-// ❌ FORBIDDEN: Button inside button is invalid HTML
-<button onClick={handleOuter}>
-  <button onClick={handleInner}>Click</button>
-</button>
-
-// ✅ REQUIRED: Use asChild to merge props instead of nesting
-import { Slot } from "@radix-ui/react-slot";
-<button onClick={handleOuter} asChild>
-  <CustomButton onClick={handleInner}>Click</CustomButton>
-</button>
-```
-
-### 3. Cache Revalidation or startTransition Causing Unexpected Reflows
-```typescript
-// ❌ PROBLEM: revalidatePath in server action causes full page reflow
-async function updateData() {
-  "use server";
-  await db.update(...);
-  revalidatePath("/"); // Causes everything to re-render!
-}
-
-// ✅ BETTER: Use targeted revalidation or optimistic updates
-async function updateData() {
-  "use server";
-  await db.update(...);
-  revalidatePath("/specific/path"); // Only revalidate what changed
-}
-
-// Or use optimistic updates with React Query for instant feedback
-const mutation = useMutation({
-  onMutate: async (newData) => {
-    await queryClient.cancelQueries({ queryKey: ['data'] });
-    const previous = queryClient.getQueryData(['data']);
-    queryClient.setQueryData(['data'], newData); // Optimistic update
-    return { previous };
-  },
-});
-```
-
-### 4. Dual/Conflicting State Sources for the Same UI Concern
-```typescript
-// ❌ FORBIDDEN: Two sources of truth for the same state
-function Panel() {
-  const [isOpen, setIsOpen] = useState(false); // State 1
-  const [urlOpen] = useQueryState('open'); // State 2 - URL state
-  // Which one is the source of truth?
-
-  return <div>{isOpen ? 'open' : 'closed'}</div>;
-}
-
-// ✅ REQUIRED: Single source of truth
-function Panel() {
-  const [isOpen, setIsOpen] = useQueryState('open'); // URL is the ONLY source
-  return <div>{isOpen ? 'open' : 'closed'}</div>;
-}
-
-// OR derive UI state from single source
-function Panel() {
-  const [urlOpen] = useQueryState('open');
-  const isOpen = urlOpen === 'true'; // Derived, not duplicated
-  return <div>{isOpen ? 'open' : 'closed'}</div>;
-}
-```
-
-### Common Symptoms and Their Root Causes
-
-| Symptom | Common Root Cause | Where to Look |
-|---------|-------------------|---------------|
-| Infinite re-render loop | setState during render | Component body, useMemo without deps |
-| "Cannot nest buttons" error | Nested interactive elements | Button/Link components with children |
-| Flashing/jank after mutation | Unnecessary cache revalidation | Server actions, revalidatePath calls |
-| State resets unexpectedly | Dual state sources fighting | useState + URL state, props + local state |
-| Hydration mismatch | SSR rendering differs from client | localStorage, Date.now(), random values |
-
 ## Accessibility Requirements
 
-All interactive elements MUST be keyboard accessible:
-
-- **Enter/Space**: Activate buttons and controls
-- **Arrow keys**: Navigate within composite widgets
-- **Escape**: Close modals, cancel operations
-- **Tab**: Move between focusable elements
+All interactive elements MUST be keyboard accessible (Enter/Space/Escape/Tab/Arrows).
 
 ```tsx
-// ✅ REQUIRED: Screen reader announcements for dynamic changes
+// ✅ Screen reader announcements for dynamic changes
 const { announcer } = useServices();
-await clipboard.copy(text);
 announcer.announce("Copied to clipboard", "polite");
 ```
 
-```tsx
-// ✅ REQUIRED: Focus visible styling
-<Button className="focus-nvidia">...</Button>
-```
+## Check Existing Components First
 
-## Single Source of Truth
+**Before creating ANY component, search these locations:**
 
-NEVER hardcode these values. ALWAYS use the designated source:
+| Need | Check First |
+|------|-------------|
+| UI primitives | `@/components/shadcn/` |
+| Composed components | `@/components/` (DataTable, SmartSearch, Panel) |
+| Hooks | `@/hooks/` (useCopy, useAnnouncer, usePanelState) |
+| Utilities | `@/lib/utils.ts` |
+| Library hooks | `usehooks-ts`, `@react-hookz/web` |
 
-| What | Source | NOT |
-|------|--------|-----|
-| Row heights, spacing | `useConfig()` → `table.rowHeights` | Magic numbers like `48` |
-| Panel widths | `useConfig()` → `panel.*` | Hardcoded `320px` |
-| API types | `@/lib/api/adapter/` | `@/lib/api/generated.ts` |
-| Enums ONLY | `@/lib/api/generated.ts` | String literals |
-| Status enums | `WorkflowStatus`, `TaskGroupStatus`, `PoolStatus` | `"RUNNING"`, `"ONLINE"` |
-| Priority enum | `WorkflowPriority` | `"HIGH"`, `"NORMAL"`, `"LOW"` |
-| CSS variables | `globals.css` | Inline hex colors |
-| Feature constants | `feature/lib/constants.ts` | Scattered magic strings |
-| Column configs | `feature/lib/feature-columns.ts` | Inline column definitions |
-| Clipboard operations | `useServices().clipboard` | `navigator.clipboard` directly |
-| Screen reader announcements | `useServices().announcer` | Manual aria-live regions |
-| URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
+**Rule: If it exists, USE it. If it's close, EXTEND it. Only then CREATE.**
 
-## CSS Organization
-
-### File Structure
-
-**Co-locate styles with components/features:**
-
-```
-src/
-├── styles/
-│   ├── base.css          ← Global: resets, typography, foundational styles
-│   └── utilities.css     ← Global: .gpu-layer, .contain-*, .scrollbar-styled
-│
-├── components/
-│   ├── panel/
-│   │   ├── panel-tabs.tsx
-│   │   └── panel-tabs.css     ← Component styles (imported by component)
-│   ├── dag/
-│   │   └── dag.css            ← Component styles
-│   └── data-table/
-│       └── styles.css         ← Component styles
-│
-└── app/(dashboard)/
-    ├── pools/
-    │   └── styles/pools.css    ← Feature-specific styles
-    └── workflows/[name]/
-        └── styles/
-            ├── dag.css         ← Feature-specific styles
-            └── layout.css      ← Feature-specific styles
-```
-
-### When to Co-locate vs Centralize
-
-**✅ Co-locate (keep with component/feature):**
-- Component-specific styles
-- Feature-specific styles
-- Styles used by one module only
-- Import directly in the component that uses them
-
-**✅ Centralize (in `src/styles/`):**
-- Global utilities (`.gpu-layer`, `.contain-*`, `.scrollbar-styled`)
-- Base styles (resets, typography)
-- Performance utilities shared across all components
-- Theme tokens (keep in `globals.css` via Tailwind `@theme`)
-
-**❌ NEVER create:** `src/styles/components/` or similar directories - creates ambiguity about where styles belong!
-
-### Import Pattern
-
-```typescript
-// Component imports its own styles
-// src/components/panel/panel-tabs.tsx
-import "./panel-tabs.css";
-
-// Feature imports its own styles
-// src/app/(dashboard)/workflows/[name]/components/WorkflowDetailLayout.tsx
-import "../styles/layout.css";
-
-// Global styles imported in globals.css
-// src/app/globals.css
-@import "../styles/base.css";
-@import "../styles/utilities.css";
-```
-
-### Benefits of Co-location
-
-- **Discoverability** - Find styles immediately when working on a component
-- **Safe deletion** - Remove component → styles go with it automatically
-- **Clear ownership** - No ambiguity about what styles belong where
-- **Portability** - Can extract component to a package if needed
-- **Single source of truth** - Global utilities in one predictable place
-
-## Code Style Notes
-
-### ESLint Rules
-- Unused vars starting with `_` are allowed
-- React Compiler checks enabled
-- Production code cannot import from `/experimental`
-- Feature modules should use public API imports (warnings)
+## Code Style
 
 ### File Naming
-
-**Rule: Match the file name to the primary export's casing.**
-
-- **Component files**: `PascalCase.tsx` to match the component name
-  - Examples: `Button.tsx`, `DataTable.tsx`, `WorkflowDetails.tsx`
-  - Exception: shadcn/ui components use `kebab-case.tsx` (external library convention)
-
-- **Hook files**: `camelCase.ts` with `use` prefix
-  - Examples: `useAuth.ts`, `usePanelState.ts`, `useWorkflowData.ts`
-
-- **Utility files**: `camelCase.ts`
-  - Examples: `formatDate.ts`, `api.ts`, `utils.ts`
-
-- **Type files**: `camelCase.ts` or `kebab-case.ts`
-  - Examples: `types.ts`, `workflow-types.ts`, `panel-types.ts`
-
-- **Constant files**: `camelCase.ts` or `kebab-case.ts`
-  - Examples: `constants.ts`, `api-constants.ts`
-
-**Folder organization within feature modules:**
-```
-src/components/my-feature/
-├── index.ts              # Public API exports
-├── hooks/                # Custom hooks
-│   ├── useFeatureData.ts
-│   └── useFeatureState.ts
-├── lib/                  # Utilities, constants, types
-│   ├── constants.ts
-│   ├── types.ts
-│   └── utils.ts
-└── [components]          # Component files (PascalCase)
-    ├── FeatureCard.tsx
-    ├── FeatureTable.tsx
-    └── FeatureDialog.tsx
-```
-
-**Current codebase state:**
-- Legacy: Some areas use `kebab-case` for components (will be migrated)
-- New code: MUST follow PascalCase convention for components
-- When refactoring existing files, rename to PascalCase if touching significantly
-
-### Import Order
-```typescript
-// 1. External packages
-import { useState } from 'react';
-
-// 2. Absolute imports (@/...)
-import { usePools } from '@/lib/api/adapter';
-
-// 3. Relative imports
-import { PoolCard } from './PoolCard';
-```
+- **Components**: `PascalCase.tsx` (e.g., `Button.tsx`, `DataTable.tsx`)
+  - Exception: shadcn/ui uses `kebab-case.tsx` (external library)
+- **Hooks**: `camelCase.ts` with `use` prefix (e.g., `useAuth.ts`)
+- **Utilities**: `camelCase.ts` (e.g., `formatDate.ts`, `utils.ts`)
 
 ### Copyright Headers
 
-**ALL new files MUST include the NVIDIA copyright header at the top.**
+**ALL new `.ts`/`.tsx` files MUST include:**
 
 ```typescript
 //SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
@@ -1139,97 +302,39 @@ import { PoolCard } from './PoolCard';
 //SPDX-License-Identifier: Apache-2.0
 ```
 
-**When to include:**
-- ✅ REQUIRED: All new `.ts`, `.tsx`, `.js`, `.jsx` files
-- ✅ REQUIRED: All new component files, hooks, utilities, tests
-- ❌ SKIP: Config files (e.g., `next.config.ts`, `tailwind.config.ts`)
-- ❌ SKIP: Package files (`package.json`, `tsconfig.json`)
-- ❌ SKIP: Generated files (e.g., `src/lib/api/generated.ts`)
+**Skip for:** Config files, package.json, generated files.
 
-## Hermetic Development (Mock Mode)
-
-Run UI **without any backend** using deterministic synthetic data:
-
-```bash
-pnpm dev:mock
-```
-
-**How it works**:
-- MSW intercepts all API requests in the browser
-- Generators produce data on-demand using `faker.seed(baseSeed + index)`
-- Same index = same data (deterministic)
-- Configurable via browser console: `__mockConfig.setWorkflowTotal(100000)`
-
-**Default volumes**: 10k workflows, 50 pools, 500 resources, 100 datasets
-
-**Supported endpoints**: All API endpoints with infinite pagination
-
-**Use cases**:
-- Offline development
-- UI testing with large datasets
-- Stress testing virtualization/pagination
-- Demo mode
-
-**Location**: `src/mocks/`
-
-## Important Files to Know
+## Important Files
 
 | File | Purpose |
 |------|---------|
-| `src/lib/api/adapter/BACKEND_TODOS.md` | **READ THIS FIRST** - 22 backend issues and workarounds |
+| `src/lib/api/adapter/BACKEND_TODOS.md` | **READ FIRST** - 22 backend issues |
 | `src/lib/api/adapter/README.md` | Adapter layer philosophy |
-| `src/lib/api/generated.ts` | Auto-generated API client (NEVER EDIT) |
-| `src/lib/auth/README.md` | Authentication setup |
-| `src/lib/query-client.ts` | React Query configuration |
-| `src/lib/config.ts` | Runtime configuration (base path, API hostname) |
-| `next.config.ts` | Next.js configuration (proxy, optimization) |
-| `orval.config.ts` | API codegen configuration |
+| `src/lib/auth/README.md` | Auth setup (Envoy prod, local dev) |
+| `src/app/(dashboard)/pools/` | Reference feature module |
 
-## Troubleshooting
+## Tech Stack
 
-| Issue | Fix |
-|-------|-----|
-| Types out of sync | `pnpm generate-api && pnpm type-check` |
-| Backend returns wrong data | Check `src/lib/api/adapter/BACKEND_TODOS.md` for known issues |
-| Auth not working | Check `.env.local` has `AUTH_CLIENT_SECRET` and `NEXT_PUBLIC_OSMO_API_HOSTNAME` |
-| Tests failing | Run `pnpm test:e2e:ui` for interactive debugging |
-| Mock data not showing | Check browser console for MSW worker status |
-
-## Tech Stack Reference
-
-| Layer | Tool |
-|-------|------|
-| Framework | Next.js 16 (App Router, Turbopack, PPR) |
-| UI | React 19, Tailwind CSS 4, shadcn/ui |
-| State | TanStack Query 5, Zustand (minimal) |
-| Virtualization | TanStack Virtual |
-| Forms | React Hook Form + Zod |
-| API Codegen | orval (from OpenAPI) |
-| Testing | Vitest (unit), Playwright (E2E) |
-| Mocking | MSW (dev mode), Playwright route mocking (E2E) |
+- **Framework**: Next.js 16 (App Router, Turbopack, PPR)
+- **UI**: React 19, Tailwind CSS 4, shadcn/ui
+- **State**: TanStack Query 5, Zustand (minimal)
+- **Testing**: Vitest (unit), Playwright (E2E)
+- **Mocking**: MSW (dev), Playwright route mocking (E2E)
 
 ## Final Verification Checklist
 
-Before submitting any code, verify:
+Before submitting code:
 
-- [ ] Did I run `pnpm type-check && pnpm lint && pnpm test --run` with ZERO errors/warnings?
-- [ ] Did I check `@/components/` before creating a new component?
-- [ ] Are ALL imports using absolute @/ paths (NO relative imports like `./` or `../`)?
-- [ ] Are ALL imports direct to source files (NO barrel exports like `@/components/shadcn`)?
-- [ ] Are types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
-- [ ] Am I using enum values (e.g., `PoolStatus.ONLINE`) instead of string literals (`"ONLINE"`)?
-- [ ] Is every interactive element keyboard accessible?
-- [ ] Did I use TanStack/Zustand/nuqs instead of manual state?
-- [ ] Are there any magic numbers that should be constants or config values?
-- [ ] Do all NEW files have the NVIDIA copyright header?
-- [ ] Did I run `pnpm format` after all checks passed?
+- [ ] `pnpm type-check && pnpm lint && pnpm test --run` with ZERO errors/warnings?
+- [ ] Checked `@/components/` before creating new component?
+- [ ] ALL imports using absolute @/ paths (NO `./` or `../`)?
+- [ ] ALL imports direct to source files (NO barrel exports)?
+- [ ] Types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
+- [ ] Using enum values (e.g., `PoolStatus.ONLINE`) not strings (`"ONLINE"`)?
+- [ ] Every interactive element keyboard accessible?
+- [ ] Using TanStack/Zustand/nuqs instead of manual state?
+- [ ] No magic numbers (use constants/config)?
+- [ ] All NEW files have NVIDIA copyright header?
+- [ ] Ran `pnpm format` after checks passed?
 
 **If any answer is NO, fix it before proceeding.**
-
-## Next Steps After Reading This
-
-1. Read `src/lib/api/adapter/BACKEND_TODOS.md` to understand backend limitations
-2. Run `pnpm dev` to start local development
-3. Try `pnpm dev:mock` to see hermetic development mode
-4. Run `pnpm test:e2e:ui` to explore E2E tests interactively
-5. Check `src/app/(dashboard)/pools/` as a reference feature module
