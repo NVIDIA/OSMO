@@ -53,7 +53,6 @@ const userNav: NavItem[] = [
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
   { name: "Resources", href: "/resources", icon: Server },
-  { name: "Log Viewer", href: "/log-viewer", icon: TextSearch },
 ];
 
 /** Bottom navigation - empty now (profile is in top-right header) */
@@ -63,6 +62,7 @@ const bottomNav: NavItem[] = [];
 const adminSection: NavSection = {
   label: "Admin",
   items: [
+    { name: "Log Viewer", href: "/log-viewer", icon: TextSearch },
     { name: "Settings", href: "/admin/settings", icon: Settings },
     { name: "Roles", href: "/admin/roles", icon: Shield },
     { name: "API Tokens", href: "/admin/tokens", icon: Key },
