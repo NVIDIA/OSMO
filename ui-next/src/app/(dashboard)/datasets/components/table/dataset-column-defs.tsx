@@ -98,37 +98,6 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       },
     },
     {
-      id: "labels",
-      accessorKey: "labels",
-      header: COLUMN_LABELS.labels,
-      minSize: getMinSize("labels"),
-      enableSorting: false,
-      cell: ({ row }) => {
-        const labels = row.original.labels || {};
-        const entries = Object.entries(labels);
-
-        if (entries.length === 0) {
-          return <span className="text-sm text-zinc-400">—</span>;
-        }
-
-        return (
-          <div className="flex flex-wrap gap-1">
-            {entries.slice(0, 3).map(([key, value]) => (
-              <span
-                key={key}
-                className="inline-flex items-center rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              >
-                {key}: {value}
-              </span>
-            ))}
-            {entries.length > 3 && (
-              <span className="inline-flex items-center text-xs text-zinc-500">+{entries.length - 3} more</span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
       id: "updated_at",
       accessorKey: "updated_at",
       header: COLUMN_LABELS.updated_at,
