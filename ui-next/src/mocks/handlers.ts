@@ -1286,42 +1286,21 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
   // List datasets
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  // NOTE: Client-side filtering approach - mock just returns requested count
+  // The adapter handles all filtering and pagination client-side
   http.get("*/api/bucket/list_dataset", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const { offset, limit } = parsePagination(url, { limit: 50 });
+    const count = parseInt(url.searchParams.get("count") || "50", 10);
 
-    // Extract filter parameters
-    const nameFilter = url.searchParams.get("name");
-    const bucketFilters = url.searchParams.getAll("buckets");
-    const formatFilter = url.searchParams.get("dataset_type"); // Format uses dataset_type param
+    // Generate requested number of datasets
+    // No filtering here - client adapter does all filtering
+    const { entries } = datasetGenerator.generatePage(0, count);
 
-    // Generate full page of datasets
-    const { entries } = datasetGenerator.generatePage(offset, limit);
-
-    // Apply filters
-    let filtered = entries;
-
-    // Filter by name (search term - case insensitive partial match)
-    if (nameFilter) {
-      const searchLower = nameFilter.toLowerCase();
-      filtered = filtered.filter((dataset) => dataset.name.toLowerCase().includes(searchLower));
-    }
-
-    // Filter by buckets (exact match, OR logic for multiple buckets)
-    if (bucketFilters.length > 0) {
-      filtered = filtered.filter((dataset) => bucketFilters.includes(dataset.bucket));
-    }
-
-    // Filter by format/type (exact match)
-    if (formatFilter) {
-      filtered = filtered.filter((dataset) => dataset.format === formatFilter);
-    }
-
-    // DataListResponse expects 'datasets' array, not 'entries'
+    // DataListResponse expects 'datasets' array
     return HttpResponse.json({
-      datasets: filtered,
+      datasets: entries,
     });
   }),
 

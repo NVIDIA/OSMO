@@ -18,12 +18,12 @@
  * Datasets API Adapter
  *
  * Transforms backend dataset API responses to UI-friendly types.
- * Provides hooks for fetching datasets with pagination, detail, versions, and file listings.
+ * Provides fetch functions and query key builders that work on both server and client.
+ *
+ * NOTE: This file does NOT have "use client" so it can be used in server components.
+ * React Query hooks (useDataset, useDatasetFiles) are marked with "use client" via the hook itself.
  */
 
-"use client";
-
-import { useQuery } from "@tanstack/react-query";
 import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination/types";
 import type { SearchChip } from "@/stores/types";
 
@@ -195,11 +195,41 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
 }
 
 // =============================================================================
+// Configuration
+// =============================================================================
+
+/**
+ * Number of datasets to fetch upfront for client-side filtering.
+ *
+ * ARCHITECTURE DECISION: We fetch a large pool of datasets once and handle
+ * filtering + pagination client-side because the backend API lacks offset
+ * parameter for proper server-side pagination with filters.
+ *
+ * See BACKEND_TODOS.md Issue #23 for details.
+ *
+ * Tradeoffs:
+ * - ✅ Filtering works correctly across all data
+ * - ✅ No backend changes needed
+ * - ✅ Fast filtering (in-memory)
+ * - ❌ Large initial payload (~5MB for 10k datasets)
+ * - ❌ Doesn't scale beyond 10k datasets
+ *
+ * For OSMO's use case (max 10k datasets), this covers the full range.
+ */
+const DATASET_FETCH_LIMIT = 10000;
+
+// =============================================================================
 // API Fetch Functions
 // =============================================================================
 
 /**
- * Fetch paginated datasets with server-side filtering.
+ * Fetch datasets with client-side filtering and pagination.
+ *
+ * IMPORTANT: This fetches a large pool upfront (DATASET_FETCH_LIMIT items)
+ * and handles filtering + pagination client-side because the backend API
+ * lacks proper pagination support (no offset parameter).
+ *
+ * This approach works for both mocks and real backend data.
  *
  * @param params - Pagination and filter parameters
  */
@@ -216,31 +246,48 @@ export async function fetchPaginatedDatasets(
   // Import generated client
   const { listDatasetFromBucketApiBucketListDatasetGet } = await import("@/lib/api/generated");
 
-  // Fetch from API - note: the API doesn't use offset/limit in the standard way
-  // It uses "count" instead of "limit" and no offset parameter
+  // Fetch large pool upfront (TanStack Query caches this per query key)
+  // We don't pass filters to the API - we'll filter client-side
   const response = await listDatasetFromBucketApiBucketListDatasetGet({
-    name: searchTerm,
-    buckets: bucketChips.length > 0 ? bucketChips : undefined,
-    dataset_type: formatChips.length > 0 ? (formatChips[0] as never) : undefined, // API only supports single format
-    count: limit,
+    count: DATASET_FETCH_LIMIT,
   });
 
   // Parse response (backend may return string or object)
   const parsed: DataListResponse = typeof response === "string" ? JSON.parse(response) : (response as DataListResponse);
 
-  const datasets = transformDatasetList(parsed);
+  const allDatasets = transformDatasetList(parsed);
 
-  // Calculate hasMore based on whether we got a full page
-  // Note: API doesn't support offset-based pagination, so this is a best-effort approach
-  const hasMore = datasets.length === limit;
+  // CLIENT-SIDE FILTERING
+  // This works identically for mock and real backend data
+  let filtered = allDatasets;
+
+  // Filter by name (search term - case insensitive partial match)
+  if (searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    filtered = filtered.filter((dataset) => dataset.name.toLowerCase().includes(searchLower));
+  }
+
+  // Filter by buckets (exact match, OR logic for multiple buckets)
+  if (bucketChips.length > 0) {
+    filtered = filtered.filter((dataset) => bucketChips.includes(dataset.bucket));
+  }
+
+  // Filter by format (exact match, OR logic for multiple formats)
+  if (formatChips.length > 0) {
+    filtered = filtered.filter((dataset) => formatChips.includes(dataset.format));
+  }
+
+  // CLIENT-SIDE PAGINATION
+  // Slice the filtered results to get the current page
+  const pageData = filtered.slice(offset, offset + limit);
+  const hasMore = offset + limit < filtered.length;
 
   return {
-    items: datasets,
+    items: pageData,
     hasMore,
     nextOffset: hasMore ? offset + limit : undefined,
-    // API doesn't provide total or filteredTotal, use undefined
-    total: undefined,
-    filteredTotal: undefined,
+    total: allDatasets.length, // Total before filtering
+    filteredTotal: filtered.length, // Total after filtering
   };
 }
 
@@ -326,46 +373,13 @@ export function buildDatasetFilesQueryKey(bucket: string, name: string, path: st
   return ["datasets", "files", bucket, name, path] as const;
 }
 
-// =============================================================================
-// React Query Hooks
-// =============================================================================
-
-/**
- * Hook to fetch dataset detail by name.
- *
- * @param bucket - Bucket name
- * @param name - Dataset name
- * @param options - Query options
- */
-export function useDataset(bucket: string, name: string, options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: buildDatasetDetailQueryKey(bucket, name),
-    queryFn: () => fetchDatasetDetail(bucket, name),
-    enabled: options?.enabled ?? true,
-    staleTime: 60_000, // 1 minute
-  });
-}
-
-/**
- * Hook to fetch dataset files at a specific path.
- *
- * @param bucket - Bucket name
- * @param name - Dataset name
- * @param path - Path within dataset
- * @param options - Query options
- */
-export function useDatasetFiles(bucket: string, name: string, path: string = "/", options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: buildDatasetFilesQueryKey(bucket, name, path),
-    queryFn: () => fetchDatasetFiles(bucket, name, path),
-    enabled: options?.enabled ?? true,
-    staleTime: 60_000, // 1 minute
-  });
-}
-
 /**
  * Check if any filters are active.
  */
 export function hasActiveFilters(searchChips: SearchChip[]): boolean {
   return searchChips.length > 0;
 }
+
+// =============================================================================
+// NOTE: React Query hooks are in datasets-hooks.ts (separate file with "use client")
+// =============================================================================
