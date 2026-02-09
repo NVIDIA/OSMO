@@ -17,12 +17,7 @@
 /**
  * React Context and Hooks for PanelResizeStateMachine.
  *
- * STATE UNIFICATION:
- * ==================
- * `isCollapsed` is now DERIVED from `widthPct`, not stored separately.
- * This eliminates the dual-state bug where both `isCollapsed: true` AND
- * `widthPct < 20%` could represent "panel at activity strip".
- *
+ * `isCollapsed` is DERIVED from `widthPct`, not stored separately.
  * Use `useIsPanelCollapsed()` or `usePanelResize().isCollapsed` to check
  * collapsed state - both derive from the same source (widthPct).
  *
@@ -133,9 +128,7 @@ export function usePanelResizeMachine(): PanelResizeStateMachine {
  * Main hook for panel resize state and actions.
  * Returns reactive state that triggers re-renders on changes.
  *
- * NOTE: `isCollapsed` is now DERIVED from `widthPct`, not stored separately.
- * This ensures consistent behavior regardless of how the panel reached
- * the collapsed state (click vs drag).
+ * `isCollapsed` is derived from `widthPct`, consistent with the state machine.
  */
 export function usePanelResize(): {
   // State
@@ -143,7 +136,7 @@ export function usePanelResize(): {
   widthPct: number;
   persistedPct: number;
   dagVisible: boolean;
-  /** Whether panel is collapsed (DERIVED from widthPct < 20%) */
+  /** Whether panel is collapsed (derived from widthPct, false during drag) */
   isCollapsed: boolean;
   snapZone: SnapZone | null;
   snapTarget: number | null;
@@ -163,11 +156,12 @@ export function usePanelResize(): {
   onTransitionComplete: () => void;
   toggleCollapsed: () => void;
   setCollapsed: (collapsed: boolean) => void;
-  expand: () => void;
+  expand: (persist?: boolean) => void;
   collapse: () => void;
   hideDAG: () => void;
   showDAG: () => void;
   updateStripSnapTarget: (stripWidthPx: number, containerWidthPx: number) => void;
+  restorePersistedState: (persistedPct: number) => void;
 } {
   const machine = usePanelResizeMachine();
 
@@ -178,8 +172,10 @@ export function usePanelResize(): {
     () => machine.getState(), // Server snapshot
   );
 
-  // DERIVED: isCollapsed from widthPct (the unified source of truth)
-  const isCollapsed = isCollapsedWidth(state.widthPct);
+  // DERIVED: isCollapsed from widthPct (the unified source of truth).
+  // During drag, we don't consider the panel collapsed even if width < threshold,
+  // consistent with the state machine's isCollapsed() method.
+  const isCollapsed = state.phase === "DRAGGING" ? false : isCollapsedWidth(state.widthPct);
 
   // Derive computed values
   const isSuspended = state.phase !== "IDLE";
@@ -194,12 +190,16 @@ export function usePanelResize(): {
   const onTransitionComplete = useCallback(() => machine.onTransitionComplete(), [machine]);
   const toggleCollapsed = useCallback(() => machine.toggleCollapsed(), [machine]);
   const setCollapsed = useCallback((collapsed: boolean) => machine.setCollapsed(collapsed), [machine]);
-  const expand = useCallback(() => machine.expand(), [machine]);
+  const expand = useCallback((persist?: boolean) => machine.expand(persist), [machine]);
   const collapse = useCallback(() => machine.collapse(), [machine]);
   const hideDAG = useCallback(() => machine.hideDAG(), [machine]);
   const showDAG = useCallback(() => machine.showDAG(), [machine]);
   const updateStripSnapTarget = useCallback(
     (stripWidthPx: number, containerWidthPx: number) => machine.updateStripSnapTarget(stripWidthPx, containerWidthPx),
+    [machine],
+  );
+  const restorePersistedState = useCallback(
+    (persistedPct: number) => machine.restorePersistedState(persistedPct),
     [machine],
   );
 
@@ -209,7 +209,7 @@ export function usePanelResize(): {
     widthPct: state.widthPct,
     persistedPct: state.persistedPct,
     dagVisible: state.dagVisible,
-    isCollapsed, // DERIVED from widthPct
+    isCollapsed,
     snapZone: state.snapZone,
     snapTarget: state.snapTarget,
     preSnapWidthPct: state.preSnapWidthPct,
@@ -233,6 +233,7 @@ export function usePanelResize(): {
     hideDAG,
     showDAG,
     updateStripSnapTarget,
+    restorePersistedState,
   };
 }
 
@@ -270,10 +271,10 @@ export function usePersistedPanelWidth(): number {
 
 /**
  * Get whether panel is collapsed.
- * This is DERIVED from widthPct - the unified source of truth.
+ * Derived from widthPct, but returns false during drag for consistent behavior.
  */
 export function useIsPanelCollapsed(): boolean {
-  return usePanelResizeSelector((s) => isCollapsedWidth(s.widthPct));
+  return usePanelResizeSelector((s) => (s.phase === "DRAGGING" ? false : isCollapsedWidth(s.widthPct)));
 }
 
 /**
@@ -321,8 +322,3 @@ export function useIsDragging(): boolean {
 // =============================================================================
 
 export type { ResizePhase, ResizeState, SnapZone };
-export {
-  SNAP_ZONES,
-  classifySnapZone,
-  isCollapsedWidth,
-} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-state-machine";

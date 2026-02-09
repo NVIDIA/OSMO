@@ -34,11 +34,11 @@ import dynamic from "next/dynamic";
 import { Link } from "@/components/link";
 import { useEventCallback } from "usehooks-ts";
 import { useAnnouncer } from "@/hooks/use-announcer";
+import { useMounted } from "@/hooks/use-mounted";
 import { useTickController } from "@/hooks/use-tick";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useSharedPreferences, usePanelWidthPct, useDetailsPanelCollapsed } from "@/stores/shared-preferences-store";
+import { useWorkflowDetailPanel, usePanelWidthPct, useDetailsExpanded } from "@/stores/workflow-detail-panel-store";
 
-// New state machine provider and hooks
 import {
   PanelResizeProvider,
   usePanelResize,
@@ -69,7 +69,6 @@ const ResubmitPanel = dynamic(
 
 // Route-level hooks
 import { useWorkflowDetail } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail";
-import { useSidebarCollapsed } from "@/app/(dashboard)/workflows/[name]/hooks/use-sidebar-collapsed";
 import { useNavigationState } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";
 
@@ -120,30 +119,18 @@ function LoadingSpinner(): ReactNode {
 // =============================================================================
 
 export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerProps) {
-  // Use hydration-safe selectors for initial state (SSR/PPR safe)
-  const persistedPanelPct = usePanelWidthPct() as number;
-  const isPanelCollapsed = useDetailsPanelCollapsed() as boolean;
-
   // Actions (always safe - no hydration concern)
-  const setPanelPct = useSharedPreferences((s) => s.setPanelWidthPct);
-  const setIsPanelCollapsed = useSharedPreferences((s) => s.setDetailsPanelCollapsed);
+  const setPanelPct = useWorkflowDetailPanel((s) => s.setPanelWidthPct);
 
-  // CRITICAL: Stabilize initial values to prevent provider remount after hydration.
-  // These values should be captured ONCE and never change - the provider's internal
-  // state will be updated via callbacks (setPanelPct, setIsPanelCollapsed).
-  // Without this, hydration causes values to change (default -> localStorage),
-  // triggering a provider remount that destroys the state machine.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stableInitialPct = useMemo(() => persistedPanelPct, []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stableInitialCollapsed = useMemo(() => isPanelCollapsed, []);
-
+  // Initialize provider with SSR-safe defaults. The real localStorage values are
+  // restored post-hydration via restorePersistedState() in WorkflowDetailContent.
+  // This avoids the old "frozen initial values" bug where useMemo(() => val, [])
+  // captured SSR defaults instead of actual localStorage values.
   return (
     <PanelResizeProvider
-      initialPersistedPct={stableInitialPct}
-      initialCollapsed={stableInitialCollapsed}
+      initialPersistedPct={50}
+      initialCollapsed={false}
       onPersist={setPanelPct}
-      onPersistCollapsed={setIsPanelCollapsed}
     >
       <WorkflowDetailContent
         name={name}
@@ -159,7 +146,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
 
 function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) {
   // Get state machine actions and state via hooks
-  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, setCollapsed } = usePanelResize();
+  const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, restorePersistedState } = usePanelResize();
 
   // Subscribe to specific state slices
   const displayPct = usePanelWidth();
@@ -169,9 +156,26 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   const isPanelCollapsed = useIsPanelCollapsed();
   const persistedPct = usePersistedPanelWidth();
 
+  // Post-hydration state: after mount, hydration-safe selectors return real localStorage values
+  const mounted = useMounted();
+  const persistedPanelPct = usePanelWidthPct() as number;
+
+  // Restore persisted state from localStorage after hydration completes.
+  // The provider was initialized with SSR-safe defaults (50%, not collapsed).
+  // Once mounted, the hydration-safe selectors return the real localStorage values,
+  // and we push them into the state machine without animation.
+  // Collapsed state is derived from width, so only width needs restoring.
+  const hasRestoredRef = useRef(false);
+  useEffect(() => {
+    if (mounted && !hasRestoredRef.current) {
+      hasRestoredRef.current = true;
+      restorePersistedState(persistedPanelPct);
+    }
+  }, [mounted, persistedPanelPct, restorePersistedState]);
+
   // Other state
-  const isDetailsExpanded = useSharedPreferences((s) => s.detailsExpanded);
-  const toggleDetailsExpanded = useSharedPreferences((s) => s.toggleDetailsExpanded);
+  const isDetailsExpanded = useDetailsExpanded();
+  const toggleDetailsExpanded = useWorkflowDetailPanel((s) => s.toggleDetailsExpanded);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
 
   // Fetch workflow data
@@ -215,35 +219,34 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     return null;
   }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
 
-  // Panel collapsed state (reconciles user preference with navigation intent)
-  const { collapsed: sidebarCollapsed } = useSidebarCollapsed({
-    hasSelection,
-    selectionKey,
-    dagVisible: displayDagVisible,
-  });
-
-  // Sync sidebar collapsed state to state machine (for navigation-aware behavior)
-  // IMPORTANT: Only sync when sidebarCollapsed CHANGES, not just when phase becomes IDLE.
-  // This prevents the sync effect from overriding intentional expansions triggered by
-  // clicking quick actions (which call expand() directly on the state machine).
+  // Auto-expand panel when user navigates to a selection (node click or URL change).
+  // The state machine's expand() now persists to Zustand immediately (and has a safety
+  // timeout for stuck SNAPPING phase), so no manual setPanelPct call is needed here.
   //
-  // NOTE: isPanelCollapsed is now DERIVED from widthPct in the state machine,
-  // so the comparison is consistent - both use the same source of truth.
-  const prevSidebarCollapsedRef = useRef(sidebarCollapsed);
+  // IMPORTANT: This effect must run AFTER the restore effect completes to avoid a race
+  // condition where restorePersistedState() overwrites the expansion.
+  const prevSelectionKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const prevValue = prevSidebarCollapsedRef.current;
-    const sidebarCollapsedChanged = sidebarCollapsed !== prevValue;
-    prevSidebarCollapsedRef.current = sidebarCollapsed;
+    // Wait for restore to complete before auto-expanding
+    if (!hasRestoredRef.current) return;
 
-    // Only sync to state machine when sidebar collapsed state actually changes
-    // (due to navigation or user preference change), not just when phase becomes IDLE
-    if (sidebarCollapsedChanged && phase === "IDLE") {
-      // isPanelCollapsed is derived from the state machine's widthPct
-      if (sidebarCollapsed !== isPanelCollapsed) {
-        setCollapsed(sidebarCollapsed);
-      }
+    // Check if selection changed (including initial deep-link where prev is null)
+    const selectionChanged = selectionKey !== prevSelectionKeyRef.current;
+
+    // Only check after hydration completes to avoid SSR issues
+    if (selectionChanged && hasSelection && mounted) {
+      // User navigated to a selection - expand panel.
+      // The state machine's expand() handles Zustand persistence internally.
+      expand(true);
+      // Update ref only when we actually expand
+      prevSelectionKeyRef.current = selectionKey;
+    } else if (mounted && (hasSelection || selectionKey === null)) {
+      // Update ref when selection is fully resolved (data loaded) OR explicitly cleared.
+      // Don't update during data loading (selectionKey exists but hasSelection false)
+      // to ensure auto-expand triggers once data loads.
+      prevSelectionKeyRef.current = selectionKey;
     }
-  }, [sidebarCollapsed, phase, setCollapsed, isPanelCollapsed]);
+  }, [selectionKey, hasSelection, expand, mounted]);
 
   // Synchronized tick for live durations - only tick when workflow is active
   // PERFORMANCE: Pause ticking during pan/zoom AND panel drag
@@ -311,8 +314,12 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   }, [phase, snapZone, announce]);
 
   // Determine current panel view from URL navigation state
-  const currentPanelView: DetailsPanelView =
-    navView === "task" && selectedTask ? "task" : navView === "group" && selectedGroup ? "group" : "workflow";
+  let currentPanelView: DetailsPanelView = "workflow";
+  if (navView === "task" && selectedTask) {
+    currentPanelView = "task";
+  } else if (navView === "group" && selectedGroup) {
+    currentPanelView = "group";
+  }
 
   // Content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
@@ -385,8 +392,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     return null;
   }, [isLoading, isNotFound, error, name, refetch]);
 
-  // State machine actions are already memoized, use directly
-  // These wrappers using useEventCallback maintain stable references
   const handleTogglePanelCollapsed = useEventCallback(toggleCollapsed);
   const handleExpandPanel = useEventCallback(expand);
 

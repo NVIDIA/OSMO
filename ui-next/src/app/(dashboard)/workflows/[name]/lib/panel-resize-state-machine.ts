@@ -17,15 +17,7 @@
 /**
  * PanelResizeStateMachine - Deterministic state machine for panel resize operations.
  *
- * STATE UNIFICATION (v2):
- * ========================
- * Previously, "panel at activity strip" was represented in TWO ways:
- * 1. isCollapsed: true (explicit collapse)
- * 2. widthPct < 20% (dragged to strip zone)
- *
- * This caused bugs because code had to check BOTH conditions.
- *
- * NOW: `isCollapsed` is DERIVED from `widthPct`, not stored separately.
+ * `isCollapsed` is DERIVED from `widthPct`, not stored separately.
  * - widthPct < STRIP_SNAP_THRESHOLD (20%) = collapsed
  * - Collapse action sets widthPct to strip target
  * - Expand action restores widthPct from persistedPct
@@ -47,10 +39,7 @@
  *       └───────────────────────┴──────────────────────────────────────────────────────────┘
  */
 
-import {
-  calculateStripSnapTargetPct,
-  SNAP_ZONES as SNAP_ZONE_CONSTANTS,
-} from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
+import { calculateStripSnapTargetPct, SNAP_ZONES } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 // =============================================================================
 // Types
@@ -59,9 +48,6 @@ import {
 export type ResizePhase = "IDLE" | "DRAGGING" | "SNAPPING" | "SETTLING";
 export type SnapZone = "strip" | "full";
 export type CallbackType = "onLayoutStable" | "onPhaseChange";
-
-// Re-export snap zone constants for backwards compatibility
-export const SNAP_ZONES = SNAP_ZONE_CONSTANTS;
 
 /**
  * Panel resize state.
@@ -105,7 +91,6 @@ export interface PanelResizeStateMachineOptions {
   initialPersistedPct: number;
   initialCollapsed: boolean;
   onPersist: (pct: number) => void;
-  onPersistCollapsed: (collapsed: boolean) => void;
   minPct?: number;
   maxPct?: number;
   /** Width of the activity strip in pixels (for calculating strip snap target) */
@@ -129,6 +114,14 @@ const WIDTH_EPSILON = 0.01;
 
 /** Default width when expanding and no valid persisted width exists */
 const DEFAULT_EXPAND_WIDTH = 50;
+
+/**
+ * Safety timeout for snap animations (ms).
+ * If CSS transitionend doesn't fire within this window (e.g., element not painted,
+ * transition interrupted, or browser optimization), force-complete the snap.
+ * Must be longer than the CSS transition duration (200ms) to avoid racing.
+ */
+const SNAP_SAFETY_TIMEOUT_MS = 500;
 
 export function classifySnapZone(widthPct: number): SnapZone | null {
   if (widthPct >= SNAP_ZONES.FULL_SNAP_START) return "full";
@@ -216,11 +209,13 @@ export class PanelResizeStateMachine {
   // Pending RAF IDs for cleanup
   private pendingRafIds: number[] = [];
 
+  // Safety timeout for snap phase (cleared when transition completes normally)
+  private snapSafetyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   // Options
   private minPct: number;
   private readonly maxPct: number;
   private readonly onPersist: (pct: number) => void;
-  private readonly onPersistCollapsed: (collapsed: boolean) => void;
   private stripSnapTargetPct: number;
 
   constructor(options: PanelResizeStateMachineOptions) {
@@ -238,7 +233,6 @@ export class PanelResizeStateMachine {
     this.minPct = options.minPct ?? this.stripSnapTargetPct;
     this.maxPct = options.maxPct ?? 100;
     this.onPersist = options.onPersist;
-    this.onPersistCollapsed = options.onPersistCollapsed;
   }
 
   // ===========================================================================
@@ -367,8 +361,6 @@ export class PanelResizeStateMachine {
    */
   private settleWithoutSnap(): void {
     const newPct = this.state.widthPct;
-    const wasCollapsed = isCollapsedWidth(this.state.persistedPct);
-    const isNowCollapsed = isCollapsedWidth(newPct);
 
     this.setState({
       phase: "SETTLING",
@@ -379,11 +371,6 @@ export class PanelResizeStateMachine {
 
     this.onPersist(newPct);
 
-    // Notify collapsed state change
-    if (wasCollapsed !== isNowCollapsed) {
-      this.onPersistCollapsed(isNowCollapsed);
-    }
-
     this.scheduleLayoutStable();
   }
 
@@ -391,9 +378,6 @@ export class PanelResizeStateMachine {
    * Already at target - skip SNAPPING phase and settle immediately.
    */
   private settleAtTarget(config: { target: number; dagVisible: boolean; persistedPctOverride?: number }): void {
-    const isNowCollapsed = isCollapsedWidth(config.target);
-    const wasCollapsed = this.isCollapsed();
-
     this.setState({
       phase: "SETTLING",
       widthPct: config.target,
@@ -405,11 +389,6 @@ export class PanelResizeStateMachine {
     });
 
     this.onPersist(config.target);
-
-    // Notify collapsed state change
-    if (wasCollapsed !== isNowCollapsed) {
-      this.onPersistCollapsed(isNowCollapsed);
-    }
 
     this.scheduleLayoutStable();
   }
@@ -435,18 +414,27 @@ export class PanelResizeStateMachine {
     }
 
     this.setState(updates);
+
+    // Safety net: if CSS transitionend doesn't fire, force-complete the snap.
+    this.scheduleSnapSafetyTimeout();
   }
 
   /**
    * Handle CSS transition completion. Called by React's onTransitionEnd handler.
+   *
+   * The onPersist call is retained for the drag -> SNAPPING path where
+   * onPersist is NOT called eagerly (endDrag -> animateToTarget doesn't persist).
+   * For expand/collapse/hideDAG/showDAG, this is a harmless idempotent write
+   * of the same value that was already persisted eagerly.
    */
   onTransitionComplete(): void {
     if (this.disposed) return;
     if (this.state.phase !== "SNAPPING") return;
 
+    // Clear safety timeout - normal transition completed successfully
+    this.clearSnapSafetyTimeout();
+
     const targetPct = this.state.snapTarget ?? this.state.widthPct;
-    const wasCollapsed = isCollapsedWidth(this.state.persistedPct);
-    const isNowCollapsed = isCollapsedWidth(targetPct);
 
     this.setState({
       phase: "SETTLING",
@@ -456,11 +444,6 @@ export class PanelResizeStateMachine {
     });
 
     this.onPersist(targetPct);
-
-    // Notify collapsed state change
-    if (wasCollapsed !== isNowCollapsed) {
-      this.onPersistCollapsed(isNowCollapsed);
-    }
 
     this.scheduleLayoutStable();
   }
@@ -509,6 +492,12 @@ export class PanelResizeStateMachine {
       dagVisible: true,
       preSnapWidthPct: preSnapWidth,
     });
+
+    // Persist immediately so Zustand stays in sync (see expand() for rationale).
+    this.onPersist(this.stripSnapTargetPct);
+
+    // Safety net: if CSS transitionend doesn't fire, force-complete the snap.
+    this.scheduleSnapSafetyTimeout();
   }
 
   /**
@@ -528,8 +517,12 @@ export class PanelResizeStateMachine {
 
   /**
    * Expand the panel from collapsed state.
+   *
+   * @param _persist - Unused. Retained for API compatibility.
+   *   Previously controlled whether collapsed state was persisted separately.
+   *   Now that collapsed is derived from width, this parameter has no effect.
    */
-  expand(): void {
+  expand(_persist: boolean = true): void {
     if (this.disposed) return;
     if (!this.isCollapsed()) return; // Not collapsed
     if (this.state.phase !== "IDLE") return;
@@ -549,6 +542,68 @@ export class PanelResizeStateMachine {
       dagVisible: targetPct < 100,
       preSnapWidthPct: preSnapWidth,
     });
+
+    // Persist immediately so Zustand stays in sync.
+    // Without this, Zustand only updates when onTransitionComplete() fires
+    // (on CSS transitionend), which may never happen if the element isn't
+    // painted yet (e.g., deep-link initial mount). This causes a state
+    // mismatch where the panel is visually expanded but Zustand still has
+    // the collapsed width, breaking resize operations.
+    this.onPersist(targetPct);
+
+    // Safety net: if CSS transitionend doesn't fire, force-complete the snap.
+    this.scheduleSnapSafetyTimeout();
+  }
+
+  // ===========================================================================
+  // Public API: Post-Hydration State Restoration
+  // ===========================================================================
+
+  /**
+   * Restores persisted state after hydration completes.
+   * Called once after useMounted() returns true, when the real localStorage
+   * values become available (replacing the SSR defaults).
+   *
+   * Collapsed state is derived from width, so only the width needs restoring.
+   * If the persisted width is in the collapsed range (< 20%), the panel
+   * will be treated as collapsed automatically via isCollapsedWidth().
+   *
+   * This avoids the "frozen initial values" bug where useMemo(() => val, [])
+   * captured SSR defaults instead of actual localStorage values.
+   */
+  restorePersistedState(persistedPct: number): void {
+    if (this.disposed) return;
+
+    const currentPct = this.state.widthPct;
+
+    // Only restore if different from current state
+    if (Math.abs(persistedPct - currentPct) <= 0.1) {
+      return;
+    }
+
+    // Determine if the persisted width represents a collapsed panel
+    const persistedIsCollapsed = isCollapsedWidth(persistedPct);
+
+    // Normalize the persisted percentage for the "remembered" expand width.
+    // This ensures that if you collapse and re-expand, you go to a reasonable
+    // width in the free zone (20-80%), not 100% or 2%.
+    const normalizedForExpand = normalizePersistedPct(persistedPct);
+
+    // Update state immediately without animation.
+    // widthPct: Use ACTUAL persisted value (restore to 100% if that's what was saved)
+    // persistedPct: Use NORMALIZED value (where to return when expanding from collapsed)
+    const displayWidth = persistedIsCollapsed ? this.stripSnapTargetPct : persistedPct;
+
+    this.state = {
+      ...this.state,
+      widthPct: displayWidth,
+      persistedPct: normalizedForExpand,
+      phase: "IDLE",
+      // DAG should be visible whether panel is collapsed or expanded
+      // Only hide DAG if panel is taking full width (100%)
+      dagVisible: displayWidth < 100,
+    };
+    this.notifySubscribers();
   }
 
   // ===========================================================================
@@ -604,6 +659,12 @@ export class PanelResizeStateMachine {
       dagVisible: false,
       preSnapWidthPct: preSnapWidth,
     });
+
+    // Persist immediately so Zustand stays in sync (see expand() for rationale).
+    this.onPersist(100);
+
+    // Safety net: if CSS transitionend doesn't fire, force-complete the snap.
+    this.scheduleSnapSafetyTimeout();
   }
 
   showDAG(): void {
@@ -622,6 +683,12 @@ export class PanelResizeStateMachine {
       dagVisible: true,
       preSnapWidthPct: preSnapWidth,
     });
+
+    // Persist immediately so Zustand stays in sync (see expand() for rationale).
+    this.onPersist(targetPct);
+
+    // Safety net: if CSS transitionend doesn't fire, force-complete the snap.
+    this.scheduleSnapSafetyTimeout();
   }
 
   // ===========================================================================
@@ -647,6 +714,8 @@ export class PanelResizeStateMachine {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+
+    this.clearSnapSafetyTimeout();
 
     for (const id of this.pendingRafIds) {
       cancelAnimationFrame(id);
@@ -687,6 +756,41 @@ export class PanelResizeStateMachine {
   private notifyCallbacks(type: CallbackType): void {
     if (this.disposed) return;
     this.callbacks[type].forEach((cb) => cb());
+  }
+
+  /**
+   * Schedule a safety timeout that force-completes the SNAPPING phase if CSS
+   * transitionend doesn't fire. This prevents the state machine from being
+   * stuck in SNAPPING forever, which would block all user interactions
+   * (resize, collapse, expand).
+   *
+   * Common scenarios where transitionend fails:
+   * - Element not yet painted (deep-link initial mount)
+   * - Transition interrupted by another layout change
+   * - Browser optimizes away the transition (same-frame batched updates)
+   */
+  private scheduleSnapSafetyTimeout(): void {
+    this.clearSnapSafetyTimeout();
+
+    this.snapSafetyTimeoutId = setTimeout(() => {
+      this.snapSafetyTimeoutId = null;
+      if (this.disposed) return;
+
+      // Only act if still stuck in SNAPPING (normal path already completed)
+      if (this.state.phase === "SNAPPING") {
+        this.onTransitionComplete();
+      }
+    }, SNAP_SAFETY_TIMEOUT_MS);
+  }
+
+  /**
+   * Clear any pending snap safety timeout.
+   */
+  private clearSnapSafetyTimeout(): void {
+    if (this.snapSafetyTimeoutId !== null) {
+      clearTimeout(this.snapSafetyTimeoutId);
+      this.snapSafetyTimeoutId = null;
+    }
   }
 
   /**

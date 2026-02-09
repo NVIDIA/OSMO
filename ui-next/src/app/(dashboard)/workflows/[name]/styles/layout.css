@@ -28,15 +28,15 @@
     --activity-strip-width: 40px;
   }
   /* SSR-safe default: 50/50 split with DAG visible.
-     PanelStateManager overrides this via direct DOM updates. */
+     State machine overrides this via React-controlled inline styles. */
   .workflow-detail-grid {
-    grid-template-columns: minmax(0, 1fr) 50%;
+    grid-template-columns: 50% 50%;
     transition: grid-template-columns 200ms ease-out;
   }
 
   /* Disable transitions during drag for 60fps performance.
-     Manager also sets inline style.transition = 'none' for explicit control.
-     Note: data-phase is set by WorkflowDetailLayout based on state machine phase. */
+     React also sets inline style.transition = 'none' for explicit control.
+     data-phase is set by WorkflowDetailLayout based on state machine phase. */
   .workflow-detail-grid[data-phase="DRAGGING"] {
     transition: none;
   }
@@ -52,31 +52,18 @@
      When grid-template-columns changes, containment prevents child reflow
      from cascading beyond each grid item's boundary. This improves transition
      performance by ~10-20%, getting closer to 60fps during snap animations. */
-  .workflow-detail-grid > section,
+  .workflow-detail-grid > main,
   .workflow-detail-grid > aside {
     contain: layout style paint;
   }
 
-  /* During drag: Use strictest containment to eliminate ALL reflow propagation.
-     contain: strict = size + layout + style + paint
-     This tells the browser the element's size is independent of its contents,
-     completely isolating it from layout recalculations.
-
-     CRITICAL: This prevents scrollbar jitter by ensuring content size changes
-     don't propagate back to the grid item, which would cause column recalculation. */
+  /* During drag: Use strictest containment and GPU compositing for 60fps resizing.
+     contain: strict isolates layout so content size changes don't propagate back
+     to the grid item (prevents scrollbar jitter from column recalculation).
+     translate3d creates a compositing layer for GPU-accelerated rendering. */
   .workflow-detail-grid[data-phase="DRAGGING"] > main,
   .workflow-detail-grid[data-phase="DRAGGING"] > aside {
     contain: strict;
-  }
-
-  /* Promote grid items to GPU layer during drag for compositor-accelerated resizing.
-     translate3d(0,0,0) creates a compositing layer, moving resize calculations
-     from the main thread to the GPU compositor thread.
-
-     Combined with contain:strict, this ensures sub-pixel rounding happens
-     on the GPU where it won't cause visible jitter. */
-  .workflow-detail-grid[data-phase="DRAGGING"] > main,
-  .workflow-detail-grid[data-phase="DRAGGING"] > aside {
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
   }
