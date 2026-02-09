@@ -29,6 +29,7 @@ import { UserProvider } from "@/lib/auth/user-context";
 import { MockProvider } from "@/mocks/MockProvider";
 import { createQueryClient } from "@/lib/query-client";
 import { QueryDevtools } from "@/components/QueryDevtools";
+import { DevAuthInit } from "@/components/DevAuthInit";
 
 // =============================================================================
 // Provider Props
@@ -80,6 +81,7 @@ export function Providers({ children, dehydratedState }: ProvidersProps) {
   return (
     <ConfigProvider>
       <ServiceProvider>
+        <DevAuthInit />
         <MockProvider>
           <NuqsAdapter>
             <QueryClientProvider client={queryClient}>
