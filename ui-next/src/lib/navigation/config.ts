@@ -21,6 +21,7 @@ import {
   Workflow,
   Layers,
   Server,
+  Database,
   TextSearch,
   Settings,
   Shield,
@@ -53,6 +54,7 @@ const userNav: NavItem[] = [
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
   { name: "Resources", href: "/resources", icon: Server },
+  { name: "Datasets", href: "/datasets", icon: Database },
 ];
 
 /** Bottom navigation - empty now (profile is in top-right header) */
