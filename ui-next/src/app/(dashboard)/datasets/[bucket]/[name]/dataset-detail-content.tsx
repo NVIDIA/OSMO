@@ -26,9 +26,9 @@
 import { usePage } from "@/components/chrome/page-context";
 import { useQueryState } from "nuqs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
-import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[name]/components/DatasetDetailHeader";
-import { OverviewTab } from "@/app/(dashboard)/datasets/[name]/components/tabs/OverviewTab";
-import { useDatasetDetail } from "@/app/(dashboard)/datasets/[name]/hooks/use-dataset-detail";
+import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
+import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
+import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
 
 interface Props {
   bucket: string;
