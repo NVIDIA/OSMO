@@ -1,0 +1,1040 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Hardware In The Loop (HIL) &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/tutorials/hardware_in_the_loop/index';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Advanced Patterns" href="../advanced_patterns.html" />
+    <link rel="prev" title="Combination Workflows" href="../combination_workflows/index.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../appendix/cli/index.html">CLI Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Hardware In The Loop (HIL)</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="hardware-in-the-loop-hil">
+<span id="tutorials-gang-scheduling"></span><h1>Hardware In The Loop (HIL)<a class="headerlink" href="#hardware-in-the-loop-hil" title="Link to this heading">#</a></h1>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Prerequisites:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../requesting_resources.html#tutorials-requesting-resources"><span class="std std-ref">Requesting Resources</span></a></p></li>
+<li><p><a class="reference internal" href="../parallel_workflows/index.html#tutorials-parallel-workflows"><span class="std std-ref">Parallel Workflows</span></a></p></li>
+<li><p><a class="reference internal" href="../combination_workflows/index.html#tutorials-combination-workflows"><span class="std std-ref">Combination Workflows</span></a></p></li>
+</ul>
+<p>This tutorial also assumes you have necessary hardware in your pool to run tasks
+on different platforms.</p>
+</div>
+<p>This tutorial teaches you how to build a <strong>Hardware-In-The-Loop (HIL)</strong> workflow through
+<strong>heterogeneous gang scheduling</strong>, one of OSMO’s most powerful features.</p>
+<p>This feature also enables you to orchestrate workflows across the <strong>three-computer architecture</strong> for robotics development,
+inspired by <a class="reference external" href="https://blogs.nvidia.com/blog/three-computers-robotics/" rel="noreferrer" target="_blank">NVIDIA’s approach to physical AI <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.</p>
+<p>By the end, you’ll understand:</p>
+<ul class="simple">
+<li><p>What is <strong>heterogeneous gang scheduling</strong> and how it works in OSMO</p></li>
+<li><p>How to target <strong>multiple</strong> hardware platforms in a group</p></li>
+<li><p>How to use different computers from the <strong>three-computer architecture</strong> in your workflows</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>In addition to HIL, heterogeneous gang scheduling is also useful for:</p>
+<ul class="simple">
+<li><p><strong>Cross-platform testing</strong> - Test x86 and ARM builds simultaneously</p></li>
+<li><p><strong>Distributed systems</strong> - Deploy services across different hardware types</p></li>
+<li><p><strong>Hybrid workloads</strong> - Combine GPU compute, ARM inference, and x86 orchestration</p></li>
+</ul>
+</div>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-primary sd-bg-text-primary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-question" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.92 6.085h.001a.749.749 0 1 1-1.342-.67c.169-.339.436-.701.849-.977C6.845 4.16 7.369 4 8 4a2.756 2.756 0 0 1 1.637.525c.503.377.863.965.863 1.725 0 .448-.115.83-.329 1.15-.205.307-.47.513-.692.662-.109.072-.22.138-.313.195l-.006.004a6.24 6.24 0 0 0-.26.16.952.952 0 0 0-.276.245.75.75 0 0 1-1.248-.832c.184-.264.42-.489.692-.661.103-.067.207-.132.313-.195l.007-.004c.1-.061.182-.11.258-.161a.969.969 0 0 0 .277-.245C8.96 6.514 9 6.427 9 6.25a.612.612 0 0 0-.262-.525A1.27 1.27 0 0 0 8 5.5c-.369 0-.595.09-.74.187a1.01 1.01 0 0 0-.34.398ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg></span><span class="sd-summary-text">What is heterogeneous gang scheduling?</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">In <a class="reference internal" href="../parallel_workflows/index.html#tutorials-parallel-workflows"><span class="std std-ref">Parallel Workflows</span></a> and <a class="reference internal" href="../combination_workflows/index.html#tutorials-combination-workflows"><span class="std std-ref">Combination Workflows</span></a>,
+you learned about groups where tasks run together. <strong>Gang scheduling</strong> means OSMO schedules all
+tasks in a group as a unit - they all start simultaneously.</p>
+<p class="sd-card-text"><strong>Gang scheduling</strong> - Multiple tasks scheduled together as a unit (all start at the same time)
+<strong>Heterogeneous</strong> - Tasks can run on different hardware platforms (x86, ARM, GPU, etc.)</p>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-primary sd-bg-text-primary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-question" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.92 6.085h.001a.749.749 0 1 1-1.342-.67c.169-.339.436-.701.849-.977C6.845 4.16 7.369 4 8 4a2.756 2.756 0 0 1 1.637.525c.503.377.863.965.863 1.725 0 .448-.115.83-.329 1.15-.205.307-.47.513-.692.662-.109.072-.22.138-.313.195l-.006.004a6.24 6.24 0 0 0-.26.16.952.952 0 0 0-.276.245.75.75 0 0 1-1.248-.832c.184-.264.42-.489.692-.661.103-.067.207-.132.313-.195l.007-.004c.1-.061.182-.11.258-.161a.969.969 0 0 0 .277-.245C8.96 6.514 9 6.427 9 6.25a.612.612 0 0 0-.262-.525A1.27 1.27 0 0 0 8 5.5c-.369 0-.595.09-.74.187a1.01 1.01 0 0 0-.34.398ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg></span><span class="sd-summary-text">What is the three-computer architecture?</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">The three-computer architecture for robotics development consists of the following types of computers,
+each serving a specific role in the development pipeline:</p>
+<ul class="simple">
+<li><p class="sd-card-text"><strong>Training Computer</strong> - High-performance GPU for model training and evaluation</p></li>
+<li><p class="sd-card-text"><strong>Simulation Computer</strong> - GPU for physics simulation and synthetic data generation</p></li>
+<li><p class="sd-card-text"><strong>Edge Computer</strong> - ARM edge device for real-time robot control and inference</p></li>
+</ul>
+<p class="sd-card-text">These computers represent different stages in the robotics development pipeline:</p>
+<ol class="arabic simple">
+<li><p class="sd-card-text"><strong>Simulation and synthetic data generation</strong> - Generate training data and test scenarios</p></li>
+<li><p class="sd-card-text"><strong>Model training and policy development</strong> - Train and refine robot policies</p></li>
+<li><p class="sd-card-text"><strong>Policy evaluation and deployment</strong> - Run policies on edge devices</p></li>
+</ol>
+<p class="sd-card-text">While these computers serve different purposes in the pipeline, OSMO’s heterogeneous gang scheduling
+enables you to orchestrate workflows that use one, two, or all three together depending on your needs.</p>
+</div>
+</details><section id="targeting-multiple-platforms">
+<h2>Targeting Multiple Platforms<a class="headerlink" href="#targeting-multiple-platforms" title="Link to this heading">#</a></h2>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">platform</span></code> field in resource specifications to target specific platforms:</p>
+<div class="highlight-yaml notranslate"><div class="annotate highlight"><pre><span></span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">training-gpu</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">    </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32Gi</span>
+<span class="w">    </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ovx-a40</span><span class="w"> </span><span class="c1"># (1)</span>
+
+<span class="w">  </span><span class="nt">simulation-gpu</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">    </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16Gi</span>
+<span class="w">    </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ovx-a40</span><span class="w"> </span><span class="c1"># (2)</span>
+
+<span class="w">  </span><span class="nt">robot-edge</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">    </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8Gi</span>
+<span class="w">    </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">agx-orin-jp6</span><span class="w"> </span><span class="c1"># (3)</span>
+</pre></div>
+<ol class="arabic simple">
+<li><p>Training computer - High-performance GPU for model training/evaluation</p></li>
+<li><p>Simulation computer - GPU for physics simulation</p></li>
+<li><p>Edge computer - ARM edge device for robot control</p></li>
+</ol>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Check available platforms in your pool:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>resource<span class="w"> </span>list<span class="w"> </span>--pool<span class="w"> </span>&lt;pool_name&gt;
+</pre></div>
+</div>
+</div>
+</section>
+<section id="robotics-simulation-example">
+<h2>Robotics Simulation Example<a class="headerlink" href="#robotics-simulation-example" title="Link to this heading">#</a></h2>
+<p>Let’s create a workflow (<a class="reference download internal" download="" href="../../../_downloads/ba970d804c4f50ea270e6a97fa4be58b/robot_simulation.yaml"><code class="xref download docutils literal notranslate"><span class="pre">robot_simulation.yaml</span></code></a>) that contains
+the following tasks:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">physics-sim</span></code> task that generates physics data (e.g. obstacle distance)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">robot-ctrl</span></code> task that makes control decisions based on the obstacle distance</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model-trainer</span></code> task that evaluates the robot controller’s performance</p></li>
+</ol>
+<figure class="align-center">
+<img alt="Robotics Simulation Example" class="transparent-bg no-scaled-link" src="../../../_images/robot_simulation.svg" style="width: 100%;" />
+</figure>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Please make sure to modify the workflow to use the correct platform and resource for your setup.
+For more information, please refer to the <a class="reference internal" href="../../workflows/specification/resources.html#workflow-spec-resources"><span class="std std-ref">Resources</span></a> documentation.</p>
+</div>
+<div class="collapsible-code-block highlight-yaml notranslate"><div class="annotate highlight"><pre><span class="nt">workflow</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">robot-simulation</span>
+<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">exec_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15m</span>
+<span class="w">  </span><span class="nt">resources</span><span class="p">:</span>
+<div class="collapsible-wrapper open" data-indent="2" data-collapsible-id="c75b8d1b"><span class="collapsible-line"><span class="w">    </span><span class="nt">gpu-enabled</span><span class="p">:</span><button class="collapsible-toggle" onclick="toggleCollapsible('c75b8d1b')" aria-expanded="true" aria-label="Toggle collapsible section"></button></span>
+<div class="collapsible-content" id="content-c75b8d1b"><span class="w">      </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2Gi</span>
+<span class="w">      </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4Gi</span>
+<span class="w">      </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ovx-a40</span>
+</div></div>
+<div class="collapsible-wrapper open" data-indent="2" data-collapsible-id="e5bc0f45"><span class="collapsible-line"><span class="w">    </span><span class="nt">robot-edge</span><span class="p">:</span><button class="collapsible-toggle" onclick="toggleCollapsible('e5bc0f45')" aria-expanded="true" aria-label="Toggle collapsible section"></button></span>
+<div class="collapsible-content" id="content-e5bc0f45"><span class="w">      </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2Gi</span>
+<span class="w">      </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4Gi</span>
+<span class="w">      </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">agx-orin-jp6</span>
+</div></div>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">robot-hil</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+
+<span class="w">    </span><span class="c1">#############################################################</span>
+<span class="w">    </span><span class="c1"># Training Task - Evaluates performance, and updates policy</span>
+<span class="w">    </span><span class="c1">#############################################################</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">model-training</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># (1)</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvcr.io/nvidia/pytorch:24.01-py3</span>
+<span class="w">      </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpu-enabled</span><span class="w"> </span><span class="c1"># (2)</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">bash</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">/tmp/train.sh</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">files</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/train.sh</span>
+<div class="collapsible-wrapper" data-indent="2" data-collapsible-id="eb355c30"><span class="collapsible-line"><span class="w">        </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><button class="collapsible-toggle" onclick="toggleCollapsible('eb355c30')" aria-expanded="false" aria-label="Toggle collapsible section"></button></span>
+<div class="collapsible-content" id="content-eb355c30"><span class="w">          </span><span class="no"># Helpers</span>
+<span class="w">          </span><span class="no">wait() { until curl -sfo /dev/null &quot;$1&quot;; do sleep &quot;${2:-1}&quot;; done; }</span>
+<span class="w">          </span><span class="no">get() { curl -sf &quot;$1&quot;; }</span>
+<span class="w">          </span><span class="no">file() { echo &quot;e${1}_s${2}&quot;; }</span>
+
+<span class="w">          </span><span class="no"># Peer task webservers</span>
+<span class="w">          </span><span class="no">sim=&quot;http://{{host:physics-sim}}:8080&quot;</span>
+<span class="w">          </span><span class="no">ctrl=&quot;http://{{host:robot-ctrl}}:9090&quot;</span>
+
+<span class="w">          </span><span class="no"># Initialize</span>
+<span class="w">          </span><span class="no">mkdir -p /tmp/model &amp;&amp; cd /tmp/model</span>
+<span class="w">          </span><span class="no">python3 -m http.server 8000 &gt; /dev/null 2&gt;&amp;1 &amp;</span>
+<span class="w">          </span><span class="no">policy={{initial_policy}} &amp;&amp; echo &quot;$policy&quot; &gt; policy.txt &amp;&amp; echo &quot;0,0&quot; &gt; step.txt</span>
+<span class="w">          </span><span class="no">until curl -sf http://localhost:8000/policy.txt &gt; /dev/null; do sleep 1; done</span>
+<span class="w">          </span><span class="no">echo &quot;[TRAIN] Starting with threshold: ${policy}m&quot;</span>
+<span class="w">          </span><span class="no">wait $sim/ready &amp;&amp; wait $ctrl/ready</span>
+
+<span class="w">          </span><span class="no"># Main training loop</span>
+<span class="w">          </span><span class="no">for epoch in $(seq 1 {{max_epochs}}); do</span>
+<span class="w">            </span><span class="no">echo &quot;=== Epoch $epoch ===&quot;</span>
+<span class="w">            </span><span class="no">success=0 &amp;&amp; jumped_early=0 &amp;&amp; jumped_too_late=0 &amp;&amp; missed_jump=0</span>
+
+<span class="w">            </span><span class="no"># Move simulation forward</span>
+<span class="w">            </span><span class="no">for step in $(seq 1 {{steps_per_epoch}}); do</span>
+<span class="w">              </span><span class="no">echo &quot;$epoch,$step&quot; &gt; step.txt</span>
+<span class="w">              </span><span class="no">wait $sim/$(file $epoch $step).csv</span>
+<span class="w">              </span><span class="no">case $(get $sim/$(file $epoch $step).csv | cut -d&#39;,&#39; -f3) in</span>
+<span class="w">                </span><span class="no">success) ((success++));;</span>
+<span class="w">                </span><span class="no">jumped_early) ((jumped_early++));;</span>
+<span class="w">                </span><span class="no">jumped_too_late) ((jumped_too_late++));;</span>
+<span class="w">                </span><span class="no">missed_jump) ((missed_jump++));;</span>
+<span class="w">              </span><span class="no">esac</span>
+<span class="w">            </span><span class="no">done</span>
+
+<span class="w">            </span><span class="no"># Evaluate policy</span>
+<span class="w">            </span><span class="no">accuracy=$((success * 100 / {{steps_per_epoch}}))</span>
+<span class="w">            </span><span class="no">too_high=$jumped_early  # Jumped when shouldn&#39;t (policy too high)</span>
+<span class="w">            </span><span class="no">too_low=$((jumped_too_late + missed_jump))  # Didn&#39;t jump when should (policy too low)</span>
+<span class="w">            </span><span class="no">echo &quot;[TRAIN] Accuracy: ${accuracy}% | Early: ${jumped_early}, Late: ${jumped_too_late}, Missed: ${missed_jump}&quot;</span>
+<span class="w">            </span><span class="no">[ $accuracy -ge {{target_accuracy}} ] &amp;&amp; echo &quot;[TRAIN] Converged on policy: ${policy}m!&quot; &amp;&amp; break</span>
+
+<span class="w">            </span><span class="no"># Adjust policy based on error distribution</span>
+<span class="w">            </span><span class="no">if [ $too_high -gt $too_low ]; then</span>
+<span class="w">              </span><span class="no">adj=$((-4 - RANDOM % 5))  # Decrease threshold</span>
+<span class="w">            </span><span class="no">elif [ $too_low -gt $too_high ]; then</span>
+<span class="w">              </span><span class="no">adj=$((4 + RANDOM % 5))   # Increase threshold</span>
+<span class="w">            </span><span class="no">elif [ $too_high -gt 0 ] || [ $too_low -gt 0 ]; then</span>
+<span class="w">              </span><span class="no">adj=$((-3 + RANDOM % 7))  # Mixed errors</span>
+<span class="w">            </span><span class="no">else</span>
+<span class="w">              </span><span class="no">adj=0  # Perfect epoch</span>
+<span class="w">            </span><span class="no">fi</span>
+
+<span class="w">            </span><span class="no">policy=$((policy + adj))</span>
+<span class="w">            </span><span class="no">[ $policy -lt {{min_policy}} ] &amp;&amp; policy={{min_policy}}</span>
+<span class="w">            </span><span class="no">[ $policy -gt {{max_policy}} ] &amp;&amp; policy={{max_policy}}</span>
+<span class="w">            </span><span class="no">echo &quot;[TRAIN] Adjusted by ${adj}m -&gt; New threshold: ${policy}m&quot;</span>
+<span class="w">            </span><span class="no">echo &quot;$policy&quot; &gt; policy.txt</span>
+<span class="w">          </span><span class="no">done</span>
+</div></div>
+<span class="w">    </span><span class="c1">#############################################################</span>
+<span class="w">    </span><span class="c1"># Simulation Task - Generates synthetic environment data</span>
+<span class="w">    </span><span class="c1">#############################################################</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">physics-sim</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvcr.io/nvidia/pytorch:24.01-py3</span>
+<span class="w">      </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpu-enabled</span><span class="w">  </span><span class="c1"># (2)</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">bash</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">/tmp/sim.sh</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">files</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/sim.sh</span>
+<div class="collapsible-wrapper" data-indent="2" data-collapsible-id="2faa2c8d"><span class="collapsible-line"><span class="w">        </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><button class="collapsible-toggle" onclick="toggleCollapsible('2faa2c8d')" aria-expanded="false" aria-label="Toggle collapsible section"></button></span>
+<div class="collapsible-content" id="content-2faa2c8d"><span class="w">          </span><span class="no"># Helpers</span>
+<span class="w">          </span><span class="no">wait() { until curl -sfo /dev/null &quot;$1&quot;; do sleep &quot;${2:-1}&quot;; done; }</span>
+<span class="w">          </span><span class="no">get() { curl -sf &quot;$1&quot;; }</span>
+<span class="w">          </span><span class="no">file() { echo &quot;e${1}_s${2}&quot;; }</span>
+
+<span class="w">          </span><span class="no"># Peer task webservers</span>
+<span class="w">          </span><span class="no">train=&quot;http://{{host:model-training}}:8000&quot;</span>
+<span class="w">          </span><span class="no">ctrl=&quot;http://{{host:robot-ctrl}}:9090&quot;</span>
+
+<span class="w">          </span><span class="no"># Initialize</span>
+<span class="w">          </span><span class="no">mkdir -p /tmp/sim &amp;&amp; cd /tmp/sim</span>
+<span class="w">          </span><span class="no">python3 -m http.server 8080 &gt; /dev/null 2&gt;&amp;1 &amp;</span>
+<span class="w">          </span><span class="no">touch ready &amp;&amp; until curl -sf http://localhost:8080/ready &gt; /dev/null; do sleep 1; done</span>
+<span class="w">          </span><span class="no">last=&quot;0,0&quot;</span>
+
+<span class="w">          </span><span class="no">while true; do</span>
+<span class="w">            </span><span class="no">current=$(get $train/step.txt)</span>
+<span class="w">            </span><span class="no">[ -z &quot;$current&quot; -o &quot;$current&quot; = &quot;$last&quot; ] &amp;&amp; sleep 1 &amp;&amp; continue</span>
+<span class="w">            </span><span class="no">last=$current &amp;&amp; IFS=&#39;,&#39; read epoch step &lt;&lt;&lt; &quot;$current&quot;</span>
+
+<span class="w">            </span><span class="no"># Generate obstacle distance (3-10m with high variance)</span>
+<span class="w">            </span><span class="no">base=$(({{obstacle_width}} + RANDOM % ({{max_obstacle_distance}} - {{obstacle_width}} + 1)))</span>
+<span class="w">            </span><span class="no">variance=$((RANDOM % 4 - 1))  # -1 to +2</span>
+<span class="w">            </span><span class="no">obstacle=$((base + variance))</span>
+<span class="w">            </span><span class="no">[ $obstacle -lt {{obstacle_width}} ] &amp;&amp; obstacle={{obstacle_width}}</span>
+<span class="w">            </span><span class="no">[ $obstacle -gt {{max_obstacle_distance}} ] &amp;&amp; obstacle={{max_obstacle_distance}}</span>
+<span class="w">            </span><span class="no">echo &quot;$obstacle&quot; &gt; $(file $epoch $step)_state.txt</span>
+
+<span class="w">            </span><span class="no"># Wait for robot decision</span>
+<span class="w">            </span><span class="no">wait $ctrl/$(file $epoch $step)_act.txt 0.5 &amp;&amp; action=$(get $ctrl/$(file $epoch $step)_act.txt)</span>
+
+<span class="w">            </span><span class="no"># Evaluate action (optimal: jump when obstacle at 3-5m)</span>
+<span class="w">            </span><span class="no">min=$(({{jump_distance}} - {{obstacle_width}} + 1))</span>
+<span class="w">            </span><span class="no">max={{jump_distance}}</span>
+
+<span class="w">            </span><span class="no">if [ &quot;$action&quot; = &quot;JUMP&quot; ]; then</span>
+<span class="w">              </span><span class="no">if [ $obstacle -ge $min ] &amp;&amp; [ $obstacle -le $max ]; then</span>
+<span class="w">                </span><span class="no">result=&quot;success&quot;</span>
+<span class="w">              </span><span class="no">elif [ $obstacle -gt $max ]; then</span>
+<span class="w">                </span><span class="no">result=&quot;jumped_early&quot;</span>
+<span class="w">              </span><span class="no">else</span>
+<span class="w">                </span><span class="no">result=&quot;jumped_too_late&quot;</span>
+<span class="w">              </span><span class="no">fi</span>
+<span class="w">            </span><span class="no">else</span>
+<span class="w">              </span><span class="no">if [ $obstacle -ge $min ] &amp;&amp; [ $obstacle -le $max ]; then</span>
+<span class="w">                </span><span class="no">result=&quot;missed_jump&quot;</span>
+<span class="w">              </span><span class="no">else</span>
+<span class="w">                </span><span class="no">result=&quot;success&quot;</span>
+<span class="w">              </span><span class="no">fi</span>
+<span class="w">            </span><span class="no">fi</span>
+
+<span class="w">            </span><span class="no">echo &quot;[SIM] E${epoch}:S${step} obs=${obstacle}m -&gt; $action ($result)&quot;</span>
+<span class="w">            </span><span class="no">echo &quot;${obstacle},${action},${result}&quot; &gt; $(file $epoch $step).csv</span>
+<span class="w">          </span><span class="no">done</span>
+</div></div>
+
+<span class="w">    </span><span class="c1">#############################################################</span>
+<span class="w">    </span><span class="c1"># Robot Control Task - Makes control decisions</span>
+<span class="w">    </span><span class="c1">#############################################################</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">robot-ctrl</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">arm64v8/python:3.11-slim</span>
+<span class="w">      </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">robot-edge</span><span class="w">  </span><span class="c1"># (3)</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">bash</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">/tmp/ctrl.sh</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">files</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/ctrl.sh</span>
+<div class="collapsible-wrapper" data-indent="2" data-collapsible-id="86886b92"><span class="collapsible-line"><span class="w">        </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><button class="collapsible-toggle" onclick="toggleCollapsible('86886b92')" aria-expanded="false" aria-label="Toggle collapsible section"></button></span>
+<div class="collapsible-content" id="content-86886b92"><span class="w">          </span><span class="no"># Helpers</span>
+<span class="w">          </span><span class="no">wait() { until curl -sfo /dev/null &quot;$1&quot;; do sleep &quot;${2:-1}&quot;; done; }</span>
+<span class="w">          </span><span class="no">get() { curl -sf &quot;$1&quot;; }</span>
+<span class="w">          </span><span class="no">file() { echo &quot;e${1}_s${2}&quot;; }</span>
+
+<span class="w">          </span><span class="no"># Peer task webservers</span>
+<span class="w">          </span><span class="no">train=&quot;http://{{host:model-training}}:8000&quot;</span>
+<span class="w">          </span><span class="no">sim=&quot;http://{{host:physics-sim}}:8080&quot;</span>
+
+<span class="w">          </span><span class="no"># Initialize</span>
+<span class="w">          </span><span class="no">apt-get update -qq &amp;&amp; apt-get install -y -qq curl &gt; /dev/null 2&gt;&amp;1</span>
+<span class="w">          </span><span class="no">mkdir -p /tmp/robot &amp;&amp; cd /tmp/robot</span>
+<span class="w">          </span><span class="no">python3 -m http.server 9090 &gt; /dev/null 2&gt;&amp;1 &amp;</span>
+<span class="w">          </span><span class="no">touch test.txt &amp;&amp; until curl -sf http://localhost:9090/test.txt &gt; /dev/null; do sleep 1; done</span>
+<span class="w">          </span><span class="no">wait $train/policy.txt &amp;&amp; policy=$(get $train/policy.txt) &amp;&amp; echo &quot;[CTRL] Policy loaded: ${policy}m&quot;</span>
+<span class="w">          </span><span class="no">touch ready &amp;&amp; last=&quot;0,0&quot;</span>
+
+<span class="w">          </span><span class="no">while true; do</span>
+<span class="w">            </span><span class="no">current=$(get $train/step.txt)</span>
+<span class="w">            </span><span class="no">[ -z &quot;$current&quot; -o &quot;$current&quot; = &quot;$last&quot; ] &amp;&amp; sleep 1 &amp;&amp; continue</span>
+<span class="w">            </span><span class="no">last=$current &amp;&amp; IFS=&#39;,&#39; read epoch step &lt;&lt;&lt; &quot;$current&quot;</span>
+
+<span class="w">            </span><span class="no"># Update policy on new epoch</span>
+<span class="w">            </span><span class="no">[ $step -eq 1 ] &amp;&amp; policy=$(get $train/policy.txt) &amp;&amp; echo &quot;[CTRL] Epoch $epoch: Policy ${policy}m&quot;</span>
+
+<span class="w">            </span><span class="no"># Make decision based on obstacle distance</span>
+<span class="w">            </span><span class="no">wait $sim/$(file $epoch $step)_state.txt 0.5 &amp;&amp; obstacle=$(get $sim/$(file $epoch $step)_state.txt)</span>
+<span class="w">            </span><span class="no">[ $obstacle -le $policy ] &amp;&amp; action=&quot;JUMP&quot; || action=&quot;RUN&quot;</span>
+<span class="w">            </span><span class="no">echo &quot;$action&quot; &gt; $(file $epoch $step)_act.txt &amp;&amp; echo &quot;[CTRL] E${epoch}:S${step} obs=${obstacle}m -&gt; $action&quot;</span>
+<span class="w">          </span><span class="no">done</span>
+</div></div>
+<div class="collapsible-wrapper" data-indent="2" data-collapsible-id="1a37efb5"><span class="collapsible-line"><span class="nt">default-values</span><span class="p">:</span><button class="collapsible-toggle" onclick="toggleCollapsible('1a37efb5')" aria-expanded="false" aria-label="Toggle collapsible section"></button></span>
+<div class="collapsible-content" id="content-1a37efb5"><span class="w">  </span><span class="c1"># Policy parameters</span>
+<span class="w">  </span><span class="nt">initial_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">18</span><span class="w">         </span><span class="c1"># Starting jump threshold</span>
+<span class="w">  </span><span class="nt">min_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">              </span><span class="c1"># Minimum jump threshold</span>
+<span class="w">  </span><span class="nt">max_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">             </span><span class="c1"># Maximum jump threshold</span>
+<span class="w">  </span><span class="nt">target_accuracy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">90</span><span class="w">        </span><span class="c1"># Target accuracy (%)</span>
+
+<span class="w">  </span><span class="c1"># Training parameters</span>
+<span class="w">  </span><span class="nt">steps_per_epoch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">        </span><span class="c1"># Steps per epoch</span>
+<span class="w">  </span><span class="nt">max_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span><span class="w">             </span><span class="c1"># Maximum epochs</span>
+
+<span class="w">  </span><span class="c1"># Environment parameters</span>
+<span class="w">  </span><span class="nt">jump_distance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">           </span><span class="c1"># Robot jumps 5m forward</span>
+<span class="w">  </span><span class="nt">obstacle_width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span><span class="w">          </span><span class="c1"># Obstacle is 3m wide (optimal window: 3-5m)</span>
+<span class="w">  </span><span class="nt">max_obstacle_distance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span><span class="w">  </span><span class="c1"># Maximum obstacle distance (12m)</span>
+</div></div></pre></div><ol class="arabic simple">
+<li><p><strong>Training Computer</strong> - Lead task that collects metrics from both simulation and robot, evaluates performance, and terminates when evaluation is complete.</p></li>
+<li><p><strong>Simulation Computer</strong> - GPU-based physics simulation that generates synthetic environment data.</p></li>
+<li><p><strong>Edge Computer</strong> - ARM edge device running real-time robot control policy.</p></li>
+</ol>
+</div><p><strong>What Happens:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Gang scheduling</strong>: OSMO schedules all three computers together across heterogeneous hardware</p></li>
+<li><p><strong>Simultaneous start</strong>: Training, simulation, and edge computers all start together</p></li>
+<li><p><strong>Edge Computer</strong> loads the initial policy from the training computer and starts the robot control loop</p></li>
+<li><p><strong>Simulation Computer</strong> generates synthetic environment data and receives robot actions from the edge computer</p></li>
+<li><p><strong>Training Computer</strong> evaluates the robot controller’s performance and updates the policy</p></li>
+<li><p>The process repeats until the training computer converges to a safe policy</p></li>
+</ol>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>This example demonstrates OSMO’s ability to orchestrate all three computers from the three-computer
+architecture simultaneously to showcase heterogeneous gang scheduling capabilities.</p>
+<p><strong>In production environments</strong>, you would typically use separate workflows for each stage:</p>
+<ol class="arabic simple">
+<li><p><strong>Data generation workflow</strong></p></li>
+<li><p><strong>Training workflow</strong></p></li>
+<li><p><strong>Evaluation/deployment workflow</strong></p></li>
+</ol>
+<p>Real-world robotics development would separate these stages into distinct workflows for better
+scalability, resource utilization, and development iteration cycles.</p>
+</div>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<p><strong>Continue Learning:</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../advanced_patterns.html#tutorials-advanced-patterns"><span class="std std-ref">Advanced Patterns</span></a> - Workflow templates, checkpointing, error handling, and more</p></li>
+<li><p><a class="reference internal" href="../../how_to/training.html#guides-training"><span class="std std-ref">TorchRun: Training Deep Learning Models</span></a> - Training deep neural networks with OSMO</p></li>
+<li><p><a class="reference internal" href="../../how_to/reinforcement_learning.html#guides-reinforcement-learning"><span class="std std-ref">Isaac Lab: Training Robot Policy with Reinforcement Learning</span></a> - Reinforcement learning with OSMO</p></li>
+<li><p><a class="reference internal" href="../../how_to/hil.html#guides-hil"><span class="std std-ref">Hardware-in-the-Loop: Deploying Policy on Jetson</span></a> - Production HIL workflow with Isaac Lab and Jetson</p></li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><strong>Related Documentation:</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../workflows/specification/resources.html#workflow-spec-resources"><span class="std std-ref">Resources</span></a> - Full resource and platform specification</p></li>
+<li><p><a class="reference internal" href="../../workflows/specification/index.html#workflow-spec-group"><span class="std std-ref">Groups</span></a> - Full specification for groups</p></li>
+<li><p><a class="reference internal" href="../../resource_pools/scheduling/index.html#concepts-priority"><span class="std std-ref">Scheduling</span></a> - How OSMO schedules workflows</p></li>
+</ul>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../combination_workflows/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Combination Workflows</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../advanced_patterns.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Advanced Patterns</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#targeting-multiple-platforms">Targeting Multiple Platforms</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#robotics-simulation-example">Robotics Simulation Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

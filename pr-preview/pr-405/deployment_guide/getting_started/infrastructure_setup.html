@@ -1,0 +1,806 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Setup Infrastructure &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/getting_started/infrastructure_setup';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Deploy Service" href="deploy_service.html" />
+    <link rel="prev" title="Instances" href="../requirements/system_reqs.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../appendix/authentication/index.html">AuthN/AuthZ</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/keycloak_setup.html">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Setup Infrastructure</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="setup-infrastructure">
+<h1>Setup Infrastructure<a class="headerlink" href="#setup-infrastructure" title="Link to this heading">#</a></h1>
+<div class="important admonition">
+<p class="admonition-title">Prerequisites</p>
+<p>Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in <a class="reference internal" href="../requirements/prereqs.html"><span class="doc">Cloud</span></a>. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.</p>
+</div>
+</section>
+<section id="setup-options">
+<h1>Setup Options<a class="headerlink" href="#setup-options" title="Link to this heading">#</a></h1>
+<section id="option-1-using-terraform-recommended">
+<h2>Option 1: Using Terraform (Recommended)<a class="headerlink" href="#option-1-using-terraform-recommended" title="Link to this heading">#</a></h2>
+<p>This is the recommended way to set up infrastructure for OSMO and the quickest way to get started.</p>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover tool-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-cloud" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.25A5.225 5.225 0 0 1 7.25 2a5.222 5.222 0 0 1 4.767 3.029A4.472 4.472 0 0 1 16 9.5c0 2.505-1.995 4.5-4.5 4.5h-8A3.474 3.474 0 0 1 0 10.5c0-1.41.809-2.614 2.001-3.17Zm1.54.482a.75.75 0 0 1-.556.832c-.86.22-1.484.987-1.484 1.936 0 1.124.876 2 2 2h8c1.676 0 3-1.324 3-3s-1.324-3-3-3a.75.75 0 0 1-.709-.504A3.72 3.72 0 0 0 7.25 3.5C5.16 3.5 3.5 5.16 3.5 7.25c.002.146.014.292.035.436l.004.036.001.008Z"></path></svg> AWS Terraform</div>
+<p class="sd-card-text">Automated infrastructure setup for AWS with complete reference implementation.</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><strong>Creates:</strong></p>
+<ul class="simple">
+<li><p class="sd-card-text">VPC</p></li>
+<li><p class="sd-card-text">EKS cluster</p></li>
+<li><p class="sd-card-text">RDS PostgreSQL</p></li>
+<li><p class="sd-card-text">ElastiCache Redis</p></li>
+</ul>
+<p class="sd-card-text"><strong>Time</strong>: ~20-30 minutes</p>
+</div>
+<a class="sd-stretched-link sd-hide-link-text reference external" href="https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example" rel="noreferrer" target="_blank"><span>https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example</span> <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover tool-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-cloud" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 7.25A5.225 5.225 0 0 1 7.25 2a5.222 5.222 0 0 1 4.767 3.029A4.472 4.472 0 0 1 16 9.5c0 2.505-1.995 4.5-4.5 4.5h-8A3.474 3.474 0 0 1 0 10.5c0-1.41.809-2.614 2.001-3.17Zm1.54.482a.75.75 0 0 1-.556.832c-.86.22-1.484.987-1.484 1.936 0 1.124.876 2 2 2h8c1.676 0 3-1.324 3-3s-1.324-3-3-3a.75.75 0 0 1-.709-.504A3.72 3.72 0 0 0 7.25 3.5C5.16 3.5 3.5 5.16 3.5 7.25c.002.146.014.292.035.436l.004.036.001.008Z"></path></svg> Azure Terraform</div>
+<p class="sd-card-text">Automated infrastructure setup for Azure with complete reference implementation.</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><strong>Creates:</strong></p>
+<ul class="simple">
+<li><p class="sd-card-text">VNet</p></li>
+<li><p class="sd-card-text">AKS cluster</p></li>
+<li><p class="sd-card-text">Azure Database for PostgreSQL</p></li>
+<li><p class="sd-card-text">Azure Cache for Redis</p></li>
+</ul>
+<p class="sd-card-text"><strong>Time</strong>: ~20-30 minutes</p>
+</div>
+<a class="sd-stretched-link sd-hide-link-text reference external" href="https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example" rel="noreferrer" target="_blank"><span>https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example</span> <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></div>
+</div>
+</div>
+</div>
+</section>
+<section id="option-2-manually">
+<h2>Option 2: Manually<a class="headerlink" href="#option-2-manually" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Creating infrastructure manually requires familiarity with cloud resources and networking. Consider using the Terraform examples from Option 1 if you’re new to cloud infrastructure setup.</p>
+</div>
+<p>Follow the below guides to setup the infrastructure manually based on your cloud service provider of choice</p>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-lock" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 6V4a2.5 2.5 0 1 0-5 0v2Z"></path></svg> Network (VPC/VNet)</div>
+<p class="sd-card-text">Create isolated network infrastructure for your cloud resources.</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><a class="reference external" href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" rel="noreferrer" target="_blank">AWS - VPC <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://learn.microsoft.com/en-us/azure/virtual-network/quick-create-portal" rel="noreferrer" target="_blank">Azure - Virtual Network <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://cloud.google.com/vpc/docs/create-modify-vpc-networks" rel="noreferrer" target="_blank">GCP - VPC <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-container" viewBox="0 0 16 16" aria-hidden="true"><path d="m10.41.24 4.711 2.774c.544.316.878.897.879 1.526v5.01a1.77 1.77 0 0 1-.88 1.53l-7.753 4.521-.002.001a1.769 1.769 0 0 1-1.774 0H5.59L.873 12.85A1.761 1.761 0 0 1 0 11.327V6.292c0-.304.078-.598.22-.855l.004-.005.01-.019c.15-.262.369-.486.64-.643L8.641.239a1.752 1.752 0 0 1 1.765 0l.002.001ZM9.397 1.534l-7.17 4.182 4.116 2.388a.27.27 0 0 0 .269 0l7.152-4.148-4.115-2.422a.252.252 0 0 0-.252 0Zm-7.768 10.02 4.1 2.393V9.474a1.807 1.807 0 0 1-.138-.072L1.5 7.029v4.298c0 .095.05.181.129.227Zm8.6.642 1.521-.887v-4.45l-1.521.882ZM7.365 9.402h.001c-.044.026-.09.049-.136.071v4.472l1.5-.875V8.61Zm5.885 1.032 1.115-.65h.002a.267.267 0 0 0 .133-.232V5.264l-1.25.725Z"></path></svg> Kubernetes Cluster</div>
+<p class="sd-card-text">Deploy managed Kubernetes service to run OSMO Service components.</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><a class="reference external" href="https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html" rel="noreferrer" target="_blank">AWS - EKS <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal" rel="noreferrer" target="_blank">Azure - AKS <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://cloud.google.com/kubernetes-engine/docs/deploy-app-cluster" rel="noreferrer" target="_blank">GCP - GKE <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-database" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 3.5c0-.626.292-1.165.7-1.59.406-.422.956-.767 1.579-1.041C4.525.32 6.195 0 8 0c1.805 0 3.475.32 4.722.869.622.274 1.172.62 1.578 1.04.408.426.7.965.7 1.591v9c0 .626-.292 1.165-.7 1.59-.406.422-.956.767-1.579 1.041C11.476 15.68 9.806 16 8 16c-1.805 0-3.475-.32-4.721-.869-.623-.274-1.173-.62-1.579-1.04-.408-.426-.7-.965-.7-1.591Zm1.5 0c0 .133.058.318.282.551.227.237.591.483 1.101.707C4.898 5.205 6.353 5.5 8 5.5c1.646 0 3.101-.295 4.118-.742.508-.224.873-.471 1.1-.708.224-.232.282-.417.282-.55 0-.133-.058-.318-.282-.551-.227-.237-.591-.483-1.101-.707C11.102 1.795 9.647 1.5 8 1.5c-1.646 0-3.101.295-4.118.742-.508.224-.873.471-1.1.708-.224.232-.282.417-.282.55Zm0 4.5c0 .133.058.318.282.551.227.237.591.483 1.101.707C4.898 9.705 6.353 10 8 10c1.646 0 3.101-.295 4.118-.742.508-.224.873-.471 1.1-.708.224-.232.282-.417.282-.55V5.724c-.241.15-.503.286-.778.407C11.475 6.68 9.805 7 8 7c-1.805 0-3.475-.32-4.721-.869a6.15 6.15 0 0 1-.779-.407Zm0 2.225V12.5c0 .133.058.318.282.55.227.237.592.484 1.1.708 1.016.447 2.471.742 4.118.742 1.647 0 3.102-.295 4.117-.742.51-.224.874-.47 1.101-.707.224-.233.282-.418.282-.551v-2.275c-.241.15-.503.285-.778.406-1.247.549-2.917.869-4.722.869-1.805 0-3.475-.32-4.721-.869a6.327 6.327 0 0 1-.779-.406Z"></path></svg> PostgreSQL Database</div>
+<p class="sd-card-text">Create managed PostgreSQL database for application data storage.</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><a class="reference external" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html" rel="noreferrer" target="_blank">AWS - RDS for PostgreSQL <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/quickstart-create-server-portal" rel="noreferrer" target="_blank">Azure - Azure Database for PostgreSQL <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://cloud.google.com/sql/docs/postgres/create-instance" rel="noreferrer" target="_blank">GCP - Cloud SQL for PostgreSQL <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-zap" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.504.43a1.516 1.516 0 0 1 2.437 1.713L10.415 5.5h2.123c1.57 0 2.346 1.909 1.22 3.004l-7.34 7.142a1.249 1.249 0 0 1-.871.354h-.302a1.25 1.25 0 0 1-1.157-1.723L5.633 10.5H3.462c-1.57 0-2.346-1.909-1.22-3.004L9.503.429Zm1.047 1.074L3.286 8.571A.25.25 0 0 0 3.462 9H6.75a.75.75 0 0 1 .694 1.034l-1.713 4.188 6.982-6.793A.25.25 0 0 0 12.538 7H9.25a.75.75 0 0 1-.683-1.06l2.008-4.418.003-.006a.036.036 0 0 0-.004-.009l-.006-.006-.008-.001c-.003 0-.006.002-.009.004Z"></path></svg> Redis Cache</div>
+<p class="sd-card-text">Set up managed Redis cache for session management and real-time data.</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text"><a class="reference external" href="https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.html" rel="noreferrer" target="_blank">AWS - ElastiCache Redis <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis" rel="noreferrer" target="_blank">Azure - Azure Cache for Redis <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p class="sd-card-text"><a class="reference external" href="https://cloud.google.com/memorystore/docs/redis/create-instance-console" rel="noreferrer" target="_blank">GCP - Memorystore for Redis <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="configure-networking">
+<h1>Configure Networking<a class="headerlink" href="#configure-networking" title="Link to this heading">#</a></h1>
+<div class="important admonition">
+<p class="admonition-title">Required Network Connectivity</p>
+<p>Ensure proper network connectivity between components for OSMO to function correctly.</p>
+</div>
+<p class="connectivity-list"><strong>Internal VPC Connections (Private Network):</strong></p>
+<ul class="simple">
+<li><p>Kubernetes ↔ PostgreSQL</p></li>
+<li><p>Kubernetes ↔ Redis</p></li>
+</ul>
+<p><strong>External Connections:</strong></p>
+<ul class="simple">
+<li><p>Kubernetes → Cloud Storage <em>(Outbound internet or VPC endpoint)</em></p></li>
+<li><p>User → Kubernetes <em>(Internet access via load balancer/ingress)</em></p></li>
+</ul>
+</section>
+<section id="best-practices">
+<h1>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">#</a></h1>
+<ol class="arabic simple">
+<li><p><strong>Use managed services</strong>: Cloud providers handle patching and updates</p></li>
+<li><p><strong>Enable encryption</strong>: Encryption at rest and in transit for all services</p></li>
+<li><p><strong>Private subnets</strong>: Keep databases and Redis in private subnets</p></li>
+<li><p><strong>Minimal access</strong>: Use security groups to restrict access to only required ports</p></li>
+<li><p><strong>Service accounts</strong>: Use cloud provider IAM for service-to-service authentication</p></li>
+</ol>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../requirements/system_reqs.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Instances</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="deploy_service.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Deploy Service</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Setup Infrastructure</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-options">Setup Options</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#option-1-using-terraform-recommended">Option 1: Using Terraform (Recommended)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#option-2-manually">Option 2: Manually</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-networking">Configure Networking</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#best-practices">Best Practices</a></li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
