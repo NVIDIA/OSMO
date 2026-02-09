@@ -1280,6 +1280,196 @@ This is how most modern terminal protocols work:
 
 ---
 
+### 23. Dataset List API Missing Offset Parameter - Client-Side Filtering Workaround
+
+**Priority:** High
+**Status:** ✅ Workaround implemented in adapter (`datasets.ts`) - **works for both mock and real data**
+
+The dataset list API (`GET /api/bucket/list_dataset`) lacks an `offset` parameter, making it impossible to implement proper pagination when filters are active.
+
+**API Parameters:**
+```typescript
+{
+  name?: string;           // Search filter
+  buckets?: string[];      // Bucket filter
+  dataset_type?: DatasetType;  // Format filter
+  count?: number;          // Limit (like "limit")
+  // ❌ Missing: offset parameter
+}
+```
+
+**The Problem:**
+
+Without `offset`, the API can only return the first N results. When filtering is active:
+1. Backend receives: `?buckets=ml-data&count=50`
+2. Backend returns: First 50 datasets matching filter
+3. UI cannot request "next 50 matching datasets" (no offset!)
+
+This breaks infinite scroll with filters - users only see the first page of filtered results.
+
+**Contrast with Workflows API:**
+
+Workflows has the same limitation, but it's documented in issue #11. The workflows mock works around it by:
+```typescript
+// workflows mock - disables pagination when filtering
+const moreEntries = hasActiveFilters(filters) ? false : offset + limit < total;
+```
+
+This tells the UI "no more pages available" when filters are active, hiding the bug but limiting users to one page of results.
+
+**Our Implementation: Client-Side Filtering**
+
+We implement a **fetch-once, filter-client-side** pattern that works for both mock and real backend:
+
+```typescript
+// datasets.ts - Simplified client-side filtering
+const DATASET_FETCH_LIMIT = 1000;
+
+export async function fetchPaginatedDatasets(params) {
+  // 1. Fetch large pool upfront (once, TanStack Query caches it)
+  const response = await api({ count: DATASET_FETCH_LIMIT });
+  const allDatasets = transformDatasetList(response);
+
+  // 2. CLIENT-SIDE FILTERING (works for mock and real data)
+  let filtered = allDatasets;
+  if (searchTerm) {
+    filtered = filtered.filter(d => d.name.includes(searchTerm));
+  }
+  if (buckets.length > 0) {
+    filtered = filtered.filter(d => buckets.includes(d.bucket));
+  }
+
+  // 3. CLIENT-SIDE PAGINATION (slice filtered results)
+  const pageData = filtered.slice(offset, offset + limit);
+
+  return {
+    items: pageData,
+    total: allDatasets.length,
+    filteredTotal: filtered.length,
+    hasMore: offset + limit < filtered.length,
+  };
+}
+```
+
+**Mock Handler (Simplified):**
+
+```typescript
+// handlers.ts - No filtering, just return requested count
+http.get("*/api/bucket/list_dataset", async ({ request }) => {
+  const count = parseInt(url.searchParams.get("count") || "50");
+  const { entries } = datasetGenerator.generatePage(0, count);
+  return HttpResponse.json({ datasets: entries });
+});
+```
+
+**How This Works:**
+
+**Initial load:**
+```
+User opens /datasets
+→ Adapter fetches 1000 items (single API call)
+→ TanStack Query caches all 1000 items
+→ Display first 50 items
+```
+
+**User filters by bucket="ml-data":**
+```
+→ Filter 1000 cached items in memory (<10ms)
+→ Find 180 matches
+→ Display first 50 matching items
+→ hasMore = true (130 more available)
+```
+
+**User scrolls to load more:**
+```
+→ Slice cached filtered results [50:100]
+→ Display next 50 items (instant, no API call!)
+```
+
+**Tradeoffs:**
+
+| Aspect | Pro/Con | Details |
+|--------|---------|---------|
+| Compatibility | ✅ Pro | Works for both mock and real backend |
+| Code complexity | ✅ Pro | Single implementation, no special cases |
+| Filtering UX | ✅ Pro | Perfect - sees all matching items |
+| Filter speed | ✅ Pro | Instant (<10ms, in-memory) |
+| Initial load | ❌ Con | Slower (fetch 1000 vs 50 items) |
+| Memory | ❌ Con | ~500KB for 1000 datasets |
+| Scalability | ⚠️ Limited | Works up to ~10,000 datasets |
+| Real-time updates | ❌ Con | Needs manual refresh |
+
+**For OSMO's use case:**
+- Total datasets: < 10,000 ✅
+- Enterprise network: Fast ✅
+- Internal tool: High memory OK ✅
+- **Verdict: This approach is appropriate**
+
+**Backend Fix Options:**
+
+**Option 1: Add offset parameter (RECOMMENDED)**
+```python
+@router.get("/api/bucket/list_dataset")
+def list_datasets(
+    count: int = 50,
+    offset: int = 0,  # ← Add this
+    buckets: Optional[List[str]] = None,
+    # ...
+):
+    # Apply filters first
+    filtered = apply_filters(all_datasets, buckets, ...)
+
+    # THEN paginate
+    return {
+        "datasets": filtered[offset:offset+count],
+        "total": len(filtered),  # ← Also add total count
+        "has_more": offset + count < len(filtered)
+    }
+```
+
+**Option 2: Cursor-based pagination**
+```python
+def list_datasets(
+    count: int = 50,
+    cursor: Optional[str] = None,  # Opaque cursor from previous response
+    # ...
+):
+    # Decode cursor to resumption point
+    # Return next N items + new cursor
+```
+
+**Option 3: Return all matching results**
+```python
+# Remove count limit entirely for filtered queries
+# Let client handle pagination of full result set
+# ⚠️ Only viable if result sets are reasonably sized (<10k items)
+```
+
+**UI Adapter Code:**
+
+The adapter correctly passes filter parameters but documents the limitation:
+
+```typescript
+// datasets.ts:209
+const response = await listDatasetFromBucketApiBucketListDatasetGet({
+  name: searchTerm,
+  buckets: bucketChips.length > 0 ? bucketChips : undefined,
+  dataset_type: formatChips.length > 0 ? formatChips[0] : undefined,
+  count: limit,
+  // NOTE: No offset parameter available - pagination broken with filters
+});
+```
+
+**Migration Path:**
+
+1. Backend adds `offset` parameter and `total` count to response
+2. Update adapter to pass `offset` in API call
+3. Remove mock's filter-then-paginate workaround
+4. Update `DataListResponse` type to include `total` and `has_more`
+5. Infinite scroll works correctly with filters ✅
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -1306,6 +1496,7 @@ This is how most modern terminal protocols work:
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
 | #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
+| #23 Dataset pagination with filters | **High** | datasets.ts (client-side filtering) | Add offset param to API |
 
 ### Priority Guide
 
