@@ -74,27 +74,6 @@ go_library(
     ],
 )
 
-################################################################
-#                   Config Service Library                      #
-################################################################
-
-go_library(
-    name = "config_service",
-    srcs = ["config_service/config_service.go"],
-    importpath = "go.corp.nvidia.com/osmo/service/operator/config_service",
-    visibility = ["//src/service/operator:__subpackages__"],
-    deps = [
-        ":utils",
-        "//src/proto/operator:operator_go_proto",
-        "//src/utils:utils",
-        "@com_github_jackc_pgx_v5//pgxpool",
-        "@com_github_redis_go_redis_v9//:go-redis",
-        "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//codes",
-        "@org_golang_google_grpc//status",
-    ],
-)
-
 go_test(
     name = "listener_service_test",
     srcs = ["listener_service/listener_service_test.go"],
@@ -116,7 +95,6 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/service/operator",
     visibility = ["//visibility:private"],
     deps = [
-        ":config_service",
         ":listener_service",
         ":utils",
         "@org_golang_google_grpc//:grpc",
