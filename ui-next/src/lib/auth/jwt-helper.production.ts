@@ -25,8 +25,10 @@ export interface JwtClaims {
   iat?: number;
   /** JWT ID */
   jti?: string;
-  /** Preferred username */
+  /** Preferred username (used by Envoy as secondary user_claim) */
   preferred_username?: string;
+  /** Unique name (used by Envoy as primary user_claim) */
+  unique_name?: string;
   /** Email address */
   email?: string;
   /** Email verified flag */

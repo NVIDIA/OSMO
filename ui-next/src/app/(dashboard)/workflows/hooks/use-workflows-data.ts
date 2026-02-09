@@ -50,8 +50,6 @@ import { QUERY_STALE_TIME } from "@/lib/config";
 interface UseWorkflowsDataParams {
   /** Search chips from FilterBar */
   searchChips: SearchChip[];
-  /** Show all users' workflows (default: false = current user only) */
-  showAllUsers?: boolean;
   /** Sort direction (default: DESC = most recent first) */
   sortDirection?: "ASC" | "DESC";
   /** Number of workflows per page (default: 50) */
@@ -89,10 +87,14 @@ interface UseWorkflowsDataReturn {
 
 export function useWorkflowsData({
   searchChips,
-  showAllUsers = false,
   sortDirection = "DESC",
   pageSize = 50,
 }: UseWorkflowsDataParams): UseWorkflowsDataReturn {
+  // Derive showAllUsers from chips: if no user chips exist, show all users (all_users=true)
+  // If user chips exist, don't send all_users (backend will filter by those users)
+  const hasUserChips = useMemo(() => searchChips.some((chip) => chip.field === "user"), [searchChips]);
+  const showAllUsers = !hasUserChips;
+
   // Build stable query key - changes when filters/options change, which resets pagination
   const queryKey = useMemo(
     () => buildWorkflowsQueryKey(searchChips, showAllUsers, sortDirection),

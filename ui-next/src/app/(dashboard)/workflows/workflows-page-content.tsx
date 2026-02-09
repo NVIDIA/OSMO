@@ -35,12 +35,12 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback, useTransition } from "react";
-import { useQueryState, parseAsBoolean } from "nuqs";
+import { useCallback } from "react";
 import { WorkflowsDataTable } from "@/app/(dashboard)/workflows/components/table/workflows-data-table";
 import { WorkflowsToolbar } from "@/app/(dashboard)/workflows/components/workflows-toolbar";
 import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
 import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
+import { useUser } from "@/lib/auth/user-context";
 
 // =============================================================================
 // Client Component
@@ -49,13 +49,11 @@ import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workf
 export function WorkflowsPageContent() {
   usePage({ title: "Workflows" });
   const { startTransition: startViewTransition } = useViewTransition();
-
-  // Track pending state for show all users toggle
-  const [showAllUsersPending, startShowAllUsersTransition] = useTransition();
+  const { user } = useUser();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
-  // URL: /workflows?f=status:running&f=user:alice&all=true
+  // URL: /workflows?f=status:running&f=user:alice
   // ==========================================================================
 
   // Filter chips - URL-synced via shared hook
@@ -67,23 +65,6 @@ export function WorkflowsPageContent() {
     },
     [setSearchChips, startViewTransition],
   );
-
-  // Show all users toggle - URL-synced (default: false = my workflows only)
-  // URL param: ?all=true (shows all users), omitted/false (shows my workflows)
-  const [showAllUsers, setShowAllUsers] = useQueryState(
-    "all",
-    parseAsBoolean.withDefault(false).withOptions({
-      shallow: true,
-      history: "replace", // Don't pollute history with toggle changes
-      clearOnDefault: true, // Remove param when false (cleaner URLs)
-    }),
-  );
-
-  const handleToggleShowAllUsers = useCallback(() => {
-    startShowAllUsersTransition(() => {
-      void setShowAllUsers((prev) => !prev);
-    });
-  }, [setShowAllUsers]);
 
   // Sort direction from table store (only submit_time is sortable server-side)
   const sortState = useWorkflowsTableStore((s) => s.sort);
@@ -108,7 +89,6 @@ export function WorkflowsPageContent() {
     hasActiveFilters,
   } = useWorkflowsData({
     searchChips,
-    showAllUsers,
     sortDirection,
   });
 
@@ -132,9 +112,7 @@ export function WorkflowsPageContent() {
             searchChips={searchChips}
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
-            showAllUsers={showAllUsers}
-            showAllUsersPending={showAllUsersPending}
-            onToggleShowAllUsers={handleToggleShowAllUsers}
+            currentUsername={user?.username}
           />
         </InlineErrorBoundary>
       </div>

@@ -18,8 +18,8 @@
 
 "use client";
 
-import { useMemo, useRef, useCallback, useId } from "react";
-import { useSyncedRef } from "@react-hookz/web";
+import { useMemo, useRef, useCallback, useId, useEffect } from "react";
+import { useSyncedRef, usePrevious } from "@react-hookz/web";
 import {
   useReactTable,
   getCoreRowModel,
@@ -238,6 +238,20 @@ export function DataTable<TData, TSectionMeta = unknown>({
     resizeCompleteEvent,
     registerLayoutStableCallback,
   });
+
+  // Track previous data length to detect empty → populated transitions
+  const prevDataLength = usePrevious(allItems.length);
+
+  // When transitioning from empty (0 items) to populated (>0 items),
+  // trigger column recalculation to ensure columns fill available space
+  useEffect(() => {
+    if (prevDataLength === 0 && allItems.length > 0) {
+      // Use RAF to ensure DOM has updated before recalculating
+      requestAnimationFrame(() => {
+        columnSizingHook.recalculate();
+      });
+    }
+  }, [prevDataLength, allItems.length, columnSizingHook]);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design
   const table = useReactTable({
