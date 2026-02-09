@@ -25,5 +25,6 @@ osmo_py_test(
         "//src/lib/data/storage/backends",
         "//src/lib/data/storage/core",
         "//src/lib/data/storage/credentials",
+        "//src/utils/connectors",
     ],
 )

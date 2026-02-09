@@ -47,7 +47,6 @@ def _get_env():
     """
     env = os.environ.copy()
     env['OSMO_POSTGRES_PASSWORD'] = 'osmo'
-    env['OSMO_SKIP_DATA_AUTH'] = '1'
     env['AWS_ENDPOINT_URL'] = LOCALSTACK_S3_ENDPOINT_BAZEL_HOST
     env['AWS_DEFAULT_REGION'] = LOCALSTACK_REGION
     env['AWS_S3_FORCE_PATH_STYLE'] = LOCALSTACK_FORCE_PATH_STYLE
@@ -246,7 +245,7 @@ def _start_localstack_s3():
 
 
 def _create_localstack_buckets(
-                               ) -> None:
+) -> None:
     """Create LocalStack S3 buckets if they don't already exist."""
     logger.info('🪣 Creating LocalStack S3 buckets...')
 
