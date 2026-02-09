@@ -39,6 +39,8 @@ export interface ResizablePanelProps {
   open: boolean;
   /** Callback when panel should close (backdrop click, escape key) */
   onClose: () => void;
+  /** Callback after panel slide-out animation completes (for cleanup) */
+  onClosed?: () => void;
   /** Current width as percentage (0-100) */
   width: number;
   /** Callback when width changes during resize */
@@ -146,6 +148,7 @@ export interface ResizablePanelProps {
 export function ResizablePanel({
   open,
   onClose,
+  onClosed,
   width,
   onWidthChange,
   minWidth = PANEL.MIN_WIDTH_PCT,
@@ -171,6 +174,7 @@ export function ResizablePanel({
 
   // Stable callbacks to prevent stale closures in effects and event handlers
   const stableOnClose = useEventCallback(onClose);
+  const stableOnClosed = useEventCallback(onClosed ?? (() => {}));
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? onClose);
 
   const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
@@ -205,7 +209,7 @@ export function ResizablePanel({
     contentRef,
     handleContentAnimationEnd,
     handlePanelTransitionEnd,
-  } = usePanelAnimation(open);
+  } = usePanelAnimation(open, stableOnClosed);
 
   // ---------------------------------------------------------------------------
   // Focus management

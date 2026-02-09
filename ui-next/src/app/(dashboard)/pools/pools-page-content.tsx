@@ -32,16 +32,22 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { usePanelState } from "@/hooks/use-url-state";
+import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
+import { usePanelWidth } from "@/hooks/use-panel-width";
 import { PoolsDataTable } from "@/app/(dashboard)/pools/components/table/pools-data-table";
-import { PoolPanelLayout } from "@/app/(dashboard)/pools/components/panel/pool-panel";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { PoolPanelHeader } from "@/app/(dashboard)/pools/components/panel/panel-header";
+import { PanelContent } from "@/app/(dashboard)/pools/components/panel/panel-content";
 import { PoolsToolbar } from "@/app/(dashboard)/pools/components/pools-toolbar";
 import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
+import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
 
 // =============================================================================
 // Client Component
@@ -77,68 +83,114 @@ export function PoolsPageContent() {
     usePoolsData({ searchChips });
 
   // ==========================================================================
-  // Pool Selection
+  // Pool Panel State - URL state controls both selection and mounting
   // ==========================================================================
 
-  // Find selected pool (search in allPools so selection persists through filtering)
+  // Find selected pool from URL (search in allPools so selection persists through filtering)
   const selectedPool = useMemo(
-    () => (selectedPoolName ? (allPools.find((p) => p.name === selectedPoolName) ?? null) : null),
+    () => (selectedPoolName ? allPools.find((p) => p.name === selectedPoolName) : undefined),
     [allPools, selectedPoolName],
+  );
+
+  // Panel lifecycle - handles open/close/closing animation state machine
+  const { isPanelOpen, handleClose, handleClosed } = usePanelLifecycle({
+    hasSelection: Boolean(selectedPoolName && selectedPool),
+    onClosed: clearSelectedPool,
+  });
+
+  // Open panel with a pool (URL-synced)
+  const handlePoolSelect = useCallback(
+    (poolName: string) => {
+      setSelectedPoolName(poolName);
+    },
+    [setSelectedPoolName],
   );
 
   // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
+  // Panel width management
+  const { panelWidth, setPanelWidth, handleWidthPreset } = usePanelWidth({
+    storedWidth: usePoolsTableStore((s) => s.panelWidth),
+    setStoredWidth: usePoolsTableStore((s) => s.setPanelWidth),
+  });
+
   // ==========================================================================
-  // Render
+  // Render - Always render ResizablePanel to keep table in same tree position
   // ==========================================================================
+
+  // Table content - always rendered in the same position (as mainContent)
+  const tableContent = (
+    <div className="flex h-full flex-col gap-4 p-6">
+      {/* Toolbar with search and controls */}
+      <div className="shrink-0">
+        <InlineErrorBoundary
+          title="Toolbar error"
+          compact
+        >
+          <PoolsToolbar
+            pools={allPools}
+            sharingGroups={sharingGroups}
+            searchChips={searchChips}
+            onSearchChipsChange={setSearchChips}
+            resultsCount={resultsCount}
+          />
+        </InlineErrorBoundary>
+      </div>
+
+      {/* Main pools table - receives pre-filtered data */}
+      <div className="min-h-0 flex-1">
+        <InlineErrorBoundary
+          title="Unable to display pools table"
+          resetKeys={[pools.length]}
+          onReset={refetch}
+        >
+          <PoolsDataTable
+            pools={pools}
+            sharingGroups={sharingGroups}
+            isLoading={isLoading}
+            error={error ?? undefined}
+            onRetry={refetch}
+            onPoolSelect={handlePoolSelect}
+            selectedPoolName={selectedPoolName}
+            onSearchChipsChange={setSearchChips}
+          />
+        </InlineErrorBoundary>
+      </div>
+    </div>
+  );
 
   return (
-    <PoolPanelLayout
-      pool={selectedPool}
-      sharingGroups={sharingGroups}
-      onClose={clearSelectedPool}
-      onPoolSelect={setSelectedPoolName}
-      selectedPlatform={selectedPlatform}
-      onPlatformSelect={setSelectedPlatform}
+    <ResizablePanel
+      open={isPanelOpen}
+      onClose={handleClose}
+      onClosed={handleClosed}
+      width={panelWidth}
+      onWidthChange={setPanelWidth}
+      minWidth={PANEL.MIN_WIDTH_PCT}
+      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
+      mainContent={tableContent}
+      backdrop={false}
+      aria-label={selectedPool ? `Pool details: ${selectedPool.name}` : "Pools"}
+      className="pools-panel"
     >
-      <div className="flex h-full flex-col gap-4 p-6">
-        {/* Toolbar with search and controls */}
-        <div className="shrink-0">
-          <InlineErrorBoundary
-            title="Toolbar error"
-            compact
-          >
-            <PoolsToolbar
-              pools={allPools}
-              sharingGroups={sharingGroups}
-              searchChips={searchChips}
-              onSearchChipsChange={setSearchChips}
-              resultsCount={resultsCount}
-            />
-          </InlineErrorBoundary>
-        </div>
-
-        {/* Main pools table - receives pre-filtered data */}
-        <div className="min-h-0 flex-1">
-          <InlineErrorBoundary
-            title="Unable to display pools table"
-            resetKeys={[pools.length]}
-            onReset={refetch}
-          >
-            <PoolsDataTable
-              pools={pools}
-              sharingGroups={sharingGroups}
-              isLoading={isLoading}
-              error={error ?? undefined}
-              onRetry={refetch}
-              onPoolSelect={setSelectedPoolName}
-              selectedPoolName={selectedPoolName}
-              onSearchChipsChange={setSearchChips}
-            />
-          </InlineErrorBoundary>
-        </div>
-      </div>
-    </PoolPanelLayout>
+      {/* Panel content - only rendered when pool is selected */}
+      {selectedPool && (
+        <>
+          <PoolPanelHeader
+            pool={selectedPool}
+            onClose={handleClose}
+            onWidthPreset={handleWidthPreset}
+          />
+          <PanelContent
+            pool={selectedPool}
+            sharingGroups={sharingGroups}
+            onPoolSelect={handlePoolSelect}
+            selectedPlatform={selectedPlatform}
+            onPlatformSelect={setSelectedPlatform}
+          />
+        </>
+      )}
+    </ResizablePanel>
   );
 }
