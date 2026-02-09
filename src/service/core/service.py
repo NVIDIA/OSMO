@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -281,7 +281,8 @@ def set_default_service_url(postgres: connectors.PostgresConnector):
             postgres.config.service_hostname)
 
 
-def setup_default_admin(postgres: connectors.PostgresConnector, config: objects.WorkflowServiceConfig):
+def setup_default_admin(postgres: connectors.PostgresConnector,
+                        config: objects.WorkflowServiceConfig):
     """
     Set up the default admin user if configured.
 
@@ -326,7 +327,9 @@ def setup_default_admin(postgres: connectors.PostgresConnector, config: objects.
         # Compare the hashed values - only update if different
         existing_hashed_token = bytes(existing_token[0]['access_token'])
         if existing_hashed_token == new_hashed_token:
-            logging.info('Default admin user %s already configured with matching PAT', admin_username)
+            logging.info(
+                'Default admin user %s already configured with matching PAT',
+                admin_username)
             return
 
         # Password has changed, delete the old token
