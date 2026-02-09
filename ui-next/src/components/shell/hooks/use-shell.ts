@@ -711,6 +711,22 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     }
   }, [state.phase, fit]);
 
+  // Control cursor blinking based on connection state
+  useEffect(() => {
+    const session = _getSession(sessionKey);
+    if (!session || !hasTerminal(session.state)) return;
+
+    const terminal = session.state.terminal;
+
+    // Cursor should only blink when ready (accepting user input)
+    // When disconnected or in error, stop blinking since we don't accept input
+    if (session.state.phase === "ready") {
+      terminal.options.cursorBlink = true;
+    } else {
+      terminal.options.cursorBlink = false;
+    }
+  }, [sessionKey, state.phase]);
+
   // Register reconnect callback for external triggers (use ref to avoid infinite loops)
   const connectRef = useRef(connect);
   connectRef.current = connect;

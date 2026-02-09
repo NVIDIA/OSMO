@@ -286,8 +286,8 @@ export const ShellTerminalImpl = memo(
             </div>
           )}
 
-          {/* Search UI */}
-          {isSearchOpen && state.phase === "ready" && (
+          {/* Search UI - Allow search when terminal exists (ready, disconnected, error) */}
+          {isSearchOpen && (state.phase === "ready" || state.phase === "disconnected" || state.phase === "error") && (
             <ShellSearch
               query={deferredSearchQuery}
               onQueryChange={setSearchQuery}
