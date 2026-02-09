@@ -74,6 +74,7 @@ osmo_py_library(
         "kb_objects.py",
         "task.py",
         "task_io.py",
+        "topology.py",
         "workflow.py",
     ],
     deps = [
