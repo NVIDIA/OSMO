@@ -1,0 +1,87 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="70 10 300 160" width="400" height="213">
+  <!-- Arrow marker definition -->
+  <defs>
+    <style>
+      /* Light mode (default) */
+      .task-box { fill: #76b900; stroke: none; }
+      .task-text { fill: #ffffff; font-family: Arial, sans-serif; font-size: 14px; font-weight: 600; text-anchor: middle; }
+      .storage-fill { fill: #e9ecef; stroke: none; }
+      .storage-outline { fill: none; stroke: #888888; stroke-width: 2; }
+      .storage-text { fill: #555555; font-family: Arial, sans-serif; font-size: 13px; font-weight: 400; text-anchor: middle; }
+      .arrow-line { stroke: #888888; stroke-width: 2.5; }
+      .arrow-dashed { stroke: #888888; stroke-width: 2; stroke-dasharray: 5,5; }
+      .arrow-marker { fill: #888888; }
+      
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        .task-box { fill: #a0d468; }
+        .task-text { fill: #1a1a1a; }
+        .storage-fill { fill: #3a3a3a; }
+        .storage-outline { stroke: #bbbbbb; }
+        .storage-text { fill: #bbbbbb; }
+        .arrow-line { stroke: #bbbbbb; }
+        .arrow-dashed { stroke: #bbbbbb; }
+        .arrow-marker { fill: #bbbbbb; }
+      }
+    </style>
+    <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+      <polygon points="0 0, 4 2, 0 4" class="arrow-marker"/>
+    </marker>
+    <marker id="arrowhead-up" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="-90">
+      <polygon points="0 0, 4 2, 0 4" class="arrow-marker"/>
+    </marker>
+    <marker id="arrowhead-down" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="90">
+      <polygon points="0 0, 4 2, 0 4" class="arrow-marker"/>
+    </marker>
+  </defs>
+  
+  <!-- Storage cylinder (database icon style) -->
+  <!-- Fill everything first (no strokes) to avoid seams -->
+  <ellipse cx="220" cy="25" rx="80" ry="6" class="storage-fill"/>
+  <rect x="140" y="25" width="160" height="32" class="storage-fill"/>
+  <path d="M 140,55 Q 140,61 220,61 T 300,55 Z" class="storage-fill"/>
+  
+  <!-- Now add outlines on top -->
+  <ellipse cx="220" cy="25" rx="80" ry="6" class="storage-outline"/>
+  <line x1="140" y1="25" x2="140" y2="56" class="storage-outline"/>
+  <line x1="300" y1="25" x2="300" y2="56" class="storage-outline"/>
+  <path d="M 140,55 Q 140,61 220,61 T 300,55" class="storage-outline"/>
+  
+  <!-- Storage label -->
+  <text x="220" y="50" class="storage-text">Storage</text>
+  
+  <!-- Task 1 -->
+  <rect x="90" y="120" width="100" height="40" rx="4" class="task-box"/>
+  <text x="140" y="145" class="task-text">Task 1</text>
+  
+  <!-- Horizontal arrow 1->2 -->
+  <line x1="190" y1="140" x2="238" y2="140" class="arrow-line" marker-end="url(#arrowhead)"/>
+  
+  <!-- Task 2 -->
+  <rect x="250" y="120" width="100" height="40" rx="4" class="task-box"/>
+  <text x="300" y="145" class="task-text">Task 2</text>
+  
+  
+  <!-- Vertical dashed arrow: Task 1 output to storage -->
+  <line x1="165" y1="120" x2="165" y2="70" class="arrow-dashed" marker-end="url(#arrowhead-up)"/>
+  
+  <!-- Vertical dashed arrow: Storage to Task 2 input -->
+  <line x1="275" y1="67" x2="275" y2="112" class="arrow-dashed" marker-end="url(#arrowhead-down)"/>
+</svg>
