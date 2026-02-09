@@ -1,0 +1,131 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * Datasets Page Content (Client Component)
+ *
+ * The interactive content of the Datasets page.
+ * Receives hydrated data from the server and handles all user interactions.
+ *
+ * Features:
+ * - Smart search with filter chips (format, bucket)
+ * - Column visibility and reordering
+ * - Infinite scroll pagination
+ * - Navigation to dataset detail page on row click
+ */
+
+"use client";
+
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { usePage } from "@/components/chrome/page-context";
+import { useResultsCount } from "@/hooks/use-results-count";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { useViewTransition } from "@/hooks/use-view-transition";
+import { useCallback } from "react";
+import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
+import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
+import { useDatasetsData } from "@/app/(dashboard)/datasets/hooks/use-datasets-data";
+
+// =============================================================================
+// Client Component
+// =============================================================================
+
+export function DatasetsPageContent() {
+  usePage({ title: "Datasets" });
+  const { startTransition: startViewTransition } = useViewTransition();
+
+  // ==========================================================================
+  // URL State - All state is URL-synced for shareable deep links
+  // URL: /datasets?f=format:parquet&f=bucket:training
+  // ==========================================================================
+
+  // Filter chips - URL-synced via shared hook
+  const { searchChips, setSearchChips } = useUrlChips();
+
+  const handleSearchChipsChange = useCallback(
+    (chips: Parameters<typeof setSearchChips>[0]) => {
+      startViewTransition(() => setSearchChips(chips));
+    },
+    [setSearchChips, startViewTransition],
+  );
+
+  // ==========================================================================
+  // Data Fetching with FilterBar filtering and pagination
+  // Data is hydrated from server prefetch - no loading spinner on initial load!
+  // ==========================================================================
+
+  const {
+    datasets,
+    allDatasets,
+    isLoading,
+    error,
+    refetch,
+    hasMore,
+    fetchNextPage,
+    isFetchingNextPage,
+    total,
+    filteredTotal,
+    hasActiveFilters,
+  } = useDatasetsData({
+    searchChips,
+  });
+
+  // Results count for FilterBar display (consolidated hook)
+  const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
+
+  // ==========================================================================
+  // Render
+  // ==========================================================================
+
+  return (
+    <div className="flex h-full flex-col gap-4 p-6">
+      {/* Toolbar with search and controls */}
+      <div className="shrink-0">
+        <InlineErrorBoundary
+          title="Toolbar error"
+          compact
+        >
+          <DatasetsToolbar
+            datasets={allDatasets}
+            searchChips={searchChips}
+            onSearchChipsChange={handleSearchChipsChange}
+            resultsCount={resultsCount}
+          />
+        </InlineErrorBoundary>
+      </div>
+
+      {/* Main datasets table */}
+      <div className="min-h-0 flex-1">
+        <InlineErrorBoundary
+          title="Unable to display datasets table"
+          resetKeys={[datasets.length]}
+          onReset={refetch}
+        >
+          <DatasetsDataTable
+            datasets={datasets}
+            totalCount={total}
+            isLoading={isLoading}
+            error={error ?? undefined}
+            onRetry={refetch}
+            hasNextPage={hasMore}
+            onLoadMore={fetchNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+          />
+        </InlineErrorBoundary>
+      </div>
+    </div>
+  );
+}

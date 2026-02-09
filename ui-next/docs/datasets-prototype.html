@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OSMO Datasets - Prototype v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================================================
+       DESIGN SYSTEM FOUNDATION (matching OSMO globals.css)
+       ======================================================================== */
+    :root {
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --muted: oklch(0.97 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --border: oklch(0.922 0 0);
+      --input: oklch(0.922 0 0);
+      --ring: oklch(0.708 0 0);
+      --radius: 0.625rem;
+
+      --nvidia-green: #76b900;
+      --nvidia-green-dark: #5a8c00;
+      --nvidia-green-light: #9ed439;
+      --nvidia-green-bg: #f3f9e8;
+
+      --status-success: oklch(0.7 0.15 145);
+      --status-warning: oklch(0.75 0.15 75);
+      --status-danger: oklch(0.65 0.2 25);
+      --status-success-bg: oklch(0.95 0.05 145);
+      --status-warning-bg: oklch(0.95 0.05 85);
+      --status-danger-bg: oklch(0.95 0.05 25);
+
+      --table-surface: #ffffff;
+      --table-header: #f0f0f0;
+      --table-border: oklch(0.9 0 0);
+      --tree-line: oklch(0.8 0 0);
+
+      --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+      --sidebar-width: 14rem;
+      --tree-sidebar-width: 16rem;
+    }
+
+    .dark {
+      --background: oklch(0.145 0 0);
+      --foreground: oklch(0.985 0 0);
+      --card: oklch(0.205 0 0);
+      --card-foreground: oklch(0.985 0 0);
+      --muted: oklch(0.269 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --border: oklch(1 0 0 / 10%);
+      --input: oklch(1 0 0 / 15%);
+      --ring: oklch(0.556 0 0);
+
+      --status-success-bg: oklch(0.25 0.05 145);
+      --status-warning-bg: oklch(0.25 0.05 85);
+      --status-danger-bg: oklch(0.25 0.05 25);
+
+      --table-surface: #09090b;
+      --table-header: #18181b;
+      --table-border: oklch(0.15 0 0);
+      --tree-line: oklch(0.45 0 0);
+    }
+
+    /* ========================================================================
+       BASE STYLES
+       ======================================================================== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--background);
+      color: var(--foreground);
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* ========================================================================
+       LAYOUT - Matches existing OSMO app structure
+       ======================================================================== */
+    .app-layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Left Sidebar - Global Navigation */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .sidebar-logo {
+      padding: 0.5rem;
+      font-weight: 700;
+      font-size: 1.125rem;
+      color: var(--foreground);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar-item {
+      padding: 0.625rem 0.75rem;
+      border-radius: calc(var(--radius) * 0.75);
+      color: var(--foreground);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: background-color 150ms;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+    }
+
+    .sidebar-item:hover {
+      background: var(--muted);
+    }
+
+    .sidebar-item.active {
+      background: var(--nvidia-green-bg);
+      color: var(--nvidia-green-dark);
+      font-weight: 600;
+    }
+
+    .sidebar-section {
+      margin-top: 1.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+    }
+
+    /* Main Content Area */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* View Container - switches between list and detail */
+    .view-container {
+      display: none;
+    }
+
+    .view-container.active {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ========================================================================
+       LIST VIEW - Datasets Table
+       ======================================================================== */
+    .toolbar {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .search-container {
+      flex: 1;
+      position: relative;
+      max-width: 28rem;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+      background: var(--background);
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      font-family: var(--font-sans);
+      color: var(--foreground);
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--nvidia-green);
+      box-shadow: 0 0 0 3px var(--nvidia-green-bg);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted-foreground);
+      width: 1rem;
+      height: 1rem;
+      pointer-events: none;
+    }
+
+    .view-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+    }
+
+    .results-count {
+      font-size: 0.875rem;
+      color: var(--muted-foreground);
+      margin-right: 0.5rem;
+    }
+
+    .icon-button {
+      padding: 0.5rem;
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 0.75);
+      color: var(--foreground);
+      cursor: pointer;
+      transition: background-color 150ms;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-button:hover {
+      background: var(--muted);
+    }
+
+    .icon-button.active {
+      background: var(--nvidia-green-bg);
+      border-color: var(--nvidia-green);
+      color: var(--nvidia-green-dark);
+    }
+
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .filter-chip {
+      padding: 0.25rem 0.75rem;
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 0.75);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--foreground);
+      cursor: pointer;
+      transition: all 150ms;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .filter-chip:hover {
+      background: var(--nvidia-green-bg);
+      border-color: var(--nvidia-green);
+      color: var(--nvidia-green-dark);
+    }
+
+    .filter-chip.active {
+      background: var(--nvidia-green);
+      border-color: var(--nvidia-green-dark);
+      color: white;
+    }
+
+    .table-container {
+      flex: 1;
+      overflow: auto;
+      padding: 0 1.5rem 1.5rem;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--table-surface);
+      border: 1px solid var(--table-border);
+      border-radius: var(--radius);
+    }
+
+    .data-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--table-header);
+    }
+
+    .data-table th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      border-bottom: 1px solid var(--table-border);
+      white-space: nowrap;
+    }
+
+    .data-table tbody tr {
+      cursor: pointer;
+      transition: background-color 150ms;
+      border-bottom: 1px solid var(--table-border);
+    }
+
+    .data-table tbody tr:hover {
+      background: var(--muted);
+    }
+
+    .data-table td {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      color: var(--foreground);
+    }
+
+    .td-name {
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .td-meta {
+      font-family: var(--font-mono);
+      color: var(--muted-foreground);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.125rem 0.5rem;
+      border-radius: calc(var(--radius) * 0.5);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      line-height: 1.4;
+      white-space: nowrap;
+      gap: 0.25rem;
+    }
+
+    .badge-success {
+      background: var(--status-success-bg);
+      color: var(--status-success);
+    }
+
+    .badge-warning {
+      background: var(--status-warning-bg);
+      color: var(--status-warning);
+    }
+
+    .badge-default {
+      background: var(--muted);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+    }
+
+    .badge-primary {
+      background: var(--nvidia-green-bg);
+      color: var(--nvidia-green-dark);
+    }
+
+    .labels-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+
+    /* ========================================================================
+       DETAIL VIEW - Dataset Detail Page with Tabs
+       ======================================================================== */
+
+    /* Detail Header */
+    .detail-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .back-button {
+      padding: 0.5rem;
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 0.75);
+      color: var(--foreground);
+      cursor: pointer;
+      transition: background-color 150ms;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .back-button:hover {
+      background: var(--muted);
+    }
+
+    .detail-title {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .detail-title h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: var(--foreground);
+    }
+
+    .detail-subtitle {
+      font-size: 0.875rem;
+      color: var(--muted-foreground);
+      font-family: var(--font-mono);
+    }
+
+    /* Tab Navigation */
+    .tabs-nav {
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      padding: 0 1.5rem;
+    }
+
+    .tab-button {
+      padding: 0.75rem 1rem;
+      border: none;
+      background: none;
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 150ms;
+      position: relative;
+    }
+
+    .tab-button:hover {
+      color: var(--foreground);
+    }
+
+    .tab-button.active {
+      color: var(--nvidia-green-dark);
+      border-bottom-color: var(--nvidia-green);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Overview Tab */
+    .overview-container {
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      max-width: 1400px;
+    }
+
+    .info-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+
+    .card-header {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      margin-bottom: 1rem;
+    }
+
+    .info-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.875rem;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: var(--muted-foreground);
+    }
+
+    .info-value {
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    /* Version History */
+    .version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .version-item {
+      padding: 0.75rem 1rem;
+      background: var(--muted);
+      border-radius: calc(var(--radius) * 0.75);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .version-number {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--nvidia-green-dark);
+      background: var(--nvidia-green-bg);
+      padding: 0.25rem 0.5rem;
+      border-radius: calc(var(--radius) * 0.5);
+      font-size: 0.75rem;
+    }
+
+    .version-details {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .version-message {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .version-meta {
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+      font-family: var(--font-mono);
+    }
+
+    /* File Browser Tab */
+    .browser-layout {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Tree Sidebar */
+    .browser-tree-sidebar {
+      width: var(--tree-sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .browser-tree-sidebar.visible {
+      display: flex;
+    }
+
+    .tree-sidebar-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+    }
+
+    .tree-sidebar-content {
+      padding: 0.5rem;
+    }
+
+    .tree-node {
+      position: relative;
+    }
+
+    .tree-node-content {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background-color 150ms;
+      font-size: 0.875rem;
+      font-family: var(--font-mono);
+    }
+
+    .tree-node-content:hover {
+      background: var(--muted);
+    }
+
+    .tree-node-content.selected {
+      background: var(--nvidia-green-bg);
+      color: var(--nvidia-green-dark);
+    }
+
+    .tree-expand-icon {
+      width: 1rem;
+      height: 1rem;
+      margin-right: 0.25rem;
+      flex-shrink: 0;
+      color: var(--muted-foreground);
+      transition: transform 150ms;
+    }
+
+    .tree-icon {
+      width: 1rem;
+      height: 1rem;
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+      color: var(--muted-foreground);
+    }
+
+    .tree-children {
+      margin-left: 1.5rem;
+      position: relative;
+    }
+
+    .tree-children::before {
+      content: '';
+      position: absolute;
+      left: 0.5rem;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--tree-line);
+    }
+
+    .tree-node input[type="checkbox"] {
+      display: none;
+    }
+
+    .tree-node input[type="checkbox"]:not(:checked) ~ .tree-children {
+      display: none;
+    }
+
+    .tree-node input[type="checkbox"]:checked ~ .tree-node-content .tree-expand-icon {
+      transform: rotate(90deg);
+    }
+
+    /* Main Browser Content */
+    .browser-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Browser Toolbar */
+    .browser-toolbar {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      font-family: var(--font-mono);
+      flex: 1;
+    }
+
+    .breadcrumb-item {
+      color: var(--foreground);
+      text-decoration: none;
+      padding: 0.25rem 0.5rem;
+      border-radius: calc(var(--radius) * 0.5);
+      transition: all 150ms;
+      cursor: pointer;
+    }
+
+    .breadcrumb-item:hover {
+      background: var(--muted);
+      color: var(--nvidia-green);
+    }
+
+    .breadcrumb-item.current {
+      color: var(--muted-foreground);
+      cursor: default;
+    }
+
+    .breadcrumb-separator {
+      color: var(--muted-foreground);
+    }
+
+    /* File List */
+    .file-list-container {
+      flex: 1;
+      overflow: auto;
+      padding: 1rem 1.5rem;
+    }
+
+    .file-list-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .file-list-table thead {
+      position: sticky;
+      top: 0;
+      background: var(--background);
+      z-index: 5;
+    }
+
+    .file-list-table th {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted-foreground);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .file-list-table tbody tr {
+      cursor: pointer;
+      transition: background-color 150ms;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .file-list-table tbody tr:hover {
+      background: var(--muted);
+    }
+
+    .file-list-table tbody tr.selected {
+      background: var(--nvidia-green-bg);
+    }
+
+    .file-list-table td {
+      padding: 0.625rem 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .file-name-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+    }
+
+    .file-icon {
+      width: 1.25rem;
+      height: 1.25rem;
+      flex-shrink: 0;
+      color: var(--muted-foreground);
+    }
+
+    .folder-icon {
+      color: var(--nvidia-green);
+    }
+
+    /* Pagination */
+    .pagination {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.875rem;
+      color: var(--muted-foreground);
+    }
+
+    .pagination-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* ========================================================================
+       UTILITY CLASSES
+       ======================================================================== */
+    .icon {
+      width: 1em;
+      height: 1em;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--background);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--muted-foreground);
+    }
+  </style>
+</head>
+<body>
+  <!--
+    ============================================================================
+    OSMO DATASETS - Two-View Prototype
+
+    View 1: Datasets List (table view)
+    View 2: Dataset Detail (tabbed page with Overview and File Browser)
+
+    Click a dataset row to navigate to detail view
+    Click back button to return to list view
+    ============================================================================
+  -->
+
+  <div class="app-layout">
+    <!-- LEFT SIDEBAR - Global Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">🗲 OSMO</div>
+      <a href="#" class="sidebar-item">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        Dashboard
+      </a>
+      <a href="#" class="sidebar-item">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+        </svg>
+        Workflows
+      </a>
+      <a href="#" class="sidebar-item">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+        </svg>
+        Pools
+      </a>
+      <a href="#" class="sidebar-item">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+        </svg>
+        Resources
+      </a>
+      <a href="#" class="sidebar-item active">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+        </svg>
+        Datasets
+      </a>
+      <div class="sidebar-section">Admin</div>
+      <a href="#" class="sidebar-item">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Log Viewer
+      </a>
+      <a href="#" class="sidebar-item">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Settings
+      </a>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      <!-- ====================================================================
+           VIEW 1: DATASETS LIST
+           ==================================================================== -->
+      <div class="view-container active" id="listView">
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div class="toolbar-row">
+            <div class="search-container">
+              <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input type="text" class="search-input" placeholder="Search datasets..." />
+            </div>
+            <div class="view-controls">
+              <span class="results-count">5 results</span>
+              <button class="icon-button active"><svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg></button>
+            </div>
+          </div>
+          <div class="filter-chips">
+            <button class="filter-chip active">All Formats</button>
+            <button class="filter-chip">Parquet</button>
+            <button class="filter-chip">Arrow</button>
+            <button class="filter-chip">JSONL</button>
+          </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Bucket</th>
+                <th>Version</th>
+                <th>Format</th>
+                <th>Size</th>
+                <th>Files</th>
+                <th>Labels</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr onclick="showDetailView('imagenet-1k-train')">
+                <td class="td-name">imagenet-1k-train</td>
+                <td class="td-meta">osmo-datasets</td>
+                <td class="td-meta">v3</td>
+                <td><span class="badge badge-default">parquet</span></td>
+                <td class="td-meta">500GB</td>
+                <td class="td-meta">1,281,167</td>
+                <td>
+                  <div class="labels-group">
+                    <span class="badge badge-primary">image</span>
+                    <span class="badge badge-default">training</span>
+                  </div>
+                </td>
+                <td class="td-meta">2/8/26 10:41p</td>
+              </tr>
+              <tr onclick="showDetailView('coco-2017-val')">
+                <td class="td-name">coco-2017-val</td>
+                <td class="td-meta">osmo-datasets</td>
+                <td class="td-meta">v2</td>
+                <td><span class="badge badge-default">arrow</span></td>
+                <td class="td-meta">120GB</td>
+                <td class="td-meta">118,287</td>
+                <td>
+                  <div class="labels-group">
+                    <span class="badge badge-primary">image</span>
+                    <span class="badge badge-default">evaluation</span>
+                  </div>
+                </td>
+                <td class="td-meta">2/7/26 3:22p</td>
+              </tr>
+              <tr onclick="showDetailView('wikipedia-en-full')">
+                <td class="td-name">wikipedia-en-full</td>
+                <td class="td-meta">ml-data</td>
+                <td class="td-meta">v5</td>
+                <td><span class="badge badge-default">jsonl</span></td>
+                <td class="td-meta">2TB</td>
+                <td class="td-meta">45,890,234</td>
+                <td>
+                  <div class="labels-group">
+                    <span class="badge badge-primary">text</span>
+                    <span class="badge badge-default">nlp-team</span>
+                  </div>
+                </td>
+                <td class="td-meta">2/6/26 9:15a</td>
+              </tr>
+              <tr onclick="showDetailView('librispeech-960h-train')">
+                <td class="td-name">librispeech-960h-train</td>
+                <td class="td-meta">osmo-datasets</td>
+                <td class="td-meta">v1</td>
+                <td><span class="badge badge-default">hdf5</span></td>
+                <td class="td-meta">350GB</td>
+                <td class="td-meta">281,241</td>
+                <td>
+                  <div class="labels-group">
+                    <span class="badge badge-primary">audio</span>
+                    <span class="badge badge-default">training</span>
+                  </div>
+                </td>
+                <td class="td-meta">2/5/26 2:30p</td>
+              </tr>
+              <tr onclick="showDetailView('common-crawl-mini')">
+                <td class="td-name">common-crawl-mini</td>
+                <td class="td-meta">ml-data</td>
+                <td class="td-meta">v2</td>
+                <td><span class="badge badge-default">parquet</span></td>
+                <td class="td-meta">800GB</td>
+                <td class="td-meta">12,345,678</td>
+                <td>
+                  <div class="labels-group">
+                    <span class="badge badge-primary">text</span>
+                    <span class="badge badge-default">research</span>
+                  </div>
+                </td>
+                <td class="td-meta">2/4/26 11:22a</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           VIEW 2: DATASET DETAIL (with tabs)
+           ==================================================================== -->
+      <div class="view-container" id="detailView">
+        <!-- Detail Header -->
+        <div class="detail-header">
+          <button class="back-button" onclick="showListView()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div class="detail-title">
+            <h1 id="datasetName">imagenet-1k-train</h1>
+            <div class="detail-subtitle">s3://osmo-datasets/datasets/imagenet-1k-train/</div>
+          </div>
+          <button class="icon-button">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tabs-nav">
+          <button class="tab-button active" onclick="switchTab('overview')">Overview</button>
+          <button class="tab-button" onclick="switchTab('files')">File Browser</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div class="tab-content active" id="overviewTab">
+          <div class="overview-container">
+            <!-- Dataset Information Card -->
+            <div class="info-card">
+              <div class="card-header">Dataset Information</div>
+              <div class="info-grid">
+                <div class="info-row">
+                  <span class="info-label">Bucket</span>
+                  <span class="info-value">osmo-datasets</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Format</span>
+                  <span class="info-value">parquet</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Current Version</span>
+                  <span class="info-value">v3</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Total Size</span>
+                  <span class="info-value">500 GB</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Total Files</span>
+                  <span class="info-value">1,281,167</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Retention Policy</span>
+                  <span class="info-value">1y</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Created</span>
+                  <span class="info-value">2024-12-15 09:30 AM</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Last Updated</span>
+                  <span class="info-value">2026-02-08 10:41 PM</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Labels Card -->
+            <div class="info-card">
+              <div class="card-header">Labels</div>
+              <div class="info-grid">
+                <div class="info-row">
+                  <span class="info-label">Modality</span>
+                  <span class="info-value">image</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Project</span>
+                  <span class="info-value">training</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Team</span>
+                  <span class="info-value">cv-team</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Version History Card (full width) -->
+            <div class="info-card" style="grid-column: 1 / -1;">
+              <div class="card-header">Version History</div>
+              <div class="version-list">
+                <div class="version-item">
+                  <span class="version-number">v3</span>
+                  <div class="version-details">
+                    <div class="version-message">Reprocessed with updated pipeline</div>
+                    <div class="version-meta">alice • 2026-02-08 10:41 PM • 500 GB • 1,281,167 files</div>
+                  </div>
+                </div>
+                <div class="version-item">
+                  <span class="version-number">v2</span>
+                  <div class="version-details">
+                    <div class="version-message">Added validation split</div>
+                    <div class="version-meta">bob • 2025-12-22 03:15 PM • 480 GB • 1,200,000 files</div>
+                  </div>
+                </div>
+                <div class="version-item">
+                  <span class="version-number">v1</span>
+                  <div class="version-details">
+                    <div class="version-message">Initial upload</div>
+                    <div class="version-meta">system • 2024-12-15 09:30 AM • 450 GB • 1,150,000 files</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Description Card (full width) -->
+            <div class="info-card" style="grid-column: 1 / -1;">
+              <div class="card-header">Description</div>
+              <p style="font-size: 0.875rem; line-height: 1.6; color: var(--muted-foreground);">
+                ImageNet-1k dataset (training split) for ML training and evaluation. Contains 1.28 million images
+                across 1000 object categories. Preprocessed and converted to Parquet format for efficient access
+                in distributed training workflows.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- File Browser Tab -->
+        <div class="tab-content" id="filesTab">
+          <div class="browser-layout">
+            <!-- Optional Tree Sidebar -->
+            <aside class="browser-tree-sidebar" id="treeSidebar">
+              <div class="tree-sidebar-header">Structure</div>
+              <div class="tree-sidebar-content">
+                <!-- Root -->
+                <div class="tree-node">
+                  <input type="checkbox" id="tree-train" checked />
+                  <label for="tree-train" class="tree-node-content">
+                    <svg class="tree-expand-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <svg class="tree-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    train/
+                  </label>
+                  <div class="tree-children">
+                    <div class="tree-node-content selected">
+                      <svg class="tree-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      n01440764/
+                    </div>
+                    <div class="tree-node-content">
+                      <svg class="tree-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      n01443537/
+                    </div>
+                    <div class="tree-node-content" style="color: var(--muted-foreground); font-style: italic;">
+                      ... 998 more
+                    </div>
+                  </div>
+                </div>
+
+                <div class="tree-node">
+                  <div class="tree-node-content">
+                    <svg class="tree-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    validation/
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- Main Browser Content -->
+            <div class="browser-main">
+              <!-- Browser Toolbar -->
+              <div class="browser-toolbar">
+                <!-- Toggle Tree Sidebar -->
+                <button class="icon-button" onclick="toggleTreeSidebar()" title="Toggle tree view">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+
+                <!-- Breadcrumb -->
+                <nav class="breadcrumb">
+                  <a class="breadcrumb-item" onclick="navigateTo('')">🏠</a>
+                  <span class="breadcrumb-separator">/</span>
+                  <a class="breadcrumb-item" onclick="navigateTo('train')">train</a>
+                  <span class="breadcrumb-separator">/</span>
+                  <span class="breadcrumb-item current">n01440764</span>
+                </nav>
+
+                <!-- Search -->
+                <div class="search-container" style="max-width: 20rem;">
+                  <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input type="text" class="search-input" placeholder="Search in folder..." />
+                </div>
+
+                <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+                  <span style="font-size: 0.875rem; color: var(--muted-foreground); margin-right: 0.5rem;">
+                    1,283 items
+                  </span>
+                  <button class="icon-button active" title="List view">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                  </button>
+                  <button class="icon-button" title="Grid view">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- File List -->
+              <div class="file-list-container">
+                <table class="file-list-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Size</th>
+                      <th>Modified</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Folders first -->
+                    <tr>
+                      <td>
+                        <div class="file-name-cell">
+                          <svg class="file-icon folder-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                          </svg>
+                          subset_01/
+                        </div>
+                      </td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem;">Folder</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">—</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">Dec 15, 2025</td>
+                    </tr>
+
+                    <!-- Files -->
+                    <tr>
+                      <td>
+                        <div class="file-name-cell">
+                          <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          n01440764_10026.JPEG
+                        </div>
+                      </td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem;">Image</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">89 KB</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">Dec 15, 2025</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="file-name-cell">
+                          <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          n01440764_10027.JPEG
+                        </div>
+                      </td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem;">Image</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">112 KB</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">Dec 15, 2025</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="file-name-cell">
+                          <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          n01440764_10029.JPEG
+                        </div>
+                      </td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem;">Image</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">95 KB</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">Dec 15, 2025</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="file-name-cell">
+                          <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          n01440764_10030.JPEG
+                        </div>
+                      </td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem;">Image</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">103 KB</td>
+                      <td style="color: var(--muted-foreground); font-size: 0.875rem; font-family: var(--font-mono);">Dec 15, 2025</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              <div class="pagination">
+                <span>Showing 1-100 of 1,283 items</span>
+                <div class="pagination-buttons">
+                  <button class="icon-button" disabled style="opacity: 0.5;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button class="icon-button">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- JAVASCRIPT -->
+  <script>
+    // View navigation
+    function showListView() {
+      document.getElementById('listView').classList.add('active');
+      document.getElementById('detailView').classList.remove('active');
+    }
+
+    function showDetailView(datasetName) {
+      document.getElementById('datasetName').textContent = datasetName;
+      document.getElementById('listView').classList.remove('active');
+      document.getElementById('detailView').classList.add('active');
+    }
+
+    // Tab switching
+    function switchTab(tabName) {
+      // Update tab buttons
+      const tabButtons = document.querySelectorAll('.tab-button');
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // Update tab content
+      document.getElementById('overviewTab').classList.remove('active');
+      document.getElementById('filesTab').classList.remove('active');
+
+      if (tabName === 'overview') {
+        document.getElementById('overviewTab').classList.add('active');
+      } else if (tabName === 'files') {
+        document.getElementById('filesTab').classList.add('active');
+      }
+    }
+
+    // File browser functions
+    function toggleTreeSidebar() {
+      document.getElementById('treeSidebar').classList.toggle('visible');
+    }
+
+    function navigateTo(path) {
+      console.log('Navigate to:', path);
+      // In real app, update breadcrumb and load folder contents
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const detailView = document.getElementById('detailView');
+        if (detailView.classList.contains('active')) {
+          showListView();
+        }
+      }
+    });
+  </script>
+
+  <!-- Dark Mode Toggle -->
+  <button
+    onclick="toggleDarkMode()"
+    style="
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      padding: 0.75rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      z-index: 1000;
+    "
+  >
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+    </svg>
+  </button>
+
+  <!-- USAGE NOTES (React implementation guidance) -->
+  <!--
+    React Component Structure:
+
+    1. Routes:
+       /datasets              → DatasetsListPage
+       /datasets/:name        → DatasetDetailPage
+
+    2. DatasetsListPage:
+       - Use useDatasets() adapter hook for table data
+       - Click row → navigate to /datasets/{name}
+       - Search/filter state managed with nuqs (useQueryState)
+
+    3. DatasetDetailPage:
+       - Use useDataset(name) adapter hook for metadata
+       - <Tabs> component with Overview and File Browser tabs
+       - Back button uses router.back() or navigate('/datasets')
+
+    4. File Browser Tab:
+       - Optional collapsible tree sidebar (ResizablePanel)
+       - Breadcrumb navigation for current path
+       - Drill-down table with pagination
+       - Use useDatasetFiles(name, path, page) for file listing
+       - Click folder → update path state and refetch
+
+    5. State Management:
+       - Tab state: URL-based with nuqs (tab=overview|files)
+       - Tree sidebar visibility: localStorage via useLocalStorage
+       - Current path: URL-based (path=/train/n01440764)
+       - Pagination: URL-based (page=1, limit=100)
+
+    6. Performance:
+       - TanStack Virtual for file table (>100 items)
+       - Memoize breadcrumb components
+       - Debounce search input
+       - Cache file listings with TanStack Query
+  -->
+</body>
+</html>

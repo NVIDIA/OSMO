@@ -1292,11 +1292,36 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const url = new URL(request.url);
     const { offset, limit } = parsePagination(url, { limit: 50 });
 
-    const { entries, total } = datasetGenerator.generatePage(offset, limit);
+    // Extract filter parameters
+    const nameFilter = url.searchParams.get("name");
+    const bucketFilters = url.searchParams.getAll("buckets");
+    const formatFilter = url.searchParams.get("dataset_type"); // Format uses dataset_type param
 
+    // Generate full page of datasets
+    const { entries } = datasetGenerator.generatePage(offset, limit);
+
+    // Apply filters
+    let filtered = entries;
+
+    // Filter by name (search term - case insensitive partial match)
+    if (nameFilter) {
+      const searchLower = nameFilter.toLowerCase();
+      filtered = filtered.filter((dataset) => dataset.name.toLowerCase().includes(searchLower));
+    }
+
+    // Filter by buckets (exact match, OR logic for multiple buckets)
+    if (bucketFilters.length > 0) {
+      filtered = filtered.filter((dataset) => bucketFilters.includes(dataset.bucket));
+    }
+
+    // Filter by format/type (exact match)
+    if (formatFilter) {
+      filtered = filtered.filter((dataset) => dataset.format === formatFilter);
+    }
+
+    // DataListResponse expects 'datasets' array, not 'entries'
     return HttpResponse.json({
-      entries,
-      total,
+      datasets: filtered,
     });
   }),
 
