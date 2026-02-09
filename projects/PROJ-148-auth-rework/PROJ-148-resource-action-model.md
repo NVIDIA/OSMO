@@ -130,6 +130,8 @@ The action registry is defined in code (not database) for several reasons:
 │                                                                             │
 │  RESOURCES           ACTIONS                    SCOPED TO                   │
 │  ─────────           ───────                    ─────────                   │
+│  pool                List                       (global)                    │
+│                                                                             │
 │  workflow            Create, Read, Update,      pool / user                 │
 │                      Delete, Cancel,                                        │
 │                      Exec, PortForward, Rsync                               │

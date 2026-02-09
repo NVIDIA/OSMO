@@ -89,6 +89,9 @@ const (
 	ActionCredentialsUpdate = resourceTypeCredentials + ":Update"
 	ActionCredentialsDelete = resourceTypeCredentials + ":Delete"
 
+	// Pool actions
+	ActionPoolList = resourceTypePool + ":List"
+
 	// Profile actions
 	ActionProfileRead   = resourceTypeProfile + ":Read"
 	ActionProfileUpdate = resourceTypeProfile + ":Update"
@@ -202,6 +205,11 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/router/rsync/*/client/*", Methods: []string{"*"}},
 	},
 
+	// ==================== POOL ====================
+	ActionPoolList: {
+		{Path: "/api/pool", Methods: []string{"GET"}},
+		{Path: "/api/pool_quota", Methods: []string{"GET"}},
+	},
 	// ==================== BUCKET ====================
 	ActionBucketList: {
 		{Path: "/api/bucket", Methods: []string{"GET"}},
@@ -637,7 +645,8 @@ func extractResourceFromPath(
 
 	case ResourceTypeConfig:
 		// Config-scoped resources - the resource ID IS the scope
-		return "config/" + extractScopedResourceID(parts, "config")
+		// Path uses "configs" (plural) in the URL
+		return "config/" + extractScopedResourceID(parts, "configs")
 
 	case ResourceTypeWorkflow:
 		// List action doesn't need resource scope check
@@ -1102,6 +1111,27 @@ func CheckSemanticAction(
 	path, method string,
 	pgClient *postgres.PostgresClient,
 ) AccessResult {
+	// Universal wildcard - allow all access without requiring path resolution
+	// This is used for admin roles that should have access to all endpoints
+	if policyAction.Action == "*:*" || policyAction.Action == "*" {
+		// Check if resources constraint allows it
+		resourceAllowed := len(policyResources) == 0
+		for _, pr := range policyResources {
+			if pr == "*" {
+				resourceAllowed = true
+				break
+			}
+		}
+		if resourceAllowed {
+			return AccessResult{
+				Allowed:       true,
+				Matched:       true,
+				MatchedAction: policyAction.Action,
+				ActionType:    ActionTypeSemantic,
+			}
+		}
+	}
+
 	// Resolve the path to a semantic action
 	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
 	if resolvedAction == "" {

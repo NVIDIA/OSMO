@@ -137,12 +137,12 @@ func TestExtractResourceFromPath(t *testing.T) {
 			action:       ActionConfigRead,
 			wantResource: "config/my-config",
 		},
-		// User-scoped resources (profile)
+		// Profile - no scope needed (user context comes from auth token)
 		{
-			name:         "profile returns user scope",
-			path:         "/api/profile/user123",
+			name:         "profile returns empty (no scope needed)",
+			path:         "/api/profile/settings",
 			action:       ActionProfileRead,
-			wantResource: "user/user123",
+			wantResource: "",
 		},
 		// Global/public resources - no resource scope needed (empty string)
 		{
@@ -210,7 +210,7 @@ func TestDefaultRolesWithRegistry(t *testing.T) {
 		method     string
 		wantAction string
 	}{
-		{"/api/workflow", "POST", ActionWorkflowCreate},
+		{"/api/pool/test-pool/workflow", "POST", ActionWorkflowCreate},
 		{"/api/workflow/abc123", "GET", ActionWorkflowRead},
 		{"/api/workflow/abc123", "DELETE", ActionWorkflowDelete},
 		{"/api/users", "GET", ActionUserList},
@@ -253,7 +253,7 @@ func TestInternalActionsRestricted(t *testing.T) {
 	}{
 		{"/api/agent/listener/status", "GET", ActionInternalOperator},
 		{"/api/agent/worker/heartbeat", "POST", ActionInternalOperator},
-		{"/api/logger/workflow/abc123", "POST", ActionInternalLogger},
+		{"/api/logger/workflow/abc123/osmo_ctrl/logs", "POST", ActionInternalLogger},
 		{"/api/router/session/abc/backend/connect", "GET", ActionInternalRouter},
 	}
 
@@ -368,13 +368,14 @@ func TestConvertLegacyActionToSemantic(t *testing.T) {
 		},
 		{
 			name:        "specific path and method",
-			action:      &RoleAction{Path: "/api/workflow", Method: "POST"},
+			action:      &RoleAction{Path: "/api/pool/*/workflow", Method: "POST"},
 			wantActions: []string{ActionWorkflowCreate},
 		},
 		{
-			name:        "specific path with GET",
-			action:      &RoleAction{Path: "/api/workflow", Method: "GET"},
-			wantActions: []string{ActionWorkflowRead},
+			name:   "specific path with GET",
+			action: &RoleAction{Path: "/api/workflow", Method: "GET"},
+			// GET on collection /api/workflow is List, not Read
+			wantActions: []string{ActionWorkflowList},
 		},
 		{
 			name:           "wildcard path with specific method",
@@ -471,7 +472,7 @@ func TestConvertRoleToSemantic(t *testing.T) {
 				Policies: []RolePolicy{
 					{
 						Actions: []RoleAction{
-							{Path: "/api/workflow", Method: "POST"},
+							{Path: "/api/pool/*/workflow", Method: "POST"},
 						},
 					},
 				},
@@ -533,7 +534,7 @@ func TestConvertRoleToSemantic(t *testing.T) {
 				Policies: []RolePolicy{
 					{
 						Actions: []RoleAction{
-							{Path: "/api/workflow", Method: "POST"},
+							{Path: "/api/pool/*/workflow", Method: "POST"},
 						},
 						// No Resources specified
 					},
@@ -599,7 +600,7 @@ func TestConvertRolesToSemantic(t *testing.T) {
 		{
 			Name: "role1",
 			Policies: []RolePolicy{
-				{Actions: []RoleAction{{Path: "/api/workflow", Method: "POST"}}},
+				{Actions: []RoleAction{{Path: "/api/pool/*/workflow", Method: "POST"}}},
 			},
 		},
 		{
