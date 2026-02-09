@@ -465,9 +465,6 @@ export function transformAllResourcesResponse(rawResponse: unknown): AllResource
 export function transformUserProfile(data: unknown): UserProfile {
   if (!data || typeof data !== "object") {
     return {
-      id: "",
-      name: "",
-      email: "",
       notifications: { email: true, slack: false },
       bucket: { default: "", accessible: [] },
       pool: { default: "", accessible: [] },
@@ -475,25 +472,31 @@ export function transformUserProfile(data: unknown): UserProfile {
   }
 
   const raw = data as Record<string, unknown>;
-  const notifications = raw.notifications as Record<string, unknown> | undefined;
-  const bucket = raw.bucket as Record<string, unknown> | undefined;
-  const pool = raw.pool as Record<string, unknown> | undefined;
+
+  // Backend structure:
+  // {
+  //   username?: string;           (contains email, but unused - get from JWT via useUser() instead)
+  //   email_notification?: boolean;
+  //   slack_notification?: boolean;
+  //   bucket?: string;             (just a string, not an object)
+  //   pool?: string;               (just a string, not an object)
+  // }
+  //
+  // Note: User's name and email come from JWT token via useUser() hook, not from profile settings.
+  // Accessible bucket/pool lists come from ProfileResponse.pools at the parent level.
 
   return {
-    id: String(raw.id || ""),
-    name: String(raw.name || ""),
-    email: String(raw.email || ""),
     notifications: {
-      email: Boolean(notifications?.email ?? true),
-      slack: Boolean(notifications?.slack ?? false),
+      email: Boolean(raw.email_notification ?? true),
+      slack: Boolean(raw.slack_notification ?? false),
     },
     bucket: {
-      default: String(bucket?.default || ""),
-      accessible: Array.isArray(bucket?.accessible) ? (bucket.accessible as string[]) : [],
+      default: String(raw.bucket || ""),
+      accessible: [], // Populated separately from ProfileResponse
     },
     pool: {
-      default: String(pool?.default || ""),
-      accessible: Array.isArray(pool?.accessible) ? pool.accessible.map(String) : [],
+      default: String(raw.pool || ""),
+      accessible: [], // Populated separately from ProfileResponse.pools
     },
   };
 }

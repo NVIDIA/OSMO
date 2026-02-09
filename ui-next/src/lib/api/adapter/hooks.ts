@@ -31,7 +31,7 @@ import {
   transformCredential,
 } from "@/lib/api/adapter/transforms";
 
-import type { PoolResourcesResponse, AllResourcesResponse, ProfileUpdate, CredentialCreate } from "@/lib/api/adapter/types";
+import type { PoolResourcesResponse, AllResourcesResponse, ProfileUpdate, CredentialCreate, UserProfile } from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
   invalidateResourcesCache,
@@ -676,16 +676,18 @@ export const profileKeys = {
 };
 
 /**
- * Fetch user profile data.
+ * Fetch user profile settings.
  *
- * Returns user information including notification preferences, bucket, and pool settings.
+ * Returns notification preferences, bucket, and pool settings.
  * Uses GET /api/profile/settings endpoint.
+ *
+ * Note: For user's name and email, use useUser() hook which reads from JWT token.
  *
  * @example
  * ```ts
  * const { profile, isLoading, error } = useProfile();
  * if (profile) {
- *   console.log(profile.name, profile.email);
+ *   console.log(profile.notifications, profile.bucket.default, profile.pool.default);
  * }
  * ```
  */
@@ -773,8 +775,9 @@ export function useUpdateProfile() {
 
   const mutation = useSetNotificationSettingsApiProfileSettingsPost({
     mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: profileKeys.detail() });
+      onSuccess: async () => {
+        // Invalidate and wait for refetch to complete
+        await queryClient.invalidateQueries({ queryKey: profileKeys.detail() });
       },
     },
   });
@@ -808,6 +811,7 @@ export function useUpdateProfile() {
     isPending: mutation.isPending,
     isError: mutation.isError,
     error: mutation.error,
+    reset: mutation.reset,
   };
 }
 

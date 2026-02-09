@@ -36,8 +36,9 @@ export function ProfileLayout() {
 
   const { profile, isLoading: profileLoading, error: profileError } = useProfile();
   const { credentials, isLoading: credentialsLoading } = useCredentials();
-  const { mutateAsync: updateProfileMutation, isPending: isUpdatingProfile } = useUpdateProfile();
   const { announcer } = useServices();
+
+  const { mutateAsync: updateProfileMutation, isPending: isUpdatingProfile } = useUpdateProfile();
 
   // Wrapper to convert mutateAsync to match expected signature
   const updateProfile = useCallback(
@@ -94,7 +95,7 @@ export function ProfileLayout() {
 
       {/* First Row: User Information & Notifications */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <UserInfoCard profile={profile} />
+        <UserInfoCard />
         <NotificationsCard
           profile={profile}
           updateProfile={updateProfile}

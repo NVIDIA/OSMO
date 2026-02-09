@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { useMounted } from "@/hooks";
 
 /**
  * localStorage key for enabling React Query Devtools.
@@ -53,11 +54,10 @@ const DEVTOOLS_KEY = "osmo:devtools:enabled";
  */
 export function QueryDevtools() {
   const [enabled, setEnabled] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const mounted = useMounted();
 
   useEffect(() => {
     // After hydration, check localStorage
-    setHydrated(true);
     const stored = localStorage.getItem(DEVTOOLS_KEY);
     setEnabled(stored === "true");
 
@@ -99,8 +99,8 @@ export function QueryDevtools() {
     };
   }, [enabled]);
 
-  // Don't render until hydrated (SSR safety)
-  if (!hydrated || !enabled) return null;
+  // Don't render until mounted (SSR safety)
+  if (!mounted || !enabled) return null;
 
   return (
     <ReactQueryDevtools

@@ -19,7 +19,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/shadcn/card";
 import { Input } from "@/components/shadcn/input";
 import { User } from "lucide-react";
-import type { UserProfile } from "@/lib/api/adapter";
+import { useUser } from "@/lib/auth";
 
 // Simple label component (shadcn/label not available)
 function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
@@ -33,11 +33,10 @@ function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactN
   );
 }
 
-interface UserInfoCardProps {
-  profile: UserProfile;
-}
+export function UserInfoCard() {
+  // User info comes from JWT token via /api/me, not from profile settings
+  const { user } = useUser();
 
-export function UserInfoCard({ profile }: UserInfoCardProps) {
   return (
     <Card>
       <CardHeader className="border-b">
@@ -52,7 +51,7 @@ export function UserInfoCard({ profile }: UserInfoCardProps) {
             <Label htmlFor="profile-name">Name</Label>
             <Input
               id="profile-name"
-              value={profile.name}
+              value={user?.name || ""}
               disabled
               className="disabled:opacity-50"
             />
@@ -62,7 +61,7 @@ export function UserInfoCard({ profile }: UserInfoCardProps) {
             <Input
               id="profile-email"
               type="email"
-              value={profile.email}
+              value={user?.email || ""}
               disabled
               className="disabled:opacity-50"
             />

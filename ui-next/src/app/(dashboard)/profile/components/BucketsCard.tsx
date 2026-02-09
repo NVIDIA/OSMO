@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
@@ -42,6 +42,16 @@ interface BucketsCardProps {
 export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: BucketsCardProps) {
   // Store only the user's edits (delta from profile)
   const [bucketEdits, setBucketEdits] = useState<BucketEdits>({});
+
+  // Auto-clear edits when profile data matches staged value (after successful save + refetch)
+  useEffect(() => {
+    const stagedBucket = bucketEdits.bucket ?? profile.bucket.default;
+
+    // If profile matches our staged value, we can clear the edit
+    if (bucketEdits.bucket !== undefined && stagedBucket === profile.bucket.default) {
+      setBucketEdits({});
+    }
+  }, [profile.bucket.default, bucketEdits]);
 
   // Track initial default for stable sorting (only sort once on mount)
   const [initialDefault] = useState(profile.bucket.default);
@@ -74,8 +84,8 @@ export function BucketsCard({ profile, updateProfile, isUpdating, announcer }: B
       await updateProfile({
         bucket: { default: stagedBucket },
       });
-      // Don't clear edits - profile will refetch and bucketDirty will become false automatically
-      // This prevents flashing during the refetch
+      // Note: Edits are NOT cleared here to prevent thrashing
+      // They will be auto-cleared by useEffect when profile refetches with matching value
       toast.success("Default bucket saved successfully");
       announcer.announce("Default bucket saved successfully", "polite");
     } catch (error) {
