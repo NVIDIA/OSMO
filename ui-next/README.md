@@ -638,19 +638,33 @@ For more details, see:
 
 ### React Query Devtools
 
-Inspect cached queries, trigger refetches, and debug stale times using the **Chrome extension**:
+TanStack Query Devtools are built-in and can be toggled on-demand using localStorage.
 
-1. Install: [React Query Devtools Extension](https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh)
-2. Open Chrome DevTools (`F12` or `Cmd+Option+I`)
-3. Find the "React Query" tab
+#### Enable/Disable Devtools
+
+In your browser console:
+
+```js
+// Enable devtools
+window.toggleDevtools(true)
+
+// Disable devtools
+window.toggleDevtools(false)
+
+// Toggle current state
+window.toggleDevtools()
+```
+
+After toggling, the devtools panel will appear/disappear in the bottom-right corner.
 
 **Features:**
 - View all cached queries and their status (fresh, stale, fetching)
 - Inspect cached data as expandable JSON
 - Manually invalidate, refetch, or remove queries
 - See fetch counts and timing
+- Zero production bundle impact (tree-shaken in production builds)
 
-This is preferred over the in-app floating devtools to avoid UI conflicts.
+**Alternative:** You can also use the [React Query Devtools Chrome Extension](https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh) if you prefer an external tool.
 
 ---
 
