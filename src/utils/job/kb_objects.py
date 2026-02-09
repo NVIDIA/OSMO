@@ -424,7 +424,7 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         }
         pod_group_labels.update(labels)
 
-        pod_group_spec = {
+        pod_group_spec: Dict[str, Any] = {
             'queue': queue,
             'priorityClassName': priority_class,
         }

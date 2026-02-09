@@ -266,10 +266,11 @@ class PodGroupTopologyBuilder:
         # Walk down while there's only one child (shared by all tasks)
         while len(current.children) == 1:
             child = current.children[0]
-            top_level_constraint = {
-                ('requiredTopologyLevel' if child.required
-                 else 'preferredTopologyLevel'): child.label
-            }
+            if child.label is not None:
+                top_level_constraint = {
+                    ('requiredTopologyLevel' if child.required
+                     else 'preferredTopologyLevel'): child.label
+                }
             current = child
 
         return top_level_constraint, current
@@ -292,6 +293,9 @@ class PodGroupTopologyBuilder:
 
             # Leaf node - create subgroup for tasks
             if not node.children and node.tasks:
+                # Skip if node has no label or name (shouldn't happen for non-root nodes)
+                if node.label is None or name is None:
+                    return None
                 subgroup = {
                     'name': name,
                     'minMember': len(node.tasks),
@@ -313,6 +317,9 @@ class PodGroupTopologyBuilder:
 
             # Non-leaf - create parent subgroup if multiple children or has parent
             if len(node.children) > 1 or parent_name is not None:
+                # Skip if node has no label or name (shouldn't happen for non-root nodes)
+                if node.label is None or name is None:
+                    return None
                 subgroup = {
                     'name': name,
                     'topologyConstraint': {
