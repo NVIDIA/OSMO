@@ -8,9 +8,9 @@
 
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEventCallback, useResizeObserver } from "usehooks-ts";
 import { cn } from "@/lib/utils";
-import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
 import { useViewTransition } from "@/hooks/use-view-transition";
 
@@ -35,71 +35,156 @@ export interface PanelTabsProps {
 // Imported via globals.css - no dynamic injection needed
 
 /**
+ * Determines whether tabs should display in compact (icon-only) mode.
+ *
+ * Anti-feedback-loop strategy (mirrors Timeline.tsx pattern):
+ *
+ * Problem: Measuring truncation on the VISIBLE tabs creates a circular dependency.
+ * When isCompact=true, text labels are removed, which eliminates truncation, which
+ * triggers isCompact=false, which adds labels back, which causes truncation again.
+ *
+ * Solution:
+ * 1. A dedicated hidden measurement row always renders ALL tabs in full icon+text
+ *    mode with the same layout constraints (flex-1, same padding, same gap) as the
+ *    visible tabs. This measurement row uses visibility:hidden + height:0 +
+ *    overflow:hidden, so it occupies no visual space but lays out at the real
+ *    container width.
+ * 2. Truncation is detected on the HIDDEN measurement labels, not the visible ones.
+ *    Since the hidden row never changes between compact/full mode, its measurements
+ *    are stable and independent of the isCompact state.
+ * 3. Hysteresis is applied: once we switch to compact mode, we record the container
+ *    width at the switch point. We only restore full mode when the container is
+ *    significantly wider (RESTORE_HYSTERESIS_PX) than the switch point, preventing
+ *    oscillation near the boundary.
+ * 4. The ResizeObserver callback is stabilized with useEventCallback so it never
+ *    appears in effect dependency arrays, and isCompact is NOT in the effect deps
+ *    that create the observer.
+ */
+
+/** Extra pixels beyond the switch-point width required to restore full mode */
+const RESTORE_HYSTERESIS_PX = 30;
+
+function useCompactMode(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  measureRef: React.RefObject<HTMLDivElement | null>,
+  tabsLength: number,
+  iconOnlyProp: boolean | undefined,
+): boolean {
+  const [isCompact, setIsCompact] = useState(false);
+
+  // Width at which we last switched to compact mode.
+  // Only used for hysteresis: we require width > switchWidth + RESTORE_HYSTERESIS_PX to restore.
+  const switchWidthRef = useRef(0);
+
+  // Track whether truncation was detected on the previous pass, for hysteresis.
+  const wasTruncatedRef = useRef(false);
+
+  /**
+   * Core measurement function. Reads truncation from the hidden measurement row
+   * and applies hysteresis to decide whether compact mode should be active.
+   *
+   * Safe to call setState here because this runs from ResizeObserver (external system
+   * subscription) or from a RAF-scheduled effect, not from a render or layout effect body.
+   */
+  const evaluateLayout = useEventCallback((containerWidth: number) => {
+    if (containerWidth <= 0) return;
+    if (iconOnlyProp !== undefined) return;
+
+    const measureEl = measureRef.current;
+    if (!measureEl) return;
+
+    // Check if any label in the hidden measurement row is truncated.
+    // These labels always render in full icon+text mode regardless of isCompact.
+    const labels = measureEl.querySelectorAll(".tab-label-measure");
+
+    // Truncation detection with hysteresis:
+    // - To ENTER truncated state: require >1px overflow (tolerates sub-pixel rounding)
+    // - To CLEAR truncated state: require zero overflow (scrollWidth <= offsetWidth)
+    // This 1px asymmetry prevents rapid toggling at the exact boundary.
+    // The main anti-flicker protection comes from the width-based
+    // RESTORE_HYSTERESIS_PX check below.
+    //
+    // Note: scrollWidth >= offsetWidth always holds in the DOM, so approaches
+    // like `scrollWidth > offsetWidth - N` (checking for "headroom") are
+    // always true and can never clear -- that was the previous bug.
+    const overflowThreshold = wasTruncatedRef.current ? 0 : 1;
+    let isTruncated = false;
+    for (const label of Array.from(labels) as HTMLElement[]) {
+      if (label.scrollWidth > label.offsetWidth + overflowThreshold) {
+        isTruncated = true;
+        break;
+      }
+    }
+
+    wasTruncatedRef.current = isTruncated;
+
+    setIsCompact((prev) => {
+      if (isTruncated && !prev) {
+        // Switch to compact: record the width for hysteresis
+        switchWidthRef.current = containerWidth;
+        return true;
+      }
+
+      if (prev && !isTruncated) {
+        // Candidate for restoring full mode.
+        // Width hysteresis: only restore if we have significantly more space
+        // than when we switched to compact. This prevents oscillation when the
+        // user drags the panel near the boundary width.
+        if (containerWidth > switchWidthRef.current + RESTORE_HYSTERESIS_PX) {
+          return false;
+        }
+        // In the hysteresis zone: stay compact
+        return true;
+      }
+
+      return prev;
+    });
+  });
+
+  // ResizeObserver: external system subscription. setState is safe here.
+  useResizeObserver({
+    ref: containerRef as React.RefObject<HTMLElement>,
+    box: "border-box",
+    onResize: ({ width }) => {
+      evaluateLayout(width ?? 0);
+    },
+  });
+
+  // Re-evaluate when tabs change (different labels = different truncation).
+  // Uses RAF to ensure the DOM has committed the new measurement labels before reading.
+  useEffect(() => {
+    if (iconOnlyProp !== undefined) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Reset hysteresis state when tabs change so we get a fresh evaluation
+    wasTruncatedRef.current = false;
+    switchWidthRef.current = 0;
+
+    const rafId = requestAnimationFrame(() => {
+      const rect = container.getBoundingClientRect();
+      evaluateLayout(rect.width);
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [tabsLength, containerRef, evaluateLayout, iconOnlyProp]);
+
+  return iconOnlyProp ?? isCompact;
+}
+
+/**
  * PanelTabs - Chrome-style tabs with content-driven responsive behavior.
  *
  * Automatically switches to icon-only mode when the container is too narrow
- * to fit the full labels. Uses ResizeObserver to detect label truncation.
+ * to fit the full labels. Uses a hidden measurement row and hysteresis to
+ * prevent flickering during resize (see useCompactMode documentation above).
  */
 export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, className }: PanelTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
-  const [isCompact, setIsCompact] = useState(false);
+  const measureRef = useRef<HTMLDivElement>(null);
   const { startTransition } = useViewTransition();
 
-  // Store the width where we switched to compact mode
-  const switchWidthRef = useRef<number>(0);
-
-  // Content-driven compact mode detection
-  useIsomorphicLayoutEffect(() => {
-    if (iconOnlyProp !== undefined) return;
-
-    const container = containerRef.current;
-    const tabList = tabListRef.current;
-    if (!container || !tabList) return;
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-
-      const currentWidth = entry.contentRect.width;
-
-      if (!isCompact) {
-        // Check if any tab label is currently truncating
-        const labels = tabList.querySelectorAll(".tab-label");
-        let hasTruncation = false;
-
-        for (const label of Array.from(labels) as HTMLElement[]) {
-          // If scrollWidth > offsetWidth, the text is being clipped
-          if (label.scrollWidth > label.offsetWidth) {
-            hasTruncation = true;
-            break;
-          }
-        }
-
-        if (hasTruncation) {
-          switchWidthRef.current = currentWidth;
-          setIsCompact(true);
-        }
-      } else {
-        // If we are compact, switch back if we have significantly more space
-        // than when we switched to compact.
-        if (currentWidth > (switchWidthRef.current || 0) + 20) {
-          setIsCompact(false);
-        }
-      }
-    });
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [iconOnlyProp, isCompact, tabs]);
-
-  // Reset when tabs change
-  useIsomorphicLayoutEffect(() => {
-    setIsCompact(false);
-    switchWidthRef.current = 0;
-  }, [tabs]);
-
-  const iconOnly = iconOnlyProp ?? isCompact;
+  const iconOnly = useCompactMode(containerRef, measureRef, tabs.length, iconOnlyProp);
 
   const handleTabChange = useCallback(
     (tabId: string) => {
@@ -144,11 +229,42 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
     [tabs, handleTabChange],
   );
 
+  // Memoize the measurement row content to avoid unnecessary re-renders.
+  // This row is the key to breaking the feedback loop: it always renders in
+  // full icon+text mode regardless of the isCompact decision.
+  const measurementRow = useMemo(
+    () => (
+      <div
+        ref={measureRef}
+        className="invisible flex h-0 w-full gap-0 overflow-hidden"
+        aria-hidden="true"
+      >
+        {tabs.map((tab) => (
+          <div
+            key={`${tab.id}-measure`}
+            className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-4 py-1.5"
+          >
+            {tab.icon && <tab.icon className="size-4 shrink-0" />}
+            <span className="tab-label-measure truncate text-sm leading-4">{tab.label}</span>
+            {tab.statusContent}
+          </div>
+        ))}
+      </div>
+    ),
+    [tabs],
+  );
+
   return (
     <div
       ref={containerRef}
       className={cn("panel-tabs relative shrink-0 bg-gray-100 pt-1.5 dark:bg-zinc-800", className)}
     >
+      {/* Hidden measurement row: always renders ALL tabs in full icon+text mode.
+          Uses visibility:hidden + h-0 + overflow-hidden so it occupies no visual space
+          but lays out at the container's actual width. Truncation is measured here,
+          not on the visible tabs, breaking the feedback loop. */}
+      {measurementRow}
+
       <div
         ref={tabListRef}
         className="relative flex h-auto w-full gap-0"
