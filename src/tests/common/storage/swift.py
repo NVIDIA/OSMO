@@ -55,6 +55,10 @@ class SwiftTestContainer(network.NetworkAwareContainer):
         self.with_exposed_ports(SWIFT_APP_PORT)
         self.with_network(test_network)
         self.with_network_aliases(SWIFT_NAME)
+        self.with_kwargs(
+            mem_limit='512m',
+            memswap_limit='512m'
+        )
 
     @waiting_utils.wait_container_is_ready(
         requests.ConnectionError,
