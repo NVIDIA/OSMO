@@ -34,10 +34,10 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Key, Database, Lock, Package, Plus, Trash2, Eye, EyeOff } from "lucide-react";
-import { useServices } from "@/contexts";
-import { useMounted } from "@/hooks";
-import { useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter";
-import type { Credential, CredentialCreate } from "@/lib/api/adapter";
+import { useServices } from "@/contexts/service-context";
+import { useMounted } from "@/hooks/use-mounted";
+import { useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter/hooks";
+import type { Credential, CredentialCreate } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Types

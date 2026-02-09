@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from "react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useMounted } from "@/hooks";
+import { useMounted } from "@/hooks/use-mounted";
 
 /**
  * localStorage key for enabling React Query Devtools.

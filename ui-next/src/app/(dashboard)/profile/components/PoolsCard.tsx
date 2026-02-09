@@ -23,8 +23,8 @@ import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Server } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter";
-import type { AnnouncerService } from "@/contexts";
+import type { UserProfile, ProfileUpdate } from "@/lib/api/adapter/types";
+import type { AnnouncerService } from "@/contexts/service-context";
 import { SelectableList, type SelectableListItem } from "./SelectableList";
 
 // Pool edits - stores only the user's pool change

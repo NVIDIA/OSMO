@@ -19,7 +19,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/shadcn/card";
 import { Input } from "@/components/shadcn/input";
 import { User } from "lucide-react";
-import { useUser } from "@/lib/auth";
+import { useUser } from "@/lib/auth/user-context";
 
 // Simple label component (shadcn/label not available)
 function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
