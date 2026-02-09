@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { usePanelAnimationContext } from "@/components/panel/panel-animation-context";
 
 // =============================================================================
 // Types
@@ -60,6 +61,12 @@ export function PlatformSelector({
   selectedPlatform,
   onSelectPlatform,
 }: PlatformSelectorProps) {
+  // Coordinate with panel animation to avoid layout thrashing during GPU animations.
+  // Defer DropdownMenu mount until phase='open' to prevent Radix Portal setup from
+  // triggering layout recalculation during panel slide animation.
+  const { phase } = usePanelAnimationContext();
+  const deferDropdown = phase !== "open";
+
   const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -103,12 +110,12 @@ export function PlatformSelector({
     }
   }, [isOpen, platforms.length]);
 
-  // Single platform: Static label
-  if (platforms.length === 1) {
+  // Single platform OR deferred: Static label
+  if (platforms.length === 1 || deferDropdown) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{platforms[0]}</span>
-        {defaultPlatform === platforms[0] && (
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedPlatform}</span>
+        {isDefault && (
           <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[0.625rem] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
             default
           </span>

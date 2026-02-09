@@ -16,16 +16,78 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Staggered content animation for ResizablePanel
- * Content slides in slightly after panel starts moving to prevent layout thrashing
- */
-@keyframes slideInContent {
+/* =============================================================================
+   ResizablePanel Animation System
+
+   Choreographed open/close with CSS-driven sequencing:
+
+   OPEN sequence (staggered):
+     1. Panel shell slides in empty (translateX 100% -> 0, 200ms ease-out)
+     2. Content mounts ONE FRAME later via RAF (prevents transform storm)
+     3. Content fades/slides in immediately after mounting (150ms ease-out)
+
+   CLOSE sequence (synchronized):
+     1. Panel slides out (translateX 0 -> 100%, 200ms ease-out)
+        Content stays visible and mounted, riding with the panel as one unit.
+     2. Content unmounts after panel's transitionend fires.
+
+   The asymmetry is intentional: on open, content is deferred by one frame (RAF)
+   to prevent the "transform storm" (layout from mounting children competing
+   with the parent's GPU-accelerated slide). On close, no new layout happens,
+   so content can safely ride along inside the panel.
+
+   The content wrapper uses contain: strict during entering, then contain: layout
+   paint, to isolate its layout/paint from the panel's compositor layer.
+   ============================================================================= */
+
+/* ==========================================================================
+   Content slide-in animation (plays only on open, delayed after panel starts)
+   ========================================================================== */
+@keyframes panelContentIn {
   from {
     opacity: 0;
     transform: translateX(20px);
   }
   to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ==========================================================================
+   Panel content wrapper states driven by data-content-state attribute
+
+   States:
+   - "hidden"  : Content invisible, no animation (before first open)
+   - "entering": Content animating in (delayed to let panel slide first)
+   - "visible" : Content fully visible, no animation running
+                  Also used during close - content rides with the panel
+   ========================================================================== */
+
+.resizable-panel-content[data-content-state="hidden"] {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.resizable-panel-content[data-content-state="entering"] {
+  /* Content mounts one frame after shell (via RAF), so no CSS delay needed.
+     The animation plays immediately when content mounts. */
+  animation: panelContentIn 150ms var(--ease-out) both;
+}
+
+.resizable-panel-content[data-content-state="visible"] {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ==========================================================================
+   Reduced motion: skip content enter animation
+   Content appears instantly; panel transitions handled via motion-reduce
+   on the panel element itself (in the component's Tailwind classes).
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .resizable-panel-content[data-content-state="entering"] {
+    animation: none;
     opacity: 1;
     transform: translateX(0);
   }

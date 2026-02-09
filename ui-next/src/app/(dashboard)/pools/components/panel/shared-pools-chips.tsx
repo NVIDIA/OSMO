@@ -21,6 +21,7 @@
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExpandableChips } from "@/hooks/use-expandable-chips";
+import { usePanelAnimationContext } from "@/components/panel/panel-animation-context";
 
 // =============================================================================
 // Types
@@ -52,10 +53,16 @@ const overflowClassName =
  *
  * Uses CSS-driven measurement - no configuration needed. The hook measures
  * actual rendered chip widths to calculate how many fit.
+ *
+ * Defers measurement until the panel animation fully completes (phase='open')
+ * to avoid layout thrashing during GPU-accelerated animations.
  */
 export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) {
+  const { phase } = usePanelAnimationContext();
+  const deferMeasurement = phase !== "open";
+
   const { containerRef, measureRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
-    useExpandableChips({ items: pools });
+    useExpandableChips({ items: pools, deferMeasurement });
 
   return (
     <div className="relative min-w-0">
