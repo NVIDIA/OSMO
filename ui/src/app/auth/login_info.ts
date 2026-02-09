@@ -14,19 +14,14 @@
 
 //SPDX-License-Identifier: Apache-2.0
 import { env } from "~/env.mjs";
+import { type LoginInfo } from "~/models/config/service-config";
 import { getRequestScheme } from "~/utils/common";
 
-interface LoginInfo {
+interface LoginInfoWithAuth extends LoginInfo {
   auth_enabled: boolean;
-  device_endpoint: string;
-  device_client_id: string;
-  browser_endpoint: string;
-  browser_client_id: string;
-  token_endpoint: string;
-  logout_endpoint: string;
 }
 
-export const getLoginInfo = async (): Promise<LoginInfo> => {
+export const getLoginInfo = async (): Promise<LoginInfoWithAuth> => {
   // The followingensures that when running locally against deployed prod, the endpoints
   // are still provided despite prod not supporting GET /api/auth/login
   // TODO: remove this once prod supports GET /api/auth/login and use:
@@ -36,7 +31,7 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
   // return loginInfo;
 
   const scheme = getRequestScheme();
-  let loginInfo: LoginInfo = {
+  let loginInfo: LoginInfoWithAuth = {
     auth_enabled: true,
     device_endpoint: "",
     device_client_id: "",
@@ -57,7 +52,7 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
 
   try {
     const res = await fetch(`${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/auth/login`, { cache: "no-store" });
-    loginInfo = (await res.json()) as LoginInfo;
+    loginInfo = (await res.json()) as LoginInfoWithAuth;
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
   } catch (error) {
     console.warn(`Host does not support /api/auth/login: ${(error as Error).message}`);

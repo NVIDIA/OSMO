@@ -199,7 +199,7 @@ export const formatForWrapping = (name: string) => {
     wrappedName = wrappedName.replaceAll("@", `@${ZERO_WIDTH_SPACE}`);
 
     // Add a zero-width space every 20 characters IF the part is longer than 20 characters
-    const subSections = breakIntoParts(wrappedName, ["_", "@"]);
+    const subSections = breakIntoParts(wrappedName, ["_", "@", "/"]);
     const updatedSubSections = subSections.map((subSection) => {
       return subSection.match(/.{1,20}/g)?.join(ZERO_WIDTH_SPACE) ?? subSection;
     });
