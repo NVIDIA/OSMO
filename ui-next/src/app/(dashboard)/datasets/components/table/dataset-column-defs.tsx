@@ -98,21 +98,6 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       },
     },
     {
-      id: "num_files",
-      accessorKey: "num_files",
-      header: COLUMN_LABELS.num_files,
-      minSize: getMinSize("num_files"),
-      enableSorting: false,
-      cell: ({ row }) => {
-        const numFiles = row.original.num_files || 0;
-        return (
-          <span className="truncate font-mono text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
-            {numFiles > 0 ? numFiles.toLocaleString() : "—"}
-          </span>
-        );
-      },
-    },
-    {
       id: "labels",
       accessorKey: "labels",
       header: COLUMN_LABELS.labels,
