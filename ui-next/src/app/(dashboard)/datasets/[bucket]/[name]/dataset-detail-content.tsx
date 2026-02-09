@@ -28,6 +28,7 @@ import { useQueryState } from "nuqs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
 import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
 import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
+import { VersionsTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/VersionsTab";
 import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
 
 interface Props {
@@ -36,20 +37,21 @@ interface Props {
 }
 
 export function DatasetDetailContent({ bucket, name }: Props) {
-  const { dataset, error } = useDatasetDetail(bucket, name);
+  const { dataset, versions, error } = useDatasetDetail(bucket, name);
 
-  // Tab state in URL
+  // Tab state in URL (deep-linkable)
   const [activeTab, setActiveTab] = useQueryState("tab", {
     defaultValue: "overview",
     shallow: true,
     history: "replace",
   });
 
-  // Set page title and breadcrumbs
+  // Set page title and breadcrumbs with bucket filter link
   usePage({
     title: dataset ? dataset.name : name,
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
+      { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
       { label: name, href: null },
     ],
   });
@@ -79,6 +81,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       >
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="versions">Versions</TabsTrigger>
           <TabsTrigger value="files">File Browser</TabsTrigger>
         </TabsList>
 
@@ -90,11 +93,21 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         </TabsContent>
 
         <TabsContent
+          value="versions"
+          className="mt-6"
+        >
+          <VersionsTab
+            versions={versions}
+            currentVersion={dataset.version}
+          />
+        </TabsContent>
+
+        <TabsContent
           value="files"
           className="mt-6"
         >
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">File Browser (Phase 5)</p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">File Browser (Phase 6)</p>
           </div>
         </TabsContent>
       </Tabs>

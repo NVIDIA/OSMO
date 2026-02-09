@@ -47,12 +47,20 @@ export interface GeneratedDataset {
 }
 
 export interface GeneratedDatasetVersion {
-  version: number;
-  created_at: string;
-  size_bytes: number;
-  num_files: number;
-  commit_message?: string;
+  name: string;
+  version: string;
+  status: string;
   created_by: string;
+  created_date: string;
+  last_used: string;
+  retention_policy: number;
+  size: number;
+  checksum: string;
+  location: string;
+  uri: string;
+  metadata: Record<string, unknown>;
+  tags: string[];
+  collections: string[];
 }
 
 export interface DatasetFile {
@@ -180,28 +188,36 @@ export class DatasetGenerator {
   }
 
   /**
-   * Generate dataset versions.
+   * Generate dataset versions (matches backend DataInfoDatasetEntry).
    */
   generateVersions(datasetName: string, count: number = 5): GeneratedDatasetVersion[] {
     faker.seed(this.config.baseSeed + hashString(datasetName));
 
     const versions: GeneratedDatasetVersion[] = [];
     let date = faker.date.past({ years: 1 });
+    const users = MOCK_CONFIG.workflows.users;
 
     for (let v = 1; v <= count; v++) {
+      const createdDate = date.toISOString();
+      const lastUsed = new Date(
+        date.getTime() + faker.number.int({ min: 1, max: 7 }) * 24 * 60 * 60 * 1000,
+      ).toISOString();
+
       versions.push({
-        version: v,
-        created_at: date.toISOString(),
-        size_bytes: faker.number.int({ min: 1e9, max: 1e12 }),
-        num_files: faker.number.int({ min: 100, max: 10000 }),
-        commit_message: faker.helpers.arrayElement([
-          "Initial upload",
-          "Added validation split",
-          "Fixed corrupted files",
-          "Added new samples",
-          "Reprocessed with updated pipeline",
-        ]),
-        created_by: faker.helpers.arrayElement(["alice", "bob", "system", "pipeline"]),
+        name: datasetName,
+        version: String(v),
+        status: v === 1 ? "READY" : faker.helpers.arrayElement(["READY", "PENDING"]),
+        created_by: faker.helpers.arrayElement(users),
+        created_date: createdDate,
+        last_used: lastUsed,
+        retention_policy: faker.helpers.arrayElement([30, 90, 365]),
+        size: faker.number.int({ min: 1e9, max: 1e12 }),
+        checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        location: `s3://osmo-datasets/datasets/${datasetName}/v${v}/`,
+        uri: `s3://osmo-datasets/datasets/${datasetName}/v${v}/`,
+        metadata: {},
+        tags: faker.helpers.arrayElements(["latest", "production", "test"], { min: 0, max: 2 }),
+        collections: [],
       });
 
       // Advance date for next version

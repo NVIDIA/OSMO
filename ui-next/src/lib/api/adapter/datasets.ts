@@ -35,11 +35,13 @@ import type { SearchChip } from "@/stores/types";
  * Dataset metadata (UI type with fixes for backend quirks).
  */
 export interface Dataset {
+  id: string;
   name: string;
   bucket: string;
   path?: string;
   version?: number;
   created_at: string;
+  created_by?: string;
   updated_at: string;
   /** Size in bytes (backend may return string, we ensure number) */
   size_bytes: number;
@@ -52,15 +54,23 @@ export interface Dataset {
 }
 
 /**
- * Dataset version entry.
+ * Dataset version entry (matches backend DataInfoDatasetEntry).
  */
 export interface DatasetVersion {
-  version: number;
-  created_at: string;
-  size_bytes: number;
-  num_files: number;
-  commit_message?: string;
+  name: string;
+  version: string;
+  status: string;
   created_by: string;
+  created_date: string;
+  last_used: string;
+  retention_policy: number;
+  size: number;
+  checksum: string;
+  location: string;
+  uri: string;
+  metadata: Record<string, unknown>;
+  tags: string[];
+  collections: string[];
 }
 
 /**
@@ -95,7 +105,13 @@ export interface DatasetFilesResponse {
 // =============================================================================
 
 // Import actual types from generated client
-import type { DataListEntry, DataListResponse, DataInfoResponse, DatasetType } from "@/lib/api/generated";
+import type {
+  DataListEntry,
+  DataListResponse,
+  DataInfoResponse,
+  DataInfoDatasetEntry,
+  DatasetType,
+} from "@/lib/api/generated";
 
 // =============================================================================
 // Helpers
@@ -140,11 +156,13 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
   }
 
   return {
+    id: raw.id,
     name: raw.name,
     bucket: raw.bucket,
     path: "", // Not available in list view
     version,
     created_at: raw.create_time,
+    created_by: undefined, // Not available in list view
     updated_at: raw.last_created || raw.create_time,
     size_bytes: ensureNumber(raw.hash_location_size),
     num_files: 0, // Not available in list view (backend doesn't provide)
@@ -163,33 +181,51 @@ export function transformDatasetList(raw: DataListResponse): Dataset[] {
 /**
  * Transform raw dataset detail response (dataset + versions).
  */
-export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResponse {
-  const { versions: _versions, ...datasetData } = raw;
+/**
+ * Type guard to check if a version is a DataInfoDatasetEntry (not a collection).
+ */
+function isDatasetEntry(version: unknown): version is DataInfoDatasetEntry {
+  return (
+    typeof version === "object" &&
+    version !== null &&
+    "status" in version &&
+    "created_by" in version &&
+    "created_date" in version
+  );
+}
 
+export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResponse {
   // Convert labels to Record<string, string>
   const labels: Record<string, string> = {};
-  if (datasetData.labels) {
-    for (const [key, value] of Object.entries(datasetData.labels)) {
+  if (raw.labels) {
+    for (const [key, value] of Object.entries(raw.labels)) {
       labels[key] = String(value);
     }
   }
 
+  // Filter versions to only include dataset entries (not collections)
+  const datasetVersions = (raw.versions || []).filter(isDatasetEntry);
+
+  // Extract current version from versions array (latest version)
+  const latestVersion = datasetVersions.length > 0 ? datasetVersions[0] : null;
+
   return {
     dataset: {
-      name: datasetData.name,
-      bucket: datasetData.bucket,
-      path: "", // Not in DataInfoResponse
-      version: 0, // Not in DataInfoResponse directly
-      created_at: datasetData.created_date || "",
-      updated_at: datasetData.created_date || "",
-      size_bytes: ensureNumber(datasetData.hash_location_size),
+      id: raw.id,
+      name: raw.name,
+      bucket: raw.bucket,
+      path: raw.hash_location || "",
+      version: latestVersion ? parseInt(latestVersion.version, 10) : 0,
+      created_at: raw.created_date || "",
+      created_by: raw.created_by,
+      updated_at: latestVersion?.created_date || raw.created_date || "",
+      size_bytes: ensureNumber(raw.hash_location_size),
       num_files: 0, // Not in DataInfoResponse
-      format: datasetData.type,
+      format: raw.type,
       labels,
     },
-    // Simplified versions - the actual API response doesn't match our DatasetVersion type
-    // For now, return empty array until we understand the actual version structure
-    versions: [],
+    // Return filtered versions array (only dataset entries)
+    versions: datasetVersions as DatasetVersion[],
   };
 }
 
