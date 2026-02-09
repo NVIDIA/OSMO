@@ -260,10 +260,10 @@ Rate limit sidecar container
     {{- if .Values.sidecars.rateLimit.extraArgs }}
     {{- if kindIs "slice" .Values.sidecars.rateLimit.extraArgs }}
     {{- range .Values.sidecars.rateLimit.extraArgs }}
-    - {{ . }}
+    - {{ . | quote }}
     {{- end }}
     {{- else }}
-    - {{ .Values.sidecars.rateLimit.extraArgs }}
+    - {{ .Values.sidecars.rateLimit.extraArgs | quote }}
     {{- end }}
     {{- end }}
     {{- end }}

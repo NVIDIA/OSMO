@@ -31,14 +31,19 @@ go_library(
 
 go_test(
     name = "postgres_test",
+<<<<<<< HEAD
     srcs = [
         "postgres_client_test.go",
     ],
+=======
+    srcs = ["postgres_client_test.go"],
+>>>>>>> origin/main
     embed = [":postgres"],
     deps = [
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
+<<<<<<< HEAD
 
 # Integration test - requires running PostgreSQL instance
 #
@@ -69,3 +74,5 @@ go_test(
     tags = ["manual", "service"],  # Requires running PostgreSQL instance
     local = True,  # Run locally without sandboxing to access external database
 )
+=======
+>>>>>>> origin/main

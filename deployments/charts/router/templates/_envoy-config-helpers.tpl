@@ -159,6 +159,69 @@ listeners:
                   end
                 end
 
+        {{- if .Values.sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken }}
+        - name: envoy.filters.http.lua.validate_idtoken
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            default_source_code:
+              inline_string: |
+                -- Check if IdToken looks like a valid JWT structure.
+                -- JWT must have exactly 3 base64url parts separated by dots.
+                -- We don't decode or check expiration - we rely on cookie Max-Age (300s).
+                function is_valid_jwt_structure(token)
+                  if not token or #token < 50 then
+                    return false
+                  end
+                  local header, payload, sig = token:match("^([A-Za-z0-9_-]+)%.([A-Za-z0-9_-]+)%.([A-Za-z0-9_-]+)$")
+                  return header ~= nil and payload ~= nil and sig ~= nil
+                end
+
+                -- Remove only auth cookies, preserving others (e.g., AWS ALB stickiness cookies)
+                function remove_auth_cookies(cookie_header)
+                  local auth_cookies = {
+                    ["IdToken"] = true,
+                    ["BearerToken"] = true,
+                    ["RefreshToken"] = true,
+                    ["OauthHMAC"] = true,
+                  }
+                  local preserved = {}
+                  for cookie in string.gmatch(cookie_header, "([^;]+)") do
+                    cookie = cookie:match("^%s*(.-)%s*$")  -- trim whitespace
+                    local name = cookie:match("^([^=]+)")
+                    if name and not auth_cookies[name] then
+                      table.insert(preserved, cookie)
+                    end
+                  end
+                  if #preserved > 0 then
+                    return table.concat(preserved, "; ")
+                  end
+                  return nil
+                end
+
+                -- This filter detects invalid auth state and forces re-authentication.
+                -- OAuth2 doesn't return id_token on refresh without scope=openid.
+                -- We check BearerToken (7 day lifetime) since OauthHMAC (295s) expires
+                -- before IdToken (300s), so we can't rely on OauthHMAC being present.
+                function envoy_on_request(request_handle)
+                  local cookies = request_handle:headers():get("cookie")
+                  if not cookies then return end
+
+                  local has_bearer = cookies:match("BearerToken=[^;]+")
+                  local idtoken = cookies:match("IdToken=([^;%s]+)")
+
+                  -- If BearerToken exists (user was authenticated) but IdToken is missing/malformed
+                  if has_bearer and not is_valid_jwt_structure(idtoken) then
+                    request_handle:logInfo("Detected missing/malformed IdToken with valid BearerToken - clearing auth cookies to force re-auth")
+                    -- Only remove auth cookies, preserve others (AWS ALB stickiness, etc.)
+                    local remaining = remove_auth_cookies(cookies)
+                    request_handle:headers():remove("cookie")
+                    if remaining then
+                      request_handle:headers():add("cookie", remaining)
+                    end
+                  end
+                end
+        {{- end }}
+
         - name: envoy.filters.http.lua.pre_oauth2
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
@@ -216,6 +279,7 @@ listeners:
 
                 function envoy_on_response(response_handle)
                   local header = response_handle:headers():get("set-cookie")
+
                   if header ~= nil then
                     local new_cookies = increase_refresh_age(header, {
                       RefreshToken=604800,

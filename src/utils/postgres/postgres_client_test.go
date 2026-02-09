@@ -30,6 +30,7 @@ import (
 	"go.corp.nvidia.com/osmo/utils"
 )
 
+<<<<<<< HEAD
 func TestPostgresConfig(t *testing.T) {
 	// Test creating a config struct
 	config := PostgresConfig{
@@ -77,6 +78,8 @@ func TestPostgresConfig(t *testing.T) {
 // and are better suited for integration test environments.
 // These unit tests verify the structure and helper functions.
 
+=======
+>>>>>>> origin/main
 // TestURLEscaping verifies that passwords with special characters are properly escaped
 func TestURLEscaping(t *testing.T) {
 	testCases := []struct {

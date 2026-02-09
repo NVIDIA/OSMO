@@ -103,9 +103,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end }}
-        {{- range .Values.services.service.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -147,7 +144,7 @@ spec:
         - api_service
         {{- end }}
         {{- range $arg := .Values.services.service.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS

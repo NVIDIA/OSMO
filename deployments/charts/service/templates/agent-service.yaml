@@ -110,9 +110,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end}}
-        {{- range .Values.services.agent.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -128,7 +125,7 @@ spec:
         - agent_service
         {{- end }}
         {{- range $arg := .Values.services.agent.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         {{- include "osmo.extra-env" .Values.services.agent | nindent 8 }}
