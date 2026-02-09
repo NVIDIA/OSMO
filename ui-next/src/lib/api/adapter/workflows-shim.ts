@@ -95,7 +95,9 @@ function buildApiParams(
     priority: priorityChips.length > 0 ? (priorityChips as WorkflowPriority[]) : undefined,
     tags: tagChips.length > 0 ? tagChips : undefined,
     // Toggles
-    all_users: showAllUsers,
+    // Only send all_users=true when no user chips exist (to show all users' workflows)
+    // When user chips exist, don't send all_users (backend filters by those specific users)
+    all_users: userChips.length === 0 ? showAllUsers : undefined,
     // all_pools is implicit: true when no pool filter, false when pool filter exists
     all_pools: poolChips.length === 0,
   };

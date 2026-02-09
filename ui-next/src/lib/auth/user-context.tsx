@@ -22,8 +22,12 @@ import { getClientToken, decodeUserFromToken } from "@/lib/auth/decode-user";
 
 export interface User {
   id: string;
+  /** Display name for UI (e.g., "Alice Smith") */
   name: string;
+  /** Email address */
   email: string;
+  /** Backend username - matches x-osmo-user header from Envoy (e.g., "alice.smith" or "alice.smith@company.com") */
+  username: string;
   isAdmin: boolean;
   initials: string;
 }

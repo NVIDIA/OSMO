@@ -109,8 +109,9 @@ function extractRoles(claims: JwtClaims): string[] {
  *
  * Transforms JWT claims into User object:
  * - id: claims.sub
- * - name: claims.name || claims.email (first part)
- * - email: claims.email
+ * - name: claims.name || claims.email (first part) - for display
+ * - username: claims.unique_name || claims.preferred_username - matches Envoy's x-osmo-user header
+ * - email: claims.email || claims.preferred_username
  * - isAdmin: hasAdminRole(roles)
  * - initials: Two letters from name
  *
@@ -132,10 +133,15 @@ export function decodeUserFromToken(token: string | null): User | null {
     // Some auth providers use 'email', others use 'preferred_username'
     const email = claims.email || claims.preferred_username || "";
 
+    // Extract username that matches Envoy's x-osmo-user header
+    // Envoy uses unique_name (primary) or preferred_username (secondary)
+    const username = claims.unique_name || claims.preferred_username || email.split("@")[0] || "user";
+
     // Build User object
     return {
       id: claims.sub || "",
       name: claims.name || email.split("@")[0] || "User",
+      username,
       email,
       isAdmin: hasAdminRole(roles),
       initials: getInitials(claims.name || email || "U"),
