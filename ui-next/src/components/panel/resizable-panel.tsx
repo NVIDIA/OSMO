@@ -216,6 +216,23 @@ export function ResizablePanel({
   // ---------------------------------------------------------------------------
 
   const prevPhase = usePrevious(phase);
+
+  // Trigger slide-in animation when panel first mounts during "opening" phase
+  // CSS transitions require a previous state to transition from. When the aside
+  // first mounts, we need to set the initial transform, force a reflow, then
+  // set the final transform to trigger the transition.
+  useEffect(() => {
+    if (phase === "opening" && prevPhase === "closed" && panelRef.current) {
+      const panel = panelRef.current;
+      // Set initial off-screen position
+      panel.style.transform = "translateX(100%)";
+      // Force reflow to establish initial state
+      void panel.offsetHeight;
+      // Now set final position - CSS transition will animate
+      panel.style.transform = "translateX(0)";
+    }
+  }, [phase, prevPhase]);
+
   useEffect(() => {
     const justOpened = prevPhase !== "open" && phase === "open";
     if (!justOpened || !panelRef.current) return;
@@ -283,67 +300,68 @@ export function ResizablePanel({
       )}
 
       {/* Panel - absolute within container */}
-      <aside
-        ref={panelRef}
-        className={cn(
-          // Note: NO overflow-hidden here - allows resize handle to extend past left edge
-          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900",
-          // Disable ALL transitions during drag for buttery smooth 60fps resizing
-          isDragging
-            ? "transition-none"
-            : "transition-[transform,width] duration-200 ease-out motion-reduce:transition-none",
-          className,
-        )}
-        style={{
-          width: panelWidth,
-          // Panel is at translateX(0) during opening and open phases.
-          // On close (sliding-out), panelSlideIn becomes false, which sets
-          // translateX(100%) and the CSS transition slides the panel off-screen.
-          // Content stays mounted inside during the slide, creating a synchronized exit.
-          transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
-          // Force GPU compositing layer only when actively animating to prevent layout thrashing.
-          // Reset to "auto" when closed to release the GPU memory.
-          willChange: shellMounted ? "transform" : "auto",
-          ...dragStyles,
-          ...(effectiveCollapsed
-            ? {}
-            : {
-                maxWidth: maxWidthPx > 0 ? `${maxWidthPx}px` : `${maxWidth}%`,
-                minWidth: `${minWidthPx}px`,
-              }),
-        }}
-        onTransitionEnd={handlePanelTransitionEnd}
-        role="complementary"
-        aria-label={ariaLabel}
-        aria-hidden={shellMounted ? undefined : true}
-        tabIndex={shellMounted ? -1 : undefined}
-      >
-        {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
-        {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
-        {shellMounted && !effectiveCollapsed && (
-          <ResizeHandle
-            bindResizeHandle={bindResizeHandle}
-            isDragging={isDragging}
-            className="absolute top-0 left-0 z-20 h-full -translate-x-1/2"
-            aria-valuenow={width}
-            aria-valuemin={minWidth}
-            aria-valuemax={maxWidth}
-          />
-        )}
+      {/* Only mount when shellMounted to prevent unnecessary DOM nodes when closed */}
+      {shellMounted && (
+        <aside
+          ref={panelRef}
+          className={cn(
+            // Note: NO overflow-hidden here - allows resize handle to extend past left edge
+            "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900",
+            // Disable ALL transitions during drag for buttery smooth 60fps resizing
+            isDragging
+              ? "transition-none"
+              : "transition-[transform,width] duration-200 ease-out motion-reduce:transition-none",
+            className,
+          )}
+          style={{
+            width: panelWidth,
+            // Panel is at translateX(0) during opening and open phases.
+            // On close (sliding-out), panelSlideIn becomes false, which sets
+            // translateX(100%) and the CSS transition slides the panel off-screen.
+            // Content stays mounted inside during the slide, creating a synchronized exit.
+            transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
+            // Force GPU compositing layer only when actively animating to prevent layout thrashing.
+            // Reset to "auto" when closed to release the GPU memory.
+            willChange: shellMounted ? "transform" : "auto",
+            ...dragStyles,
+            ...(effectiveCollapsed
+              ? {}
+              : {
+                  maxWidth: maxWidthPx > 0 ? `${maxWidthPx}px` : `${maxWidth}%`,
+                  minWidth: `${minWidthPx}px`,
+                }),
+          }}
+          onTransitionEnd={handlePanelTransitionEnd}
+          role="complementary"
+          aria-label={ariaLabel}
+          tabIndex={-1}
+        >
+          {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
+          {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
+          {!effectiveCollapsed && (
+            <ResizeHandle
+              bindResizeHandle={bindResizeHandle}
+              isDragging={isDragging}
+              className="absolute top-0 left-0 z-20 h-full -translate-x-1/2"
+              aria-valuenow={width}
+              aria-valuemin={minWidth}
+              aria-valuemax={maxWidth}
+            />
+          )}
 
-        {/* Collapsed content - visible when collapsed */}
-        {collapsible && effectiveCollapsedContent && (
-          <div
-            className={cn(
-              "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
-              effectiveCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
-          >
-            {effectiveCollapsedContent}
-          </div>
-        )}
+          {/* Collapsed content - visible when collapsed */}
+          {collapsible && effectiveCollapsedContent && (
+            <div
+              className={cn(
+                "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
+                effectiveCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
+              )}
+            >
+              {effectiveCollapsedContent}
+            </div>
+          )}
 
-        {/* Panel content wrapper
+          {/* Panel content wrapper
             - Content mounts ONE FRAME after shell via RAF (prevents transform storm).
             - Uses contain: strict during entering, then contain: layout paint.
               This isolates layout/paint from the panel's GPU layer during slide-in.
@@ -352,22 +370,23 @@ export function ResizablePanel({
               so it visually exits with the panel as one unit.
             - Content unmounts only in the "closed" phase (after transitionend).
         */}
-        {contentMounted && (
-          <div
-            ref={contentRef}
-            className={cn(
-              "resizable-panel-content contain-layout-paint flex h-full w-full flex-col overflow-hidden",
-              // Always use contain: layout paint - no mode switching to prevent forced layout.
-              // The wrapper has explicit dimensions (h-full w-full) so intrinsic sizing cannot leak.
-              effectiveCollapsed && "pointer-events-none opacity-0",
-            )}
-            data-content-state={effectiveCollapsed ? "visible" : contentState}
-            onAnimationEnd={handleContentAnimationEnd}
-          >
-            <PanelAnimationProvider value={{ phase }}>{children}</PanelAnimationProvider>
-          </div>
-        )}
-      </aside>
+          {contentMounted && (
+            <div
+              ref={contentRef}
+              className={cn(
+                "resizable-panel-content contain-layout-paint flex h-full w-full flex-col overflow-hidden",
+                // Always use contain: layout paint - no mode switching to prevent forced layout.
+                // The wrapper has explicit dimensions (h-full w-full) so intrinsic sizing cannot leak.
+                effectiveCollapsed && "pointer-events-none opacity-0",
+              )}
+              data-content-state={effectiveCollapsed ? "visible" : contentState}
+              onAnimationEnd={handleContentAnimationEnd}
+            >
+              <PanelAnimationProvider value={{ phase }}>{children}</PanelAnimationProvider>
+            </div>
+          )}
+        </aside>
+      )}
     </div>
   );
 }

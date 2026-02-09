@@ -72,7 +72,7 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
           <main
             id="main-content"
             tabIndex={-1}
-            className="contain-layout-style scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
+            className="contain-layout-style flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
             aria-label="Main content"
           >
             <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
@@ -126,7 +126,7 @@ function ChromeSkeleton({ children }: { children: React.ReactNode }) {
         <main
           id="main-content"
           tabIndex={-1}
-          className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
+          className="flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
           aria-label="Main content"
         >
           {children}
