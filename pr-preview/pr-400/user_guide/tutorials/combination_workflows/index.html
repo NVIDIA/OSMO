@@ -1,0 +1,919 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Combination Workflows &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/tutorials/combination_workflows/index';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Hardware In The Loop (HIL)" href="../hardware_in_the_loop/index.html" />
+    <link rel="prev" title="Parallel Workflows" href="../parallel_workflows/index.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../appendix/cli/index.html">CLI Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../appendix/cli/cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Combination Workflows</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="combination-workflows">
+<span id="tutorials-combination-workflows"></span><h1>Combination Workflows<a class="headerlink" href="#combination-workflows" title="Link to this heading">#</a></h1>
+<p>This tutorial teaches you how to combine serial and parallel execution patterns by creating
+<strong>groups with dependencies</strong>—enabling sophisticated multi-stage workflows.</p>
+<p>So far, you have learned:</p>
+<ul class="simple">
+<li><p><strong>Serial workflows</strong> (<a class="reference internal" href="../serial_workflows/index.html#tutorials-serial-workflows"><span class="std std-ref">Tutorial #5</span></a>) - Tasks run one after another with dependencies</p></li>
+<li><p><strong>Parallel workflows</strong> (<a class="reference internal" href="../parallel_workflows/index.html#tutorials-parallel-workflows"><span class="std std-ref">Tutorial #6</span></a>) - Tasks run simultaneously using groups</p></li>
+</ul>
+<p><strong>Combination workflows</strong> merge both patterns by creating <strong>groups with dependencies</strong>.</p>
+<p>By the end, you’ll understand:</p>
+<ul class="simple">
+<li><p>How to create workflows with groups that depend on each other</p></li>
+<li><p>How data flows between groups</p></li>
+<li><p>How to build complex multi-stage pipelines</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Combination workflows are ideal for:</p>
+<ul class="simple">
+<li><p><strong>Data processing pipelines</strong> - Preprocess → train/validate in parallel → aggregate</p></li>
+<li><p><strong>ML workflows</strong> - Data prep → train multiple models → compare results</p></li>
+<li><p><strong>Testing workflows</strong> - Build → test on multiple configs → report</p></li>
+<li><p><strong>ETL pipelines</strong> - Extract → transform in parallel → load</p></li>
+</ul>
+</div>
+<section id="simple-example">
+<h2>Simple Example<a class="headerlink" href="#simple-example" title="Link to this heading">#</a></h2>
+<p>Let’s build a data processing pipeline with multiple stages by downloading the workflow definition
+here: <a class="reference download internal" download="" href="../../../_downloads/be3b617d5231296713f85daf1c45bc93/combination_workflow_simple.yaml"><code class="xref download docutils literal notranslate"><span class="pre">combination_workflow_simple.yaml</span></code></a>.</p>
+<figure class="align-center">
+<img alt="Simple Combination Workflow" class="transparent-bg no-scaled-link" src="../../../_images/combination_workflow_simple.svg" style="width: 80%;" />
+</figure>
+<div class="highlight-yaml notranslate"><div class="annotate highlight"><pre><span></span><span class="nt">workflow</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-pipeline</span>
+
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="c1"># Group 1: Data Preparation (runs first)</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prepare-data</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">generate-dataset</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &quot;Generating training dataset...&quot;</span>
+<span class="w">        </span><span class="no">mkdir -p {{output}}/data</span>
+<span class="w">        </span><span class="no">for i in {1..10}; do</span>
+<span class="w">          </span><span class="no">echo &quot;sample_$i,value_$i&quot; &gt;&gt; {{output}}/data/dataset.csv</span>
+<span class="w">        </span><span class="no">done</span>
+<span class="w">        </span><span class="no">echo &quot;✓ Dataset generation complete!&quot;</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validate-data</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &quot;Validating dataset...&quot;</span>
+<span class="w">        </span><span class="no">sleep 3</span>
+<span class="w">        </span><span class="no">echo &quot;✓ Validation passed!&quot;</span>
+
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="c1"># Group 2: Training (depends on Group 1)</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train-models</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train-model-a</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &quot;Training Model A...&quot;</span>
+<span class="w">        </span><span class="no">cat {{input:0}}/data/dataset.csv</span>
+<span class="w">        </span><span class="no">echo &quot;✓ Model A complete!&quot;</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">generate-dataset</span><span class="w">  </span><span class="c1"># (1)</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train-model-b</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &quot;Training Model B...&quot;</span>
+<span class="w">        </span><span class="no">wc -l {{input:0}}/data/dataset.csv</span>
+<span class="w">        </span><span class="no">echo &quot;✓ Model B complete!&quot;</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">generate-dataset</span>
+</pre></div>
+<ol class="arabic simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">generate-dataset</span></code> task is an input task for the <code class="docutils literal notranslate"><span class="pre">train-model-a</span></code> task. Therefore,
+the entire group <code class="docutils literal notranslate"><span class="pre">train-models</span></code> waits for <code class="docutils literal notranslate"><span class="pre">prepare-data</span></code> to complete.</p></li>
+</ol>
+</div>
+<p><strong>Execution Flow:</strong></p>
+<ol class="arabic simple">
+<li><p>Group <code class="docutils literal notranslate"><span class="pre">prepare-data</span></code> starts → <code class="docutils literal notranslate"><span class="pre">generate-dataset</span></code> and <code class="docutils literal notranslate"><span class="pre">validate-data</span></code> run in parallel.</p></li>
+<li><p>Task <code class="docutils literal notranslate"><span class="pre">generate-dataset</span></code> completes → Group <code class="docutils literal notranslate"><span class="pre">train-models</span></code> dependencies are satisfied.</p></li>
+<li><p>Group <code class="docutils literal notranslate"><span class="pre">train-models</span></code> starts → <code class="docutils literal notranslate"><span class="pre">train-model-a</span></code> and <code class="docutils literal notranslate"><span class="pre">train-model-b</span></code> run in parallel.</p></li>
+</ol>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Group dependencies</strong> are established through <strong>task dependencies</strong>.</p>
+<p>If any task in a group depends on a task from another group, the entire group waits for the other
+group to complete.</p>
+</div>
+<p><strong>Key Characteristics:</strong></p>
+<ul class="simple">
+<li><p>✅ Serial execution <strong>between</strong> groups</p></li>
+<li><p>✅ Parallel execution <strong>within</strong> groups</p></li>
+<li><p>✅ Data flows from Group 1 to Group 2</p></li>
+<li><p>✅ All tasks access the same data from the previous group</p></li>
+</ul>
+</section>
+<section id="complex-example">
+<h2>Complex Example<a class="headerlink" href="#complex-example" title="Link to this heading">#</a></h2>
+<p>Let’s build a more complex data processing pipeline by downloading the workflow definition
+here: <a class="reference download internal" download="" href="../../../_downloads/8c0bff05b831f930bce602f195add791/combination_workflow_complex.yaml"><code class="xref download docutils literal notranslate"><span class="pre">combination_workflow_complex.yaml</span></code></a>.</p>
+<figure class="align-center">
+<img alt="Complex Combination Workflow" class="transparent-bg no-scaled-link" src="../../../_images/combination_workflow_complex.svg" style="width: 100%;" />
+</figure>
+<div class="highlight-yaml notranslate"><div class="annotate highlight"><pre><span></span><span class="nt">workflow</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">complex-pipeline</span>
+
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="c1"># Group 1: Fetch data</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fetch</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">download</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &#39;Downloading data...&#39;</span>
+<span class="w">        </span><span class="no">mkdir -p {{output}}/data</span>
+<span class="w">        </span><span class="no">echo &quot;apple&quot; &gt; {{output}}/data/fruits.txt</span>
+<span class="w">        </span><span class="no">echo &quot;banana&quot; &gt;&gt; {{output}}/data/fruits.txt</span>
+<span class="w">        </span><span class="no">echo &quot;cherry&quot; &gt;&gt; {{output}}/data/fruits.txt</span>
+<span class="w">        </span><span class="no">echo &quot;Data downloaded!&quot;</span>
+
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="c1"># Group 2: Process (depends on Group 1)</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">process</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform-a</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &#39;Transform A: Converting to uppercase...&#39;</span>
+<span class="w">        </span><span class="no">mkdir -p {{output}}/transformed</span>
+<span class="w">        </span><span class="no">tr &#39;[:lower:]&#39; &#39;[:upper:]&#39; &lt; {{input:0}}/data/fruits.txt &gt; {{output}}/transformed/uppercase.txt</span>
+
+<span class="w">        </span><span class="no">sleep 120 # (1)</span>
+<span class="w">        </span><span class="no">echo &quot;✓ Transform A complete!&quot;</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">download</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform-b</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &#39;Transform B: Adding line numbers...&#39;</span>
+<span class="w">        </span><span class="no">mkdir -p {{output}}/transformed</span>
+<span class="w">        </span><span class="no">cat -n {{input:0}}/data/fruits.txt &gt; {{output}}/transformed/numbered.txt</span>
+<span class="w">        </span><span class="no">echo &quot;✓ Transform B complete!&quot;</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">download</span>
+
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="c1"># Group 3: Aggregate (depends on Group 2)</span>
+<span class="w">  </span><span class="c1">##################################################</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aggregate</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">combine</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu:24.04</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bash&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no">echo &#39;Combining results from both transforms...&#39;</span>
+<span class="w">        </span><span class="no">mkdir -p {{output}}/final</span>
+
+<span class="w">        </span><span class="no">echo &quot;=== UPPERCASE VERSION ===&quot; &gt; {{output}}/final/combined.txt</span>
+<span class="w">        </span><span class="no">cat {{input:0}}/transformed/uppercase.txt &gt;&gt; {{output}}/final/combined.txt</span>
+
+<span class="w">        </span><span class="no">echo &quot;&quot; &gt;&gt; {{output}}/final/combined.txt</span>
+<span class="w">        </span><span class="no">echo &quot;=== NUMBERED VERSION ===&quot; &gt;&gt; {{output}}/final/combined.txt</span>
+<span class="w">        </span><span class="no">cat {{input:1}}/transformed/numbered.txt &gt;&gt; {{output}}/final/combined.txt</span>
+
+<span class="w">        </span><span class="no">echo &quot;✓ Results combined!&quot;</span>
+<span class="w">        </span><span class="no">cat {{output}}/final/combined.txt</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span><span class="w">  </span><span class="c1"># (2)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform-a</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform-b</span>
+</pre></div>
+<ol class="arabic simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">transform-a</span></code> task is intentionally longer than the <code class="docutils literal notranslate"><span class="pre">transform-b</span></code> task to ensure that
+the <code class="docutils literal notranslate"><span class="pre">lead</span></code> task doesn’t prematurely terminate non-lead tasks.</p></li>
+<li><p>Group 3 depends on both tasks from Group 2, so it waits for Group 2 to complete.</p></li>
+</ol>
+</div>
+<p><strong>Execution:</strong></p>
+<ol class="arabic simple">
+<li><p>Group <code class="docutils literal notranslate"><span class="pre">fetch</span></code> starts → <code class="docutils literal notranslate"><span class="pre">download</span></code> task runs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">download</span></code> task completes → Group <code class="docutils literal notranslate"><span class="pre">process</span></code> dependencies are satisfied.</p></li>
+<li><p>Group <code class="docutils literal notranslate"><span class="pre">process</span></code> starts → <code class="docutils literal notranslate"><span class="pre">transform-a</span></code> and <code class="docutils literal notranslate"><span class="pre">transform-b</span></code> run in parallel.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transform-b</span></code> task completes → Group <code class="docutils literal notranslate"><span class="pre">aggregate</span></code> dependencies not yet satisfied.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transform-a</span></code> task completes → Group <code class="docutils literal notranslate"><span class="pre">aggregate</span></code> dependencies are satisfied.</p></li>
+<li><p>Group <code class="docutils literal notranslate"><span class="pre">aggregate</span></code> starts → <code class="docutils literal notranslate"><span class="pre">combine</span></code> task runs with outputs from both transforms.</p></li>
+</ol>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>To ensure that <strong>all tasks</strong> in a group run to completion, you should make sure that
+the <code class="docutils literal notranslate"><span class="pre">lead</span></code> task <strong>does not terminate</strong> before non-lead tasks.</p>
+<p>This can be done by coordinating task completion through a barrier script
+(<a class="reference external" href="https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/torchrun_multinode/osmo_barrier.py" rel="noreferrer" target="_blank">osmo_barrier.py <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>)
+or by ensuring that the <code class="docutils literal notranslate"><span class="pre">lead</span></code> task duration is longer than the non-lead tasks.</p>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Best Practices:</strong></p>
+<ul class="simple">
+<li><p>✅ Always designate one task as <code class="docutils literal notranslate"><span class="pre">lead:</span> <span class="pre">true</span></code> in each group</p></li>
+<li><p>✅ Use clear group names that reflect their purpose (e.g., <code class="docutils literal notranslate"><span class="pre">prepare-data</span></code>, <code class="docutils literal notranslate"><span class="pre">train-models</span></code>)</p></li>
+<li><p>✅ Make dependencies explicit through task inputs</p></li>
+<li><p>✅ Consider which tasks should run in parallel vs. serially</p></li>
+</ul>
+</div>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<p><strong>Continue Learning:</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../hardware_in_the_loop/index.html#tutorials-gang-scheduling"><span class="std std-ref">Gang Scheduling</span></a> - Run tasks across different hardware platforms (x86, ARM, GPU) simultaneously</p></li>
+<li><p><a class="reference internal" href="../advanced_patterns.html#tutorials-advanced-patterns"><span class="std std-ref">Advanced Patterns</span></a> - Workflow templates, checkpointing, error handling, and more</p></li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><strong>Related Documentation:</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../workflows/specification/index.html#workflow-spec-group"><span class="std std-ref">Groups</span></a> - Full specification for groups</p></li>
+<li><p><a class="reference internal" href="../../workflows/specification/inputs_and_outputs.html#workflow-spec-inputs-and-outputs"><span class="std std-ref">Inputs and Outputs</span></a> - Data flow between tasks</p></li>
+</ul>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../parallel_workflows/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Parallel Workflows</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../hardware_in_the_loop/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Hardware In The Loop (HIL)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#simple-example">Simple Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#complex-example">Complex Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

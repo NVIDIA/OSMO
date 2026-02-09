@@ -1,0 +1,1412 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Overview &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/workflows/index';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Specification" href="specification/index.html" />
+    <link rel="prev" title="Hardware-in-the-Loop: Deploying Policy on Jetson" href="../how_to/hil.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../appendix/cli/index.html">CLI Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_version.html">osmo version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/cli/cli_workflow.html">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Overview</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="overview">
+<span id="workflow-overview"></span><h1>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h1>
+<p>Workflows turn complex computational pipelines into simple YAML definitions. You define what
+to run, how tasks connect, and what resources they need. OSMO handles the rest - scheduling,
+orchestration, and execution across your compute infrastructure.</p>
+<section id="what-is-a-workflow">
+<h2>What is a Workflow?<a class="headerlink" href="#what-is-a-workflow" title="Link to this heading">#</a></h2>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>A <strong>workflow</strong> is a user-defined, directed acyclic graph (DAG) of tasks that is scheduled
+and executed by OSMO.</p>
+</div>
+<p><strong>Key characteristics:</strong></p>
+<ul class="simple">
+<li><p>Workflows are defined in YAML and submitted via CLI or Web UI.</p></li>
+<li><p>Tasks execute based on defined dependencies</p></li>
+<li><p>Support serial, parallel, and combined execution patterns</p></li>
+<li><p>Scheduled automatically by OSMO</p></li>
+</ul>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-primary sd-bg-text-primary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Workflow Example</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-1 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
+<div class="sd-col sd-d-flex-column docutils">
+<div class="highlight-yaml notranslate"><div class="annotate highlight"><pre><span></span><span class="nt">workflow</span><span class="p">:</span>
+
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ml-pipeline</span>
+
+<span class="w">  </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preprocess</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python:3.10</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;preprocess.py&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytorch/pytorch</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;train.py&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preprocess</span><span class="w"> </span><span class="c1"># (1)</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">evaluate</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python:3.10</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;evaluate.py&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train</span><span class="w"> </span><span class="c1"># (2)</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">export-onnx</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python:3.10</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;export.py&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;--format=onnx&quot;</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train</span><span class="w"> </span><span class="c1"># (2)</span>
+</pre></div>
+<ol class="arabic simple">
+<li><p class="sd-card-text">The <code class="docutils literal notranslate"><span class="pre">task</span></code> input specifies the upstream task dependency.</p></li>
+<li><p class="sd-card-text">Both <code class="docutils literal notranslate"><span class="pre">evaluate</span></code> and <code class="docutils literal notranslate"><span class="pre">export-onnx</span></code> depend only on <code class="docutils literal notranslate"><span class="pre">train</span></code>, so they run in parallel.</p></li>
+</ol>
+</div>
+</div>
+<div class="sd-col sd-d-flex-column sd-align-major-center docutils">
+<style>
+    .workflow-dag {
+        text-align: center;
+        margin: 2em 0;
+    }
+
+    .workflow-dag .workflow-node,
+    .workflow-dag .workflow-arrow,
+    .workflow-dag .workflow-arrow-split {
+        opacity: 0;
+        animation: 10s ease-in-out infinite both;
+    }
+
+    .workflow-dag .workflow-node {
+        font-size: 1.1em;
+        padding: 0.5em 1em;
+        margin: 0.4em 0.5em;
+        background-color: var(--nv-green);
+    }
+
+    .workflow-dag .workflow-arrow {
+        margin: 0.4em auto;
+        width: 3px;
+        height: 25px;
+        background-color: var(--annotation-text);
+        position: relative;
+    }
+
+    .workflow-dag .workflow-arrow::after {
+        content: "";
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-top: 8px solid var(--annotation-text);
+    }
+
+    .workflow-dag .workflow-arrow-split {
+        margin: 0.4em 0 0.2em 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 4em;
+        height: 32px;
+        position: relative;
+    }
+
+    .workflow-dag .workflow-arrow-diagonal {
+        position: absolute;
+        width: 42px;
+        height: 3px;
+        background-color: var(--annotation-text);
+        transform-origin: center;
+    }
+
+    .workflow-dag .workflow-arrow-diagonal.left {
+        left: calc(50% - 48px);
+        top: 8px;
+        transform: rotate(-50deg);
+    }
+
+    .workflow-dag .workflow-arrow-diagonal.left::after {
+        content: "";
+        position: absolute;
+        left: -5px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-top: 6px solid transparent;
+        border-bottom: 6px solid transparent;
+        border-right: 8px solid var(--annotation-text);
+    }
+
+    .workflow-dag .workflow-arrow-diagonal.right {
+        right: calc(50% - 48px);
+        top: 8px;
+        transform: rotate(50deg);
+    }
+
+    .workflow-dag .workflow-arrow-diagonal.right::after {
+        content: "";
+        position: absolute;
+        right: -5px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-top: 6px solid transparent;
+        border-bottom: 6px solid transparent;
+        border-left: 8px solid var(--annotation-text);
+    }
+
+    /* Staggered fade-in (6%, 12%, 18%, 24%, 30%), synchronized fade-out (80-85%) */
+    @keyframes workflowDagStep1 {
+        0% { opacity: 0; transform: translateY(10px); }
+        6%, 80% { opacity: 1; transform: translateY(0); }
+        85%, 100% { opacity: 0; transform: translateY(10px); }
+    }
+
+    @keyframes workflowDagStep2 {
+        0%, 6% { opacity: 0; transform: translateY(10px); }
+        12%, 80% { opacity: 1; transform: translateY(0); }
+        85%, 100% { opacity: 0; transform: translateY(10px); }
+    }
+
+    @keyframes workflowDagStep3 {
+        0%, 12% { opacity: 0; transform: translateY(10px); }
+        18%, 80% { opacity: 1; transform: translateY(0); }
+        85%, 100% { opacity: 0; transform: translateY(10px); }
+    }
+
+    @keyframes workflowDagStep4 {
+        0%, 18% { opacity: 0; transform: translateY(10px); }
+        24%, 80% { opacity: 1; transform: translateY(0); }
+        85%, 100% { opacity: 0; transform: translateY(10px); }
+    }
+
+    @keyframes workflowDagStep5 {
+        0%, 24% { opacity: 0; transform: translateY(10px); }
+        30%, 80% { opacity: 1; transform: translateY(0); }
+        85%, 100% { opacity: 0; transform: translateY(10px); }
+    }
+
+    .workflow-dag .workflow-step-1 { animation-name: workflowDagStep1; }
+    .workflow-dag .workflow-step-2 { animation-name: workflowDagStep2; }
+    .workflow-dag .workflow-step-3 { animation-name: workflowDagStep3; }
+    .workflow-dag .workflow-step-4 { animation-name: workflowDagStep4; }
+    .workflow-dag .workflow-step-5 { animation-name: workflowDagStep5; }
+</style>
+
+<div class="workflow-dag">
+    <span class="sd-badge sd-bg-text-primary workflow-node workflow-step-1">preprocess</span>
+    <div class="workflow-arrow workflow-step-2"></div>
+    <span class="sd-badge sd-bg-text-primary workflow-node workflow-step-3">train</span>
+    <div class="workflow-arrow-split workflow-step-4">
+        <div class="workflow-arrow-diagonal left"></div>
+        <div class="workflow-arrow-diagonal right"></div>
+    </div>
+    <span class="sd-badge sd-bg-text-primary workflow-node workflow-step-5">evaluate</span>
+    <span class="sd-badge sd-bg-text-primary workflow-node workflow-step-5">export-onnx</span>
+</div></div>
+</div>
+</div>
+</div>
+</details></section>
+<section id="what-is-a-task">
+<h2>What is a Task?<a class="headerlink" href="#what-is-a-task" title="Link to this heading">#</a></h2>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Tasks are the fundamental units of work in OSMO. A <strong>task</strong> is an independent environment that
+runs a list of commands within a Docker container.</p>
+</div>
+<p><strong>Capabilities:</strong></p>
+<ul class="simple">
+<li><p>📂 Access local files, upstream task, or cloud storage</p></li>
+<li><p>💻 Develop interactively with VSCode, Jupyter, or SSH</p></li>
+<li><p>🔐 Use managed secrets for secure credential access</p></li>
+<li><p>🖥️ Request specific hardware (GPU, CPU, RAM)</p></li>
+<li><p>🔁 Configure automatic retries for failures</p></li>
+<li><p>And much more!</p></li>
+</ul>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-primary sd-bg-text-primary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Example <code class="docutils literal notranslate"><span class="pre">train</span></code> task from the above workflow</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="annotate highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train</span>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytorch/pytorch:2.0-cuda11.8</span>
+
+<span class="w">  </span><span class="c1"># Task dependencies</span>
+<span class="w">  </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preprocess</span>
+
+<span class="w">  </span><span class="c1"># Secrets</span>
+<span class="w">  </span><span class="nt">credentials</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">wandb_cred</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">WANDB_API_KEY</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wandb_api_key</span><span class="w"> </span><span class="c1"># (1)</span>
+
+<span class="w">  </span><span class="c1"># Execution</span>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;train.py&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;--data=/workspace/data&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;--checkpoint=/workspace/ckpt/base.pth&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;--output={{output}}&quot;</span><span class="w"> </span><span class="c1"># (2)</span>
+
+<span class="w">  </span><span class="c1"># Task outputs</span>
+<span class="w">  </span><span class="nt">outputs</span><span class="p">:</span><span class="w"> </span><span class="c1"># (3)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3://my-bucket/models/</span>
+</pre></div>
+<ol class="arabic simple">
+<li><p class="sd-card-text">Use secrets for secure credential management</p></li>
+<li><p class="sd-card-text">Writes to an output directory that is recognized by OSMO for further processing</p></li>
+<li><p class="sd-card-text">Uploads the output directory to S3 after completion</p></li>
+</ol>
+</div>
+</div>
+</details></section>
+<section id="what-is-a-group">
+<h2>What is a Group?<a class="headerlink" href="#what-is-a-group" title="Link to this heading">#</a></h2>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>A <strong>group</strong> is a collection of <strong>tasks</strong> that are executed together. It synchronizes the execution
+of multiple tasks, enabling them to communicate within the same network.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p><kbd class="kbd docutils literal notranslate">groups</kbd> and <kbd class="kbd docutils literal notranslate">tasks</kbd> fields are mutually exclusive in a workflow.</p>
+</div>
+<p><strong>How groups work:</strong></p>
+<ul class="simple">
+<li><p>A single task in a group is designated as the <strong>group leader</strong></p></li>
+<li><p>All tasks in a group start together</p></li>
+<li><p>Tasks can communicate over the network</p></li>
+<li><p>Tasks may run on the same node or across different nodes</p></li>
+<li><p>Supports both homogeneous (e.g., all x86_64) and heterogeneous (e.g., x86_64 + ARM64) architectures</p></li>
+</ul>
+<p><strong>Common patterns:</strong></p>
+<ul class="simple">
+<li><p><strong>Distributed training</strong> - Multiple workers with parameter servers</p></li>
+<li><p><strong>Multi-stage pipelines</strong> - Tasks that need real-time coordination</p></li>
+<li><p><strong>Service architectures</strong> - Long-running services with dependent workers</p></li>
+</ul>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-primary sd-bg-text-primary">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Groups Example</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="annotate highlight"><pre><span></span><span class="nt">workflow</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_workflow</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+
+<span class="w">  </span><span class="c1">################################################</span>
+<span class="w">  </span><span class="c1"># Group 1 (runs first)</span>
+<span class="w">  </span><span class="c1">################################################</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_1</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task_1</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># (1)</span>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task_2</span>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">      </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">dataset</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dataset_3</span><span class="w"> </span><span class="c1"># (2)</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task_3</span>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="w">  </span><span class="c1">################################################</span>
+<span class="w">  </span><span class="c1"># Group 2 (runs after group 1)</span>
+<span class="w">  </span><span class="c1">################################################</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_2</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task_4</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">dataset</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dataset_3</span><span class="w"> </span><span class="c1"># (3)</span>
+
+<span class="w">  </span><span class="c1">################################################</span>
+<span class="w">  </span><span class="c1"># Group 3 (runs after group 1)</span>
+<span class="w">  </span><span class="c1">################################################</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_3</span>
+<span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task_5</span>
+<span class="w">      </span><span class="nt">lead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">dataset</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dataset_3</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task_6</span><span class="w"> </span><span class="c1"># (4)</span>
+<span class="w">      </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+</pre></div>
+<ol class="arabic">
+<li><p class="sd-card-text">Every group must have one and only one lead task.</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">task_2</span></code> outputs <code class="docutils literal notranslate"><span class="pre">dataset_3</span></code> which is used as an input for other groups.</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">group_2</span></code> runs <strong>after</strong> <code class="docutils literal notranslate"><span class="pre">group_1</span></code> because of the dependency on <code class="docutils literal notranslate"><span class="pre">dataset_3</span></code>.</p></li>
+<li><p class="sd-card-text">Despite not having a direct dependency on <code class="docutils literal notranslate"><span class="pre">dataset_3</span></code>, <code class="docutils literal notranslate"><span class="pre">task_6</span></code>’s peer task (<code class="docutils literal notranslate"><span class="pre">task_5</span></code>)
+depends on <code class="docutils literal notranslate"><span class="pre">dataset_3</span></code>.</p>
+<p class="sd-card-text">Therefore, <code class="docutils literal notranslate"><span class="pre">group_3</span></code> must run <strong>after</strong> <code class="docutils literal notranslate"><span class="pre">group_1</span></code>.</p>
+</li>
+</ol>
+</div>
+<style>
+    .workflow-groups-container {
+        --diagram-base-size: 0.8em;
+        --diagram-gap: 2em;
+        --group-gap: 1em;
+        --column-padding: 0.6em 0.5em;
+        --task-padding: 0.4em 0.7em;
+        --dataset-padding: 0.6em 0.3em;
+        --border-width: 2px;
+        --border-radius: 4px;
+        --node-font-size: 0.9em;
+        --node-min-width: 55px;
+        --cylinder-cap-height: 0.6em;
+        --cylinder-cap-offset: -0.3em;
+        --arrow-thickness: 2px;
+        --arrow-head-width: 0.5em;
+        --arrow-head-height: 0.4em;
+        --arrow-vertical-offset: 5em;
+        --inner-arrow-width: 1.2em;
+        --inner-arrow-head-width: 0.4em;
+        --inner-arrow-head-height: 0.3em;
+
+        max-width: 100%;
+        overflow-x: auto;
+        margin: 1.5em 0;
+        display: flex;
+        justify-content: center;
+    }
+
+    @media (max-width: 900px) { .workflow-groups-container { --diagram-base-size: 0.8em; --diagram-gap: 1.7em; } }
+    @media (max-width: 750px) { .workflow-groups-container { --diagram-base-size: 0.7em; --diagram-gap: 1.5em; } }
+    @media (max-width: 600px) { .workflow-groups-container { --diagram-base-size: 0.6em; --diagram-gap: 1.2em; } }
+    @media (max-width: 500px) { .workflow-groups-container { --diagram-base-size: 0.5em; --diagram-gap: 1em; } }
+
+    .workflow-groups-container .workflow-groups {
+        position: relative;
+        display: flex;
+        gap: var(--diagram-gap);
+        align-items: stretch;
+        justify-content: center;
+        min-width: min-content;
+        padding: 0.5em;
+    }
+
+    .workflow-groups-container .workflow-groups-left,
+    .workflow-groups-container .workflow-groups-right {
+        flex: 0 0 auto;
+        display: flex;
+    }
+
+    .workflow-groups-container .workflow-groups-left {
+        align-items: center;
+    }
+
+    .workflow-groups-container .workflow-groups-right {
+        flex-direction: column;
+        justify-content: space-evenly;
+        gap: var(--diagram-gap);
+    }
+
+    .workflow-groups-container .workflow-group {
+        position: relative;
+        font-size: var(--diagram-base-size);
+        border: var(--border-width) solid var(--sd-color-primary);
+        border-radius: var(--border-radius);
+        background: var(--sd-color-card-background);
+        overflow: hidden;
+        margin-bottom: 1.0em;
+    }
+
+    .workflow-groups-container .workflow-group-header {
+        padding: 0.4em 0.8em;
+        background: var(--nv-green);
+        color: var(--sd-color-primary-text);
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .workflow-groups-container .workflow-group-body {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-top: 1px solid var(--sd-color-card-border);
+    }
+
+    .workflow-groups-container .workflow-group-column {
+        padding: var(--column-padding);
+        display: flex;
+        flex-direction: column;
+        gap: var(--group-gap);
+        align-items: center;
+        border-right: 1px solid var(--sd-color-card-border);
+        padding-bottom: 1.5em;
+    }
+
+    .workflow-groups-container .workflow-group-column:last-child {
+        border-right: none;
+    }
+
+    .workflow-groups-container .workflow-group-column-title {
+        margin-bottom: 0.3em;
+        font-weight: bold;
+        font-size: 0.95em;
+        color: var(--sd-color-card-text);
+    }
+
+    .workflow-groups-container .workflow-task,
+    .workflow-groups-container .workflow-dataset {
+        position: relative;
+        font-size: var(--node-font-size);
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .workflow-groups-container .workflow-task {
+        z-index: 2;
+        min-width: var(--node-min-width);
+        padding: var(--task-padding);
+        background: var(--nv-green);
+        color: var(--sd-color-primary-text);
+        border-radius: 3px;
+        font-weight: normal;
+    }
+
+    .workflow-groups-container .workflow-dataset {
+        z-index: 1;
+        width: fit-content;
+        padding: var(--dataset-padding);
+        border-left: var(--border-width) solid var(--sd-color-muted);
+        border-right: var(--border-width) solid var(--sd-color-muted);
+        background: var(--sd-color-card-background);
+        color: var(--sd-color-card-text);
+    }
+
+    .workflow-groups-container .workflow-dataset::before,
+    .workflow-groups-container .workflow-dataset::after {
+        content: "";
+        position: absolute;
+        left: calc(-1 * var(--border-width));
+        right: calc(-1 * var(--border-width));
+        height: var(--cylinder-cap-height);
+        border: var(--border-width) solid var(--sd-color-muted);
+        background: var(--sd-color-card-background);
+    }
+
+    .workflow-groups-container .workflow-dataset::before {
+        top: var(--cylinder-cap-offset);
+        border-radius: 50%;
+    }
+
+    .workflow-groups-container .workflow-dataset::after {
+        bottom: var(--cylinder-cap-offset);
+        border-top: none;
+        border-radius: 0 0 50% 50% / 0 0 50% 50%;
+    }
+
+    .workflow-groups-container .workflow-connector {
+        position: relative;
+        width: calc(var(--diagram-gap) * 1);
+        margin: 0 0.3em;
+        flex-shrink: 0;
+        z-index: 1;
+    }
+
+    .workflow-groups-container .workflow-arrow {
+        position: absolute;
+        top: 50%;
+        height: 0;
+        left: 0;
+        pointer-events: none;
+    }
+
+    .workflow-groups-container .workflow-arrow::before,
+    .workflow-groups-container .workflow-arrow::after {
+        content: "";
+        position: absolute;
+        background: var(--annotation-text);
+    }
+
+    .workflow-groups-container .workflow-arrow::before {
+        left: calc(var(--diagram-gap) * -0.5);
+        top: 0;
+        width: calc(var(--diagram-gap) * 1);
+        height: var(--arrow-thickness);
+    }
+
+    .workflow-groups-container .workflow-arrow::after {
+        left: calc(var(--diagram-gap) * 0.5);
+        width: var(--arrow-thickness);
+    }
+
+    .workflow-groups-container .workflow-arrow-end {
+        position: absolute;
+        left: calc(var(--diagram-gap) * 0.5);
+        height: var(--arrow-thickness);
+        width: calc(var(--diagram-gap) * 1);
+        background: var(--annotation-text);
+    }
+
+    .workflow-groups-container .workflow-arrow-end::after {
+        content: "";
+        position: absolute;
+        right: -0.05em;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-left: var(--arrow-head-width) solid var(--annotation-text);
+        border-top: var(--arrow-head-height) solid transparent;
+        border-bottom: var(--arrow-head-height) solid transparent;
+    }
+
+    .workflow-groups-container .workflow-arrow-to-group2::after {
+        top: calc(-1 * var(--arrow-vertical-offset));
+        height: var(--arrow-vertical-offset);
+    }
+
+    .workflow-groups-container .workflow-arrow-to-group2 .workflow-arrow-end {
+        top: calc(-1 * var(--arrow-vertical-offset));
+    }
+
+    .workflow-groups-container .workflow-arrow-to-group3::after {
+        top: 0;
+        height: var(--arrow-vertical-offset);
+    }
+
+    .workflow-groups-container .workflow-arrow-to-group3 .workflow-arrow-end {
+        top: var(--arrow-vertical-offset);
+    }
+
+    .workflow-groups-container .horizontal-arrow::after {
+        content: "";
+        position: absolute;
+        left: 100%;
+        top: 50%;
+        width: var(--inner-arrow-width);
+        height: var(--arrow-thickness);
+        background: var(--annotation-text);
+        transform: translateY(-50%);
+        z-index: 10;
+    }
+
+    .workflow-groups-container .horizontal-arrow::before {
+        content: "";
+        position: absolute;
+        left: calc(100% + var(--inner-arrow-width));
+        top: 50%;
+        width: 0;
+        height: 0;
+        border-left: var(--inner-arrow-head-width) solid var(--annotation-text);
+        border-top: var(--inner-arrow-head-height) solid transparent;
+        border-bottom: var(--inner-arrow-head-height) solid transparent;
+        transform: translateY(-50%);
+        z-index: 10;
+    }
+
+    .workflow-groups-container .arrow-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .workflow-groups-container .diagonal-arrow {
+        position: absolute;
+        left: 100%;
+        height: var(--arrow-thickness);
+        background: var(--annotation-text);
+        transform-origin: left center;
+        z-index: 10;
+    }
+
+    .workflow-groups-container .diagonal-arrow::after {
+        content: "";
+        position: absolute;
+        right: calc(-1 * var(--inner-arrow-head-width));
+        top: 50%;
+        width: 0;
+        height: 0;
+        border-left: var(--inner-arrow-head-width) solid var(--annotation-text);
+        border-top: var(--inner-arrow-head-height) solid transparent;
+        border-bottom: var(--inner-arrow-head-height) solid transparent;
+        transform: translateY(-50%);
+    }
+
+    .workflow-groups-container .diagonal-up-1 { top: 40%; width: 1.4em; transform: rotate(-30deg); }
+    .workflow-groups-container .diagonal-down-1 { top: 60%; width: 1.4em; transform: rotate(35deg); }
+    .workflow-groups-container .diagonal-up-2 { top: 40%; width: 1.2em; transform: rotate(-25deg); }
+    .workflow-groups-container .diagonal-down-2 { top: 60%; width: 1.4em; transform: rotate(35deg); }
+</style>
+<div class="workflow-groups-container">
+    <div class="workflow-groups">
+
+        <div class="workflow-groups-left">
+
+            <div class="workflow-group">
+                <div class="workflow-group-header">Group 1</div>
+                <div class="workflow-group-body">
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Inputs</div>
+                        <div style="flex: 0;"></div>
+                        <div class="arrow-wrapper">
+                            <div class="workflow-dataset">Dataset 1</div>
+                            <div class="diagonal-arrow diagonal-up-1"></div>
+                            <div class="diagonal-arrow diagonal-down-1"></div>
+                        </div>
+                        <div class="arrow-wrapper">
+                            <div class="workflow-dataset">Dataset 2</div>
+                            <div class="diagonal-arrow diagonal-up-2"></div>
+                            <div class="diagonal-arrow diagonal-down-2"></div>
+                        </div>
+                    </div>
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Tasks</div>
+                        <div class="workflow-task">Task 1</div>
+                        <div class="workflow-task horizontal-arrow">Task 2</div>
+                        <div class="workflow-task">Task 3</div>
+                    </div>
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Outputs</div>
+                        <div style="flex: 0.4;"></div>
+                        <div class="workflow-dataset">Dataset 3</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="workflow-connector">
+            <div class="workflow-arrow workflow-arrow-to-group2">
+                <div class="workflow-arrow-end"></div>
+            </div>
+            <div class="workflow-arrow workflow-arrow-to-group3">
+                <div class="workflow-arrow-end"></div>
+            </div>
+        </div>
+
+        <div class="workflow-groups-right">
+
+            <div class="workflow-group">
+                <div class="workflow-group-header">Group 2</div>
+                <div class="workflow-group-body">
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Inputs</div>
+                        <div style="flex: 1;"></div>
+                        <div class="arrow-wrapper">
+                            <div class="workflow-dataset">Dataset 3</div>
+                            <div class="horizontal-arrow"></div>
+                        </div>
+                    </div>
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Tasks</div>
+                        <div style="flex: 1;"></div>
+                        <div class="workflow-task horizontal-arrow">Task 4</div>
+                    </div>
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Outputs</div>
+                        <div style="flex: 1;"></div>
+                        <div class="workflow-dataset">Dataset 4</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="workflow-group">
+                <div class="workflow-group-header">Group 3</div>
+                <div class="workflow-group-body">
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Inputs</div>
+                        <div class="arrow-wrapper">
+                            <div class="workflow-dataset">Dataset 3</div>
+                            <div class="horizontal-arrow"></div>
+                        </div>
+                    </div>
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Tasks</div>
+                        <div class="workflow-task">Task 5</div>
+                        <div class="workflow-task horizontal-arrow">Task 6</div>
+                    </div>
+                    <div class="workflow-group-column">
+                        <div class="workflow-group-column-title">Outputs</div>
+                        <div style="flex: 1;"></div>
+                        <div class="workflow-dataset">Dataset 5</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div></div>
+</details><div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>See <a class="reference internal" href="specification/index.html#workflow-spec"><span class="std std-ref">here</span></a> for the full workflow specification.</p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../how_to/hil.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Hardware-in-the-Loop: Deploying Policy on Jetson</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="specification/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Specification</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-a-workflow">What is a Workflow?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-a-task">What is a Task?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-a-group">What is a Group?</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

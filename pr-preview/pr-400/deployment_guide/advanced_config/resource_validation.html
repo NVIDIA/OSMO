@@ -1,0 +1,990 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Resource Validation &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/advanced_config/resource_validation';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Pod Templates" href="pod_template.html" />
+    <link rel="prev" title="Resource Pools" href="pool.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pool.html">Resource Pools</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../appendix/authentication/index.html">AuthN/AuthZ</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/keycloak_setup.html">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Resource Validation</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="resource-validation">
+<span id="id1"></span><h1>Resource Validation<a class="headerlink" href="#resource-validation" title="Link to this heading">#</a></h1>
+<p>After configuring <a class="reference internal" href="pool.html#pool"><span class="std std-ref">pools</span></a>, add resource validation rules to prevent workflows from requesting more resources than available on your nodes. Validation acts as a pre-flight check that rejects invalid requests before they reach the scheduler.</p>
+<section id="why-use-resource-validation">
+<h2>Why Use Resource Validation?<a class="headerlink" href="#why-use-resource-validation" title="Link to this heading">#</a></h2>
+<p>Resource validation provides guardrails that protect your cluster and improve user experience:</p>
+<dl class="simple">
+<dt>✓ <strong>Prevent Scheduling Failures</strong></dt><dd><p>Reject workflows that request more CPU, memory, or GPU than any node can provide, avoiding pods getting stuck in pending state.</p>
+</dd>
+<dt>✓ <strong>Catch Configuration Errors</strong></dt><dd><p>Detect invalid resource specifications (negative values, zero allocations, incorrect units) before submission.</p>
+</dd>
+<dt>✓ <strong>Provide Clear Feedback</strong></dt><dd><p>Give users immediate, actionable error messages explaining what’s wrong and how to fix it.</p>
+</dd>
+<dt>✓ <strong>Optimize Resource Utilization</strong></dt><dd><p>Enforce safety margins and best practices for resource allocation across your cluster.</p>
+</dd>
+</dl>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
+<section id="validation-flow">
+<h3>Validation Flow<a class="headerlink" href="#validation-flow" title="Link to this heading">#</a></h3>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-3 sd-row-cols-xs-3 sd-row-cols-sm-3 sd-row-cols-md-3 sd-row-cols-lg-3 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-info sd-text-white docutils">
+<p class="sd-card-text"><strong>1. Submit Workflow</strong> 📝</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">User requests resources</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">CPU, memory, GPU, storage resources</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-warning sd-text-white docutils">
+<p class="sd-card-text"><strong>2. Validate Rules</strong> ⚖️</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Check against capacity</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Compare with rule structure set by admin</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-header sd-bg-success sd-text-white docutils">
+<p class="sd-card-text"><strong>3. Proceed or Reject</strong> ✓✗</p>
+</div>
+<div class="sd-card-body docutils">
+<p class="sd-card-text">Accept or deny</p>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Submit for scheduling or show error message</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="rule-structure">
+<h3>Rule Structure<a class="headerlink" href="#rule-structure" title="Link to this heading">#</a></h3>
+<p>Each validation rule has four components:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LE&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;left_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_CPU}}&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;right_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{K8_CPU}}&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;assert_message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><strong>operator</strong>: Comparison type (EQ, LT, LE, GT, GE)</p></li>
+<li><p><strong>left_operand</strong>: User-requested value (e.g., <code class="docutils literal notranslate"><span class="pre">{{USER_CPU}}</span></code>)</p></li>
+<li><p><strong>right_operand</strong>: Limit or node capacity (e.g., <code class="docutils literal notranslate"><span class="pre">{{K8_CPU}}</span></code>)</p></li>
+<li><p><strong>assert_message</strong>: Error shown when validation fails</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For detailed configuration fields and all available variables, see <a class="reference internal" href="../references/configs_definitions/resource_validation.html#resource-validation-config"><span class="std std-ref">/api/configs/resource_validation</span></a> in the API reference documentation.</p>
+</div>
+</section>
+</section>
+<section id="practical-guide">
+<h2>Practical Guide<a class="headerlink" href="#practical-guide" title="Link to this heading">#</a></h2>
+<section id="standard-validation-rules">
+<h3>Standard Validation Rules<a class="headerlink" href="#standard-validation-rules" title="Link to this heading">#</a></h3>
+<p>Create validation templates for common resources: CPU, GPU, memory, and storage.</p>
+<p><strong>Step 1: Create Validation Configuration</strong></p>
+<p>Define validation rules using variables for user requests (<code class="docutils literal notranslate"><span class="pre">{{USER_*}}</span></code>) and node capacity (<code class="docutils literal notranslate"><span class="pre">{{K8_*}}</span></code>):</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text"><strong>Available Variables</strong></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<dl class="simple">
+<dt><strong>User Request Variables:</strong></dt><dd><ul class="simple">
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_CPU}}</span></code> - CPU count requested</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_GPU}}</span></code> - GPU count requested</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_MEMORY}}</span></code> - Memory requested (e.g., “8Gi”)</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{USER_STORAGE}}</span></code> - Storage requested (e.g., “100Gi”)</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p class="sd-card-text">The values from the <cite>user request variables</cite> are the same values that are provided in the resource
+spec of a workflow.</p>
+</div>
+<dl class="simple">
+<dt><strong>Node Capacity Variables:</strong></dt><dd><ul class="simple">
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{K8_CPU}}</span></code> - Available CPU on nodes</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{K8_GPU}}</span></code> - Available GPU on nodes</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{K8_MEMORY}}</span></code> - Available memory on nodes</p></li>
+<li><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">{{K8_STORAGE}}</span></code> - Available storage on nodes</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p class="sd-card-text">The values from the <cite>node capacity variables</cite> are the same values that are reported by the Kubernetes
+API in the <cite>allocatable</cite> fields. <code class="docutils literal notranslate"><span class="pre">{{K8_MEMORY}}</span></code> and <code class="docutils literal notranslate"><span class="pre">{{K8_STORAGE}}</span></code> support units <code class="docutils literal notranslate"><span class="pre">B</span></code>, <code class="docutils literal notranslate"><span class="pre">Ki</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Mi</span></code>, <code class="docutils literal notranslate"><span class="pre">Gi</span></code> and <code class="docutils literal notranslate"><span class="pre">Ti</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p class="sd-card-text">If the CPU allocatable provided by Kubernetes is in the format of <code class="docutils literal notranslate"><span class="pre">m</span></code>,
+<code class="docutils literal notranslate"><span class="pre">{{K8_CPU}}</span></code> will be an integer value after rounding down the CPU allocatable value.</p>
+</div>
+<dl class="simple">
+<dt><strong>Operators:</strong></dt><dd><ul class="simple">
+<li><p class="sd-card-text">EQ (equal)</p></li>
+<li><p class="sd-card-text">LT (less than)</p></li>
+<li><p class="sd-card-text">LE (less/equal)</p></li>
+<li><p class="sd-card-text">GT (greater than)</p></li>
+<li><p class="sd-card-text">GE (greater/equal)</p></li>
+<li><p class="sd-card-text">NE (not equal)</p></li>
+</ul>
+</dd>
+</dl>
+<p class="sd-card-text">For all available variables and detailed configuration fields, see <a class="reference internal" href="../references/configs_definitions/resource_validation.html#resource-validation-config"><span class="std std-ref">/api/configs/resource_validation</span></a>.</p>
+</div>
+</details><p><strong>Step 2: Apply Standard Validation Rules</strong></p>
+<p>Create a file with recommended validation templates:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; validation_config.json</span>
+<span class="s">{</span>
+<span class="s">  &quot;default_cpu&quot;: [</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;LE&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_CPU}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;{{K8_CPU}}&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}&quot;</span>
+<span class="s">    },</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;GT&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_CPU}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;0&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;CPU {{USER_CPU}} must be greater than 0&quot;</span>
+<span class="s">    }</span>
+<span class="s">  ],</span>
+<span class="s">  &quot;default_gpu&quot;: [</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;LE&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_GPU}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;{{K8_GPU}}&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}&quot;</span>
+<span class="s">    },</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;GE&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_GPU}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;0&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;GPU {{USER_GPU}} cannot be negative&quot;</span>
+<span class="s">    }</span>
+<span class="s">  ],</span>
+<span class="s">  &quot;default_memory&quot;: [</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;LT&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_MEMORY}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;{{K8_MEMORY}}&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;Memory {{USER_MEMORY}} exceeds node capacity {{K8_MEMORY}}&quot;</span>
+<span class="s">    },</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;GT&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_MEMORY}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;0&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;Memory {{USER_MEMORY}} must be greater than 0&quot;</span>
+<span class="s">    }</span>
+<span class="s">  ],</span>
+<span class="s">  &quot;default_storage&quot;: [</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;LT&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_STORAGE}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;{{K8_STORAGE}}&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;Storage {{USER_STORAGE}} exceeds node capacity {{K8_STORAGE}}&quot;</span>
+<span class="s">    },</span>
+<span class="s">    {</span>
+<span class="s">      &quot;operator&quot;: &quot;GT&quot;,</span>
+<span class="s">      &quot;left_operand&quot;: &quot;{{USER_STORAGE}}&quot;,</span>
+<span class="s">      &quot;right_operand&quot;: &quot;0&quot;,</span>
+<span class="s">      &quot;assert_message&quot;: &quot;Storage {{USER_STORAGE}} must be greater than 0&quot;</span>
+<span class="s">    }</span>
+<span class="s">  ]</span>
+<span class="s">}</span>
+<span class="s">EOF</span>
+
+$<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </span>update<span class="w"> </span>RESOURCE_VALIDATION<span class="w"> </span>--file<span class="w"> </span>validation_config.json
+</pre></div>
+</div>
+<p><strong>Step 3: Reference in Pool Configuration</strong></p>
+<p>Add validation templates to your pool’s <code class="docutils literal notranslate"><span class="pre">common_resource_validations</span></code> field:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my-pool&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;common_resource_validations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;default_cpu&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;default_memory&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;default_storage&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;default_gpu&quot;</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="additional-examples">
+<h3>Additional Examples<a class="headerlink" href="#additional-examples" title="Link to this heading">#</a></h3>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-cpu" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5.75V2h3V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75V5h1.25a.75.75 0 0 1 0 1.5H14v3h1.25a.75.75 0 0 1 0 1.5H14v1.25A1.75 1.75 0 0 1 12.25 14H11v1.25a.75.75 0 0 1-1.5 0V14h-3v1.25a.75.75 0 0 1-1.5 0V14H3.75A1.75 1.75 0 0 1 2 12.25V11H.75a.75.75 0 0 1 0-1.5H2v-3H.75a.75.75 0 0 1 0-1.5H2V3.75C2 2.784 2.784 2 3.75 2H5V.75a.75.75 0 0 1 1.5 0Zm5.75 11.75a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25ZM5.75 5h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-4.5A.75.75 0 0 1 5.75 5Zm.75 4.5h3v-3h-3Z"></path></svg></span><span class="sd-summary-text"><strong>Custom GPU Validation</strong> - Enforce Minimum GPU Requirements</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Create validation for workloads requiring at least 2 GPUs:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;min_2_gpu&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GE&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;left_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_GPU}}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;right_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;assert_message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;This pool requires minimum 2 GPUs, you requested {{USER_GPU}}&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LE&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;left_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_GPU}}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;right_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{K8_GPU}}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;assert_message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-shield" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.467.133a1.748 1.748 0 0 1 1.066 0l5.25 1.68A1.75 1.75 0 0 1 15 3.48V7c0 1.566-.32 3.182-1.303 4.682-.983 1.498-2.585 2.813-5.032 3.855a1.697 1.697 0 0 1-1.33 0c-2.447-1.042-4.049-2.357-5.032-3.855C1.32 10.182 1 8.566 1 7V3.48a1.75 1.75 0 0 1 1.217-1.667Zm.61 1.429a.25.25 0 0 0-.153 0l-5.25 1.68a.25.25 0 0 0-.174.238V7c0 1.358.275 2.666 1.057 3.86.784 1.194 2.121 2.34 4.366 3.297a.196.196 0 0 0 .154 0c2.245-.956 3.582-2.104 4.366-3.298C13.225 9.666 13.5 8.36 13.5 7V3.48a.251.251 0 0 0-.174-.237l-5.25-1.68ZM8.75 4.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 1.5 0ZM9 10.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg></span><span class="sd-summary-text"><strong>Memory Safety Margins</strong> - Prevent 100% Utilization</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Enforce 80% maximum memory usage to leave headroom:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;memory_80_percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LT&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;left_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_MEMORY}}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;right_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{K8_MEMORY}} * 0.8&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;assert_message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Memory {{USER_MEMORY}} exceeds 80% of node capacity&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-stack" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.122.392a1.75 1.75 0 0 1 1.756 0l5.003 2.902c.83.481.83 1.68 0 2.162L8.878 8.358a1.75 1.75 0 0 1-1.756 0L2.119 5.456a1.251 1.251 0 0 1 0-2.162ZM8.125 1.69a.248.248 0 0 0-.25 0l-4.63 2.685 4.63 2.685a.248.248 0 0 0 .25 0l4.63-2.685ZM1.601 7.789a.75.75 0 0 1 1.025-.273l5.249 3.044a.248.248 0 0 0 .25 0l5.249-3.044a.75.75 0 0 1 .752 1.298l-5.248 3.044a1.75 1.75 0 0 1-1.756 0L1.874 8.814A.75.75 0 0 1 1.6 7.789Zm0 3.5a.75.75 0 0 1 1.025-.273l5.249 3.044a.248.248 0 0 0 .25 0l5.249-3.044a.75.75 0 0 1 .752 1.298l-5.248 3.044a1.75 1.75 0 0 1-1.756 0l-5.248-3.044a.75.75 0 0 1-.273-1.025Z"></path></svg></span><span class="sd-summary-text"><strong>Platform-Specific Rules</strong> - Different Limits Per Platform</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Create different validation rules for different hardware platforms:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;a100_validation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LE&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;left_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_GPU}}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;right_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;8&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;assert_message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A100 platform supports max 8 GPUs&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;h100_validation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LE&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;left_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{USER_GPU}}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;right_operand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;8&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;assert_message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;H100 platform supports max 8 GPUs&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section id="troubleshooting">
+<h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h3>
+<dl class="simple">
+<dt><strong>Validation Always Fails</strong></dt><dd><ul class="simple">
+<li><p>Check Kubernetes nodes are properly labeled and available</p></li>
+<li><p>Verify node variables are populated: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">describe</span> <span class="pre">nodes</span></code></p></li>
+</ul>
+</dd>
+<dt><strong>Inconsistent Results</strong></dt><dd><ul class="simple">
+<li><p>Ensure all nodes report resources consistently</p></li>
+<li><p>Check no nodes are in unschedulable state</p></li>
+</ul>
+</dd>
+<dt><strong>Unit Conversion Errors</strong></dt><dd><ul class="simple">
+<li><p>Use consistent units between requests and validation (For example, use <code class="docutils literal notranslate"><span class="pre">Gi</span></code> vs <code class="docutils literal notranslate"><span class="pre">GB</span></code>)</p></li>
+<li><p>Review variable substitution in error messages</p></li>
+</ul>
+</dd>
+<dt><strong>Debugging Tips</strong></dt><dd><ul class="simple">
+<li><p>Start with simple rules and add complexity gradually</p></li>
+<li><p>Test validation with different resource values</p></li>
+<li><p>Examine OSMO service logs for detailed rule evaluation</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Best Practices</strong></p>
+<ul class="simple">
+<li><p>Don’t allow 100% resource utilization - leave margins for system overhead and unexpected spikes</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">LT</span></code> (less than) instead of <code class="docutils literal notranslate"><span class="pre">LE</span></code> (less/equal) for memory and storage to ensure safety margins</p></li>
+<li><p>Write clear error messages that include variable values to help users fix issues quickly</p></li>
+<li><p>Test rules with edge cases (minimum values, maximum values, invalid inputs)</p></li>
+</ul>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="pool.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Resource Pools</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="pod_template.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Pod Templates</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-use-resource-validation">Why Use Resource Validation?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#validation-flow">Validation Flow</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rule-structure">Rule Structure</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#practical-guide">Practical Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-validation-rules">Standard Validation Rules</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-examples">Additional Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
