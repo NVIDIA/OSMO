@@ -508,12 +508,12 @@
 </pre></div>
 </div>
 <p>Create a service account user for the backend operator:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>user<span class="w"> </span>create<span class="w"> </span>backend-operator@service.local<span class="w"> </span>--roles<span class="w"> </span>osmo-backend
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>user<span class="w"> </span>create<span class="w"> </span>backend-operator<span class="w"> </span>--roles<span class="w"> </span>osmo-backend
 </pre></div>
 </div>
 <p>Create a Personal Access Token for the service account:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_SERVICE_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--user<span class="w"> </span>backend-operator@service.local<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--user<span class="w"> </span>backend-operator<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>
@@ -639,10 +639,11 @@ $<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </sp
 </pre></div>
 </div>
 <p>Check if the token is expired by listing the service account’s tokens:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>token<span class="w"> </span>list<span class="w"> </span>--user<span class="w"> </span>backend-operator@service.local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>token<span class="w"> </span>list<span class="w"> </span>--user<span class="w"> </span>backend-operator
 </pre></div>
 </div>
-<p>If the token is expired, create a new one following <a class="reference internal" href="#create-osmo-token"><span class="std std-ref">Step 1: Create Service Account for Backend Operator</span></a>. Remember to update the Kubernetes secret with the new token:</p>
+<p>If the token is expired, create a new one following <a class="reference internal" href="#create-osmo-token"><span class="std std-ref">Step 1: Create Service Account for Backend Operator</span></a>. Remember to update
+the Kubernetes secret with the new token:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>secret<span class="w"> </span>osmo-operator-token<span class="w"> </span>-n<span class="w"> </span>osmo-operator
 $<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>osmo-operator-token<span class="w"> </span>-n<span class="w"> </span>osmo-operator<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--from-literal<span class="o">=</span><span class="nv">token</span><span class="o">=</span><span class="nv">$OSMO_SERVICE_TOKEN</span>

@@ -51,20 +51,19 @@ or other automation needs.
 Create a user with an identifier that clearly indicates it’s a service account:
 
 ```bash
-$ osmo user create backend-operator@service.local --roles osmo-backend
+$ osmo user create backend-operator --roles osmo-backend
 ```
 
 **Example output:**
 
 ```text
-User created: backend-operator@service.local
-Roles assigned: osmo-backend
+User created: backend-operator   Roles assigned: osmo-backend
 ```
 
 > **Tip**
 >
 > Use a naming convention that distinguishes service accounts from regular users,
-> such as `<purpose>@service.local` or `svc-<purpose>`.
+> such as `svc-<purpose>` (e.g., `svc-backend-operator`, `svc-monitoring`).
 
 ### Step 2: Create a Personal Access Token
 
@@ -72,7 +71,7 @@ Create a PAT for the service account. The token inherits all roles from the user
 
 ```bash
 $ osmo token set backend-token \
-    --user backend-operator@service.local \
+    --user backend-operator \
     --expires-at 2027-01-01 \
     --description "Backend Operator Token"
 ```
@@ -82,7 +81,7 @@ $ osmo token set backend-token \
 ```text
 Note: Save the token in a secure location as it will not be shown again
 Access token: osmo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-Created for user: backend-operator@service.local
+Created for user: backend-operator
 ```
 
 > **Important**
@@ -108,14 +107,13 @@ $ osmo user list --roles osmo-backend
 View details including assigned roles:
 
 ```bash
-$ osmo user get backend-operator@service.local
+$ osmo user get backend-operator
 ```
 
 **Example output:**
 
 ```text
-User ID: backend-operator@service.local
-Created At: 2026-01-15
+User ID: backend-operator   Created At: 2026-01-15
 Created By: admin@example.com
 
 Roles:
@@ -127,7 +125,7 @@ Roles:
 View all tokens for a service account:
 
 ```bash
-$ osmo token list --user backend-operator@service.local
+$ osmo token list --user backend-operator
 ```
 
 ### Update Service Account Roles
@@ -136,10 +134,10 @@ Add or remove roles from a service account:
 
 ```bash
 # Add a role
-$ osmo user update backend-operator@service.local --add-roles osmo-ml-team
+$ osmo user update backend-operator --add-roles osmo-ml-team
 
 # Remove a role
-$ osmo user update backend-operator@service.local --remove-roles osmo-ml-team
+$ osmo user update backend-operator --remove-roles osmo-ml-team
 ```
 
 > **Note**
@@ -154,13 +152,13 @@ To rotate a token:
 1. Create a new token:
    ```bash
    $ osmo token set new-backend-token \
-       --user backend-operator@service.local \
+       --user backend-operator \
        --expires-at 2028-01-01
    ```
 2. Update your systems to use the new token
 3. Delete the old token:
    ```bash
-   $ osmo token delete backend-token --user backend-operator@service.local
+   $ osmo token delete backend-token --user backend-operator
    ```
 
 ### Delete a Service Account
@@ -168,8 +166,12 @@ To rotate a token:
 Delete the service account user (this also deletes all associated tokens):
 
 ```bash
-$ osmo user delete backend-operator@service.local
+$ osmo user delete backend-operator
 ```
+
+#### SEE ALSO
+- [osmo token](../../user_guide/appendix/cli/cli_token.md#cli-reference-token) for token CLI reference
+- [osmo user](../../user_guide/appendix/cli/cli_user.md#cli-reference-user) for user CLI reference
 
 ## Common Service Account Patterns
 
@@ -179,11 +181,11 @@ For OSMO backend operators that manage compute resources:
 
 ```bash
 # Create the service account
-$ osmo user create backend-operator@service.local --roles osmo-backend
+$ osmo user create backend-operator --roles osmo-backend
 
 # Create a token with appropriate expiration
 $ osmo token set backend-token \
-    --user backend-operator@service.local \
+    --user backend-operator \
     --expires-at 2027-01-01 \
     --description "Backend Operator - Production Cluster"
 
@@ -201,11 +203,11 @@ For monitoring systems or automation scripts:
 
 ```bash
 # Create the service account with read-only roles
-$ osmo user create monitoring@service.local --roles osmo-user
+$ osmo user create monitoring --roles osmo-user
 
 # Create a token
 $ osmo token set monitoring-token \
-    --user monitoring@service.local \
+    --user monitoring \
     --expires-at 2027-01-01 \
     --description "Monitoring System"
 ```
@@ -222,6 +224,10 @@ osmo login https://osmo.example.com --method=token --token-file=/etc/osmo/monito
 # Run monitoring commands
 osmo workflow list --format-type json | process_metrics.py
 ```
+
+#### SEE ALSO
+- [Personal Access Tokens](../../user_guide/getting_started/credentials.md#access-tokens) for personal access token documentation
+- [Deploy Backend Operator](../install_backend/deploy_backend.md#deploy-backend) for backend operator deployment
 
 ## Best Practices
 
@@ -244,7 +250,7 @@ osmo workflow list --format-type json | process_metrics.py
 
 ```bash
 $ osmo token set new-token \
-    --user backend-operator@service.local \
+    --user backend-operator \
     --expires-at 2028-01-01
 ```
 
@@ -255,13 +261,13 @@ $ osmo token set new-token \
 **Solution:** Check the service account’s roles:
 
 ```bash
-$ osmo user get backend-operator@service.local
+$ osmo user get backend-operator
 ```
 
 Add necessary roles if missing:
 
 ```bash
-$ osmo user update backend-operator@service.local --add-roles osmo-backend
+$ osmo user update backend-operator --add-roles osmo-backend
 ```
 
 ### User Not Found
@@ -271,11 +277,5 @@ $ osmo user update backend-operator@service.local --add-roles osmo-backend
 **Solution:** Create the user first:
 
 ```bash
-$ osmo user create backend-operator@service.local --roles osmo-backend
+$ osmo user create backend-operator --roles osmo-backend
 ```
-
-#### SEE ALSO
-- [Personal Access Tokens](../../user_guide/getting_started/access_tokens.md#access-tokens) for personal access token documentation
-- [Deploy Backend Operator](../install_backend/deploy_backend.md#deploy-backend) for backend operator deployment
-- [tocdepth](../../user_guide/appendix/cli/cli_token.md#cli-reference-token) for token CLI reference
-- [tocdepth](../../user_guide/appendix/cli/cli_user.md#cli-reference-user) for user CLI reference

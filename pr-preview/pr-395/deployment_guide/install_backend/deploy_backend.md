@@ -42,14 +42,14 @@ $ osmo login https://osmo.example.com
 Create a service account user for the backend operator:
 
 ```bash
-$ osmo user create backend-operator@service.local --roles osmo-backend
+$ osmo user create backend-operator --roles osmo-backend
 ```
 
 Create a Personal Access Token for the service account:
 
 ```bash
 $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
-    --user backend-operator@service.local \
+    --user backend-operator \
     --expires-at <insert-date> \
     --description "Backend Operator Token" \
     -t json | jq -r '.token')
@@ -182,10 +182,11 @@ Connection failed with error: {OSMOUserError: Token is expired, but no refresh t
 Check if the token is expired by listing the service account’s tokens:
 
 ```bash
-$ osmo token list --user backend-operator@service.local
+$ osmo token list --user backend-operator
 ```
 
-If the token is expired, create a new one following [Step 1: Create Service Account for Backend Operator](#create-osmo-token). Remember to update the Kubernetes secret with the new token:
+If the token is expired, create a new one following [Step 1: Create Service Account for Backend Operator](#create-osmo-token). Remember to update
+the Kubernetes secret with the new token:
 
 ```bash
 $ kubectl delete secret osmo-operator-token -n osmo-operator

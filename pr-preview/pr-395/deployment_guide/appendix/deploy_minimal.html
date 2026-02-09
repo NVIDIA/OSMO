@@ -1010,11 +1010,11 @@ $<span class="w"> </span>osmo<span class="w"> </span>login<span class="w"> </spa
 <li><p>Create the service account and token:</p>
 <p>Create a service account user and generate a token for the backend operator with OSMO CLI:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create the service account user</span>
-$<span class="w"> </span>osmo<span class="w"> </span>user<span class="w"> </span>create<span class="w"> </span>backend-operator@service.local<span class="w"> </span>--roles<span class="w"> </span>osmo-backend
+$<span class="w"> </span>osmo<span class="w"> </span>user<span class="w"> </span>create<span class="w"> </span>backend-operator<span class="w"> </span>--roles<span class="w"> </span>osmo-backend
 
 <span class="c1"># Generate a token for the service account</span>
 $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">BACKEND_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--user<span class="w"> </span>backend-operator@service.local<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--user<span class="w"> </span>backend-operator<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>

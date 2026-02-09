@@ -534,11 +534,11 @@ Deploy the OSMO components using the minimal configuration:
    Create a service account user and generate a token for the backend operator with OSMO CLI:
    ```bash
    # Create the service account user
-   $ osmo user create backend-operator@service.local --roles osmo-backend
+   $ osmo user create backend-operator --roles osmo-backend
 
    # Generate a token for the service account
    $ export BACKEND_TOKEN=$(osmo token set backend-token \
-       --user backend-operator@service.local \
+       --user backend-operator \
        --expires-at <insert-date> \
        --description "Backend Operator Token" \
        -t json | jq -r '.token')
