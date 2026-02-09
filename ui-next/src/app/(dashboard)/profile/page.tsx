@@ -36,7 +36,7 @@
  * authentication context.
  */
 
-import { ProfileLayout } from "./components/ProfileLayout";
+import { ProfileLayout } from "@/app/(dashboard)/profile/components/ProfileLayout";
 
 export default function ProfilePage() {
   return <ProfileLayout />;

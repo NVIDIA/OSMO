@@ -25,11 +25,11 @@ import type { ProfileUpdate } from "@/lib/api/adapter/types";
 import { User, Loader2 } from "lucide-react";
 import { useServices } from "@/contexts/service-context";
 
-import { UserInfoCard } from "./UserInfoCard";
-import { NotificationsCard } from "./NotificationsCard";
-import { BucketsCard } from "./BucketsCard";
-import { PoolsCard } from "./PoolsCard";
-import { CredentialsCard } from "./CredentialsCard";
+import { UserInfoCard } from "@/app/(dashboard)/profile/components/UserInfoCard";
+import { NotificationsCard } from "@/app/(dashboard)/profile/components/NotificationsCard";
+import { BucketsCard } from "@/app/(dashboard)/profile/components/BucketsCard";
+import { PoolsCard } from "@/app/(dashboard)/profile/components/PoolsCard";
+import { CredentialsCard } from "@/app/(dashboard)/profile/components/CredentialsCard";
 
 export function ProfileLayout() {
   usePage({ title: "Profile" });
