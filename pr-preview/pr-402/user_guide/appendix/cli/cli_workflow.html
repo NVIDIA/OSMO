@@ -1,0 +1,1216 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>osmo workflow &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/appendix/cli/cli_workflow';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Deployment Guide" href="../../../deployment_guide/index.html" />
+    <link rel="prev" title="osmo version" href="cli_version.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../deployment_guide/index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/system_requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/install/index.html">Install Client</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/profile.html">Setup Profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/credentials.html">Setup Credentials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/next_steps.html">Next Steps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/hello_world/index.html">1. Hello World</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/requesting_resources.html">2. Requesting Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/template_and_tokens.html">3. Template and Tokens</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/data/index.html">4. Working with Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/serial_workflows/index.html">5. Serial Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/parallel_workflows/index.html">6. Parallel Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/combination_workflows/index.html">7. Combination Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/hardware_in_the_loop/index.html">8. Hardware In The Loop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/advanced_patterns.html">9. Advanced Patterns</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How-to Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_sim_sdg.html">Isaac Sim: Generating Synthetic Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/reinforcement_learning.html">Isaac Lab: Training Robot Policy with Reinforcement Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/ros2_comm.html">ROS 2: Multi-Node Communication</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how_to/training.html">TorchRun: Training Deep Learning Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/single_node.html">Single Node Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/multi_node.html">Multi-Node Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how_to/training/reschedule_backend_errors.html">Fault-Tolerant Training with Rescheduling</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/isaac_groot_notebook.html">Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../how_to/hil.html">Hardware-in-the-Loop: Deploying Policy on Jetson</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NVIDIA/OSMO/tree/main/workflows" rel="noreferrer" target="_blank">More Examples <svg aria-hidden="true" height="1.0em" style="display: inline-block; vertical-align: middle; fill: currentColor;" version="1.1" viewbox="0 0 16 16" width="1.0em"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Workflows</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/index.html">Overview</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/specification/index.html">Specification</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/barriers.html">Barriers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/checkpointing.html">Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/exit_actions.html">Exit Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/file_injection.html">File Injection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/host_mounts.html">Host Mounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/inputs_and_outputs.html">Inputs and Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/resources.html">Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/secrets.html">Secrets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/templates_and_tokens.html">Templates and Special Tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/specification/timeouts.html">Timeouts</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/submission.html">Workflow Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/lifecycle/index.html">Workflow Lifecycle</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../workflows/interactive/index.html">Interactive Workflows</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/exec.html">Exec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/port_forward.html">Port-Forward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../workflows/interactive/rsync.html">Rsync</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/exit_codes.html">Exit Codes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../workflows/apps.html">Apps</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resource Pools</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../resource_pools/scheduling/index.html">Scheduling</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Help</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../faq/index.html">FAQs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../troubleshooting/index.html">Troubleshooting</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../troubleshooting/nccl.html">NCCL Errors</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">CLI Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="cli_app.html">osmo app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_bucket.html">osmo bucket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_credential.html">osmo credential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_data.html">osmo data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_dataset.html">osmo dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_login.html">osmo login</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_logout.html">osmo logout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_pool.html">osmo pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_profile.html">osmo profile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_resource.html">osmo resource</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_task.html">osmo task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_token.html">osmo token</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli_version.html">osmo version</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">osmo workflow</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>User Guide</strong></a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">CLI Reference</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">osmo workflow</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="osmo-workflow">
+<h1>osmo workflow<a class="headerlink" href="#osmo-workflow" title="Link to this heading">#</a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">osmo</span> <span class="n">workflow</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span>
+                     <span class="p">{</span><span class="n">submit</span><span class="p">,</span><span class="n">restart</span><span class="p">,</span><span class="n">validate</span><span class="p">,</span><span class="n">logs</span><span class="p">,</span><span class="n">cancel</span><span class="p">,</span><span class="n">query</span><span class="p">,</span><span class="nb">list</span><span class="p">,</span><span class="n">tag</span><span class="p">,</span><span class="n">exec</span><span class="p">,</span><span class="n">spec</span><span class="p">,</span><span class="n">port</span><span class="o">-</span><span class="n">forward</span><span class="p">,</span><span class="n">rsync</span><span class="p">}</span>
+                     <span class="o">...</span>
+</pre></div>
+</div>
+<section id="src.cli.main_parser-create_cli_parser-positional-arguments">
+<h2>Positional Arguments<a class="headerlink" href="#src.cli.main_parser-create_cli_parser-positional-arguments" title="Link to this heading">#</a></h2>
+<dl class="option-list">
+<dt id="cli_reference_workflow_command"><kbd>command</kbd><a class="headerlink" href="#cli_reference_workflow_command" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: submit, restart, validate, logs, cancel, query, list, tag, exec, spec, port-forward, rsync</p>
+</dd>
+</dl>
+</section>
+<section id="Sub-commands">
+<h2>Sub-commands<a class="headerlink" href="#Sub-commands" title="Link to this heading">#</a></h2>
+<section id="cli_reference_workflow_submit">
+<span id="submit"></span><h3>submit<a class="headerlink" href="#cli_reference_workflow_submit" title="Link to this heading">#</a></h3>
+<p>Submit a workflow to the workflow service.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">submit</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span> <span class="p">[</span><span class="o">--</span><span class="nb">set</span> <span class="n">SET</span> <span class="p">[</span><span class="n">SET</span> <span class="o">...</span><span class="p">]]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="nb">set</span><span class="o">-</span><span class="n">string</span> <span class="n">SET_STRING</span> <span class="p">[</span><span class="n">SET_STRING</span> <span class="o">...</span><span class="p">]]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="nb">set</span><span class="o">-</span><span class="n">env</span> <span class="n">SET_ENV</span> <span class="p">[</span><span class="n">SET_ENV</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">dry</span><span class="o">-</span><span class="n">run</span><span class="p">]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="n">pool</span> <span class="n">POOL</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">rsync</span> <span class="n">RSYNC</span><span class="p">]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="n">priority</span> <span class="p">{</span><span class="n">HIGH</span><span class="p">,</span><span class="n">NORMAL</span><span class="p">,</span><span class="n">LOW</span><span class="p">}]</span>
+                     <span class="n">workflow_file</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_submit_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_submit_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_submit_workflow_file"><kbd>workflow_file</kbd><a class="headerlink" href="#cli_reference_workflow_submit_workflow_file" title="Link to this argument">#</a></dt>
+<dd><p>The workflow file to submit, or the spec of a workflow ID to submit. If using a workflow ID, –dry-run and –set are not supported.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_submit_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_submit_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_submit_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_workflow_submit_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_submit_set"><kbd>--set</kbd><a class="headerlink" href="#cli_reference_workflow_submit_set" title="Link to this argument">#</a></dt>
+<dd><p>Assign fields in the workflow file with desired elements in the form “&lt;field&gt;=&lt;value&gt;”. These values will override values set in the “default-values” section. Overridden fields in the yaml file should be in the form {{ field }}. Values will be cast as int or float if applicable</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_submit_set_string"><kbd>--set-string</kbd><a class="headerlink" href="#cli_reference_workflow_submit_set_string" title="Link to this argument">#</a></dt>
+<dd><p>Assign fields in the workflow file with desired elements in the form “&lt;field&gt;=&lt;value&gt;”. These values will override values set in the “default-values” section. Overridden fields in the yaml file should be in the form {{ field }}. All values will be cast as string</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_submit_set_env"><kbd>--set-env</kbd><a class="headerlink" href="#cli_reference_workflow_submit_set_env" title="Link to this argument">#</a></dt>
+<dd><p>Assign environment variables to the workflow. The value should be in the format &lt;key&gt;=&lt;value&gt;. Multiple key-value pairs can be passed. If an environment variable passed here is already defined in the workflow, the value declared here will override the value in the workflow.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_submit_dry_run"><kbd>--dry-run</kbd><a class="headerlink" href="#cli_reference_workflow_submit_dry_run" title="Link to this argument">#</a></dt>
+<dd><p>Does not submit the workflow and prints the workflow into the console.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_submit_pool"><kbd>--pool, -p</kbd><a class="headerlink" href="#cli_reference_workflow_submit_pool" title="Link to this argument">#</a></dt>
+<dd><p>The target pool to run the workflow with. If no pool is specified, the default pool assigned in the profile will be used.</p>
+</dd>
+<dt id="cli_reference_workflow_submit_rsync"><kbd>--rsync</kbd><a class="headerlink" href="#cli_reference_workflow_submit_rsync" title="Link to this argument">#</a></dt>
+<dd><p>Start a background rsync daemon to continuously upload data from local machine to the lead task of the workflow. The value should be in the format &lt;local_path&gt;:&lt;remote_path&gt;. The daemon process will automatically exit when the workflow is terminated.</p>
+</dd>
+<dt id="cli_reference_workflow_submit_priority"><kbd>--priority</kbd><a class="headerlink" href="#cli_reference_workflow_submit_priority" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: HIGH, NORMAL, LOW</p>
+<p>The priority to use when scheduling the workflow. If none is provided, NORMAL will be used. The scheduler will prioritize scheduling workflows in the order of HIGH, NORMAL, LOW. LOW workflows may be preempted to allow a higher priority workflow to run.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_restart">
+<span id="restart"></span><h3>restart<a class="headerlink" href="#cli_reference_workflow_restart" title="Link to this heading">#</a></h3>
+<p>Restart a failed workflow.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">restart</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span> <span class="p">[</span><span class="o">--</span><span class="n">pool</span> <span class="n">POOL</span><span class="p">]</span>
+                      <span class="n">workflow_id</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_restart_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_restart_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_restart_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_restart_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The workflow ID or UUID to restart.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_restart_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_restart_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_restart_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_workflow_restart_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_restart_pool"><kbd>--pool, -p</kbd><a class="headerlink" href="#cli_reference_workflow_restart_pool" title="Link to this argument">#</a></dt>
+<dd><p>The target pool to run the workflow with.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_validate">
+<span id="validate"></span><h3>validate<a class="headerlink" href="#cli_reference_workflow_validate" title="Link to this heading">#</a></h3>
+<p>validate a workflow to the workflow server.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">validate</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">set</span> <span class="n">SET</span> <span class="p">[</span><span class="n">SET</span> <span class="o">...</span><span class="p">]]</span>
+                       <span class="p">[</span><span class="o">--</span><span class="nb">set</span><span class="o">-</span><span class="n">string</span> <span class="n">SET_STRING</span> <span class="p">[</span><span class="n">SET_STRING</span> <span class="o">...</span><span class="p">]]</span>
+                       <span class="p">[</span><span class="o">--</span><span class="n">pool</span> <span class="n">POOL</span><span class="p">]</span>
+                       <span class="n">workflow_file</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_validate_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_validate_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_validate_workflow_file"><kbd>workflow_file</kbd><a class="headerlink" href="#cli_reference_workflow_validate_workflow_file" title="Link to this argument">#</a></dt>
+<dd><p>The workflow file to submit.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_validate_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_validate_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_validate_set"><kbd>--set</kbd><a class="headerlink" href="#cli_reference_workflow_validate_set" title="Link to this argument">#</a></dt>
+<dd><p>Assign fields in the workflow file with desired elements in the form “&lt;field&gt;=&lt;value&gt;”. These values will override values set in the “default-values” section. Overridden fields in the yaml file should be in the form {{ field }}. Values will be cast as int or float if applicable</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_validate_set_string"><kbd>--set-string</kbd><a class="headerlink" href="#cli_reference_workflow_validate_set_string" title="Link to this argument">#</a></dt>
+<dd><p>Assign fields in the workflow file with desired elements in the form “&lt;field&gt;=&lt;value&gt;”. These values will override values set in the “default-values” section. Overridden fields in the yaml file should be in the form {{ field }}. All values will be cast as string</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_validate_pool"><kbd>--pool, -p</kbd><a class="headerlink" href="#cli_reference_workflow_validate_pool" title="Link to this argument">#</a></dt>
+<dd><p>The target pool to run the workflow with. If no pool is specified, the default pool assigned in the profile will be used.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_logs">
+<span id="logs"></span><h3>logs<a class="headerlink" href="#cli_reference_workflow_logs" title="Link to this heading">#</a></h3>
+<p>Get the logs from a workflow.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">logs</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">task</span> <span class="n">TASK</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">retry</span><span class="o">-</span><span class="nb">id</span> <span class="n">RETRY_ID</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">error</span><span class="p">]</span>
+                   <span class="p">[</span><span class="o">-</span><span class="n">n</span> <span class="n">LAST_N_LINES</span><span class="p">]</span>
+                   <span class="n">workflow_id</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_logs_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_logs_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_logs_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_logs_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The workflow ID or UUID for which to fetch the logs.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_logs_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_logs_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_logs_task"><kbd>--task, -t</kbd><a class="headerlink" href="#cli_reference_workflow_logs_task" title="Link to this argument">#</a></dt>
+<dd><p>The task name for which to fetch the logs.</p>
+</dd>
+<dt id="cli_reference_workflow_logs_retry_id"><kbd>--retry-id, -r</kbd><a class="headerlink" href="#cli_reference_workflow_logs_retry_id" title="Link to this argument">#</a></dt>
+<dd><p>The retry ID for the task which to fetch the logs. If not provided, the latest retry ID will be used.</p>
+</dd>
+<dt id="cli_reference_workflow_logs_error"><kbd>--error</kbd><a class="headerlink" href="#cli_reference_workflow_logs_error" title="Link to this argument">#</a></dt>
+<dd><p>Show task error logs instead of regular logs</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_logs_n"><kbd>-n</kbd><a class="headerlink" href="#cli_reference_workflow_logs_n" title="Link to this argument">#</a></dt>
+<dd><p>Show last n lines of logs</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_cancel">
+<span id="cancel"></span><h3>cancel<a class="headerlink" href="#cli_reference_workflow_cancel" title="Link to this heading">#</a></h3>
+<p>Cancel a queued or running workflow.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">cancel</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">message</span> <span class="n">MESSAGE</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="p">]</span>
+                     <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span>
+                     <span class="n">workflow_ids</span> <span class="p">[</span><span class="n">workflow_ids</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_cancel_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_cancel_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_cancel_workflow_ids"><kbd>workflow_ids</kbd><a class="headerlink" href="#cli_reference_workflow_cancel_workflow_ids" title="Link to this argument">#</a></dt>
+<dd><p>The workflow IDs or UUIDs to cancel. Multiple IDs or UUIDs can be passed.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_cancel_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_cancel_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_cancel_message"><kbd>--message, -m</kbd><a class="headerlink" href="#cli_reference_workflow_cancel_message" title="Link to this argument">#</a></dt>
+<dd><p>Additional message describing reason for cancelation.</p>
+</dd>
+<dt id="cli_reference_workflow_cancel_force"><kbd>--force, -f</kbd><a class="headerlink" href="#cli_reference_workflow_cancel_force" title="Link to this argument">#</a></dt>
+<dd><p>Force cancel task group pods in the cluster.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_cancel_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_workflow_cancel_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_query">
+<span id="query"></span><h3>query<a class="headerlink" href="#cli_reference_workflow_query" title="Link to this heading">#</a></h3>
+<p>Query the status of a running workflow.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">query</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">verbose</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span> <span class="n">workflow_id</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_query_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_query_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_query_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_query_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The workflow ID or UUID to query the status of.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_query_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_query_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_query_verbose"><kbd>--verbose, -v</kbd><a class="headerlink" href="#cli_reference_workflow_query_verbose" title="Link to this argument">#</a></dt>
+<dd><p>Whether to show all retried tasks.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_query_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_workflow_query_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_list">
+<span id="list"></span><h3>list<a class="headerlink" href="#cli_reference_workflow_list" title="Link to this heading">#</a></h3>
+<p>List workflows with different filters. Without the –pool flag, workflows from all pools will be listed.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="nb">list</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">count</span> <span class="n">COUNT</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">name</span> <span class="n">NAME</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">order</span> <span class="p">{</span><span class="n">asc</span><span class="p">,</span><span class="n">desc</span><span class="p">}]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">status</span> <span class="n">STATUS</span> <span class="p">[</span><span class="n">STATUS</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="nb">format</span><span class="o">-</span><span class="nb">type</span> <span class="p">{</span><span class="n">json</span><span class="p">,</span><span class="n">text</span><span class="p">}]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">submitted</span><span class="o">-</span><span class="n">after</span> <span class="n">SUBMITTED_AFTER</span><span class="p">]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">submitted</span><span class="o">-</span><span class="n">before</span> <span class="n">SUBMITTED_BEFORE</span><span class="p">]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">tags</span> <span class="n">TAGS</span> <span class="p">[</span><span class="n">TAGS</span> <span class="o">...</span><span class="p">]]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">priority</span> <span class="p">{</span><span class="n">HIGH</span><span class="p">,</span><span class="n">NORMAL</span><span class="p">,</span><span class="n">LOW</span><span class="p">}</span> <span class="p">[{</span><span class="n">HIGH</span><span class="p">,</span><span class="n">NORMAL</span><span class="p">,</span><span class="n">LOW</span><span class="p">}</span> <span class="o">...</span><span class="p">]]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">user</span> <span class="n">USER</span> <span class="p">[</span><span class="n">USER</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="o">--</span><span class="nb">all</span><span class="o">-</span><span class="n">users</span><span class="p">]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">pool</span> <span class="n">POOL</span> <span class="p">[</span><span class="n">POOL</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">app</span> <span class="n">APP</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_list_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_list_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_list_count"><kbd>--count, -c</kbd><a class="headerlink" href="#cli_reference_workflow_list_count" title="Link to this argument">#</a></dt>
+<dd><p>Display the given count of workflows. Default value is 20.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">20</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_list_name"><kbd>--name, -n</kbd><a class="headerlink" href="#cli_reference_workflow_list_name" title="Link to this argument">#</a></dt>
+<dd><p>Display workflows which contains the string.</p>
+</dd>
+<dt id="cli_reference_workflow_list_order"><kbd>--order, -o</kbd><a class="headerlink" href="#cli_reference_workflow_list_order" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: asc, desc</p>
+<p>Display in the order in which workflows were submitted. asc means latest at the bottom. desc means latest at the top. Default is asc.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'asc'</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_list_status"><kbd>--status, -s</kbd><a class="headerlink" href="#cli_reference_workflow_list_status" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: RUNNING, FAILED, COMPLETED, PENDING, WAITING, FAILED_EXEC_TIMEOUT, FAILED_SERVER_ERROR, FAILED_QUEUE_TIMEOUT, FAILED_SUBMISSION, FAILED_CANCELED, FAILED_BACKEND_ERROR, FAILED_IMAGE_PULL, FAILED_EVICTED, FAILED_START_ERROR, FAILED_START_TIMEOUT, FAILED_PREEMPTED</p>
+<p>Display all workflows with the given status(es). Users can pass multiple values to this flag. Acceptable values: RUNNING, FAILED, COMPLETED, PENDING, WAITING, FAILED_EXEC_TIMEOUT, FAILED_SERVER_ERROR, FAILED_QUEUE_TIMEOUT, FAILED_SUBMISSION, FAILED_CANCELED, FAILED_BACKEND_ERROR, FAILED_IMAGE_PULL, FAILED_EVICTED, FAILED_START_ERROR, FAILED_START_TIMEOUT, FAILED_PREEMPTED</p>
+</dd>
+<dt id="cli_reference_workflow_list_format_type"><kbd>--format-type, -t</kbd><a class="headerlink" href="#cli_reference_workflow_list_format_type" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: json, text</p>
+<p>Specify the output format type (Default text).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'text'</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_list_submitted_after"><kbd>--submitted-after</kbd><a class="headerlink" href="#cli_reference_workflow_list_submitted_after" title="Link to this argument">#</a></dt>
+<dd><p>Filter for workflows that were submitted after AND including this date. Must be in format YYYY-MM-DD.
+Example: –submitted-after 2023-05-03</p>
+</dd>
+<dt id="cli_reference_workflow_list_submitted_before"><kbd>--submitted-before</kbd><a class="headerlink" href="#cli_reference_workflow_list_submitted_before" title="Link to this argument">#</a></dt>
+<dd><p>Filter for workflows that were submitted before (NOT including) this date. Must be in format YYYY-MM-DD.
+Example: –submitted-after 2023-05-02 –submitted-before 2023-05-04 includes all workflows that were submitted any time on May 2nd and May 3rd only.</p>
+</dd>
+<dt id="cli_reference_workflow_list_tags"><kbd>--tags</kbd><a class="headerlink" href="#cli_reference_workflow_list_tags" title="Link to this argument">#</a></dt>
+<dd><p>Filter for workflows that contain the tag(s).</p>
+</dd>
+<dt id="cli_reference_workflow_list_priority"><kbd>--priority</kbd><a class="headerlink" href="#cli_reference_workflow_list_priority" title="Link to this argument">#</a></dt>
+<dd><p>Possible choices: HIGH, NORMAL, LOW</p>
+<p>Filter workflows by priority levels.</p>
+</dd>
+<dt id="cli_reference_workflow_list_user"><kbd>--user, -u</kbd><a class="headerlink" href="#cli_reference_workflow_list_user" title="Link to this argument">#</a></dt>
+<dd><p>Display all workflows by this user. Users can pass multiple values to this flag.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_list_all_users"><kbd>--all-users, -a</kbd><a class="headerlink" href="#cli_reference_workflow_list_all_users" title="Link to this argument">#</a></dt>
+<dd><p>Display all workflows with no filtering on users.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_list_pool"><kbd>--pool, -p</kbd><a class="headerlink" href="#cli_reference_workflow_list_pool" title="Link to this argument">#</a></dt>
+<dd><p>Display all workflows by this pool. Users can pass multiple values to this flag.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_list_app"><kbd>--app, -P</kbd><a class="headerlink" href="#cli_reference_workflow_list_app" title="Link to this argument">#</a></dt>
+<dd><p>Display all workflows created by this app. For a specific app or app version, use the format &lt;app&gt;:&lt;version&gt;.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_tag">
+<span id="tag"></span><h3>tag<a class="headerlink" href="#cli_reference_workflow_tag" title="Link to this heading">#</a></h3>
+<p>List or change tags from workflow(s) if no workflow is specified. Remove is applied before add</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">tag</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">workflow</span> <span class="n">WORKFLOW</span> <span class="p">[</span><span class="n">WORKFLOW</span> <span class="o">...</span><span class="p">]]</span>
+                  <span class="p">[</span><span class="o">--</span><span class="n">add</span> <span class="n">ADD</span> <span class="p">[</span><span class="n">ADD</span> <span class="o">...</span><span class="p">]]</span> <span class="p">[</span><span class="o">--</span><span class="n">remove</span> <span class="n">REMOVE</span> <span class="p">[</span><span class="n">REMOVE</span> <span class="o">...</span><span class="p">]]</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_tag_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_tag_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_tag_workflow"><kbd>--workflow, -w</kbd><a class="headerlink" href="#cli_reference_workflow_tag_workflow" title="Link to this argument">#</a></dt>
+<dd><p>List of workflows to update. If not set, the CLI will return the list of available tags to assign.</p>
+</dd>
+<dt id="cli_reference_workflow_tag_add"><kbd>--add, -a</kbd><a class="headerlink" href="#cli_reference_workflow_tag_add" title="Link to this argument">#</a></dt>
+<dd><p>List of tags to add.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_tag_remove"><kbd>--remove, -r</kbd><a class="headerlink" href="#cli_reference_workflow_tag_remove" title="Link to this argument">#</a></dt>
+<dd><p>List of tags to remove.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_exec">
+<span id="exec"></span><h3>exec<a class="headerlink" href="#cli_reference_workflow_exec" title="Link to this heading">#</a></h3>
+<p>Exec into a task of a workflow.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">exec</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">group</span> <span class="n">GROUP</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">entry</span> <span class="n">EXEC_ENTRY_COMMAND</span><span class="p">]</span>
+                   <span class="p">[</span><span class="o">--</span><span class="n">connect</span><span class="o">-</span><span class="n">timeout</span> <span class="n">CONNECT_TIMEOUT</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">keep</span><span class="o">-</span><span class="n">alive</span><span class="p">]</span>
+                   <span class="n">workflow_id</span> <span class="p">[</span><span class="n">task</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_exec_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_exec_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_exec_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_exec_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The workflow ID or UUID to exec in.</p>
+</dd>
+<dt id="cli_reference_workflow_exec_task"><kbd>task</kbd><a class="headerlink" href="#cli_reference_workflow_exec_task" title="Link to this argument">#</a></dt>
+<dd><p>The task name to exec into.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_exec_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_exec_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_exec_group"><kbd>--group</kbd><a class="headerlink" href="#cli_reference_workflow_exec_group" title="Link to this argument">#</a></dt>
+<dd><p>Send command to all tasks in the group.</p>
+</dd>
+<dt id="cli_reference_workflow_exec_entry"><kbd>--entry</kbd><a class="headerlink" href="#cli_reference_workflow_exec_entry" title="Link to this argument">#</a></dt>
+<dd><p>Specify the entry point for exec (Default /bin/bash).</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'/bin/bash'</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_exec_connect_timeout"><kbd>--connect-timeout</kbd><a class="headerlink" href="#cli_reference_workflow_exec_connect_timeout" title="Link to this argument">#</a></dt>
+<dd><p>The connection timeout period in seconds. Default is 60 seconds.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">60</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_exec_keep_alive"><kbd>--keep-alive</kbd><a class="headerlink" href="#cli_reference_workflow_exec_keep_alive" title="Link to this argument">#</a></dt>
+<dd><p>Restart the exec command if connection is lost.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_spec">
+<span id="spec"></span><h3>spec<a class="headerlink" href="#cli_reference_workflow_spec" title="Link to this heading">#</a></h3>
+<p>Get workflow spec.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">spec</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">template</span><span class="p">]</span> <span class="n">workflow_id</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_spec_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_spec_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_spec_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_spec_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The workflow ID or UUID to query the status of.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_spec_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_spec_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_spec_template"><kbd>--template</kbd><a class="headerlink" href="#cli_reference_workflow_spec_template" title="Link to this argument">#</a></dt>
+<dd><p>Show the original templated spec</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cli_reference_workflow_port_forward">
+<span id="port-forward"></span><h3>port-forward<a class="headerlink" href="#cli_reference_workflow_port_forward" title="Link to this heading">#</a></h3>
+<p>Port-forward data from workflow to local machine.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">port</span><span class="o">-</span><span class="n">forward</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">host</span> <span class="n">HOST</span><span class="p">]</span> <span class="o">--</span><span class="n">port</span> <span class="n">PORT</span> <span class="p">[</span><span class="o">--</span><span class="n">udp</span><span class="p">]</span>
+                           <span class="p">[</span><span class="o">--</span><span class="n">connect</span><span class="o">-</span><span class="n">timeout</span> <span class="n">CONNECT_TIMEOUT</span><span class="p">]</span>
+                           <span class="n">workflow_id</span> <span class="n">task</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_port_forward_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_port_forward_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_port_forward_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_port_forward_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The ID or UUID of the workflow to port forward from</p>
+</dd>
+<dt id="cli_reference_workflow_port_forward_task"><kbd>task</kbd><a class="headerlink" href="#cli_reference_workflow_port_forward_task" title="Link to this argument">#</a></dt>
+<dd><p>Name of the task in the workflow to port forward from</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_port_forward_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_port_forward_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_port_forward_host"><kbd>--host</kbd><a class="headerlink" href="#cli_reference_workflow_port_forward_host" title="Link to this argument">#</a></dt>
+<dd><p>The hostname used to bind the local port. Default value is localhost.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'localhost'</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_port_forward_port"><kbd>--port</kbd><a class="headerlink" href="#cli_reference_workflow_port_forward_port" title="Link to this argument">#</a></dt>
+<dd><p>Port forward from task in the pool. Input value should be in format local_port[:task_port], or in range port1-port2,port3-port4 (right end inclusive). e.g. “8000:2000”, “8000”, “8000-8010:9000-9010,8015-8016”. If using a single port value or range, the client will use that port value for both local port and task port.</p>
+</dd>
+<dt id="cli_reference_workflow_port_forward_udp"><kbd>--udp</kbd><a class="headerlink" href="#cli_reference_workflow_port_forward_udp" title="Link to this argument">#</a></dt>
+<dd><p>Use UDP port forward.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_port_forward_connect_timeout"><kbd>--connect-timeout</kbd><a class="headerlink" href="#cli_reference_workflow_port_forward_connect_timeout" title="Link to this argument">#</a></dt>
+<dd><p>The connection timeout period in seconds. Default is 60 seconds.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">60</span></code></p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_port_forward_examples">
+<h4>Examples<a class="headerlink" href="#cli_reference_workflow_port_forward_examples" title="Link to this heading">#</a></h4>
+<p>Forward UDP traffic from a task to your local machine:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">port</span><span class="o">-</span><span class="n">forward</span> <span class="n">wf</span><span class="o">-</span><span class="mi">1</span> <span class="n">sim</span><span class="o">-</span><span class="n">task</span> <span class="o">--</span><span class="n">port</span> <span class="mi">47995</span><span class="o">-</span><span class="mi">48012</span><span class="p">,</span><span class="mi">49000</span><span class="o">-</span><span class="mi">49007</span> <span class="o">--</span><span class="n">udp</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="cli_reference_workflow_rsync">
+<span id="rsync"></span><h3>rsync<a class="headerlink" href="#cli_reference_workflow_rsync" title="Link to this heading">#</a></h3>
+<p>Syncs data from local machine to a remote workflow task via a persistent background daemon. It will continuously monitors the source path and automatically upload any changes to the remote task.</p>
+<p>/osmo/run/workspace is always available as a remote path.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">status</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">stop</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">timeout</span> <span class="n">TIMEOUT</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">upload</span><span class="o">-</span><span class="n">rate</span><span class="o">-</span><span class="n">limit</span> <span class="n">UPLOAD_RATE_LIMIT</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">poll</span><span class="o">-</span><span class="n">interval</span> <span class="n">POLL_INTERVAL</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">debounce</span><span class="o">-</span><span class="n">delay</span> <span class="n">DEBOUNCE_DELAY</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="n">reconcile</span><span class="o">-</span><span class="n">interval</span> <span class="n">RECONCILE_INTERVAL</span><span class="p">]</span>
+                    <span class="p">[</span><span class="o">--</span><span class="nb">max</span><span class="o">-</span><span class="n">log</span><span class="o">-</span><span class="n">size</span> <span class="n">MAX_LOG_SIZE</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">verbose</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">once</span><span class="p">]</span>
+                    <span class="p">[</span><span class="n">workflow_id</span><span class="p">]</span> <span class="p">[</span><span class="n">task</span><span class="p">]</span> <span class="p">[</span><span class="n">path</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="cli_reference_workflow_rsync_positional_arguments">
+<h4>Positional Arguments<a class="headerlink" href="#cli_reference_workflow_rsync_positional_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_rsync_workflow_id"><kbd>workflow_id</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_workflow_id" title="Link to this argument">#</a></dt>
+<dd><p>The ID or UUID of the workflow to rsync to/from</p>
+</dd>
+<dt id="cli_reference_workflow_rsync_task"><kbd>task</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_task" title="Link to this argument">#</a></dt>
+<dd><p>(Optional) The task to rsync upload to. If not provided, the upload will be to the lead task of the first group.</p>
+</dd>
+<dt id="cli_reference_workflow_rsync_path"><kbd>path</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_path" title="Link to this argument">#</a></dt>
+<dd><p>The src:dst path to rsync between.</p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_rsync_named_arguments">
+<h4>Named Arguments<a class="headerlink" href="#cli_reference_workflow_rsync_named_arguments" title="Link to this heading">#</a></h4>
+<dl class="option-list">
+<dt id="cli_reference_workflow_rsync_status"><kbd>--status, -s</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_status" title="Link to this argument">#</a></dt>
+<dd><p>Show the status of all rsync daemons</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_rsync_stop"><kbd>--stop</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_stop" title="Link to this argument">#</a></dt>
+<dd><p>Stop one or more rsync daemons</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_rsync_timeout"><kbd>--timeout</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_timeout" title="Link to this argument">#</a></dt>
+<dd><p>The connection timeout period in seconds. Default is 10 seconds.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">10</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_rsync_upload_rate_limit"><kbd>--upload-rate-limit</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_upload_rate_limit" title="Link to this argument">#</a></dt>
+<dd><p>Rate limit the upload speed in bytes per second. The upload speed is also subjected to admin configured rate-limit.</p>
+</dd>
+<dt id="cli_reference_workflow_rsync_poll_interval"><kbd>--poll-interval</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_poll_interval" title="Link to this argument">#</a></dt>
+<dd><p>The amount of time (seconds) between polling the task for changes in daemon mode. If not provided, the admin-configured default will be used.</p>
+</dd>
+<dt id="cli_reference_workflow_rsync_debounce_delay"><kbd>--debounce-delay</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_debounce_delay" title="Link to this argument">#</a></dt>
+<dd><p>The amount of time (seconds) of inactivity after last file change before a sync is triggered in daemon mode. If not provided, the admin-configured default will be used.</p>
+</dd>
+<dt id="cli_reference_workflow_rsync_reconcile_interval"><kbd>--reconcile-interval</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_reconcile_interval" title="Link to this argument">#</a></dt>
+<dd><p>The amount of time (seconds) between reconciling the upload in daemon mode. This is used to ensure that failed uploads during network interruptions will resume after connection is restored. If not provided, the admin-configured default will be used.</p>
+</dd>
+<dt id="cli_reference_workflow_rsync_max_log_size"><kbd>--max-log-size</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_max_log_size" title="Link to this argument">#</a></dt>
+<dd><p>The maximum log size in bytes for the daemon before log rotation. Default is 2MB.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">2097152</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_rsync_verbose"><kbd>--verbose</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_verbose" title="Link to this argument">#</a></dt>
+<dd><p>Enable verbose logging for the daemon.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt id="cli_reference_workflow_rsync_once"><kbd>--once</kbd><a class="headerlink" href="#cli_reference_workflow_rsync_once" title="Link to this argument">#</a></dt>
+<dd><p>Run a single rsync upload to the workflow. The upload will be done in the foreground and will automatically exit once the upload completes.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+<section id="cli_reference_workflow_rsync_examples">
+<h4>Examples<a class="headerlink" href="#cli_reference_workflow_rsync_examples" title="Link to this heading">#</a></h4>
+<p>Upload to a task:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="o">&lt;</span><span class="n">workflow_id</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">task_name</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">local_path</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">remote_path</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Upload to lead task:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="o">&lt;</span><span class="n">workflow_id</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">local_path</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">remote_path</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Run a single upload:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="o">&lt;</span><span class="n">workflow_id</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">local_path</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">remote_path</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">once</span>
+</pre></div>
+</div>
+<p>Get the status of daemons:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="o">--</span><span class="n">status</span>
+</pre></div>
+</div>
+<p>Stop all daemons:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="o">--</span><span class="n">stop</span>
+</pre></div>
+</div>
+<p>Stop a specific daemon:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">osmo</span> <span class="n">workflow</span> <span class="n">rsync</span> <span class="o">&lt;</span><span class="n">workflow_id</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">stop</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="cli_version.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">osmo version</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../../deployment_guide/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title"><strong>Deployment Guide</strong></p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#src.cli.main_parser-create_cli_parser-positional-arguments">Positional Arguments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#Sub-commands">Sub-commands</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_submit">submit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_restart">restart</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_validate">validate</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_logs">logs</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_cancel">cancel</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_query">query</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_list">list</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_tag">tag</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_exec">exec</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_spec">spec</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_port_forward">port-forward</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli_reference_workflow_rsync">rsync</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

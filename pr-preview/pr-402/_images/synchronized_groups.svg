@@ -1,0 +1,94 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -10 300 290" width="300" height="290">
+  <defs>
+    <style>
+      /* Light mode (default) */
+      .task-box { fill: #76b900; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-box-lead { fill: #5a8c00; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .lead-label { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      .arrow-line { stroke: #666666; stroke-width: 2.5; fill: none; }
+      .arrow-head { fill: #666666; }
+      .comm-line { stroke: #0091da; stroke-width: 2; stroke-dasharray: 6,4; fill: none; }
+      .comm-head { fill: #0091da; }
+      .start-marker { fill: #666666; }
+      .start-text { fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      .group-box { stroke: #999999; stroke-width: 2; fill: none; rx: 8; }
+      .group-label { fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 500; text-anchor: start; }
+      
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        .task-box { fill: #a0d468; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-box-lead { fill: #76b900; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-text { fill: #1a1a1a; }
+        .lead-label { fill: #1a1a1a; }
+        .arrow-line { stroke: #bbbbbb; }
+        .arrow-head { fill: #bbbbbb; }
+        .comm-line { stroke: #64b5f6; }
+        .comm-head { fill: #64b5f6; }
+        .start-marker { fill: #e0e0e0; }
+        .start-text { fill: #e0e0e0; }
+        .group-box { stroke: #666666; }
+        .group-label { fill: #e0e0e0; }
+      }
+    </style>
+    <marker id="comm-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon class="comm-head" points="0,0 8,4 0,8"/>
+    </marker>
+  </defs>
+  
+  <!-- Start marker (dot) -->
+  <circle class="start-marker" cx="30" cy="135" r="8"/>
+  
+  <!-- Group box (dotted border around tasks) -->
+  <rect class="group-box" x="110" y="10" width="170" height="250" rx="8"/>
+  
+  <!-- Group label -->
+  <text class="group-label" x="118" y="3">parallel-group</text>
+  
+  <!-- Arrow from start to group -->
+  <line class="arrow-line" x1="38" y1="135" x2="103" y2="135"/>
+  <polygon class="arrow-head" points="103,135 92.5,129.5 92.5,140.5"/>
+  
+  <!-- Task A (Lead) -->
+  <rect class="task-box-lead" x="140" y="35" width="100" height="40" rx="4"/>
+  <text class="task-text" x="190" y="52">Task A</text>
+  <text class="lead-label" x="190" y="65">(Lead)</text>
+  
+  <!-- Task B -->
+  <rect class="task-box" x="140" y="115" width="100" height="40" rx="4"/>
+  <text class="task-text" x="190" y="135">Task B</text>
+  
+  <!-- Task C -->
+  <rect class="task-box" x="140" y="195" width="100" height="40" rx="4"/>
+  <text class="task-text" x="190" y="215">Task C</text>
+  
+  <!-- Communication lines (single bidirectional lines) -->
+  <!-- A to B -->
+  <line class="comm-line" x1="190" y1="75" x2="190" y2="115"/>
+  
+  <!-- B to C -->
+  <line class="comm-line" x1="190" y1="155" x2="190" y2="195"/>
+  
+  <!-- A to C (curved) -->
+  <path class="comm-line" d="M 240,55 Q 270,135 240,215"/>
+  
+  <!-- "Start" label below the marker -->
+  <text class="start-text" x="30" y="155">Start</text>
+</svg>

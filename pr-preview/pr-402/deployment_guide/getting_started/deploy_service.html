@@ -1,0 +1,1635 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Deploy Service &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/getting_started/deploy_service';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Create Data Storage" href="create_storage/index.html" />
+    <link rel="prev" title="Setup Infrastructure" href="infrastructure_setup.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 09, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced_config/dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../appendix/workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../appendix/authentication/index.html">AuthN/AuthZ</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../appendix/authentication/keycloak_setup.html">Keycloak Group and Role Management</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Deploy Service</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="deploy-service">
+<span id="id1"></span><h1>Deploy Service<a class="headerlink" href="#deploy-service" title="Link to this heading">#</a></h1>
+<p>This guide provides step-by-step instructions for deploying OSMO service components on a Kubernetes cluster.</p>
+<section id="components-overview">
+<h2>Components Overview<a class="headerlink" href="#components-overview" title="Link to this heading">#</a></h2>
+<p>OSMO deployment consists of several main components:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>API Service</p></td>
+<td><p>Workflow operations and API endpoints</p></td>
+</tr>
+<tr class="row-odd"><td><p>Router Service</p></td>
+<td><p>Routing traffic to the API Service</p></td>
+</tr>
+<tr class="row-even"><td><p>Web UI Service</p></td>
+<td><p>Web interface for users</p></td>
+</tr>
+<tr class="row-odd"><td><p>Worker Service</p></td>
+<td><p>Background job processing</p></td>
+</tr>
+<tr class="row-even"><td><p>Logger Service</p></td>
+<td><p>Log collection and streaming</p></td>
+</tr>
+<tr class="row-odd"><td><p>Agent Service</p></td>
+<td><p>Client communication and status updates</p></td>
+</tr>
+<tr class="row-even"><td><p>Delayed Job Monitor</p></td>
+<td><p>Monitoring and managing delayed background jobs</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<a class="reference internal image-reference" href="../../_images/service_components.svg"><img alt="../../_images/service_components.svg" class="align-center" src="../../_images/service_components.svg" style="width: 80%;" /></a>
+</section>
+<section id="step-1-configure-postgresql">
+<h2>Step 1: Configure PostgreSQL<a class="headerlink" href="#step-1-configure-postgresql" title="Link to this heading">#</a></h2>
+<p>Create a database for OSMO using the following command. Omit <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">OSMO_PGPASSWORD=...</span></code>
+and <code class="docutils literal notranslate"><span class="pre">PGPASSWORD=$OSMO_PGPASSWORD</span></code> if PostgreSQL was configured without a password.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_DB_HOST</span><span class="o">=</span>&lt;your-db-host&gt;
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_PGPASSWORD</span><span class="o">=</span>&lt;your-postgres-password&gt;
+$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">apiVersion: v1</span>
+<span class="s">kind: Pod</span>
+<span class="s">metadata:</span>
+<span class="s">  name: osmo-db-ops</span>
+<span class="s">spec:</span>
+<span class="s">  containers:</span>
+<span class="s">    - name: osmo-db-ops</span>
+<span class="s">      image: alpine/psql:17.5</span>
+<span class="s">      command: [&quot;/bin/sh&quot;, &quot;-c&quot;]</span>
+<span class="s">      args:</span>
+<span class="s">        - &quot;PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c &#39;CREATE DATABASE osmo;&#39;&quot;</span>
+<span class="s">  restartPolicy: Never</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+<p>Check that the process <code class="docutils literal notranslate"><span class="pre">Completed</span></code> with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pod</span> <span class="pre">osmo-db-ops</span></code>. Then delete the pod with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>osmo-db-ops
+</pre></div>
+</div>
+<p>If using keycloak as the SSO provider, create a database for keycloak using the following command.
+Omit <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">OSMO_PGPASSWORD=...</span></code> and <code class="docutils literal notranslate"><span class="pre">PGPASSWORD=$OSMO_PGPASSWORD</span></code> if PostgreSQL was
+configured without a password.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_DB_HOST</span><span class="o">=</span>&lt;your-db-host&gt;
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_PGPASSWORD</span><span class="o">=</span>&lt;your-postgres-password&gt;
+$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">apiVersion: v1</span>
+<span class="s">kind: Pod</span>
+<span class="s">metadata:</span>
+<span class="s">  name: osmo-db-ops</span>
+<span class="s">spec:</span>
+<span class="s">  containers:</span>
+<span class="s">    - name: osmo-db-ops</span>
+<span class="s">      image: alpine/psql:17.5</span>
+<span class="s">      command: [&quot;/bin/sh&quot;, &quot;-c&quot;]</span>
+<span class="s">      args:</span>
+<span class="s">        - &quot;PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c &#39;CREATE DATABASE keycloak;&#39;&quot;</span>
+<span class="s">  restartPolicy: Never</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+<p>Check that the process <code class="docutils literal notranslate"><span class="pre">Completed</span></code> with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pod</span> <span class="pre">osmo-db-ops</span></code>. Then delete the pod with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>osmo-db-ops
+</pre></div>
+</div>
+</section>
+<section id="step-2-configure-keycloak">
+<h2>Step 2: Configure Keycloak<a class="headerlink" href="#step-2-configure-keycloak" title="Link to this heading">#</a></h2>
+<p>Keycloak enables OSMO to authenticate users with different identity providers and efficiently manage users in groups and roles. Learn more at <a class="reference internal" href="../appendix/authentication/authentication_flow.html#authentication-flow-with-keycloak"><span class="std std-ref">Authentication Flow</span></a>.</p>
+<p>For more details of keycloak setup see the <a class="reference external" href="https://www.keycloak.org/documentation" rel="noreferrer" target="_blank">Keycloak Documentation <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a></p>
+<p>Follow the steps below to set up Keycloak.</p>
+<section id="install-keycloak-using-bitnami-helm-chart">
+<h3>Install Keycloak using Bitnami Helm chart<a class="headerlink" href="#install-keycloak-using-bitnami-helm-chart" title="Link to this heading">#</a></h3>
+<ol class="loweralpha simple">
+<li><p>Add the Bitnami Helm repository:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>add<span class="w"> </span>bitnami<span class="w"> </span>https://charts.bitnami.com/bitnami
+$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>update
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="2">
+<li><p>Create a <code class="docutils literal notranslate"><span class="pre">keycloak-values.yaml</span></code> file with the following configuration:</p></li>
+</ol>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">keycloak-values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Override the default image to use our own registry to not rely on the bitnami registry</span>
+<span class="nt">global</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">security</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">allowInsecureImages</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="nt">image</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">registry</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker.io</span>
+<span class="w">  </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bitnamilegacy/keycloak</span>
+<span class="w">  </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">26.1.1-debian-12-r0</span>
+
+<span class="c1"># Hostname configuration</span>
+<span class="hll"><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auth-&lt;your-domain&gt;</span>
+</span><span class="nt">proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">edge</span>
+
+<span class="c1"># Production mode</span>
+<span class="nt">production</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">tls</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">autoGenerated</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Admin user credentials</span>
+<span class="nt">auth</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">adminUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin</span>
+<span class="hll"><span class="w">  </span><span class="nt">adminPassword</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your-secure-password</span><span class="w">  </span><span class="c1"># Change this!</span>
+</span>
+<span class="c1"># Ingress configuration</span>
+<span class="nt">ingress</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">tls</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="hll"><span class="w">  </span><span class="nt">ingressClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-ingress-class&gt;</span><span class="w">  </span><span class="c1"># e.g., nginx, alb</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auth-&lt;your-domain&gt;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># Add additional ingress-specific annotations here to match your ingress controller&#39;s annotations</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># Example for AWS ALB:</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/target-type: ip</span>
+</span><span class="hll"><span class="w">    </span><span class="c1">## the group name and order are used to group the ingress rules together and ensure they are processed in the correct order</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/group.name: osmo</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/group.order: &quot;0&quot;</span>
+</span><span class="hll"><span class="w">    </span><span class="c1">## the scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/scheme: internet-facing</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/certificate-arn: &lt;your-ssl-cert-arn&gt;</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/listen-ports: &#39;[{&quot;HTTPS&quot;:443}]&#39;</span>
+</span><span class="hll"><span class="w">    </span><span class="c1"># alb.ingress.kubernetes.io/ssl-redirect: &#39;443&#39;</span>
+</span>
+<span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">  </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<span class="w">  </span><span class="nt">servicePort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+
+<span class="c1"># Autoscaling configuration</span>
+<span class="nt">autoscaling</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">targetCPU</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">  </span><span class="nt">targetMemory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+
+<span class="c1"># Resource allocation</span>
+<span class="nt">resources</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;500m&quot;</span>
+<span class="w">    </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+<span class="w">  </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2&quot;</span>
+<span class="w">    </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1Gi&quot;</span>
+
+<span class="hll"><span class="c1"># Database configuration</span>
+</span><span class="hll"><span class="c1"># Option 1: External Database</span>
+</span><span class="hll"><span class="nt">postgresql</span><span class="p">:</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</span><span class="hll"><span class="nt">externalDatabase</span><span class="p">:</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;your-db-host&gt;&quot;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;your-db-user&gt;&quot;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;keycloak&quot;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">existingSecret</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;keycloak-db-secret&quot;</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">existingSecretPasswordKey</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;postgres-password&quot;</span>
+</span><span class="hll">
+</span><span class="hll"><span class="c1"># Option 2: Built-in PostgreSQL (for testing)</span>
+</span><span class="hll"><span class="c1"># postgresql:</span>
+</span><span class="hll"><span class="c1">#   enabled: true</span>
+</span>
+<span class="c1"># Additional environment variables</span>
+<span class="nt">extraEnvVars</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KC_HOSTNAME_STRICT_HTTPS</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KC_PROXY</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;edge&quot;</span>
+</pre></div>
+</div>
+</div>
+</details><ol class="loweralpha simple" start="3">
+<li><p>Create the namespace for Keycloak:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>keycloak
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="4">
+<li><p>If you are using an external database, create a secret for the database password:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>keycloak-db-secret<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>keycloak<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>postgres-password<span class="o">=</span><span class="s1">&#39;&lt;your-db-password&gt;&#39;</span>
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="6">
+<li><p>Install Keycloak using Helm:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>install<span class="w"> </span>keycloak<span class="w"> </span>bitnami/keycloak<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--version<span class="w"> </span><span class="m">24</span>.4.9<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>keycloak<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>keycloak-values.yaml
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="7">
+<li><p>Verify the installation:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>keycloak
+$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>keycloak
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To access the Keycloak instance, you need to configure DNS records to point to your load balancer, for example you should create a record for <code class="docutils literal notranslate"><span class="pre">auth-osmo.example.com</span></code> to point to the load balancer IP.</p>
+</div>
+<p>If you have DNS configured, you can access the Keycloak instance at <code class="docutils literal notranslate"><span class="pre">https://auth-osmo.example.com</span></code>.
+If you do not have DNS configured, you can access the Keycloak via port forwarding:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>service/keycloak<span class="w"> </span><span class="m">32080</span>:80<span class="w"> </span>-n<span class="w"> </span><span class="o">[</span>your-namespace<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="post-installation-keycloak-configuration">
+<span id="keycloak-post-installation-configuration"></span><h3>Post-Installation Keycloak Configuration<a class="headerlink" href="#post-installation-keycloak-configuration" title="Link to this heading">#</a></h3>
+<ol class="loweralpha simple">
+<li><p>Access your Keycloak instance at <code class="docutils literal notranslate"><span class="pre">https://auth-osmo.example.com</span></code></p></li>
+<li><p>Log in with the admin credentials specified in the values file</p></li>
+</ol>
+<a class="reference internal image-reference" href="../../_images/keycloak_login.png"><img alt="../../_images/keycloak_login.png" class="align-center" src="../../_images/keycloak_login.png" style="width: 500px;" /></a>
+<ol class="loweralpha" start="3">
+<li><p>Create a new realm for OSMO:</p>
+<ol class="arabic simple">
+<li><p>Download the sample realm file: <a class="reference download internal" download="" href="../../_downloads/3af0bbc2b0a3138cfb6a4258b5f336a5/sample_osmo_realm.json"><code class="xref download docutils literal notranslate"><span class="pre">sample_osmo_realm.json</span></code></a></p></li>
+<li><p>Click on the dropdown menu on the top left which says <code class="docutils literal notranslate"><span class="pre">master</span></code> and select <code class="docutils literal notranslate"><span class="pre">Create</span> <span class="pre">Realm</span></code></p></li>
+</ol>
+<a class="reference internal image-reference" href="../../_images/realm.png"><img alt="../../_images/realm.png" class="align-center" src="../../_images/realm.png" style="width: 300px;" /></a>
+<ol class="arabic simple" start="3">
+<li><p>Enter the downloaded realm file in the <code class="docutils literal notranslate"><span class="pre">Resource</span> <span class="pre">file</span></code> field and click on <code class="docutils literal notranslate"><span class="pre">Create</span></code></p></li>
+</ol>
+<a class="reference internal image-reference" href="../../_images/create_realm.png"><img alt="../../_images/create_realm.png" class="align-center" src="../../_images/create_realm.png" style="width: 900px;" /></a>
+<ol class="arabic simple" start="4">
+<li><p>You will then be redirected to the <code class="docutils literal notranslate"><span class="pre">osmo</span></code> realm</p></li>
+</ol>
+</li>
+<li><p>Click on the <code class="docutils literal notranslate"><span class="pre">Clients</span></code> tab and for each of the <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> and <code class="docutils literal notranslate"><span class="pre">osmo-device</span></code>
+clients, update the client settings to the following:</p>
+<a class="reference internal image-reference" href="../../_images/clients.png"><img alt="../../_images/clients.png" class="align-center" src="../../_images/clients.png" style="width: 500px;" /></a>
+<ul class="simple">
+<li><p>Root URL: <code class="docutils literal notranslate"><span class="pre">https://osmo.example.com</span></code></p></li>
+<li><p>Home URL: <code class="docutils literal notranslate"><span class="pre">https://osmo.example.com</span></code></p></li>
+<li><p>Admin URL: <code class="docutils literal notranslate"><span class="pre">https://osmo.example.com</span></code></p></li>
+<li><p>Valid Redirect URIs: <code class="docutils literal notranslate"><span class="pre">https://osmo.example.com/*</span></code></p></li>
+<li><p>Web Origins: <code class="docutils literal notranslate"><span class="pre">https://osmo.example.com</span></code></p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Please replace <code class="docutils literal notranslate"><span class="pre">osmo.example.com</span></code> with your actual OSMO domain name.</p>
+</div>
+</li>
+<li><p>On the <code class="docutils literal notranslate"><span class="pre">osmo-browser-flow</span></code> client details page, click on the <code class="docutils literal notranslate"><span class="pre">Credentials</span></code> tab and
+create and save a client secret that will be used for envoy later.</p></li>
+</ol>
+</section>
+<section id="creating-users">
+<h3>Creating Users<a class="headerlink" href="#creating-users" title="Link to this heading">#</a></h3>
+<ul>
+<li><p>Users can be created directly in the Keycloak admin console. Create a user with the email and a temporary password. During their first login, they will be prompted to reset their password.</p>
+<ol class="loweralpha simple">
+<li><p>Go to the <code class="docutils literal notranslate"><span class="pre">Users</span></code> tab</p></li>
+<li><p>Click on the <code class="docutils literal notranslate"><span class="pre">Add</span> <span class="pre">User</span></code> button</p></li>
+<li><p>Fill in the user details, add the user to the group <code class="docutils literal notranslate"><span class="pre">User</span></code> or <code class="docutils literal notranslate"><span class="pre">Admin</span></code> depending on the role you want to assign to the user and save the user</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">Admin</span></code> group is reserved for administrators with elevated permissions for configuring OSMO and managing users.
+The <code class="docutils literal notranslate"><span class="pre">User</span></code> group is reserved for users with basic permissions for submitting workflows and managing their own workflows.</p>
+</div>
+<a class="reference internal image-reference" href="../../_images/add_user_group.png"><img alt="../../_images/add_user_group.png" class="align-center" src="../../_images/add_user_group.png" style="width: 500px;" /></a>
+<ol class="loweralpha simple" start="4">
+<li><p>Click on the user’s ID to access their settings, in the <code class="docutils literal notranslate"><span class="pre">Credentials</span></code> tab enter a password and confirm it with the temporary password setting enabled</p></li>
+</ol>
+<a class="reference internal image-reference" href="../../_images/set_credentials.png"><img alt="../../_images/set_credentials.png" class="align-center" src="../../_images/set_credentials.png" style="width: 500px;" /></a>
+<ol class="loweralpha simple" start="5">
+<li><p>When the temporary password setting is enabled, the user will be forced to change their password upon their first login</p></li>
+</ol>
+</li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>Keycloak can also be configured to log in with your chosen identity provider. For detailed instructions
+on configuring SSO with identity providers in Keycloak, refer to the <a class="reference external" href="https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker" rel="noreferrer" target="_blank">official Keycloak documentation <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a>.</p>
+</div>
+</section>
+</section>
+<section id="step-3-create-namespace-and-secrets">
+<h2>Step 3: Create Namespace and Secrets<a class="headerlink" href="#step-3-create-namespace-and-secrets" title="Link to this heading">#</a></h2>
+<p>Create a namespace to deploy OSMO:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>osmo
+</pre></div>
+</div>
+<p>Create a secret for database and redis passwords:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>db-secret<span class="w"> </span>--from-literal<span class="o">=</span>db-password<span class="o">=</span>&lt;your-db-password&gt;<span class="w"> </span>--namespace<span class="w"> </span>osmo
+$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>redis-secret<span class="w"> </span>--from-literal<span class="o">=</span>redis-password<span class="o">=</span>&lt;your-redis-password&gt;<span class="w"> </span>--namespace<span class="w"> </span>osmo
+</pre></div>
+</div>
+<p>Create a secret with Keycloak client secret from <a class="reference internal" href="#keycloak-post-installation-configuration"><span class="std std-ref">Post-Installation Keycloak Configuration</span></a>
+and HMAC secret to use with OSMO’s envoy sidecar:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>oidc-secrets<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">client_secret</span><span class="o">=</span>&lt;keycloak-client-secret&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">hmac_secret</span><span class="o">=</span><span class="k">$(</span>head<span class="w"> </span>-c32<span class="w"> </span>/dev/urandom<span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>osmo
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The client secret is used to authenticate with the Keycloak server, this was configured in the Keycloak section.
+The HMAC secret is used to sign the JWT tokens, this is can be a random generated string.</p>
+</div>
+<p>Create the master encryption key (MEK) for database encryption:</p>
+<ol class="arabic">
+<li><p><strong>Generate a new master encryption key</strong>:</p>
+<p>The MEK should be a JSON Web Key (JWK) with the following format:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;k&quot;</span><span class="p">:</span><span class="s2">&quot;&lt;base64-encoded-32-byte-key&gt;&quot;</span><span class="p">,</span><span class="nt">&quot;kid&quot;</span><span class="p">:</span><span class="s2">&quot;key1&quot;</span><span class="p">,</span><span class="nt">&quot;kty&quot;</span><span class="p">:</span><span class="s2">&quot;oct&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Generate the key using OpenSSL</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate a 32-byte (256-bit) random key and base64 encode it</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">RANDOM_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+
+<span class="c1"># Create the JWK format</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">JWK_JSON</span><span class="o">=</span><span class="s2">&quot;{\&quot;k\&quot;:\&quot;</span><span class="nv">$RANDOM_KEY</span><span class="s2">\&quot;,\&quot;kid\&quot;:\&quot;key1\&quot;,\&quot;kty\&quot;:\&quot;oct\&quot;}&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Base64 encode the entire JWK</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ENCODED_JWK</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$JWK_JSON</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$ENCODED_JWK</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Create the ConfigMap with your generated MEK</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">apiVersion: v1</span>
+<span class="s">kind: ConfigMap</span>
+<span class="s">metadata:</span>
+<span class="s">  name: mek-config</span>
+<span class="s">  namespace: osmo</span>
+<span class="s">data:</span>
+<span class="s">  mek.yaml: |</span>
+<span class="s">    currentMek: key1</span>
+<span class="s">    meks:</span>
+<span class="s">      key1: $ENCODED_JWK</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Security Considerations</strong>:</p>
+<ul class="simple">
+<li><p>Store the original JWK securely as you’ll need it for backups and recovery</p></li>
+<li><p>Never commit the MEK to version control</p></li>
+<li><p>Use a secure key management system, such as Vault or secrets manager in production</p></li>
+<li><p>The MEK is used to encrypt sensitive data in the database</p></li>
+</ul>
+</div>
+<p><strong>Example MEK generation script</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+<span class="c1"># Generate MEK for OSMO</span>
+
+<span class="c1"># Generate random 32-byte key</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">RANDOM_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+
+<span class="c1"># Create JWK</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">JWK_JSON</span><span class="o">=</span><span class="s2">&quot;{\&quot;k\&quot;:\&quot;</span><span class="nv">$RANDOM_KEY</span><span class="s2">\&quot;,\&quot;kid\&quot;:\&quot;key1\&quot;,\&quot;kty\&quot;:\&quot;oct\&quot;}&quot;</span>
+
+<span class="c1"># Base64 encode the JWK</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ENCODED_JWK</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$JWK_JSON</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span><span class="k">)</span>
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Encoded JWK: </span><span class="nv">$ENCODED_JWK</span><span class="s2">&quot;</span>
+
+<span class="c1"># Create ConfigMap</span>
+$<span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<span class="s">apiVersion: v1</span>
+<span class="s">kind: ConfigMap</span>
+<span class="s">metadata:</span>
+<span class="s">  name: mek-config</span>
+<span class="s">  namespace: osmo</span>
+<span class="s">data:</span>
+<span class="s">  mek.yaml: |</span>
+<span class="s">    currentMek: key1</span>
+<span class="s">    meks:</span>
+<span class="s">      key1: $ENCODED_JWK</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+</section>
+<section id="step-4-prepare-values">
+<h2>Step 4: Prepare Values<a class="headerlink" href="#step-4-prepare-values" title="Link to this heading">#</a></h2>
+<p>Create a values files for each OSMO component</p>
+<p>Create <code class="docutils literal notranslate"><span class="pre">osmo_values.yaml</span></code> for osmo with the following sample configurations:</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">osmo_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Global configuration shared across all OSMO services</span>
+<span class="nt">global</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvcr.io/nvidia/osmo</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;version&gt;</span>
+</span><span class="w">  </span><span class="nt">serviceAccountName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo</span>
+
+<span class="w">  </span><span class="nt">logs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">logLevel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG</span>
+<span class="w">    </span><span class="nt">k8sLogLevel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">WARNING</span>
+
+<span class="c1"># Individual service configurations</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Configuration file service settings</span>
+<span class="w">  </span><span class="nt">configFile</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># PostgreSQL database configuration</span>
+<span class="hll"><span class="w">  </span><span class="nt">postgres</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-postgres-host&gt;</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-database-name&gt;</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span>
+</span><span class="hll">
+</span><span class="hll"><span class="w">  </span><span class="c1"># Redis cache configuration</span>
+</span><span class="hll"><span class="w">  </span><span class="nt">redis</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to false when using external Redis</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-redis-host&gt;</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6379</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">tlsEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Set to false if your Redis does not require TLS</span>
+</span>
+<span class="w">  </span><span class="c1"># Main API service configuration</span>
+<span class="w">  </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="hll"><span class="w">    </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">auth</span><span class="p">:</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">device_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/device</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">device_client_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-device</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">browser_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/auth</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">browser_client_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">token_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/token</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">logout_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/logout</span>
+</span>
+<span class="w">    </span><span class="c1"># Ingress configuration</span>
+<span class="hll"><span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">ingressClass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-ingress-class&gt;</span><span class="w">  </span><span class="c1"># e.g. alb, nginx</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">albAnnotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if using AWS ALB</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># sslCertArn: &lt;your-ssl-cert-arn&gt; # Set to the ARN of the SSL certificate for the ingress if using AWS ALB</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">sslEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if managing SSL at the ingress level</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">annotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-buffer-size: &quot;16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-buffers: &quot;8 16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-busy-buffers-size: &quot;32k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/large-client-header-buffers: &quot;4 16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## when using AWS ALB in addtional to the default alb annotations,</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## add the following annotations to specify the scheme of the ingress rules</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/listen-ports: &#39;[{&quot;HTTPS&quot;:443}]&#39;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/ssl-redirect: &#39;443&#39;</span>
+</span><span class="w">    </span><span class="c1"># Resource allocation</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1Gi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1Gi&quot;</span>
+
+<span class="w">  </span><span class="c1"># Worker service configuration</span>
+<span class="w">  </span><span class="nt">worker</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;500m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;400Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;800Mi&quot;</span>
+
+<span class="w">  </span><span class="c1"># Logger service configuration</span>
+<span class="w">  </span><span class="nt">logger</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;200m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;256Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+
+<span class="w">  </span><span class="c1"># Agent service configuration</span>
+<span class="w">  </span><span class="nt">agent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;100m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;128Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;256Mi&quot;</span>
+
+<span class="w">  </span><span class="c1"># Delayed job monitor configuration</span>
+<span class="w">  </span><span class="nt">delayedJobMonitor</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;200m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+
+<span class="c1"># Sidecar container configurations</span>
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Global Envoy proxy configuration</span>
+<span class="w">  </span><span class="nt">envoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="c1"># Use Kubernetes secrets as reference for the OIDC secrets</span>
+<span class="w">    </span><span class="nt">useKubernetesSecrets</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Paths that don&#39;t require authentication</span>
+<span class="w">    </span><span class="nt">skipAuthPaths</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/version</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/auth/login</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/auth/keys</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/auth/refresh_token</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/auth/jwt/refresh_token</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/auth/jwt/access_token</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/client/version</span>
+
+<span class="w">    </span><span class="c1"># Service configuration</span>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="hll"><span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span><span class="w">      </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+
+<span class="w">    </span><span class="c1"># OAuth2 filter configuration</span>
+<span class="w">    </span><span class="nt">oauth2Filter</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="c1"># Keycloak endpoints for token exchange and authentication</span>
+<span class="hll"><span class="w">      </span><span class="nt">tokenEndpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/token</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">authEndpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/auth</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">clientId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">authProvider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auth-&lt;your-domain&gt;</span>
+</span><span class="w">      </span><span class="nt">secretName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oidc-secrets</span>
+<span class="w">      </span><span class="nt">clientSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">client_secret</span>
+<span class="w">      </span><span class="nt">hmacSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hmac_secret</span>
+
+<span class="w">    </span><span class="c1"># JWT configuration</span>
+<span class="w">    </span><span class="nt">jwt</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">user_header</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">x-osmo-user</span>
+<span class="w">      </span><span class="nt">providers</span><span class="p">:</span>
+<span class="hll"><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-device</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/certs</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preferred_username</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oauth</span>
+</span><span class="hll"><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/certs</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preferred_username</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oauth</span>
+</span><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo</span>
+<span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo</span>
+<span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:8000/api/auth/keys</span>
+<span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unique_name</span>
+<span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service</span>
+
+
+<span class="w">  </span><span class="c1"># Log agent configuration (optional)</span>
+<span class="w">  </span><span class="nt">logAgent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="c1"># Uncomment and configure if using AWS CloudWatch</span>
+<span class="w">    </span><span class="c1"># cloudwatch:</span>
+<span class="w">    </span><span class="c1">#   enabled: true</span>
+<span class="w">    </span><span class="c1">#   clusterName: &lt;your-cluster-name&gt;</span>
+<span class="w">    </span><span class="c1">#   role: &lt;your-aws-cloudwatch-role&gt;</span>
+
+<span class="w">  </span><span class="c1"># OpenTelemetry configuration (optional)</span>
+<span class="w">  </span><span class="nt">otel</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">  </span><span class="c1"># Rate limiting configuration (optional)</span>
+<span class="w">  </span><span class="nt">rateLimit</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="c1"># Uncomment and configure if using rate limiting</span>
+<span class="w">    </span><span class="c1"># redis:</span>
+<span class="w">    </span><span class="c1">#   serviceName: &lt;your-redis-host&gt;</span>
+<span class="w">    </span><span class="c1">#   port: 6379</span>
+</pre></div>
+</div>
+</div>
+</details><p>Create <code class="docutils literal notranslate"><span class="pre">router_values.yaml</span></code> for router with the following sample configurations:</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">router_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Global configuration shared across router services</span>
+<span class="nt">global</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvcr.io/nvidia/osmo</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;version&gt;</span>
+</span>
+<span class="w">  </span><span class="nt">logs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">logLevel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEBUG</span>
+<span class="w">    </span><span class="nt">k8sLogLevel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">WARNING</span>
+
+<span class="c1"># Router service configurations</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Configuration file service settings</span>
+<span class="w">  </span><span class="nt">configFile</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># Router service configuration</span>
+<span class="w">  </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="hll"><span class="w">    </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span><span class="w">    </span><span class="c1"># webserverEnabled: true  # (Optional): Enable for UI port forwarding</span>
+<span class="w">    </span><span class="nt">serviceAccountName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">router</span>
+
+<span class="w">    </span><span class="c1"># Ingress configuration</span>
+<span class="hll"><span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">ingressClass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-ingress-class&gt;</span><span class="w">  </span><span class="c1"># e.g. alb, nginx</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">albAnnotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if using AWS ALB</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">sslEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if managing SSL at the ingress level</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">sslSecret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-tls</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">annotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-buffer-size: &quot;16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-buffers: &quot;8 16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-busy-buffers-size: &quot;32k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/large-client-header-buffers: &quot;4 16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## when using AWS ALB in addtional to the default alb annotations,</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## add the following annotations to specify the scheme of the ingress rules</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/listen-ports: &#39;[{&quot;HTTPS&quot;:443}]&#39;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/ssl-redirect: &#39;443&#39;</span>
+</span>
+<span class="w">    </span><span class="c1"># Resource allocation</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;500m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+
+<span class="w">  </span><span class="c1"># PostgreSQL database configuration</span>
+<span class="w">  </span><span class="nt">postgres</span><span class="p">:</span>
+<span class="hll"><span class="w">    </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-postgres-hostname&gt;</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo</span>
+</span><span class="hll"><span class="w">    </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span>
+</span>
+<span class="c1"># Sidecar container configurations</span>
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Envoy proxy configuration</span>
+<span class="w">  </span><span class="nt">envoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">useKubernetesSecrets</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="nt">skipAuthPaths</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/router/version</span>
+
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">envoyproxy/envoy:v1.29.0</span>
+<span class="w">    </span><span class="nt">imagePullPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IfNotPresent</span>
+
+<span class="w">    </span><span class="c1"># Service configuration</span>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span>
+<span class="hll"><span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span>
+<span class="w">    </span><span class="c1"># OAuth2 filter configuration</span>
+<span class="w">    </span><span class="nt">oauth2Filter</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">forwardBearerToken</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="c1"># Keycloak endpoints for token exchange and authentication</span>
+<span class="hll"><span class="w">      </span><span class="nt">tokenEndpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/token</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">authEndpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/auth</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">clientId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">authProvider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auth-&lt;your-domain&gt;</span>
+</span><span class="w">      </span><span class="nt">redirectPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api/auth/getAToken</span>
+<span class="w">      </span><span class="nt">logoutPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">logout</span>
+<span class="w">      </span><span class="nt">secretName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oidc-secrets</span>
+<span class="w">      </span><span class="nt">clientSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">client_secret</span>
+<span class="w">      </span><span class="nt">hmacSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hmac_secret</span>
+
+<span class="w">    </span><span class="c1"># JWT configuration</span>
+<span class="w">    </span><span class="nt">jwt</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">user_header</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">x-osmo-user</span>
+<span class="w">      </span><span class="nt">providers</span><span class="p">:</span>
+<span class="hll"><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-device</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/certs</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preferred_username</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oauth</span>
+</span><span class="hll"><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/certs</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preferred_username</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oauth</span>
+</span><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo</span>
+<span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo</span>
+<span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://osmo-service/api/auth/keys</span>
+<span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unique_name</span>
+<span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmoauth</span>
+
+<span class="w">    </span><span class="c1"># OSMO auth service configuration</span>
+<span class="w">    </span><span class="nt">osmoauth</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="hll"><span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-service</span>
+</span>
+<span class="w">    </span><span class="c1"># (Optional): Enable for UI port forwarding</span>
+<span class="w">    </span><span class="c1"># routes:</span>
+<span class="w">    </span><span class="c1"># - match:</span>
+<span class="w">    </span><span class="c1">#     prefix: &quot;/&quot;</span>
+<span class="w">    </span><span class="c1">#   route:</span>
+<span class="w">    </span><span class="c1">#     cluster: service</span>
+<span class="w">    </span><span class="c1">#     timeout: 0s</span>
+
+<span class="w">  </span><span class="c1"># Log agent configuration (optional)</span>
+<span class="w">  </span><span class="nt">logAgent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="c1"># Uncomment and configure if using AWS CloudWatch</span>
+<span class="w">    </span><span class="c1"># cloudwatch:</span>
+<span class="w">    </span><span class="c1">#   region: us-west-2</span>
+<span class="w">    </span><span class="c1">#   clusterName: &lt;your-cluster-name&gt;</span>
+<span class="w">    </span><span class="c1">#   role: &lt;your-aws-cloudwatch-role&gt;</span>
+</pre></div>
+</div>
+</div>
+</details><p>Create <code class="docutils literal notranslate"><span class="pre">ui_values.yaml</span></code> for ui with the following sample configurations:</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text"><code class="docutils literal notranslate"><span class="pre">ui_values.yaml</span></code></span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Global configuration shared across UI services</span>
+<span class="nt">global</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">osmoImageLocation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvcr.io/nvidia/osmo</span>
+<span class="hll"><span class="w">  </span><span class="nt">osmoImageTag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;version&gt;</span>
+</span>
+<span class="c1"># UI service configurations</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># UI service configuration</span>
+<span class="w">  </span><span class="nt">ui</span><span class="p">:</span>
+<span class="hll"><span class="w">    </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span>
+<span class="w">    </span><span class="c1"># Ingress configuration</span>
+<span class="hll"><span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">ingressClass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-ingress-class&gt;</span><span class="w">  </span><span class="c1"># e.g. alb, nginx</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">albAnnotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if using AWS ALB</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">sslEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Set to true if managing SSL at the ingress level</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">sslSecret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-tls</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">annotations</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-buffer-size: &quot;16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-buffers: &quot;8 16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/proxy-busy-buffers-size: &quot;32k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># nginx.ingress.kubernetes.io/large-client-header-buffers: &quot;4 16k&quot;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## when using AWS ALB in addtional to the default alb annotations,</span>
+</span><span class="hll"><span class="w">        </span><span class="c1">## add the following annotations to specify the scheme of the ingress rules</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/listen-ports: &#39;[{&quot;HTTPS&quot;:443}]&#39;</span>
+</span><span class="hll"><span class="w">        </span><span class="c1"># alb.ingress.kubernetes.io/ssl-redirect: &#39;443&#39;</span>
+</span>
+<span class="w">    </span><span class="c1"># Resource allocation</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;500m&quot;</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;512Mi&quot;</span>
+
+<span class="nt">sidecars</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Envoy proxy configuration</span>
+<span class="w">  </span><span class="nt">envoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">useKubernetesSecrets</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Service configuration</span>
+<span class="w">    </span><span class="nt">service</span><span class="p">:</span>
+<span class="hll"><span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-domain&gt;</span>
+</span><span class="w">      </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+<span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+
+<span class="w">    </span><span class="c1"># OAuth2 filter configuration</span>
+<span class="w">    </span><span class="nt">oauth2Filter</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="hll"><span class="w">      </span><span class="nt">tokenEndpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/token</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">authEndpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/auth</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">redirectPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">getAToken</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">clientId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">      </span><span class="nt">authProvider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auth-&lt;your-domain&gt;</span>
+</span><span class="w">      </span><span class="nt">logoutPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">logout</span>
+<span class="w">      </span><span class="nt">secretName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oidc-secrets</span>
+<span class="w">      </span><span class="nt">clientSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">client_secret</span>
+<span class="w">      </span><span class="nt">hmacSecretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hmac_secret</span>
+
+<span class="w">    </span><span class="c1"># JWT configuration</span>
+<span class="w">    </span><span class="nt">jwt</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">user_header</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">x-osmo-user</span>
+<span class="w">      </span><span class="nt">providers</span><span class="p">:</span>
+<span class="hll"><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-device</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/certs</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unique_name</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oauth</span>
+</span><span class="hll"><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">audience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">osmo-browser-flow</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://auth-&lt;your-domain&gt;/realms/osmo/protocol/openid-connect/certs</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">user_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preferred_username</span>
+</span><span class="hll"><span class="w">        </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oauth</span>
+</span>
+<span class="w">  </span><span class="c1"># Log agent configuration (optional only used for AWS CloudWatch)</span>
+<span class="w">  </span><span class="nt">logAgent</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="c1"># Uncomment and configure if using AWS CloudWatch</span>
+<span class="w">    </span><span class="c1"># aws:</span>
+<span class="w">    </span><span class="c1">#   region: us-west-2</span>
+<span class="w">    </span><span class="c1">#   clusterName: &lt;your-cluster-name&gt;</span>
+</pre></div>
+</div>
+</div>
+</details><div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Replace all <code class="docutils literal notranslate"><span class="pre">&lt;your-*&gt;</span></code> placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Refer to the <a class="reference external" href="https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md" rel="noreferrer" target="_blank">README <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> page for detailed configuration options.</p>
+</div>
+<p>Similar values files should be created for other components (Router, UI) with their specific configurations.</p>
+</section>
+<section id="step-5-deploy-components">
+<h2>Step 5: Deploy Components<a class="headerlink" href="#step-5-deploy-components" title="Link to this heading">#</a></h2>
+<p>Deploy the components in the following order:</p>
+<ol class="arabic simple">
+<li><p>Deploy <strong>API Service</strong>:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># add the helm repository</span>
+$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>add<span class="w"> </span>osmo<span class="w"> </span>https://helm.ngc.nvidia.com/nvidia/osmo
+$<span class="w"> </span>helm<span class="w"> </span>repo<span class="w"> </span>update
+
+<span class="c1"># deploy the service</span>
+$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>service<span class="w"> </span>osmo/service<span class="w"> </span>-f<span class="w"> </span>./osmo_values.yaml<span class="w"> </span>-n<span class="w"> </span>osmo
+</pre></div>
+</div>
+<ol class="arabic simple" start="2">
+<li><p>Deploy <strong>Router</strong>:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>router<span class="w"> </span>osmo/router<span class="w"> </span>-f<span class="w"> </span>./router_values.yaml<span class="w"> </span>-n<span class="w"> </span>osmo
+</pre></div>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>Deploy <strong>UI</strong>:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>ui<span class="w"> </span>osmo/web-ui<span class="w"> </span>-f<span class="w"> </span>./ui_values.yaml<span class="w"> </span>-n<span class="w"> </span>osmo
+</pre></div>
+</div>
+</section>
+<section id="step-6-verify-deployment">
+<h2>Step 6: Verify Deployment<a class="headerlink" href="#step-6-verify-deployment" title="Link to this heading">#</a></h2>
+<ol class="arabic">
+<li><p>Verify all pods are running:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>osmo
+NAME<span class="w">                            </span>READY<span class="w">   </span>STATUS<span class="w">    </span>RESTARTS<span class="w">       </span>AGE
+osmo-agent-xxx<span class="w">                  </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+osmo-delayed-job-monitor-xxx<span class="w">    </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+osmo-logger-xxx<span class="w">                 </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+osmo-router-xxx<span class="w">                 </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+osmo-service-xxx<span class="w">                </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+osmo-ui-xxx<span class="w">                     </span><span class="m">2</span>/2<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+osmo-worker-xxx<span class="w">                 </span><span class="m">1</span>/1<span class="w">     </span>Running<span class="w">   </span><span class="m">0</span><span class="w">              </span>&lt;age&gt;
+</pre></div>
+</div>
+</li>
+<li><p>Verify all services are running:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>services<span class="w"> </span>-n<span class="w"> </span>osmo
+<span class="w">  </span>NAME<span class="w">           </span>TYPE<span class="w">        </span>CLUSTER-IP<span class="w">        </span>EXTERNAL-IP<span class="w">   </span>PORT<span class="o">(</span>S<span class="o">)</span><span class="w">   </span>AGE
+<span class="w">  </span>osmo-agent<span class="w">     </span>ClusterIP<span class="w">   </span>xxx<span class="w">               </span>&lt;none&gt;<span class="w">        </span><span class="m">80</span>/TCP<span class="w">    </span>&lt;age&gt;
+<span class="w">  </span>osmo-logger<span class="w">    </span>ClusterIP<span class="w">   </span>xxx<span class="w">               </span>&lt;none&gt;<span class="w">        </span><span class="m">80</span>/TCP<span class="w">    </span>&lt;age&gt;
+<span class="w">  </span>osmo-router<span class="w">    </span>ClusterIP<span class="w">   </span>xxx<span class="w">               </span>&lt;none&gt;<span class="w">        </span><span class="m">80</span>/TCP<span class="w">    </span>&lt;age&gt;
+<span class="w">  </span>osmo-service<span class="w">   </span>ClusterIP<span class="w">   </span>xxx<span class="w">               </span>&lt;none&gt;<span class="w">        </span><span class="m">80</span>/TCP<span class="w">    </span>&lt;age&gt;
+<span class="w">  </span>osmo-ui<span class="w">        </span>ClusterIP<span class="w">   </span>xxx<span class="w">               </span>&lt;none&gt;<span class="w">        </span><span class="m">80</span>/TCP<span class="w">    </span>&lt;age&gt;
+</pre></div>
+</div>
+</li>
+<li><p>Verify ingress configuration:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>osmo
+NAME<span class="w">           </span>CLASS<span class="w">   </span>HOSTS<span class="w">                          </span>ADDRESS<span class="w">         </span>PORTS<span class="w">     </span>AGE
+osmo-agent<span class="w">     </span>nginx<span class="w">   </span>&lt;your-domain&gt;<span class="w">                  </span>&lt;lb-ip&gt;<span class="w">        </span><span class="m">80</span>,<span class="w"> </span><span class="m">443</span><span class="w">    </span>&lt;age&gt;
+osmo-logger<span class="w">    </span>nginx<span class="w">   </span>&lt;your-domain&gt;<span class="w">                  </span>&lt;lb-ip&gt;<span class="w">        </span><span class="m">80</span>,<span class="w"> </span><span class="m">443</span><span class="w">    </span>&lt;age&gt;
+osmo-router<span class="w">    </span>nginx<span class="w">   </span>&lt;your-domain&gt;<span class="w">                  </span>&lt;lb-ip&gt;<span class="w">        </span><span class="m">80</span>,<span class="w"> </span><span class="m">443</span><span class="w">    </span>&lt;age&gt;
+osmo-service<span class="w">   </span>nginx<span class="w">   </span>&lt;your-domain&gt;<span class="w">                  </span>&lt;lb-ip&gt;<span class="w">        </span><span class="m">80</span>,<span class="w"> </span><span class="m">443</span><span class="w">    </span>&lt;age&gt;
+osmo-ui<span class="w">        </span>nginx<span class="w">   </span>&lt;your-domain&gt;<span class="w">                  </span>&lt;lb-ip&gt;<span class="w">        </span><span class="m">80</span>,<span class="w"> </span><span class="m">443</span><span class="w">    </span>&lt;age&gt;
+osmo-ui-trpc<span class="w">   </span>nginx<span class="w">   </span>&lt;your-domain&gt;<span class="w">                  </span>&lt;lb-ip&gt;<span class="w">        </span><span class="m">80</span>,<span class="w"> </span><span class="m">443</span><span class="w">    </span>&lt;age&gt;
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="step-7-post-deployment-configuration">
+<h2>Step 7: Post-deployment Configuration<a class="headerlink" href="#step-7-post-deployment-configuration" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Configure DNS records to point to your load balancer. For example, create a record for <code class="docutils literal notranslate"><span class="pre">osmo.example.com</span></code> to point to the load balancer IP.</p></li>
+<li><p>Test authentication flow</p></li>
+<li><p>Verify access to the UI at <a class="reference external" href="https://osmo.example.com" rel="noreferrer" target="_blank">https://osmo.example.com <svg version="1.1" width="1.0em" height="1.0em" viewBox="0 0 16 16" aria-hidden="true" style="display: inline-block; vertical-align: middle; fill: currentColor;"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"></path></svg></a> through your domain</p></li>
+<li><p>Create and configure data storage to store service data: <a class="reference internal" href="configure_data.html#configure-data"><span class="std std-ref">Configure Data Storage</span></a></p></li>
+</ol>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<ol class="arabic">
+<li><p>Check pod status and logs:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+
+<span class="c1"># check if all pods are running, if not, check the logs for more details</span>
+kubectl<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>&lt;pod-name&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+</pre></div>
+</div>
+</li>
+<li><p>Common issues and their resolutions:</p>
+<ul class="simple">
+<li><p><strong>Database connection failures</strong>: Verify the database is running and accessible</p></li>
+<li><p><strong>Authentication configuration issues</strong>: Verify the authentication configuration is correct</p></li>
+<li><p><strong>Ingress routing problems</strong>: Verify the ingress is configured correctly</p></li>
+<li><p><strong>Resource constraints</strong>: Verify the resource limits are set correctly</p></li>
+<li><p><strong>Missing secrets or incorrect configurations</strong>: Verify the secrets are created correctly and the configurations are correct</p></li>
+</ul>
+</li>
+</ol>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="infrastructure_setup.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Setup Infrastructure</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="create_storage/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Create Data Storage</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#components-overview">Components Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-configure-postgresql">Step 1: Configure PostgreSQL</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-configure-keycloak">Step 2: Configure Keycloak</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#install-keycloak-using-bitnami-helm-chart">Install Keycloak using Bitnami Helm chart</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#post-installation-keycloak-configuration">Post-Installation Keycloak Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-users">Creating Users</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-create-namespace-and-secrets">Step 3: Create Namespace and Secrets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-prepare-values">Step 4: Prepare Values</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-deploy-components">Step 5: Deploy Components</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-verify-deployment">Step 6: Verify Deployment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-post-deployment-configuration">Step 7: Post-deployment Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 09, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
