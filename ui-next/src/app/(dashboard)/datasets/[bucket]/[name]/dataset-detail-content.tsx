@@ -69,7 +69,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   // Set page title and breadcrumbs with bucket filter link
   usePage({
-    title: dataset ? dataset.name : name,
+    title: dataset ? `${bucket} / ${dataset.name}` : `${bucket} / ${name}`,
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
@@ -132,7 +132,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           className="p-4"
         >
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">File Browser (Phase 6)</p>
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Coming Soon</p>
+            <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">File browser for exploring dataset contents</p>
           </div>
         </TabPanel>
       </div>
