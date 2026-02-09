@@ -63,6 +63,22 @@ const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
 
 export const handlers = [
   // ==========================================================================
+  // Users
+  // ==========================================================================
+
+  // Get all users who have submitted workflows
+  // Returns string[] of usernames (matches backend /api/users endpoint)
+  http.get("*/api/users", async () => {
+    await delay(MOCK_DELAY);
+
+    // Return the list of users from mock config (workflow patterns)
+    const users = MOCK_CONFIG.workflows.users;
+
+    // Backend returns JSON string of string array (see BACKEND_TODOS.md #1)
+    return HttpResponse.json(users);
+  }),
+
+  // ==========================================================================
   // Workflows
   // ==========================================================================
 

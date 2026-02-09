@@ -134,10 +134,83 @@ export function togglePreset(presetId: StatusPresetId, chips: SearchChip[]): Sea
 // =============================================================================
 
 /**
- * Pre-built workflow search fields (frozen to prevent accidental mutation).
+ * Static workflow search fields (frozen to prevent accidental mutation).
+ *
+ * These fields derive their suggestions from the loaded workflow data.
+ * For async fields (user, pool) that fetch from dedicated endpoints,
+ * use useWorkflowAsyncFields() hook.
  *
  * NOTE: Filtering is done server-side. No `match` functions needed.
  * Chips are converted to API params in workflows-shim.ts.
+ */
+export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze([
+  {
+    id: "name",
+    label: "Name",
+    hint: "workflow name (substring match)",
+    prefix: "name:",
+    freeFormHint: "Type any name, press Enter",
+    getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
+  },
+  {
+    id: "status",
+    label: "Status",
+    hint: "workflow status",
+    prefix: "status:",
+    // Only real status values are valid - use presets for categories
+    getValues: () => [...ALL_WORKFLOW_STATUSES],
+    exhaustive: true,
+    requiresValidValue: true,
+  },
+  {
+    id: "priority",
+    label: "Priority",
+    hint: "HIGH, NORMAL, LOW",
+    prefix: "priority:",
+    getValues: () => Object.values(WorkflowPriority),
+    exhaustive: true,
+    requiresValidValue: true,
+  },
+  {
+    id: "app",
+    label: "App",
+    hint: "app name",
+    prefix: "app:",
+    freeFormHint: "Type any app, press Enter",
+    getValues: (workflows) =>
+      [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(naturalCompare),
+  },
+  {
+    id: "tag",
+    label: "Tag",
+    hint: "workflow tag",
+    prefix: "tag:",
+    freeFormHint: "Type any tag, press Enter",
+    // Tags aren't in the list response, so no suggestions from data
+    getValues: () => [],
+  },
+]);
+
+/**
+ * @deprecated Use WORKFLOW_STATIC_FIELDS + useWorkflowAsyncFields() instead.
+ * This constant is kept for backward compatibility but limits suggestions to loaded data.
+ *
+ * Migration:
+ * ```typescript
+ * const { userField, poolField } = useWorkflowAsyncFields();
+ * const fields = useMemo(
+ *   () => [
+ *     WORKFLOW_STATIC_FIELDS[0], // name
+ *     WORKFLOW_STATIC_FIELDS[1], // status
+ *     userField,                  // async
+ *     poolField,                  // async
+ *     WORKFLOW_STATIC_FIELDS[2], // priority
+ *     WORKFLOW_STATIC_FIELDS[3], // app
+ *     WORKFLOW_STATIC_FIELDS[4], // tag
+ *   ],
+ *   [userField, poolField],
+ * );
+ * ```
  */
 export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze([
   {
@@ -153,7 +226,6 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "Status",
     hint: "workflow status",
     prefix: "status:",
-    // Only real status values are valid - use presets for categories
     getValues: () => [...ALL_WORKFLOW_STATUSES],
     exhaustive: true,
     requiresValidValue: true,
@@ -199,7 +271,6 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "workflow tag",
     prefix: "tag:",
     freeFormHint: "Type any tag, press Enter",
-    // Tags aren't in the list response, so no suggestions from data
     getValues: () => [],
   },
 ]);

@@ -446,10 +446,27 @@ export async function fetchWorkflowByName(name: string, verbose = true) {
  * Reuses the same query key as usePools() so data is shared from cache
  * when the pools page has already been visited.
  */
-export function usePoolNames() {
-  const { pools, isLoading, error } = usePools();
+/**
+ * Hook to fetch pool names for autocomplete/filtering.
+ *
+ * @param enabled - Whether to fetch data (default: true). Set to false for lazy loading.
+ */
+export function usePoolNames(enabled: boolean = true) {
+  const { data, isLoading, error } = useGetPoolQuotasApiPoolQuotaGet(
+    { all_pools: true },
+    {
+      query: {
+        enabled,
+        staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
+        select: useCallback((rawData: unknown) => {
+          if (!rawData) return { pools: [], sharingGroups: [] };
+          return transformPoolsResponse(rawData);
+        }, []),
+      },
+    },
+  );
 
-  const names = useMemo(() => pools.map((p) => p.name).sort(naturalCompare), [pools]);
+  const names = useMemo(() => data?.pools.map((p) => p.name).sort(naturalCompare) ?? [], [data?.pools]);
 
   return { names, isLoading, error };
 }
@@ -462,10 +479,13 @@ export function usePoolNames() {
  *
  * WORKAROUND: Backend returns string[] but OpenAPI types response as string.
  * This is the same issue as pools/resources (BACKEND_TODOS.md #1).
+ *
+ * @param enabled - Whether to fetch data (default: true). Set to false for lazy loading.
  */
-export function useUsers() {
+export function useUsers(enabled: boolean = true) {
   const { data, isLoading, error } = useGetUsersApiUsersGet({
     query: {
+      enabled,
       staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
     },
   });
