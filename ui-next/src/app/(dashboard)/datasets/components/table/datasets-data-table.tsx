@@ -145,9 +145,8 @@ export function DatasetsDataTable({
 
   const handleRowClick = useCallback(
     (dataset: Dataset) => {
-      // Encode bucket and name together using double dash separator
-      const encodedId = `${encodeURIComponent(dataset.bucket)}--${encodeURIComponent(dataset.name)}`;
-      const detailPath = `/datasets/${encodedId}`;
+      // Use clean URL format: /datasets/bucket/name
+      const detailPath = `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
       const search = searchParams.toString();
       const currentUrl = search ? `${pathname}?${search}` : pathname;
 
@@ -161,8 +160,7 @@ export function DatasetsDataTable({
 
   // Get row href for middle-click support (opens in new tab)
   const getRowHref = useCallback((dataset: Dataset) => {
-    const encodedId = `${encodeURIComponent(dataset.bucket)}--${encodeURIComponent(dataset.name)}`;
-    return `/datasets/${encodedId}`;
+    return `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
   }, []);
 
   // Empty state

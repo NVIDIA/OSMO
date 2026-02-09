@@ -23,38 +23,15 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { createQueryClient } from "@/lib/query-client";
 import { prefetchDatasetDetail } from "@/lib/api/server/datasets";
-import { DatasetDetailContent } from "@/app/(dashboard)/datasets/[name]/dataset-detail-content";
+import { DatasetDetailContent } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-content";
 
 interface Props {
+  bucket: string;
   name: string;
 }
 
-/**
- * Parse dataset identifier from URL parameter.
- * Format: "bucket--name" (double dash separator)
- * This allows us to encode both bucket and name in the URL path.
- */
-function parseDatasetId(encodedName: string): { bucket: string; name: string } {
-  // Check if name contains double dash separator
-  const parts = encodedName.split("--");
-
-  if (parts.length >= 2) {
-    // Format: bucket--name
-    const bucket = parts[0];
-    const name = parts.slice(1).join("--"); // Handle names that might contain --
-    return { bucket, name };
-  }
-
-  // Fallback: assume default bucket (this will need to be updated based on actual backend behavior)
-  // For now, use "default" as the bucket name
-  return { bucket: "default", name: encodedName };
-}
-
-export async function DatasetDetailWithData({ name: encodedName }: Props) {
+export async function DatasetDetailWithData({ bucket, name }: Props) {
   const queryClient = createQueryClient();
-
-  // Parse bucket and name from the encoded parameter
-  const { bucket, name } = parseDatasetId(encodedName);
 
   // Prefetch dataset detail (includes versions)
   await prefetchDatasetDetail(queryClient, bucket, name);

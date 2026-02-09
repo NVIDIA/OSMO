@@ -17,24 +17,27 @@
 /**
  * Dataset Detail Page (Dynamic Route)
  *
- * Route: /datasets/[name]
+ * Route: /datasets/[bucket]/[name]
  * Streaming SSR with server prefetch for instant data hydration.
  */
 
 import { Suspense } from "react";
-import { DatasetDetailWithData } from "@/app/(dashboard)/datasets/[name]/dataset-detail-with-data";
-import { DatasetDetailSkeleton } from "@/app/(dashboard)/datasets/[name]/dataset-detail-skeleton";
+import { DatasetDetailWithData } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-with-data";
+import { DatasetDetailSkeleton } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-skeleton";
 
 interface PageProps {
-  params: Promise<{ name: string }>;
+  params: Promise<{ bucket: string; name: string }>;
 }
 
 export default async function DatasetDetailPage({ params }: PageProps) {
-  const { name } = await params;
+  const { bucket, name } = await params;
 
   return (
     <Suspense fallback={<DatasetDetailSkeleton />}>
-      <DatasetDetailWithData name={name} />
+      <DatasetDetailWithData
+        bucket={bucket}
+        name={name}
+      />
     </Suspense>
   );
 }
