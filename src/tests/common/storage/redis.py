@@ -72,6 +72,10 @@ class RedisStorageFixture(network.NetworkFixture):
         cls.redis_container.with_exposed_ports(cls.redis_params.port)
         cls.redis_container.with_network(cls.network)
         cls.redis_container.with_network_aliases(REDIS_NAME)
+        cls.redis_container.with_kwargs(
+            mem_limit='256m',
+            memswap_limit='256m'
+        )
 
         logger.info('Waiting for Redis testcontainer to be ready ...')
         cls.redis_container.start()

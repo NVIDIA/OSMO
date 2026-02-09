@@ -1030,7 +1030,6 @@ class PostgresConnector:
                 size BIGINT,
                 checksum TEXT,
                 metadata JSONB,
-                retention_policy INTERVAL,
                 PRIMARY KEY (dataset_id, version_id)
             );
         '''
