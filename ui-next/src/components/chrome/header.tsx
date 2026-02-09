@@ -17,7 +17,7 @@
 "use client";
 
 import { Link } from "@/components/link";
-import { Search, Command, Home, ChevronRight, Menu } from "lucide-react";
+import { Home, ChevronRight, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -90,31 +90,8 @@ export function Header() {
         {pageConfig?.headerActions && <div className="ml-4 flex items-center">{pageConfig.headerActions}</div>}
       </nav>
 
-      {/* Right: Search, Theme, User */}
+      {/* Right: Theme, User */}
       <div className="flex items-center gap-2">
-        {/* Command palette trigger */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="hidden h-8 w-64 justify-start gap-2 text-zinc-500 md:flex"
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span className="flex-1 text-left text-sm">Search...</span>
-          <kbd className="pointer-events-none flex h-5 items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-[10px] font-medium text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-            <Command className="h-3 w-3" />K
-          </kbd>
-        </Button>
-
-        {/* Mobile search button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-        >
-          <Search className="h-4 w-4" />
-          <span className="sr-only">Search</span>
-        </Button>
-
         <ThemeToggle />
 
         {/* User menu */}
