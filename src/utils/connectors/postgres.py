@@ -1299,7 +1299,7 @@ class PostgresConnector:
                     updated_roles = True
 
         if updated_roles:
-            _ = Role.list_from_db(self)  # Refresh cached roles
+            data = Role.list_from_db(self)
 
             self.create_config_history_entry(
                 config_type=ConfigHistoryType.ROLE,
