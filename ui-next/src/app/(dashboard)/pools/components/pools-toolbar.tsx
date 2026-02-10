@@ -26,6 +26,7 @@ import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
 import { DisplayModeToggle } from "@/components/data-table/DisplayModeToggle";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
+import type { RefreshControlProps } from "@/components/refresh/RefreshControl";
 import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/pools/lib/pool-columns";
 import { createPoolSearchFields } from "@/app/(dashboard)/pools/lib/pool-search-fields";
@@ -45,6 +46,8 @@ export interface PoolsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
+  /** Optional auto-refresh controls (if not provided, no refresh button shown) */
+  autoRefreshProps?: RefreshControlProps;
 }
 
 /** Status preset configurations */
@@ -60,6 +63,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
   searchChips,
   onSearchChipsChange,
   resultsCount,
+  autoRefreshProps,
 }: PoolsToolbarProps) {
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
@@ -112,6 +116,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       placeholder="Search pools... (try 'pool:', 'platform:', 'status:')"
       searchPresets={[{ label: "Status", items: statusPresets }]}
       resultsCount={resultsCount}
+      autoRefreshProps={autoRefreshProps}
     >
       <DisplayModeToggle />
     </TableToolbar>

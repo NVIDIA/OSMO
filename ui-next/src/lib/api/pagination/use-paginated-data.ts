@@ -33,6 +33,8 @@ const DEFAULT_CONFIG: Required<PaginatedDataConfig> = {
   staleTime: 60_000, // 1 minute
   gcTime: 300_000, // 5 minutes
   prefetchThreshold: 10, // Fetch next page when 10 items from end
+  refetchInterval: 0, // Disabled by default
+  refetchIntervalInBackground: false,
 };
 
 export interface UsePaginatedDataOptions<T, TParams extends object> {
@@ -128,6 +130,8 @@ export function usePaginatedData<T, TParams extends object>({
     },
     staleTime: config.staleTime,
     gcTime: config.gcTime,
+    refetchInterval: config.refetchInterval,
+    refetchIntervalInBackground: config.refetchIntervalInBackground ?? false,
     enabled,
   });
 

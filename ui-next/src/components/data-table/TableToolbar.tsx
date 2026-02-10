@@ -33,6 +33,7 @@ import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import type { SearchChip } from "@/stores/types";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import type { SearchField, SearchPreset, ResultsCount } from "@/components/filter-bar/lib/types";
+import { RefreshControl, type RefreshControlProps } from "@/components/refresh/RefreshControl";
 
 export interface ColumnDefinition {
   id: string;
@@ -69,6 +70,8 @@ export interface TableToolbarProps<T> {
    * Backend-driven: total is the unfiltered count, filtered is the count after filters.
    */
   resultsCount?: ResultsCount;
+  /** Optional auto-refresh controls (if not provided, no refresh button shown) */
+  autoRefreshProps?: RefreshControlProps;
 }
 
 function TableToolbarInner<T>({
@@ -83,6 +86,7 @@ function TableToolbarInner<T>({
   searchPresets,
   children,
   resultsCount,
+  autoRefreshProps,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -146,6 +150,8 @@ function TableToolbarInner<T>({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {autoRefreshProps && <RefreshControl {...autoRefreshProps} />}
       </div>
     </div>
   );

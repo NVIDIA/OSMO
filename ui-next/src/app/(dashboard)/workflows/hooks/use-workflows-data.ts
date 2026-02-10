@@ -54,6 +54,8 @@ interface UseWorkflowsDataParams {
   sortDirection?: "ASC" | "DESC";
   /** Number of workflows per page (default: 50) */
   pageSize?: number;
+  /** Auto-refresh interval in milliseconds (0 = disabled) */
+  refetchInterval?: number;
 }
 
 interface UseWorkflowsDataReturn {
@@ -89,6 +91,7 @@ export function useWorkflowsData({
   searchChips,
   sortDirection = "DESC",
   pageSize = 50,
+  refetchInterval = 0,
 }: UseWorkflowsDataParams): UseWorkflowsDataReturn {
   // Derive showAllUsers from chips: if no user chips exist, show all users (all_users=true)
   // If user chips exist, don't send all_users (backend will filter by those users)
@@ -122,6 +125,10 @@ export function useWorkflowsData({
       pageSize,
       // Workflows are live data - use REALTIME stale time (30s)
       staleTime: QUERY_STALE_TIME.REALTIME,
+      // Auto-refresh support (all loaded pages refetch at interval)
+      refetchInterval,
+      // Pause polling when tab is hidden (respects Page Visibility API)
+      refetchIntervalInBackground: false,
     },
   });
 

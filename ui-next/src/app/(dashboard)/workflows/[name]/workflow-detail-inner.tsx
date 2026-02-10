@@ -14,18 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflow Detail Inner Component - Refactored with PanelResizeStateMachine
- *
- * Architecture:
- * - PanelResizeProvider wraps component tree with state machine
- * - State machine is single source of truth for resize state
- * - React controls ALL DOM updates (no direct DOM manipulation)
- * - Callbacks coordinate with column sizing (no events)
- *
- * ⚠️ IMPORTANT: Do NOT import this file directly in workflow-detail-content.tsx!
- * It must be imported via dynamic() to maintain code splitting.
- */
+// IMPORTANT: Must be imported via dynamic() in workflow-detail-content.tsx for code splitting.
 
 "use client";
 
@@ -50,7 +39,6 @@ import {
   usePanelWidth,
 } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 
-// Route-level components
 import { DAGErrorBoundary } from "@/components/dag/components/DAGErrorBoundary";
 import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
 import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
@@ -60,24 +48,20 @@ import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/pane
 import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
 import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/CancelWorkflowDialog";
 
-// Lazy-load ResubmitPanel (only loads when user clicks resubmit button)
-// Saves ~20 KB from initial bundle (panel + form logic)
 const ResubmitPanel = dynamic(
   () => import("./components/resubmit/ResubmitPanel").then((m) => ({ default: m.ResubmitPanel })),
   { ssr: false },
 );
 
-// Route-level hooks
 import { useWorkflowDetail } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail";
 import { useNavigationState } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";
+import { useWorkflowDetailAutoRefresh } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail-auto-refresh";
 
-// Types
 import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import type { InitialView } from "@/app/(dashboard)/workflows/[name]/workflow-detail-content";
 import { WorkflowStatus } from "@/lib/api/generated";
 
-// Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(
   () =>
     import("./components/shell/ShellContainer").then((m) => ({
@@ -88,20 +72,10 @@ const ShellContainer = dynamic(
   },
 );
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface WorkflowDetailInnerProps {
-  /** Workflow name from URL params */
   name: string;
-  /** Server-parsed URL state for instant panel rendering */
   initialView: InitialView;
 }
-
-// =============================================================================
-// Shared UI
-// =============================================================================
 
 function LoadingSpinner(): ReactNode {
   return (
@@ -114,18 +88,10 @@ function LoadingSpinner(): ReactNode {
   );
 }
 
-// =============================================================================
-// Provider Component (Outer Layer)
-// =============================================================================
-
 export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerProps) {
-  // Actions (always safe - no hydration concern)
   const setPanelPct = useWorkflowDetailPanel((s) => s.setPanelWidthPct);
 
-  // Initialize provider with SSR-safe defaults. The real localStorage values are
-  // restored post-hydration via restorePersistedState() in WorkflowDetailContent.
-  // This avoids the old "frozen initial values" bug where useMemo(() => val, [])
-  // captured SSR defaults instead of actual localStorage values.
+  // SSR-safe defaults; real localStorage values restored post-hydration via restorePersistedState()
   return (
     <PanelResizeProvider
       initialPersistedPct={50}
@@ -140,31 +106,18 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   );
 }
 
-// =============================================================================
-// Content Component (Inner Layer - Has State Machine Access)
-// =============================================================================
-
 function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) {
-  // Get state machine actions and state via hooks
   const { phase, startDrag, updateDrag, endDrag, toggleCollapsed, expand, restorePersistedState } = usePanelResize();
-
-  // Subscribe to specific state slices
   const displayPct = usePanelWidth();
   const isDragging = useIsDragging();
   const snapZone = useSnapZone();
   const displayDagVisible = useDisplayDagVisible();
   const isPanelCollapsed = useIsPanelCollapsed();
   const persistedPct = usePersistedPanelWidth();
-
-  // Post-hydration state: after mount, hydration-safe selectors return real localStorage values
   const mounted = useMounted();
   const persistedPanelPct = usePanelWidthPct() as number;
 
-  // Restore persisted state from localStorage after hydration completes.
-  // The provider was initialized with SSR-safe defaults (50%, not collapsed).
-  // Once mounted, the hydration-safe selectors return the real localStorage values,
-  // and we push them into the state machine without animation.
-  // Collapsed state is derived from width, so only width needs restoring.
+  // Restore persisted width from localStorage after hydration
   const hasRestoredRef = useRef(false);
   useEffect(() => {
     if (mounted && !hasRestoredRef.current) {
@@ -173,21 +126,23 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     }
   }, [mounted, persistedPanelPct, restorePersistedState]);
 
-  // Other state
   const isDetailsExpanded = useDetailsExpanded();
   const toggleDetailsExpanded = useWorkflowDetailPanel((s) => s.toggleDetailsExpanded);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
 
-  // Fetch workflow data
-  const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound } = useWorkflowDetail({ name });
+  const autoRefresh = useWorkflowDetailAutoRefresh();
 
-  // Panning state for tick controller (DAG-specific, but managed here for tick control)
+  const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound, isTerminal } = useWorkflowDetail({
+    name,
+    refetchInterval: autoRefresh.effectiveInterval,
+  });
+
+  // Terminal workflows force interval to 0 (display only - polling already stopped)
+  const displayInterval = isTerminal ? 0 : autoRefresh.interval;
+
   const [isPanning, setIsPanning] = useState(false);
-
-  // Container ref for layout
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // URL-synced navigation state (nuqs)
   const {
     view: navView,
     selectedGroup,
@@ -207,7 +162,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     setSelectedGroupTab,
   } = useNavigationState({ groups: groupsWithLayout, initialView });
 
-  // Compute selection key for panel collapse behavior
   const hasSelection = navView !== "workflow";
   const selectionKey = useMemo(() => {
     if (selectedTaskName && selectedGroupName) {
@@ -219,37 +173,23 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     return null;
   }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
 
-  // Auto-expand panel when user navigates to a selection (node click or URL change).
-  // The state machine's expand() now persists to Zustand immediately (and has a safety
-  // timeout for stuck SNAPPING phase), so no manual setPanelPct call is needed here.
-  //
-  // IMPORTANT: This effect must run AFTER the restore effect completes to avoid a race
-  // condition where restorePersistedState() overwrites the expansion.
+  // Auto-expand panel on selection change. Must run AFTER restore to avoid race condition.
   const prevSelectionKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    // Wait for restore to complete before auto-expanding
     if (!hasRestoredRef.current) return;
 
-    // Check if selection changed (including initial deep-link where prev is null)
     const selectionChanged = selectionKey !== prevSelectionKeyRef.current;
 
-    // Only check after hydration completes to avoid SSR issues
     if (selectionChanged && hasSelection && mounted) {
-      // User navigated to a selection - expand panel.
-      // The state machine's expand() handles Zustand persistence internally.
       expand(true);
-      // Update ref only when we actually expand
       prevSelectionKeyRef.current = selectionKey;
     } else if (mounted && (hasSelection || selectionKey === null)) {
-      // Update ref when selection is fully resolved (data loaded) OR explicitly cleared.
-      // Don't update during data loading (selectionKey exists but hasSelection false)
-      // to ensure auto-expand triggers once data loads.
+      // Track resolved/cleared selections (skip during data loading to ensure expand triggers)
       prevSelectionKeyRef.current = selectionKey;
     }
   }, [selectionKey, hasSelection, expand, mounted]);
 
-  // Synchronized tick for live durations - only tick when workflow is active
-  // PERFORMANCE: Pause ticking during pan/zoom AND panel drag
+  // Pause tick during pan/zoom and panel drag for performance
   const workflowStatus = workflow?.status;
   const isWorkflowActive =
     workflowStatus === WorkflowStatus.PENDING ||
@@ -260,7 +200,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
 
   const { startTransition } = useViewTransition();
 
-  // Navigation handlers with transitions
   const handleNavigateToGroup = useEventCallback((group: GroupWithLayout) => {
     startTransition(() => navigateToGroup(group));
   });
@@ -281,13 +220,9 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     setActiveShellTaskName(taskName);
   });
 
-  // Cancel workflow dialog state
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-
-  // Resubmit workflow panel state
   const [resubmitPanelOpen, setResubmitPanelOpen] = useState(false);
 
-  // Workflow action handlers
   const handleCancelWorkflow = useEventCallback(() => {
     setCancelDialogOpen(true);
   });
@@ -300,10 +235,8 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     setResubmitPanelOpen(false);
   });
 
-  // Screen reader announcements for snap zone transitions
   const announce = useAnnouncer();
   useEffect(() => {
-    // Only announce during SNAPPING phase
     if (phase !== "SNAPPING") return;
 
     if (snapZone === "full") {
@@ -313,7 +246,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     }
   }, [phase, snapZone, announce]);
 
-  // Determine current panel view from URL navigation state
   let currentPanelView: DetailsPanelView = "workflow";
   if (navView === "task" && selectedTask) {
     currentPanelView = "task";
@@ -321,15 +253,8 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     currentPanelView = "group";
   }
 
-  // Content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
 
-  // NOTE: Strip snap target updates (ResizeObserver for container width) are handled
-  // inside WorkflowDetailLayout, which has direct access to the grid container ref.
-  // This avoids the timing issue where containerRef.current is null in the parent's
-  // useEffect because the grid only mounts when isReady becomes true.
-
-  // Panel override content for loading/error states
   const panelOverrideContent = useMemo(() => {
     if (isLoading) {
       return (
@@ -395,7 +320,16 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   const handleTogglePanelCollapsed = useEventCallback(toggleCollapsed);
   const handleExpandPanel = useEventCallback(expand);
 
-  // Generate common props for DetailsPanel and ShellContainer
+  const autoRefreshProps = useMemo(
+    () => ({
+      interval: displayInterval,
+      setInterval: autoRefresh.setInterval,
+      onRefresh: refetch,
+      isRefreshing: isLoading,
+    }),
+    [displayInterval, autoRefresh.setInterval, refetch, isLoading],
+  );
+
   const { panelProps, shellContainerProps } = usePanelProps({
     workflow: workflow!,
     groups: groupsWithLayout,
@@ -429,10 +363,12 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     containerRef,
     onDragStart: startDrag,
     onDragEnd: endDrag,
-    fillContainer: true, // Panel is inside CSS Grid - let grid control sizing
+    fillContainer: true,
+    isTerminal,
+    autoRefresh: autoRefreshProps,
   });
 
-  // Wrapped navigation handlers for re-click behavior
+  // Re-clicking already-selected node expands a collapsed panel
   const handleNavigateToGroupWithExpand = useEventCallback((group: GroupWithLayout) => {
     const isAlreadySelected = selectedGroupName === group.name && !selectedTaskName;
     if (isAlreadySelected && isPanelCollapsed) {
@@ -451,14 +387,9 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     }
   });
 
-  // ---------------------------------------------------------------------------
-  // Memoized Content Elements (Performance Optimization)
-  // ---------------------------------------------------------------------------
-
-  // Use persisted percentage for DAG memoization (stable during drag)
+  // Stable during drag to prevent DAG re-renders
   const stablePanelPct = isDragging ? persistedPct : displayPct;
 
-  // Memoize DAG content to prevent re-renders during panel drag
   const dagContentElement = useMemo(() => {
     if (!displayDagVisible || !workflow) return undefined;
     return (
@@ -496,7 +427,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     isDragging,
   ]);
 
-  // Memoize panel content
   const panelElement = useMemo(
     () => (
       <>
@@ -507,15 +437,10 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     [panelProps, shellContainerProps],
   );
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
   return (
     <DAGErrorBoundary>
       <ShellProvider workflowName={name}>
         <ShellPortalProvider>
-          {/* Resubmit workflow panel wraps main content when workflow is loaded */}
           {workflow ? (
             <ResubmitPanel
               workflow={workflow}
@@ -536,7 +461,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
             <LoadingSpinner />
           )}
 
-          {/* Cancel workflow dialog */}
           {workflow && (
             <CancelWorkflowDialog
               workflowName={workflow.name}

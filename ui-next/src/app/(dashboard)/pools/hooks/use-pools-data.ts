@@ -46,6 +46,8 @@ import { chipsToParams, type ChipMappingConfig } from "@/lib/api/chip-filter-uti
 
 interface UsePoolsDataParams {
   searchChips: SearchChip[];
+  /** Auto-refresh interval in milliseconds (0 = disabled) */
+  refetchInterval?: number;
 }
 
 interface UsePoolsDataReturn {
@@ -94,7 +96,7 @@ const POOL_CHIP_MAPPING: ChipMappingConfig<PoolFilterParams> = {
 // Hook
 // =============================================================================
 
-export function usePoolsData({ searchChips }: UsePoolsDataParams): UsePoolsDataReturn {
+export function usePoolsData({ searchChips, refetchInterval = 0 }: UsePoolsDataParams): UsePoolsDataReturn {
   // Convert chips to filter params using shared utility
   const filterParams = useMemo(() => chipsToParams(searchChips, POOL_CHIP_MAPPING) as PoolFilterParams, [searchChips]);
 
@@ -110,7 +112,7 @@ export function usePoolsData({ searchChips }: UsePoolsDataParams): UsePoolsDataR
     isLoading,
     error,
     refetch,
-  } = useFilteredPools(filterParams);
+  } = useFilteredPools(filterParams, refetchInterval);
 
   return {
     pools,

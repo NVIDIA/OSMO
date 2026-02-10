@@ -14,69 +14,58 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Data hook for fetching a single workflow by name.
- *
- * Fetches workflow detail with verbose=true to include full group and task data.
- * Used by the workflow detail page to render the DAG and details panel.
- *
- * Uses the adapter layer's useWorkflow hook which handles:
- * - Parsing the API response
- * - Normalizing timestamps to have explicit UTC timezone
- *
- * This hook adds UI-specific logic (DAG layout computation).
- */
-
 "use client";
 
 import { useMemo } from "react";
 import { useWorkflow } from "@/lib/api/adapter/hooks";
-import {
-  transformGroups,
-  type GroupWithLayout,
-  type WorkflowQueryResponse,
-} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-
-// =============================================================================
-// Types
-// =============================================================================
+import { transformGroups, type WorkflowQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { isWorkflowTerminal } from "@/lib/api/status-metadata.generated";
 
 interface UseWorkflowDetailParams {
-  /** Workflow name (unique identifier) */
   name: string;
-  /** Whether to fetch full task details (default: true) */
   verbose?: boolean;
+  /** Auto-refresh interval in ms (0 = disabled) */
+  refetchInterval?: number;
 }
 
-interface UseWorkflowDetailReturn {
-  /** The workflow data (with normalized timestamps from adapter) */
-  workflow: WorkflowQueryResponse | null;
-  /** Groups with computed layout information */
-  groupsWithLayout: GroupWithLayout[];
-  /** Loading state */
-  isLoading: boolean;
-  /** Error state */
-  error: Error | null;
-  /** Refetch function */
-  refetch: () => void;
-  /** Whether the workflow was found */
-  isNotFound: boolean;
-}
+/**
+ * Fetches a single workflow with DAG layout computation and smart polling.
+ *
+ * Automatically stops polling when workflow reaches a terminal state.
+ * Returns `isTerminal` as SSOT for both polling logic and display layer.
+ */
+export function useWorkflowDetail({ name, verbose = true, refetchInterval = 0 }: UseWorkflowDetailParams) {
+  // Function-based refetchInterval stops polling for terminal workflows.
+  // MUST NOT be wrapped in useCallback - TanStack Query needs a fresh function
+  // each render to access current query.state.data for terminal detection.
+  const refetchIntervalFn =
+    refetchInterval > 0
+      ? (query: unknown) => {
+          const queryState = query as { state: { data: unknown } };
+          const currentWorkflow = queryState.state.data as WorkflowQueryResponse | null;
+          if (currentWorkflow && isWorkflowTerminal(currentWorkflow.status)) {
+            return 0;
+          }
+          return refetchInterval;
+        }
+      : 0;
 
-// =============================================================================
-// Hook
-// =============================================================================
+  const { workflow, isLoading, error, refetch, isNotFound } = useWorkflow({
+    name,
+    verbose,
+    refetchInterval: refetchIntervalFn,
+  });
 
-export function useWorkflowDetail({ name, verbose = true }: UseWorkflowDetailParams): UseWorkflowDetailReturn {
-  // Use adapter hook - handles parsing and timestamp normalization
-  const { workflow, isLoading, error, refetch, isNotFound } = useWorkflow({ name, verbose });
-
-  // Transform groups for DAG visualization (UI-specific logic)
   const groups = workflow?.groups;
   const groupsWithLayout = useMemo(() => {
     if (!groups) return [];
     return transformGroups(groups);
   }, [groups]);
+
+  const workflowStatus = workflow?.status;
+  const isTerminal = useMemo(() => {
+    return workflowStatus ? isWorkflowTerminal(workflowStatus) : false;
+  }, [workflowStatus]);
 
   return {
     workflow,
@@ -85,5 +74,6 @@ export function useWorkflowDetail({ name, verbose = true }: UseWorkflowDetailPar
     error,
     refetch,
     isNotFound,
+    isTerminal,
   };
 }

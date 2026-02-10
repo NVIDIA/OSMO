@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
+import type { RefreshControlProps } from "@/components/refresh/RefreshControl";
 import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/workflows/lib/workflow-columns";
 import {
@@ -50,6 +51,8 @@ export interface WorkflowsToolbarProps {
   resultsCount?: ResultsCount;
   /** Current username for "My Workflows" preset (matches backend x-osmo-user header) */
   currentUsername?: string;
+  /** Optional auto-refresh controls (if not provided, no refresh button shown) */
+  autoRefreshProps?: RefreshControlProps;
 }
 
 const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
@@ -65,6 +68,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   onSearchChipsChange,
   resultsCount,
   currentUsername,
+  autoRefreshProps,
 }: WorkflowsToolbarProps) {
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useWorkflowsTableStore((s) => s.toggleColumn);
@@ -176,6 +180,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       placeholder="Search workflows... (try 'name:', 'status:', 'user:', 'pool:')"
       searchPresets={searchPresets}
       resultsCount={resultsCount}
+      autoRefreshProps={autoRefreshProps}
     />
   );
 });

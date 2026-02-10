@@ -1,7 +1,7 @@
 // React Query hooks with transformation to ideal types. Use these instead of generated hooks.
 
 import { useMemo, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type Query } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
@@ -77,7 +77,7 @@ export function usePools() {
 }
 
 // SHIM: Client-side filtering until backend supports it (Issue: BACKEND_TODOS.md#12)
-export function useFilteredPools(params: PoolFilterParams = {}) {
+export function useFilteredPools(params: PoolFilterParams = {}, refetchInterval = 0) {
   // SHIM: Use stable query key without filter params
   // This ensures we don't refetch when filters change - filtering is client-side
   // FUTURE: When backend supports filtering, include params in query key
@@ -88,6 +88,10 @@ export function useFilteredPools(params: PoolFilterParams = {}) {
       return transformPoolsResponse(rawResponse);
     },
     staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
+    // Auto-refresh support
+    refetchInterval,
+    // Pause polling when tab is hidden (respects Page Visibility API)
+    refetchIntervalInBackground: false,
   });
 
   // SHIM: Apply filters client-side from cached data
@@ -371,6 +375,12 @@ import {
 interface UseWorkflowParams {
   name: string;
   verbose?: boolean;
+  /**
+   * Auto-refresh interval - can be:
+   * - number: fixed interval in ms (0 = disabled)
+   * - function: dynamic interval based on current query state (receives TanStack Query object)
+   */
+  refetchInterval?: number | ((query: Query<string, Error, string, readonly unknown[]>) => number);
 }
 
 interface UseWorkflowReturn {
@@ -387,7 +397,7 @@ interface UseWorkflowReturn {
 // when the backend returns semantically identical data with new object references.
 // The `select` option with `structuralSharing: true` (enabled globally) performs automatic
 // deep equality checks and preserves references when data is semantically identical.
-export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWorkflowReturn {
+export function useWorkflow({ name, verbose = true, refetchInterval = 0 }: UseWorkflowParams): UseWorkflowReturn {
   // Parse and transform the workflow response using TanStack Query's select option
   // WORKAROUND: API returns string that needs parsing (BACKEND_TODOS.md#1)
   // WORKAROUND: Timestamps may lack timezone suffix (BACKEND_TODOS.md#16)
@@ -411,6 +421,10 @@ export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWor
         // Note: structuralSharing is already enabled globally in query-client.ts
         // This performs automatic deep equality checks and preserves references
         // when data is semantically identical, preventing unnecessary re-renders
+        // Auto-refresh support
+        refetchInterval,
+        // Pause polling when tab is hidden (respects Page Visibility API)
+        refetchIntervalInBackground: false,
       },
     },
   );

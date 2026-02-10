@@ -120,6 +120,15 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
   // Check if filters are active
   const hasActiveFilters = searchChips.length > 0;
 
+  // Memoize autoRefreshProps to prevent unnecessary toolbar re-renders
+  const autoRefreshProps = useMemo(
+    () => ({
+      onRefresh: refetch,
+      isRefreshing: isLoading,
+    }),
+    [refetch, isLoading],
+  );
+
   // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({
     total: totalCount ?? resources.length,
@@ -186,6 +195,7 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
             searchChips={searchChips}
             onSearchChipsChange={setSearchChips}
             resultsCount={resultsCount}
+            autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>
       </div>

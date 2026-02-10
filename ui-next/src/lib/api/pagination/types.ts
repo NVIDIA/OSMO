@@ -64,6 +64,10 @@ export interface PaginatedDataConfig {
   gcTime?: number;
   /** Prefetch threshold - how many items before end to trigger fetch */
   prefetchThreshold?: number;
+  /** Auto-refresh interval in milliseconds (0 or undefined = disabled) */
+  refetchInterval?: number;
+  /** Whether to continue refetching when the browser tab is in background (default: false) */
+  refetchIntervalInBackground?: boolean;
 }
 
 /**
