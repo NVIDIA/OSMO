@@ -42,7 +42,9 @@ def setup_parser(parser: argparse._SubParsersAction):
         description='Create a personal access token for yourself or another user (admin only).',
         epilog='Ex. osmo token set my-token --expires-at 2026-05-01\n'
                'Ex. osmo token set my-token -e 2026-05-01 -d "My token description"\n'
-               'Ex. osmo token set service-token --user service-account@example.com',
+               'Ex. osmo token set my-token -r role1 -r role2\n'
+               'Ex. osmo token set service-token --user service-account@example.com '
+               '--roles osmo-backend',
         formatter_class=argparse.RawDescriptionHelpFormatter)
     set_parser.add_argument('name',
                             help='Name of the token.')
@@ -57,6 +59,10 @@ def setup_parser(parser: argparse._SubParsersAction):
     set_parser.add_argument('--user', '-u',
                             help='Create token for a specific user (admin only). '
                                  'By default, creates token for the current user.')
+    set_parser.add_argument('--roles', '-r',
+                            action='append',
+                            help='Role to assign to the token. Can be specified multiple times. '
+                                 'If not specified, inherits all of the user\'s current roles.')
     set_parser.add_argument('--format-type', '-t',
                             choices=('json', 'text'), default='text',
                             help='Specify the output format type (Default text).')
@@ -114,11 +120,13 @@ def _set_token(service_client: client.ServiceClient, args: argparse.Namespace):
     params = {'expires_at': args.expires_at}
     if args.description:
         params['description'] = args.description
+    if args.roles:
+        params['roles'] = args.roles
 
     # Determine the API path based on whether a user is specified
     if args.user:
         # Admin API: create token for a specific user
-        path = f'api/auth/users/{args.user}/access_token/{args.name}'
+        path = f'api/auth/user/{args.user}/access_token/{args.name}'
     else:
         # Default: create token for the current user
         path = f'api/auth/access_token/{args.name}'
@@ -132,13 +140,15 @@ def _set_token(service_client: client.ServiceClient, args: argparse.Namespace):
         print(f'Access token: {result}')
         if args.user:
             print(f'Created for user: {args.user}')
+        if args.roles:
+            print(f'Roles: {", ".join(args.roles)}')
 
 
 def _delete_token(service_client: client.ServiceClient, args: argparse.Namespace):
     """Delete an access token."""
     if args.user:
         # Admin API: delete token for a specific user
-        path = f'api/auth/users/{args.user}/access_token/{args.name}'
+        path = f'api/auth/user/{args.user}/access_token/{args.name}'
     else:
         # Default: delete token for the current user
         path = f'api/auth/access_token/{args.name}'
@@ -155,7 +165,7 @@ def _list_tokens(service_client: client.ServiceClient, args: argparse.Namespace)
     """List access tokens."""
     if args.user:
         # Admin API: list tokens for a specific user
-        path = f'api/auth/users/{args.user}/access_tokens'
+        path = f'api/auth/user/{args.user}/access_tokens'
     else:
         # Default: list tokens for the current user
         path = 'api/auth/access_token'
@@ -174,15 +184,18 @@ def _list_tokens(service_client: client.ServiceClient, args: argparse.Namespace)
     else:
         if args.user:
             print(f'Tokens for user: {args.user}\n')
-        collection_header = ['Name', 'Description', 'Active', 'Expires At (UTC)']
+        collection_header = ['Name', 'Description', 'Active', 'Expires At (UTC)', 'Roles']
         table = common.osmo_table(header=collection_header)
-        columns = ['token_name', 'description', 'active', 'expires_at']
+        columns = ['token_name', 'description', 'active', 'expires_at', 'roles']
         for token in result:
             expire_date = common.convert_str_to_time(
                 token['expires_at'].split('T')[0], '%Y-%m-%d').date()
             token['expires_at'] = expire_date
             token['active'] = 'Expired' if expire_date <= datetime.datetime.utcnow().date() \
                 else 'Active'
+            # Format roles as comma-separated string
+            roles = token.get('roles', [])
+            token['roles'] = ', '.join(roles) if roles else '-'
             table.add_row([token.get(column, '-') for column in columns])
         print(f'{table.draw()}\n')
 

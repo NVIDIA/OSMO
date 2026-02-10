@@ -233,12 +233,12 @@ def list_pat_roles(
 @router.get('/api/auth/access_token')
 def list_access_tokens(
         user_name: str = fastapi.Depends(connectors.parse_username)
-) -> List[objects.AccessToken]:
+) -> List[objects.AccessTokenWithRoles]:
     """
-    API to list all access tokens for a user.
+    API to list all access tokens for a user, including their assigned roles.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    return objects.AccessToken.list_from_db(postgres, user_name)
+    return objects.AccessToken.list_with_roles_from_db(postgres, user_name)
 
 
 @router.post('/api/auth/user/{user_id}/access_token/{token_name}')
@@ -291,22 +291,22 @@ def admin_create_access_token(
 
 
 @router.get('/api/auth/user/{user_id}/access_tokens')
-def admin_list_access_tokens(user_id: str) -> List[objects.AccessToken]:
+def admin_list_access_tokens(user_id: str) -> List[objects.AccessTokenWithRoles]:
     """
-    Admin API to list all access tokens for a specific user.
+    Admin API to list all access tokens for a specific user, including their assigned roles.
 
     Args:
         user_id: The user ID to list tokens for
 
     Returns:
-        List of AccessToken objects
+        List of AccessTokenWithRoles objects
     """
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate the target user exists
     _validate_user_exists(postgres, user_id)
 
-    return objects.AccessToken.list_from_db(postgres, user_id)
+    return objects.AccessToken.list_with_roles_from_db(postgres, user_id)
 
 
 @router.delete('/api/auth/user/{user_id}/access_token/{token_name}')
