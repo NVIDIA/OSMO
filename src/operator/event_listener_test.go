@@ -32,27 +32,27 @@ func TestEventSentTracker(t *testing.T) {
 	tracker := newEventSentTracker(ttl)
 
 	// First call should process
-	if !tracker.ShouldProcess("Warning", "FailedScheduling", "pod1") {
+	if !tracker.shouldProcess("Warning", "FailedScheduling", "pod1") {
 		t.Error("First call should return true")
 	}
 
 	// Immediate second call should skip (within TTL)
-	if tracker.ShouldProcess("Warning", "FailedScheduling", "pod1") {
+	if tracker.shouldProcess("Warning", "FailedScheduling", "pod1") {
 		t.Error("Second call within TTL should return false")
 	}
 
 	// Different event type should process
-	if !tracker.ShouldProcess("Normal", "FailedScheduling", "pod1") {
+	if !tracker.shouldProcess("Normal", "FailedScheduling", "pod1") {
 		t.Error("Different event type should return true")
 	}
 
 	// Different reason should process
-	if !tracker.ShouldProcess("Warning", "BackOff", "pod1") {
+	if !tracker.shouldProcess("Warning", "BackOff", "pod1") {
 		t.Error("Different reason should return true")
 	}
 
 	// Different pod should process
-	if !tracker.ShouldProcess("Warning", "FailedScheduling", "pod2") {
+	if !tracker.shouldProcess("Warning", "FailedScheduling", "pod2") {
 		t.Error("Different pod should return true")
 	}
 
@@ -60,7 +60,7 @@ func TestEventSentTracker(t *testing.T) {
 	time.Sleep(ttl + 100*time.Millisecond)
 
 	// After TTL, should process again
-	if !tracker.ShouldProcess("Warning", "FailedScheduling", "pod1") {
+	if !tracker.shouldProcess("Warning", "FailedScheduling", "pod1") {
 		t.Error("After TTL expiry, should return true")
 	}
 }
@@ -71,25 +71,25 @@ func TestEventSentTrackerCleanup(t *testing.T) {
 	tracker := newEventSentTracker(ttl)
 
 	// Add some entries
-	tracker.ShouldProcess("Warning", "FailedScheduling", "pod1")
-	tracker.ShouldProcess("Warning", "BackOff", "pod2")
+	tracker.shouldProcess("Warning", "FailedScheduling", "pod1")
+	tracker.shouldProcess("Warning", "BackOff", "pod2")
 
 	// Wait for TTL to expire
 	time.Sleep(ttl + 50*time.Millisecond)
 
 	// Add a new entry (should not be cleaned up)
-	tracker.ShouldProcess("Normal", "Scheduled", "pod3")
+	tracker.shouldProcess("Normal", "Scheduled", "pod3")
 
 	// Cleanup should remove stale entries
-	tracker.Cleanup()
+	tracker.cleanup()
 
 	// Old entries should be gone (can process again)
-	if !tracker.ShouldProcess("Warning", "FailedScheduling", "pod1") {
+	if !tracker.shouldProcess("Warning", "FailedScheduling", "pod1") {
 		t.Error("After cleanup, old entry should be processable again")
 	}
 
 	// Recent entry should still be blocked
-	if tracker.ShouldProcess("Normal", "Scheduled", "pod3") {
+	if tracker.shouldProcess("Normal", "Scheduled", "pod3") {
 		t.Error("Recent entry should still be blocked after cleanup")
 	}
 }
@@ -114,10 +114,7 @@ func TestCreatePodEventMessage(t *testing.T) {
 		LastTimestamp: now,
 	}
 
-	msg, err := createPodEventMessage(event)
-	if err != nil {
-		t.Fatalf("Failed to create message: %v", err)
-	}
+	msg := createPodEventMessage(event)
 
 	if msg.Uuid == "" {
 		t.Error("Message UUID should not be empty")
@@ -169,10 +166,7 @@ func TestCreatePodEventMessageWithEventTime(t *testing.T) {
 		EventTime: eventTime,
 	}
 
-	msg, err := createPodEventMessage(event)
-	if err != nil {
-		t.Fatalf("Failed to create message: %v", err)
-	}
+	msg := createPodEventMessage(event)
 
 	podEvent := msg.GetPodEvent()
 	if podEvent == nil {
@@ -203,10 +197,7 @@ func TestCreatePodEventMessageNilTimestamp(t *testing.T) {
 		// No timestamps set - should fallback to time.Now()
 	}
 
-	msg, err := createPodEventMessage(event)
-	if err != nil {
-		t.Fatalf("Failed to create message: %v", err)
-	}
+	msg := createPodEventMessage(event)
 
 	podEvent := msg.GetPodEvent()
 	if podEvent == nil {
@@ -254,10 +245,7 @@ func TestListenerMessageTypeAssertion(t *testing.T) {
 		LastTimestamp: metav1.Now(),
 	}
 
-	msg, err := createPodEventMessage(event)
-	if err != nil {
-		t.Fatalf("Failed to create message: %v", err)
-	}
+	msg := createPodEventMessage(event)
 
 	// Verify message body is PodEvent variant
 	switch msg.Body.(type) {
