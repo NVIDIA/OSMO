@@ -57,7 +57,7 @@ const taskColumnConfig = createColumnConfig<TaskColumnId>({
     retry: "Retry",
   },
   mandatory: ["name"],
-  defaultVisible: ["name", "status", "duration", "node"],
+  defaultVisible: ["name", "status", "duration", "node", "exitCode"],
   defaultOrder: ["name", "status", "duration", "node", "podIp", "exitCode", "startTime", "endTime", "retry"],
   sizeConfig: [
     {
