@@ -17,6 +17,7 @@ import { versionRouter } from "~/server/api/routers/version-router";
 import { workflowsRouter } from "~/server/api/routers/workflows-router";
 import { createTRPCRouter } from "~/server/api/trpc";
 
+import { configsRouter } from "./routers/configs-router";
 import { credentialsRouter } from "./routers/credentials-router";
 import { datasetsRouter } from "./routers/datasets-router";
 import { profileRouter } from "./routers/profile-router";
@@ -32,16 +33,17 @@ import { usersRouter } from "./routers/users-router";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
-  workflows: workflowsRouter,
-  version: versionRouter,
+  configs: configsRouter,
   credentials: credentialsRouter,
-  profile: profileRouter,
-  users: usersRouter,
   datasets: datasetsRouter,
+  profile: profileRouter,
   resources: resourcesRouter,
+  router: routerRouter,
   tags: tagsRouter,
   tasks: tasksRouter,
-  router: routerRouter,
+  users: usersRouter,
+  version: versionRouter,
+  workflows: workflowsRouter,
 });
 
 // export type definition of API

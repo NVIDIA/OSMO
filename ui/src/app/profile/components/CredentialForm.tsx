@@ -192,7 +192,7 @@ const CredentialForm = ({
                 setShowSuccess(false);
               }}
               placeholder="access-key-id"
-              helperText="Your S3 ACL Access User"
+              message="Your S3 ACL Access User"
             />
             <TextInput
               id="access_key"
@@ -208,7 +208,7 @@ const CredentialForm = ({
               }}
               type="password"
               label="Access Key"
-              helperText="Your S3 Secret Key"
+              message="Your S3 Secret Key"
             />
             <TextInput
               id="region"
@@ -271,7 +271,7 @@ const CredentialForm = ({
                 setError(undefined);
                 setShowSuccess(false);
               }}
-              helperText="Your Username. Use $oauthtoken for NGC"
+              message="Your Username. Use $oauthtoken for NGC"
               placeholder="$oauthtoken"
             />
             <p>
@@ -300,7 +300,6 @@ const CredentialForm = ({
                 setShowSuccess(false);
               }}
               placeholder="Your API Key"
-              helperText=""
             />
           </>
         );
