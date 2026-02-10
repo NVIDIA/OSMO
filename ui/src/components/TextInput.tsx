@@ -22,8 +22,9 @@ export const TextInput = forwardRef<
     id: string;
     label?: string;
     value: string;
-    errorText?: string;
-    helperText?: string;
+    message?: string;
+    isError?: boolean;
+    leaveSpaceForMessage?: boolean;
     type?: string;
     slotLeft?: React.ReactNode;
     required?: boolean;
@@ -38,14 +39,15 @@ export const TextInput = forwardRef<
       type = "text",
       label,
       value,
-      errorText,
-      helperText,
+      isError,
+      message,
       onChange,
       slotLeft,
-      className,
-      containerClassName,
+      className = "",
+      containerClassName = "",
       required = false,
       readOnly = false,
+      leaveSpaceForMessage = false,
       ...props
     },
     ref,
@@ -66,28 +68,22 @@ export const TextInput = forwardRef<
             type={type}
             value={value}
             onChange={onChange}
-            aria-describedby={errorText ? `${id}-error` : helperText ? `${id}-helper` : undefined}
+            aria-describedby={message ? `${id}-helper` : undefined}
             readOnly={readOnly}
             className={`min-h-8 ${className} ${slotLeft ? "pl-8" : ""}`}
             {...props}
           />
         </div>
-        {errorText && (
+        {message ? (
           <p
-            className="text-red-600 text-xs"
-            id={`${id}-error`}
-          >
-            {errorText}
-          </p>
-        )}
-        {helperText && (
-          <p
-            className="text-gray-800 italic text-xs"
+            className={`${isError ? "text-red-600" : "text-gray-600"} italic text-xs`}
             id={`${id}-helper`}
           >
-            {helperText}
+            {message}
           </p>
-        )}
+        ) : leaveSpaceForMessage ? (
+          <div className="h-4" />
+        ) : null}
       </div>
     );
   },

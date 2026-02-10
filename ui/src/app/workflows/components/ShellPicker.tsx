@@ -96,7 +96,9 @@ export const ShellPicker = ({
               setCmdError(undefined);
               setError(undefined);
             }}
-            errorText={cmdError}
+            message={cmdError}
+            isError={Boolean(cmdError)}
+            leaveSpaceForMessage={true}
           />
           <button
             className="btn btn-primary mt-5 mb-5"
