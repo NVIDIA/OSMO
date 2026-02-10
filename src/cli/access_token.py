@@ -43,7 +43,8 @@ def setup_parser(parser: argparse._SubParsersAction):
         epilog='Ex. osmo token set my-token --expires-at 2026-05-01\n'
                'Ex. osmo token set my-token -e 2026-05-01 -d "My token description"\n'
                'Ex. osmo token set my-token -r role1 -r role2\n'
-               'Ex. osmo token set service-token --user service-account@example.com -r osmo-backend',
+               'Ex. osmo token set service-token --user service-account@example.com '
+               '--roles osmo-backend',
         formatter_class=argparse.RawDescriptionHelpFormatter)
     set_parser.add_argument('name',
                             help='Name of the token.')
