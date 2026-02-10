@@ -229,6 +229,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   subtitle,
   statusContent,
   menuContent,
+  actions,
   breadcrumbs,
   viewType,
   isLead,
@@ -290,6 +291,9 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   // Build actions content slot
   const actionsContent = (
     <>
+      {/* Custom actions (e.g., RefreshControl) */}
+      {actions}
+
       {/* Lead badge (shown before view type badge for tasks) */}
       {isLead && (
         <PanelBadge

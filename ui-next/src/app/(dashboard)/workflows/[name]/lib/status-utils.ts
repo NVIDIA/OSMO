@@ -19,6 +19,7 @@
 import { TaskGroupStatus } from "@/lib/api/generated";
 import {
   TASK_STATUS_METADATA,
+  WORKFLOW_STATUS_METADATA,
   type StatusCategory,
   getTaskStatusCategory,
   isTaskFailed,
@@ -31,8 +32,12 @@ export type { StatusCategory };
 export { TASK_STATUS_METADATA, getTaskStatusCategory, isTaskFailed, isTaskOngoing, isTaskTerminal, isTaskInQueue };
 
 // Derived lookups computed once at module load
+// Merge both task and workflow status metadata
 export const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {};
 for (const [status, meta] of Object.entries(TASK_STATUS_METADATA)) {
+  STATUS_CATEGORY_MAP[status] = meta.category;
+}
+for (const [status, meta] of Object.entries(WORKFLOW_STATUS_METADATA)) {
   STATUS_CATEGORY_MAP[status] = meta.category;
 }
 

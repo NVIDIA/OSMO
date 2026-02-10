@@ -197,6 +197,23 @@ export const QUERY_STALE_TIME = {
 export const QUERY_STALE_TIME_EXPENSIVE_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Auto-refresh interval presets for user-controlled polling.
+ * These match the stale time tiers and provide consistent intervals across the UI.
+ */
+export const AUTO_REFRESH_INTERVALS = {
+  /** Disabled - no auto-refresh */
+  OFF: 0,
+  /** Fast refresh (10s) - for critical real-time monitoring */
+  FAST: 10_000,
+  /** Realtime refresh (30s) - for live data (workflow details, active monitoring) */
+  REALTIME: 30_000,
+  /** Standard refresh (2min) - for semi-static data (workflows list) */
+  STANDARD: 2 * 60_000,
+  /** Slow refresh (5min) - for expensive queries (pools, static data) */
+  SLOW: 5 * 60_000,
+} as const;
+
+/**
  * Maximum retry delay for React Query.
  */
 export const QUERY_MAX_RETRY_DELAY_MS = 5000;

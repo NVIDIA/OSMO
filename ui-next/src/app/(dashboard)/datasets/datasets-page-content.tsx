@@ -128,6 +128,8 @@ export function DatasetsPageContent() {
             showAllUsers={showAllUsers}
             showAllUsersPending={showAllUsersPending}
             onToggleShowAllUsers={handleToggleShowAllUsers}
+            onRefresh={refetch}
+            isRefreshing={isLoading}
           />
         </InlineErrorBoundary>
       </div>

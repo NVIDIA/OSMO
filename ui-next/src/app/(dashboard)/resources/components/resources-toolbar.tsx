@@ -24,6 +24,7 @@ import type { SearchChip } from "@/stores/types";
 import type { ResultsCount } from "@/components/filter-bar/lib/types";
 import { DisplayModeToggle } from "@/components/data-table/DisplayModeToggle";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
+import type { RefreshControlProps } from "@/components/refresh/RefreshControl";
 import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/resources/lib/resource-columns";
 import { RESOURCE_SEARCH_FIELDS } from "@/app/(dashboard)/resources/lib/resource-search-fields";
@@ -34,6 +35,8 @@ export interface ResourcesToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
+  /** Optional auto-refresh controls (if not provided, no refresh button shown) */
+  autoRefreshProps?: RefreshControlProps;
 }
 
 export const ResourcesToolbar = memo(function ResourcesToolbar({
@@ -41,6 +44,7 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
   searchChips,
   onSearchChipsChange,
   resultsCount,
+  autoRefreshProps,
 }: ResourcesToolbarProps) {
   const visibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useResourcesTableStore((s) => s.toggleColumn);
@@ -56,6 +60,7 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
       resultsCount={resultsCount}
+      autoRefreshProps={autoRefreshProps}
     >
       <DisplayModeToggle />
     </TableToolbar>

@@ -14,20 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * WorkflowDetails Component
- *
- * Displays workflow-level details in the unified inspector panel.
- * This is the "base layer" shown when no group/task is selected.
- *
- * Features:
- * - Tabbed interface: Overview, Tasks, Logs, Events, Spec
- * - Status, priority, and duration
- * - Vertical timeline (submitted → started → running/completed)
- * - Details (user, pool, backend, tags)
- * - External links (logs, dashboard, grafana, etc.)
- * - Actions (cancel workflow)
- */
+/** Workflow-level details panel (base layer when no group/task is selected). */
 
 "use client";
 
@@ -453,7 +440,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
           activeTab={activeTab}
           scrollable={false}
         >
-          <WorkflowSpecViewer workflowId={workflow.name} />
+          {activeTab === "spec" && <WorkflowSpecViewer workflowId={workflow.name} />}
         </TabPanel>
       </div>
     </div>

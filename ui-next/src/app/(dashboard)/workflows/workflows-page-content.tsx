@@ -35,12 +35,13 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { WorkflowsDataTable } from "@/app/(dashboard)/workflows/components/table/workflows-data-table";
 import { WorkflowsToolbar } from "@/app/(dashboard)/workflows/components/workflows-toolbar";
 import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
 import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 import { useUser } from "@/lib/auth/user-context";
+import { useWorkflowsAutoRefresh } from "@/app/(dashboard)/workflows/hooks/use-workflows-auto-refresh";
 
 // =============================================================================
 // Client Component
@@ -70,6 +71,9 @@ export function WorkflowsPageContent() {
   const sortState = useWorkflowsTableStore((s) => s.sort);
   const sortDirection = (sortState?.direction === "asc" ? "ASC" : "DESC") as "ASC" | "DESC";
 
+  // Auto-refresh settings
+  const autoRefresh = useWorkflowsAutoRefresh();
+
   // ==========================================================================
   // Data Fetching with FilterBar filtering and pagination
   // Data is hydrated from server prefetch - no loading spinner on initial load!
@@ -90,10 +94,22 @@ export function WorkflowsPageContent() {
   } = useWorkflowsData({
     searchChips,
     sortDirection,
+    refetchInterval: autoRefresh.effectiveInterval,
   });
 
   // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
+
+  // Memoize autoRefreshProps to prevent unnecessary toolbar re-renders
+  const autoRefreshProps = useMemo(
+    () => ({
+      interval: autoRefresh.interval,
+      setInterval: autoRefresh.setInterval,
+      onRefresh: refetch,
+      isRefreshing: isLoading,
+    }),
+    [autoRefresh.interval, autoRefresh.setInterval, refetch, isLoading],
+  );
 
   // ==========================================================================
   // Render
@@ -113,6 +129,7 @@ export function WorkflowsPageContent() {
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
             currentUsername={user?.username}
+            autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>
       </div>

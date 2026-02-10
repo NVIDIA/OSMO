@@ -38,6 +38,10 @@ export interface DatasetsToolbarProps {
   showAllUsersPending: boolean;
   /** Callback when show all users toggle is clicked */
   onToggleShowAllUsers: () => void;
+  /** Manual refresh callback */
+  onRefresh: () => void;
+  /** Loading state for refresh button */
+  isRefreshing: boolean;
 }
 
 interface UserToggleProps {
@@ -68,12 +72,23 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
   showAllUsers,
   showAllUsersPending,
   onToggleShowAllUsers,
+  onRefresh,
+  isRefreshing,
 }: DatasetsToolbarProps) {
   const visibleColumnIds = useDatasetsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useDatasetsTableStore((s) => s.toggleColumn);
 
   // Use static search fields
   const searchFields = useMemo((): readonly SearchField<Dataset>[] => DATASET_STATIC_FIELDS, []);
+
+  // Memoize autoRefreshProps to prevent unnecessary TableToolbar re-renders
+  const autoRefreshProps = useMemo(
+    () => ({
+      onRefresh,
+      isRefreshing,
+    }),
+    [onRefresh, isRefreshing],
+  );
 
   return (
     <TableToolbar
@@ -86,6 +101,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search datasets... (try 'name:', 'format:', 'bucket:')"
       resultsCount={resultsCount}
+      autoRefreshProps={autoRefreshProps}
     >
       <UserToggle
         showAllUsers={showAllUsers}

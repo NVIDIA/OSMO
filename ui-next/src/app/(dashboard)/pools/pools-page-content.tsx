@@ -48,6 +48,7 @@ import { PanelContent } from "@/app/(dashboard)/pools/components/panel/panel-con
 import { PoolsToolbar } from "@/app/(dashboard)/pools/components/pools-toolbar";
 import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
 import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
+import { usePoolsAutoRefresh } from "@/app/(dashboard)/pools/hooks/use-pools-auto-refresh";
 
 // =============================================================================
 // Client Component
@@ -73,6 +74,9 @@ export function PoolsPageContent() {
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
 
+  // Auto-refresh settings
+  const autoRefresh = usePoolsAutoRefresh();
+
   // ==========================================================================
   // Data Fetching with FilterBar filtering
   // Data is hydrated from server prefetch - no loading spinner on initial load!
@@ -80,7 +84,7 @@ export function PoolsPageContent() {
   // ==========================================================================
 
   const { pools, allPools, sharingGroups, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } =
-    usePoolsData({ searchChips });
+    usePoolsData({ searchChips, refetchInterval: autoRefresh.effectiveInterval });
 
   // ==========================================================================
   // Pool Panel State - URL state controls both selection and mounting
@@ -109,6 +113,17 @@ export function PoolsPageContent() {
   // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
+  // Memoize autoRefreshProps to prevent unnecessary toolbar re-renders
+  const autoRefreshProps = useMemo(
+    () => ({
+      interval: autoRefresh.interval,
+      setInterval: autoRefresh.setInterval,
+      onRefresh: refetch,
+      isRefreshing: isLoading,
+    }),
+    [autoRefresh.interval, autoRefresh.setInterval, refetch, isLoading],
+  );
+
   // Panel width management
   const { panelWidth, setPanelWidth, handleWidthPreset } = usePanelWidth({
     storedWidth: usePoolsTableStore((s) => s.panelWidth),
@@ -134,6 +149,7 @@ export function PoolsPageContent() {
             searchChips={searchChips}
             onSearchChipsChange={setSearchChips}
             resultsCount={resultsCount}
+            autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>
       </div>

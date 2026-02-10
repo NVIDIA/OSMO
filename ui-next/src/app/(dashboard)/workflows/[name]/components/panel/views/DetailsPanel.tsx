@@ -14,36 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * DetailsPanel Component
- *
- * Unified inspector panel for workflow, group, and task details with:
- * - Multi-layer navigation (workflow → group → task)
- * - Resizable width with drag handle (via SidePanel)
- * - Collapsible to edge strip
- * - Breadcrumb navigation between layers
- * - Screen reader announcements
- * - URL-synced navigation for shareable deep links
- *
- * Architecture (Side-by-Side Model):
- * - DetailsPanel wraps SidePanel for resize/collapse functionality
- * - Used as a sibling to the DAG canvas in a flexbox layout
- * - DAG and Panel are completely decoupled
- *
- * Edge Strip:
- * - Always visible on left side of panel (both collapsed and expanded)
- * - Contains: expand/collapse button, workflow tab quick actions, shell sessions
- * - Provides consistent UI and eliminates separate collapsed content
- *
- * Content Views:
- * - WorkflowDetails: Workflow-level info (base layer)
- * - GroupDetails: Task list with search, sort, filter
- * - TaskDetails: Task info, actions, sibling navigation
- *
- * Keyboard Navigation:
- * - Escape → Collapse panel (URL navigation handles back via browser)
- * - Enter → Expand panel (when focused on edge strip button)
- */
+/** Unified inspector panel for workflow/group/task details with resize, collapse, and edge strip. */
 
 "use client";
 
@@ -64,27 +35,11 @@ import {
   type QuickAction,
 } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowEdgeStrip";
 
-// =============================================================================
-// Direct Imports - Eager loading for instant panel rendering
-// =============================================================================
-
-// Panel views are ALWAYS needed (not optional) - dynamic imports add unnecessary delay.
-// Direct imports eliminate 100-300ms skeleton flash at cost of ~30KB route bundle increase.
-// Trade-off: Workflow page is PRIMARY feature, instant UX is worth the bundle size.
-
+// Eager imports - panel views are always needed, dynamic imports add 100-300ms flash
 import { WorkflowDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowDetails";
 import { GroupDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/group/GroupDetails";
 import { TaskDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskDetails";
 import { ContentSlideWrapper } from "@/app/(dashboard)/workflows/[name]/components/panel/views/ContentSlideWrapper";
-
-// NOTE: We intentionally do NOT use a focus trap here.
-// This is a non-modal side panel (role="complementary"), not a dialog.
-// Users should be able to Tab freely between the panel and the DAG.
-// Focus traps are only appropriate for modal dialogs that block interaction.
-
-// ============================================================================
-// Main Component
-// ============================================================================
 
 export const DetailsPanel = memo(function DetailsPanel({
   view,
@@ -122,6 +77,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   onDragStart,
   onDragEnd,
   fillContainer,
+  isTerminal,
+  autoRefresh,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell, reconnectShell } = useShellContext();
@@ -146,17 +103,21 @@ export const DetailsPanel = memo(function DetailsPanel({
     }
   }, [onToggleCollapsed]);
 
+  const workflowName = workflow?.name;
+  const groupName = group?.name;
+  const taskCount = group?.tasks?.length ?? 0;
+  const taskName = task?.name;
+
   // Announce panel state changes to screen readers
   useEffect(() => {
-    if (view === "workflow" && workflow) {
-      announce(`Workflow details panel. ${workflow.name}.`);
-    } else if (view === "group" && group) {
-      const taskCount = group.tasks?.length ?? 0;
-      announce(`Group details. ${group.name}, ${taskCount} tasks.`);
-    } else if (view === "task" && task) {
-      announce(`Task details. ${task.name}.`);
+    if (view === "workflow" && workflowName) {
+      announce(`Workflow details panel. ${workflowName}.`);
+    } else if (view === "group" && groupName) {
+      announce(`Group details. ${groupName}, ${taskCount} tasks.`);
+    } else if (view === "task" && taskName) {
+      announce(`Task details. ${taskName}.`);
     }
-  }, [view, workflow, group, task, announce]);
+  }, [view, workflowName, groupName, taskCount, taskName, announce]);
 
   // Get aria label based on current view
   const ariaLabel =
@@ -252,8 +213,16 @@ export const DetailsPanel = memo(function DetailsPanel({
     ];
   }, [navigateToWorkflowTab]);
 
-  // Unified edge strip - always visible on left side
-  // Contains: DAG toggle, quick actions, shell sessions
+  // Terminal workflows show manual-only refresh (no interval selector)
+  // because polling has already stopped and the interval has no effect.
+  const refreshControl = useMemo(() => {
+    if (!autoRefresh) return undefined;
+    if (isTerminal) {
+      return { onRefresh: autoRefresh.onRefresh, isRefreshing: autoRefresh.isRefreshing };
+    }
+    return autoRefresh;
+  }, [autoRefresh, isTerminal]);
+
   const edgeContent = (
     <WorkflowEdgeStrip
       quickActions={quickActions}
@@ -263,6 +232,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       onDisconnectSession={handleDisconnectSession}
       onReconnectSession={handleReconnectSession}
       onRemoveSession={handleRemoveSession}
+      refreshControl={refreshControl}
     />
   );
 
