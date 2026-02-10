@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 package server
 
 import (
+	"context"
 	"testing"
 
 	"go.corp.nvidia.com/osmo/utils/roles"
@@ -132,12 +133,13 @@ func TestCheckPolicyAccess(t *testing.T) {
 				Policies: []roles.RolePolicy{
 					{
 						Actions: []roles.RoleAction{
-							{Base: "http", Path: "/api/workflow", Method: "*"},
+							// Use bucket path which supports multiple methods
+							{Base: "http", Path: "/api/bucket/*", Method: "*"},
 						},
 					},
 				},
 			},
-			path:       "/api/workflow",
+			path:       "/api/bucket/my-bucket",
 			method:     "POST",
 			wantAccess: true,
 		},
@@ -262,12 +264,13 @@ func TestCheckPolicyAccess(t *testing.T) {
 				Policies: []roles.RolePolicy{
 					{
 						Actions: []roles.RoleAction{
-							{Base: "http", Path: "/api/router/*/*/client/*", Method: "Websocket"},
+							// Use exec path which is registered in ActionRegistry
+							{Base: "http", Path: "/api/router/exec/*/client/*", Method: "Websocket"},
 						},
 					},
 				},
 			},
-			path:       "/api/router/session/abc/client/connect",
+			path:       "/api/router/exec/abc/client/connect",
 			method:     "WEBSOCKET",
 			wantAccess: true,
 		},
@@ -285,7 +288,8 @@ func TestCheckPolicyAccess(t *testing.T) {
 					},
 				},
 			},
-			path:       "/api/workflow",
+			// workflow:Create is registered at /api/pool/*/workflow
+			path:       "/api/pool/test-pool/workflow",
 			method:     "POST",
 			wantAccess: true,
 		},
@@ -336,7 +340,8 @@ func TestCheckPolicyAccess(t *testing.T) {
 					},
 				},
 			},
-			path:       "/api/pool",
+			// Use workflow/* which maps to workflow:Read
+			path:       "/api/workflow/abc123",
 			method:     "GET",
 			wantAccess: true,
 		},
@@ -370,12 +375,14 @@ func TestCheckPolicyAccess(t *testing.T) {
 					},
 					{
 						Actions: []roles.RoleAction{
-							{Base: "http", Path: "!/api/workflow", Method: "*"},
+							// Deny pattern (ignored during conversion)
+							{Base: "http", Path: "!/api/pool/*/workflow", Method: "*"},
 						},
 					},
 				},
 			},
-			path:       "/api/workflow",
+			// workflow:Create is registered at /api/pool/*/workflow
+			path:       "/api/pool/test-pool/workflow",
 			method:     "POST",
 			wantAccess: true, // Semantic action matched first
 		},
@@ -385,7 +392,7 @@ func TestCheckPolicyAccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Convert role to semantic format (simulates what authz_server does)
 			convertedRole := roles.ConvertRoleToSemantic(tt.role)
-			result := roles.CheckPolicyAccess(convertedRole, tt.path, tt.method)
+			result := roles.CheckPolicyAccess(context.Background(), convertedRole, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckPolicyAccess() = %v, want %v (actionType: %s, matched: %s)",
 					result.Allowed, tt.wantAccess, result.ActionType, result.MatchedAction)
@@ -451,7 +458,7 @@ func TestDefaultRoleAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roles.CheckPolicyAccess(defaultRole, tt.path, tt.method)
+			result := roles.CheckPolicyAccess(context.Background(), defaultRole, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckPolicyAccess() = %v, want %v for path %s", result.Allowed, tt.wantAccess, tt.path)
 			}
@@ -510,7 +517,7 @@ func TestAdminRoleAccess(t *testing.T) {
 		},
 		{
 			name:       "router client endpoint accessible",
-			path:       "/api/router/session/abc/client/connect",
+			path:       "/api/router/exec/abc/client/connect",
 			method:     "GET",
 			wantAccess: true,
 		},
@@ -518,7 +525,7 @@ func TestAdminRoleAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roles.CheckPolicyAccess(adminRole, tt.path, tt.method)
+			result := roles.CheckPolicyAccess(context.Background(), adminRole, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckPolicyAccess() = %v, want %v for path %s", result.Allowed, tt.wantAccess, tt.path)
 			}
@@ -579,9 +586,10 @@ func TestCheckRolesAccess(t *testing.T) {
 			wantRole:   "osmo-user",
 		},
 		{
-			name:       "user role grants workflow create via semantic action",
-			roles:      []*roles.Role{userRole},
-			path:       "/api/workflow",
+			name:  "user role grants workflow create via semantic action",
+			roles: []*roles.Role{userRole},
+			// workflow:Create is registered at /api/pool/*/workflow
+			path:       "/api/pool/test-pool/workflow",
 			method:     "POST",
 			wantAccess: true,
 			wantRole:   "osmo-user",
@@ -595,9 +603,10 @@ func TestCheckRolesAccess(t *testing.T) {
 			wantRole:   "osmo-default",
 		},
 		{
-			name:       "combined roles - second matches",
-			roles:      []*roles.Role{defaultRole, userRole},
-			path:       "/api/workflow",
+			name:  "combined roles - second matches",
+			roles: []*roles.Role{defaultRole, userRole},
+			// workflow:Create is registered at /api/pool/*/workflow
+			path:       "/api/pool/test-pool/workflow",
 			method:     "POST",
 			wantAccess: true,
 			wantRole:   "osmo-user",
@@ -613,7 +622,7 @@ func TestCheckRolesAccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roles.CheckRolesAccess(tt.roles, tt.path, tt.method)
+			result := roles.CheckRolesAccess(context.Background(), tt.roles, tt.path, tt.method, nil)
 			if result.Allowed != tt.wantAccess {
 				t.Errorf("CheckRolesAccess() = %v, want %v", result.Allowed, tt.wantAccess)
 			}

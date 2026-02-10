@@ -289,7 +289,8 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
 
-    target_app.add_middleware(connectors.AccessControlMiddleware, method=config.method)
+    # Note: Authorization is now handled by the authz_sidecar (Go service).
+    # The Python AccessControlMiddleware has been removed.
 
     service_configs_dict = postgres.get_service_configs()
 

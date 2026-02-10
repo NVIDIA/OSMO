@@ -47,7 +47,7 @@ app = fastapi.FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(auth_service.router)
 
-app.add_middleware(connectors.AccessControlMiddleware)
+# Note: Authorization is now handled by the authz_sidecar (Go service).
 
 
 @app.get('/health')
