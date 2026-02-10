@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +43,7 @@ type ResourceListener struct {
 // NewResourceListener creates a new resource listener instance
 func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
 	return &ResourceListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_resource_listener"),
+		BaseListener: utils.NewBaseListener(args, "last_progress_resource_listener", "resource"),
 		args:         args,
 		aggregator:   utils.NewNodeUsageAggregator(args.Namespace),
 	}
@@ -52,66 +51,28 @@ func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
 
 // Run manages the bidirectional streaming lifecycle
 func (rl *ResourceListener) Run(ctx context.Context) error {
+	ch := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
 	return rl.BaseListener.Run(
 		ctx,
-		"Connected to operator service, resource stream established",
+		"Connected to the service, resource listener stream established",
+		ch,
+		rl.watchPods,
 		rl.sendMessages,
-		"resource",
 	)
 }
 
-// sendMessages starts the pod informer and sends resource usage events
-func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
-	usageChan := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(usageChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watchPods goroutine: %v", r)
-				cancel(fmt.Errorf("panic in pod watcher: %v", r))
-			}
-		}()
-		rl.watchPods(ctx, cancel, usageChan)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in sendFromChannels goroutine: %v", r)
-				cancel(fmt.Errorf("panic in message sender: %v", r))
-			}
-		}()
-		rl.sendFromChannels(usageChan, ctx, cancel)
-	}()
-
-	wg.Wait()
-	log.Println("Resource listener goroutines stopped")
-}
-
-// sendFromChannels sends messages from usage channel to the server
-func (rl *ResourceListener) sendFromChannels(
-	usageChan <-chan *pb.ListenerMessage,
+// sendMessages reads from the channel and sends messages to the server.
+func (rl *ResourceListener) sendMessages(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
+	ch <-chan *pb.ListenerMessage,
 ) {
-	log.Printf("Starting message sender for usage channel")
-	defer log.Printf("Stopping usage message sender")
-
-	done := ctx.Done()
-	progressTicker := time.NewTicker(
-		time.Duration(rl.args.ProgressFrequencySec) * time.Second)
+	progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return
 		case <-progressTicker.C:
 			progressWriter := rl.GetProgressWriter()
@@ -120,7 +81,7 @@ func (rl *ResourceListener) sendFromChannels(
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
-		case msg, ok := <-usageChan:
+		case msg, ok := <-ch:
 			if !ok {
 				if ctx.Err() != nil {
 					log.Printf("usage watcher stopped due to context cancellation")
@@ -130,7 +91,7 @@ func (rl *ResourceListener) sendFromChannels(
 				cancel(fmt.Errorf("usage watcher stopped"))
 				return
 			}
-			if err := rl.sendResourceMessage(ctx, msg); err != nil {
+			if err := rl.BaseListener.SendMessage(ctx, msg); err != nil {
 				cancel(fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err))
 				return
 			}
@@ -138,28 +99,13 @@ func (rl *ResourceListener) sendFromChannels(
 	}
 }
 
-// sendResourceMessage sends a single resource message
-func (rl *ResourceListener) sendResourceMessage(ctx context.Context, msg *pb.ListenerMessage) error {
-	// Add message to unacked queue before sending
-	if err := rl.GetUnackedMessages().AddMessage(ctx, msg); err != nil {
-		log.Printf("Failed to add message to unacked queue: %v", err)
-		return nil // Don't fail the stream
-	}
-
-	if err := rl.GetStream().Send(msg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // watchPods starts pod informer and handles resource aggregation
 // This function focuses on pod events and resource usage messages
-func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.CancelCauseFunc, usageChan chan<- *pb.ListenerMessage) {
-	// Capture done channel once for performance
-	done := ctx.Done()
+func (rl *ResourceListener) watchPods(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	ch chan<- *pb.ListenerMessage) {
 
-	// Create Kubernetes client
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
@@ -239,11 +185,11 @@ func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.Cancel
 	})
 
 	// Start the informer
-	podInformerFactory.Start(done)
+	podInformerFactory.Start(ctx.Done())
 
 	// Wait for cache sync
 	log.Println("Waiting for pod informer cache to sync...")
-	if !cache.WaitForCacheSync(done, podInformer.HasSynced) {
+	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
 		return
 	}
@@ -259,12 +205,12 @@ func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.Cancel
 
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			log.Println("Pod watcher stopped")
 			return
 		case <-flushTicker.C:
 			// Debounced flush of dirty nodes - send usage messages
-			rl.flushDirtyNodes(ctx, usageChan)
+			rl.flushDirtyNodes(ctx, ch)
 		}
 	}
 }
@@ -292,7 +238,9 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 }
 
 // flushDirtyNodes sends resource usage updates for all dirty nodes
-func (rl *ResourceListener) flushDirtyNodes(ctx context.Context, usageChan chan<- *pb.ListenerMessage) {
+func (rl *ResourceListener) flushDirtyNodes(
+	ctx context.Context,
+	usageChan chan<- *pb.ListenerMessage) {
 	dirtyNodes := rl.aggregator.GetAndClearDirtyNodes()
 	if len(dirtyNodes) == 0 {
 		return
@@ -306,7 +254,8 @@ func (rl *ResourceListener) flushDirtyNodes(ctx context.Context, usageChan chan<
 			case usageChan <- msg:
 				sent++
 			case <-ctx.Done():
-				log.Printf("Flushed %d/%d resource usage messages before shutdown", sent, len(dirtyNodes))
+				log.Printf("Flushed %d/%d resource usage messages before shutdown",
+					sent, len(dirtyNodes))
 				return
 			}
 		}

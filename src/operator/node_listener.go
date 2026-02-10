@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,73 +41,36 @@ type NodeListener struct {
 // NewNodeListener creates a new node listener instance
 func NewNodeListener(args utils.ListenerArgs) *NodeListener {
 	return &NodeListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_node_listener"),
+		BaseListener: utils.NewBaseListener(args, "last_progress_node_listener", "node"),
 		args:         args,
 	}
 }
 
 // Run manages the bidirectional streaming lifecycle
 func (nl *NodeListener) Run(ctx context.Context) error {
+	ch := make(chan *pb.ListenerMessage, nl.args.NodeUpdateChanSize)
 	return nl.BaseListener.Run(
 		ctx,
 		"Connected to operator service, node stream established",
+		ch,
+		nl.watchNodes,
 		nl.sendMessages,
-		"node",
 	)
 }
 
-// sendMessages starts the node informer and sends node/inventory messages
-func (nl *NodeListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
-	nodeChan := make(chan *pb.ListenerMessage, nl.args.NodeUpdateChanSize)
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(nodeChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watchNodes goroutine: %v", r)
-				cancel(fmt.Errorf("panic in node watcher: %v", r))
-			}
-		}()
-		nl.watchNodes(ctx, cancel, nodeChan)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in sendFromNodeChannel goroutine: %v", r)
-				cancel(fmt.Errorf("panic in message sender: %v", r))
-			}
-		}()
-		nl.sendFromNodeChannel(nodeChan, ctx, cancel)
-	}()
-
-	wg.Wait()
-	log.Println("Node listener goroutines stopped")
-}
-
-// sendFromNodeChannel sends messages from node channel to the server
-func (nl *NodeListener) sendFromNodeChannel(
-	nodeChan <-chan *pb.ListenerMessage,
+// sendMessages reads from the channel and sends messages to the server.
+func (nl *NodeListener) sendMessages(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
+	ch <-chan *pb.ListenerMessage,
 ) {
-	log.Printf("Starting message sender for node channel")
-	defer log.Printf("Stopping node message sender")
-
-	done := ctx.Done()
 	progressTicker := time.NewTicker(
 		time.Duration(nl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return
 		case <-progressTicker.C:
 			progressWriter := nl.GetProgressWriter()
@@ -117,7 +79,7 @@ func (nl *NodeListener) sendFromNodeChannel(
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
-		case msg, ok := <-nodeChan:
+		case msg, ok := <-ch:
 			if !ok {
 				if ctx.Err() != nil {
 					log.Printf("node watcher stopped due to context cancellation")

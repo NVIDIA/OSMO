@@ -42,128 +42,57 @@ type EventListener struct {
 // NewEventListener creates a new event listener instance
 func NewEventListener(args utils.ListenerArgs) *EventListener {
 	return &EventListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_event_listener"),
+		BaseListener: utils.NewBaseListener(args, "last_progress_event_listener", "event"),
 		args:         args,
 	}
 }
 
 // Run manages the bidirectional streaming lifecycle
 func (el *EventListener) Run(ctx context.Context) error {
+	ch := make(chan *pb.ListenerMessage, el.args.EventChanSize)
 	return el.BaseListener.Run(
 		ctx,
-		"Connected to operator service, event stream established",
+		"Connected to the service, event listener stream established",
+		ch,
+		el.watchEvents,
 		el.sendMessages,
-		"event",
 	)
 }
 
-// eventKey represents semantic event identity (not object identity)
-type eventKey struct {
-	eventType string // "Warning", "Normal"
-	reason    string // "FailedScheduling", "BackOff", etc.
-	podName   string // Pod name from InvolvedObject
-}
+// sendMessages reads from the channel and sends messages to the server.
+func (el *EventListener) sendMessages(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	ch <-chan *pb.ListenerMessage,
+) {
+	log.Printf("Starting message sender for event channel")
+	defer log.Printf("Stopping event message sender")
 
-// eventSentTracker tracks Events we've already processed
-type eventSentTracker struct {
-	mu   sync.RWMutex
-	sent map[eventKey]time.Time // key -> last sent timestamp
-	ttl  time.Duration           // TTL for resends (e.g., 15 minutes)
-}
-
-// newEventSentTracker creates a new event sent tracker
-func newEventSentTracker(ttl time.Duration) *eventSentTracker {
-	return &eventSentTracker{
-		sent: make(map[eventKey]time.Time),
-		ttl:  ttl,
-	}
-}
-
-// ShouldProcess checks if an event should be processed (not recently sent)
-func (t *eventSentTracker) ShouldProcess(eventType, reason, podName string) bool {
-	key := eventKey{eventType, reason, podName}
-	now := time.Now()
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if lastSent, exists := t.sent[key]; exists {
-		if now.Sub(lastSent) < t.ttl {
-			return false // Recently sent, skip
-		}
-	}
-
-	t.sent[key] = now
-	return true
-}
-
-// Cleanup removes stale entries (call periodically, e.g., every hour)
-func (t *eventSentTracker) Cleanup() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	cutoff := time.Now().Add(-t.ttl)
-	for k, v := range t.sent {
-		if v.Before(cutoff) {
-			delete(t.sent, k)
-		}
-	}
-}
-
-// sendMessages consumes event updates from a channel and sends them to the server
-func (el *EventListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
-	// Capture done channel once for performance
-	done := ctx.Done()
-
-	// Create a channel to receive event updates from the watcher
-	eventChan := make(chan *corev1.Event, el.args.EventChanSize)
-
-	// Create a channel to signal if watchEvents exits unexpectedly
-	watcherDone := make(chan struct{})
-
-	// Start event watcher in a separate goroutine
-	el.AddToWaitGroup(1)
-	go func() {
-		defer el.WaitGroupDone()
-		defer close(watcherDone)
-		defer close(eventChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watchEvents goroutine: %v", r)
-				cancel(fmt.Errorf("panic in event watcher: %v", r))
-			}
-		}()
-		watchEvents(ctx, el.args, eventChan)
-	}()
-
-	// Ticker to report progress when idle
 	progressTicker := time.NewTicker(time.Duration(el.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
-	// Send event updates to the server
 	for {
 		select {
-		case <-done:
-			log.Println("Stopping message sender")
-			return
-		case <-watcherDone:
-			// Check if this was due to context cancellation (expected) vs unexpected stop
-			if ctx.Err() != nil {
-				log.Println("Event watcher stopped due to context cancellation")
-				return
-			}
-			log.Println("Event watcher stopped unexpectedly")
-			cancel(fmt.Errorf("event watcher stopped"))
+		case <-ctx.Done():
 			return
 		case <-progressTicker.C:
-			// Report progress periodically even when idle
 			progressWriter := el.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
-		case event := <-eventChan:
-			if err := el.sendEventMessage(ctx, event); err != nil {
+		case msg, ok := <-ch:
+			if !ok {
+				if ctx.Err() != nil {
+					log.Println("Event watcher stopped due to context cancellation")
+					return
+				}
+				log.Println("Event watcher stopped unexpectedly")
+				cancel(fmt.Errorf("event watcher stopped"))
+				return
+			}
+			if err := el.BaseListener.SendMessage(ctx, msg); err != nil {
 				cancel(fmt.Errorf("failed to send message: %w", err))
 				return
 			}
@@ -171,46 +100,14 @@ func (el *EventListener) sendMessages(ctx context.Context, cancel context.Cancel
 	}
 }
 
-// sendEventMessage sends a single event message
-func (el *EventListener) sendEventMessage(ctx context.Context, event *corev1.Event) error {
-	msg, err := createPodEventMessage(event)
-	if err != nil {
-		log.Printf("Failed to create pod event message: %v", err)
-		return nil // Don't fail the stream for one message
-	}
-
-	unackedMessages := el.GetUnackedMessages()
-
-	// Add message to unacked queue before sending
-	if err := unackedMessages.AddMessage(ctx, msg); err != nil {
-		log.Printf("Failed to add message to unacked queue: %v", err)
-		return nil // Don't fail the stream
-	}
-
-	if err := el.GetStream().Send(msg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // watchEvents watches for Kubernetes events and sends them to a channel
-func watchEvents(
+func (el *EventListener) watchEvents(
 	ctx context.Context,
-	args utils.ListenerArgs,
-	eventChan chan<- *corev1.Event,
+	cancel context.CancelCauseFunc,
+	ch chan<- *pb.ListenerMessage,
 ) {
-	// Create Kubernetes client
-	clientset, err := utils.CreateKubernetesClient()
-	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		return
-	}
-
-	log.Printf("Starting event watcher for namespace: %s", args.Namespace)
-
 	// Event sent tracker to avoid sending duplicate events
-	tracker := newEventSentTracker(time.Duration(args.EventCacheTTLMin) * time.Minute)
+	tracker := newEventSentTracker(time.Duration(el.args.EventCacheTTLMin) * time.Minute)
 
 	// Start periodic cleanup goroutine for the tracker
 	cleanupTicker := time.NewTicker(1 * time.Hour)
@@ -222,17 +119,23 @@ func watchEvents(
 			case <-ctx.Done():
 				return
 			case <-cleanupTicker.C:
-				tracker.Cleanup()
+				tracker.cleanup()
 				log.Println("Event tracker cleanup completed")
 			}
 		}
 	}()
 
+	clientset, err := utils.CreateKubernetesClient()
+	if err != nil {
+		log.Printf("Failed to create kubernetes client: %v", err)
+		return
+	}
+
 	// Create informer factory for the specific namespace
 	eventInformerFactory := informers.NewSharedInformerFactoryWithOptions(
 		clientset,
 		0, // No automatic resync
-		informers.WithNamespace(args.Namespace),
+		informers.WithNamespace(el.args.Namespace),
 	)
 
 	// Get event informer
@@ -246,12 +149,13 @@ func watchEvents(
 		}
 
 		// Check if we should process this event (deduplication)
-		if !tracker.ShouldProcess(event.Type, event.Reason, event.InvolvedObject.Name) {
+		if !tracker.shouldProcess(event.Type, event.Reason, event.InvolvedObject.Name) {
 			return
 		}
 
+		msg := createPodEventMessage(event)
 		select {
-		case eventChan <- event:
+		case ch <- msg:
 		case <-ctx.Done():
 			return
 		}
@@ -279,9 +183,9 @@ func watchEvents(
 
 	// Start the informer
 	eventInformerFactory.Start(ctx.Done())
+	log.Println("Starting event informer for namespace: %s", el.args.Namespace)
 
 	// Wait for cache sync
-	log.Println("Waiting for event informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		log.Println("Failed to sync event informer cache")
 		return
@@ -293,8 +197,60 @@ func watchEvents(
 	log.Println("Event watcher stopped")
 }
 
+// eventKey represents semantic event identity (not object identity)
+type eventKey struct {
+	eventType string // "Warning", "Normal"
+	reason    string // "FailedScheduling", "BackOff", etc.
+	podName   string // Pod name from InvolvedObject
+}
+
+// eventSentTracker tracks Events we've already processed
+type eventSentTracker struct {
+	mu   sync.RWMutex
+	sent map[eventKey]time.Time // key -> last sent timestamp
+	ttl  time.Duration          // TTL for resends (e.g., 15 minutes)
+}
+
+// newEventSentTracker creates a new event sent tracker
+func newEventSentTracker(ttl time.Duration) *eventSentTracker {
+	return &eventSentTracker{
+		sent: make(map[eventKey]time.Time),
+		ttl:  ttl,
+	}
+}
+
+// shouldProcess checks if an event should be processed (not recently sent)
+func (t *eventSentTracker) shouldProcess(eventType, reason, podName string) bool {
+	key := eventKey{eventType, reason, podName}
+	now := time.Now()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if lastSent, exists := t.sent[key]; exists {
+		if now.Sub(lastSent) < t.ttl {
+			return false // Recently sent, skip
+		}
+	}
+
+	t.sent[key] = now
+	return true
+}
+
+// cleanup removes stale entries (call periodically, e.g., every hour)
+func (t *eventSentTracker) cleanup() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	cutoff := time.Now().Add(-t.ttl)
+	for k, v := range t.sent {
+		if v.Before(cutoff) {
+			delete(t.sent, k)
+		}
+	}
+}
+
 // createPodEventMessage creates a ListenerMessage from an Event object
-func createPodEventMessage(event *corev1.Event) (*pb.ListenerMessage, error) {
+func createPodEventMessage(event *corev1.Event) *pb.ListenerMessage {
 	// Extract timestamp (priority: LastTimestamp > EventTime > Now)
 	var timestamp time.Time
 	if !event.LastTimestamp.IsZero() {
@@ -329,5 +285,5 @@ func createPodEventMessage(event *corev1.Event) (*pb.ListenerMessage, error) {
 		event.InvolvedObject.Name, event.Reason, event.Type,
 	)
 
-	return msg, nil
+	return msg
 }
