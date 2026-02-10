@@ -1150,7 +1150,7 @@ def query_dataset(
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(str(bucket))
 
-    query_term = query.QueryParser.get_instance().parse(' '.join(command_parsed))
+    query_term = query.QueryParser.instance.parse(' '.join(command_parsed))
 
     if query_term.metadata_enabled:
         query_term.cmd = query_term.cmd.replace('dataset.created_date',
