@@ -36,6 +36,10 @@ This directory contains brief examples of workflows that can be used in combinat
 | TorchRun: Training with Rescheduling                                   | [README](./dnn_training/torchrun_reschedule/README.md) |
 | Hardware-in-the-Loop: Deploying Policy on Jetson                        | [README](./hil/README.md)                      |
 
+## Physical AI End-to-End Pipeline: Nut Pouring
+
+End-to-end pipeline for fine-tuning the GR00T VLA model using the Nut Pouring task: from teleop data through MimicGen, Cosmos Transfer, and LeRobot to a trained policy. Check out the [README](./nut_pouring/README.md) for more information about this workflow series.
+
 ## Remote Development
 
 | Workflow Name                                                          | Link                                         |
