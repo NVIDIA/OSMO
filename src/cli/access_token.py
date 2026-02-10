@@ -118,7 +118,7 @@ def _set_token(service_client: client.ServiceClient, args: argparse.Namespace):
     # Determine the API path based on whether a user is specified
     if args.user:
         # Admin API: create token for a specific user
-        path = f'api/auth/users/{args.user}/access_token/{args.name}'
+        path = f'api/auth/user/{args.user}/access_token/{args.name}'
     else:
         # Default: create token for the current user
         path = f'api/auth/access_token/{args.name}'
@@ -138,7 +138,7 @@ def _delete_token(service_client: client.ServiceClient, args: argparse.Namespace
     """Delete an access token."""
     if args.user:
         # Admin API: delete token for a specific user
-        path = f'api/auth/users/{args.user}/access_token/{args.name}'
+        path = f'api/auth/user/{args.user}/access_token/{args.name}'
     else:
         # Default: delete token for the current user
         path = f'api/auth/access_token/{args.name}'
@@ -155,7 +155,7 @@ def _list_tokens(service_client: client.ServiceClient, args: argparse.Namespace)
     """List access tokens."""
     if args.user:
         # Admin API: list tokens for a specific user
-        path = f'api/auth/users/{args.user}/access_tokens'
+        path = f'api/auth/user/{args.user}/access_tokens'
     else:
         # Default: list tokens for the current user
         path = 'api/auth/access_token'
