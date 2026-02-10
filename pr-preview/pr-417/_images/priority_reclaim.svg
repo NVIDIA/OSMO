@@ -1,0 +1,235 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -120 550 350" width="550" height="380">
+  <defs>
+    <style>
+      :root{--wf-w:110px;--wf-h:70px;--gpu-h:45px;--preempt-color:#d32f2f}
+      .wf-box,.gpu-box,.node-box{rx:3}
+      .wf-box{width:var(--wf-w);height:var(--wf-h)}
+      .wf-normal{fill:#8fbc8f;stroke:#2d5016;stroke-width:2.5}
+      .wf-normal-pool2{fill:#daa520;stroke:#8b6508;stroke-width:2.5}
+      .wf-low{fill:#9aaa9a;stroke:#5a6a5a;stroke-width:2;stroke-dasharray:5,5}
+      .wf-running{fill:#6ba3d4;stroke:#2a5a8a;stroke-width:2}
+      .wf-running-low{fill:#5a93c4;stroke:#3a6a8a;stroke-width:2;stroke-dasharray:5,5}
+      .wf-running-pool2{fill:#e8c468;stroke:#9a7508;stroke-width:2}
+      .gpu-box{width:var(--wf-w);height:var(--gpu-h)}
+      .gpu-normal{fill:#6ba3d4;stroke:#2a5a8a;stroke-width:2}
+      .gpu-normal-pool2{fill:#daa520;stroke:#8b6508;stroke-width:2}
+      .node-box{fill:#f0f0f0;stroke:#999;stroke-width:2;stroke-dasharray:3,3}
+      .divider{stroke:#999;stroke-width:2}
+      .queue-bg{fill:#f5f5f5;stroke:none;opacity:.6}
+      .preemption-overlay{fill:var(--preempt-color);font-size:18px;font-weight:bold;opacity:0}
+      .preemption-hatch{fill:url(#crosshatch);opacity:0}
+      text{font-family:Arial,sans-serif;text-anchor:middle}
+      .wf-title,.gpu-label{font-weight:bold;fill:#1a1a1a}
+      .wf-title{font-size:18px}
+      .wf-label{font-size:13px;fill:#333}
+      .gpu-label{font-size:16px}
+      .pool-label{font-size:17px;font-weight:bold;fill:#333}
+      .wf-low-2 .wf-title,.wf-low-2 .wf-label,.wf-low-3 .wf-title,.wf-low-3 .wf-label{fill:#555;opacity:.85}
+
+      /* WF5 animations - entering Pool 2 queue and moving to Node 1 */
+      .queue-wf5 { animation: wf5-move 12s ease-in-out infinite; }
+      .queue-wf5 > rect:first-child { animation: wf5-color-change 12s ease-in-out infinite; }
+
+      @keyframes wf5-move {
+        0%, 8% { opacity: 0; transform: translate(850px, -70px); }
+        10% { opacity: 1; transform: translate(850px, -70px); }
+        15%, 40% { opacity: 1; transform: translate(300px, -70px); }
+        45%, 93% { opacity: 1; transform: translate(290px, 40px); }
+        96% { opacity: 0; transform: translate(290px, 40px); }
+        97%, 100% { opacity: 0; transform: translate(850px, -70px); }
+      }
+
+      @keyframes wf5-color-change {
+        0%, 8% { fill: #e8c468; stroke: #9a7508; stroke-width: 2; }
+        10%, 40% { fill: #e8c468; stroke: #9a7508; stroke-width: 2; }
+        45%, 93% { fill: #daa520; stroke: #8b6508; stroke-width: 2.5; }
+        94%, 100% { fill: #e8c468; stroke: #9a7508; stroke-width: 2; }
+      }
+
+      /* WF3 preemption animations */
+      .wf-low-3 { animation: wf3-slide-back 12s ease-in-out infinite; }
+      .wf-low-3 > rect:first-child { animation: wf3-border-pulse 12s ease-in-out infinite; }
+      .wf-low-3 .preemption-overlay { animation: wf3-preemption-show 12s ease-in-out infinite; }
+      .wf-low-3 .preemption-hatch { animation: wf3-preemption-hatch 12s ease-in-out infinite; }
+      .wf-low-3 .wf-title,
+      .wf-low-3 .wf-label { animation: wf3-text-fade 12s ease-in-out infinite; }
+
+      @keyframes wf3-border-pulse {
+        0%, 15% { fill: #5a93c4; stroke: #3a6a8a; stroke-width: 2; stroke-dasharray: 5,5; }
+        18%, 20% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 4; stroke-dasharray: 5,5; }
+        21%, 23% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 2.5; stroke-dasharray: 5,5; }
+        24%, 26% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 4; stroke-dasharray: 5,5; }
+        27%, 29% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 2.5; stroke-dasharray: 5,5; }
+        30%, 32% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 4; stroke-dasharray: 5,5; }
+        33%, 35% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 2.5; stroke-dasharray: 5,5; }
+        36%, 38% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 4; stroke-dasharray: 5,5; }
+        39%, 41% { fill: #5a93c4; stroke: #d32f2f; stroke-width: 2.5; stroke-dasharray: 5,5; }
+        42%, 44% { fill: #5a93c4; stroke: #3a6a8a; stroke-width: 2; stroke-dasharray: 5,5; }
+        45%, 92% { fill: #9aaa9a; stroke: #5a6a5a; stroke-width: 2; stroke-dasharray: 5,5; }
+        94%, 100% { fill: #5a93c4; stroke: #3a6a8a; stroke-width: 2; stroke-dasharray: 5,5; }
+      }
+
+      @keyframes wf3-preemption-show {
+        0%, 15% { opacity: 0; }
+        18%, 41% { opacity: 1; }
+        42%, 100% { opacity: 0; }
+      }
+
+      @keyframes wf3-preemption-hatch {
+        0%, 15% { opacity: 0; }
+        18%, 41% { opacity: 0.85; }
+        42%, 100% { opacity: 0; }
+      }
+
+      @keyframes wf3-text-fade {
+        0%, 15% { opacity: 1; }
+        18%, 41% { opacity: 0.2; }
+        45%, 100% { opacity: 1; }
+      }
+
+      @keyframes wf3-slide-back {
+        0%, 40% { opacity: 1; transform: translate(290px, 40px); }
+        45%, 90% { opacity: 1; transform: translate(140px, -70px); }
+        91%, 92% { opacity: 0; transform: translate(140px, -70px); }
+        93% { opacity: 0; transform: translate(290px, 40px); }
+        94%, 100% { opacity: 1; transform: translate(290px, 40px); }
+      }
+
+      @media(prefers-color-scheme:dark){
+        :root{--preempt-color:#f44336}
+        .wf-normal{fill:#6b9b6b;stroke:#88bb88}
+        .wf-normal-pool2{fill:#b8860b;stroke:#daa520}
+        .wf-low{fill:#4a5a4a;stroke:#6a7a6a}
+        .wf-running{fill:#5a8fc4;stroke:#7ab0e4}
+        .wf-running-low{fill:#4a7fb4;stroke:#6a9ad4}
+        .wf-running-pool2{fill:#c8a628;stroke:#daa520}
+        .gpu-normal{fill:#5a8fc4;stroke:#7ab0e4}
+        .gpu-normal-pool2{fill:#b8860b;stroke:#daa520}
+        .node-box{fill:#2b2b2b;stroke:#555}
+        .divider{stroke:#666}
+        .queue-bg{fill:#3a3a3a;opacity:.5}
+        .wf-title,.gpu-label{fill:#e0e0e0}
+        .wf-label,.pool-label{fill:#c0c0c0}
+        .wf-low-2 .wf-title,.wf-low-2 .wf-label,.wf-low-3 .wf-title,.wf-low-3 .wf-label{fill:#b0b0b0;opacity:.9}
+        .preemption-hatch{fill:url(#crosshatch-dark)}
+        #arrowhead polygon{fill:#b0b0b0}
+        @keyframes wf3-border-pulse{
+          0%,15%,42%,44%,94%,100%{fill:#4a7fb4;stroke:#6a9ad4;stroke-width:2;stroke-dasharray:5,5}
+          18%,20%,24%,26%,30%,32%,36%,38%{fill:#4a7fb4;stroke:#f44336;stroke-width:4;stroke-dasharray:5,5}
+          21%,23%,27%,29%,33%,35%,39%,41%{fill:#4a7fb4;stroke:#f44336;stroke-width:2.5;stroke-dasharray:5,5}
+          45%,92%{fill:#4a5a4a;stroke:#6a7a6a;stroke-width:2;stroke-dasharray:5,5}
+        }
+        @keyframes wf5-color-change{
+          0%,8%,10%,40%,94%,100%{fill:#c8a628;stroke:#daa520;stroke-width:2}
+          45%,93%{fill:#b8860b;stroke:#daa520;stroke-width:2.5}
+        }
+      }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#333" />
+    </marker>
+
+    <!-- Crosshatch pattern for preemption overlay -->
+    <pattern id="crosshatch" patternUnits="userSpaceOnUse" width="8" height="8">
+      <rect width="8" height="8" fill="rgba(255,255,255,0.75)" />
+      <path d="M0,8 l8,-8 M-2,2 l4,-4 M6,10 l4,-4" stroke="#999" stroke-width="0.5" opacity="0.5" />
+    </pattern>
+    <pattern id="crosshatch-dark" patternUnits="userSpaceOnUse" width="8" height="8">
+      <rect width="8" height="8" fill="rgba(30,30,30,0.75)" />
+      <path d="M0,8 l8,-8 M-2,2 l4,-4 M6,10 l4,-4" stroke="#555" stroke-width="0.5" opacity="0.5" />
+    </pattern>
+  </defs>
+
+  <!-- Priority Queues -->
+  <rect x="30" y="-110" width="240" height="130" class="queue-bg" rx="5" />
+  <text x="150" y="-92" class="pool-label">Pool 1 Queue</text>
+
+  <rect x="290" y="-110" width="240" height="130" class="queue-bg" rx="5" />
+  <text x="410" y="-92" class="pool-label">Pool 2 Queue</text>
+
+  <!-- Node boxes for Pool 2 (background layer) -->
+  <g transform="translate(0, 40)">
+    <rect x="290" y="0" width="110" height="70" class="wf-box node-box" />
+    <text x="345" y="40" class="wf-label" fill="#999">Node 1</text>
+    <rect x="420" y="0" width="110" height="70" class="wf-box node-box" />
+    <text x="475" y="40" class="wf-label" fill="#999">Node 2</text>
+  </g>
+
+  <!-- GPU boxes -->
+  <g transform="translate(30, 130)">
+    <rect class="gpu-box gpu-normal" />
+    <text x="55" y="30" class="gpu-label">GPU</text>
+  </g>
+
+  <g transform="translate(160, 130)">
+    <rect class="gpu-box gpu-normal" />
+    <text x="55" y="30" class="gpu-label">GPU</text>
+  </g>
+
+  <g transform="translate(0, 130)">
+    <rect x="290" class="gpu-box gpu-normal-pool2" />
+    <text x="345" y="30" class="gpu-label">GPU</text>
+    <rect x="420" class="gpu-box gpu-normal-pool2" />
+    <text x="475" y="30" class="gpu-label">GPU</text>
+  </g>
+
+  <!-- Workflow boxes (foreground layer) -->
+  <g transform="translate(30, 40)">
+    <rect class="wf-box wf-running" />
+    <text x="55" y="38" class="wf-title">WF 1</text>
+    <text x="55" y="56" class="wf-label">(Normal)</text>
+  </g>
+
+  <g class="wf-low-2" transform="translate(160, 40)">
+    <rect class="wf-box wf-running-low" />
+    <text x="55" y="38" class="wf-title">WF 2</text>
+    <text x="55" y="56" class="wf-label">(Low)</text>
+  </g>
+
+  <g class="wf-low-3" transform="translate(290, 40)">
+    <rect class="wf-box wf-running-low" />
+    <!-- Crosshatch overlay for preemption -->
+    <rect width="110" height="70" rx="3" class="preemption-hatch" />
+    <text x="55" y="38" class="wf-title">WF 3</text>
+    <text x="55" y="56" class="wf-label">(Low)</text>
+    <!-- Preemption text overlay -->
+    <text x="55" y="45" class="preemption-overlay">Preemption</text>
+  </g>
+
+  <g transform="translate(420, 40)">
+    <rect class="wf-box wf-normal-pool2" />
+    <text x="55" y="38" class="wf-title">WF 4</text>
+    <text x="55" y="56" class="wf-label">(Normal)</text>
+  </g>
+
+  <!-- Queue Workflow for Pool 2 -->
+  <g class="queue-wf5">
+    <rect class="wf-box wf-running-pool2" />
+    <text x="55" y="38" class="wf-title">WF 5</text>
+    <text x="55" y="56" class="wf-label">(Normal)</text>
+  </g>
+
+  <!-- Vertical divider between pools -->
+  <line x1="280" y1="-110" x2="280" y2="220" class="divider" />
+
+  <!-- Pool labels -->
+  <text x="150" y="215" class="pool-label">Pool 1 Quota</text>
+  <text x="410" y="215" class="pool-label">Pool 2 Quota</text>
+</svg>
