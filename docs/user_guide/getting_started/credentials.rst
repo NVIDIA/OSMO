@@ -321,7 +321,19 @@ Using the CLI
       Note: Save the token in a secure location as it will not be shown again
       Access token: osmo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-3. (Optional) Verify the token was created:
+   **Specifying Roles:**
+
+   By default, a PAT inherits all of your current roles. You can limit the token to specific
+   roles using the ``--roles`` (or ``-r``) option:
+
+   .. code-block:: bash
+
+      $ osmo token set my-token --expires-at 2027-01-01 -r osmo-user -r osmo-ml-team
+
+   This creates a token with only the ``osmo-user`` and ``osmo-ml-team`` roles, even if you
+   have additional roles assigned. You can only assign roles that you currently have.
+
+3. (Optional) Verify the token was created and check its roles:
 
    .. code-block:: bash
 

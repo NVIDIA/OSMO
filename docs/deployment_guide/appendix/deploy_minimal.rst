@@ -591,11 +591,12 @@ Step 8: Install Backend Operator
       # Create the service account user
       $ osmo user create backend-operator --roles osmo-backend
 
-      # Generate a token for the service account
+      # Generate a token for the service account with the osmo-backend role
       $ export BACKEND_TOKEN=$(osmo token set backend-token \
           --user backend-operator \
           --expires-at <insert-date> \
           --description "Backend Operator Token" \
+          --roles osmo-backend \
           -t json | jq -r '.token')
 
       # Create the Kubernetes secret
