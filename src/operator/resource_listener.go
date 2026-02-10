@@ -34,7 +34,7 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// ResourceListener manages the bidirectional gRPC stream for resource (node) events
+// ResourceListener manages the bidirectional gRPC stream for pod resource usage
 type ResourceListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
@@ -60,33 +60,12 @@ func (rl *ResourceListener) Run(ctx context.Context) error {
 	)
 }
 
-// receiveMessages handles receiving ACK messages from the server
-// sendMessages starts informers and processes resource events
+// sendMessages starts the pod informer and sends resource usage events
 func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
-	// Create channels for different message types
-	// nodeChan: node resource messages (from watchNodes)
-	// usageChan: pod resource usage messages (from watchPods)
-	nodeChan := make(chan *pb.ListenerMessage, rl.args.NodeUpdateChanSize)
 	usageChan := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
 
-	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
 
-	// Start node watcher goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(nodeChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watchNodes goroutine: %v", r)
-				cancel(fmt.Errorf("panic in node watcher: %v", r))
-			}
-		}()
-		rl.watchNodes(ctx, cancel, nodeChan)
-	}()
-
-	// Start pod watcher goroutine (handles node usage aggregation)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -100,7 +79,6 @@ func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.Can
 		rl.watchPods(ctx, cancel, usageChan)
 	}()
 
-	// Start message sender goroutine (handles both node and usage channels)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -110,24 +88,25 @@ func (rl *ResourceListener) sendMessages(ctx context.Context, cancel context.Can
 				cancel(fmt.Errorf("panic in message sender: %v", r))
 			}
 		}()
-		rl.sendFromChannels(nodeChan, usageChan, ctx, cancel)
+		rl.sendFromChannels(usageChan, ctx, cancel)
 	}()
 
-	// Wait for all goroutines to complete
 	wg.Wait()
-	log.Println("All message sender goroutines stopped")
+	log.Println("Resource listener goroutines stopped")
 }
 
-// sendFromChannels sends messages from both node and usage channels to the server
-func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage, usageChan <-chan *pb.ListenerMessage, ctx context.Context, cancel context.CancelCauseFunc) {
-	log.Printf("Starting message sender for node and usage channels")
-	defer log.Printf("Stopping message sender")
+// sendFromChannels sends messages from usage channel to the server
+func (rl *ResourceListener) sendFromChannels(
+	usageChan <-chan *pb.ListenerMessage,
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+) {
+	log.Printf("Starting message sender for usage channel")
+	defer log.Printf("Stopping usage message sender")
 
-	// Capture done channel once for performance
 	done := ctx.Done()
-
-	// Ticker to report progress when idle
-	progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
+	progressTicker := time.NewTicker(
+		time.Duration(rl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
 	for {
@@ -135,31 +114,14 @@ func (rl *ResourceListener) sendFromChannels(nodeChan <-chan *pb.ListenerMessage
 		case <-done:
 			return
 		case <-progressTicker.C:
-			// Report progress periodically even when idle
 			progressWriter := rl.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
-		case msg, ok := <-nodeChan:
-			if !ok {
-				// Check if this was due to context cancellation (expected) vs unexpected stop
-				if ctx.Err() != nil {
-					log.Printf("node watcher stopped due to context cancellation")
-					return
-				}
-				log.Printf("node watcher stopped unexpectedly...")
-				cancel(fmt.Errorf("node watcher stopped"))
-				return
-			}
-			if err := rl.sendResourceMessage(ctx, msg); err != nil {
-				cancel(fmt.Errorf("failed to send UpdateNodeBody message: %w", err))
-				return
-			}
 		case msg, ok := <-usageChan:
 			if !ok {
-				// Check if this was due to context cancellation (expected) vs unexpected stop
 				if ctx.Err() != nil {
 					log.Printf("usage watcher stopped due to context cancellation")
 					return
@@ -189,119 +151,6 @@ func (rl *ResourceListener) sendResourceMessage(ctx context.Context, msg *pb.Lis
 	}
 
 	return nil
-}
-
-// watchNodes starts node informer and processes node events
-// This function focuses only on node resource messages
-func (rl *ResourceListener) watchNodes(
-	ctx context.Context,
-	cancel context.CancelCauseFunc,
-	nodeChan chan<- *pb.ListenerMessage,
-) {
-	// Capture done channel once for performance
-	done := ctx.Done()
-
-	// Create Kubernetes client
-	clientset, err := utils.CreateKubernetesClient()
-	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
-		return
-	}
-
-	log.Println("Starting node resource watcher")
-
-	// State tracker for node deduplication
-	nodeStateTracker := utils.NewNodeStateTracker(time.Duration(rl.args.StateCacheTTLMin) * time.Minute)
-
-	// Create informer factory for nodes (cluster-scoped)
-	// Disable informer resync - rely on watch + error handlers
-	nodeInformerFactory := informers.NewSharedInformerFactory(
-		clientset,
-		0, // No automatic resync
-	)
-
-	// Get node informer
-	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
-
-	// Handler for node events - builds and sends resource messages
-	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
-		msg := rl.buildResourceMessage(node, nodeStateTracker, isDelete)
-		if msg != nil {
-			select {
-			case nodeChan <- msg:
-			case <-done:
-				return
-			}
-		}
-		if isDelete {
-			nodeStateTracker.Remove(utils.GetNodeHostname(node))
-		}
-	}
-
-	// Add node event handler
-	_, err = nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			node := obj.(*corev1.Node)
-			handleNodeEvent(node, false)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			node := newObj.(*corev1.Node)
-			handleNodeEvent(node, false)
-		},
-		DeleteFunc: func(obj interface{}) {
-			node, ok := obj.(*corev1.Node)
-			if !ok {
-				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-				if !ok {
-					log.Printf("Error: unexpected object type in node DeleteFunc: %T", obj)
-					return
-				}
-				node, ok = tombstone.Obj.(*corev1.Node)
-				if !ok {
-					log.Printf("Error: tombstone contained unexpected object: %T", tombstone.Obj)
-					return
-				}
-			}
-			handleNodeEvent(node, true)
-		},
-	})
-	if err != nil {
-		log.Printf("Failed to add node event handler: %v", err)
-		return
-	}
-
-	// Set watch error handler for rebuild on watch gaps
-	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
-		log.Printf("Node watch error, will rebuild from store: %v", err)
-		rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
-
-		// Send NodeInventory after rebuilding from watch gap
-		log.Println("Sending NODE_INVENTORY after watch gap recovery")
-		rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
-	})
-
-	// Start the informer
-	nodeInformerFactory.Start(done)
-
-	// Wait for cache sync
-	log.Println("Waiting for node informer cache to sync...")
-	if !cache.WaitForCacheSync(done, nodeInformer.HasSynced) {
-		log.Println("Failed to sync node informer cache")
-		return
-	}
-	log.Println("Node informer cache synced successfully")
-
-	// Initial rebuild from store after sync
-	rl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
-
-	// Send initial NodeInventory after all nodes are rebuilt
-	log.Println("Sending initial NODE_INVENTORY after cache sync")
-	rl.sendNodeInventory(ctx, nodeInformer, nodeChan)
-
-	// Wait for context cancellation
-	<-done
-	log.Println("Node resource watcher stopped")
 }
 
 // watchPods starts pod informer and handles resource aggregation
@@ -420,42 +269,6 @@ func (rl *ResourceListener) watchPods(ctx context.Context, cancel context.Cancel
 	}
 }
 
-// rebuildNodesFromStore rebuilds node state from informer cache
-func (rl *ResourceListener) rebuildNodesFromStore(
-	ctx context.Context,
-	nodeInformer cache.SharedIndexInformer,
-	nodeStateTracker *utils.NodeStateTracker,
-	nodeChan chan<- *pb.ListenerMessage,
-) {
-	log.Println("Rebuilding node resource state from informer store...")
-
-	sent := 0
-	skipped := 0
-	nodes := nodeInformer.GetStore().List()
-	for _, obj := range nodes {
-		node, ok := obj.(*corev1.Node)
-		if !ok {
-			continue
-		}
-
-		msg := rl.buildResourceMessage(node, nodeStateTracker, false)
-
-		if msg != nil {
-			select {
-			case nodeChan <- msg:
-				sent++
-			case <-ctx.Done():
-				log.Printf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
-				return
-			}
-		} else {
-			skipped++
-		}
-	}
-
-	log.Printf("Node rebuild complete: sent=%d, skipped=%d", sent, skipped)
-}
-
 // rebuildPodsFromStore rebuilds aggregator state from pod informer cache
 func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
 	log.Println("Rebuilding pod aggregator state from informer store...")
@@ -504,47 +317,6 @@ func (rl *ResourceListener) flushDirtyNodes(ctx context.Context, usageChan chan<
 	}
 }
 
-// buildResourceMessage creates a ResourceBody message from a node
-func (rl *ResourceListener) buildResourceMessage(
-	node *corev1.Node,
-	tracker *utils.NodeStateTracker,
-	isDelete bool,
-) *pb.ListenerMessage {
-	hostname := utils.GetNodeHostname(node)
-
-	// Build UpdateNodeBody object
-	body := utils.BuildUpdateNodeBody(node, isDelete)
-
-	// Check if we should send (deduplication)
-	if !isDelete && !tracker.HasChanged(hostname, body) {
-		return nil
-	}
-
-	// Update tracker
-	if !isDelete {
-		tracker.Update(hostname, body)
-	}
-
-	// Generate message UUID
-	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
-
-	msg := &pb.ListenerMessage{
-		Uuid:      messageUUID,
-		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
-		Body: &pb.ListenerMessage_UpdateNode{
-			UpdateNode: body,
-		},
-	}
-
-	action := "update"
-	if isDelete {
-		action = "delete"
-	}
-	log.Printf("Sent Node (%s): hostname=%s, available=%v", action, hostname, body.Available)
-
-	return msg
-}
-
 // buildNodeUsageMessage creates a UpdateNodeUsageBody message
 func (rl *ResourceListener) buildNodeUsageMessage(hostname string) *pb.ListenerMessage {
 	usageFields, nonWorkflowFields := rl.aggregator.GetNodeUsage(hostname)
@@ -568,50 +340,4 @@ func (rl *ResourceListener) buildNodeUsageMessage(hostname string) *pb.ListenerM
 	}
 
 	return msg
-}
-
-// sendNodeInventory builds and sends a NODE_INVENTORY message with all current node hostnames.
-func (rl *ResourceListener) sendNodeInventory(
-	ctx context.Context,
-	nodeInformer cache.SharedIndexInformer,
-	nodeChan chan<- *pb.ListenerMessage,
-) {
-	if nodeInformer == nil {
-		log.Println("sendNodeInventory: informer is nil, skipping")
-		return
-	}
-
-	// Collect all node hostnames from the informer store
-	nodes := nodeInformer.GetStore().List()
-	hostnames := make([]string, 0, len(nodes))
-
-	for _, obj := range nodes {
-		node, ok := obj.(*corev1.Node)
-		if !ok {
-			continue
-		}
-		hostname := utils.GetNodeHostname(node)
-		hostnames = append(hostnames, hostname)
-	}
-
-	// Build NODE_INVENTORY message
-	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
-	msg := &pb.ListenerMessage{
-		Uuid:      messageUUID,
-		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
-		Body: &pb.ListenerMessage_NodeInventory{
-			NodeInventory: &pb.NodeInventoryBody{
-				Hostnames: hostnames,
-			},
-		},
-	}
-
-	// Send through nodeChan with proper shutdown coordination
-	select {
-	case nodeChan <- msg:
-		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
-	case <-ctx.Done():
-		log.Println("sendNodeInventory: context cancelled while sending")
-		return
-	}
 }

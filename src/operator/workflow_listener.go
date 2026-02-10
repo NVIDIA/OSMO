@@ -132,6 +132,7 @@ func (wl *WorkflowListener) sendPodUpdate(ctx context.Context, update podWithSta
 		return nil // Don't fail the stream for one message
 	}
 
+	// TODO this can be in base listener
 	unackedMessages := wl.GetUnackedMessages()
 
 	// Add message to unacked queue before sending

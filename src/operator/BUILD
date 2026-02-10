@@ -304,6 +304,7 @@ go_library(
     srcs = [
         "listener.go",
         "event_listener.go",
+        "node_listener.go",
         "resource_listener.go",
         "workflow_listener.go",
     ],
@@ -350,6 +351,19 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/api/resource:resource",
         "@io_k8s_apimachinery//pkg/types:types",
+    ],
+)
+
+go_test(
+    name = "node_listener_test",
+    srcs = ["node_listener_test.go"],
+    embed = [":listener_lib"],
+    deps = [
+        "//src/operator/utils:utils",
+        "//src/proto/operator:operator_go_proto",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource:resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )
 

@@ -302,3 +302,15 @@ func (bl *BaseListener) GetStream() pb.ListenerService_ListenerStreamClient {
 	defer bl.mu.RUnlock()
 	return bl.stream
 }
+
+// sendMessage sends a single listener message
+func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage) error {
+	if err := bl.GetUnackedMessages().AddMessage(ctx, msg); err != nil {
+		log.Printf("Failed to add message to unacked queue: %v", err)
+		return nil
+	}
+	if err := bl.GetStream().Send(msg); err != nil {
+		return err
+	}
+	return nil
+}
