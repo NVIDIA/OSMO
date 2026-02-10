@@ -23,9 +23,9 @@ import os
 import threading
 import time
 import traceback
-import zlib
 from typing import Dict, Optional
 from urllib.parse import urlparse
+import zlib
 
 import pydantic
 import websockets

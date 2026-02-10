@@ -24,8 +24,8 @@ import json
 import logging
 import threading
 import time
-import zlib
 from typing import Callable, Optional, Dict, List, Set
+import zlib
 
 import fastapi
 import kombu  # type: ignore
