@@ -59,6 +59,8 @@ export const TaskPieChart = ({
   showTotal = true,
   showLegend = true,
 }: TaskPieChartProps) => {
+  const [, setSelectedLabel] = useState<string | null>(null);
+
   const slices: PieSlice[] = useMemo(
     () =>
       TaskStatusValues.map((status) => ({
@@ -71,7 +73,6 @@ export const TaskPieChart = ({
   );
 
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-global p-global">
