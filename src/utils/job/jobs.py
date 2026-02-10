@@ -54,7 +54,6 @@ CONCURRENT_UPLOADS = 10
 
 class JobExecutionContext(pydantic.BaseModel):
     """Context from the worker process, needed for executing jobs"""
-    postgres: connectors.PostgresConnector
     redis: connectors.RedisConfig
 
     class Config:
@@ -62,8 +61,7 @@ class JobExecutionContext(pydantic.BaseModel):
         extra = 'forbid'
 
 
-def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workflow_uuid: str,
-                           group_name: str):
+def cleanup_workflow_group(workflow_id: str, workflow_uuid: str, group_name: str):
     """
     Cleans up a workflow group and enqueues a workflow cleanup job if all groups are cleaned up.
 
@@ -72,7 +70,6 @@ def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workf
     workflow cleanup tasks.
 
     Args:
-        context: The job execution context containing database and Redis connections
         workflow_id: The ID of the workflow to clean up
         workflow_uuid: The UUID of the workflow to clean up
         group_name: The name of the group to mark as cleaned up
@@ -80,7 +77,7 @@ def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workf
     Returns:
         None
     """
-    all_cleaned_up = task.TaskGroup.patch_cleaned_up(context.postgres,
+    all_cleaned_up = task.TaskGroup.patch_cleaned_up(connectors.PostgresConnector.get_instance(),
         workflow_id, group_name)
     if all_cleaned_up:
         cleanup_job = CleanupWorkflow(
@@ -206,12 +203,12 @@ class SubmitWorkflow(WorkflowJob):
         be removed from the message queue, or false if the job failed.
         """
         last_timestamp = datetime.datetime.now()
-        postgres = context.postgres
+        postgres = connectors.PostgresConnector.get_instance()
 
         # Create workflow and groups in database
         remaining_upstream_groups: Dict = collections.defaultdict(set)
         downstream_groups: Dict = collections.defaultdict(set)
-        workflow_obj = workflow.Workflow.from_workflow_spec(context.postgres, self.workflow_id,
+        workflow_obj = workflow.Workflow.from_workflow_spec(connectors.PostgresConnector.get_instance(), self.workflow_id,
             self.workflow_uuid, self.user, self.spec, context.redis.redis_url,
             self.group_and_task_uuids, remaining_upstream_groups, downstream_groups,
             parent_workflow_id=self.parent_workflow_id, task_db_keys=self.task_db_keys,
@@ -246,13 +243,13 @@ class SubmitWorkflow(WorkflowJob):
         progress_writer.report_progress()
 
         # Fetch workflow_obj to get latest info
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, workflow_obj.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), workflow_obj.workflow_id)
 
         # Enqueue a delayed job to check the queue timeout
         if not workflow_obj.pool:
             raise osmo_errors.OSMOUserError('No Pool Specified')
-        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-        workflow_config = context.postgres.get_workflow_configs()
+        pool_info = connectors.Pool.fetch_from_db(connectors.PostgresConnector.get_instance(), workflow_obj.pool)
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
         queue_timeout = workflow_obj.timeout.queue_timeout or \
             common.to_timedelta(pool_info.default_queue_timeout
                                 if pool_info.default_queue_timeout else
@@ -295,7 +292,7 @@ class SubmitWorkflow(WorkflowJob):
         Set Failure Reason to log file
         """
         try:
-            workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+            workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
         except osmo_errors.OSMODatabaseError:
             logging.info('Cannot find %s workflow during SubmitWorkflow handle failure',
                          self.workflow_id, extra={'workflow_uuid': self.workflow_uuid})
@@ -371,7 +368,7 @@ class UploadWorkflowFiles(WorkflowJob):
         Executes the job. Returns true if the job was completed successful and can
         be removed from the message queue, or false if the job failed.
         """
-        workflow_config = context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
 
         if workflow_config.workflow_log.credential is None:
             return JobResult(
@@ -449,7 +446,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
 
         Returns whether execute is ready to run and error message if failed
         """
-        group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
+        group_obj = task.TaskGroup.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
                                                  self.group_name)
 
         if group_obj.status not in \
@@ -458,9 +455,9 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             f'{group_obj.status.value}.'
 
         if not self.k8s_resources:
-            workflow_config = context.postgres.get_workflow_configs()
+            workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
             backend_config_cache = connectors.BackendConfigCache()
-            workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+            workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
             resources, pod_specs = group_obj.get_kb_specs(
                 self.workflow_uuid,
                 self.user,
@@ -524,7 +521,7 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
-        cleanup_workflow_group(context, self.workflow_id, self.workflow_uuid, self.group_name)
+        cleanup_workflow_group( self.workflow_id, self.workflow_uuid, self.group_name)
         return JobResult()
 
     def prepare_execute(self, context: JobExecutionContext,
@@ -539,7 +536,7 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
         """
         # Clear the error-logs in case the job has already ran before
         redis_client = connectors.RedisConnector.get_instance().client
-        group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
+        group_obj = task.TaskGroup.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
                                                  self.group_name)
         for task_obj in group_obj.tasks:
             redis_client.delete(
@@ -629,13 +626,14 @@ class UpdateGroup(WorkflowJob):
     def _update_and_fetch_task_status(self, context: JobExecutionContext,
                                       current_task: task.Task, update_time: datetime.datetime
                                       ) -> task.TaskGroupStatus:
+        # pylint: disable=unused-argument
         current_task.update_status_to_db(update_time, self.status, self.message, self.exit_code)
 
         if not self.task_name or self.retry_id is None:
             raise osmo_errors.OSMOError('Task name and retry id are required to update task status')
 
         updated_task = task.Task.fetch_from_db(
-            context.postgres,
+            connectors.PostgresConnector.get_instance(),
             self.workflow_id,
             self.task_name,
             self.retry_id,
@@ -712,7 +710,7 @@ class UpdateGroup(WorkflowJob):
                 self._remove_barrier(redis_client)
             update_status = self._update_and_fetch_task_status(context, current_task, update_time)
             if group_obj.spec.has_group_barrier() and current_task.status != update_status:
-                self._notify_barrier(context.postgres, redis_client, total_timeout)
+                self._notify_barrier(connectors.PostgresConnector.get_instance(), redis_client, total_timeout)
             if self.status != update_status:
                 return update_status
             if self.status == task.TaskGroupStatus.RESCHEDULED:
@@ -771,7 +769,7 @@ class UpdateGroup(WorkflowJob):
                         workflow_obj.backend, group_obj.name,
                         extra={'workflow_uuid': self.workflow_uuid})
 
-            cleanup_workflow_group(context, workflow_obj.workflow_id,
+            cleanup_workflow_group( workflow_obj.workflow_id,
                                     workflow_obj.workflow_uuid,
                                     group_obj.name)
         else:
@@ -808,7 +806,7 @@ class UpdateGroup(WorkflowJob):
         """
 
         # Read current status from db
-        group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
+        group_obj = task.TaskGroup.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
                                                  self.group_name)
 
         update_time = common.current_time()
@@ -835,9 +833,9 @@ class UpdateGroup(WorkflowJob):
                     status=JobStatus.FAILED_NO_RETRY,
                     message=f'Group status is {group_obj.status}: Adding back into job queue.')
 
-        workflow_config = context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
         total_timeout = task_common.calculate_total_timeout(
             workflow_obj.workflow_id,
             workflow_obj.timeout.queue_timeout, workflow_obj.timeout.exec_timeout)
@@ -852,11 +850,11 @@ class UpdateGroup(WorkflowJob):
                 task_obj.update_status_to_db(update_time, self.status,
                                              self.message, self.exit_code)
         else:
-            pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+            pool_info = connectors.Pool.fetch_from_db(connectors.PostgresConnector.get_instance(), workflow_obj.pool)
 
             if self.task_name and self.retry_id is not None:
                 current_task = task.Task.fetch_from_db(
-                    context.postgres, self.workflow_id, self.task_name, self.retry_id)
+                    connectors.PostgresConnector.get_instance(), self.workflow_id, self.task_name, self.retry_id)
 
                 if (not current_task.status.prerunning()) and \
                     self.status == task.TaskGroupStatus.FAILED_START_TIMEOUT:
@@ -905,7 +903,7 @@ class UpdateGroup(WorkflowJob):
         # Send notification only for the last lead task that ran, which excludes FAILED_UPSTREAM
         if workflow_status.finished() and self.lead_task and \
             self.status != task.TaskGroupStatus.FAILED_UPSTREAM \
-                and context.postgres.method != 'dev':
+                and connectors.PostgresConnector.get_instance().method != 'dev':
             workflow_obj.send_notification(workflow_status)
 
         backend: connectors.Backend | None = None
@@ -970,12 +968,12 @@ class UpdateGroup(WorkflowJob):
         """
         Schedule cleanup in case UpdateGroup fails.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
         if not workflow_obj.status.finished():
             return
-        workflow_config = context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
-        group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
+        group_obj = task.TaskGroup.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
                                                  self.group_name)
         backend: connectors.Backend | None = None
         try:
@@ -1032,6 +1030,7 @@ class UpdateGroup(WorkflowJob):
         workflow_obj: workflow.Workflow,
         k8s_factory: kb_objects.K8sObjectFactory,
     ):
+        # pylint: disable=unused-argument
         progress_writer.report_progress()
 
         # Get task spec and its index from group spec
@@ -1061,12 +1060,12 @@ class UpdateGroup(WorkflowJob):
                 SELECT refresh_token FROM tasks where task_db_key = %s
             ) WHERE task_db_key = %s;
         '''
-        context.postgres.execute_commit_command(
+        connectors.PostgresConnector.get_instance().execute_commit_command(
             update_cmd,
             (task_obj.task_db_key, new_task.task_db_key))
 
         # Refetch group so retry_id is updated
-        group = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
+        group = task.TaskGroup.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
                                              self.group_name)
 
         # Get cleanup job
@@ -1214,9 +1213,9 @@ class RescheduleTask(BackendJob, WorkflowJob):
         Executes the job. Returns true if the job was completed successful and can
         be removed from the message queue, or false if the job failed.
         """
-        group_name = task.Task.fetch_group_name(context.postgres, self.workflow_id, self.task_name)
+        group_name = task.Task.fetch_group_name(connectors.PostgresConnector.get_instance(), self.workflow_id, self.task_name)
         group = task.TaskGroup.fetch_from_db(
-            context.postgres, self.workflow_id, group_name)
+            connectors.PostgresConnector.get_instance(), self.workflow_id, group_name)
         if group.status.group_finished():
             # UpdateGroup changed status of all tasks and cleaned up
             self._delay_cleanup_pod()
@@ -1234,7 +1233,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
         Returns whether execute is ready to run and error message if failed
         """
         updated_task = task.Task.fetch_from_db(
-            context.postgres, self.workflow_id, self.task_name)
+            connectors.PostgresConnector.get_instance(), self.workflow_id, self.task_name)
         if updated_task.retry_id != self.retry_id:
             return False, 'Reschedule Task Failed: ' +\
                 f'Latest retry is {updated_task.retry_id} for task {self.task_name}'
@@ -1298,7 +1297,7 @@ class CleanupWorkflow(WorkflowJob):
         """
         last_timestamp = datetime.datetime.now()
 
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id,
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
                                                        verbose=True)
         parsed_result = urllib.parse.urlparse(workflow_obj.logs)
 
@@ -1312,10 +1311,10 @@ class CleanupWorkflow(WorkflowJob):
         if workflow_obj.status.failed():
             start_delimiter = '\n' + '-' * 100 + '\n'
             end_delimiter =  '-' * 100 + '\n'
-            base_url = context.postgres.get_workflow_service_url()
+            base_url = connectors.PostgresConnector.get_instance().get_workflow_service_url()
             error_logs_url = f'{base_url}/api/workflow/{self.workflow_id}/error_logs'
             status_url = f'{base_url}/workflows/{self.workflow_id}'
-            if context.postgres.config.method == 'dev':
+            if connectors.PostgresConnector.get_instance().config.method == 'dev':
                 status_url = f'{base_url}/api/workflow/{self.workflow_id}'
 
             log_message = f'{start_delimiter}Workflow terminated ' +\
@@ -1361,7 +1360,7 @@ class CleanupWorkflow(WorkflowJob):
             progress_iter_freq)
 
         # Create a storage client to upload logs to S3
-        workflow_config = context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
         if workflow_config.workflow_log.credential is None:
             return JobResult(
                 success=False,
@@ -1520,7 +1519,7 @@ class CancelWorkflow(WorkflowJob):
         """
 
         # Indicate that the workflow is to be canceled
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
         workflow_obj.update_cancelled_by(self.user)
 
         # Iterate through each group and create a task to mark it as failed
@@ -1582,15 +1581,15 @@ class CheckRunTimeout(WorkflowJob):
         """
         Executes the job. Return true if the CancelWorkflow job is submitted.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
         if not workflow_obj.status.finished():
             if workflow_obj.start_time:
                 time_elapsed = datetime.datetime.now() - workflow_obj.start_time
 
                 if not workflow_obj.pool:
                     raise osmo_errors.OSMOUserError('No Pool Specified')
-                pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                workflow_config = context.postgres.get_workflow_configs()
+                pool_info = connectors.Pool.fetch_from_db(connectors.PostgresConnector.get_instance(), workflow_obj.pool)
+                workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
                 exec_timeout = workflow_obj.timeout.exec_timeout or \
                     common.to_timedelta(pool_info.default_exec_timeout
                                         if pool_info.default_exec_timeout else
@@ -1634,15 +1633,15 @@ class CheckQueueTimeout(WorkflowJob):
         """
         Executes the job. Return true if the CancelWorkflow job is submitted.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id)
         if workflow_obj.status == workflow.WorkflowStatus.PENDING:
             if workflow_obj.submit_time:
                 time_since_submission = datetime.datetime.now() - workflow_obj.submit_time
 
                 if not workflow_obj.pool:
                     raise osmo_errors.OSMOUserError('No Pool Specified')
-                pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                workflow_config = context.postgres.get_workflow_configs()
+                pool_info = connectors.Pool.fetch_from_db(connectors.PostgresConnector.get_instance(), workflow_obj.pool)
+                workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
                 queue_timeout = workflow_obj.timeout.queue_timeout or \
                     common.to_timedelta(pool_info.default_queue_timeout
                                         if pool_info.default_queue_timeout else
@@ -1700,7 +1699,7 @@ class UploadApp(FrontendJob):
         Executes the job. Returns true if the job was completed successful and can
         be removed from the message queue, or false if the job failed.
         """
-        workflow_config = context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
 
         if workflow_config.workflow_app.credential is None:
             return JobResult(
@@ -1714,7 +1713,7 @@ class UploadApp(FrontendJob):
 
         # Fetch app from database
         app_info = app.AppVersion.fetch_from_db_with_uuid(
-            context.postgres, self.app_uuid, self.app_version)
+            connectors.PostgresConnector.get_instance(), self.app_uuid, self.app_version)
 
         with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8') as temp_file:
             temp_file.write(self.app_content)
@@ -1726,7 +1725,7 @@ class UploadApp(FrontendJob):
             )
 
         # Update app in database
-        app_info.update_status(context.postgres, app.AppStatus.READY)
+        app_info.update_status(connectors.PostgresConnector.get_instance(), app.AppStatus.READY)
 
         return JobResult()
 
@@ -1761,7 +1760,7 @@ class DeleteApp(FrontendJob):
         Executes the job. Returns true if the job was completed successful and can
         be removed from the message queue, or false if the job failed.
         """
-        workflow_config = context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
 
         if workflow_config.workflow_app.credential is None:
             return JobResult(
@@ -1776,14 +1775,14 @@ class DeleteApp(FrontendJob):
         # Fetch app from database
         for app_version in self.app_versions:
             app_info = app.AppVersion.fetch_from_db_with_uuid(
-                context.postgres, self.app_uuid, app_version)
+                connectors.PostgresConnector.get_instance(), self.app_uuid, app_version)
 
             storage_client.delete_objects(
                 prefix=os.path.join(self.app_uuid, str(app_version)),
             )
 
             # Update app in database
-            app_info.update_status(context.postgres, app.AppStatus.DELETED)
+            app_info.update_status(connectors.PostgresConnector.get_instance(), app.AppStatus.DELETED)
 
         return JobResult()
 

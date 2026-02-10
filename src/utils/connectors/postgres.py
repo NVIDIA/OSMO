@@ -244,8 +244,11 @@ class PostgresConnector:
     _pool_semaphore: threading.Semaphore
 
     @staticmethod
-    def get_instance():
-        """ Static access method. """
+    def get_instance() -> 'PostgresConnector':
+        """
+        Returns the singleton PostgresConnector instance.
+        Raises OSMOError if the instance has not been created yet.
+        """
         if not PostgresConnector._instance:
             raise osmo_errors.OSMOError(
                 'Postgres Connector has not been created!')
@@ -1220,18 +1223,18 @@ class PostgresConnector:
             elif config_type == ConfigHistoryType.BACKEND:
                 data = [
                     backend.dict(by_alias=True, exclude_unset=True)
-                    for backend in Backend.list_from_db(self)
+                    for backend in Backend.list_from_db()
                 ]
             elif config_type == ConfigHistoryType.POOL:
-                data = fetch_editable_pool_config(self)
+                data = fetch_editable_pool_config()
             elif config_type == ConfigHistoryType.POD_TEMPLATE:
-                data = PodTemplate.list_from_db(self)
+                data = PodTemplate.list_from_db()
             elif config_type == ConfigHistoryType.RESOURCE_VALIDATION:
-                data = ResourceValidation.list_from_db(self)
+                data = ResourceValidation.list_from_db()
             elif config_type == ConfigHistoryType.BACKEND_TEST:
-                data = BackendTests.list_from_db(self)
+                data = BackendTests.list_from_db()
             elif config_type == ConfigHistoryType.ROLE:
-                data = Role.list_from_db(self)
+                data = Role.list_from_db()
             else:
                 raise ValueError(
                     f'Invalid config type when initializing config history: {config_type}'
@@ -1266,7 +1269,7 @@ class PostgresConnector:
         role_objects = {role.name: role for role in roles}
         for default_role_name, default_role_object in DEFAULT_ROLES.items():
             if default_role_name not in role_objects:
-                default_role_object.insert_into_db(self, force=True)
+                default_role_object.insert_into_db(force=True)
             else:
                 # Add any action in default_role_object that isn't in role_object's actions,
                 # then insert into db
@@ -1530,7 +1533,8 @@ class UserProfile(pydantic.BaseModel):
     pool: str | None = None
 
     @classmethod
-    def default_bucket(cls, database: PostgresConnector) -> Optional[str]:
+    def default_bucket(cls) -> Optional[str]:
+        database = PostgresConnector.get_instance()
         return database.get_dataset_configs().default_bucket
 
     @classmethod
@@ -1543,9 +1547,8 @@ class UserProfile(pydantic.BaseModel):
             pool=None)
 
     @classmethod
-    def insert_into_db(cls, database: PostgresConnector,
-                       user_name: str,
-                       setting: Dict[str, Any]):
+    def insert_into_db(cls, user_name: str, setting: Dict[str, Any]):
+        database = PostgresConnector.get_instance()
         fields: List[str] = ['user_name']
         values: List = [user_name]
         for key, value in setting.items():
@@ -1554,15 +1557,13 @@ class UserProfile(pydantic.BaseModel):
 
         # Validate bucket is valid
         if 'bucket' in setting:
-            postgres = PostgresConnector.get_instance()
-            dataset_config = postgres.get_dataset_configs()
+            dataset_config = database.get_dataset_configs()
             if setting['bucket'] not in dataset_config.buckets:
                 raise osmo_errors.OSMOUserError(
                     f'Bucket {setting["bucket"]} does not exist. Use the "osmo bucket list" CLI '
                     ' to see all available buckets.')
         if 'pool' in setting:
-            postgres = PostgresConnector.get_instance()
-            Pool.fetch_from_db(postgres, setting['pool'])
+            Pool.fetch_from_db(setting['pool'])
 
         insert_cmd = f'''
             INSERT INTO profile ({",".join(fields)})
@@ -1573,16 +1574,16 @@ class UserProfile(pydantic.BaseModel):
         database.execute_commit_command(insert_cmd, tuple(values))
 
     @classmethod
-    def insert_default_profile(cls, database: PostgresConnector, user_name: str):
+    def insert_default_profile(cls, user_name: str):
         default_profile = UserProfile.default_profile(user_name)
         UserProfile.insert_into_db(
-            database, user_name,
+            user_name,
             {'email_notification': default_profile.email_notification,
              'slack_notification': default_profile.slack_notification})
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector,
-                      user_name: str) -> 'UserProfile':
+    def fetch_from_db(cls, user_name: str) -> 'UserProfile':
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM profile WHERE user_name = %s;'
         rows = database.execute_fetch_command(fetch_cmd, (user_name,))
         default_profile = UserProfile.default_profile(user_name)
@@ -1590,7 +1591,7 @@ class UserProfile(pydantic.BaseModel):
             row = rows[0]
         except IndexError as _:
             # Default values
-            UserProfile.insert_default_profile(database, user_name)
+            UserProfile.insert_default_profile(user_name)
             # Fetch default bucket
             return default_profile
 
@@ -2203,7 +2204,7 @@ class BackendResource(pydantic.BaseModel):
         if len(resources) == 0:
             return all_resources
 
-        pool_config = fetch_verbose_pool_config(postgres, resources[0]['backend']).pools
+        pool_config = fetch_verbose_pool_config(resources[0]['backend']).pools
 
         for resource in resources:
             taints = resource.get('taints', [])
@@ -2296,8 +2297,7 @@ class Backend(pydantic.BaseModel):
     online: bool
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector,
-                      name: str) -> 'Backend':
+    def fetch_from_db(cls, name: str) -> 'Backend':
         """
         Creates a Workflow instance from a database workflow entry.
 
@@ -2310,6 +2310,7 @@ class Backend(pydantic.BaseModel):
         Returns:
             Workflow: The workflow.
         """
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM backends WHERE name = %s;'
         backend_rows = database.execute_fetch_command(fetch_cmd, (name,))
         try:
@@ -2335,19 +2336,20 @@ class Backend(pydantic.BaseModel):
                        online=common.heartbeat_online(backend_row.last_heartbeat))
 
     @classmethod
-    def list_names_from_db(cls, database: PostgresConnector) -> List[str]:
+    def list_names_from_db(cls) -> List[str]:
         """
         List all backends in the database
 
         Returns:
             backends: List all backend names in the backend
         """
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT name FROM backends ORDER BY name;'
         backend_rows = database.execute_fetch_command(fetch_cmd, ())
         return [backend_row.name for backend_row in backend_rows]
 
     @classmethod
-    def list_from_db(cls, database: PostgresConnector) -> List['Backend']:
+    def list_from_db(cls) -> List['Backend']:
         """
         Creates a backend instance from a database backend entry.
 
@@ -2360,6 +2362,7 @@ class Backend(pydantic.BaseModel):
         Returns:
             backends: List of all backends in the database.
         """
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM backends ORDER BY name;'
         backend_rows = database.execute_fetch_command(fetch_cmd, ())
 
@@ -2397,7 +2400,7 @@ class BackendConfigCache:
 
     def get(self, name: str) -> Backend:
         if name not in self._cache:
-            self._cache[name] = Backend.fetch_from_db(PostgresConnector.get_instance(), name)
+            self._cache[name] = Backend.fetch_from_db(name)
         return self._cache[name]
 
 
@@ -2486,8 +2489,9 @@ class DynamicConfig(ExtraArgBaseModel):
         validate_assignment = True
 
     @classmethod
-    def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):
+    def deserialize(cls, config_dict: Dict):
         """ Decrypts all secrets in `config_dict` """
+        postgres = PostgresConnector.get_instance()
         encrypt_keys = set()
 
         # Define function to pass into secret_manager.decrypt to update secrets
@@ -2583,20 +2587,21 @@ class DynamicConfig(ExtraArgBaseModel):
                 postgres.execute_commit_command(cmd, (new_value, key, old_value))
         return dynamic_config
 
-    def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
+    def serialize_helper(self, config_dict: Dict,
                          top_level: bool = False) -> Dict[str, str | None]:
         """ Recursively encrypt all secret fields in any dictionary or list. """
+        postgres = PostgresConnector.get_instance()
         for key, value in config_dict.items():
             value_for_typecheck = value
             if isinstance(value_for_typecheck, dict):
                 if top_level:
-                    config_dict[key] = json.dumps(self.serialize_helper(value, postgres))
+                    config_dict[key] = json.dumps(self.serialize_helper(value))
                 else:
-                    config_dict[key] = self.serialize_helper(value, postgres)
+                    config_dict[key] = self.serialize_helper(value)
             elif isinstance(value_for_typecheck, list):
                 if all(isinstance(v, dict) for v in value_for_typecheck):
                     config_dict[key] = \
-                        [self.serialize_helper(v, postgres) for v in value_for_typecheck]
+                        [self.serialize_helper(v) for v in value_for_typecheck]
                 else:
                     config_dict[key] = value_for_typecheck
             elif isinstance(value_for_typecheck, pydantic.SecretStr):
@@ -2612,10 +2617,10 @@ class DynamicConfig(ExtraArgBaseModel):
                 config_dict[key] = json.dumps(config_dict[key])
         return config_dict
 
-    def serialize(self, postgres: PostgresConnector, exclude_unset=True) -> Dict[str, str | None]:
+    def serialize(self, exclude_unset=True) -> Dict[str, str | None]:
         """Encrypts all secret fields and returns a dictionary """
         config_dict = self.dict(by_alias=True, exclude_unset=exclude_unset)
-        result = self.serialize_helper(config_dict, postgres, top_level=True)
+        result = self.serialize_helper(config_dict, top_level=True)
         return result
 
     def plaintext_dict(self, *args, **kwargs):
@@ -2825,9 +2830,10 @@ class ResourceValidation(pydantic.BaseModel):
     resource_validations: List[ResourceAssertion]
 
     @classmethod
-    def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
+    def list_from_db(cls, names: Optional[List[str]] = None) \
         -> Dict[str, List[ResourceAssertion]]:
         """ Fetches the list of resource validations from the resource validation table """
+        database = PostgresConnector.get_instance()
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -2839,8 +2845,9 @@ class ResourceValidation(pydantic.BaseModel):
         return {spec_row['name']: spec_row['resource_validations'] for spec_row in spec_rows}
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector, name: str) -> List[ResourceAssertion]:
+    def fetch_from_db(cls, name: str) -> List[ResourceAssertion]:
         """ Fetches the resource validations from the resource validation table """
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM resource_validations WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -2851,7 +2858,8 @@ class ResourceValidation(pydantic.BaseModel):
         return spec_row['resource_validations']
 
     @classmethod
-    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
+    def get_pools(cls, name: str) -> List[Dict]:
+        database = PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT name
             FROM pools
@@ -2865,8 +2873,9 @@ class ResourceValidation(pydantic.BaseModel):
         return database.execute_fetch_command(fetch_cmd, (name, f'"{name}"'), True)
 
     @classmethod
-    def delete_from_db(cls, database: PostgresConnector, name: str):
-        pools = cls.get_pools(database, name)
+    def delete_from_db(cls, name: str):
+        database = PostgresConnector.get_instance()
+        pools = cls.get_pools(name)
         if pools:
             raise osmo_errors.OSMOUserError(f'Resource Validation {name} is used in pools ' +\
                                             f'{", ".join([pool["name"] for pool in pools])}')
@@ -2876,8 +2885,9 @@ class ResourceValidation(pydantic.BaseModel):
             '''
         database.execute_commit_command(delete_cmd, (name,))
 
-    def insert_into_db(self, database: PostgresConnector, name: str):
+    def insert_into_db(self, name: str):
         """ Create/update an entry in the pools table """
+        database = PostgresConnector.get_instance()
         insert_cmd = '''
             INSERT INTO resource_validations
             (name, resource_validations)
@@ -2890,8 +2900,8 @@ class ResourceValidation(pydantic.BaseModel):
             insert_cmd,
             (name,[json.dumps(validation.dict()) for validation in self.resource_validations]))
 
-        for pool_info in ResourceValidation.get_pools(database, name):
-            Pool.update_resource_validations(database, pool_info['name'])
+        for pool_info in ResourceValidation.get_pools(name):
+            Pool.update_resource_validations(pool_info['name'])
 
 
 class PodTemplate(pydantic.BaseModel):
@@ -2899,9 +2909,10 @@ class PodTemplate(pydantic.BaseModel):
     pod_template: Dict
 
     @classmethod
-    def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
+    def list_from_db(cls, names: Optional[List[str]] = None) \
         -> Dict[str, Dict]:
         """ Fetches the list of pod templates from the pod template table """
+        database = PostgresConnector.get_instance()
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -2913,8 +2924,9 @@ class PodTemplate(pydantic.BaseModel):
         return {spec_row['name']: spec_row['pod_template'] for spec_row in spec_rows}
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict:
+    def fetch_from_db(cls, name: str) -> Dict:
         """ Fetches the pod template from the pod template table """
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM pod_templates WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -2925,7 +2937,8 @@ class PodTemplate(pydantic.BaseModel):
         return spec_row['pod_template']
 
     @classmethod
-    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
+    def get_pools(cls, name: str) -> List[Dict]:
+        database = PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT name
             FROM pools
@@ -2939,7 +2952,8 @@ class PodTemplate(pydantic.BaseModel):
         return database.execute_fetch_command(fetch_cmd, (name, f'"{name}"'), True)
 
     @classmethod
-    def get_tests(cls, database: PostgresConnector, name: str) -> List[Dict]:
+    def get_tests(cls, name: str) -> List[Dict]:
+        database = PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT name
             FROM backend_tests
@@ -2949,12 +2963,13 @@ class PodTemplate(pydantic.BaseModel):
 
 
     @classmethod
-    def delete_from_db(cls, database: PostgresConnector, name: str):
-        pools = cls.get_pools(database, name)
+    def delete_from_db(cls, name: str):
+        database = PostgresConnector.get_instance()
+        pools = cls.get_pools(name)
         if pools:
             raise osmo_errors.OSMOUserError(f'Pod template {name} is used in pools ' +\
                                             f'{", ".join([pool["name"] for pool in pools])}')
-        tests = cls.get_tests(database, name)
+        tests = cls.get_tests(name)
         if tests:
             raise osmo_errors.OSMOUserError(f'Pod template {name} is used in tests ' +\
                                             f'{", ".join([test["name"] for test in tests])}')
@@ -2964,8 +2979,9 @@ class PodTemplate(pydantic.BaseModel):
             '''
         database.execute_commit_command(delete_cmd, (name,))
 
-    def insert_into_db(self, database: PostgresConnector, name: str):
+    def insert_into_db(self, name: str):
         """ Create/update an entry in the pools table """
+        database = PostgresConnector.get_instance()
         insert_cmd = '''
             INSERT INTO pod_templates
             (name, pod_template)
@@ -2976,11 +2992,11 @@ class PodTemplate(pydantic.BaseModel):
             '''
         database.execute_commit_command(insert_cmd, (name, json.dumps(self.pod_template)))
 
-        for pool_info in PodTemplate.get_pools(database, name):
-            Pool.update_pod_template(database, pool_info['name'])
+        for pool_info in PodTemplate.get_pools(name):
+            Pool.update_pod_template(pool_info['name'])
 
-        for test_info in PodTemplate.get_tests(database, name):
-            BackendTests.update_pod_template(database, test_info['name'])
+        for test_info in PodTemplate.get_tests(name):
+            BackendTests.update_pod_template(test_info['name'])
 
 
 class Toleration(pydantic.BaseModel):
@@ -3026,13 +3042,14 @@ class Platform(PlatformMinimal):
     override_pod_template: List[str] = []
     parsed_pod_template: Dict = {}
 
-    def insert_into_db(self, database: PostgresConnector, pool_name: str, platform_name: str):
+    def insert_into_db(self, pool_name: str, platform_name: str):
         """ Create/update an entry in the pools table """
-        pool_info = Pool.fetch_from_db(database, pool_name)
+        database = PostgresConnector.get_instance()
+        pool_info = Pool.fetch_from_db(pool_name)
         pool_info.platforms[platform_name] = self
 
-        pool_info.calculate_platforms_pod_template(database, platform_name)
-        pool_info.calculate_platforms_resource_validations(database, platform_name)
+        pool_info.calculate_platforms_pod_template(platform_name)
+        pool_info.calculate_platforms_resource_validations(platform_name)
 
         insert_cmd = '''
             UPDATE pools SET platforms = %s where name = %s;
@@ -3117,10 +3134,11 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
     last_heartbeat: datetime.datetime | None = None
 
     @classmethod
-    def update_pod_template(cls, database: PostgresConnector, name: str):
+    def update_pod_template(cls, name: str):
         """ Updates pod_templates """
-        pool_info = cls.fetch_from_db(database, name)
-        pool_info.calculate_pod_template(database)
+        database = PostgresConnector.get_instance()
+        pool_info = cls.fetch_from_db(name)
+        pool_info.calculate_pod_template()
 
         insert_cmd = '''
             UPDATE pools
@@ -3135,10 +3153,11 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
 
 
     @classmethod
-    def update_resource_validations(cls, database: PostgresConnector, name: str):
+    def update_resource_validations(cls, name: str):
         """ Update resource_validations """
-        pool_info = cls.fetch_from_db(database, name)
-        pool_info.calculate_resource_validations(database)
+        database = PostgresConnector.get_instance()
+        pool_info = cls.fetch_from_db(name)
+        pool_info.calculate_resource_validations()
 
         insert_cmd = '''
             UPDATE pools
@@ -3153,9 +3172,10 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
 
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Pool':
+    def fetch_from_db(cls, name: str) -> 'Pool':
         """ Fetches a pool from the pools table """
-        pool_rows = cls.fetch_rows_from_db(database, pools=[name])
+        database = PostgresConnector.get_instance()
+        pool_rows = cls.fetch_rows_from_db(pools=[name])
         if not pool_rows:
             raise osmo_errors.OSMOUserError(f'Pool {name} not found.')
 
@@ -3174,15 +3194,17 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         return pool_info
 
     @classmethod
-    def rename(cls, database: PostgresConnector, old_name: str, new_name: str):
+    def rename(cls, old_name: str, new_name: str):
         """ Renames a pool from the pools table """
+        database = PostgresConnector.get_instance()
         update_cmd = 'UPDATE pools SET name = %s WHERE name = %s;'
         database.execute_commit_command(update_cmd, (new_name, old_name))
 
     @classmethod
-    def rename_platform(cls, database: PostgresConnector, name: str, platform_name: str,
+    def rename_platform(cls, name: str, platform_name: str,
                         new_platform_name):
         """ Renames a platform in a pool from the pools table """
+        database = PostgresConnector.get_instance()
         update_cmd = '''
             UPDATE pools SET platforms = jsonb_set(
                 platforms - %s, %s,
@@ -3195,22 +3217,23 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                                          platform_name, name, platform_name))
 
     @classmethod
-    def fetch_platform_from_db(cls, database: PostgresConnector, name: str,
+    def fetch_platform_from_db(cls, name: str,
                                platform_name: str) -> Platform:
         """ Fetches a pool from the pools table """
-        platforms = Pool.fetch_from_db(database, name).platforms
+        platforms = Pool.fetch_from_db(name).platforms
         if platform_name not in platforms:
             raise osmo_errors.OSMOUserError(
                 f'Platform name {platform_name} not found in pool {name}.')
         return platforms[platform_name]
 
     @classmethod
-    def fetch_rows_from_db(cls, database: PostgresConnector,
+    def fetch_rows_from_db(cls,
                            backend: str | None = None,
                            access_names: List[str] | None = None,
                            pools: List[str] | None = None,
                            all_pools: bool = True) -> Any:
         """ Fetches the list of pools from the pools table """
+        database = PostgresConnector.get_instance()
         params : List[str | Tuple] = []
         conditions = []
 
@@ -3260,12 +3283,12 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         If access_names has a string called groot, return all pool names that start with
         'groot'.
         """
-        database = PostgresConnector.get_instance()
         return [pool['name'] for pool in cls.fetch_rows_from_db(
-            database, access_names=access_names, all_pools=all_pools)]
+            access_names=access_names, all_pools=all_pools)]
 
     @classmethod
-    def delete_from_db(cls, database: PostgresConnector, name: str):
+    def delete_from_db(cls, name: str):
+        database = PostgresConnector.get_instance()
         delete_cmd = '''
             BEGIN;
             DELETE FROM pools WHERE name = %s;
@@ -3307,19 +3330,19 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         platform_info.default_mounts = \
             self.get_default_mounts(platform_info.parsed_pod_template)
 
-    def calculate_platforms_pod_template(self, database: PostgresConnector, platform_name: str):
+    def calculate_platforms_pod_template(self, platform_name: str):
         ''' Construct Pool platform pod_template '''
         platform_info = self.platforms[platform_name]
-        pod_template_specs = PodTemplate.list_from_db(database, platform_info.override_pod_template)
+        pod_template_specs = PodTemplate.list_from_db(platform_info.override_pod_template)
         self.set_pod_template(platform_info, pod_template_specs)
 
-    def calculate_pod_template(self, database: PostgresConnector):
+    def calculate_pod_template(self):
         ''' Construct Pool pod_template '''
         combined_pod_templates = copy.deepcopy(self.common_pod_template)
         for _, platform_info in self.platforms.items():
             combined_pod_templates += platform_info.override_pod_template
 
-        pod_template_specs = PodTemplate.list_from_db(database, combined_pod_templates)
+        pod_template_specs = PodTemplate.list_from_db(combined_pod_templates)
         self.parsed_pod_template = {}
         for pod_template in self.common_pod_template:
             if pod_template not in pod_template_specs:
@@ -3343,15 +3366,15 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
             platform_info.parsed_resource_validations += \
                 resource_validations[resource_validation_name]
 
-    def calculate_platforms_resource_validations(self, database: PostgresConnector,
+    def calculate_platforms_resource_validations(self,
                                                  platform_name: str):
         ''' Construct Pool platform pod_template '''
         platform_info = self.platforms[platform_name]
         resource_validations = ResourceValidation.list_from_db(
-            database, platform_info.resource_validations)
+            platform_info.resource_validations)
         self.set_resource_validations(platform_info, resource_validations)
 
-    def calculate_resource_validations(self, database: PostgresConnector):
+    def calculate_resource_validations(self):
         ''' Construct Pool resource_validations '''
         # Update resource validation
         self.parsed_resource_validations = []
@@ -3360,7 +3383,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
             combined_resource_validations += platform_info.resource_validations
 
         resource_validations = ResourceValidation.list_from_db(
-            database, combined_resource_validations)
+            combined_resource_validations)
         for resource_validation_name in self.common_resource_validations:
             if resource_validation_name not in resource_validations:
                 raise osmo_errors.OSMOUsageError(
@@ -3369,10 +3392,11 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         for _, platform_info in self.platforms.items():
             self.set_resource_validations(platform_info, resource_validations)
 
-    def insert_into_db(self, database: PostgresConnector, name: str):
+    def insert_into_db(self, name: str):
         """ Create/update an entry in the pools table """
-        self.calculate_pod_template(database)
-        self.calculate_resource_validations(database)
+        database = PostgresConnector.get_instance()
+        self.calculate_pod_template()
+        self.calculate_resource_validations()
 
         if self.default_platform and self.default_platform not in self.platforms:
             raise osmo_errors.OSMOUsageError(
@@ -3446,13 +3470,11 @@ class MinimalPoolConfig(pydantic.BaseModel):
     pools: Dict[str, PoolMinimal] = {}
 
 
-def fetch_verbose_pool_config(database: PostgresConnector,
-                              backend: str | None = None,
+def fetch_verbose_pool_config(backend: str | None = None,
                               access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> VerbosePoolConfig:
-    pool_rows = Pool.fetch_rows_from_db(database,
-                                        backend=backend,
+    pool_rows = Pool.fetch_rows_from_db(backend=backend,
                                         access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
@@ -3460,13 +3482,11 @@ def fetch_verbose_pool_config(database: PostgresConnector,
         pools={pool_row['name']: Pool(**pool_row) for pool_row in pool_rows})
 
 
-def fetch_minimal_pool_config(database: PostgresConnector,
-                              backend: str | None = None,
+def fetch_minimal_pool_config(backend: str | None = None,
                               access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> MinimalPoolConfig:
-    pool_rows = Pool.fetch_rows_from_db(database,
-                                        backend=backend,
+    pool_rows = Pool.fetch_rows_from_db(backend=backend,
                                         access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
@@ -3474,13 +3494,11 @@ def fetch_minimal_pool_config(database: PostgresConnector,
         pools={pool_row['name']: PoolMinimal(**pool_row) for pool_row in pool_rows})
 
 
-def fetch_editable_pool_config(database: PostgresConnector,
-                              backend: str | None = None,
+def fetch_editable_pool_config(backend: str | None = None,
                               access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> EditablePoolConfig:
-    pool_rows = Pool.fetch_rows_from_db(database,
-                                        backend=backend,
+    pool_rows = Pool.fetch_rows_from_db(backend=backend,
                                         access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
@@ -3489,13 +3507,12 @@ def fetch_editable_pool_config(database: PostgresConnector,
 
 
 def fetch_platform_config(name: str,
-                          pool_type: PoolType,
-                          database: PostgresConnector) \
+                          pool_type: PoolType) \
                           -> Dict[str, Platform] | \
                              Dict[str, PlatformEditable] | \
                              Dict[str, PlatformMinimal]:
 
-    platforms = Pool.fetch_from_db(database, name).platforms
+    platforms = Pool.fetch_from_db(name).platforms
     if pool_type == PoolType.VERBOSE:
         return platforms
     elif pool_type == PoolType.EDITABLE:
@@ -3950,8 +3967,9 @@ class BackendTests(BackendTestBase):
     parsed_pod_template: Dict = {}
 
     @classmethod
-    def get_backends(cls, database: PostgresConnector, name: str) -> List[Dict]:
+    def get_backends(cls, name: str) -> List[Dict]:
         """Get backends that use this test in their backend configuration."""
+        database = PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT name
             FROM backends
@@ -3959,11 +3977,11 @@ class BackendTests(BackendTestBase):
         '''
         return database.execute_fetch_command(fetch_cmd, (name,), True)
 
-    def calculate_pod_template(self, database: PostgresConnector):
+    def calculate_pod_template(self):
         ''' Construct Pool pod_template '''
         combined_pod_templates = copy.deepcopy(self.common_pod_template)
 
-        pod_template_specs = PodTemplate.list_from_db(database, combined_pod_templates)
+        pod_template_specs = PodTemplate.list_from_db(combined_pod_templates)
         self.parsed_pod_template = {}
         for pod_template in self.common_pod_template:
             if pod_template not in pod_template_specs:
@@ -3974,10 +3992,11 @@ class BackendTests(BackendTestBase):
                 common.merge_lists_on_name)
 
     @classmethod
-    def update_pod_template(cls, database: PostgresConnector, name: str):
+    def update_pod_template(cls, name: str):
         """ Updates pod_templates """
-        test_info = cls.fetch_from_db(database, name)
-        test_info.calculate_pod_template(database)
+        database = PostgresConnector.get_instance()
+        test_info = cls.fetch_from_db(name)
+        test_info.calculate_pod_template()
 
         insert_cmd = '''
             UPDATE backend_tests
@@ -3990,8 +4009,9 @@ class BackendTests(BackendTestBase):
              name))
 
     @classmethod
-    def list_from_db(cls, database: 'PostgresConnector', name: str | None = None
+    def list_from_db(cls, name: str | None = None
                      ) -> Dict[str, dict]:
+        database = PostgresConnector.get_instance()
         list_of_names = ''
         fetch_input: Tuple = ()
         if name:
@@ -4002,7 +4022,8 @@ class BackendTests(BackendTestBase):
         return {spec_row['name']: spec_row for spec_row in spec_rows}
 
     @classmethod
-    def fetch_from_db(cls, database: 'PostgresConnector', name: str) -> 'BackendTests':
+    def fetch_from_db(cls, name: str) -> 'BackendTests':
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM backend_tests WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -4010,8 +4031,9 @@ class BackendTests(BackendTestBase):
         return cls(**spec_rows[0])
 
     @classmethod
-    def delete_from_db(cls, database: 'PostgresConnector', name: str):
-        backends = cls.get_backends(database, name)
+    def delete_from_db(cls, name: str):
+        database = PostgresConnector.get_instance()
+        backends = cls.get_backends(name)
         if backends:
             raise osmo_errors.OSMOUserError(
                 f'Test {name} is used in Backends ' +\
@@ -4020,8 +4042,9 @@ class BackendTests(BackendTestBase):
         delete_cmd = 'DELETE FROM backend_tests WHERE name = %s;'
         database.execute_commit_command(delete_cmd, (name,))
 
-    def insert_into_db(self, database: 'PostgresConnector', name: str):
-        self.calculate_pod_template(database)
+    def insert_into_db(self, name: str):
+        database = PostgresConnector.get_instance()
+        self.calculate_pod_template()
         insert_cmd = '''
             INSERT INTO backend_tests
             (name, description, cron_schedule, test_timeout,
@@ -4046,9 +4069,10 @@ class BackendTests(BackendTestBase):
 class Role(role.Role):
     """ Single Role Entry """
     @classmethod
-    def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
+    def list_from_db(cls, names: Optional[List[str]] = None) \
         -> List['Role']:
         """ Fetches the list of pod templates from the pod template table """
+        database = PostgresConnector.get_instance()
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -4060,8 +4084,9 @@ class Role(role.Role):
         return [cls(**spec_row) for spec_row in spec_rows]
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Role':
+    def fetch_from_db(cls, name: str) -> 'Role':
         """ Fetches the role from the role table """
+        database = PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM roles WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -4069,16 +4094,18 @@ class Role(role.Role):
         return cls(**spec_rows[0])
 
     @classmethod
-    def delete_from_db(cls, database: PostgresConnector, name: str):
-        cls.fetch_from_db(database, name)
+    def delete_from_db(cls, name: str):
+        database = PostgresConnector.get_instance()
+        cls.fetch_from_db(name)
 
         delete_cmd = '''
             DELETE FROM roles WHERE name = %s;
             '''
         database.execute_commit_command(delete_cmd, (name,))
 
-    def insert_into_db(self, database: PostgresConnector, force: bool = False):
+    def insert_into_db(self, force: bool = False):
         """ Create/update an entry in the pools table """
+        database = PostgresConnector.get_instance()
         check_immutable = 'WHERE roles.immutable = false' if not force else ''
         insert_cmd = f'''
             INSERT INTO roles
@@ -4255,7 +4282,7 @@ class AccessControlMiddleware:
         # Add user profile if it doesn't exist
         username = request_headers.get(login.OSMO_USER_HEADER)
         if username:
-            UserProfile.fetch_from_db(PostgresConnector.get_instance(), username)
+            UserProfile.fetch_from_db(username)
         if response is not None:
             return await response(scope, receive, send)
         return await self.app(scope, receive, send)
