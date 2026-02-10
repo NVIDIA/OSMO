@@ -28,11 +28,13 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef, useEffect, memo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { DataTable } from "@/components/data-table/DataTable";
+import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
+import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { cn } from "@/lib/utils";
@@ -84,7 +86,7 @@ const getRowId = (workflow: WorkflowListEntry) => workflow.name;
 // Component
 // =============================================================================
 
-export function WorkflowsDataTable({
+export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   workflows,
   totalCount,
   isLoading = false,
@@ -99,6 +101,17 @@ export function WorkflowsDataTable({
   const searchParams = useSearchParams();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();
+
+  // Track current URL in a ref for use in navigation callbacks.
+  // pathname and searchParams change identity on every URL update, but we only
+  // need them at click-time (for breadcrumb origin), not for rendering.
+  // Using a ref avoids recreating handleRowClick on every URL change.
+  // Updated via useEffect (not during render) per React Compiler rules.
+  const currentUrlRef = useRef("");
+  useEffect(() => {
+    const search = searchParams.toString();
+    currentUrlRef.current = search ? `${pathname}?${search}` : pathname;
+  }, [pathname, searchParams]);
 
   // Shared preferences
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -117,17 +130,7 @@ export function WorkflowsDataTable({
   // NOTE: Sorting is done server-side now (only submit_time is sortable)
   // The workflows prop is already sorted by the backend based on the sort direction in the query
 
-  // Create column visibility map
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    storeVisibleColumnIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, storeVisibleColumnIds]);
+  const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
 
   // Create TanStack columns
   const columns = useMemo(() => createWorkflowColumns(), []);
@@ -164,15 +167,13 @@ export function WorkflowsDataTable({
   const handleRowClick = useCallback(
     (workflow: WorkflowListEntry) => {
       const detailPath = `/workflows/${encodeURIComponent(workflow.name)}`;
-      const search = searchParams.toString();
-      const currentUrl = search ? `${pathname}?${search}` : pathname;
 
-      setOrigin(detailPath, currentUrl);
+      setOrigin(detailPath, currentUrlRef.current);
       startTransition(() => {
         router.push(detailPath);
       });
     },
-    [router, pathname, searchParams, startTransition, setOrigin],
+    [router, startTransition, setOrigin],
   );
 
   // Get row href for middle-click support (opens in new tab)
@@ -187,11 +188,7 @@ export function WorkflowsDataTable({
     return cn("workflows-row", `workflows-row--${category}`);
   }, []);
 
-  // Empty state
-  const emptyContent = useMemo(
-    () => <div className="text-sm text-zinc-500 dark:text-zinc-400">No workflows found</div>,
-    [],
-  );
+  const emptyContent = useMemo(() => <TableEmptyState message="No workflows found" />, []);
 
   // Loading state (using consolidated component)
   if (isLoading && workflows.length === 0) {
@@ -247,4 +244,4 @@ export function WorkflowsDataTable({
       />
     </div>
   );
-}
+});

@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useMemo, useRef, useCallback, useId, useEffect } from "react";
+import { useMemo, useRef, useCallback, useId, useEffect, memo } from "react";
 import { useSyncedRef, usePrevious } from "@react-hookz/web";
 import {
   useReactTable,
@@ -102,7 +102,7 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   registerLayoutStableCallback?: (callback: () => void) => () => void;
 }
 
-export function DataTable<TData, TSectionMeta = unknown>({
+function DataTableInner<TData, TSectionMeta = unknown>({
   data,
   columns,
   getRowId,
@@ -600,3 +600,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
     </DndContext>
   );
 }
+
+// Memoize with generic type preservation
+export const DataTable = memo(DataTableInner) as typeof DataTableInner;

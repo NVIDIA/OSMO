@@ -25,7 +25,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { flexRender, type Row } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import type { VirtualizedRow } from "@/components/data-table/hooks/use-virtualized-table";
@@ -104,11 +104,84 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   measureElement,
   compact = false,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
+  // Event delegation for row interactions (prevents inline closures per row)
+  const handleTbodyClick = useCallback(
+    (e: React.MouseEvent<HTMLTableSectionElement>) => {
+      if (!onRowClick) return;
+      const target = e.target as HTMLElement;
+      const row = target.closest<HTMLTableRowElement>('[role="row"][data-index]');
+      if (!row) return;
+      const index = parseInt(row.dataset.index!, 10);
+      const item = getItem(index);
+      if (item && item.type === VirtualItemTypes.ROW) {
+        onRowClick(item.item, index);
+      }
+    },
+    [onRowClick, getItem],
+  );
+
+  const handleTbodyFocus = useCallback(
+    (e: React.FocusEvent<HTMLTableSectionElement>) => {
+      if (!onRowFocus) return;
+      const target = e.target as HTMLElement;
+      if (target.getAttribute("role") === "row" && target.dataset.index) {
+        const index = parseInt(target.dataset.index, 10);
+        onRowFocus(index);
+      }
+    },
+    [onRowFocus],
+  );
+
+  const handleTbodyKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTableSectionElement>) => {
+      if (!onRowKeyDown) return;
+      const target = e.target as HTMLElement;
+      if (target.getAttribute("role") === "row" && target.dataset.index) {
+        const index = parseInt(target.dataset.index, 10);
+        onRowKeyDown(e, index);
+      }
+    },
+    [onRowKeyDown],
+  );
+
+  // Middle-click handler via event delegation (same pattern as handleTbodyClick):
+  // - If row has an href (navigates to page) → open in new tab
+  // - If no href (shows overlay) → call onRowClick
+  const handleTbodyAuxClick = useCallback(
+    (e: React.MouseEvent<HTMLTableSectionElement>) => {
+      // Only handle middle-click (button === 1)
+      if (e.button !== 1) return;
+      if (!onRowClick && !getRowHref) return;
+
+      const target = e.target as HTMLElement;
+      const row = target.closest<HTMLTableRowElement>('[role="row"][data-index]');
+      if (!row) return;
+
+      const index = parseInt(row.dataset.index!, 10);
+      const item = getItem(index);
+      if (!item || item.type !== VirtualItemTypes.ROW) return;
+
+      const href = getRowHref?.(item.item);
+      if (href) {
+        // Row navigates to a page → open in new tab
+        window.open(href, "_blank", "noopener,noreferrer");
+      } else if (onRowClick) {
+        // Row shows overlay → trigger normal click behavior
+        onRowClick(item.item, index);
+      }
+    },
+    [onRowClick, getRowHref, getItem],
+  );
+
   return (
     <tbody
       role="rowgroup"
       className="data-table-body"
       style={{ height: totalHeight }}
+      onClick={handleTbodyClick}
+      onAuxClick={onRowClick || getRowHref ? handleTbodyAuxClick : undefined}
+      onFocus={handleTbodyFocus}
+      onKeyDown={handleTbodyKeyDown}
     >
       {virtualRows.map((virtualRow) => {
         const item = getItem(virtualRow.index);
@@ -173,23 +246,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         // Keyboard navigation support
         const tabIndex = getRowTabIndex?.(virtualRow.index) ?? (onRowClick ? 0 : undefined);
 
-        // Middle-click handler:
-        // - If row has an href (navigates to page) → open in new tab
-        // - If no href (shows overlay) → call onRowClick
-        const handleAuxClick = (e: React.MouseEvent) => {
-          // Only handle middle-click (button === 1)
-          if (e.button !== 1) return;
-
-          const href = getRowHref?.(rowData);
-          if (href) {
-            // Row navigates to a page → open in new tab
-            window.open(href, "_blank", "noopener,noreferrer");
-          } else if (onRowClick) {
-            // Row shows overlay → trigger normal click behavior
-            onRowClick(rowData, virtualRow.index);
-          }
-        };
-
         // Use virtual index in key to guarantee uniqueness even with duplicate data
         return (
           <tr
@@ -201,10 +257,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             aria-rowindex={virtualRow.index + 2}
             aria-selected={isSelected ? true : undefined}
             tabIndex={tabIndex}
-            onClick={onRowClick ? () => onRowClick(rowData, virtualRow.index) : undefined}
-            onAuxClick={onRowClick || getRowHref ? handleAuxClick : undefined}
-            onFocus={onRowFocus ? () => onRowFocus(virtualRow.index) : undefined}
-            onKeyDown={onRowKeyDown ? (e) => onRowKeyDown(e, virtualRow.index) : undefined}
             className={cn(
               "data-table-row border-b border-zinc-200 dark:border-zinc-800",
               onRowClick && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900",

@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dataset Versions Table Component
+ * Dataset Versions Data Table
  *
  * Table display of version history matching workflows Tasks table style.
  * Supports search, filtering, column management, sorting, and virtualization.
@@ -23,9 +23,11 @@
 
 "use client";
 
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, memo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
+import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
+import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState } from "@/components/data-table/types";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
@@ -49,12 +51,15 @@ import {
 } from "@/app/(dashboard)/datasets/[bucket]/[name]/lib/version-columns";
 import { VERSION_SEARCH_FIELDS } from "@/app/(dashboard)/datasets/[bucket]/[name]/lib/version-search-fields";
 
-interface Props {
+interface DatasetVersionsDataTableProps {
   versions: DatasetVersion[];
   currentVersion?: number;
 }
 
-export function VersionsTable({ versions, currentVersion }: Props) {
+export const DatasetVersionsDataTable = memo(function DatasetVersionsDataTable({
+  versions,
+  currentVersion,
+}: DatasetVersionsDataTableProps) {
   // Search chips for filtering
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
 
@@ -138,17 +143,7 @@ export function VersionsTable({ versions, currentVersion }: Props) {
   // Fixed columns (not draggable)
   const fixedColumns = useMemo(() => Array.from(MANDATORY_VERSION_COLUMNS), []);
 
-  // Column visibility map for TanStack
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    visibleColumnIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, visibleColumnIds]);
+  const columnVisibility = useColumnVisibility(columnOrder, visibleColumnIds);
 
   // Get row ID
   const getRowId = useCallback((version: DatasetVersionWithMetadata) => {
@@ -177,21 +172,12 @@ export function VersionsTable({ versions, currentVersion }: Props) {
     return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
   }, []);
 
-  // Empty state
   const emptyContent = useMemo(() => {
     if (versions.length === 0) {
-      return (
-        <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-zinc-400">
-          No versions available
-        </div>
-      );
+      return <TableEmptyState message="No versions available" />;
     }
     if (processedVersions.length === 0) {
-      return (
-        <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-zinc-400">
-          No versions match your search
-        </div>
-      );
+      return <TableEmptyState message="No versions match your search" />;
     }
     return null;
   }, [versions.length, processedVersions.length]);
@@ -239,4 +225,4 @@ export function VersionsTable({ versions, currentVersion }: Props) {
       />
     </div>
   );
-}
+});

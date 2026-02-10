@@ -28,7 +28,7 @@
 
 "use client";
 
-import { useMemo, useCallback, useState, memo } from "react";
+import { useMemo, useCallback, useState, memo, useRef } from "react";
 import { naturalCompare } from "@/lib/utils";
 import { DataTable } from "@/components/data-table/DataTable";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
@@ -465,6 +465,33 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     return visibleColumnIds.length + 1; // +1 for the tree column
   }, [visibleColumnIds.length]);
 
+  // Stable callback maps for section headers (prevents inline closures breaking memoization)
+  const toggleCallbacksRef = useRef<Map<string, () => void>>(new Map());
+  const detailsCallbacksRef = useRef<Map<string, () => void>>(new Map());
+
+  // Get or create stable toggle callback for a section ID
+  const getToggleCallback = useCallback(
+    (sectionId: string) => {
+      if (!toggleCallbacksRef.current.has(sectionId)) {
+        toggleCallbacksRef.current.set(sectionId, () => handleToggleGroup(sectionId));
+      }
+      return toggleCallbacksRef.current.get(sectionId)!;
+    },
+    [handleToggleGroup],
+  );
+
+  // Get or create stable details callback for a group
+  const getDetailsCallback = useCallback(
+    (group: GroupWithLayout) => {
+      const groupId = group.name;
+      if (!detailsCallbacksRef.current.has(groupId)) {
+        detailsCallbacksRef.current.set(groupId, () => onSelectGroup(group));
+      }
+      return detailsCallbacksRef.current.get(groupId)!;
+    },
+    [onSelectGroup],
+  );
+
   // Render section header (as a single td spanning all columns)
   // Note: Must return a <td> element to be valid inside the <tr> created by VirtualTableBody
   const renderSectionHeader = useCallback(
@@ -490,14 +517,14 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
               isExpanded={isExpanded}
               hasVisibleTasks={hasVisibleTasks ?? false}
               taskCount={displayTaskCount}
-              onToggleExpand={() => handleToggleGroup(section.id)}
-              onViewDetails={() => onSelectGroup(group)}
+              onToggleExpand={getToggleCallback(section.id)}
+              onViewDetails={getDetailsCallback(group)}
             />
           </div>
         </td>
       );
     },
-    [collapsedGroups, handleToggleGroup, onSelectGroup, sectionColSpan],
+    [collapsedGroups, getToggleCallback, getDetailsCallback, sectionColSpan],
   );
 
   // Handle row click
