@@ -253,6 +253,15 @@ export default function Home() {
 
     if (storedWidgets !== null) {
       const storedDashboards = JSON.parse(storedWidgets) as DashboardList;
+      if (storedDashboards.dashboards.length === 0) {
+        const nextDashboards = {
+          dashboards: [defaultDashboard],
+          defaultDashboardID: defaultDashboard.id,
+        };
+        setDashboards(nextDashboards);
+        persistDashboards(nextDashboards);
+        return;
+      }
       const hasDefault = !!storedDashboards.defaultDashboardID?.trim();
       const resolvedDefaultId = hasDefault ? storedDashboards.defaultDashboardID : storedDashboards.dashboards[0]?.id;
       const nextDashboards =
