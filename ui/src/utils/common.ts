@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ export const OsmoApiFetch = async (
   includeContentType = false,
 ) => {
   const scheme = getRequestScheme();
-  const idToken = ctx.cookies.get("IdToken") as string | null ?? ctx.headers.get("x-osmo-auth");
+  const idToken = (ctx.cookies.get("IdToken") as string | null) ?? ctx.headers.get("x-osmo-auth");
   const fetchUrl = searchParams
     ? `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}${apiPath}?${searchParams.toString()}`
     : `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}${apiPath}`;
@@ -67,6 +67,7 @@ export const OsmoApiFetch = async (
   const fetchOptions: RequestInit = {
     method: method,
     headers: await getRequestHeaders(idToken, includeContentType),
+    redirect: "manual",
   };
 
   if (requestBody) {
@@ -75,6 +76,19 @@ export const OsmoApiFetch = async (
 
   // To inspect a fetch URL, this is where you would add a console.log
   const response = await fetch(fetchUrl, fetchOptions);
+  if (
+    response.type === "opaqueredirect" ||
+    response.status === 301 ||
+    response.status === 302 ||
+    response.status === 307 ||
+    response.status === 308
+  ) {
+    if (typeof window !== "undefined") {
+      const location = response.headers.get("location");
+      window.location.assign(location ?? "/auth/login");
+    }
+    return new Response(null, { status: 401 });
+  }
   return response;
 };
 
