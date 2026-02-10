@@ -100,7 +100,8 @@ export default function NewDashboard({
               setName(event.target.value);
               setNameError(undefined);
             }}
-            errorText={nameError}
+            message={nameError}
+            isError={!!nameError}
             required
           />
           <PoolsFilter

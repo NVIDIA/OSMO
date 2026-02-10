@@ -181,7 +181,8 @@ export const WorkflowsWidget = ({
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
               setWidgetName(event.target.value);
             }}
-            errorText={widgetName === "" ? "Name is required" : undefined}
+            message={widgetName === "" ? "Name is required" : undefined}
+            isError={widgetName === ""}
           />
           <TextInput
             id="widget-description"

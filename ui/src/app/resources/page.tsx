@@ -34,7 +34,7 @@ import { AggregatePanels, type AggregateProps } from "./components/AggregatePane
 import { ResourceDetails } from "./components/ResourceDetails";
 import { ResourcesFilter } from "./components/ResourcesFilter";
 import { ResourcesTable } from "./components/ResourcesTable";
-import { calcAggregateTotals, calcResourceUsages } from "./components/utils";
+import { calcResourceUsages } from "./components/utils";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
 import { UsedFreeToggle } from "../pools/components/UsedFreeToggle";
 import { resourcesToNodes } from "../tasks/components/TasksFilters";

@@ -59,6 +59,8 @@ export const WorkflowPieChart = ({
   showTotal = true,
   showLegend = true,
 }: WorkflowPieChartProps) => {
+  const [, setSelectedLabel] = useState<string | null>(null);
+
   const slices: PieSlice[] = useMemo(
     () =>
       WorkflowStatusValues.map((status) => ({
@@ -71,7 +73,6 @@ export const WorkflowPieChart = ({
   );
 
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
 
   return (
     <div className="flex xxs:flex-row flex-col gap-global">
