@@ -73,7 +73,7 @@ Default: `'text'`
 Ex. osmo token set my-token –expires-at 2026-05-01
 Ex. osmo token set my-token -e 2026-05-01 -d “My token description”
 Ex. osmo token set my-token -r role1 -r role2
-Ex. osmo token set service-token –user [service-account@example.com](mailto:service-account@example.com) -r osmo-backend
+Ex. osmo token set service-token –user [service-account@example.com](mailto:service-account@example.com) –roles osmo-backend
 
 ### delete
 
