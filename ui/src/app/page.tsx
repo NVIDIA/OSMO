@@ -253,7 +253,19 @@ export default function Home() {
 
     if (storedWidgets !== null) {
       const storedDashboards = JSON.parse(storedWidgets) as DashboardList;
-      setDashboards(storedDashboards);
+      const hasDefault = !!storedDashboards.defaultDashboardID?.trim();
+      const resolvedDefaultId = hasDefault ? storedDashboards.defaultDashboardID : storedDashboards.dashboards[0]?.id;
+      const nextDashboards =
+        resolvedDefaultId && storedDashboards.defaultDashboardID !== resolvedDefaultId
+          ? {
+              ...storedDashboards,
+              defaultDashboardID: resolvedDefaultId,
+            }
+          : storedDashboards;
+      setDashboards(nextDashboards);
+      if (nextDashboards !== storedDashboards) {
+        persistDashboards(nextDashboards);
+      }
     } else {
       setDashboards({
         dashboards: [defaultDashboard],
@@ -270,7 +282,9 @@ export default function Home() {
     const urlDashboardId = searchParams.get("dashboardId");
     const hasUrlDashboard =
       !!urlDashboardId && dashboards.dashboards.some((dashboard) => dashboard.id === urlDashboardId);
-    const fallbackDashboardId = dashboards.defaultDashboardID || dashboards.dashboards[0]?.id;
+    const fallbackDashboardId = dashboards.defaultDashboardID?.length
+      ? dashboards.defaultDashboardID
+      : dashboards.dashboards[0]?.id;
     const nextDashboardId = hasUrlDashboard ? urlDashboardId : fallbackDashboardId;
 
     if (!nextDashboardId) {
@@ -281,6 +295,29 @@ export default function Home() {
 
     handleDashboardChange(nextDashboardId);
   }, [dashboards.dashboards, dashboards.defaultDashboardID, currentDashboardID, searchParams, handleDashboardChange]);
+
+  useEffect(() => {
+    if (dashboards.dashboards.length === 0 || dashboards.defaultDashboardID?.length) {
+      return;
+    }
+
+    setDashboards((prevDashboards) => {
+      if (prevDashboards.defaultDashboardID?.length || prevDashboards.dashboards.length === 0) {
+        return prevDashboards;
+      }
+
+      const nextDefaultDashboardID = prevDashboards.dashboards[0]?.id ?? "";
+      if (!nextDefaultDashboardID) {
+        return prevDashboards;
+      }
+      const nextDashboards = {
+        ...prevDashboards,
+        defaultDashboardID: nextDefaultDashboardID,
+      };
+      persistDashboards(nextDashboards);
+      return nextDashboards;
+    });
+  }, [dashboards.dashboards, dashboards.defaultDashboardID]);
 
   // Back-fill the default dashboard with the current user's pool if it is not already set.
   useEffect(() => {
@@ -652,7 +689,7 @@ export default function Home() {
         message={
           currentDashboard ? (
             <>
-              Are you sure you want to delete <strong>{currentDashboard.name}</strong>?
+              Are you sure you want to delete dashboard <strong>{currentDashboard.name}</strong>?
             </>
           ) : (
             "Are you sure you want to delete this dashboard?"
@@ -664,14 +701,24 @@ export default function Home() {
         onConfirm={() => {
           setShowDeleteDashboardConfirm(false);
           setDashboards((prevDashboards) => {
+            const remainingDashboards = prevDashboards.dashboards.filter(
+              (dashboard) => dashboard.id !== currentDashboardID,
+            );
+            const nextDefaultDashboardID =
+              prevDashboards.defaultDashboardID === currentDashboardID
+                ? remainingDashboards[0]?.id ?? ""
+                : prevDashboards.defaultDashboardID;
             const nextDashboards = {
               ...prevDashboards,
-              dashboards: prevDashboards.dashboards.filter((dashboard) => dashboard.id !== currentDashboardID),
+              dashboards: remainingDashboards,
+              defaultDashboardID: nextDefaultDashboardID,
             };
             persistDashboards(nextDashboards);
+            if (nextDefaultDashboardID) {
+              handleDashboardChange(nextDefaultDashboardID);
+            }
             return nextDashboards;
           });
-          handleDashboardChange(dashboards.defaultDashboardID);
         }}
       />
     </>
