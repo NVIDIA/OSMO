@@ -40,7 +40,7 @@ import { calcAggregateTotals, calcResourceUsages } from "./resources/components/
 import { TasksWidget, type TaskWidgetDataProps } from "./widgets/tasks";
 import { WorkflowsWidget, type WorkflowWidgetDataProps } from "./widgets/workflows";
 
-const defaultDays = 365;
+const defaultDays = 0;
 
 export interface Dashboard {
   id: string;
