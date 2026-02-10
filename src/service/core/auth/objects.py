@@ -45,6 +45,31 @@ class AccessToken(pydantic.BaseModel):
         return [AccessToken(**spec_row) for spec_row in spec_rows]
 
     @classmethod
+    def list_with_roles_from_db(cls, database: connectors.PostgresConnector,
+                                user_name: str) -> List['AccessTokenWithRoles']:
+        """Fetches access tokens with their roles for a user."""
+        fetch_cmd = '''
+            SELECT
+                at.user_name,
+                at.token_name,
+                at.expires_at,
+                at.description,
+                COALESCE(
+                    ARRAY_AGG(ur.role_name ORDER BY ur.role_name)
+                    FILTER (WHERE ur.role_name IS NOT NULL),
+                    ARRAY[]::text[]
+                ) as roles
+            FROM access_token at
+            LEFT JOIN pat_roles pr ON at.user_name = pr.user_name AND at.token_name = pr.token_name
+            LEFT JOIN user_roles ur ON pr.user_role_id = ur.id
+            WHERE at.user_name = %s
+            GROUP BY at.user_name, at.token_name, at.expires_at, at.description
+            ORDER BY at.token_name;
+        '''
+        spec_rows = database.execute_fetch_command(fetch_cmd, (user_name,), True)
+        return [AccessTokenWithRoles(**spec_row) for spec_row in spec_rows]
+
+    @classmethod
     def fetch_from_db(cls, database: connectors.PostgresConnector,
                       token_name: str, user_name: str) -> 'AccessToken':
         """Fetches the access token from the access token table."""
@@ -192,6 +217,11 @@ class AccessToken(pydantic.BaseModel):
         '''
         rows = database.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
         return [row['role_name'] for row in rows]
+
+
+class AccessTokenWithRoles(AccessToken):
+    """Personal Access Token with roles."""
+    roles: List[str] = []
 
 
 # =============================================================================
