@@ -52,7 +52,7 @@ Name of the token.
 
 Expiration date of the token (UTC). Format: YYYY-MM-DD. Default: 31 days from now.
 
-Default: `2026-03-12`
+Default: `2026-03-13`
 * **--description, -d**: 
 
 Description of the token.
