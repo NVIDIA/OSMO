@@ -153,10 +153,6 @@ spec:
                           {
                             "name": "OSMO_LOGIN_DEV",
                             "value": "true"
-                          },
-                          {
-                            "name": "OSMO_SKIP_DATA_AUTH",
-                            "value": "1"
                           }
                         ]
                       },
@@ -178,10 +174,6 @@ spec:
                           {
                             "name": "OSMO_LOGIN_DEV",
                             "value": "true"
-                          },
-                          {
-                            "name": "OSMO_SKIP_DATA_AUTH",
-                            "value": "1"
                           }
                         ]
                       }
@@ -314,4 +306,3 @@ spec:
           value: {{ .Values.global.osmoImageLocation | quote }}
         - name: OSMO_IMAGE_TAG
           value: {{ .Values.global.osmoImageTag | quote }}
-
