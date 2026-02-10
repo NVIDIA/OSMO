@@ -99,7 +99,7 @@ class RolePolicy(pydantic.BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: Dict[str, Any] = {
             'actions': [action.to_dict() for action in sorted(self.actions)]
         }
         if self.resources:
