@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
+import ConfirmModal from "~/components/ConfirmModal";
 import { getDateFromValues } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
@@ -32,7 +33,6 @@ import { api } from "~/trpc/react";
 import { getTaskStatusArray } from "../tasks/components/StatusFilter";
 import { TasksFilters, type TasksFiltersDataProps } from "../tasks/components/TasksFilters";
 import useToolParamUpdater from "../workflows/hooks/useToolParamUpdater";
-
 
 export interface TaskWidgetFilters {
   userType: UserFilterType;
@@ -68,6 +68,7 @@ export const TasksWidget = ({
   const [isEditing, setIsEditing] = useState(false);
   const [widgetName, setWidgetName] = useState(widget.name);
   const [widgetDescription, setWidgetDescription] = useState(widget.description ?? "");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     if (widgetName === "") {
@@ -146,9 +147,7 @@ export const TasksWidget = ({
             </Link>
           </div>
         </div>
-        <div
-          className="flex flex-col gap-global p-global w-full flex-1 justify-between"
-        >
+        <div className="flex flex-col gap-global p-global w-full flex-1 justify-between">
           <TaskPieChart
             counts={currentTasks ?? {}}
             size={160}
@@ -163,9 +162,7 @@ export const TasksWidget = ({
         onClose={() => {
           setIsEditing(false);
         }}
-        headerChildren={
-          <h2 id="edit-header">Edit Task</h2>
-        }
+        headerChildren={<h2 id="edit-header">Edit Task</h2>}
         aria-labelledby="edit-header"
         size="md"
       >
@@ -195,9 +192,9 @@ export const TasksWidget = ({
               name: widgetName,
               description: widgetDescription,
               filters: data,
-            })
+            });
           }}
-          onDelete={onDelete}
+          onDelete={() => setShowConfirmModal(true)}
           saveButtonText="Save"
           saveButtonIcon="save"
         >
@@ -225,7 +222,19 @@ export const TasksWidget = ({
           />
         </TasksFilters>
       </FullPageModal>
-
+      <ConfirmModal
+        open={showConfirmModal}
+        size="sm"
+        onCancel={() => {
+          setShowConfirmModal(false);
+        }}
+        title="Delete Task"
+        message="Are you sure you want to delete this task?"
+        onConfirm={() => {
+          onDelete();
+          setShowConfirmModal(false);
+        }}
+      />
     </>
   );
 };
