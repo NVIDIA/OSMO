@@ -22,11 +22,19 @@
  */
 
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { DatasetDetailWithData } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-with-data";
 import { DatasetDetailSkeleton } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-skeleton";
 
 interface PageProps {
   params: Promise<{ bucket: string; name: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { bucket, name } = await params;
+  return {
+    title: `Dataset ${bucket}/${name} | OSMO`,
+  };
 }
 
 export default async function DatasetDetailPage({ params }: PageProps) {

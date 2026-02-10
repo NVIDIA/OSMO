@@ -69,7 +69,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   // Set page title and breadcrumbs with bucket filter link
   usePage({
-    title: dataset ? `${bucket} / ${dataset.name}` : `${bucket} / ${name}`,
+    title: dataset ? dataset.name : name,
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
