@@ -317,8 +317,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                             f'\"{upstream_group}\" exists before itself.')
             upstream_groups.add(group_spec.name)
 
-    def parse(self, database: connectors.PostgresConnector,
-              backend: str, pool: str, group_and_task_uuids: Dict[str, common.UuidPattern])\
+    def parse(self, backend: str, pool: str, group_and_task_uuids: Dict[str, common.UuidPattern])\
         -> 'WorkflowSpec':
         """
         Merges non-group tasks to groups.
@@ -332,6 +331,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         Returns:
             WorkflowSpec: The parsed workflow spec.
         """
+        database = connectors.PostgresConnector.get_instance()
         for task_obj in self.tasks:
             self.groups.append(task.TaskGroupSpec(name=f'{task_obj.name}-group', tasks=[task_obj]))
         self.tasks = []
@@ -343,7 +343,6 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             for task_obj in group.tasks:
                 task_obj.backend = backend
 
-        database = connectors.PostgresConnector.get_instance()
         pool_info = connectors.Pool.fetch_from_db(database, self.pool)
         for name, resource in self.resources.items():
             if not resource.platform:
@@ -524,10 +523,11 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                     user, dataset_config, group_task, seen_data_input,
                     seen_data_output, workflow_config.credential_config.disable_data_validation,
                     seen_bucket_input, seen_bucket_output)
-                self.validate_generic_cred(user, database, group_task)
+                self.validate_generic_cred(user, group_task)
 
-    def validate_generic_cred(self, user: str, database: connectors.PostgresConnector,
+    def validate_generic_cred(self, user: str,
                               group_task: task.TaskSpec):
+        database = connectors.PostgresConnector.get_instance()
         for cred_name, cred_map in group_task.credentials.items():
             payload = database.get_generic_cred(user, cred_name)
             if isinstance(cred_map, str):
@@ -685,7 +685,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                         first_field, second_field = task_input.parsed_workflow_info()
                         if second_field:
                             previous_task = task.Task.fetch_from_db(
-                                postgres, first_field, second_field)
+                                first_field, second_field)
                             if not previous_task.status.finished():
                                 raise osmo_errors.OSMOSubmissionError(
                                     'Input tasks from previous workflows must be finished: '
@@ -803,8 +803,8 @@ class LogInfo(pydantic.BaseModel):
     backend: str
 
     @classmethod
-    def fetch_log_info_from_db(cls, database: connectors.PostgresConnector,
-                               workflow_id: task_common.NamePattern) -> 'LogInfo':
+    def fetch_log_info_from_db(cls, workflow_id: task_common.NamePattern) -> 'LogInfo':
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT logs, backend FROM workflows WHERE (workflow_id = %s or workflow_uuid = %s);
         '''
@@ -968,8 +968,7 @@ class Workflow(pydantic.BaseModel):
                         priority=priority)
 
     @classmethod
-    def from_workflow_spec(cls, database: connectors.PostgresConnector,
-        workflow_name: task_common.NamePattern, workflow_uuid: str,
+    def from_workflow_spec(cls, workflow_name: task_common.NamePattern, workflow_uuid: str,
         user: str, workflow_spec: WorkflowSpec, log_url: str,
         group_and_task_uuids: Dict[str, common.UuidPattern],
         remaining_upstream_groups: Dict,
@@ -983,6 +982,7 @@ class Workflow(pydantic.BaseModel):
         priority: wf_priority.WorkflowPriority = wf_priority.WorkflowPriority.NORMAL) \
         -> 'Workflow':
         """ Creates a Workflow instance from a WorkflowSpec instance. """
+        database = connectors.PostgresConnector.get_instance()
         task_to_group: Dict[str, str] = {}
         for group_spec in workflow_spec.groups:
             for task_spec in group_spec.tasks:
@@ -1036,8 +1036,7 @@ class Workflow(pydantic.BaseModel):
         return rows[0].job_id + 1
 
     @classmethod
-    def fetch_from_db(cls, database: connectors.PostgresConnector,
-                      workflow_id: task_common.NamePattern,
+    def fetch_from_db(cls, workflow_id: task_common.NamePattern,
                       fetch_groups: bool = True, verbose: bool = False) -> 'Workflow':
         """
         Creates a Workflow instance from a database workflow entry.
@@ -1051,6 +1050,7 @@ class Workflow(pydantic.BaseModel):
         Returns:
             Workflow: The workflow.
         """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM workflows WHERE (workflow_id = %s or workflow_uuid = %s);'
         workflow_rows = database.execute_fetch_command(fetch_cmd, (workflow_id, workflow_id), True)
         try:
@@ -1076,7 +1076,7 @@ class Workflow(pydantic.BaseModel):
                 fetch_cmd, (workflow_row['workflow_id'],), return_raw=True)
             groups = [
                 task.TaskGroup.fetch_from_db(
-                    database, workflow_row['workflow_id'], row['name'], verbose)
+                    workflow_row['workflow_id'], row['name'], verbose)
                 for row in group_rows]
 
         return Workflow(workflow_name=workflow_row['workflow_name'],
@@ -1219,7 +1219,7 @@ class Workflow(pydantic.BaseModel):
         groups_objs = []
         group_rows = connectors.PostgresConnector.get_instance().execute_fetch_command(fetch_cmd, (self.workflow_id,))
         for group_row in group_rows:
-            group_obj = task.TaskGroup.fetch_from_db(connectors.PostgresConnector.get_instance(), self.workflow_id,
+            group_obj = task.TaskGroup.fetch_from_db(self.workflow_id,
                                                      group_row.name)
             groups_objs.append(group_obj)
         return groups_objs
