@@ -48,7 +48,7 @@ import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResourcePanelHeader } from "@/app/(dashboard)/resources/components/panel/panel-header";
 import { ResourcePanelContent } from "@/app/(dashboard)/resources/components/panel/panel-content";
-import { ResourcesTable } from "@/app/(dashboard)/resources/components/table/resources-table";
+import { ResourcesDataTable } from "@/app/(dashboard)/resources/components/table/resources-data-table";
 import { ResourcesToolbar } from "@/app/(dashboard)/resources/components/resources-toolbar";
 import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
 import { AdaptiveSummary } from "@/app/(dashboard)/resources/components/resource-summary-card";
@@ -221,7 +221,7 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
             resetKeys={[resources.length]}
             onReset={refetch}
           >
-            <ResourcesTable
+            <ResourcesDataTable
               resources={resources}
               totalCount={totalCount}
               isLoading={isLoading}

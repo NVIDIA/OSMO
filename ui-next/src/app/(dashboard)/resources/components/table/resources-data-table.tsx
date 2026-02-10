@@ -17,7 +17,7 @@
  */
 
 /**
- * Resources Table
+ * Resources Data Table
  *
  * Displays resources in a virtualized, sortable, DnD-enabled table.
  * Built on the canonical DataTable component.
@@ -25,8 +25,10 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, memo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
+import { TableEmptyState } from "@/components/data-table/TableEmptyState";
+import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
 import { useSharedPreferences, type DisplayMode } from "@/stores/shared-preferences-store";
 import type { Resource } from "@/lib/api/adapter/types";
@@ -102,7 +104,7 @@ function sortResources(resources: Resource[], sort: SortState<string> | null, di
 // Types
 // =============================================================================
 
-export interface ResourcesTableProps {
+export interface ResourcesDataTableProps {
   /** Array of resources to display */
   resources: Resource[];
   /** Total count before filters */
@@ -129,7 +131,7 @@ export interface ResourcesTableProps {
 // Main Component
 // =============================================================================
 
-export function ResourcesTable({
+export const ResourcesDataTable = memo(function ResourcesDataTable({
   resources,
   totalCount,
   isLoading = false,
@@ -139,7 +141,7 @@ export function ResourcesTable({
   hasNextPage = false,
   onLoadMore,
   isFetchingNextPage = false,
-}: ResourcesTableProps) {
+}: ResourcesDataTableProps) {
   // Shared preferences
   const displayMode = useSharedPreferences((s) => s.displayMode);
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -162,18 +164,7 @@ export function ResourcesTable({
   }, [storeVisibleColumnIds, showPoolsColumn]);
 
   // Create column visibility map for DataTable
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
-    // Start with all columns hidden
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    // Show only effective visible columns
-    effectiveVisibleIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, effectiveVisibleIds]);
+  const columnVisibility = useColumnVisibility(columnOrder, effectiveVisibleIds);
 
   // Sort resources based on current sort state
   const sortedResources = useMemo(
@@ -216,11 +207,7 @@ export function ResourcesTable({
     [setColumnOrder],
   );
 
-  // Empty state - memoized to prevent re-renders
-  const emptyContent = useMemo(
-    () => <div className="text-sm text-zinc-500 dark:text-zinc-400">No resources found</div>,
-    [],
-  );
+  const emptyContent = useMemo(() => <TableEmptyState message="No resources found" />, []);
 
   return (
     <div className="table-container flex h-full flex-col">
@@ -259,4 +246,4 @@ export function ResourcesTable({
       />
     </div>
   );
-}
+});

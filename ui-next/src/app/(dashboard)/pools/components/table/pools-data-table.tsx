@@ -29,9 +29,11 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, memo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
+import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
+import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import type { Pool } from "@/lib/api/adapter/types";
@@ -82,7 +84,7 @@ const getRowId = (pool: Pool) => pool.name;
 // Component
 // =============================================================================
 
-export function PoolsDataTable({
+export const PoolsDataTable = memo(function PoolsDataTable({
   pools,
   sharingGroups,
   isLoading = false,
@@ -123,17 +125,7 @@ export function PoolsDataTable({
     displayMode,
   });
 
-  // Create column visibility map
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    storeVisibleColumnIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, storeVisibleColumnIds]);
+  const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
 
   // Memoize shared pools filter callbacks
   const filterBySharedPoolsMap = useMemo(() => {
@@ -217,11 +209,7 @@ export function PoolsDataTable({
     [selectedPoolName],
   );
 
-  // Empty state
-  const emptyContent = useMemo(
-    () => <div className="text-sm text-zinc-500 dark:text-zinc-400">No pools available</div>,
-    [],
-  );
+  const emptyContent = useMemo(() => <TableEmptyState message="No pools available" />, []);
 
   // Loading state (using consolidated component)
   if (isLoading && pools.length === 0) {
@@ -278,4 +266,4 @@ export function PoolsDataTable({
       />
     </div>
   );
-}
+});

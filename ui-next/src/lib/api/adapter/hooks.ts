@@ -344,16 +344,18 @@ export function useResourceDetail(
     return { pools, initialPool, taskConfigByPool };
   }, [resource, resourcesQuery.data, poolsQuery.data, contextPool]);
 
+  const refetch = useCallback(() => {
+    resourcesQuery.refetch();
+    poolsQuery.refetch();
+  }, [resourcesQuery, poolsQuery]);
+
   return {
     pools: result.pools,
     initialPool: result.initialPool,
     taskConfigByPool: result.taskConfigByPool,
     isLoadingPools: resourcesQuery.isLoading || poolsQuery.isLoading,
     error: resourcesQuery.error || poolsQuery.error,
-    refetch: () => {
-      resourcesQuery.refetch();
-      poolsQuery.refetch();
-    },
+    refetch,
   };
 }
 

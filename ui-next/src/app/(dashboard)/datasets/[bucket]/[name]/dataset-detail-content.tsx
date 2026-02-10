@@ -30,7 +30,7 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { TabPanel } from "@/components/panel/tab-panel";
 import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
 import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
-import { VersionsTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/VersionsTable";
+import { DatasetVersionsDataTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/DatasetVersionsDataTable";
 import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
 import { useMemo, useCallback } from "react";
 
@@ -119,7 +119,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           activeTab={activeTab}
           padding="with-bottom"
         >
-          <VersionsTable
+          <DatasetVersionsDataTable
             versions={versions}
             currentVersion={dataset.version}
           />
