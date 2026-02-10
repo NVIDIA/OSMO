@@ -158,6 +158,20 @@ export function getApiHostname(): string {
 }
 
 // =============================================================================
+// Documentation Configuration
+// =============================================================================
+
+/**
+ * Get the documentation base URL.
+ * Set NEXT_PUBLIC_DOCS_BASE_URL in .env.local or via Helm chart values.
+ *
+ * @returns The documentation base URL or undefined if not configured
+ */
+export function getDocsBaseUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_DOCS_BASE_URL;
+}
+
+// =============================================================================
 // Auth Configuration
 // =============================================================================
 

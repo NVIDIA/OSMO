@@ -19,7 +19,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "@/components/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
+import { ArrowLeftToLine, ArrowRightFromLine, BookOpen } from "lucide-react";
 import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config";
 import { useNavigation } from "@/lib/navigation/use-navigation";
 import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
@@ -54,7 +54,7 @@ import {
  * - This allows the sidebar structure to be prerendered at build time
  * - Active highlighting applies after hydration (~50ms, imperceptible)
  */
-export function AppSidebar() {
+export function AppSidebar({ docsBaseUrl }: { docsBaseUrl?: string }) {
   const { state, isMobile } = useSidebar();
   // On mobile (hamburger overlay), always show expanded state regardless of desktop sidebar state
   const collapsed = isMobile ? false : state === "collapsed";
@@ -139,11 +139,54 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      {/* Footer - collapse toggle */}
+      {/* Footer - documentation and collapse toggle */}
       <SidebarFooter className="border-t border-zinc-200 p-2 dark:border-zinc-800">
+        {docsBaseUrl && (
+          <DocumentationLink
+            docsBaseUrl={docsBaseUrl}
+            collapsed={collapsed}
+          />
+        )}
         <CollapseButton collapsed={collapsed} />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/**
+ * Documentation link button
+ */
+function DocumentationLink({ docsBaseUrl, collapsed }: { docsBaseUrl: string; collapsed: boolean }) {
+  return (
+    <SidebarMenu className={cn(collapsed && "items-center")}>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          tooltip={collapsed ? "Documentation" : undefined}
+          className={cn(
+            "rounded-lg py-2 text-sm font-medium text-zinc-600 transition-all duration-200 ease-out",
+            "hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100",
+            collapsed ? "!justify-center !gap-0 !px-2" : "gap-3 px-3",
+          )}
+        >
+          <a
+            href={docsBaseUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <BookOpen className="h-4 w-4 shrink-0" />
+            <span
+              className={cn(
+                "overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
+                collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
+              )}
+            >
+              Documentation
+            </span>
+          </a>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
