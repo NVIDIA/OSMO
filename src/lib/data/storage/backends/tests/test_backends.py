@@ -294,6 +294,70 @@ class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
         self.assertIn('AccountKey not found', str(context.exception))
 
 
+class IsNonAwsS3EndpointConfiguredTest(unittest.TestCase):
+    """Tests for non-AWS S3-compatible endpoint detection."""
+
+    # pylint: disable=protected-access
+
+    def test_no_endpoint_returns_false(self):
+        """No endpoint env var set returns False."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertFalse(backends._is_non_aws_s3_endpoint_configured())
+
+    def test_aws_endpoints_return_false(self):
+        """AWS S3 endpoints are not S3-compatible (they use IAM)."""
+        for endpoint in ['https://s3.amazonaws.com', 'https://s3.us-east-1.amazonaws.com']:
+            with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': endpoint}):
+                self.assertFalse(backends._is_non_aws_s3_endpoint_configured())
+
+    def test_s3_compatible_endpoints_return_true(self):
+        """MinIO, Ceph, localstack endpoints return True."""
+        for endpoint in ['http://minio:9000', 'http://localstack:4566']:
+            with mock.patch.dict('os.environ', {'AWS_ENDPOINT_URL_S3': endpoint}):
+                self.assertTrue(backends._is_non_aws_s3_endpoint_configured())
+
+    def test_env_var_precedence(self):
+        """AWS_ENDPOINT_URL_S3 takes precedence over AWS_ENDPOINT_URL."""
+        with mock.patch.dict('os.environ', {
+            'AWS_ENDPOINT_URL_S3': 'http://minio:9000',
+            'AWS_ENDPOINT_URL': 'https://s3.amazonaws.com',
+        }):
+            self.assertTrue(backends._is_non_aws_s3_endpoint_configured())
+
+
+class IsAwsEndpointTest(unittest.TestCase):
+    """Tests for _is_aws_endpoint helper."""
+
+    # pylint: disable=protected-access
+
+    def test_aws_endpoints(self):
+        """Various AWS endpoint formats are detected."""
+        aws_urls = [
+            'https://s3.amazonaws.com',
+            'https://s3.us-east-1.amazonaws.com',
+            'https://bucket.s3.amazonaws.com',
+            's3.amazonaws.com',  # no scheme
+        ]
+        for url in aws_urls:
+            self.assertTrue(backends._is_aws_endpoint(url), url)
+
+    def test_non_aws_endpoints(self):
+        """Non-AWS endpoints return False."""
+        non_aws_urls = [
+            'http://minio:9000',
+            'http://localhost:9000',
+            'http://fakeamazonaws.com',
+            'http://amazonaws.com.evil.com',
+        ]
+        for url in non_aws_urls:
+            self.assertFalse(backends._is_aws_endpoint(url), url)
+
+    def test_malformed_urls_return_false(self):
+        """Malformed URLs return False (safe fallback)."""
+        for url in ['', '   ', 'not-a-url']:
+            self.assertFalse(backends._is_aws_endpoint(url), url)
+
+
 class WorkflowConfigCredentialTest(unittest.TestCase):
     """Tests for WorkflowConfig credential type support."""
 
