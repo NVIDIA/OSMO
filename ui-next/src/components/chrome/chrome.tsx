@@ -25,6 +25,7 @@ import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { useSharedPreferences, initialState as sharedPreferencesInitialState } from "@/stores/shared-preferences-store";
 import { useMounted } from "@/hooks/use-mounted";
+import { getDocsBaseUrl } from "@/lib/config";
 
 interface ChromeProps {
   children: React.ReactNode;
@@ -59,7 +60,7 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
         </a>
 
         {/* Sidebar */}
-        <AppSidebar />
+        <AppSidebar docsBaseUrl={getDocsBaseUrl()} />
 
         {/* Main area - flex to fill remaining space */}
         <SidebarInset className="flex flex-col overflow-y-hidden">
