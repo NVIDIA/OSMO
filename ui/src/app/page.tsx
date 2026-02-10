@@ -22,6 +22,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ResourcesGraph } from "~/app/resources/components/ResourceGraph";
 import { useAuth } from "~/components/AuthProvider";
+import ConfirmModal from "~/components/ConfirmModal";
 import { allDateRange } from "~/components/DateRangePicker";
 import { OutlinedIcon } from "~/components/Icon";
 import PageHeader from "~/components/PageHeader";
@@ -139,6 +140,7 @@ export default function Home() {
   const [showNewDashboard, setShowNewDashboard] = useState(false);
   const [showShareDashboard, setShowShareDashboard] = useState(false);
   const [showImportDashboard, setShowImportDashboard] = useState(false);
+  const [showDeleteDashboardConfirm, setShowDeleteDashboardConfirm] = useState(false);
   const [currentDashboardID, setCurrentDashboardID] = useState<string | undefined>(undefined);
 
   const [dashboards, setDashboards] = useState<DashboardList>({
@@ -582,16 +584,7 @@ export default function Home() {
           <button
             className="btn btn-action"
             onClick={() => {
-              setDashboards((prevDashboards) => {
-                const nextDashboards = {
-                  ...prevDashboards,
-                  dashboards: prevDashboards.dashboards.filter((dashboard) => dashboard.id !== currentDashboardID),
-                };
-                persistDashboards(nextDashboards);
-                return nextDashboards;
-              });
-              console.log("deleteDashboard", dashboards.defaultDashboardID);
-              handleDashboardChange(dashboards.defaultDashboardID);
+              setShowDeleteDashboardConfirm(true);
             }}
             role="listitem"
           >
@@ -651,6 +644,34 @@ export default function Home() {
           addDashboard(dashboard);
           setShowShareDashboard(false);
           setShowImportDashboard(false);
+        }}
+      />
+      <ConfirmModal
+        open={showDeleteDashboardConfirm}
+        title="Delete Dashboard"
+        message={
+          currentDashboard ? (
+            <>
+              Are you sure you want to delete <strong>{currentDashboard.name}</strong>?
+            </>
+          ) : (
+            "Are you sure you want to delete this dashboard?"
+          )
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onCancel={() => setShowDeleteDashboardConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteDashboardConfirm(false);
+          setDashboards((prevDashboards) => {
+            const nextDashboards = {
+              ...prevDashboards,
+              dashboards: prevDashboards.dashboards.filter((dashboard) => dashboard.id !== currentDashboardID),
+            };
+            persistDashboards(nextDashboards);
+            return nextDashboards;
+          });
+          handleDashboardChange(dashboards.defaultDashboardID);
         }}
       />
     </>

@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
+import ConfirmModal from "~/components/ConfirmModal";
 import { getDateFromValues } from "~/components/DateRangePicker";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
@@ -54,6 +55,7 @@ export const WorkflowsWidget = ({
   const [isEditing, setIsEditing] = useState(false);
   const [widgetName, setWidgetName] = useState(widget.name);
   const [widgetDescription, setWidgetDescription] = useState(widget.description ?? "");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     if (widgetName === "") {
@@ -165,7 +167,7 @@ export const WorkflowsWidget = ({
               filters: data,
             })
           }}
-          onDelete={onDelete}
+          onDelete={() => setShowConfirmModal(true)}
           saveButtonText="Save"
           saveButtonIcon="save"
         >
@@ -193,6 +195,19 @@ export const WorkflowsWidget = ({
           />
         </WorkflowsFilters>
       </FullPageModal>
-    </>
+      <ConfirmModal
+        open={showConfirmModal}
+        size="sm"
+        onCancel={() => {
+          setShowConfirmModal(false);
+        }}
+        title="Delete Workflow"
+        message="Are you sure you want to delete this workflow?"
+        onConfirm={() => {
+          onDelete();
+          setShowConfirmModal(false);
+        }}
+      />
+      </>
   );
 };
