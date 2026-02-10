@@ -36,7 +36,7 @@ Create a personal access token for yourself or another user (admin only).
 
 ```default
 osmo token set [-h] [--expires-at EXPIRES_AT] [--description DESCRIPTION]
-               [--user USER] [--format-type {json,text}]
+               [--user USER] [--roles ROLES] [--format-type {json,text}]
                name
 ```
 
@@ -59,6 +59,9 @@ Description of the token.
 * **--user, -u**: 
 
 Create token for a specific user (admin only). By default, creates token for the current user.
+* **--roles, -r**: 
+
+Role to assign to the token. Can be specified multiple times. If not specified, inherits all of the user’s current roles.
 * **--format-type, -t**: 
 
 Possible choices: json, text
@@ -69,7 +72,8 @@ Default: `'text'`
 
 Ex. osmo token set my-token –expires-at 2026-05-01
 Ex. osmo token set my-token -e 2026-05-01 -d “My token description”
-Ex. osmo token set service-token –user [service-account@example.com](mailto:service-account@example.com)
+Ex. osmo token set my-token -r role1 -r role2
+Ex. osmo token set service-token –user [service-account@example.com](mailto:service-account@example.com) -r osmo-backend
 
 ### delete
 

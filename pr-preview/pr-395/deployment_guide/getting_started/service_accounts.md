@@ -67,13 +67,15 @@ User created: backend-operator   Roles assigned: osmo-backend
 
 ### Step 2: Create a Personal Access Token
 
-Create a PAT for the service account. The token inherits all roles from the user.
+Create a PAT for the service account. By default, the token inherits all roles from the user.
+You can limit the token to specific roles using the `--roles` (or `-r`) option.
 
 ```bash
 $ osmo token set backend-token \
     --user backend-operator \
     --expires-at 2027-01-01 \
-    --description "Backend Operator Token"
+    --description "Backend Operator Token" \
+    --roles osmo-backend
 ```
 
 **Example output:**
@@ -82,7 +84,14 @@ $ osmo token set backend-token \
 Note: Save the token in a secure location as it will not be shown again
 Access token: osmo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Created for user: backend-operator
+Roles: osmo-backend
 ```
+
+> **Tip**
+>
+> If `--roles` is not specified, the token inherits all of the user’s roles.
+> For service accounts, it’s recommended to explicitly specify roles to follow the
+> principle of least privilege.
 
 > **Important**
 >
@@ -183,11 +192,12 @@ For OSMO backend operators that manage compute resources:
 # Create the service account
 $ osmo user create backend-operator --roles osmo-backend
 
-# Create a token with appropriate expiration
+# Create a token with appropriate expiration and specific roles
 $ osmo token set backend-token \
     --user backend-operator \
     --expires-at 2027-01-01 \
-    --description "Backend Operator - Production Cluster"
+    --description "Backend Operator - Production Cluster" \
+    --roles osmo-backend
 
 # Store in Kubernetes
 $ kubectl create secret generic osmo-operator-token \
@@ -205,11 +215,12 @@ For monitoring systems or automation scripts:
 # Create the service account with read-only roles
 $ osmo user create monitoring --roles osmo-user
 
-# Create a token
+# Create a token with specific roles
 $ osmo token set monitoring-token \
     --user monitoring \
     --expires-at 2027-01-01 \
-    --description "Monitoring System"
+    --description "Monitoring System" \
+    --roles osmo-user
 ```
 
 **Using the token in a script:**

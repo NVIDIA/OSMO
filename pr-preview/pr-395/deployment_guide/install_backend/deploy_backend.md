@@ -45,19 +45,24 @@ Create a service account user for the backend operator:
 $ osmo user create backend-operator --roles osmo-backend
 ```
 
-Create a Personal Access Token for the service account:
+Create a Personal Access Token for the service account with the `osmo-backend` role:
 
 ```bash
 $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
     --user backend-operator \
     --expires-at <insert-date> \
     --description "Backend Operator Token" \
+    --roles osmo-backend \
     -t json | jq -r '.token')
 ```
 
 > **Note**
 >
 > Replace `<insert-date>` with an expiration date in UTC format (YYYY-MM-DD). Save the token securely as it will not be shown again.
+
+> **Tip**
+>
+> The `--roles osmo-backend` option limits the token to only the `osmo-backend` role. If omitted, the token inherits all roles from the user.
 
 #### SEE ALSO
 See [Service Accounts](../getting_started/service_accounts.md#service-accounts) for more details on creating and managing service accounts.
