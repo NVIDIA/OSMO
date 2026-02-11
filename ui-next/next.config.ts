@@ -59,9 +59,12 @@ const nextConfig: NextConfig = {
   // - API rewrites still forward to backend /api/* (no /v2 prefix)
   basePath: BASE_PATH,
 
-  // Expose basePath as environment variable for client-side code
+  // Expose environment variables for client-side code
+  // These are set by Helm chart values and need to be accessible in the browser
   env: {
     NEXT_PUBLIC_BASE_PATH: BASE_PATH,
+    NEXT_PUBLIC_DOCS_BASE_URL: process.env.DOCS_BASE_URL,
+    NEXT_PUBLIC_CLI_INSTALL_SCRIPT_URL: process.env.CLI_INSTALL_SCRIPT_URL,
   },
 
   // Enable standalone output for containerized deployments
