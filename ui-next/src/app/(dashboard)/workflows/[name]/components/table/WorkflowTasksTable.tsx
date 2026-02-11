@@ -496,7 +496,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   // Note: Must return a <td> element to be valid inside the <tr> created by VirtualTableBody
   const renderSectionHeader = useCallback(
     (section: Section<TaskWithDuration, GroupSectionMeta>) => {
-      const { group, stats, skipGroupRow, taskCount, hasVisibleTasks, _visualRowIndex } = section.metadata || {};
+      const { group, stats, skipGroupRow, taskCount, hasVisibleTasks } = section.metadata || {};
       if (!group) return null;
 
       // Skip group row for single-task groups where the task is visible
