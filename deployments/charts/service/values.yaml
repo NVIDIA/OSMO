@@ -171,7 +171,7 @@ services:
 
     ## Username for the default admin user
     ##
-    username: ""
+    username: "admin"
 
     ## Name of the Kubernetes secret containing the default admin password (PAT value)
     ##
