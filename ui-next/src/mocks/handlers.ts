@@ -74,6 +74,14 @@ const WORKFLOW_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/logs$/;
 const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
 
 // ============================================================================
+// Stream Management
+// ============================================================================
+
+// Track active streams to prevent concurrent streams for the same workflow
+// (Prevents MaxListenersExceededWarning during HMR or rapid navigation)
+const activeStreams = new Map<string, AbortController>();
+
+// ============================================================================
 // Handlers
 // ============================================================================
 
@@ -393,6 +401,15 @@ export const handlers = [
     const pathMatch = url.pathname.match(/\/api\/workflow\/([^/]+)\/logs$/);
     const name = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
 
+    // Abort any existing stream for this workflow to prevent concurrent streams
+    // This prevents MaxListenersExceededWarning during HMR or rapid navigation
+    const streamKey = `workflow:${name}`;
+    const existingController = activeStreams.get(streamKey);
+    if (existingController) {
+      existingController.abort();
+      activeStreams.delete(streamKey);
+    }
+
     // Real backend params (preserved but ignored - backend caps at 10K anyway)
     const taskFilter = url.searchParams.get("task_name");
 
@@ -408,44 +425,78 @@ export const handlers = [
     const workflowStartTime = workflow?.start_time ? new Date(workflow.start_time) : undefined;
 
     // ALL workflows now stream (matches new unified architecture)
-    // - Completed workflows (end_time exists): stream to EOF (finite)
-    // - Running workflows (end_time undefined): stream infinitely
+    // - Completed workflows (end_time exists): Generate all logs upfront, stream in chunks (object storage)
+    // - Running workflows (end_time undefined): Stream infinitely with realistic delays (real-time)
     const encoder = new TextEncoder();
-    const abortController = new AbortController();
+    const isCompleted = workflow?.end_time !== undefined;
 
-    // Create streaming generator
-    // For completed workflows, generator will use volume.max and stop
-    // For running workflows, generator will stream infinitely
-    const streamGen = logGenerator.createStream({
-      workflowName: name,
-      taskNames,
-      continueFrom: workflowStartTime,
-      signal: abortController.signal,
-    });
+    let stream: ReadableStream<Uint8Array>;
 
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          for await (const line of streamGen) {
-            controller.enqueue(encoder.encode(line));
+    if (isCompleted) {
+      // Completed workflows: Generate all logs synchronously and stream in chunks
+      // This simulates reading from object storage (fast, no line-by-line delays)
+      const allLogs = logGenerator.generateForWorkflow({
+        workflowName: name,
+        taskNames,
+        startTime: workflowStartTime,
+        endTime: workflow?.end_time ? new Date(workflow.end_time) : undefined,
+      });
+
+      // Stream in chunks (~64KB each) to simulate network transfer
+      const CHUNK_SIZE = 64 * 1024; // 64KB chunks
+      const chunks: string[] = [];
+      for (let i = 0; i < allLogs.length; i += CHUNK_SIZE) {
+        chunks.push(allLogs.slice(i, i + CHUNK_SIZE));
+      }
+
+      stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(encoder.encode(chunk));
           }
-        } catch {
-          // Stream closed, aborted, or error occurred
-        } finally {
+          controller.close();
+        },
+      });
+    } else {
+      // Running workflows: Stream with delays to simulate real-time log generation
+      const abortController = new AbortController();
+
+      // Register this controller so concurrent requests can abort it
+      activeStreams.set(streamKey, abortController);
+
+      const streamGen = logGenerator.createStream({
+        workflowName: name,
+        taskNames,
+        continueFrom: workflowStartTime,
+        signal: abortController.signal,
+      });
+
+      stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
           try {
-            controller.close();
+            for await (const line of streamGen) {
+              controller.enqueue(encoder.encode(line));
+            }
           } catch {
-            // Already closed
+            // Stream closed, aborted, or error occurred
+          } finally {
+            // Clean up the active stream tracker
+            activeStreams.delete(streamKey);
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
           }
-        }
-      },
-      cancel() {
-        // Signal the async generator to stop yielding immediately.
-        // Without this, the generator's setTimeout-based delays keep it
-        // alive even after the ReadableStream is cancelled.
-        abortController.abort();
-      },
-    });
+        },
+        cancel() {
+          // Signal the async generator to stop yielding immediately
+          abortController.abort();
+          // Clean up immediately on cancel
+          activeStreams.delete(streamKey);
+        },
+      });
+    }
 
     return new HttpResponse(stream, {
       headers: {

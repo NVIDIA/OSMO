@@ -126,8 +126,10 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   // No-change path: same entries, reuse cached result (O(1))
   // This prevents creating new object references that would trigger
   // an infinite render-phase setState loop (fullFlatten always returns new arrays).
-  const isNoChange =
-    entriesLength === prevState.length && firstEntryId === prevState.firstEntryId && prevState.length > 0;
+  // CRITICAL: Must handle the empty-to-empty case (both length 0). Without this,
+  // fullFlatten([]) creates a new object every render, the reference check on line 154
+  // always triggers setPrevState, and React hits "Too many re-renders."
+  const isNoChange = entriesLength === prevState.length && firstEntryId === prevState.firstEntryId;
 
   if (isNoChange) {
     flattenedResult = prevState.lastFlattenedResult;

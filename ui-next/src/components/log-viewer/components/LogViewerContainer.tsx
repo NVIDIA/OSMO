@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useMemo, useState, useCallback, useDeferredValue } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { getApiHostname } from "@/lib/config";
 import { computeHistogram, filterEntries } from "@/lib/api/log-adapter/adapters/compute";
@@ -168,22 +168,15 @@ function LogViewerContainerImpl({
   // Client-side filtering (pure derivation)
   const filteredEntries = useMemo(() => filterEntries(rawEntries, filterParams), [rawEntries, filterParams]);
 
-  const deferredEntries = useDeferredValue(filteredEntries);
+  // Entity time boundaries
+  const entityStartTimeMs = workflowMetadata?.startTime?.getTime();
+  const entityEndTimeMs = workflowMetadata?.endTime?.getTime();
 
-  // Compute display range with padding
-  const firstLogTimeMs = filteredEntries[0]?.timestamp.getTime();
-  const lastLogTimeMs = filteredEntries[filteredEntries.length - 1]?.timestamp.getTime();
-  const workflowStartTimeMs = workflowMetadata?.startTime?.getTime();
-  const workflowEndTimeMs = workflowMetadata?.endTime?.getTime();
-
+  // Compute display range with padding - anchored to entity boundaries for stability
   const { displayStart, displayEnd } = useMemo(() => {
-    const firstLogTime = firstLogTimeMs ? new Date(firstLogTimeMs) : undefined;
-    const entityStartTime = workflowStartTimeMs ? new Date(workflowStartTimeMs) : undefined;
-    const dataStart = startTime ?? entityStartTime ?? firstLogTime ?? new Date(now - 60 * 60 * 1000);
-
-    const lastLogTime = lastLogTimeMs ? new Date(lastLogTimeMs) : undefined;
-    const entityEndTime = workflowEndTimeMs ? new Date(workflowEndTimeMs) : undefined;
-    const dataEnd = endTime ?? entityEndTime ?? lastLogTime ?? new Date(now);
+    // Use entity times as the anchors for full timeline
+    const dataStart = entityStartTimeMs ? new Date(entityStartTimeMs) : new Date(now - 60 * 60 * 1000);
+    const dataEnd = entityEndTimeMs ? new Date(entityEndTimeMs) : new Date(now);
 
     const rangeMs = dataEnd.getTime() - dataStart.getTime();
     const paddingMs = Math.max(rangeMs * DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
@@ -192,31 +185,32 @@ function LogViewerContainerImpl({
       displayStart: new Date(dataStart.getTime() - paddingMs),
       displayEnd: new Date(dataEnd.getTime() + paddingMs),
     };
-  }, [startTime, endTime, firstLogTimeMs, lastLogTimeMs, workflowStartTimeMs, workflowEndTimeMs, now]);
+  }, [entityStartTimeMs, entityEndTimeMs, now]);
 
-  // Histogram computation (deferred for performance)
+  // Histogram computation - uses filtered entries (respects all filters)
+  // Display range shows full entity timeline, effective range highlights user's time filter
   const histogram = useMemo(
     () =>
-      computeHistogram(deferredEntries, {
+      computeHistogram(filteredEntries, {
         numBuckets: 50,
         displayStart,
         displayEnd,
         effectiveStart: startTime,
         effectiveEnd: endTime,
       }),
-    [deferredEntries, displayStart, displayEnd, startTime, endTime],
+    [filteredEntries, displayStart, displayEnd, startTime, endTime],
   );
 
   const pendingHistogram = useMemo(() => {
     if (!pendingDisplay) return undefined;
-    return computeHistogram(deferredEntries, {
+    return computeHistogram(filteredEntries, {
       numBuckets: 50,
       displayStart: pendingDisplay.start,
       displayEnd: pendingDisplay.end,
       effectiveStart: startTime,
       effectiveEnd: endTime,
     });
-  }, [deferredEntries, pendingDisplay, startTime, endTime]);
+  }, [filteredEntries, pendingDisplay, startTime, endTime]);
 
   const handleDisplayRangeChange = useCallback((newStart: Date, newEnd: Date) => {
     setPendingDisplay({ start: newStart, end: newEnd });
@@ -245,7 +239,8 @@ function LogViewerContainerImpl({
   // Grouped props for LogViewer (memoized to prevent re-renders)
   const dataProps = useMemo<LogViewerDataProps>(
     () => ({
-      entries: filteredEntries,
+      rawEntries,
+      filteredEntries,
       isLoading: phase === "connecting",
       isFetching: phase === "streaming",
       error,
@@ -255,7 +250,7 @@ function LogViewerContainerImpl({
       externalLogUrl,
       onRefetch: restart,
     }),
-    [filteredEntries, phase, error, histogram, pendingHistogram, isStreaming, externalLogUrl, restart],
+    [rawEntries, filteredEntries, phase, error, histogram, pendingHistogram, isStreaming, externalLogUrl, restart],
   );
 
   const filterProps = useMemo<LogViewerFilterProps>(
