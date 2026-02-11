@@ -248,17 +248,19 @@ export interface HistogramData {
  * Contains all log entries, loading states, and data refresh handlers.
  */
 export interface LogViewerDataProps {
-  /** Log entries to display (already filtered by Container) */
-  entries: LogEntry[];
+  /** Raw unfiltered log entries - used for FilterBar autocomplete and histogram */
+  rawEntries: LogEntry[];
+  /** Filtered log entries to display in the list */
+  filteredEntries: LogEntry[];
   /** Whether entries are currently loading (initial load) */
   isLoading: boolean;
   /** Whether data is being refetched in background */
   isFetching: boolean;
   /** Error state */
   error: Error | null;
-  /** Histogram data for timeline visualization */
+  /** Histogram data for timeline visualization (computed from rawEntries) */
   histogram: HistogramData | undefined;
-  /** Pending histogram data (for real-time pan/zoom feedback) */
+  /** Pending histogram data (for real-time pan/zoom feedback, from rawEntries) */
   pendingHistogram: HistogramData | undefined;
   /** Whether streaming is active (receiving new log entries) */
   isStreaming: boolean;
@@ -371,8 +373,18 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 
 function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
   // Destructure data props
-  const { entries, isLoading, isFetching, error, histogram, pendingHistogram, isStreaming, externalLogUrl, onRefetch } =
-    data;
+  const {
+    rawEntries,
+    filteredEntries,
+    isLoading,
+    isFetching,
+    error,
+    histogram,
+    pendingHistogram,
+    isStreaming,
+    externalLogUrl,
+    onRefetch,
+  } = data;
 
   // Destructure filter props
   // Note: scope is reserved for future scope-aware features (e.g., showing group/task context)
@@ -465,10 +477,10 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
 
   // Use deferred value to prevent blocking UI during streaming updates
   // React 19 will keep showing previous results while computing new ones
-  const deferredEntries = useDeferredValue(entries);
+  const deferredEntries = useDeferredValue(filteredEntries);
 
   // Track if we're showing stale data (deferred value hasn't caught up)
-  const isStale = deferredEntries !== entries || isFetching;
+  const isStale = deferredEntries !== filteredEntries || isFetching;
 
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
@@ -571,7 +583,7 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
   }, [announcer]);
 
   // Loading state
-  if (isLoading && entries.length === 0) {
+  if (isLoading && filteredEntries.length === 0) {
     return <LogViewerSkeleton />;
   }
 
@@ -588,7 +600,7 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
       {/* Section 1: Filter bar */}
       <div className="shrink-0 border-b p-2">
         <FilterBar
-          data={entries}
+          data={rawEntries}
           fields={LOG_FILTER_FIELDS}
           chips={filterChips}
           onChipsChange={handleFilterChipsChange}
