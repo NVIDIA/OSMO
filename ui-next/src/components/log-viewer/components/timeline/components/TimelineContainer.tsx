@@ -48,18 +48,17 @@
 
 import { memo, useMemo, useState, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 import { cn } from "@/lib/utils";
-import { formatTime24ShortUTC } from "@/lib/format-date";
 import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { TimelineHistogram } from "@/components/log-viewer/components/timeline/components/TimelineHistogram";
 import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/TimeRangePresets";
 import { TimeRangeHeader } from "@/components/log-viewer/components/timeline/components/TimeRangeHeader";
+import { TimelineAxis } from "@/components/log-viewer/components/timeline/components/TimelineAxis";
 import { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
 import {
   useTimelineWheelGesture,
   useTimelineZoomControls,
 } from "@/components/log-viewer/components/timeline/hooks/use-timeline-gestures";
-import { isEndTimeNow as checkIsEndTimeNow } from "@/components/log-viewer/components/timeline/lib/timeline-utils";
 import {
   DEFAULT_HEIGHT,
   type TimeRangePreset,
@@ -136,27 +135,6 @@ export interface TimelineContainerHandle {
   zoomOut: () => void;
   canZoomIn: boolean;
   canZoomOut: boolean;
-}
-
-// =============================================================================
-// Hooks
-// =============================================================================
-
-/**
- * Hook to compute time axis labels.
- * CRITICAL: Use currentDisplay (viewport) not currentEffective (data range)
- */
-function useTimeLabels(currentDisplay: { start: Date; end: Date }, isEndTimeNow: boolean) {
-  const startLabel = useMemo(() => {
-    return formatTime24ShortUTC(currentDisplay.start);
-  }, [currentDisplay.start]);
-
-  const endLabel = useMemo(() => {
-    if (isEndTimeNow) return "NOW";
-    return formatTime24ShortUTC(currentDisplay.end);
-  }, [isEndTimeNow, currentDisplay.end]);
-
-  return { startLabel, endLabel };
 }
 
 // =============================================================================
@@ -238,9 +216,6 @@ function TimelineContainerInner(
   // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
-  // Check if filter end time is considered "NOW"
-  const isEndTimeNow = checkIsEndTimeNow(filterEndTime, synchronizedNow);
-
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
@@ -257,12 +232,6 @@ function TimelineContainerInner(
   });
 
   const { currentDisplay, currentEffective: _currentEffective, hasPendingChanges } = timelineState;
-
-  // ============================================================================
-  // DERIVED VALUES
-  // ============================================================================
-
-  const { startLabel, endLabel } = useTimeLabels(currentDisplay, isEndTimeNow);
 
   // ============================================================================
   // GESTURES
@@ -347,7 +316,7 @@ function TimelineContainerInner(
           opacity: isCollapsed ? 0 : 1,
         }}
       >
-        <div className="space-y-2 pt-4">
+        <div className="pt-4">
           <div className="relative">
             <div
               ref={containerRef}
@@ -371,11 +340,11 @@ function TimelineContainerInner(
             {customControls && <div className="absolute bottom-1 left-1">{customControls}</div>}
           </div>
 
-          {/* Time axis labels */}
-          <div className="text-muted-foreground flex justify-between pb-2 text-[10px] tabular-nums">
-            <span>{startLabel}</span>
-            <span>{endLabel ?? "NOW"}</span>
-          </div>
+          {/* Time axis with intelligent ticks */}
+          <TimelineAxis
+            displayStart={currentDisplay.start}
+            displayEnd={currentDisplay.end}
+          />
         </div>
       </div>
     </div>
