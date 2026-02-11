@@ -393,22 +393,12 @@ export const handlers = [
     const pathMatch = url.pathname.match(/\/api\/workflow\/([^/]+)\/logs$/);
     const name = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
 
-    // Real backend params
-    const lastNLines = url.searchParams.get("last_n_lines");
+    // Real backend params (preserved but ignored - backend caps at 10K anyway)
     const taskFilter = url.searchParams.get("task_name");
-    const retryId = url.searchParams.get("retry_id");
-    const queryPattern = url.searchParams.get("query");
-
-    // tail=true means the client wants to stream continuously (useLogTail)
-    // Without tail=true, return finite data even for streaming scenario
-    const isTailing = url.searchParams.get("tail") === "true";
 
     // Get workflow metadata (check mock workflows first, then generated workflows)
     const mockWorkflow = getMockWorkflow(name);
     const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
-
-    // Get log configuration from workflow (embedded in mock workflows)
-    const logConfig = getWorkflowLogConfig(name);
 
     const taskNames = taskFilter
       ? [taskFilter]
@@ -416,110 +406,43 @@ export const handlers = [
 
     // Extract time range from workflow metadata for realistic log timestamps
     const workflowStartTime = workflow?.start_time ? new Date(workflow.start_time) : undefined;
-    const workflowEndTime = workflow?.end_time ? new Date(workflow.end_time) : undefined;
 
-    // Helper function to filter logs (matches backend filter_log behavior)
-    const filterLogs = (logs: string): string => {
-      let lines = logs.split("\n");
+    // ALL workflows now stream (matches new unified architecture)
+    // - Completed workflows (end_time exists): stream to EOF (finite)
+    // - Running workflows (end_time undefined): stream infinitely
+    const encoder = new TextEncoder();
 
-      // Apply task_name + retry_id filtering (regex-based like backend fallback)
-      if (taskFilter) {
-        const retryNum = retryId ? parseInt(retryId, 10) : 0;
-        const taskRegex =
-          retryNum > 0
-            ? new RegExp(`^[^ ]+ [^ ]+ \\[${taskFilter} retry-${retryNum}\\]`)
-            : new RegExp(`^[^ ]+ [^ ]+ \\[${taskFilter}\\]`);
-        lines = lines.filter((line) => taskRegex.test(line));
-      }
-
-      // Apply query regex filter
-      if (queryPattern) {
-        try {
-          const regex = new RegExp(queryPattern);
-          lines = lines.filter((line) => regex.test(line));
-        } catch {
-          // Invalid regex, skip filtering
-        }
-      }
-
-      // Apply last_n_lines limit
-      if (lastNLines) {
-        const limit = parseInt(lastNLines, 10);
-        if (!isNaN(limit) && limit > 0) {
-          lines = lines.slice(-limit);
-        }
-      }
-
-      return lines.join("\n");
-    };
-
-    // For streaming workflows with tail=true, return infinite ReadableStream
-    // Uses HttpResponse from MSW for proper lifecycle management
-    // @see https://mswjs.io/docs/http/mocking-responses/streaming/
-    //
-    // Only stream infinitely when:
-    // 1. logConfig.features.streaming is true (workflow configured for streaming)
-    // 2. isTailing is true (client explicitly requested streaming via tail=true)
-    if (logConfig.features.streaming && isTailing) {
-      const encoder = new TextEncoder();
-
-      // Create streaming generator using workflow's time range
-      // For still-running workflows (no end time), stream from current time
-      // For completed workflows, this shouldn't be used (streaming only makes sense for running workflows)
-      const streamGen = logGenerator.createStream({
-        workflowName: name,
-        taskNames,
-        continueFrom: workflowStartTime, // Start streaming from workflow start (or MOCK_REFERENCE_DATE if no start)
-      });
-
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          try {
-            for await (const line of streamGen) {
-              controller.enqueue(encoder.encode(line));
-            }
-          } catch {
-            // Stream closed or error occurred
-          } finally {
-            controller.close();
-          }
-        },
-        async cancel() {
-          // Generator cleanup happens automatically when loop breaks
-        },
-      });
-
-      return new HttpResponse(stream, {
-        headers: {
-          "Content-Type": "text/plain; charset=us-ascii",
-          "X-Content-Type-Options": "nosniff",
-          "Cache-Control": "no-cache",
-        },
-      });
-    }
-
-    // For non-streaming scenarios, apply minimal delay and return all at once
-    await delay(MOCK_DELAY);
-
-    // Generate logs using workflow's embedded configuration
-    // Use workflow's actual time range for realistic timestamps
-    let logs = logGenerator.generateForWorkflow({
+    // Create streaming generator
+    // For completed workflows, generator will use volume.max and stop
+    // For running workflows, generator will stream infinitely
+    const streamGen = logGenerator.createStream({
       workflowName: name,
       taskNames,
-      startTime: workflowStartTime,
-      endTime: workflowEndTime,
+      continueFrom: workflowStartTime,
     });
 
-    // Apply filters (matches real backend behavior)
-    logs = filterLogs(logs);
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const line of streamGen) {
+            controller.enqueue(encoder.encode(line));
+          }
+        } catch {
+          // Stream closed or error occurred
+        } finally {
+          controller.close();
+        }
+      },
+      async cancel() {
+        // Generator cleanup happens automatically when loop breaks
+      },
+    });
 
-    // Use HttpResponse.text() from MSW for proper lifecycle management
-    // Response headers match real backend from workflow_service.py:706-707
-    return HttpResponse.text(logs, {
+    return new HttpResponse(stream, {
       headers: {
         "Content-Type": "text/plain; charset=us-ascii",
         "X-Content-Type-Options": "nosniff",
-        "X-Log-Count": logs.split("\n").filter(Boolean).length.toString(),
+        "Cache-Control": "no-cache",
       },
     });
   }),
@@ -933,15 +856,15 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const workflow = mockWorkflow ?? workflowGenerator.getByName(workflowName);
     const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
 
-    // Get log configuration from workflow
-    const logConfig = getWorkflowLogConfig(workflowName);
-
     // Extract time range from task metadata for realistic log timestamps
     const taskStartTime = task?.start_time ? new Date(task.start_time) : undefined;
     const taskEndTime = task?.end_time ? new Date(task.end_time) : undefined;
 
-    // For streaming workflows with tail=true, use setInterval pattern (same as workflow logs)
-    if (logConfig.features.streaming && isTailing) {
+    // Task logs always stream (matches workflow logs unified architecture)
+    // - Completed tasks (end_time exists): stream to EOF (finite)
+    // - Running tasks (end_time undefined): stream infinitely
+    if (isTailing) {
+      const logConfig = getWorkflowLogConfig(workflowName);
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (logConfig.features.streamDelayMs ?? 200);
       const encoder = new TextEncoder();
 
