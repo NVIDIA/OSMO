@@ -57,7 +57,6 @@ export interface WorkflowLogConfig {
     retries: boolean;
     multiLine: boolean;
     ansiCodes: boolean;
-    streaming: boolean;
     streamDelayMs?: number;
     taskCount?: number;
     maxRetryAttempt?: number;
@@ -198,7 +197,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: true,
         ansiCodes: false,
-        streaming: false,
+        infinite: false, // Completed workflow - stream to EOF
+        streamDelayMs: 200,
         taskCount: 4,
       },
     },
@@ -278,7 +278,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: true,
         ansiCodes: false,
-        streaming: true, // Enable streaming for testing
         streamDelayMs: 200,
         infinite: true,
         taskCount: 4,
@@ -394,7 +393,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: true,
         ansiCodes: false,
-        streaming: false,
+        infinite: false, // Failed workflow - stream to EOF
+        streamDelayMs: 200,
         taskCount: 4,
       },
     },
@@ -453,7 +453,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: false,
         ansiCodes: false,
-        streaming: true,
         infinite: true,
         streamDelayMs: 100,
         taskCount: 2,
@@ -533,7 +532,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: true,
         ansiCodes: false,
-        streaming: false,
+        infinite: false, // Failed workflow - stream to EOF
+        streamDelayMs: 200,
         taskCount: 4,
       },
     },
@@ -592,7 +592,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: false,
         ansiCodes: false,
-        streaming: false,
+        infinite: true, // Running workflow - stream infinitely
+        streamDelayMs: 200,
         taskCount: 8,
       },
     },
@@ -654,7 +655,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: false,
         ansiCodes: false,
-        streaming: false,
         taskCount: 1,
       },
     },
@@ -822,7 +822,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         retries: false,
         multiLine: true,
         ansiCodes: false,
-        streaming: false,
+        infinite: true, // Running workflow - stream infinitely
+        streamDelayMs: 200,
         taskCount: 8,
       },
     },
@@ -858,7 +859,6 @@ export function getWorkflowLogConfig(workflowName: string): WorkflowLogConfig {
       retries: false,
       multiLine: true,
       ansiCodes: false,
-      streaming: false,
       taskCount: 3,
     },
   };
