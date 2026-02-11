@@ -27,7 +27,7 @@ from src.utils import auth, connectors
 
 
 class AccessToken(pydantic.BaseModel):
-    """Personal Access Token (PAT) entry."""
+    """Access Token entry."""
     user_name: str
     token_name: str
     expires_at: datetime.datetime
@@ -43,6 +43,31 @@ class AccessToken(pydantic.BaseModel):
         '''
         spec_rows = database.execute_fetch_command(fetch_cmd, (user_name,), True)
         return [AccessToken(**spec_row) for spec_row in spec_rows]
+
+    @classmethod
+    def list_with_roles_from_db(cls, database: connectors.PostgresConnector,
+                                user_name: str) -> List['AccessTokenWithRoles']:
+        """Fetches access tokens with their roles for a user."""
+        fetch_cmd = '''
+            SELECT
+                at.user_name,
+                at.token_name,
+                at.expires_at,
+                at.description,
+                COALESCE(
+                    ARRAY_AGG(ur.role_name ORDER BY ur.role_name)
+                    FILTER (WHERE ur.role_name IS NOT NULL),
+                    ARRAY[]::text[]
+                ) as roles
+            FROM access_token at
+            LEFT JOIN access_token_roles pr ON at.user_name = pr.user_name AND at.token_name = pr.token_name
+            LEFT JOIN user_roles ur ON pr.user_role_id = ur.id
+            WHERE at.user_name = %s
+            GROUP BY at.user_name, at.token_name, at.expires_at, at.description
+            ORDER BY at.token_name;
+        '''
+        spec_rows = database.execute_fetch_command(fetch_cmd, (user_name,), True)
+        return [AccessTokenWithRoles(**spec_row) for spec_row in spec_rows]
 
     @classmethod
     def fetch_from_db(cls, database: connectors.PostgresConnector,
@@ -62,7 +87,7 @@ class AccessToken(pydantic.BaseModel):
                        token_name: str, user_name: str):
         """Delete an entry from the access token table."""
         cls.fetch_from_db(database, token_name, user_name)
-        # pat_roles will be deleted via ON DELETE CASCADE
+        # access_token_roles will be deleted via ON DELETE CASCADE
         delete_cmd = '''
             DELETE FROM access_token
             WHERE token_name = %s AND user_name = %s;
@@ -73,7 +98,7 @@ class AccessToken(pydantic.BaseModel):
     def insert_into_db(cls, database: connectors.PostgresConnector, user_name: str,
                        token_name: str, access_token: str, expires_at: str,
                        description: str, roles: List[str], assigned_by: str):
-        """Create an entry in the access token table and assign roles via pat_roles.
+        """Create an entry in the access token table and assign roles via access_token_roles.
 
         This operation is atomic - the role validation and all inserts happen in a
         single SQL transaction. If any requested role is not assigned to the user
@@ -133,7 +158,7 @@ class AccessToken(pydantic.BaseModel):
                 RETURNING user_name, token_name
             ),
             role_insert AS (
-                INSERT INTO pat_roles (user_name, token_name, user_role_id, assigned_by, assigned_at)
+                INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by, assigned_at)
                 SELECT ti.user_name, ti.token_name, mur.user_role_id, %s, %s
                 FROM token_insert ti
                 CROSS JOIN matching_user_roles mur
@@ -182,16 +207,21 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def get_roles_for_token(cls, database: connectors.PostgresConnector,
                             user_name: str, token_name: str) -> List[str]:
-        """Get the roles assigned to a PAT by joining pat_roles with user_roles."""
+        """Get the roles assigned to a PAT by joining access_token_roles with user_roles."""
         fetch_cmd = '''
             SELECT ur.role_name
-            FROM pat_roles pr
+            FROM access_token_roles pr
             JOIN user_roles ur ON pr.user_role_id = ur.id
             WHERE pr.user_name = %s AND pr.token_name = %s
             ORDER BY ur.role_name;
         '''
         rows = database.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
         return [row['role_name'] for row in rows]
+
+
+class AccessTokenWithRoles(AccessToken):
+    """Access Token with roles."""
+    roles: List[str] = []
 
 
 # =============================================================================

@@ -31,7 +31,6 @@ import time
 from typing import List, Dict, Tuple, Type
 import urllib.parse
 
-import aiofiles
 import redis  # type: ignore
 import redis.asyncio  # type: ignore
 import pydantic
@@ -1381,21 +1380,22 @@ class CleanupWorkflow(WorkflowJob):
         async def migrate_logs(redis_url: str, redis_key: str, file_name: str):
             ''' Uploads logs to S3 and deletes them from Redis. Returns the S3 file path. '''
 
-            async with aiofiles.tempfile.NamedTemporaryFile(mode='w+') as temp_file:
+            fd, tmp_path = tempfile.mkstemp(suffix='.log')
+            try:
+                os.close(fd)
+
                 await connectors.write_redis_log_to_disk(
                     redis_url,
                     redis_key,
-                    str(temp_file.name),
+                    tmp_path,
                 )
 
                 await progress_writer.report_progress_async()
 
-                await temp_file.flush()
-
                 # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
                 def _upload_logs() -> storage.UploadSummary:
                     return storage_client.upload_objects(
-                        source=str(temp_file.name),
+                        source=tmp_path,
                         destination_prefix=self.workflow_id,
                         destination_name=file_name,
                     )
@@ -1403,6 +1403,12 @@ class CleanupWorkflow(WorkflowJob):
                 await asyncio.to_thread(_upload_logs)
 
                 await progress_writer.report_progress_async()
+            finally:
+                # Clean up the temp file ourselves
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
         semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
 

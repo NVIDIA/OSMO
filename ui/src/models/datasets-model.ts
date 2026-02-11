@@ -77,7 +77,6 @@ const DataInfoDatasetEntrySchema = z
     created_by: z.string(),
     created_date: z.string().datetime(),
     last_used: z.string().datetime(),
-    retention_policy: z.number(),
     size: z.number().int(),
     checksum: z.string(),
     location: z.string(),
