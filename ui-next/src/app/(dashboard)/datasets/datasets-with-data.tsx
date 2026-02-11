@@ -33,15 +33,15 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchDatasetsList } from "@/lib/api/server/datasets";
 import { DatasetsPageContent } from "@/app/(dashboard)/datasets/datasets-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 interface DatasetsWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function DatasetsWithData({ searchParams }: DatasetsWithDataProps) {
-  // Create QueryClient for this request using shared factory
-  const queryClient = createQueryClient();
+  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
+  const queryClient = createServerQueryClient();
 
   // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;

@@ -32,11 +32,11 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPoolsForDashboard } from "@/lib/api/server/pools";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
 import { DashboardContent } from "@/app/(dashboard)/dashboard-content";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 export async function DashboardWithData() {
-  // Create QueryClient for this request using shared factory
-  const queryClient = createQueryClient();
+  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
+  const queryClient = createServerQueryClient();
 
   // This await causes the component to suspend
   // Parallel prefetch - all APIs called simultaneously for fastest loading

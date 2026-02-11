@@ -35,7 +35,7 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchResourcesList, buildResourcesQueryKey } from "@/lib/api/server/resources";
 import { ResourcesPageContent } from "@/app/(dashboard)/resources/resources-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 import type { PaginatedResourcesResult } from "@/lib/api/adapter/resources-shim";
 import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
 
@@ -44,8 +44,8 @@ interface ResourcesWithDataProps {
 }
 
 export async function ResourcesWithData({ searchParams }: ResourcesWithDataProps) {
-  // Create QueryClient for this request using shared factory
-  const queryClient = createQueryClient();
+  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
+  const queryClient = createServerQueryClient();
 
   // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;

@@ -17,7 +17,7 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { Chrome } from "@/components/chrome/chrome";
 import { prefetchVersion } from "@/lib/api/server/version";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 /**
  * Dashboard layout with shared data prefetch.
@@ -40,7 +40,7 @@ import { createQueryClient } from "@/lib/query-client";
 export default async function DashboardLayout(props: { children: React.ReactNode }) {
   // Start prefetch in parallel - don't block the layout render
   // The query will populate the cache; client will use cached data or refetch
-  const queryClient = createQueryClient();
+  const queryClient = createServerQueryClient();
 
   // Fire-and-forget prefetch - allows shell to stream immediately
   // Version endpoint is fast and cached; blocking on it delays everything
