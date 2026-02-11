@@ -43,10 +43,6 @@ export interface FooterProps {
   onRefresh?: () => void;
   /** Whether currently loading/refreshing */
   isLoading?: boolean;
-  /** Number of filtered entries (M) */
-  filteredCount: number;
-  /** Total number of entries (N) */
-  totalCount: number;
   /** Additional CSS classes */
   className?: string;
   /** Whether streaming is active (shows pin option when true) */
@@ -72,16 +68,12 @@ function FooterInner({
   onDownload,
   onRefresh,
   isLoading = false,
-  filteredCount,
-  totalCount,
   className,
   isStreaming = false,
   isPinnedToBottom = false,
   onScrollToBottom,
   onTogglePinnedToBottom,
 }: FooterProps) {
-  const isFiltered = filteredCount !== totalCount;
-
   return (
     <div className={cn("border-input shrink-0 border-t px-3 py-2", className)}>
       <div className="flex items-center justify-between text-xs">
@@ -166,15 +158,8 @@ function FooterInner({
           )}
         </div>
 
-        {/* Right: Entry count and refresh */}
+        {/* Right: Refresh button */}
         <div className="flex items-center gap-2">
-          {/* Entry count */}
-          <span className="text-muted-foreground tabular-nums">
-            {isFiltered
-              ? `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()} entries`
-              : `${totalCount.toLocaleString()} entries`}
-          </span>
-
           {/* Refresh button */}
           {onRefresh && (
             <Tooltip>
