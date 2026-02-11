@@ -103,7 +103,7 @@ function LogViewerContainerImpl({
 
   const { data: workflowFromClient, isLoading: isLoadingWorkflow } = useGetWorkflowApiWorkflowNameGet(
     workflowId,
-    { verbose: true },
+    { verbose: false },
     {
       query: {
         enabled: !workflowMetadataFromSSR,
@@ -148,7 +148,9 @@ function LogViewerContainerImpl({
   // Separate streaming (data layer) from tailing/pinning (UI layer)
   // isStreaming = actively streaming new entries
   // Requires: workflow running + no filter end time + live mode enabled
-  const workflowStillRunning = workflowMetadata?.endTime === undefined;
+  // IMPORTANT: Only consider workflow running if metadata is loaded AND endTime is undefined
+  // (null metadata should not trigger streaming)
+  const workflowStillRunning = workflowMetadata !== null && workflowMetadata.endTime === undefined;
   const isStreaming = enableLiveMode && isLiveModeFromUrl && workflowStillRunning;
 
   // Pending display range for pan/zoom preview
