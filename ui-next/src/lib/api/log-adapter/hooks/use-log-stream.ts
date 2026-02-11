@@ -137,13 +137,27 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
     [workflowId, maxEntries, flushPending],
   );
 
-  const startStream = useCallback(async () => {
-    abortRef.current?.abort();
+  // Store latest processChunk in a ref to avoid it being in useEffect deps
+  const processChunkRef = useRef(processChunk);
+  processChunkRef.current = processChunk;
+
+  // Restart counter to trigger effect re-run
+  const [restartCount, setRestartCount] = useState(0);
+  const restart = useCallback(() => setRestartCount((c) => c + 1), []);
+
+  // Lifecycle effect - contains the streaming logic directly
+  useEffect(() => {
+    if (!enabled || !workflowId) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setPhase("idle");
+      return;
+    }
+
     const controller = new AbortController();
     abortRef.current = controller;
 
     // Helper: only update state if this stream is still the active one.
-    // Prevents a stale (aborted) stream from overwriting state set by a newer stream.
     const isActive = () => abortRef.current === controller;
 
     // Reset state for new stream
@@ -153,83 +167,74 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
     setPhase("connecting");
     setError(null);
 
-    try {
-      const url = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
-      if (groupId) url.searchParams.set("group_id", groupId);
-      if (taskId) url.searchParams.set("task_id", taskId);
-      // No last_n_lines, no tail=true -- fetch ALL logs as a stream
-
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: { Accept: "text/plain" },
-        signal: controller.signal,
-        credentials: "include",
-        redirect: "manual",
-      });
-
-      handleRedirectResponse(response, "log streaming");
-
-      if (!response.ok) {
-        throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
-      }
-      if (!response.body) {
-        throw new Error("Response body is not readable");
-      }
-      if (controller.signal.aborted) return;
-
-      if (isActive()) setPhase("streaming");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
+    const runStream = async () => {
       try {
-        while (true) {
-          const { done, value } = await reader.read();
+        const url = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
+        if (groupId) url.searchParams.set("group_id", groupId);
+        if (taskId) url.searchParams.set("task_id", taskId);
 
-          if (done) {
-            if (buffer.trim()) processChunk(buffer);
-            if (isActive()) setPhase("complete");
-            break;
-          }
+        const response = await fetch(url.toString(), {
+          method: "GET",
+          headers: { Accept: "text/plain" },
+          signal: controller.signal,
+          credentials: "include",
+          redirect: "manual",
+        });
 
-          buffer += decoder.decode(value, { stream: true });
-          const lastNewline = buffer.lastIndexOf("\n");
-          if (lastNewline !== -1) {
-            processChunk(buffer.slice(0, lastNewline));
-            buffer = buffer.slice(lastNewline + 1);
-          }
+        handleRedirectResponse(response, "log streaming");
+
+        if (!response.ok) {
+          throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
         }
-      } finally {
-        // Cancel the reader to signal the underlying source to stop producing data,
-        // then release the lock. cancel() is a no-op if the stream already ended.
-        await reader.cancel().catch(() => {});
-        reader.releaseLock();
-      }
-    } catch (err) {
-      if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
-        if (isActive()) setPhase("idle");
-      } else if (isActive()) {
-        setError(err instanceof Error ? err : new Error(String(err)));
-        setPhase("error");
-      }
-    }
-  }, [baseUrl, workflowId, groupId, taskId, processChunk]);
+        if (!response.body) {
+          throw new Error("Response body is not readable");
+        }
+        if (controller.signal.aborted) return;
 
-  // Lifecycle effect
-  useEffect(() => {
-    if (enabled && workflowId) {
-      startStream();
-    } else {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      setPhase("idle");
-    }
+        if (isActive()) setPhase("streaming");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              if (buffer.trim()) processChunkRef.current(buffer);
+              if (isActive()) setPhase("complete");
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lastNewline = buffer.lastIndexOf("\n");
+            if (lastNewline !== -1) {
+              processChunkRef.current(buffer.slice(0, lastNewline));
+              buffer = buffer.slice(lastNewline + 1);
+            }
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+      } catch (err) {
+        if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
+          if (isActive()) setPhase("idle");
+        } else if (isActive()) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setPhase("error");
+        }
+      }
+    };
+
+    runStream();
+
     return () => {
-      abortRef.current?.abort();
+      controller.abort();
       abortRef.current = null;
     };
-  }, [enabled, workflowId, startStream]);
+  }, [enabled, workflowId, groupId, taskId, baseUrl, restartCount]);
 
   return useMemo(
     () => ({
@@ -239,8 +244,8 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
       isStreaming: phase === "streaming",
       hasData: entries.length > 0,
       entryCount: entries.length,
-      restart: startStream,
+      restart,
     }),
-    [entries, phase, error, startStream],
+    [entries, phase, error, restart],
   );
 }
