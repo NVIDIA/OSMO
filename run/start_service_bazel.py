@@ -24,13 +24,6 @@ import requests
 
 from run.check_tools import check_required_tools
 from run.host_ip import get_host_ip
-from run.localstack import (
-    LOCALSTACK_S3_ENDPOINT_BAZEL_HOST,
-    LOCALSTACK_REGION,
-    LOCALSTACK_ACCESS_KEY_ID,
-    LOCALSTACK_SECRET_ACCESS_KEY,
-    LOCALSTACK_FORCE_PATH_STYLE
-)
 from run.print_next_steps import print_next_steps
 from run.run_command import run_command_with_logging, cleanup_registered_processes, wait_for_all_processes
 
@@ -47,9 +40,6 @@ def _get_env():
     """
     env = os.environ.copy()
     env['OSMO_POSTGRES_PASSWORD'] = 'osmo'
-    env['AWS_ENDPOINT_URL'] = LOCALSTACK_S3_ENDPOINT_BAZEL_HOST
-    env['AWS_DEFAULT_REGION'] = LOCALSTACK_REGION
-    env['AWS_S3_FORCE_PATH_STYLE'] = LOCALSTACK_FORCE_PATH_STYLE
     return env
 
 
@@ -251,15 +241,6 @@ def _create_localstack_buckets(
 
     buckets = ['osmo']
 
-    env = os.environ.copy()
-    env.update({
-        'AWS_ENDPOINT_URL': LOCALSTACK_S3_ENDPOINT_BAZEL_HOST,
-        'AWS_ACCESS_KEY_ID': LOCALSTACK_ACCESS_KEY_ID,
-        'AWS_SECRET_ACCESS_KEY': LOCALSTACK_SECRET_ACCESS_KEY,
-        'AWS_DEFAULT_REGION': LOCALSTACK_REGION,
-        'AWS_S3_FORCE_PATH_STYLE': LOCALSTACK_FORCE_PATH_STYLE
-    })
-
     try:
         start_time = time.time()
 
@@ -270,7 +251,6 @@ def _create_localstack_buckets(
             process = run_command_with_logging(
                 ['aws', 's3', 'mb', f's3://{bucket}'],
                 f'Creating bucket {bucket}',
-                env=env
             )
 
             if not process.has_failed():

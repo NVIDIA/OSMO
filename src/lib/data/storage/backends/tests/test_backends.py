@@ -368,6 +368,7 @@ class CredentialOverrideUrlTest(unittest.TestCase):
         mock_skip_data_auth,
     ):
         """Test that data_auth uses bucket access check when override_url is set."""
+        # pylint: disable=unused-argument
         # Arrange
         s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
             uri='s3://test-bucket/test-key',

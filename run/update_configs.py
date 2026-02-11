@@ -32,7 +32,6 @@ from run.kind_utils import detect_platform
 from run.localstack import (
     LOCALSTACK_S3_ENDPOINT_KIND,
     LOCALSTACK_S3_ENDPOINT_BAZEL,
-    LOCALSTACK_REGION
 )
 from run.print_next_steps import print_next_steps
 from run.run_command import run_command_with_logging, login_osmo, logout_osmo
@@ -47,6 +46,7 @@ def _update_workflow_config(
     container_registry_username: str,
     container_registry_password: str,
     object_storage_endpoint: str,
+    object_storage_override_url: str,
     object_storage_access_key_id: str,
     object_storage_access_key: str,
     object_storage_region: str,
@@ -61,6 +61,7 @@ def _update_workflow_config(
             'workflow_data': {
                 'credential': {
                     'endpoint': posixpath.join(object_storage_endpoint, 'workflows'),
+                    'override_url': object_storage_override_url,
                     'access_key_id': object_storage_access_key_id,
                     'access_key': object_storage_access_key,
                     'region': object_storage_region
@@ -69,6 +70,7 @@ def _update_workflow_config(
             'workflow_log': {
                 'credential': {
                     'endpoint': posixpath.join(object_storage_endpoint, 'workflows'),
+                    'override_url': object_storage_override_url,
                     'access_key_id': object_storage_access_key_id,
                     'access_key': object_storage_access_key,
                     'region': object_storage_region
@@ -77,6 +79,7 @@ def _update_workflow_config(
             'workflow_app': {
                 'credential': {
                     'endpoint': posixpath.join(object_storage_endpoint, 'apps'),
+                    'override_url': object_storage_override_url,
                     'access_key_id': object_storage_access_key_id,
                     'access_key': object_storage_access_key,
                     'region': object_storage_region
@@ -127,15 +130,12 @@ def _update_workflow_config(
         raise RuntimeError(f'Unexpected error updating workflow config: {e}') from e
 
 
-def _update_pod_template_config(detected_platform: str, mode: str) -> None:
+def _update_pod_template_config(detected_platform: str) -> None:
     """Update pod template configuration for platform-specific settings."""
     logger.info('🏷️  Updating pod template configuration...')
 
     try:
         logger.info('   Adding compute pod template...')
-
-        localstack_endpoint = LOCALSTACK_S3_ENDPOINT_BAZEL \
-            if mode == 'bazel' else LOCALSTACK_S3_ENDPOINT_KIND
 
         pod_template_config = {
             'default_compute': {
@@ -143,18 +143,6 @@ def _update_pod_template_config(detected_platform: str, mode: str) -> None:
                     'containers': [
                         {
                             'env': [
-                                {
-                                    'name': 'AWS_ENDPOINT_URL_S3',
-                                    'value': localstack_endpoint
-                                },
-                                {
-                                    'name': 'AWS_S3_FORCE_PATH_STYLE',
-                                    'value': 'true'
-                                },
-                                {
-                                    'name': 'AWS_DEFAULT_REGION',
-                                    'value': LOCALSTACK_REGION
-                                },
                                 {
                                     'name': 'OSMO_LOGIN_DEV',
                                     'value': 'true'
@@ -164,18 +152,6 @@ def _update_pod_template_config(detected_platform: str, mode: str) -> None:
                         },
                         {
                             'env': [
-                                {
-                                    'name': 'AWS_ENDPOINT_URL_S3',
-                                    'value': localstack_endpoint
-                                },
-                                {
-                                    'name': 'AWS_S3_FORCE_PATH_STYLE',
-                                    'value': 'true'
-                                },
-                                {
-                                    'name': 'AWS_DEFAULT_REGION',
-                                    'value': LOCALSTACK_REGION
-                                },
                                 {
                                     'name': 'OSMO_LOGIN_DEV',
                                     'value': 'true'
@@ -458,19 +434,23 @@ def main():
 
         login_osmo(args.mode)
 
+        localstack_endpoint = LOCALSTACK_S3_ENDPOINT_BAZEL \
+            if args.mode == 'bazel' else LOCALSTACK_S3_ENDPOINT_KIND
+
         try:
             _update_workflow_config(
                 args.container_registry,
                 args.container_registry_username,
                 args.container_registry_password,
                 args.object_storage_endpoint,
+                localstack_endpoint,
                 args.object_storage_access_key_id,
                 args.object_storage_access_key,
                 args.object_storage_region,
                 args.image_location,
                 args.image_tag)
 
-            _update_pod_template_config(detected_platform, args.mode)
+            _update_pod_template_config(detected_platform)
             dataset_path = args.dataset_path \
                 if args.dataset_path else posixpath.join(args.object_storage_endpoint, 'datasets')
             _update_dataset_config(dataset_path)

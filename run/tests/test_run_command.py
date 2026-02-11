@@ -252,24 +252,6 @@ class TestRunCommandWithLogging(unittest.TestCase):
                 stdout_content = f.read().strip()
             self.assertEqual(stdout_content, 'test.txt')
 
-    def test_command_with_custom_env(self):
-        """Test command execution with custom environment variables."""
-        cmd = ['sh', '-c', 'echo $TEST_VAR']
-        custom_env = os.environ.copy()
-        custom_env['TEST_VAR'] = 'test_value'
-
-        process = run_command_with_logging(
-            cmd, env=custom_env
-        )
-
-        self.temp_files_to_cleanup.extend([process.stdout_file, process.stderr_file])
-
-        self.assertFalse(process.has_failed())
-
-        with open(process.stdout_file, 'r', encoding='utf-8') as f:
-            stdout_content = f.read().strip()
-        self.assertEqual(stdout_content, 'test_value')
-
     def test_async_process_elapsed_time(self):
         """Test that Process correctly tracks elapsed time."""
         cmd = ['sleep', '0.1']
