@@ -17,29 +17,19 @@
 /**
  * Log Viewer With Data (Async Server Component)
  *
- * This component suspends while prefetching log data on the server.
- * When wrapped in Suspense, it enables streaming (Partial Prerender):
- * 1. Parent renders skeleton immediately
- * 2. This component awaits data fetch
- * 3. When ready, React streams the content to replace skeleton
+ * Why prefetch only metadata: Logs can be huge (MBs) and streaming (infinite for running workflows).
+ * Server prefetch would timeout or block. Client streaming during hydration is faster.
  *
- * Benefits:
- * - Fast TTFB (skeleton streams immediately)
- * - No client-side fetch for initial data (data in hydrated cache)
- * - Seamless content swap (React handles it)
- *
- * This pattern mirrors production usage where log-viewer will be used on:
- * - Task logs, Group logs, Workflow logs pages
- * - Static logs (completed workflows)
- * - Streaming logs (running workflows)
- * - Permalinked logs
+ * Why this architecture works:
+ * - Metadata: Small, static → SSR'd for instant availability
+ * - Logs: Large, potentially infinite → Client streams via zero-copy proxy
+ * - Result: Fast TTFB + parallel loading + no timeout issues
  */
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchLogData } from "@/lib/api/server/logs";
 import { fetchWorkflowByName } from "@/lib/api/server/workflows";
 import { LogViewerPageContent } from "@/app/(dashboard)/log-viewer/components/log-viewer-page-content";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 interface LogViewerWithDataProps {
   /** URL search params passed from page */
@@ -55,47 +45,22 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
     throw new Error("Missing required parameter: workflow");
   }
 
-  // Create QueryClient for this request using shared factory
-  const queryClient = createQueryClient();
+  const queryClient = createServerQueryClient();
 
-  // Fetch and validate workflow metadata
-  // For SSR: Try to prefetch metadata, but if it fails (e.g., mock workflows in dev),
-  // continue anyway and let client-side fetch handle it
-  let workflowMetadata = null;
-
+  // Why prefetch: Avoid client waterfall (page load → fetch metadata → render).
+  // Why ignore errors: Client will retry after hydration if needed.
   try {
     const workflow = await fetchWorkflowByName(workflowId, false);
-
     if (workflow) {
-      // Extract metadata for timeline bounds
-      workflowMetadata = {
-        name: workflow.name,
-        status: workflow.status,
-        submitTime: workflow.submit_time ? new Date(workflow.submit_time) : undefined,
-        startTime: workflow.start_time ? new Date(workflow.start_time) : undefined,
-        endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
-      };
+      queryClient.setQueryData(["workflow", workflowId], workflow);
     }
-    // If workflow is null, metadata remains null and client will fetch it
-  } catch (_err) {
-    // Server-side fetch failed (e.g., mock workflows, network issues)
-    // This is okay - metadata remains null and client will fetch it
-    // No need to show error since client-side fetching might succeed
+  } catch (error) {
+    console.warn("Server-side workflow prefetch failed:", error);
   }
 
-  // Prefetch log data - this await causes the component to suspend
-  // React streams the Suspense fallback, then streams this when ready
-  await prefetchLogData(queryClient, {
-    workflowId,
-  });
-
-  // Wrap in HydrationBoundary so client gets the cached data
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <LogViewerPageContent
-        workflowId={workflowId}
-        workflowMetadata={workflowMetadata}
-      />
+      <LogViewerPageContent workflowId={workflowId} />
     </HydrationBoundary>
   );
 }

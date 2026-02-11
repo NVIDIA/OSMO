@@ -207,16 +207,22 @@ const nextConfig: NextConfig = {
   // This allows the backend hostname to be configured at RUNTIME via environment variables,
   // making the Docker image portable across environments (critical for open source).
   //
+  // The catch-all route uses ZERO-COPY STREAMING for all API requests:
+  // - Returns response.body (ReadableStream) directly with no buffering
+  // - Perfect for streaming logs, large responses, and real-time data
+  // - Minimal latency and memory usage
+  //
   // Route Handler Precedence:
-  // - /api/health - Specific route (health check)
-  // - /api/workflow/[name]/logs - Specific route (log streaming)
-  // - /api/[...path] - Catch-all proxy to backend
+  // - /api/health - Specific route (health check with custom logic)
+  // - /api/me - Specific route (JWT decoding on server)
+  // - /api/[...path] - Catch-all zero-copy proxy to backend
   //
   // Benefits:
   // - ✅ Backend hostname configurable at runtime (not build time)
   // - ✅ Single Docker image for all environments
   // - ✅ Perfect for open source deployment
   // - ✅ Environment variables read when request is processed
+  // - ✅ Zero-copy streaming for all proxied requests
   //
   // Note: Rewrites would require baking backend URL at build time, requiring
   // different images per environment. Route Handler approach is superior.

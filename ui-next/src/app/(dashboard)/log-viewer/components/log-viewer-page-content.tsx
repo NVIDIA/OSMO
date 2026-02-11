@@ -20,39 +20,26 @@ import { useEffect } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 import { addRecentWorkflow } from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
-import { WorkflowStatus } from "@/lib/api/generated";
-
-/**
- * Workflow metadata for timeline bounds
- */
-interface WorkflowMetadata {
-  name: string;
-  status: WorkflowStatus;
-  submitTime?: Date;
-  startTime?: Date;
-  endTime?: Date;
-}
 
 interface LogViewerPageContentProps {
   workflowId: string;
-  workflowMetadata: WorkflowMetadata | null;
 }
 
 /**
  * Log Viewer Page Content (Client Component)
  *
- * Contains all the client-side logic for the log viewer experimental page.
- * Wrapped in Suspense by the parent Server Component page.
+ * Why Suspense: Starts log fetch during hydration (~50ms earlier than useQuery after mount).
+ * Why separate from server component: Client-side hooks enable streaming and live updates.
  */
-export function LogViewerPageContent({ workflowId, workflowMetadata }: LogViewerPageContentProps) {
+export function LogViewerPageContent({ workflowId }: LogViewerPageContentProps) {
   // Save workflow to recent workflows on mount
   useEffect(() => {
     addRecentWorkflow(workflowId);
   }, [workflowId]);
 
-  // Register page with workflow name in breadcrumbs
+  // Register page (workflow name will be set by LogViewerContainer after metadata loads)
   usePage({
-    title: workflowMetadata?.name ?? workflowId,
+    title: workflowId,
     breadcrumbs: [{ label: "Log Viewer", href: "/log-viewer" }],
   });
 
@@ -61,7 +48,6 @@ export function LogViewerPageContent({ workflowId, workflowMetadata }: LogViewer
       <div className="relative flex-1">
         <LogViewerContainer
           workflowId={workflowId}
-          workflowMetadata={workflowMetadata}
           scope="workflow"
           className="h-full"
           viewerClassName="h-full"

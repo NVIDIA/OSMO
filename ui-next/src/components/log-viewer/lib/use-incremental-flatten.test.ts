@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { getDateKey, fullFlatten } from "@/components/log-viewer/lib/use-incremental-flatten";
+import { getDateKey, fullFlatten, appendFlatten } from "@/components/log-viewer/lib/use-incremental-flatten";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 
 /**
@@ -207,6 +207,91 @@ describe("fullFlatten", () => {
           expect(item.index).toBe(separatorInfo.index);
         }
       }
+    });
+  });
+});
+
+// =============================================================================
+// appendFlatten Tests
+// =============================================================================
+
+describe("appendFlatten", () => {
+  describe("appending to same day", () => {
+    it("appends entries without new separator when date matches", () => {
+      const initialEntries: LogEntry[] = [
+        createMockEntry("1", localDate(2024, 1, 15, 10)),
+        createMockEntry("2", localDate(2024, 1, 15, 11)),
+      ];
+      const prevResult = fullFlatten(initialEntries);
+
+      const newEntries: LogEntry[] = [createMockEntry("3", localDate(2024, 1, 15, 12))];
+      const result = appendFlatten(prevResult, newEntries, "2024-01-15");
+
+      // Should have 1 separator + 3 entries = 4 items
+      expect(result.items).toHaveLength(4);
+      expect(result.separators).toHaveLength(1);
+
+      // Verify the new entry was appended
+      if (result.items[3].type === "entry") {
+        expect(result.items[3].entry.id).toBe("3");
+      }
+    });
+  });
+
+  describe("appending to new day", () => {
+    it("creates new separator when date changes", () => {
+      const initialEntries: LogEntry[] = [
+        createMockEntry("1", localDate(2024, 1, 15, 10)),
+        createMockEntry("2", localDate(2024, 1, 15, 11)),
+      ];
+      const prevResult = fullFlatten(initialEntries);
+
+      const newEntries: LogEntry[] = [createMockEntry("3", localDate(2024, 1, 16, 10))];
+      const result = appendFlatten(prevResult, newEntries, "2024-01-15");
+
+      // Should have 2 separators + 3 entries = 5 items
+      expect(result.items).toHaveLength(5);
+      expect(result.separators).toHaveLength(2);
+
+      // Verify the new separator and entry
+      expect(result.items[3].type).toBe("separator");
+      if (result.items[3].type === "separator") {
+        expect(result.items[3].dateKey).toBe("2024-01-16");
+      }
+      expect(result.items[4].type).toBe("entry");
+    });
+  });
+
+  describe("appending multiple entries across days", () => {
+    it("handles multiple new days in append", () => {
+      const initialEntries: LogEntry[] = [createMockEntry("1", localDate(2024, 1, 15, 10))];
+      const prevResult = fullFlatten(initialEntries);
+
+      const newEntries: LogEntry[] = [
+        createMockEntry("2", localDate(2024, 1, 16, 10)),
+        createMockEntry("3", localDate(2024, 1, 17, 10)),
+      ];
+      const result = appendFlatten(prevResult, newEntries, "2024-01-15");
+
+      // Should have 3 separators + 3 entries = 6 items
+      expect(result.items).toHaveLength(6);
+      expect(result.separators).toHaveLength(3);
+
+      // Verify separator order
+      expect(result.separators[0].dateKey).toBe("2024-01-15");
+      expect(result.separators[1].dateKey).toBe("2024-01-16");
+      expect(result.separators[2].dateKey).toBe("2024-01-17");
+    });
+  });
+
+  describe("appending empty array", () => {
+    it("returns previous result unchanged when no new entries", () => {
+      const initialEntries: LogEntry[] = [createMockEntry("1", localDate(2024, 1, 15, 10))];
+      const prevResult = fullFlatten(initialEntries);
+
+      const result = appendFlatten(prevResult, [], "2024-01-15");
+
+      expect(result).toBe(prevResult); // Same reference
     });
   });
 });

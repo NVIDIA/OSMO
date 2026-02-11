@@ -19,9 +19,8 @@
 import { useMemo, useState, useCallback, useDeferredValue } from "react";
 import { cn } from "@/lib/utils";
 import { getApiHostname } from "@/lib/config";
-import { computeHistogram } from "@/lib/api/log-adapter/adapters/compute";
-import { useLogData } from "@/lib/api/log-adapter/hooks/use-log-data";
-import { useLogTail } from "@/lib/api/log-adapter/hooks/use-log-tail";
+import { computeHistogram, filterEntries } from "@/lib/api/log-adapter/adapters/compute";
+import { useLogStream } from "@/lib/api/log-adapter/hooks/use-log-stream";
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
 import { LogViewer } from "@/components/log-viewer/components/LogViewer";
 import type {
@@ -31,7 +30,6 @@ import type {
 } from "@/components/log-viewer/components/LogViewer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
 import { chipsToLogQuery } from "@/components/log-viewer/lib/chips-to-log-query";
-import { useCombinedEntries } from "@/components/log-viewer/lib/use-combined-entries";
 import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 import { useTick, useTickController } from "@/hooks/use-tick";
 import {
@@ -62,7 +60,6 @@ export interface LogViewerContainerProps {
   taskId?: string;
   className?: string;
   viewerClassName?: string;
-  enableLiveMode?: boolean;
   showBorder?: boolean;
 }
 
@@ -87,7 +84,6 @@ function LogViewerContainerImpl({
   taskId,
   className,
   viewerClassName,
-  enableLiveMode = true,
   showBorder = true,
 }: LogViewerContainerProps) {
   // Fetch workflow metadata on client if not provided via SSR
@@ -129,34 +125,17 @@ function LogViewerContainerImpl({
   const now = useTick();
 
   // URL-synced state
-  const {
-    filterChips,
-    setFilterChips,
-    startTime,
-    endTime,
-    activePreset,
-    setStartTime,
-    setEndTime,
-    setPreset,
-    isLiveMode: isLiveModeFromUrl,
-  } = useLogViewerUrlState({
-    entityStartTime: workflowMetadata?.startTime,
-    entityEndTime: workflowMetadata?.endTime,
-    now,
-  });
-
-  // Separate streaming (data layer) from tailing/pinning (UI layer)
-  // isStreaming = actively streaming new entries
-  // Requires: workflow running + no filter end time + live mode enabled
-  // IMPORTANT: Only consider workflow running if metadata is loaded AND endTime is undefined
-  // (null metadata should not trigger streaming)
-  const workflowStillRunning = workflowMetadata !== null && workflowMetadata.endTime === undefined;
-  const isStreaming = enableLiveMode && isLiveModeFromUrl && workflowStillRunning;
+  const { filterChips, setFilterChips, startTime, endTime, activePreset, setStartTime, setEndTime, setPreset } =
+    useLogViewerUrlState({
+      entityStartTime: workflowMetadata?.startTime,
+      entityEndTime: workflowMetadata?.endTime,
+      now,
+    });
 
   // Pending display range for pan/zoom preview
   const [pendingDisplay, setPendingDisplay] = useState<PendingDisplayRange | null>(null);
 
-  // Convert chips to query filters and build unified params object
+  // Convert chips to query filters for client-side filtering
   const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
 
   const filterParams = useMemo(
@@ -172,25 +151,28 @@ function LogViewerContainerImpl({
     [queryFilters, startTime, endTime],
   );
 
-  const logDataParams = useMemo(
-    () => ({ workflowId, ...filterParams, keepPrevious: true }),
-    [workflowId, filterParams],
-  );
-
-  // Data fetching
-  const { entries: queryEntries, isLoading, isFetching, error, refetch } = useLogData(logDataParams);
-
-  const { entries: liveEntries } = useLogTail({
+  // Unified streaming: fetch all logs progressively
+  const {
+    entries: rawEntries,
+    phase,
+    error,
+    isStreaming,
+    restart,
+  } = useLogStream({
     workflowId,
-    enabled: isStreaming,
+    groupId,
+    taskId,
+    enabled: true, // Always enabled - stream completes for finished workflows
   });
 
-  const combinedEntries = useCombinedEntries(queryEntries, liveEntries, filterParams);
-  const deferredCombinedEntries = useDeferredValue(combinedEntries);
+  // Client-side filtering (pure derivation)
+  const filteredEntries = useMemo(() => filterEntries(rawEntries, filterParams), [rawEntries, filterParams]);
+
+  const deferredEntries = useDeferredValue(filteredEntries);
 
   // Compute display range with padding
-  const firstLogTimeMs = combinedEntries[0]?.timestamp.getTime();
-  const lastLogTimeMs = combinedEntries[combinedEntries.length - 1]?.timestamp.getTime();
+  const firstLogTimeMs = filteredEntries[0]?.timestamp.getTime();
+  const lastLogTimeMs = filteredEntries[filteredEntries.length - 1]?.timestamp.getTime();
   const workflowStartTimeMs = workflowMetadata?.startTime?.getTime();
   const workflowEndTimeMs = workflowMetadata?.endTime?.getTime();
 
@@ -215,26 +197,26 @@ function LogViewerContainerImpl({
   // Histogram computation (deferred for performance)
   const histogram = useMemo(
     () =>
-      computeHistogram(deferredCombinedEntries, {
+      computeHistogram(deferredEntries, {
         numBuckets: 50,
         displayStart,
         displayEnd,
         effectiveStart: startTime,
         effectiveEnd: endTime,
       }),
-    [deferredCombinedEntries, displayStart, displayEnd, startTime, endTime],
+    [deferredEntries, displayStart, displayEnd, startTime, endTime],
   );
 
   const pendingHistogram = useMemo(() => {
     if (!pendingDisplay) return undefined;
-    return computeHistogram(deferredCombinedEntries, {
+    return computeHistogram(deferredEntries, {
       numBuckets: 50,
       displayStart: pendingDisplay.start,
       displayEnd: pendingDisplay.end,
       effectiveStart: startTime,
       effectiveEnd: endTime,
     });
-  }, [deferredCombinedEntries, pendingDisplay, startTime, endTime]);
+  }, [deferredEntries, pendingDisplay, startTime, endTime]);
 
   const handleDisplayRangeChange = useCallback((newStart: Date, newEnd: Date) => {
     setPendingDisplay({ start: newStart, end: newEnd });
@@ -263,17 +245,17 @@ function LogViewerContainerImpl({
   // Grouped props for LogViewer (memoized to prevent re-renders)
   const dataProps = useMemo<LogViewerDataProps>(
     () => ({
-      entries: combinedEntries,
-      isLoading,
-      isFetching,
+      entries: filteredEntries,
+      isLoading: phase === "connecting",
+      isFetching: phase === "streaming",
       error,
       histogram,
       pendingHistogram,
       isStreaming,
       externalLogUrl,
-      onRefetch: refetch,
+      onRefetch: restart,
     }),
-    [combinedEntries, isLoading, isFetching, error, histogram, pendingHistogram, isStreaming, externalLogUrl, refetch],
+    [filteredEntries, phase, error, histogram, pendingHistogram, isStreaming, externalLogUrl, restart],
   );
 
   const filterProps = useMemo<LogViewerFilterProps>(
@@ -357,7 +339,7 @@ function LogViewerContainerImpl({
     );
   }
 
-  if ((isLoading && combinedEntries.length === 0) || isLoadingWorkflow) {
+  if (((phase === "connecting" || phase === "idle") && filteredEntries.length === 0) || isLoadingWorkflow) {
     return (
       <div className={containerClasses}>
         <LogViewerSkeleton className={viewerClassName} />
