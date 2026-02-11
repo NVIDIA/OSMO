@@ -286,10 +286,10 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
     """
     Set up the default admin user if configured.
 
-    Creates a user with the osmo-admin role and a PAT (Personal Access Token) with the
-    configured password. The PAT is stored hashed like other PAT keys.
+    Creates a user with the osmo-admin role and an access_token with the
+    configured password. The access_token is stored hashed like other access_token keys.
 
-    This is idempotent - if the user already exists, it will update the PAT.
+    This is idempotent - if the user already exists, it will update the access_token.
     """
     if not config.default_admin_username or not config.default_admin_password:
         return

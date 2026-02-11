@@ -142,11 +142,11 @@ def create_access_token(token_name: str,
                         roles: Optional[List[str]] = fastapi.Query(default=None),
                         user_name: str = fastapi.Depends(connectors.parse_username)):
     """
-    API to create a new access token (PAT).
+    API to create a new access token.
 
     If roles are specified, all specified roles must be assigned to the user.
     If any role is not assigned to the user, the request fails and no token
-    is created. If no roles are specified, the PAT inherits all of the user's
+    is created. If no roles are specified, the access token inherits all of the user's
     current roles from the user_roles table.
     """
     postgres = connectors.PostgresConnector.get_instance()
@@ -155,14 +155,14 @@ def create_access_token(token_name: str,
 
     if roles is None:
         # No roles specified - inherit all user's roles
-        pat_roles = _get_user_role_names(postgres, user_name)
+        token_roles = _get_user_role_names(postgres, user_name)
     else:
         # Use the specified roles - validation happens in insert_into_db
-        pat_roles = roles
+        token_roles = roles
 
     objects.AccessToken.insert_into_db(
         postgres, user_name, token_name, access_token,
-        expires_at, description, pat_roles, user_name)
+        expires_at, description, token_roles, user_name)
 
     return access_token
 
@@ -178,20 +178,20 @@ def delete_access_token(token_name: str,
 
 
 @router.get('/api/auth/access_token/{token_name}/roles',
-            response_model=objects.PATRolesResponse)
-def list_pat_roles(
+            response_model=objects.AccessTokenRolesResponse)
+def list_access_token_roles(
     token_name: str,
     user_name: str = fastapi.Depends(connectors.parse_username),
-) -> objects.PATRolesResponse:
+) -> objects.AccessTokenRolesResponse:
     """
-    List all roles assigned to a PAT.
+    List all roles assigned to an access token.
 
     Args:
         token_name: The token name
         user_name: Authenticated user (owner of the token)
 
     Returns:
-        PATRolesResponse with list of role assignments
+        AccessTokenRolesResponse with list of role assignments
     """
     postgres = connectors.PostgresConnector.get_instance()
 
@@ -207,7 +207,7 @@ def list_pat_roles(
         raise osmo_errors.OSMOUserError(
             f'Token {token_name} not found or does not belong to current user')
 
-    # Fetch PAT roles by joining with user_roles to get role_name
+    # Fetch access token roles by joining with user_roles to get role_name
     fetch_cmd = '''
         SELECT ur.role_name, pr.assigned_by, pr.assigned_at
         FROM access_token_roles pr
@@ -217,13 +217,13 @@ def list_pat_roles(
     '''
     rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
 
-    roles = [objects.PATRole(
+    roles = [objects.AccessTokenRole(
         role_name=row['role_name'],
         assigned_by=row['assigned_by'],
         assigned_at=row['assigned_at']
     ) for row in rows]
 
-    return objects.PATRolesResponse(
+    return objects.AccessTokenRolesResponse(
         user_name=user_name,
         token_name=token_name,
         roles=roles
@@ -251,14 +251,14 @@ def admin_create_access_token(
     admin_user: str = fastapi.Depends(connectors.parse_username),
 ):
     """
-    Admin API to create a PAT for a specific user.
+    Admin API to create an access token for a specific user.
 
-    This endpoint allows administrators to create a Personal Access Token
+    This endpoint allows administrators to create an access token
     on behalf of any user in the system.
 
     If roles are specified, all specified roles must be assigned to the target
     user. If any role is not assigned to the user, the request fails and no
-    token is created. If no roles are specified, the PAT inherits all of the
+    token is created. If no roles are specified, the access token inherits all of the
     target user's current roles from the user_roles table.
 
     Args:
@@ -278,14 +278,14 @@ def admin_create_access_token(
 
     if roles is None:
         # No roles specified - inherit all user's roles
-        pat_roles = _get_user_role_names(postgres, user_id)
+        token_roles = _get_user_role_names(postgres, user_id)
     else:
         # Use the specified roles - validation happens in insert_into_db
-        pat_roles = roles
+        token_roles = roles
 
     objects.AccessToken.insert_into_db(
         postgres, user_id, token_name, access_token,
-        expires_at, description, pat_roles, admin_user)
+        expires_at, description, token_roles, admin_user)
 
     return access_token
 

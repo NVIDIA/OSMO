@@ -135,9 +135,9 @@ class AccessToken(pydantic.BaseModel):
 
         # Atomic insert with role validation using CTEs
         # The query validates roles and inserts in a single transaction.
-        # PAT roles reference user_roles.id via FK, so:
+        # access_token roles reference user_roles.id via FK, so:
         # - Token is only created if ALL requested roles exist in user_roles
-        # - When a user role is later deleted, PAT roles cascade delete automatically
+        # - When a user role is later deleted, access_token roles cascade delete automatically
         #
         # The role_check CTE verifies all roles exist before any insert happens.
         # If the count doesn't match, the WHERE clause prevents token creation.
@@ -207,7 +207,7 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def get_roles_for_token(cls, database: connectors.PostgresConnector,
                             user_name: str, token_name: str) -> List[str]:
-        """Get the roles assigned to a PAT by joining access_token_roles with user_roles."""
+        """Get the roles assigned to a access_token by joining access_token_roles with user_roles."""
         fetch_cmd = '''
             SELECT ur.role_name
             FROM access_token_roles pr
@@ -299,15 +299,15 @@ class BulkAssignResponse(pydantic.BaseModel):
     failed: List[str]
 
 
-class PATRole(pydantic.BaseModel):
-    """PAT role assignment."""
+class AccessTokenRole(pydantic.BaseModel):
+    """Access token role assignment."""
     role_name: str
     assigned_by: str
     assigned_at: datetime.datetime
 
 
-class PATRolesResponse(pydantic.BaseModel):
-    """Response for listing PAT roles."""
+class AccessTokenRolesResponse(pydantic.BaseModel):
+    """Response for listing access token roles."""
     user_name: str
     token_name: str
-    roles: List[PATRole]
+    roles: List[AccessTokenRole]

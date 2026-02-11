@@ -88,7 +88,7 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         command_line='default_admin_password',
         env='OSMO_DEFAULT_ADMIN_PASSWORD',
         default=None,
-        description='The password (PAT value) for the default admin user. '
+        description='The password (access token value) for the default admin user. '
                     'Must be set if default_admin_username is set.')
 
     @pydantic.root_validator()

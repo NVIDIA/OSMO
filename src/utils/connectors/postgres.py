@@ -1176,8 +1176,8 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates table for PAT role assignments (subset of user roles)
-        # References user_roles.id so PAT roles are auto-deleted when user loses a role
+        # Creates table for access_token role assignments (subset of user roles)
+        # References user_roles.id so access_token roles are auto-deleted when user loses a role
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS access_token_roles (
                 user_name TEXT NOT NULL,
