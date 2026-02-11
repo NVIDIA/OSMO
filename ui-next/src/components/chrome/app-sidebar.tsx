@@ -16,14 +16,17 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "@/components/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftToLine, ArrowRightFromLine, BookOpen } from "lucide-react";
+import { ArrowLeftToLine, ArrowRightFromLine, BookOpen, Terminal, Copy, Check } from "lucide-react";
 import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config";
 import { useNavigation } from "@/lib/navigation/use-navigation";
 import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
 import { cn, isMac } from "@/lib/utils";
+import { useCopy } from "@/hooks/use-copy";
+import { useServices } from "@/contexts/service-context";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/shadcn/hover-card";
 import {
   Sidebar,
   SidebarContent,
@@ -40,6 +43,14 @@ import {
   useSidebar,
 } from "@/components/shadcn/sidebar";
 
+/** Collapse-aware label classes: smoothly hides text when sidebar is collapsed. */
+function collapsibleLabelClasses(collapsed: boolean): string {
+  return cn(
+    "overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
+    collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
+  );
+}
+
 /**
  * Application sidebar using shadcn/ui Sidebar primitives.
  *
@@ -54,7 +65,13 @@ import {
  * - This allows the sidebar structure to be prerendered at build time
  * - Active highlighting applies after hydration (~50ms, imperceptible)
  */
-export function AppSidebar({ docsBaseUrl }: { docsBaseUrl?: string }) {
+export function AppSidebar({
+  docsBaseUrl,
+  cliInstallScriptUrl,
+}: {
+  docsBaseUrl?: string;
+  cliInstallScriptUrl?: string;
+}) {
   const { state, isMobile } = useSidebar();
   // On mobile (hamburger overlay), always show expanded state regardless of desktop sidebar state
   const collapsed = isMobile ? false : state === "collapsed";
@@ -139,17 +156,97 @@ export function AppSidebar({ docsBaseUrl }: { docsBaseUrl?: string }) {
         )}
       </SidebarContent>
 
-      {/* Footer - documentation and collapse toggle */}
-      <SidebarFooter className="border-t border-zinc-200 p-2 dark:border-zinc-800">
-        {docsBaseUrl && (
-          <DocumentationLink
-            docsBaseUrl={docsBaseUrl}
-            collapsed={collapsed}
-          />
+      {/* Footer - CLI install, documentation, and collapse toggle */}
+      <SidebarFooter className="p-0">
+        {/* Links section - above the line */}
+        {(cliInstallScriptUrl || docsBaseUrl) && (
+          <div className="space-y-0 p-2">
+            {cliInstallScriptUrl && (
+              <CliInstallButton
+                cliInstallScriptUrl={cliInstallScriptUrl}
+                collapsed={collapsed}
+              />
+            )}
+            {docsBaseUrl && (
+              <DocumentationLink
+                docsBaseUrl={docsBaseUrl}
+                collapsed={collapsed}
+              />
+            )}
+          </div>
         )}
-        <CollapseButton collapsed={collapsed} />
+        {/* Collapse button - below the line */}
+        <div className="border-t border-zinc-200 p-2 dark:border-zinc-800">
+          <CollapseButton collapsed={collapsed} />
+        </div>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/**
+ * CLI Install hover card - shows installation command on hover
+ */
+function CliInstallButton({ cliInstallScriptUrl, collapsed }: { cliInstallScriptUrl: string; collapsed: boolean }) {
+  const { copied, copy } = useCopy();
+  const { announcer } = useServices();
+
+  const installCommand = useMemo(() => `curl -fsSL ${cliInstallScriptUrl} | bash`, [cliInstallScriptUrl]);
+
+  const handleCopy = useCallback(async () => {
+    const success = await copy(installCommand);
+    if (success) {
+      announcer.announce("CLI installation command copied to clipboard", "polite");
+    }
+  }, [installCommand, copy, announcer]);
+
+  return (
+    <SidebarMenu className={cn(collapsed && "items-center")}>
+      <SidebarMenuItem>
+        <HoverCard openDelay={200}>
+          <HoverCardTrigger asChild>
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              className={cn(
+                "flex w-full cursor-default items-center rounded-lg py-2 text-sm font-medium text-zinc-600 transition-all duration-200 ease-out",
+                "dark:text-zinc-400",
+                collapsed ? "justify-center gap-0 px-2" : "gap-3 px-3",
+              )}
+            >
+              <Terminal className="h-4 w-4 shrink-0" />
+              <span className={collapsibleLabelClasses(collapsed)}>Install CLI</span>
+            </button>
+          </HoverCardTrigger>
+          <HoverCardContent
+            side="right"
+            align="end"
+            className="max-w-[50vw] min-w-[320px]"
+            onPointerDownOutside={(e) => e.preventDefault()}
+          >
+            <div className="space-y-3">
+              <div>
+                <h4 className="mb-1 text-sm font-semibold">CLI Installation</h4>
+                <p className="text-muted-foreground text-xs">
+                  Run this command in your terminal to install the OSMO CLI
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="bg-muted hover:bg-muted/80 active:bg-muted/60 group flex w-full cursor-pointer items-center gap-2 rounded-md p-3 text-left transition-colors"
+                title={copied ? "Copied!" : "Click to copy"}
+              >
+                <code className="flex-1 font-mono text-sm leading-relaxed break-all">{installCommand}</code>
+                <span className="group-hover:text-foreground text-muted-foreground shrink-0 transition-colors">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </span>
+              </button>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
@@ -175,14 +272,7 @@ function DocumentationLink({ docsBaseUrl, collapsed }: { docsBaseUrl: string; co
             rel="noopener noreferrer"
           >
             <BookOpen className="h-4 w-4 shrink-0" />
-            <span
-              className={cn(
-                "overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
-                collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
-              )}
-            >
-              Documentation
-            </span>
+            <span className={collapsibleLabelClasses(collapsed)}>Documentation</span>
           </a>
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -214,14 +304,7 @@ function CollapseButton({ collapsed }: { collapsed: boolean }) {
           ) : (
             <ArrowLeftToLine className="h-4 w-4 shrink-0" />
           )}
-          <span
-            className={cn(
-              "flex-1 overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
-            )}
-          >
-            Collapse
-          </span>
+          <span className={cn("flex-1", collapsibleLabelClasses(collapsed))}>Collapse</span>
           {!collapsed && (
             <kbd className="pointer-events-none flex h-6 items-center gap-0.5 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-xs font-medium text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
               {shortcutKey}
@@ -305,14 +388,7 @@ function NavItem({ item, isActive, collapsed }: { item: NavItemType; isActive: b
       >
         <Link href={item.href}>
           <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-[var(--nvidia-green)]")} />
-          <span
-            className={cn(
-              "overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
-            )}
-          >
-            {item.name}
-          </span>
+          <span className={collapsibleLabelClasses(collapsed)}>{item.name}</span>
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
