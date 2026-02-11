@@ -164,6 +164,18 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
     return `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
   }, []);
 
+  // Augment datasets with visual row index for zebra striping
+  const datasetsWithIndex = useMemo(
+    () => datasets.map((dataset, index) => ({ ...dataset, _visualRowIndex: index })),
+    [datasets],
+  );
+
+  // Row class for zebra striping
+  const rowClassName = useCallback((dataset: Dataset & { _visualRowIndex?: number }) => {
+    const visualIndex = dataset._visualRowIndex ?? 0;
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+  }, []);
+
   const emptyContent = useMemo(() => <TableEmptyState message="No datasets found" />, []);
 
   // Loading state (using consolidated component)
@@ -184,8 +196,8 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
 
   return (
     <div className="table-container relative flex h-full flex-col">
-      <DataTable<Dataset>
-        data={datasets}
+      <DataTable<Dataset & { _visualRowIndex?: number }>
+        data={datasetsWithIndex}
         columns={columns}
         getRowId={getRowId}
         // Column management
@@ -213,6 +225,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
         // Interaction
         onRowClick={handleRowClick}
         getRowHref={getRowHref}
+        rowClassName={rowClassName}
       />
     </div>
   );

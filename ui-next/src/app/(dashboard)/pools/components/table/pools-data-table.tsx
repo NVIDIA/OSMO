@@ -199,12 +199,22 @@ export const PoolsDataTable = memo(function PoolsDataTable({
     [onPoolSelect],
   );
 
-  // Row class for status styling
+  // Augment pools with visual row index for zebra striping
+  const poolsWithIndex = useMemo(
+    () => sortedPools.map((pool, index) => ({ ...pool, _visualRowIndex: index })),
+    [sortedPools],
+  );
+
+  // Row class for status styling + zebra striping
   const rowClassName = useCallback(
-    (pool: Pool) => {
+    (pool: Pool & { _visualRowIndex?: number }) => {
       const { category } = getStatusDisplay(pool.status);
       const isSelected = selectedPoolName === pool.name;
-      return ["pools-row", `pools-row--${category}`, isSelected && "pools-row--selected"].filter(Boolean).join(" ");
+      const visualIndex = pool._visualRowIndex ?? 0;
+      const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+      return ["pools-row", `pools-row--${category}`, isSelected && "pools-row--selected", zebraClass]
+        .filter(Boolean)
+        .join(" ");
     },
     [selectedPoolName],
   );
@@ -235,8 +245,8 @@ export const PoolsDataTable = memo(function PoolsDataTable({
 
   return (
     <div className="pools-table-container table-container relative h-full">
-      <DataTable<Pool>
-        data={sortedPools}
+      <DataTable<Pool & { _visualRowIndex?: number }>
+        data={poolsWithIndex}
         columns={columns}
         getRowId={getRowId}
         // Column management
