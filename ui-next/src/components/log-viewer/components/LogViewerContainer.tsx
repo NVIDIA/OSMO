@@ -178,7 +178,7 @@ function LogViewerContainerImpl({
   );
 
   // Data fetching
-  const { entries: queryEntries, stats, isLoading, isFetching, error, refetch } = useLogData(logDataParams);
+  const { entries: queryEntries, isLoading, isFetching, error, refetch } = useLogData(logDataParams);
 
   const { entries: liveEntries } = useLogTail({
     workflowId,
@@ -264,7 +264,6 @@ function LogViewerContainerImpl({
   const dataProps = useMemo<LogViewerDataProps>(
     () => ({
       entries: combinedEntries,
-      totalCount: stats.totalCount,
       isLoading,
       isFetching,
       error,
@@ -274,18 +273,7 @@ function LogViewerContainerImpl({
       externalLogUrl,
       onRefetch: refetch,
     }),
-    [
-      combinedEntries,
-      stats.totalCount,
-      isLoading,
-      isFetching,
-      error,
-      histogram,
-      pendingHistogram,
-      isStreaming,
-      externalLogUrl,
-      refetch,
-    ],
+    [combinedEntries, isLoading, isFetching, error, histogram, pendingHistogram, isStreaming, externalLogUrl, refetch],
   );
 
   const filterProps = useMemo<LogViewerFilterProps>(

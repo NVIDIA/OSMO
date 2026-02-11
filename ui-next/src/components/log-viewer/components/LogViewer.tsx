@@ -250,8 +250,6 @@ export interface HistogramData {
 export interface LogViewerDataProps {
   /** Log entries to display (already filtered by Container) */
   entries: LogEntry[];
-  /** Total count of entries before filtering */
-  totalCount: number;
   /** Whether entries are currently loading (initial load) */
   isLoading: boolean;
   /** Whether data is being refetched in background */
@@ -373,18 +371,8 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 
 function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
   // Destructure data props
-  const {
-    entries,
-    totalCount,
-    isLoading,
-    isFetching,
-    error,
-    histogram,
-    pendingHistogram,
-    isStreaming,
-    externalLogUrl,
-    onRefetch,
-  } = data;
+  const { entries, isLoading, isFetching, error, histogram, pendingHistogram, isStreaming, externalLogUrl, onRefetch } =
+    data;
 
   // Destructure filter props
   // Note: scope is reserved for future scope-aware features (e.g., showing group/task context)
@@ -699,8 +687,6 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
           onDownload={handleDownload}
           onRefresh={onRefetch}
           isLoading={isLoading || isStale}
-          filteredCount={entries.length}
-          totalCount={totalCount ?? entries.length}
           isStreaming={isStreaming}
           isPinnedToBottom={isPinnedToBottom}
           onScrollToBottom={handleJumpToBottom}
