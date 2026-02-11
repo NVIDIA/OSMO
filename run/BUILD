@@ -113,6 +113,17 @@ osmo_py_binary(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_binary(
+    name = "load_images",
+    main = "load_images.py",
+    srcs = ["load_images.py"],
+    deps = [
+        ":utils",
+        "@osmo_workspace//src/lib/utils:logging",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 genrule(
     name = "ca_certs_entrypoint_script",
     outs = ["entrypoint-ca-certs.sh"],
@@ -248,4 +259,34 @@ oci_load(
     target_compatible_with = [
         "@platforms//cpu:arm64",
     ],
+)
+
+osmo_py_binary(
+    name = "start",
+    main = "start.py",
+    srcs = [
+        "start.py",
+        "start_service.py",
+        "start_service_kind.py",
+        "start_service_bazel.py",
+        "start_backend.py",
+        "start_backend_kind.py",
+        "start_backend_bazel.py",
+        "update_configs.py",
+    ],
+    data = [
+        "kind-osmo-cluster-config.yaml",
+        "//deployments/charts:service",
+        "//deployments/charts:web-ui",
+        "//deployments/charts:router",
+        "//deployments/charts:backend-operator",
+        "//run/minimal:minimal",
+        "@osmo_workspace//src/cli",
+    ],
+    deps = [
+        ":utils",
+        "@bazel_tools//tools/python/runfiles",
+        "@osmo_workspace//src/lib/utils:logging",
+    ],
+    visibility = ["//visibility:public"],
 )

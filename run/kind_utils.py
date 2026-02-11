@@ -242,3 +242,85 @@ def setup_kai_scheduler() -> None:
             logger.error('❌ Unexpected error setting up KAI scheduler: %s', e)
             raise RuntimeError(f'Unexpected error setting up KAI scheduler: {e}') from e
 
+
+def load_images_to_kind(cluster_name: str, images: list[str]) -> None:
+    """Build and load images into a KIND cluster."""
+    platform_name = detect_platform()
+    logger.info('🏗️  Building and loading images into KIND cluster \'%s\' for %s...',
+                cluster_name, platform_name)
+
+    # Convert platform to bazel architecture suffix
+    # Most targets use x86_64, but some use amd64
+    arch_x86 = 'x86_64'
+    arch_amd = 'amd64'
+    arch_arm = 'arm64'
+
+    is_arm = platform_name == 'arm64'
+    arch_suffix = arch_arm if is_arm else arch_x86
+    arch_alt = arch_arm if is_arm else arch_amd
+
+    for image in images:
+        logger.info('   Building image: %s...', image)
+
+        # Get the bazel target for loading the image into docker
+        if image == 'client':
+            target = f'@osmo_workspace//src/cli:cli_image_{arch_alt}_load'
+        elif image == 'init-container':
+            target = f'@osmo_workspace//src/runtime:init_image_load_{arch_suffix}'
+        else:
+            target_map = {
+                'agent': '@osmo_workspace//src/service/agent:agent_service_image_load_',
+                'service': '@osmo_workspace//src/service/core:service_image_load_',
+                'delayed-job-monitor': (
+                    '@osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_image_load_'
+                ),
+                'logger': '@osmo_workspace//src/service/logger:logger_image_load_',
+                'router': '@osmo_workspace//src/service/router:router_image_load_',
+                'worker': '@osmo_workspace//src/service/worker:worker_image_load_',
+                'backend-listener': '@osmo_workspace//src/operator:backend_listener_image_load_',
+                'backend-worker': '@osmo_workspace//src/operator:backend_worker_image_load_',
+                'web-ui': '@osmo_workspace//ui:web_ui_image_load_',
+            }
+
+            if image not in target_map:
+                logger.warning('⚠️  Warning: Unknown image \'%s\', skipping', image)
+                continue
+            target = f'{target_map[image]}{arch_suffix}'
+
+        # Build and load into local docker
+        process = run_command_with_logging(['bazel', 'run', target], f'Building image {image}')
+        if process.has_failed():
+            logger.error('❌ Error building image \'%s\'', image)
+            raise RuntimeError(f'Error building image \'{image}\'')
+
+        # Determine the tag used by oci_load in the BUILD file
+        if image == 'client':
+            bazel_tag = f'cli_image_{arch_alt}:latest'
+        elif image == 'init-container':
+            bazel_tag = f'init_image_{arch_suffix}:latest'
+        else:
+            bazel_tag = f'osmo.local/{image}:latest-{arch_suffix}'
+
+        # Standardize the tag for KIND to osmo.local/<image>:latest-<arch>
+        kind_tag = f'osmo.local/{image}:latest-{arch_suffix}'
+
+        if bazel_tag != kind_tag:
+            logger.info('   Retagging %s to %s...', bazel_tag, kind_tag)
+            process = run_command_with_logging(
+                ['docker', 'tag', bazel_tag, kind_tag],
+                f'Retagging {image}'
+            )
+            if process.has_failed():
+                logger.error('❌ Error retagging image \'%s\'', image)
+                raise RuntimeError(f'Error retagging image \'{image}\'')
+
+        # Load into kind
+        process = run_command_with_logging(
+            ['kind', 'load', 'docker-image', kind_tag, '--name', cluster_name],
+            f'Loading image {image} into KIND'
+        )
+        if process.has_failed():
+            logger.error('❌ Error loading image \'%s\' into KIND', image)
+            raise RuntimeError(f'Error loading image \'{image}\' into KIND')
+
+    logger.info('✅ All images loaded into KIND successfully')

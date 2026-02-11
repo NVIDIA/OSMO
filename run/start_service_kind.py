@@ -34,6 +34,7 @@ from run.kind_utils import (
     check_cluster_exists,
     create_cluster,
     setup_osmo_namespace,
+    load_images_to_kind,
 )
 from run.run_command import run_command_with_logging
 from run.print_next_steps import print_next_steps
@@ -273,7 +274,7 @@ def _install_osmo_services(image_location: str, image_tag: str, detected_platfor
     logger.info('✅ All OSMO services installed successfully')
 
 
-def start_service_kind(args: argparse.Namespace) -> None:
+def start_service_kind(args: argparse.Namespace, print_next_steps_action: bool = True) -> None:
     """Start the OSMO service using KIND."""
     start_time = time.time()
 
@@ -294,13 +295,26 @@ def start_service_kind(args: argparse.Namespace) -> None:
             args.container_registry_password)
         _install_ingress_nginx()
         _generate_mek()
+        if args.load_local_images:
+            images_to_load = [
+                'agent', 'service', 'delayed-job-monitor', 'logger', 'router', 'worker', 'web-ui'
+            ]
+            load_images_to_kind(args.cluster_name, images_to_load)
+
+            # Override image location and tag to use the local images
+            args.image_location = 'osmo.local'
+            args.image_tag = f'latest-{"x86_64" if detected_platform == "amd64" else "arm64"}'
+            # Clear registry password since we're using local images
+            args.container_registry_password = ''
+
         _install_osmo_services(args.image_location, args.image_tag, detected_platform)
 
         total_time = time.time() - start_time
         logger.info('\n🎉 OSMO service setup complete in %.2fs!', total_time)
         logger.info('=' * 50)
 
-        print_next_steps(mode='kind', show_start_backend=True, show_update_configs=True)
+        if print_next_steps_action:
+            print_next_steps(mode='kind', show_start_backend=True, show_update_configs=True)
     except Exception as e:
         logger.error('❌ Error setting up services: %s', e)
         raise SystemExit(1) from e

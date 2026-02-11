@@ -157,7 +157,9 @@ def _start_backend_worker():
     _start_backend_operator('worker', '👷')
 
 
-def start_backend_bazel(cluster_name: str = 'osmo'):
+def start_backend_bazel(cluster_name: str = 'osmo',
+                        wait: bool = True,
+                        print_next_steps_action: bool = True):
     """Start the OSMO backend using bazel."""
     check_required_tools(['bazel', 'kubectl', 'kind'])
 
@@ -169,16 +171,17 @@ def start_backend_bazel(cluster_name: str = 'osmo'):
 
         logger.info('=' * 50)
         logger.info('\n🎉 OSMO backend services started successfully!\n')
-        logger.info('💡 Press Ctrl+C to stop all backend services\n')
 
         host_ip = get_host_ip()
-        print_next_steps(mode='bazel', show_start_backend=False, show_update_configs=True,
-                         host_ip=host_ip, port=8000)
+        if print_next_steps_action:
+            print_next_steps(mode='bazel', show_start_backend=False, show_update_configs=True,
+                             host_ip=host_ip, port=8000)
 
-        logger.info('\n%s', '=' * 50)
-
-        # Keep the script running while services are running
-        wait_for_all_processes()
+        if wait:
+            logger.info('💡 Press Ctrl+C to stop all backend services\n')
+            logger.info('\n%s', '=' * 50)
+            # Keep the script running while services are running
+            wait_for_all_processes()
 
     except KeyboardInterrupt:
         logger.info('\n🛑 Ctrl+C pressed, shutting down...')
