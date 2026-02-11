@@ -299,15 +299,27 @@ export interface LogAdapter {
 }
 
 // =============================================================================
-// Live Tailing Types
+// Streaming Types
 // =============================================================================
 
 /**
- * Tail session state.
+ * Log stream lifecycle phases.
+ */
+export type StreamPhase =
+  | "idle" // Not started (enabled=false or no workflowId)
+  | "connecting" // Fetch in flight, no data yet
+  | "streaming" // Reader active, entries accumulating
+  | "complete" // Stream ended normally (done=true from reader)
+  | "error"; // Stream failed
+
+/**
+ * @deprecated Use StreamPhase instead
+ * Legacy tail session state (kept for backwards compatibility during migration).
  */
 export type TailStatus = "connecting" | "streaming" | "disconnected" | "error";
 
 /**
+ * @deprecated No longer used
  * Tail session callbacks.
  */
 export interface TailCallbacks {

@@ -70,15 +70,20 @@ export function getDateKey(date: Date): string {
 // Incremental Flatten Hook
 // =============================================================================
 
-/** State for tracking previous entries to detect resets vs appends */
+/** State for tracking previous entries and cached flatten result */
 interface PrevEntriesState {
   firstEntryId: string | undefined;
   length: number;
   resetCount: number;
+  lastFlattenedResult: FlattenResultInternal;
+  lastDateKey: string | null;
 }
 
 /**
  * Hook that flattens log entries with date separators.
+ *
+ * Optimized for streaming: detects appends and only processes new entries (O(k))
+ * instead of re-flattening the entire array (O(n)).
  *
  * The hook detects reset scenarios (when the first entry changes) and
  * increments resetCount accordingly. This helps consumers know when
@@ -88,11 +93,13 @@ interface PrevEntriesState {
  * @returns Flattened items and separator metadata
  */
 export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
-  // Track previous entries state to detect resets
+  // Track previous entries state and cached flattened result
   const [prevState, setPrevState] = useState<PrevEntriesState>({
     firstEntryId: undefined,
     length: 0,
     resetCount: 0,
+    lastFlattenedResult: { items: [], separators: [] },
+    lastDateKey: null,
   });
 
   // Extract current state
@@ -102,40 +109,61 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   // Detect if this is a reset (first entry changed) vs append or no-change
   // Use the "updating state during render" pattern recommended by React
   let resetCount = prevState.resetCount;
-  if (firstEntryId !== prevState.firstEntryId && prevState.length > 0 && entriesLength > 0) {
-    // First entry changed and we had previous entries - this is a reset
-    resetCount = prevState.resetCount + 1;
-  } else if (entriesLength === 0 && prevState.length > 0) {
-    // Entries cleared - this is also a reset
+  let newState = prevState;
+
+  const isAppend = entriesLength > prevState.length && firstEntryId === prevState.firstEntryId && prevState.length > 0;
+  const isReset =
+    (firstEntryId !== prevState.firstEntryId && prevState.length > 0 && entriesLength > 0) ||
+    (entriesLength === 0 && prevState.length > 0);
+
+  if (isReset) {
     resetCount = prevState.resetCount + 1;
   }
 
-  // Update tracked state if anything changed
+  // Compute the flattened result
+  let flattenedResult: FlattenResultInternal;
+
+  if (isAppend) {
+    // Append path: only flatten new entries (O(k) where k = new entries)
+    const newEntries = entries.slice(prevState.length);
+    flattenedResult = appendFlatten(prevState.lastFlattenedResult, newEntries, prevState.lastDateKey);
+  } else {
+    // Reset path or initial: full flatten (O(n))
+    flattenedResult = fullFlatten(entries);
+  }
+
+  // Extract last date key for next append
+  const lastDateKey =
+    flattenedResult.separators.length > 0
+      ? flattenedResult.separators[flattenedResult.separators.length - 1].dateKey
+      : null;
+
+  // Update state if anything changed
   if (
     firstEntryId !== prevState.firstEntryId ||
     entriesLength !== prevState.length ||
-    resetCount !== prevState.resetCount
+    resetCount !== prevState.resetCount ||
+    flattenedResult !== prevState.lastFlattenedResult
   ) {
-    setPrevState({
+    newState = {
       firstEntryId,
       length: entriesLength,
       resetCount,
-    });
+      lastFlattenedResult: flattenedResult,
+      lastDateKey,
+    };
+    setPrevState(newState);
   }
 
-  // Compute the flattened result - pure computation based on entries
-  const flattenedResult = useMemo(() => {
-    return fullFlatten(entries);
-  }, [entries]);
-
-  // Combine with resetCount
-  return useMemo(() => {
-    return {
+  // Return memoized result
+  return useMemo(
+    () => ({
       items: flattenedResult.items,
       separators: flattenedResult.separators,
       resetCount,
-    };
-  }, [flattenedResult, resetCount]);
+    }),
+    [flattenedResult, resetCount],
+  );
 }
 
 /**
@@ -153,6 +181,43 @@ export function fullFlatten(entries: LogEntry[]): FlattenResultInternal {
   let currentDateKey: string | null = null;
 
   for (const entry of entries) {
+    const dateKey = getDateKey(entry.timestamp);
+
+    // Insert date separator when date changes
+    if (dateKey !== currentDateKey) {
+      const separatorIndex = items.length;
+      const separator: SeparatorInfo = { index: separatorIndex, dateKey, date: entry.timestamp };
+      separators.push(separator);
+      items.push({ type: "separator", dateKey, date: entry.timestamp, index: separatorIndex });
+      currentDateKey = dateKey;
+    }
+
+    items.push({ type: "entry", entry });
+  }
+
+  return { items, separators };
+}
+
+/**
+ * Append flattening - O(k) for new entries only.
+ * Extends previous flattened result with new entries.
+ * Exported for testing.
+ */
+export function appendFlatten(
+  prevResult: FlattenResultInternal,
+  newEntries: LogEntry[],
+  prevLastDateKey: string | null,
+): FlattenResultInternal {
+  if (newEntries.length === 0) {
+    return prevResult;
+  }
+
+  // Clone previous result (copy arrays by reference is ok, we'll create new arrays)
+  const items = [...prevResult.items];
+  const separators = [...prevResult.separators];
+  let currentDateKey = prevLastDateKey;
+
+  for (const entry of newEntries) {
     const dateKey = getDateKey(entry.timestamp);
 
     // Insert date separator when date changes
