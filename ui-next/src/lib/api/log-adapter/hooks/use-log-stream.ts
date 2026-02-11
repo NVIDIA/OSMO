@@ -142,6 +142,10 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Helper: only update state if this stream is still the active one.
+    // Prevents a stale (aborted) stream from overwriting state set by a newer stream.
+    const isActive = () => abortRef.current === controller;
+
     // Reset state for new stream
     entriesRef.current = [];
     pendingRef.current = [];
@@ -173,7 +177,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
       }
       if (controller.signal.aborted) return;
 
-      setPhase("streaming");
+      if (isActive()) setPhase("streaming");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -185,7 +189,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
 
           if (done) {
             if (buffer.trim()) processChunk(buffer);
-            setPhase("complete");
+            if (isActive()) setPhase("complete");
             break;
           }
 
@@ -197,12 +201,15 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
           }
         }
       } finally {
+        // Cancel the reader to signal the underlying source to stop producing data,
+        // then release the lock. cancel() is a no-op if the stream already ended.
+        await reader.cancel().catch(() => {});
         reader.releaseLock();
       }
     } catch (err) {
       if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
-        setPhase("idle");
-      } else {
+        if (isActive()) setPhase("idle");
+      } else if (isActive()) {
         setError(err instanceof Error ? err : new Error(String(err)));
         setPhase("error");
       }

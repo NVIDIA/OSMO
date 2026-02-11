@@ -49,6 +49,12 @@ import http from "node:http";
  *
  * See: https://github.com/mswjs/msw/issues/2165#issuecomment-2260578257
  * "MSW supports global fetch in Node.js" but Next.js's undici bypasses it.
+ *
+ * STREAMING SUPPORT:
+ * Responses are streamed (not buffered) so that long-lived/infinite log
+ * streams don't accumulate open connections on MSW's MockHttpSocket. Without
+ * streaming, each request holds a `connect` listener until `res.end`, which
+ * never fires for infinite streams, causing MaxListenersExceededWarning.
  */
 function handleMockModeRequest(
   request: NextRequest,
@@ -78,31 +84,64 @@ function handleMockModeRequest(
     };
 
     const req = http.request(options, (res) => {
-      const chunks: Buffer[] = [];
+      const responseHeaders = new Headers();
 
-      res.on("data", (chunk) => chunks.push(chunk));
-      res.on("end", () => {
-        const body = Buffer.concat(chunks);
-        const headers = new Headers();
-
-        // Copy response headers
-        Object.entries(res.headers).forEach(([key, value]) => {
-          if (value) {
-            headers.set(key, Array.isArray(value) ? value.join(", ") : value);
-          }
-        });
-
-        resolve(
-          new Response(body, {
-            status: res.statusCode,
-            statusText: res.statusMessage,
-            headers,
-          }),
-        );
+      // Copy response headers
+      Object.entries(res.headers).forEach(([key, value]) => {
+        if (value) {
+          responseHeaders.set(key, Array.isArray(value) ? value.join(", ") : value);
+        }
       });
+
+      // Stream the response body instead of buffering it.
+      // This prevents long-lived streams from holding open connections
+      // and accumulating event listeners on MockHttpSocket.
+      const stream = new ReadableStream({
+        start(controller) {
+          res.on("data", (chunk: Buffer) => {
+            try {
+              controller.enqueue(new Uint8Array(chunk));
+            } catch {
+              // Controller closed (client disconnected), destroy the upstream
+              res.destroy();
+            }
+          });
+          res.on("end", () => {
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
+          });
+          res.on("error", (err) => {
+            try {
+              controller.error(err);
+            } catch {
+              // Already closed
+            }
+          });
+        },
+        cancel() {
+          // Client disconnected: tear down the upstream http response
+          // so MSW's MockHttpSocket releases its listeners
+          res.destroy();
+          req.destroy();
+        },
+      });
+
+      resolve(
+        new Response(stream, {
+          status: res.statusCode ?? 200,
+          statusText: res.statusMessage,
+          headers: responseHeaders,
+        }),
+      );
     });
 
     req.on("error", (error) => {
+      // Suppress ECONNRESET from intentional abort teardown
+      if ((error as NodeJS.ErrnoException).code === "ECONNRESET") return;
+
       // MSW didn't intercept
       console.error("[Mock Mode] MSW interception failed:", error.message);
       resolve(
@@ -120,6 +159,22 @@ function handleMockModeRequest(
         ),
       );
     });
+
+    // Propagate client abort to the upstream request so MSW can clean up.
+    // Without this, navigating away leaves orphaned connections on MockHttpSocket.
+    if (request.signal) {
+      if (request.signal.aborted) {
+        req.destroy();
+        return;
+      }
+      request.signal.addEventListener(
+        "abort",
+        () => {
+          req.destroy();
+        },
+        { once: true },
+      );
+    }
 
     // Send request body for POST/PUT/PATCH
     if (method !== "GET" && method !== "HEAD") {
