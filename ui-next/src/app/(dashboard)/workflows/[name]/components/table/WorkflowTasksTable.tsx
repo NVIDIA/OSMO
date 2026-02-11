@@ -511,7 +511,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
           colSpan={sectionColSpan}
           className="p-0"
         >
-          <div className="flex w-full items-center">
+          <div className="flex h-full w-full items-center">
             <SplitGroupHeader
               group={group}
               isExpanded={isExpanded}
