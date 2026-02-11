@@ -45,6 +45,17 @@ export function DevAuthInit() {
       process.env.NEXT_PUBLIC_MOCK_API === "true" ||
       (typeof localStorage !== "undefined" && localStorage.getItem("osmo_use_mock_data") === "true");
 
+    // Load inject-auth helpers for console usage (window.devAuth)
+    // This runs in ALL dev modes (mock and non-mock) for convenience
+    import("@/mocks/inject-auth")
+      .then(() => {
+        // Module initialization attaches window.devAuth automatically
+        // No need to call anything - just importing executes the setup code
+      })
+      .catch((err) => {
+        console.error("[DevAuthInit] Failed to load inject-auth:", err);
+      });
+
     if (isMockMode) return;
 
     // Initialize auth transfer helper for non-mock dev mode

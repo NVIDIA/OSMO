@@ -33,6 +33,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setMockVolumes, getMockVolumes } from "@/actions/mock-config";
 import type { MockVolumes } from "@/actions/mock-config.types";
+import { Roles } from "@/lib/auth/roles";
 
 interface MockProviderProps {
   children: ReactNode;
@@ -87,7 +88,7 @@ export function MockProvider({ children }: MockProviderProps) {
     const ensureAuth = async () => {
       if (!hasCookie("IdToken") && !hasCookie("BearerToken")) {
         const { generateMockJWT } = await import("@/mocks/inject-auth");
-        const mockJwt = generateMockJWT("john.doe", ["admin", "user"]);
+        const mockJwt = generateMockJWT("john.doe", [Roles.OSMO_ADMIN, Roles.OSMO_USER]);
         document.cookie = `IdToken=${mockJwt}; path=/; max-age=28800`;
       }
       setIsReady(true);
