@@ -48,7 +48,7 @@ Create a service account user for the backend operator:
 
    $ osmo user create backend-operator --roles osmo-backend
 
-Create a Personal Access Token for the service account with the ``osmo-backend`` role:
+Create a Access Token for the service account with the ``osmo-backend`` role:
 
 .. code-block:: bash
 
