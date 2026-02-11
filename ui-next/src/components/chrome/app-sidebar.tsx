@@ -160,7 +160,7 @@ export function AppSidebar({
       <SidebarFooter className="p-0">
         {/* Links section - above the line */}
         {(cliInstallScriptUrl || docsBaseUrl) && (
-          <div className="space-y-0 p-2">
+          <div className="space-y-1 p-2">
             {cliInstallScriptUrl && (
               <CliInstallButton
                 cliInstallScriptUrl={cliInstallScriptUrl}
