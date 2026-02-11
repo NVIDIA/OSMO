@@ -182,10 +182,18 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
     [],
   );
 
-  // Row class for status styling
-  const rowClassName = useCallback((workflow: WorkflowListEntry) => {
+  // Augment workflows with visual row index for zebra striping
+  const workflowsWithIndex = useMemo(
+    () => workflows.map((workflow, index) => ({ ...workflow, _visualRowIndex: index })),
+    [workflows],
+  );
+
+  // Row class for status styling + zebra striping
+  const rowClassName = useCallback((workflow: WorkflowListEntry & { _visualRowIndex?: number }) => {
     const { category } = getStatusDisplay(workflow.status);
-    return cn("workflows-row", `workflows-row--${category}`);
+    const visualIndex = workflow._visualRowIndex ?? 0;
+    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    return cn("workflows-row", `workflows-row--${category}`, zebraClass);
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No workflows found" />, []);
@@ -208,8 +216,8 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
 
   return (
     <div className="table-container relative flex h-full flex-col">
-      <DataTable<WorkflowListEntry>
-        data={workflows}
+      <DataTable<WorkflowListEntry & { _visualRowIndex?: number }>
+        data={workflowsWithIndex}
         columns={columns}
         getRowId={getRowId}
         // Column management

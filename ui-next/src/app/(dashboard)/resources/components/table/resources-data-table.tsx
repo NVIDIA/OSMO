@@ -207,12 +207,24 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
     [setColumnOrder],
   );
 
+  // Augment resources with visual row index for zebra striping
+  const resourcesWithIndex = useMemo(
+    () => sortedResources.map((resource, index) => ({ ...resource, _visualRowIndex: index })),
+    [sortedResources],
+  );
+
+  // Row class for zebra striping
+  const rowClassName = useCallback((resource: Resource & { _visualRowIndex?: number }) => {
+    const visualIndex = resource._visualRowIndex ?? 0;
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+  }, []);
+
   const emptyContent = useMemo(() => <TableEmptyState message="No resources found" />, []);
 
   return (
     <div className="table-container flex h-full flex-col">
-      <DataTable<Resource>
-        data={sortedResources}
+      <DataTable<Resource & { _visualRowIndex?: number }>
+        data={resourcesWithIndex}
         columns={columns}
         getRowId={getRowId}
         // Column management
@@ -243,6 +255,7 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
         // Interaction
         onRowClick={onResourceClick}
         selectedRowId={selectedResourceId}
+        rowClassName={rowClassName}
       />
     </div>
   );
