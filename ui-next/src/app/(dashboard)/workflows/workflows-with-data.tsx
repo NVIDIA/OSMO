@@ -33,15 +33,15 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
 import { WorkflowsPageContent } from "@/app/(dashboard)/workflows/workflows-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 interface WorkflowsWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function WorkflowsWithData({ searchParams }: WorkflowsWithDataProps) {
-  // Create QueryClient for this request using shared factory
-  const queryClient = createQueryClient();
+  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
+  const queryClient = createServerQueryClient();
 
   // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;

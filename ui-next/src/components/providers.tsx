@@ -83,8 +83,5 @@ export function Providers({ children, dehydratedState, runtimeEnv }: ProvidersPr
   );
 }
 
-// =============================================================================
-// Export Query Client Factory for Server Components
-// =============================================================================
-
-export { createQueryClient as createServerQueryClient };
+// NOTE: Server components should import createServerQueryClient directly from
+// "@/lib/query-client" -- it uses server-optimized settings (no retries, fail fast).

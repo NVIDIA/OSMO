@@ -33,7 +33,7 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowByName } from "@/lib/api/server/workflows";
 import { WorkflowDetailContent } from "@/app/(dashboard)/workflows/[name]/workflow-detail-content";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 interface WorkflowDetailWithDataProps {
   params: Promise<{ name: string }>;
@@ -56,9 +56,8 @@ export async function WorkflowDetailWithData({ params, searchParams }: WorkflowD
         : null,
   };
 
-  // Create QueryClient for this request using shared factory
-  // This ensures server-side defaults match client-side defaults
-  const queryClient = createQueryClient();
+  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
+  const queryClient = createServerQueryClient();
 
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready

@@ -61,6 +61,35 @@ import { QUERY_STALE_TIME_MS, QUERY_MAX_RETRY_DELAY_MS } from "@/lib/config";
  * @see {@link https://tanstack.com/query/latest/docs/react/guides/render-optimizations#structural-sharing}
  * @see {@link ../../../docs/STABILIZATION_ANALYSIS.md} - Analysis of custom vs built-in stabilization
  */
+/**
+ * Shared retry logic for client-side queries.
+ * Extracted to avoid duplication between client and server configs.
+ */
+function clientRetry(failureCount: number, error: Error): boolean {
+  // Circuit breaker: stop after 3 attempts to prevent thundering herd
+  // This protects both client and server from request storms during outages
+  if (failureCount >= 3) return false;
+
+  // Check if error is an ApiError with retryable flag
+  if (isApiError(error)) {
+    const status = (error as { status?: number })?.status;
+    // Don't retry client errors (4xx) except timeout (408)
+    if (status && status >= 400 && status < 500 && status !== 408) {
+      return false;
+    }
+    // Retry server errors (5xx) and timeouts
+    return error.isRetryable;
+  }
+
+  // Retry network errors (fetch failures)
+  if (error instanceof TypeError && error.message.includes("fetch")) {
+    return true;
+  }
+
+  // For other errors, don't retry (fail fast)
+  return false;
+}
+
 export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -96,30 +125,7 @@ export function createQueryClient() {
         networkMode: "online",
         // Enhanced retry logic with circuit breaker pattern
         // Circuit breaker prevents cascading failures by stopping retries after max attempts
-        retry: (failureCount, error) => {
-          // Circuit breaker: stop after 3 attempts to prevent thundering herd
-          // This protects both client and server from request storms during outages
-          if (failureCount >= 3) return false;
-
-          // Check if error is an ApiError with retryable flag
-          if (isApiError(error)) {
-            const status = (error as { status?: number })?.status;
-            // Don't retry client errors (4xx) except timeout (408)
-            if (status && status >= 400 && status < 500 && status !== 408) {
-              return false;
-            }
-            // Retry server errors (5xx) and timeouts
-            return error.isRetryable;
-          }
-
-          // Retry network errors (fetch failures)
-          if (error instanceof TypeError && error.message.includes("fetch")) {
-            return true;
-          }
-
-          // For other errors, don't retry (fail fast)
-          return false;
-        },
+        retry: clientRetry,
         // Exponential backoff with jitter: 1s, 2s, 4s, capped at QUERY_MAX_RETRY_DELAY_MS
         // Jitter prevents thundering herd when multiple requests fail simultaneously
         retryDelay: (attemptIndex) => {
@@ -139,6 +145,29 @@ export function createQueryClient() {
         },
         // Network mode for mutations
         networkMode: "online",
+      },
+    },
+  });
+}
+
+/**
+ * Creates a QueryClient optimized for server-side prefetching (SSR/RSC).
+ *
+ * PERFORMANCE: Disables retries entirely. Server-side prefetch should fail fast.
+ * The default client retry policy (3 retries with exponential backoff: ~1s + ~2s + ~4s = ~7s)
+ * causes catastrophic render time spikes when fetches fail during HMR transitions.
+ *
+ * If server prefetch fails, the client will re-fetch after hydration -- there is
+ * no benefit to retrying on the server while the user waits for the page to load.
+ */
+export function createServerQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: QUERY_STALE_TIME_MS,
+        gcTime: 5 * 60 * 1000,
+        // Server-side: no retries. Fail fast, let client re-fetch after hydration.
+        retry: false,
       },
     },
   });

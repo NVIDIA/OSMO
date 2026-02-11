@@ -21,7 +21,7 @@
  */
 
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 import { prefetchDatasetDetail } from "@/lib/api/server/datasets";
 import { DatasetDetailContent } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-content";
 
@@ -31,7 +31,7 @@ interface Props {
 }
 
 export async function DatasetDetailWithData({ bucket, name }: Props) {
-  const queryClient = createQueryClient();
+  const queryClient = createServerQueryClient();
 
   // Prefetch dataset detail (includes versions)
   await prefetchDatasetDetail(queryClient, bucket, name);

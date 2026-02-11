@@ -34,11 +34,11 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPools } from "@/lib/api/server/pools";
 import { PoolsPageContent } from "@/app/(dashboard)/pools/pools-page-content";
-import { createQueryClient } from "@/lib/query-client";
+import { createServerQueryClient } from "@/lib/query-client";
 
 export async function PoolsWithData() {
-  // Create QueryClient for this request using shared factory
-  const queryClient = createQueryClient();
+  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
+  const queryClient = createServerQueryClient();
 
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
