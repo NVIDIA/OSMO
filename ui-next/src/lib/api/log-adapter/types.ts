@@ -134,8 +134,8 @@ export interface LogQuery {
   end?: Date;
 
   // Content filter (slower in Loki, but supported)
-  /** Text search query */
-  search?: string;
+  /** Text search queries (multiple values are OR'd - any must match) */
+  search?: string[];
   /** Search mode: contains or regex */
   searchMode?: LogSearchMode;
 

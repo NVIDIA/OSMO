@@ -292,6 +292,17 @@ export function useFilterState<T>({
         }
         return false;
       },
+      addTextChip: (value: string) => {
+        // Add a text search chip directly without requiring a field definition
+        onChipsChange([
+          ...chips,
+          {
+            field: "text",
+            value,
+            label: value,
+          },
+        ]);
+      },
       selectSuggestion: handleSelect,
       fillInput: setInputValue,
       showError: setValidationError,
@@ -300,7 +311,17 @@ export function useFilterState<T>({
       getInputSelectionStart: () => inputCallbacks.getSelectionStart(),
       getInputSelectionEnd: () => inputCallbacks.getSelectionEnd(),
     }),
-    [removeChip, resetInput, parsedInput, addChip, handleSelect, setValidationError, inputCallbacks],
+    [
+      removeChip,
+      resetInput,
+      parsedInput,
+      addChip,
+      handleSelect,
+      setValidationError,
+      inputCallbacks,
+      onChipsChange,
+      chips,
+    ],
   );
 
   const { handleKeyDown } = useFilterKeyboard(keyboardState, keyboardActions);

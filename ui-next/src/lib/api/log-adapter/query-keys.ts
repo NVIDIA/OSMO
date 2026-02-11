@@ -49,8 +49,8 @@ export interface LogDataQueryKeyParams {
   retries?: string[];
   /** Filter by source types (user vs system) */
   sources?: LogSourceType[];
-  /** Text search query */
-  search?: string;
+  /** Text search queries (multiple values are OR'd - any must match) */
+  search?: string[];
   /** Use regex for search */
   searchRegex?: boolean;
   /** Start of time range */

@@ -44,7 +44,7 @@ export interface QueryAllParams {
   tasks?: FilterParams["tasks"];
   retries?: FilterParams["retries"];
   sources?: FilterParams["sources"];
-  search?: string;
+  search?: string[];
   searchRegex?: boolean;
   start?: Date;
   end?: Date;
