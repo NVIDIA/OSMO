@@ -16,9 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OSMO - Workflow Examples
+# Cookbook
 
-This directory contains brief examples of workflows that can be used in combination to make more complex workflows.
+OSMO cookbook is a comprehensive suite of AI workflows to perform a wide variety of robotics tasks.
 
 ## Tutorials
 
