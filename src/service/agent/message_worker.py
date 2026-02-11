@@ -174,15 +174,12 @@ class MessageWorker:
                         logging.error('Unknown backend operation: %s for backend %s',
                                      operation, backend_name)
 
-                    # Acknowledge and remove the message from the stream
-                    self._ack_and_remove(message_id)
                     self._progress_writer.report_progress()
-                    return
                 else:
                     # Regular logging message - ack and remove
                     logging.debug('Ignoring logging message id=%s', message_id)
-                    self._ack_and_remove(message_id)
-                    return
+                self._ack_and_remove(message_id)
+                return
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
                 # Ack and remove invalid message to prevent infinite retries
