@@ -39,7 +39,7 @@ This workflow example contains:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/reinforcement_learning/multi_node/train_policy.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/multi_node/train_policy.yaml
 osmo workflow submit train_policy.yaml
 ```
 

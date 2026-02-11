@@ -23,7 +23,7 @@ This workflow sets up a web-based file browser interface for remote workspace ac
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/filebrowser/filebrowser.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/filebrowser/filebrowser.yaml
 osmo workflow submit filebrowser.yaml
 ```
 

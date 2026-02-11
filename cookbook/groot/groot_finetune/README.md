@@ -24,7 +24,7 @@ This workflow how to perform fine-tuning using [Isaac Groot](https://github.com/
 
 ## Running the Workflow
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/groot/groot_finetune/groot_finetune.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_finetune/groot_finetune.yaml
 osmo workflow submit groot_finetune.yaml
 ```
 

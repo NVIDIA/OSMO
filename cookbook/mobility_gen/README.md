@@ -39,7 +39,7 @@ This workflow leverages NVIDIA OSMO to generate occupancy maps and record trajec
 ### Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/mobility_gen/mobility_gen.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/mobility_gen/mobility_gen.yaml
 osmo workflow submit mobility_gen.yaml
 ```
 
@@ -80,15 +80,15 @@ Once raw trajectories are recorded, use Cosmos Transfer to apply diffusion-based
 ### Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/mobility_gen/cosmos_augmentation.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/mobility_gen/cosmos_augmentation.yaml
 osmo workflow submit cosmos_augmentation.yaml
 ```
 
 **Example Prompt:**
 ```
-A realistic warehouse environment with consistent lighting, perspective, and camera motion. 
-Preserve the original structure, object positions, and layout from the input video. 
-Ensure the output exactly matches the segmentation video frame-by-frame in timing and content. 
+A realistic warehouse environment with consistent lighting, perspective, and camera motion.
+Preserve the original structure, object positions, and layout from the input video.
+Ensure the output exactly matches the segmentation video frame-by-frame in timing and content.
 Camera movement must follow the original path precisely.
 ```
 Please follow the Cosmos Transfer-2.5 [Documentation](https://github.com/nvidia-cosmos/cosmos-transfer2.5/blob/14d396cc94ea18e7f8f47b0fd385e3e438cf66c5/docs/inference.md) for configuring the prompt and other parameters.

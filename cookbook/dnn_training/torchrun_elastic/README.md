@@ -33,7 +33,7 @@ This workflow example contains:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/torchrun_elastic/train.py
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/torchrun_elastic/train.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_elastic/train.py
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_elastic/train.yaml
 osmo workflow submit train.yaml --set min_nodes=2 max_nodes=4 n_epochs=10
 ```

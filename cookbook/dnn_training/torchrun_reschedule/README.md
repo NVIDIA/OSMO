@@ -33,7 +33,7 @@ This workflow example contains:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/torchrun_reschedule/train.py
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/torchrun_reschedule/train.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_reschedule/train.py
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_reschedule/train.yaml
 osmo workflow submit train.yaml --set upload_location=<s3://my_bucket/path> checkpoint_cadence=2m
 ```

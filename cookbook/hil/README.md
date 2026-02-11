@@ -39,8 +39,8 @@ The workflow includes several configuration and script files:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/hil/setup_discovery_server.sh
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/hil/install_dependencies.sh
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/hil/hil_isaac_lab.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/hil/setup_discovery_server.sh
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/hil/install_dependencies.sh
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/hil/hil_isaac_lab.yaml
 osmo workflow submit hil_isaac_lab.yaml
 ```

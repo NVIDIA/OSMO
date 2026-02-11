@@ -25,7 +25,7 @@ The workflow launches a Ray cluster with one master node and one or more worker 
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/ray/ray.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/ray/ray.yaml
 osmo workflow submit ray.yaml
 ```
 

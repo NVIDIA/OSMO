@@ -23,7 +23,7 @@ This workflow launches a VSCode server (code-server) that can be accessed via br
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/vscode/vscode.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/vscode/vscode.yaml
 osmo workflow submit vscode.yaml
 ```
 

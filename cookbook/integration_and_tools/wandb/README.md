@@ -40,8 +40,8 @@ osmo credential set wandb --type GENERIC --payload wandb_api_key=<YOUR_API_KEY>
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/wandb/train.yaml
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/wandb/train.py
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/wandb/train.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/wandb/train.py
 osmo workflow submit train.yaml
 ```
 

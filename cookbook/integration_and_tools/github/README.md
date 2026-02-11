@@ -48,7 +48,7 @@ osmo credential set github-pat --type GENERIC --payload "github-pat=$GITHUB_TOKE
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/github/github.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/github/github.yaml
 osmo workflow submit github.yaml --set repo=https://github.com/<user>/<repo>.git
 ```
 

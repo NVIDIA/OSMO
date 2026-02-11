@@ -40,7 +40,7 @@ conditions for pulling the model. The terms and conditions submission can be fou
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/cosmos/cosmos_video2world.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/cosmos/cosmos_video2world.yaml
 osmo workflow submit cosmos_video2world.yaml
 ```
 

@@ -46,7 +46,7 @@ In order for your workflow to pull the Cosmos model from HuggingFace, you will *
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/cosmos/reason/cosmos_reason.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/cosmos/reason/cosmos_reason.yaml
 osmo workflow submit cosmos_reason.yaml
 ```
 

@@ -28,7 +28,7 @@ The full tutorial from Isaac Lab can be found [here](https://isaac-sim.github.io
 
 ## Running the Workflow
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/groot/groot_mimic/groot_mimic.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_mimic/groot_mimic.yaml
 osmo workflow submit groot_mimic.yaml
 ```
 

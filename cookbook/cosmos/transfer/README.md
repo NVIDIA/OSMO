@@ -49,7 +49,7 @@ You must agree to the terms and conditions for the Cosmos model on Hugging Face:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/cosmos/transfer/cosmos_transfer.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/cosmos/transfer/cosmos_transfer.yaml
 osmo workflow submit cosmos_transfer.yaml
 ```
 

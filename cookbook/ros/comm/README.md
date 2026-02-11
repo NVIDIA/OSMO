@@ -29,6 +29,6 @@ The workflow consists of three main tasks running simultaneously:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/ros/comm/ros2_comm.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/ros/comm/ros2_comm.yaml
 osmo workflow submit ros2_comm.yaml
 ```

@@ -29,9 +29,9 @@ This workflow demonstrates synthetic data generation using the Gazebo simulator.
 ## Running this Workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/synthetic_data_generation/gazebo/gazebo_sdg.yaml
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/synthetic_data_generation/gazebo/sdg.py
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/synthetic_data_generation/gazebo/segmentation_world.sdf
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/gazebo_sdg.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/sdg.py
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/segmentation_world.sdf
 osmo workflow submit gazebo_sdg.yaml
 ```
 

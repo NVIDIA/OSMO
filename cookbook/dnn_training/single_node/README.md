@@ -32,8 +32,8 @@ This workflow example contains:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/single_node/train.yaml
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/single_node/train.py
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/single_node/train.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/single_node/train.py
 osmo workflow submit train.yaml
 ```
 

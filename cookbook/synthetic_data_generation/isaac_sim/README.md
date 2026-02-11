@@ -30,6 +30,6 @@ networks. The workflow consists of one main task that launches Isaac Sim.
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/synthetic_data_generation/isaac_sim/isaac_sim_sdg.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/isaac_sim/isaac_sim_sdg.yaml
 osmo workflow submit isaac_sim_sdg.yaml
 ```

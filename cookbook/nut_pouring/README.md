@@ -84,7 +84,7 @@ Execute each step sequentially:
 
 ```bash
 mkdir -p nut_pouring && cd nut_pouring
-curl https://codeload.github.com/NVIDIA/OSMO/tar.gz/main | tar -xz --strip=4 OSMO-main/workflows/nut_pouring
+curl https://codeload.github.com/NVIDIA/OSMO/tar.gz/main | tar -xz --strip=4 OSMO-main/cookbook/nut_pouring
 
 # Step 1: MimicGen data generation
 osmo workflow submit 01_mimic_generation.yaml

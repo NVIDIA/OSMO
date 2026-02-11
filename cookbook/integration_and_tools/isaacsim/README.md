@@ -40,7 +40,7 @@ Depending on your use cases, you may need to increase CPU, memory, and disk reso
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/isaacsim/sim.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/isaacsim/sim.yaml
 osmo workflow submit sim.yaml
 ```
 

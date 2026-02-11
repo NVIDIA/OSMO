@@ -23,7 +23,7 @@ This workflow launches a JupyterLab server that can be accessed remotely for int
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/integration_and_tools/jupyterlab/jupyter.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/jupyterlab/jupyter.yaml
 osmo workflow submit jupyter.yaml
 ```
 

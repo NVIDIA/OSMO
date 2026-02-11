@@ -34,7 +34,7 @@ This workflow showcases Software-In-Loop (SIL) evaluation by launching:
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/ros/turtlebot/turtlebot_demo.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/ros/turtlebot/turtlebot_demo.yaml
 osmo workflow submit turtlebot_demo.yaml
 ```
 

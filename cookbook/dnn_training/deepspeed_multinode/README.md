@@ -46,8 +46,8 @@ The workflow creates `n_nodes` tasks (configurable), each with `n_gpus_per_node`
 ## Running this workflow
 
 ```bash
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/deepspeed_multinode/train.py
-curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/dnn_training/deepspeed_multinode/train.yaml
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/deepspeed_multinode/train.py
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/deepspeed_multinode/train.yaml
 osmo workflow submit train.yaml --set n_nodes=2 n_gpus_per_node=4 n_epochs=10
 ```
 
