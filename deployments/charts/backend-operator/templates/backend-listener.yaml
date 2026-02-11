@@ -150,7 +150,7 @@ spec:
             command:
             - progress_check
             - --progress_interval
-            - "300:300:300"
+            - "300:300:300:300"
             - --progress_file
             - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_node_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_event_listener
           failureThreshold: 1
@@ -162,7 +162,7 @@ spec:
             command:
             - progress_check
             - --progress_interval
-            - "300:300:300"
+            - "300:300:300:300"
             - --progress_file
             - {{ .Values.services.backendListener.progressDir }}/last_progress_workflow_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_resource_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_node_listener:{{ .Values.services.backendListener.progressDir }}/last_progress_event_listener
           failureThreshold: 12
