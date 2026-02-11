@@ -41,8 +41,9 @@ type NodeListener struct {
 // NewNodeListener creates a new node listener instance
 func NewNodeListener(args utils.ListenerArgs) *NodeListener {
 	return &NodeListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_node_listener", "node"),
-		args:         args,
+		BaseListener: utils.NewBaseListener(
+			args, "last_progress_node_listener", utils.StreamNameNode),
+		args: args,
 	}
 }
 

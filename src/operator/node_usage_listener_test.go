@@ -599,7 +599,7 @@ func TestPodLifecycle_MultiplePodsConcurrent(t *testing.T) {
 	}
 }
 
-func TestNewResourceListener(t *testing.T) {
+func TestNewNodeUsageListener(t *testing.T) {
 	args := utils.ListenerArgs{
 		ServiceURL:            "http://localhost:8000",
 		Backend:               "test-backend",
@@ -614,7 +614,7 @@ func TestNewResourceListener(t *testing.T) {
 		UsageFlushIntervalSec: 5,
 	}
 
-	listener := NewResourceListener(args)
+	listener := NewNodeUsageListener(args)
 
 	if listener == nil {
 		t.Fatal("Expected non-nil listener")

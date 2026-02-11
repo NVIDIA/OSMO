@@ -42,8 +42,9 @@ type EventListener struct {
 // NewEventListener creates a new event listener instance
 func NewEventListener(args utils.ListenerArgs) *EventListener {
 	return &EventListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_event_listener", "event"),
-		args:         args,
+		BaseListener: utils.NewBaseListener(
+			args, "last_progress_event_listener", utils.StreamNameEvent),
+		args: args,
 	}
 }
 

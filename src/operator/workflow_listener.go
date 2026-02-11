@@ -43,8 +43,9 @@ type WorkflowListener struct {
 // NewWorkflowListener creates a new workflow listener instance
 func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
 	return &WorkflowListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_workflow_listener", "workflow"),
-		args:         args,
+		BaseListener: utils.NewBaseListener(
+			args, "last_progress_workflow_listener", utils.StreamNameWorkflow),
+		args: args,
 	}
 }
 

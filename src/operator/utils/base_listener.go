@@ -45,11 +45,21 @@ type SendMessagesFunc func(
 	ch <-chan *pb.ListenerMessage,
 )
 
+// StreamName identifies the listener stream type.
+type StreamName string
+
+const (
+	StreamNameWorkflow StreamName = "workflow"
+	StreamNameResource StreamName = "resource"
+	StreamNameNode     StreamName = "node"
+	StreamNameEvent    StreamName = "event"
+)
+
 // BaseListener contains common functionality for all listeners
 type BaseListener struct {
 	unackedMessages *UnackMessages
 	progressWriter  *progress_check.ProgressWriter
-	streamName      string
+	streamName      StreamName
 
 	// Connection state
 	conn   *grpc.ClientConn
@@ -67,7 +77,8 @@ type BaseListener struct {
 }
 
 // NewBaseListener creates a new base listener instance
-func NewBaseListener(args ListenerArgs, progressFileName string, streamName string) *BaseListener {
+func NewBaseListener(
+	args ListenerArgs, progressFileName string, streamName StreamName) *BaseListener {
 	// Initialize progress writer
 	progressFile := filepath.Join(args.ProgressDir, progressFileName)
 	progressWriter, err := progress_check.NewProgressWriter(progressFile)

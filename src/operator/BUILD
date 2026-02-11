@@ -305,7 +305,7 @@ go_library(
         "listener.go",
         "event_listener.go",
         "node_listener.go",
-        "resource_listener.go",
+        "node_usage_listener.go",
         "workflow_listener.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/operator",
@@ -341,8 +341,8 @@ go_test(
 )
 
 go_test(
-    name = "resource_listener_test",
-    srcs = ["resource_listener_test.go"],
+    name = "node_usage_listener_test",
+    srcs = ["node_usage_listener_test.go"],
     embed = [":listener_lib"],
     deps = [
         "//src/operator/utils:utils",

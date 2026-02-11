@@ -33,41 +33,42 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// ResourceListener manages the bidirectional gRPC stream for pod resource usage
-type ResourceListener struct {
+// NodeUsageListener manages the bidirectional gRPC stream for pod resource usage
+type NodeUsageListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
 	aggregator *utils.NodeUsageAggregator
 }
 
-// NewResourceListener creates a new resource listener instance
-func NewResourceListener(args utils.ListenerArgs) *ResourceListener {
-	return &ResourceListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_resource_listener", "resource"),
-		args:         args,
-		aggregator:   utils.NewNodeUsageAggregator(args.Namespace),
+// NewNodeUsageListener creates a new node usage listener instance
+func NewNodeUsageListener(args utils.ListenerArgs) *NodeUsageListener {
+	return &NodeUsageListener{
+		BaseListener: utils.NewBaseListener(
+			args, "last_progress_node_usage_listener", utils.StreamNameResource),
+		args:       args,
+		aggregator: utils.NewNodeUsageAggregator(args.Namespace),
 	}
 }
 
 // Run manages the bidirectional streaming lifecycle
-func (rl *ResourceListener) Run(ctx context.Context) error {
-	ch := make(chan *pb.ListenerMessage, rl.args.UsageChanSize)
-	return rl.BaseListener.Run(
+func (nul *NodeUsageListener) Run(ctx context.Context) error {
+	ch := make(chan *pb.ListenerMessage, nul.args.UsageChanSize)
+	return nul.BaseListener.Run(
 		ctx,
-		"Connected to the service, resource listener stream established",
+		"Connected to the service, node usage listener stream established",
 		ch,
-		rl.watchPods,
-		rl.sendMessages,
+		nul.watchPods,
+		nul.sendMessages,
 	)
 }
 
 // sendMessages reads from the channel and sends messages to the server.
-func (rl *ResourceListener) sendMessages(
+func (nul *NodeUsageListener) sendMessages(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
 ) {
-	progressTicker := time.NewTicker(time.Duration(rl.args.ProgressFrequencySec) * time.Second)
+	progressTicker := time.NewTicker(time.Duration(nul.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
 	for {
@@ -75,7 +76,7 @@ func (rl *ResourceListener) sendMessages(
 		case <-ctx.Done():
 			return
 		case <-progressTicker.C:
-			progressWriter := rl.GetProgressWriter()
+			progressWriter := nul.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
 					log.Printf("Warning: failed to report progress: %v", err)
@@ -91,7 +92,7 @@ func (rl *ResourceListener) sendMessages(
 				cancel(fmt.Errorf("usage watcher stopped"))
 				return
 			}
-			if err := rl.BaseListener.SendMessage(ctx, msg); err != nil {
+			if err := nul.BaseListener.SendMessage(ctx, msg); err != nil {
 				cancel(fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err))
 				return
 			}
@@ -101,7 +102,7 @@ func (rl *ResourceListener) sendMessages(
 
 // watchPods starts pod informer and handles resource aggregation
 // This function focuses on pod events and resource usage messages
-func (rl *ResourceListener) watchPods(
+func (nul *NodeUsageListener) watchPods(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
 	ch chan<- *pb.ListenerMessage) {
@@ -113,7 +114,7 @@ func (rl *ResourceListener) watchPods(
 		return
 	}
 
-	log.Printf("Starting pod watcher for namespace: %s", rl.args.Namespace)
+	log.Printf("Starting pod watcher for namespace: %s", nul.args.Namespace)
 
 	// Create informer factory for pods (all namespaces)
 	// Disable informer resync - rely on watch + error handlers
@@ -138,7 +139,7 @@ func (rl *ResourceListener) watchPods(
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
-			rl.aggregator.AddPod(pod)
+			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			pod := newObj.(*corev1.Pod)
@@ -147,11 +148,11 @@ func (rl *ResourceListener) watchPods(
 			// Case 1: Pod transitioned TO Running state (Pending/Unknown → Running)
 			// Case 2: Pod transitioned FROM Running to terminal state (Running → Succeeded/Failed)
 			if pod.Status.Phase == corev1.PodRunning {
-				rl.aggregator.AddPod(pod)
+				nul.aggregator.AddPod(pod)
 			}
 
 			if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-				rl.aggregator.DeletePod(pod)
+				nul.aggregator.DeletePod(pod)
 			}
 
 		},
@@ -170,7 +171,7 @@ func (rl *ResourceListener) watchPods(
 				}
 			}
 			// Always remove pod from aggregator on delete
-			rl.aggregator.DeletePod(pod)
+			nul.aggregator.DeletePod(pod)
 		},
 	})
 	if err != nil {
@@ -181,7 +182,7 @@ func (rl *ResourceListener) watchPods(
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
-		rl.rebuildPodsFromStore(podInformer)
+		nul.rebuildPodsFromStore(podInformer)
 	})
 
 	// Start the informer
@@ -196,10 +197,10 @@ func (rl *ResourceListener) watchPods(
 	log.Println("Pod informer cache synced successfully")
 
 	// Initial rebuild from store after sync
-	rl.rebuildPodsFromStore(podInformer)
+	nul.rebuildPodsFromStore(podInformer)
 
 	// Start debounced flush loop for resource usage
-	flushInterval := time.Duration(rl.args.UsageFlushIntervalSec) * time.Second
+	flushInterval := time.Duration(nul.args.UsageFlushIntervalSec) * time.Second
 	flushTicker := time.NewTicker(flushInterval)
 	defer flushTicker.Stop()
 
@@ -210,17 +211,17 @@ func (rl *ResourceListener) watchPods(
 			return
 		case <-flushTicker.C:
 			// Debounced flush of dirty nodes - send usage messages
-			rl.flushDirtyNodes(ctx, ch)
+			nul.flushDirtyNodes(ctx, ch)
 		}
 	}
 }
 
 // rebuildPodsFromStore rebuilds aggregator state from pod informer cache
-func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
+func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
 	log.Println("Rebuilding pod aggregator state from informer store...")
 
 	// Reset aggregator state
-	rl.aggregator.Reset()
+	nul.aggregator.Reset()
 
 	// Rebuild from pod store
 	pods := podInformer.GetStore().List()
@@ -230,7 +231,7 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 			continue
 		}
 		if pod.Status.Phase == corev1.PodRunning {
-			rl.aggregator.AddPod(pod)
+			nul.aggregator.AddPod(pod)
 		}
 	}
 
@@ -238,17 +239,17 @@ func (rl *ResourceListener) rebuildPodsFromStore(podInformer cache.SharedIndexIn
 }
 
 // flushDirtyNodes sends resource usage updates for all dirty nodes
-func (rl *ResourceListener) flushDirtyNodes(
+func (nul *NodeUsageListener) flushDirtyNodes(
 	ctx context.Context,
 	usageChan chan<- *pb.ListenerMessage) {
-	dirtyNodes := rl.aggregator.GetAndClearDirtyNodes()
+	dirtyNodes := nul.aggregator.GetAndClearDirtyNodes()
 	if len(dirtyNodes) == 0 {
 		return
 	}
 
 	sent := 0
 	for _, hostname := range dirtyNodes {
-		msg := rl.buildNodeUsageMessage(hostname)
+		msg := nul.buildNodeUsageMessage(hostname)
 		if msg != nil {
 			select {
 			case usageChan <- msg:
@@ -267,8 +268,8 @@ func (rl *ResourceListener) flushDirtyNodes(
 }
 
 // buildNodeUsageMessage creates a UpdateNodeUsageBody message
-func (rl *ResourceListener) buildNodeUsageMessage(hostname string) *pb.ListenerMessage {
-	usageFields, nonWorkflowFields := rl.aggregator.GetNodeUsage(hostname)
+func (nul *NodeUsageListener) buildNodeUsageMessage(hostname string) *pb.ListenerMessage {
+	usageFields, nonWorkflowFields := nul.aggregator.GetNodeUsage(hostname)
 	if usageFields == nil {
 		return nil
 	}
