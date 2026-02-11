@@ -99,6 +99,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Server Components read process.env at request time for portability
+  const runtimeEnv = {
+    docsBaseUrl: process.env.DOCS_BASE_URL,
+    cliInstallScriptUrl: process.env.CLI_INSTALL_SCRIPT_URL,
+  };
+
   return (
     <html
       lang="en"
@@ -141,7 +147,7 @@ export default function RootLayout({
         {/* Suspense boundary required for cacheComponents (Next.js 16) */}
         {/* Client providers use useState which needs Suspense for prerendering */}
         <Suspense fallback={<AppLoadingFallback />}>
-          <Providers>{children}</Providers>
+          <Providers runtimeEnv={runtimeEnv}>{children}</Providers>
         </Suspense>
         <Toaster
           richColors

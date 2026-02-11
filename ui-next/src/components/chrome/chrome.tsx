@@ -25,7 +25,6 @@ import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { useSharedPreferences, initialState as sharedPreferencesInitialState } from "@/stores/shared-preferences-store";
 import { useMounted } from "@/hooks/use-mounted";
-import { getDocsBaseUrl, getCliInstallScriptUrl } from "@/lib/config";
 
 interface ChromeProps {
   children: React.ReactNode;
@@ -36,11 +35,8 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
   const storeSidebarOpen = useSharedPreferences((s) => s.sidebarOpen);
   const setSidebarOpen = useSharedPreferences((s) => s.setSidebarOpen);
 
-  // SSR-safe hydration: Use default value until after mount to prevent hydration mismatch.
-  // Zustand persist returns initial state on server but localStorage value on client.
+  // Prevent hydration mismatch: localStorage differs between server/client
   const mounted = useMounted();
-
-  // Use initial state during SSR/first render, then switch to store value after hydration
   const sidebarOpen = mounted ? storeSidebarOpen : sharedPreferencesInitialState.sidebarOpen;
 
   return (
@@ -60,10 +56,7 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
         </a>
 
         {/* Sidebar */}
-        <AppSidebar
-          docsBaseUrl={getDocsBaseUrl()}
-          cliInstallScriptUrl={getCliInstallScriptUrl()}
-        />
+        <AppSidebar />
 
         {/* Main area - flex to fill remaining space */}
         <SidebarInset className="flex flex-col overflow-y-hidden">

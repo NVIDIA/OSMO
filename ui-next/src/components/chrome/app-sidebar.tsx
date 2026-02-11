@@ -26,6 +26,7 @@ import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
 import { cn, isMac } from "@/lib/utils";
 import { useCopy } from "@/hooks/use-copy";
 import { useServices } from "@/contexts/service-context";
+import { useRuntimeEnv } from "@/contexts/runtime-env-context";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/shadcn/hover-card";
 import {
   Sidebar,
@@ -65,14 +66,9 @@ function collapsibleLabelClasses(collapsed: boolean): string {
  * - This allows the sidebar structure to be prerendered at build time
  * - Active highlighting applies after hydration (~50ms, imperceptible)
  */
-export function AppSidebar({
-  docsBaseUrl,
-  cliInstallScriptUrl,
-}: {
-  docsBaseUrl?: string;
-  cliInstallScriptUrl?: string;
-}) {
+export function AppSidebar() {
   const { state, isMobile } = useSidebar();
+  const { docsBaseUrl, cliInstallScriptUrl } = useRuntimeEnv();
   // On mobile (hamburger overlay), always show expanded state regardless of desktop sidebar state
   const collapsed = isMobile ? false : state === "collapsed";
 
