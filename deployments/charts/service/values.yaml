@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -165,17 +165,13 @@ services:
   ##
   defaultAdmin:
     ## Enable default admin user creation
-    ## When enabled, username and password secrets must be configured
+    ## When enabled, username and password must be configured
     ##
     enabled: false
 
-    ## Name of the Kubernetes secret containing the default admin username
+    ## Username for the default admin user
     ##
-    usernameSecretName: default-admin-secret
-
-    ## Key name in the secret that contains the default admin username
-    ##
-    usernameSecretKey: username
+    username: ""
 
     ## Name of the Kubernetes secret containing the default admin password (PAT value)
     ##
