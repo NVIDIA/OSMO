@@ -122,7 +122,7 @@ def get_jwt_token_from_access_token(access_token: str):
     if token.expires_at.date() <= datetime.datetime.utcnow().date():
         raise osmo_errors.OSMOUserError('Access Token has expired')
 
-    # Get roles from pat_roles table
+    # Get roles from access_token_roles table
     roles = objects.AccessToken.get_roles_for_token(postgres, token.user_name, token.token_name)
 
     service_config = postgres.get_service_configs()
@@ -210,7 +210,7 @@ def list_pat_roles(
     # Fetch PAT roles by joining with user_roles to get role_name
     fetch_cmd = '''
         SELECT ur.role_name, pr.assigned_by, pr.assigned_at
-        FROM pat_roles pr
+        FROM access_token_roles pr
         JOIN user_roles ur ON pr.user_role_id = ur.id
         WHERE pr.user_name = %s AND pr.token_name = %s
         ORDER BY ur.role_name;
@@ -680,7 +680,7 @@ def remove_role_from_user(user_id: str, role_name: str):
     Remove a role from a user and all their PATs.
 
     When a role is removed from a user, it is automatically removed from all PATs
-    owned by that user via the FK cascade from pat_roles to user_roles.
+    owned by that user via the FK cascade from access_token_roles to user_roles.
 
     Args:
         user_id: The user ID
@@ -689,7 +689,7 @@ def remove_role_from_user(user_id: str, role_name: str):
     postgres = connectors.PostgresConnector.get_instance()
 
     # Delete role assignment from user_roles
-    # pat_roles entries referencing this user_role are auto-deleted via ON DELETE CASCADE
+    # access_token_roles entries referencing this user_role are auto-deleted via ON DELETE CASCADE
     delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
     postgres.execute_commit_command(delete_cmd, (user_id, role_name))
 
