@@ -123,7 +123,15 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   // Compute the flattened result
   let flattenedResult: FlattenResultInternal;
 
-  if (isAppend) {
+  // No-change path: same entries, reuse cached result (O(1))
+  // This prevents creating new object references that would trigger
+  // an infinite render-phase setState loop (fullFlatten always returns new arrays).
+  const isNoChange =
+    entriesLength === prevState.length && firstEntryId === prevState.firstEntryId && prevState.length > 0;
+
+  if (isNoChange) {
+    flattenedResult = prevState.lastFlattenedResult;
+  } else if (isAppend) {
     // Append path: only flatten new entries (O(k) where k = new entries)
     const newEntries = entries.slice(prevState.length);
     flattenedResult = appendFlatten(prevState.lastFlattenedResult, newEntries, prevState.lastDateKey);

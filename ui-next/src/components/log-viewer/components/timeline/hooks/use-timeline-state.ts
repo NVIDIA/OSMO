@@ -129,19 +129,6 @@ export interface UseTimelineStateProps {
 // =============================================================================
 
 /**
- * Derive display range from props with fallbacks.
- */
-function deriveDisplayRange(props: UseTimelineStateProps): { start: Date; end: Date } {
-  const { displayStart, displayEnd, entityStartTime, entityEndTime, buckets, now } = props;
-
-  // Derive display range with simplified fallbacks (entityStartTime is guaranteed)
-  const start = displayStart ?? buckets[0]?.timestamp ?? entityStartTime;
-  const end = displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? entityEndTime ?? new Date(now);
-
-  return { start, end };
-}
-
-/**
  * Hook for managing timeline state.
  *
  * Provides unified state management and derived values.
@@ -163,7 +150,14 @@ export function useTimelineState(props: UseTimelineStateProps) {
   const { now, filterStartTime, filterEndTime, entityStartTime, entityEndTime } = props;
 
   // Derive display range from props (with fallbacks)
-  const displayRange = useMemo(() => deriveDisplayRange(props), [props]);
+  // IMPORTANT: List individual deps, NOT the props object (which is new every render
+  // and would cause this useMemo to recompute unconditionally, defeating memoization).
+  const { displayStart, displayEnd, buckets } = props;
+  const displayRange = useMemo((): { start: Date; end: Date } => {
+    const start = displayStart ?? buckets[0]?.timestamp ?? entityStartTime;
+    const end = displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? entityEndTime ?? new Date(now);
+    return { start, end };
+  }, [displayStart, displayEnd, entityStartTime, entityEndTime, buckets, now]);
 
   // Internal state: only pending and bounds (not controlled by props)
   const [internalState, setInternalState] = useState<InternalState>(() => ({
