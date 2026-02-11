@@ -54,6 +54,8 @@ export interface FilterKeyboardActions {
 
   /** Try to create a chip from the current parsed field:value. Returns true if created. */
   addChipFromParsedInput: () => boolean;
+  /** Add a text search chip for plain text (no prefix) */
+  addTextChip: (value: string) => void;
   /** Select a suggestion value (delegates to handleSelect) */
   selectSuggestion: (value: string) => void;
   /** Fill input with a value (for field prefix completion) */
@@ -263,17 +265,14 @@ function handleEnter<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, a
     return;
   }
 
-  // Priority 5: Unrecognized input with no suggestions
+  // Priority 5: Plain text without prefix - treat as substring search
   if (inputValue.trim() && selectables.length === 0) {
     e.preventDefault();
     e.stopPropagation();
-
-    // Generate dynamic error message using available field prefixes
-    const { fields } = state;
-    const examplePrefixes = fields.slice(0, 2).map((f) => `"${f.prefix}"`);
-    const prefixText = examplePrefixes.length > 0 ? examplePrefixes.join(" or ") : "a filter prefix";
-
-    actions.showError(`Use a filter prefix like ${prefixText} to create filters`);
+    // Create a text search chip for substring matching
+    actions.addTextChip(inputValue.trim());
+    actions.resetInput();
+    actions.focusInput();
   }
 }
 

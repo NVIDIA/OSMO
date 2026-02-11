@@ -32,8 +32,8 @@ export interface LogQueryFilters {
   tasks?: string[];
   /** Filter by source types (multiple allowed, OR'd together) */
   sources?: LogSourceType[];
-  /** Text search query (first text chip only) */
-  search?: string;
+  /** Text search queries (multiple allowed, OR'd together - any must match) */
+  search?: string[];
   /** Filter by retry attempts (multiple allowed, OR'd together) */
   retries?: string[];
 }
@@ -86,7 +86,7 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
   const tasks: string[] = [];
   const sources: LogSourceType[] = [];
   const retries: string[] = [];
-  let search: string | undefined;
+  const searches: string[] = [];
 
   for (const chip of chips) {
     switch (chip.field) {
@@ -115,10 +115,8 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
         break;
 
       case "text":
-        // Take first text chip only
-        if (search === undefined) {
-          search = chip.value;
-        }
+        // Collect all text search values (AND'd together)
+        searches.push(chip.value);
         break;
     }
   }
@@ -134,8 +132,8 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
   if (sources.length > 0) {
     filters.sources = sources;
   }
-  if (search !== undefined) {
-    filters.search = search;
+  if (searches.length > 0) {
+    filters.search = searches;
   }
   if (retries.length > 0) {
     filters.retries = retries;

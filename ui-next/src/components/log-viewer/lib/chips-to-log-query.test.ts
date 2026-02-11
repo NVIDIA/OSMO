@@ -108,13 +108,13 @@ describe("chipsToLogQuery", () => {
     it("extracts text chip as search", () => {
       const chips = [chip("text", "timeout")];
       const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ search: "timeout" });
+      expect(result).toEqual({ search: ["timeout"] });
     });
 
-    it("takes only first text chip", () => {
+    it("extracts multiple text chips (OR logic)", () => {
       const chips = [chip("text", "timeout"), chip("text", "error")];
       const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ search: "timeout" });
+      expect(result).toEqual({ search: ["timeout", "error"] });
     });
   });
 
@@ -141,7 +141,7 @@ describe("chipsToLogQuery", () => {
         levels: ["error", "warn"],
         tasks: ["train"],
         sources: ["user"],
-        search: "timeout",
+        search: ["timeout"],
       });
     });
   });

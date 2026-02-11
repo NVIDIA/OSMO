@@ -57,8 +57,8 @@ export interface FilterParams {
   retries?: string[];
   /** Filter by source types (OR - entry matches if source is in list) */
   sources?: LogSourceType[];
-  /** Text search (case-insensitive substring match) */
-  search?: string;
+  /** Text search queries (OR - entry must match ANY search term, case-insensitive substring match) */
+  search?: string[];
   /** Use regex for search instead of substring */
   searchRegex?: boolean;
   /** Start of time range (inclusive) */
@@ -88,18 +88,20 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
     !params.tasks?.length &&
     !params.retries?.length &&
     !params.sources?.length &&
-    !params.search &&
+    !params.search?.length &&
     !params.start &&
     !params.end
   ) {
     return entries;
   }
 
-  // Pre-compile regex if needed
-  let searchRegex: RegExp | null = null;
-  if (params.search) {
-    const pattern = params.searchRegex ? params.search : escapeRegex(params.search);
-    searchRegex = new RegExp(pattern, "i");
+  // Pre-compile regex patterns if needed (one per search term for OR logic)
+  const searchRegexes: RegExp[] = [];
+  if (params.search?.length) {
+    for (const searchTerm of params.search) {
+      const pattern = params.searchRegex ? searchTerm : escapeRegex(searchTerm);
+      searchRegexes.push(new RegExp(pattern, "i"));
+    }
   }
 
   // Convert arrays to Sets for O(1) lookup
@@ -134,8 +136,17 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
     if (params.start && entry.timestamp < params.start) return false;
     if (params.end && entry.timestamp > params.end) return false;
 
-    // Text search filter
-    if (searchRegex && !searchRegex.test(entry.message)) return false;
+    // Text search filter (OR - any term must match)
+    if (searchRegexes.length > 0) {
+      let matched = false;
+      for (const regex of searchRegexes) {
+        if (regex.test(entry.message)) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) return false;
+    }
 
     return true;
   });
