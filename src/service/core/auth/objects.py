@@ -207,7 +207,9 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def get_roles_for_token(cls, database: connectors.PostgresConnector,
                             user_name: str, token_name: str) -> List[str]:
-        """Get the roles assigned to a access_token by joining access_token_roles with user_roles."""
+        """
+        Get the roles assigned to a access_token by joining access_token_roles with user_roles.
+        """
         fetch_cmd = '''
             SELECT ur.role_name
             FROM access_token_roles pr
