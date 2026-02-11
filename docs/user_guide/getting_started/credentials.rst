@@ -82,7 +82,7 @@ Registry
         .. seealso::
 
             Please refer to `Docker Documentation <https://docs.docker.com/>`__ for more information
-            on username/password and Personal Access Token (PAT) authentication.
+            on username/password and Access Token authentication.
 
         To setup a registry credential for Docker Hub, run the following command:
 
@@ -276,10 +276,10 @@ Another example is to access Weights and Biases (W&B) for logging and tracking y
 
 .. _access_tokens:
 
-Personal Access Tokens
+Access Tokens
 ======================
 
-Personal Access Tokens (PATs) provide a way to authenticate with OSMO programmatically,
+Access Tokens (PATs) provide a way to authenticate with OSMO programmatically,
 enabling integration with CI/CD pipelines, scripts, and automation tools.
 
 Overview
@@ -294,7 +294,7 @@ a PAT, it receives either all of your current roles or a subset that you specify
    - When a role is removed from your user account, it is automatically removed from all your PATs.
    - Store your PAT securely—it is only displayed once at creation time.
 
-Creating a Personal Access Token
+Creating a Access Token
 --------------------------------
 
 Using the CLI
@@ -339,7 +339,7 @@ Using the CLI
 
       $ osmo token list
 
-Using a Personal Access Token
+Using a Access Token
 -----------------------------
 
 Once you have a PAT, you can use it to authenticate with OSMO.

@@ -1134,7 +1134,7 @@ class PostgresConnector:
         self.execute_commit_command(create_cmd, ())
 
         # Creates table for user role assignments
-        # Each assignment has a UUID that pat_roles references for cascading deletes
+        # Each assignment has a UUID that access_token_roles references for cascading deletes
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS user_roles (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1179,7 +1179,7 @@ class PostgresConnector:
         # Creates table for PAT role assignments (subset of user roles)
         # References user_roles.id so PAT roles are auto-deleted when user loses a role
         create_cmd = '''
-            CREATE TABLE IF NOT EXISTS pat_roles (
+            CREATE TABLE IF NOT EXISTS access_token_roles (
                 user_name TEXT NOT NULL,
                 token_name TEXT NOT NULL,
                 user_role_id UUID NOT NULL REFERENCES user_roles(id) ON DELETE CASCADE,
@@ -1192,15 +1192,15 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Create indices for pat_roles table
+        # Create indices for access_token_roles table
         index_cmds = [
             '''
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pat_roles_token
-                ON pat_roles (user_name, token_name);
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_token_roles_token
+                ON access_token_roles (user_name, token_name);
             ''',
             '''
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_pat_roles_user_role
-                ON pat_roles (user_role_id);
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_token_roles_user_role
+                ON access_token_roles (user_role_id);
             '''
         ]
         for cmd in index_cmds:
