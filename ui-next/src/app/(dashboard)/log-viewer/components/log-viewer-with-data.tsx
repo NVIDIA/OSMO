@@ -64,7 +64,7 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
   let workflowMetadata = null;
 
   try {
-    const workflow = await fetchWorkflowByName(workflowId, true);
+    const workflow = await fetchWorkflowByName(workflowId, false);
 
     if (workflow) {
       // Extract metadata for timeline bounds
