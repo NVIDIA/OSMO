@@ -144,6 +144,31 @@ const JSON_BLOBS = [
 ];
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * setTimeout that resolves immediately when an AbortSignal fires.
+ * Prevents dangling timers from keeping async generators alive after
+ * the consumer disconnects.
+ */
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      resolve();
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+// ============================================================================
 // Generator Class
 // ============================================================================
 
@@ -296,14 +321,16 @@ export class LogGenerator {
    * @param options.taskNames - Optional task names to use
    * @param options.continueFrom - Timestamp to continue from (for chronological streaming)
    * @param options.streamDelayMs - Delay between stream entries in milliseconds (optional, uses workflow config default)
+   * @param options.signal - AbortSignal to stop generation when the consumer disconnects
    */
   async *createStream(options: {
     workflowName: string;
     taskNames?: string[];
     continueFrom?: Date;
     streamDelayMs?: number;
+    signal?: AbortSignal;
   }): AsyncGenerator<string, void, unknown> {
-    const { workflowName, taskNames, continueFrom, streamDelayMs } = options;
+    const { workflowName, taskNames, continueFrom, streamDelayMs, signal } = options;
     const config = getWorkflowLogConfig(workflowName);
 
     // Use provided streamDelayMs or workflow config default
@@ -328,6 +355,12 @@ export class LogGenerator {
         });
 
     for (let i = 0; i < numLines; i++) {
+      // Stop immediately when the consumer signals abort (stream cancelled,
+      // client disconnected, or HMR teardown). Without this check, the
+      // generator's setTimeout keeps its promise chain alive indefinitely
+      // for infinite streams, preventing cleanup of MockHttpSocket listeners.
+      if (signal?.aborted) return;
+
       // Advance time by configured delay with millisecond jitter to prevent collisions
       // IMPORTANT: Add millisecond jitter to prevent timestamp collisions
       const jitter = faker.number.int({ min: 0, max: 50 }); // 0-50ms variance
@@ -352,12 +385,13 @@ export class LogGenerator {
 
         // Yield each line as a separate log entry with same timestamp
         for (const lineMessage of contentLines) {
+          if (signal?.aborted) return;
           const formattedLine = this.formatLogLineV2(currentTime, taskCtx, ioType, lineMessage);
           yield formattedLine + "\n";
         }
 
-        // Add actual delay between yields
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        // Abort-aware delay: reject the promise immediately if signal fires
+        await abortableDelay(delay, signal);
         continue; // Skip the normal single-line yield below
       }
 
@@ -365,8 +399,8 @@ export class LogGenerator {
       const line = this.formatLogLineV2(currentTime, taskCtx, ioType, message);
       yield line + "\n";
 
-      // Add actual delay between yields
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      // Abort-aware delay: reject the promise immediately if signal fires
+      await abortableDelay(delay, signal);
     }
   }
 

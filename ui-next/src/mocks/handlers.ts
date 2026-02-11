@@ -411,6 +411,7 @@ export const handlers = [
     // - Completed workflows (end_time exists): stream to EOF (finite)
     // - Running workflows (end_time undefined): stream infinitely
     const encoder = new TextEncoder();
+    const abortController = new AbortController();
 
     // Create streaming generator
     // For completed workflows, generator will use volume.max and stop
@@ -419,6 +420,7 @@ export const handlers = [
       workflowName: name,
       taskNames,
       continueFrom: workflowStartTime,
+      signal: abortController.signal,
     });
 
     const stream = new ReadableStream<Uint8Array>({
@@ -428,13 +430,20 @@ export const handlers = [
             controller.enqueue(encoder.encode(line));
           }
         } catch {
-          // Stream closed or error occurred
+          // Stream closed, aborted, or error occurred
         } finally {
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
         }
       },
-      async cancel() {
-        // Generator cleanup happens automatically when loop breaks
+      cancel() {
+        // Signal the async generator to stop yielding immediately.
+        // Without this, the generator's setTimeout-based delays keep it
+        // alive even after the ReadableStream is cancelled.
+        abortController.abort();
       },
     });
 
