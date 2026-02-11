@@ -45,7 +45,7 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
     def _cleanup_test_users(self):
         """Clean up test users to ensure test isolation."""
         postgres = connectors.PostgresConnector.get_instance()
-        # Delete users (CASCADE will handle user_roles, pat_roles, access_token)
+        # Delete users (CASCADE will handle user_roles, access_token_roles, access_token)
         postgres.execute_commit_command(
             'DELETE FROM users WHERE id = %s OR id = %s;',
             (self.TEST_USER, self.TEST_ADMIN)
@@ -138,7 +138,7 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         """Helper to get PAT roles directly from the database."""
         postgres = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
-            SELECT ur.role_name FROM pat_roles pr
+            SELECT ur.role_name FROM access_token_roles pr
             JOIN user_roles ur ON pr.user_role_id = ur.id
             WHERE pr.user_name = %s AND pr.token_name = %s
             ORDER BY ur.role_name;
@@ -561,15 +561,15 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         token_names = [t['token_name'] for t in response.json()]
         self.assertNotIn('delete-me-token', token_names)
 
-    def test_delete_access_token_cascades_pat_roles(self):
-        """Test that deleting a PAT removes its pat_roles entries."""
+    def test_delete_access_token_cascades_access_token_roles(self):
+        """Test that deleting a PAT removes its access_token_roles entries."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin'])
         self._create_pat('cascade-delete-token')
 
-        # Verify pat_roles exist
+        # Verify access_token_roles exist
         postgres = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
-            SELECT COUNT(*) as cnt FROM pat_roles
+            SELECT COUNT(*) as cnt FROM access_token_roles
             WHERE user_name = %s AND token_name = %s;
         '''
         result = postgres.execute_fetch_command(
@@ -580,7 +580,7 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         response = self.client.delete('/api/auth/access_token/cascade-delete-token')
         self.assertEqual(response.status_code, 200)
 
-        # Verify pat_roles are gone
+        # Verify access_token_roles are gone
         result = postgres.execute_fetch_command(
             fetch_cmd, (self.TEST_USER, 'cascade-delete-token'), True)
         self.assertEqual(result[0]['cnt'], 0)
