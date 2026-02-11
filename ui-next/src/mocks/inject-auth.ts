@@ -14,6 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import { Roles } from "@/lib/auth/roles";
+
 /**
  * Mock Auth Injection
  *
@@ -47,7 +49,7 @@ export function generateMockJWT(username: string, roles: string[] = [], expiresI
   };
 
   const payload = {
-    iss: "https://auth-staging.osmo.nvidia.com/realms/osmo",
+    iss: "https://auth-dev.osmo.com",
     sub: `mock-${username}`,
     aud: "osmo-browser-flow",
     exp: now + expiresInHours * 3600,
@@ -106,10 +108,10 @@ export function injectMockAuth(
  * Inject common test users.
  */
 export const injectTestUsers = {
-  admin: () => injectMockAuth("admin", ["admin", "user"]),
-  user: () => injectMockAuth("john.doe", ["user"]),
-  powerUser: () => injectMockAuth("jane.admin", ["admin", "user", "power-user"]),
-  viewer: () => injectMockAuth("viewer", ["viewer"]),
+  admin: () => injectMockAuth("admin", [Roles.OSMO_ADMIN, Roles.OSMO_USER]),
+  user: () => injectMockAuth("john.doe", [Roles.OSMO_USER]),
+  powerUser: () => injectMockAuth("jane.admin", [Roles.OSMO_ADMIN, Roles.OSMO_USER, Roles.OSMO_SRE]),
+  viewer: () => injectMockAuth("viewer", [Roles.OSMO_USER]),
 };
 
 /**
