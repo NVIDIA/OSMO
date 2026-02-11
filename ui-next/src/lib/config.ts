@@ -158,28 +158,13 @@ export function getApiHostname(): string {
 }
 
 // =============================================================================
-// Documentation Configuration
+// Runtime Configuration
 // =============================================================================
-
-/**
- * Get the documentation base URL.
- * Set NEXT_PUBLIC_DOCS_BASE_URL in .env.local or via Helm chart values.
- *
- * @returns The documentation base URL or undefined if not configured
- */
-export function getDocsBaseUrl(): string | undefined {
-  return process.env.NEXT_PUBLIC_DOCS_BASE_URL;
-}
-
-/**
- * Get the CLI installation script URL.
- * Set NEXT_PUBLIC_CLI_INSTALL_SCRIPT_URL in .env.local or via Helm chart values.
- *
- * @returns The CLI installation script URL or undefined if not configured
- */
-export function getCliInstallScriptUrl(): string | undefined {
-  return process.env.NEXT_PUBLIC_CLI_INSTALL_SCRIPT_URL;
-}
+//
+// For portable runtime config (docs/CLI URLs), use useRuntimeEnv() hook.
+// Avoids baking env vars into bundle at build time.
+//
+// =============================================================================
 
 // =============================================================================
 // Auth Configuration

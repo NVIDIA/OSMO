@@ -25,6 +25,7 @@ import { PageProvider } from "@/components/chrome/page-context";
 import { BreadcrumbOriginProvider } from "@/components/chrome/breadcrumb-origin-context";
 import { ConfigProvider } from "@/contexts/config-context";
 import { ServiceProvider } from "@/contexts/service-context";
+import { RuntimeEnvProvider, type RuntimeEnv } from "@/contexts/runtime-env-context";
 import { UserProvider } from "@/lib/auth/user-context";
 import { MockProvider } from "@/mocks/MockProvider";
 import { createQueryClient } from "@/lib/query-client";
@@ -37,74 +38,48 @@ import { DevAuthInit } from "@/components/DevAuthInit";
 
 interface ProvidersProps {
   children: React.ReactNode;
-  /**
-   * Dehydrated state from server-side prefetching.
-   * Pass this from Server Components to hydrate the query cache.
-   *
-   * @example
-   * ```tsx
-   * // In a Server Component
-   * const queryClient = new QueryClient();
-   * await prefetchPools(queryClient);
-   * const dehydratedState = dehydrate(queryClient);
-   *
-   * return <Providers dehydratedState={dehydratedState}>{children}</Providers>;
-   * ```
-   */
+  /** Enables instant navigation via prefetched data. */
   dehydratedState?: DehydratedState;
+  /** Prevents baking env vars into bundle, keeping Docker image portable. */
+  runtimeEnv: RuntimeEnv;
 }
 
 // =============================================================================
 // Main Providers Component
 // =============================================================================
 
-/**
- * Application providers wrapper.
- *
- * Provides:
- * - TanStack Query for data fetching (with optional SSR hydration)
- * - Theme provider (dark/light mode)
- * - URL state (nuqs)
- * - Auth context
- * - User context
- * - Service context (clipboard, announcer)
- * - Config context
- * - Mock provider (dev only)
- *
- * @param props.children - App content
- * @param props.dehydratedState - Optional prefetched query state from server
- */
-export function Providers({ children, dehydratedState }: ProvidersProps) {
-  // useState ensures single instance across re-renders
+export function Providers({ children, dehydratedState, runtimeEnv }: ProvidersProps) {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <ConfigProvider>
-      <ServiceProvider>
-        <DevAuthInit />
-        <MockProvider>
-          <NuqsAdapter>
-            <QueryClientProvider client={queryClient}>
-              <HydrationBoundary state={dehydratedState}>
-                <ThemeProvider
-                  attribute="class"
-                  defaultTheme="system"
-                  enableSystem
-                  disableTransitionOnChange
-                >
-                  <UserProvider>
-                    <PageProvider>
-                      <BreadcrumbOriginProvider>{children}</BreadcrumbOriginProvider>
-                    </PageProvider>
-                  </UserProvider>
-                </ThemeProvider>
-              </HydrationBoundary>
-              <QueryDevtools />
-            </QueryClientProvider>
-          </NuqsAdapter>
-        </MockProvider>
-      </ServiceProvider>
-    </ConfigProvider>
+    <RuntimeEnvProvider value={runtimeEnv}>
+      <ConfigProvider>
+        <ServiceProvider>
+          <DevAuthInit />
+          <MockProvider>
+            <NuqsAdapter>
+              <QueryClientProvider client={queryClient}>
+                <HydrationBoundary state={dehydratedState}>
+                  <ThemeProvider
+                    attribute="class"
+                    defaultTheme="system"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <UserProvider>
+                      <PageProvider>
+                        <BreadcrumbOriginProvider>{children}</BreadcrumbOriginProvider>
+                      </PageProvider>
+                    </UserProvider>
+                  </ThemeProvider>
+                </HydrationBoundary>
+                <QueryDevtools />
+              </QueryClientProvider>
+            </NuqsAdapter>
+          </MockProvider>
+        </ServiceProvider>
+      </ConfigProvider>
+    </RuntimeEnvProvider>
   );
 }
 
