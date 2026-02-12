@@ -152,12 +152,28 @@ export function useTimelineState(props: UseTimelineStateProps) {
   // Derive display range from props (with fallbacks)
   // IMPORTANT: List individual deps, NOT the props object (which is new every render
   // and would cause this useMemo to recompute unconditionally, defeating memoization).
+  //
+  // PERF FIX (P0): `now` is ONLY needed when both displayEnd and entityEndTime are
+  // absent AND buckets has no last timestamp. We hoist the fallback end timestamp
+  // into a primitive (number) so useMemo depends on a stable value when `now` is
+  // irrelevant, preventing a full recompute every useTick() tick (1 s).
   const { displayStart, displayEnd, buckets } = props;
+  const firstBucketTime = buckets[0]?.timestamp;
+  const lastBucketTime = buckets.length > 0 ? buckets[buckets.length - 1].timestamp : undefined;
+  // Resolve fallback end as a primitive ms value - only uses `now` as last resort
+  const fallbackEndMs = displayEnd
+    ? displayEnd.getTime()
+    : lastBucketTime
+      ? lastBucketTime.getTime()
+      : entityEndTime
+        ? entityEndTime.getTime()
+        : now;
+
   const displayRange = useMemo((): { start: Date; end: Date } => {
-    const start = displayStart ?? buckets[0]?.timestamp ?? entityStartTime;
-    const end = displayEnd ?? buckets[buckets.length - 1]?.timestamp ?? entityEndTime ?? new Date(now);
+    const start = displayStart ?? firstBucketTime ?? entityStartTime;
+    const end = displayEnd ?? lastBucketTime ?? entityEndTime ?? new Date(fallbackEndMs);
     return { start, end };
-  }, [displayStart, displayEnd, entityStartTime, entityEndTime, buckets, now]);
+  }, [displayStart, displayEnd, entityStartTime, entityEndTime, firstBucketTime, lastBucketTime, fallbackEndMs]);
 
   // Internal state: only pending and bounds (not controlled by props)
   const [internalState, setInternalState] = useState<InternalState>(() => ({

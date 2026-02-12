@@ -41,6 +41,7 @@ import { Footer } from "@/components/log-viewer/components/Footer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
+import { DEFAULT_HEIGHT } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
 // =============================================================================
 // Helpers
@@ -616,7 +617,7 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
           buckets={histogram?.buckets ?? []}
           pendingBuckets={pendingHistogram?.buckets}
           onBucketClick={handleBucketClick}
-          height={80}
+          height={DEFAULT_HEIGHT}
           // Time range header with controls
           showTimeRangeHeader
           filterStartTime={filterStartTime}

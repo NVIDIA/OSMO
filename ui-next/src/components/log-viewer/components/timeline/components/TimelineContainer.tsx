@@ -67,6 +67,9 @@ import {
   DEFAULT_HEIGHT,
   type TimeRangePreset,
 } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
+
+const NOOP_DISPLAY_RANGE_CHANGE = (_start: Date, _end: Date): void => {};
 
 // =============================================================================
 // Types
@@ -209,15 +212,6 @@ function TimelineContainerInner(
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // ============================================================================
-  // SYNCHRONIZED NOW TIMESTAMP
-  // ============================================================================
-
-  // GUARANTEED: Parent component provides synchronized NOW from useTick()
-  // This ensures single source of truth for all time calculations
-  const synchronizedNow = now;
-
-  // Use pending buckets if available, otherwise committed buckets
   const activeBuckets = pendingBuckets ?? buckets;
 
   // ============================================================================
@@ -232,10 +226,10 @@ function TimelineContainerInner(
     entityStartTime,
     entityEndTime,
     buckets: activeBuckets,
-    now: synchronizedNow,
+    now,
   });
 
-  const { currentDisplay, currentEffective: _currentEffective, hasPendingChanges } = timelineState;
+  const { currentDisplay, hasPendingChanges } = timelineState;
 
   // ============================================================================
   // GESTURES
@@ -244,19 +238,20 @@ function TimelineContainerInner(
   // Extract bucket timestamps for constraint validation
   const bucketTimestamps = useMemo(() => activeBuckets.map((b) => b.timestamp), [activeBuckets]);
 
-  useTimelineWheelGesture(containerRef, timelineState, bucketTimestamps, onDisplayRangeChange ?? (() => {}), {
-    entityStartTime,
-    entityEndTime,
-    now: synchronizedNow,
-    overlayPositions: undefined, // Disabled during simplification
-  });
+  // PERF (P0): Compute bucket width ONCE here and pass down to children.
+  // Previously each consumer (TimelineHistogram, TimelineAxis) computed this independently.
+  const bucketWidthMs = useMemo(() => calculateBucketWidth(bucketTimestamps), [bucketTimestamps]);
 
-  // Get zoom controls for external buttons (uses same logic as wheel gestures)
-  const zoomControls = useTimelineZoomControls(timelineState, bucketTimestamps, onDisplayRangeChange ?? (() => {}), {
-    entityStartTime,
-    entityEndTime,
-    now: synchronizedNow,
-  });
+  // PERF (P1): Memoize debugContext to avoid creating a new object every render.
+  // This object is passed to useTimelineWheelGesture and useTimelineZoomControls
+  // which use it in useMemo/useCallback dependency arrays.
+  const debugContext = useMemo(() => ({ entityStartTime, entityEndTime, now }), [entityStartTime, entityEndTime, now]);
+
+  const displayRangeHandler = onDisplayRangeChange ?? NOOP_DISPLAY_RANGE_CHANGE;
+
+  useTimelineWheelGesture(containerRef, timelineState, bucketTimestamps, displayRangeHandler, debugContext);
+
+  const zoomControls = useTimelineZoomControls(timelineState, bucketTimestamps, displayRangeHandler, debugContext);
 
   // Expose zoom controls to parent via imperative handle
   useImperativeHandle(ref, () => zoomControls, [zoomControls]);
@@ -286,19 +281,8 @@ function TimelineContainerInner(
     setIsCollapsed((prev) => !prev);
   }, []);
 
-  // ============================================================================
-  // EMPTY STATE
-  // ============================================================================
-
-  // NOTE: With guaranteed entityStartTime, we ALWAYS render the timeline.
-  // Even with zero buckets, we show markers and valid time range.
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
   return (
-    <div className={cn(className)}>
+    <div className={className}>
       {/* Header row with presets, controls, and collapse button */}
       <div className="flex items-center justify-between gap-2">
         {showTimeRangeHeader && (
@@ -338,10 +322,22 @@ function TimelineContainerInner(
       >
         <div className="pt-4">
           <div className="relative">
+            {/* PERF (P1): CSS containment and overscroll-behavior on gesture container.
+                - contain: layout style paint - tells browser this subtree is isolated,
+                  enabling paint optimizations during pan/zoom.
+                - overscroll-behavior: contain - prevents scroll chaining to parent
+                  when wheel events reach the edge of the timeline range.
+                - touch-action: none - prevents browser default touch gestures
+                  (pan, pinch) from interfering with our custom gesture handling. */}
             <div
               ref={containerRef}
               className="relative cursor-crosshair"
-              style={{ height: `${height}px` }}
+              style={{
+                height: `${height}px`,
+                contain: "layout style paint",
+                overscrollBehavior: "contain",
+                touchAction: "none",
+              }}
             >
               {/* Layer 1: Pannable content (TimelineHistogram) */}
               <TimelineHistogram
@@ -352,8 +348,10 @@ function TimelineContainerInner(
                 currentDisplay={currentDisplay}
                 entityStartTime={entityStartTime}
                 entityEndTime={entityEndTime}
-                now={synchronizedNow}
+                now={now}
                 onBucketClick={onBucketClick}
+                bucketWidthMs={bucketWidthMs}
+                isGesturing={hasPendingChanges}
               />
 
               {/* Layer 2: Selection overlay */}
@@ -361,31 +359,36 @@ function TimelineContainerInner(
                 selectionRange={selectionRange}
                 isDragging={isDragging}
               />
-
-              {/* Layer 2: Entity start marker */}
-              <TimelineStartMarker
-                entityStartTime={entityStartTime}
-                displayStart={currentDisplay.start}
-                displayEnd={currentDisplay.end}
-              />
-
-              {/* Layer 2: Entity end marker (or "now" for running workflows) */}
-              <TimelineEndMarker
-                entityEndTime={entityEndTime}
-                now={synchronizedNow}
-                displayStart={currentDisplay.start}
-                displayEnd={currentDisplay.end}
-              />
             </div>
 
             {customControls && <div className="absolute bottom-1 left-1">{customControls}</div>}
           </div>
 
           {/* Time axis with intelligent ticks */}
-          <TimelineAxis
-            displayStart={currentDisplay.start}
-            displayEnd={currentDisplay.end}
-          />
+          <div className="relative">
+            <TimelineAxis
+              displayStart={currentDisplay.start}
+              displayEnd={currentDisplay.end}
+              buckets={activeBuckets}
+              bucketWidthMs={bucketWidthMs}
+            />
+
+            {/* Entity markers on the axis */}
+            <div className="absolute inset-0">
+              <TimelineStartMarker
+                entityStartTime={entityStartTime}
+                displayStart={currentDisplay.start}
+                displayEnd={currentDisplay.end}
+              />
+              <TimelineEndMarker
+                entityEndTime={entityEndTime}
+                now={now}
+                displayStart={currentDisplay.start}
+                displayEnd={currentDisplay.end}
+                buckets={activeBuckets}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

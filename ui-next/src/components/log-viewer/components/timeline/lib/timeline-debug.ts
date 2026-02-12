@@ -47,8 +47,6 @@ export interface DebugContext {
   effectiveStart: string;
   effectiveEnd: string;
   currentStartPercent: number;
-  windowLeft?: number;
-  windowRight?: number;
 }
 
 export interface WheelDebugEvent {
