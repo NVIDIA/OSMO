@@ -243,7 +243,7 @@ workflow:
 > the `lead` task **does not terminate** before non-lead tasks.
 
 > This can be done by coordinating task completion through a barrier script
-> ([osmo_barrier.py](https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/torchrun_multinode/osmo_barrier.py))
+> ([osmo_barrier.py](https://github.com/NVIDIA/OSMO/blob/main/cookbook/dnn_training/torchrun_multinode/osmo_barrier.py))
 > or by ensuring that the `lead` task duration is longer than the non-lead tasks.
 
 > **Important**
