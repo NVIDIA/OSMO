@@ -30,17 +30,17 @@ type ListenerArgs struct {
 	Backend               string
 	Namespace             string
 	PodUpdateChanSize     int
-	NodeUpdateChanSize    int // Buffer size for node update channel (ResourceListener)
-	UsageChanSize         int // Buffer size for usage update channel (ResourceListener)
-	EventChanSize         int // Buffer size for event channel (EventListener)
+	NodeUpdateChanSize    int // Buffer size for node update channel
+	UsageChanSize         int // Buffer size for usage update channel
+	EventChanSize         int // Buffer size for event channel
 	ResyncPeriodSec       int
 	StateCacheTTLMin      int
-	EventCacheTTLMin      int // TTL in minutes for event deduplication (EventListener)
+	EventCacheTTLMin      int // TTL in minutes for event deduplication
 	MaxUnackedMessages    int
 	NodeConditionPrefix   string
 	ProgressDir           string
 	ProgressFrequencySec  int
-	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
+	UsageFlushIntervalSec int // Interval for flushing resource usage updates (NodeUsageListener)
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -56,13 +56,13 @@ func ListenerParse() ListenerArgs {
 		"Kubernetes namespace to watch")
 	podUpdateChanSize := flag.Int("podUpdateChanSize",
 		getEnvInt("POD_UPDATE_CHAN_SIZE", 500),
-		"Buffer size for pod update channel (WorkflowListener)")
+		"Buffer size for pod update channel")
 	nodeUpdateChanSize := flag.Int("nodeUpdateChanSize",
 		getEnvInt("NODE_UPDATE_CHAN_SIZE", 500),
-		"Buffer size for node update channel (ResourceListener)")
+		"Buffer size for node update channel")
 	usageChanSize := flag.Int("usageChanSize",
 		getEnvInt("USAGE_CHAN_SIZE", 500),
-		"Buffer size for usage update channel (ResourceListener)")
+		"Buffer size for usage update channel")
 	eventChanSize := flag.Int("eventChanSize",
 		getEnvInt("EVENT_CHAN_SIZE", 500),
 		"Buffer size for event channel (EventListener)")
@@ -89,7 +89,7 @@ func ListenerParse() ListenerArgs {
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
 		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
-		"Interval for flushing resource usage updates (ResourceListener)")
+		"Interval for flushing resource usage updates (NodeUsageListener)")
 
 	flag.Parse()
 

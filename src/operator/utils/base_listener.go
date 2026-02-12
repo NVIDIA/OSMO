@@ -31,18 +31,35 @@ import (
 	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
-// MessageReceiver is the interface for receiving ACK messages from a stream
-type MessageReceiver interface {
-	Recv() (*pb.AckMessage, error)
-}
+// WatchFunc writes listener messages to a channel.
+type WatchFunc func(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	ch chan<- *pb.ListenerMessage,
+)
 
-// MessageSenderFunc is a function type for sending messages
-type MessageSenderFunc func(ctx context.Context, cancel context.CancelCauseFunc)
+// SendMessagesFunc reads from the channel and sends messages to the stream.
+type SendMessagesFunc func(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	ch <-chan *pb.ListenerMessage,
+)
+
+// StreamName identifies the listener stream type.
+type StreamName string
+
+const (
+	StreamNameWorkflow StreamName = "workflow"
+	StreamNameResource StreamName = "resource"
+	StreamNameNode     StreamName = "node"
+	StreamNameEvent    StreamName = "event"
+)
 
 // BaseListener contains common functionality for all listeners
 type BaseListener struct {
 	unackedMessages *UnackMessages
 	progressWriter  *progress_check.ProgressWriter
+	streamName      StreamName
 
 	// Connection state
 	conn   *grpc.ClientConn
@@ -60,7 +77,8 @@ type BaseListener struct {
 }
 
 // NewBaseListener creates a new base listener instance
-func NewBaseListener(args ListenerArgs, progressFileName string) *BaseListener {
+func NewBaseListener(
+	args ListenerArgs, progressFileName string, streamName StreamName) *BaseListener {
 	// Initialize progress writer
 	progressFile := filepath.Join(args.ProgressDir, progressFileName)
 	progressWriter, err := progress_check.NewProgressWriter(progressFile)
@@ -75,11 +93,12 @@ func NewBaseListener(args ListenerArgs, progressFileName string) *BaseListener {
 		args:            args,
 		unackedMessages: NewUnackMessages(args.MaxUnackedMessages),
 		progressWriter:  progressWriter,
+		streamName:      streamName,
 	}
 }
 
-// InitConnection establishes a gRPC connection to the service
-func (bl *BaseListener) InitConnection(ctx context.Context, serviceURL string) error {
+// initConnection establishes a gRPC connection to the service
+func (bl *BaseListener) initConnection(serviceURL string) error {
 	// Parse serviceURL to extract host:port for gRPC
 	serviceAddr, err := ParseServiceURL(serviceURL)
 	if err != nil {
@@ -101,22 +120,25 @@ func (bl *BaseListener) InitConnection(ctx context.Context, serviceURL string) e
 	return nil
 }
 
-// ReceiveAcks handles receiving ACK messages from the server
-func (bl *BaseListener) ReceiveAcks(ctx context.Context, cancel context.CancelCauseFunc, stream MessageReceiver, streamName string) {
+// receiveAcks handles receiving ACK messages from the server
+func (bl *BaseListener) receiveAcks(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+) {
 	// Rate limit progress reporting
 	lastProgressReport := time.Now()
 	progressInterval := time.Duration(bl.args.ProgressFrequencySec) * time.Second
 
 	for {
-		msg, err := stream.Recv()
+		msg, err := bl.stream.Recv()
 		if err != nil {
 			// Check if context was cancelled
 			if ctx.Err() != nil {
-				log.Printf("Stopping %s message receiver (context cancelled)...", streamName)
+				log.Printf("Stopping %s message receiver (context cancelled)...", bl.streamName)
 				return
 			}
 			if err == io.EOF {
-				log.Printf("Server closed the %s stream", streamName)
+				log.Printf("Server closed the %s stream", bl.streamName)
 				cancel(io.EOF)
 				return
 			}
@@ -126,7 +148,7 @@ func (bl *BaseListener) ReceiveAcks(ctx context.Context, cancel context.CancelCa
 
 		// Handle ACK messages by removing from unacked queue
 		bl.unackedMessages.RemoveMessage(msg.AckUuid)
-		log.Printf("Received ACK for %s message: uuid=%s", streamName, msg.AckUuid)
+		log.Printf("Received ACK for %s message: uuid=%s", bl.streamName, msg.AckUuid)
 
 		// Report progress after receiving ACK (rate-limited)
 		now := time.Now()
@@ -139,8 +161,8 @@ func (bl *BaseListener) ReceiveAcks(ctx context.Context, cancel context.CancelCa
 	}
 }
 
-// WaitForCompletion waits for goroutines to finish
-func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context.Context) error {
+// waitForCompletion waits for goroutines to finish
+func (bl *BaseListener) waitForCompletion(ctx context.Context, streamCtx context.Context) error {
 	// Wait for context cancellation (from parent or goroutines)
 	<-streamCtx.Done()
 
@@ -171,9 +193,9 @@ func (bl *BaseListener) WaitForCompletion(ctx context.Context, streamCtx context
 	return finalErr
 }
 
-// Close cleans up all resources including stream and connection.
+// close cleans up all resources including stream and connection.
 // It is safe to call multiple times due to sync.Once protection.
-func (bl *BaseListener) Close() error {
+func (bl *BaseListener) close() error {
 	var streamErr, connErr error
 
 	// Close stream (idempotent via sync.Once)
@@ -216,32 +238,19 @@ func (bl *BaseListener) GetProgressWriter() *progress_check.ProgressWriter {
 	return bl.progressWriter
 }
 
-// GetClient returns the gRPC client
-func (bl *BaseListener) GetClient() pb.ListenerServiceClient {
-	return bl.client
-}
-
-// AddToWaitGroup adds delta to the wait group
-func (bl *BaseListener) AddToWaitGroup(delta int) {
-	bl.wg.Add(delta)
-}
-
-// WaitGroupDone marks a wait group item as done
-func (bl *BaseListener) WaitGroupDone() {
-	bl.wg.Done()
-}
-
-// Run manages the bidirectional streaming lifecycle
+// Run manages the bidirectional streaming lifecycle with three goroutines:
+// receiveAcks, watch, and sendMessages.
 func (bl *BaseListener) Run(
 	ctx context.Context,
 	logMessage string,
-	sendMessages MessageSenderFunc,
-	streamName string,
+	msgChan chan *pb.ListenerMessage,
+	watch WatchFunc,
+	sendMessages SendMessagesFunc,
 ) error {
 	// Ensure cleanup on exit
-	defer bl.Close()
+	defer bl.close()
 	// Initialize the base connection
-	if err := bl.InitConnection(ctx, bl.args.ServiceURL); err != nil {
+	if err := bl.initConnection(bl.args.ServiceURL); err != nil {
 		return err
 	}
 
@@ -268,32 +277,44 @@ func (bl *BaseListener) Run(
 		return err
 	}
 
-	// Launch goroutines for send and receive
-	bl.AddToWaitGroup(2)
+	// Launch three goroutines: receiveAcks, watch, sendMessages
+	bl.wg.Add(3)
 	go func() {
-		defer bl.WaitGroupDone()
+		defer bl.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Panic in ReceiveAcks goroutine: %v", r)
+				log.Printf("Panic in receiveAcks goroutine: %v", r)
 				streamCancel(fmt.Errorf("panic in receiver: %v", r))
 			}
 		}()
-		bl.ReceiveAcks(streamCtx, streamCancel, bl.stream, streamName)
+		bl.receiveAcks(streamCtx, streamCancel)
 	}()
 
 	go func() {
-		defer bl.WaitGroupDone()
+		defer bl.wg.Done()
+		defer close(msgChan)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in watch goroutine: %v", r)
+				streamCancel(fmt.Errorf("panic in watcher: %v", r))
+			}
+		}()
+		watch(streamCtx, streamCancel, msgChan)
+	}()
+
+	go func() {
+		defer bl.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Panic in sendMessages goroutine: %v", r)
 				streamCancel(fmt.Errorf("panic in sender: %v", r))
 			}
 		}()
-		sendMessages(streamCtx, streamCancel)
+		sendMessages(streamCtx, streamCancel, msgChan)
 	}()
 
 	// Wait for completion
-	return bl.WaitForCompletion(ctx, streamCtx)
+	return bl.waitForCompletion(ctx, streamCtx)
 }
 
 // GetStream returns the gRPC stream
@@ -301,4 +322,16 @@ func (bl *BaseListener) GetStream() pb.ListenerService_ListenerStreamClient {
 	bl.mu.RLock()
 	defer bl.mu.RUnlock()
 	return bl.stream
+}
+
+// SendMessage sends a single listener message
+func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage) error {
+	if err := bl.GetUnackedMessages().AddMessage(ctx, msg); err != nil {
+		log.Printf("Failed to add message to unacked queue: %v", err)
+		return nil
+	}
+	if err := bl.GetStream().Send(msg); err != nil {
+		return err
+	}
+	return nil
 }

@@ -43,79 +43,61 @@ type WorkflowListener struct {
 // NewWorkflowListener creates a new workflow listener instance
 func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
 	return &WorkflowListener{
-		BaseListener: utils.NewBaseListener(args, "last_progress_workflow_listener"),
-		args:         args,
+		BaseListener: utils.NewBaseListener(
+			args, "last_progress_workflow_listener", utils.StreamNameWorkflow),
+		args: args,
 	}
 }
 
 // Run manages the bidirectional streaming lifecycle
 func (wl *WorkflowListener) Run(ctx context.Context) error {
+	ch := make(chan *pb.ListenerMessage, wl.args.PodUpdateChanSize)
 	return wl.BaseListener.Run(
 		ctx,
-		"Connected to operator service, stream established",
+		"Connected to the service, workflow listener stream established",
+		ch,
+		wl.watchPods,
 		wl.sendMessages,
-		"workflow",
 	)
 }
 
-// receiveMessages handles receiving ACK messages from the server
-// sendMessages consumes pod updates from a channel and sends them to the server
-func (wl *WorkflowListener) sendMessages(ctx context.Context, cancel context.CancelCauseFunc) {
-	// Capture done channel once for performance
-	done := ctx.Done()
+// sendMessages reads from the channel and sends messages to the server.
+func (wl *WorkflowListener) sendMessages(
+	ctx context.Context,
+	cancel context.CancelCauseFunc,
+	ch <-chan *pb.ListenerMessage,
+) {
+	log.Printf("Starting message sender for workflow channel")
+	defer log.Printf("Stopping workflow message sender")
 
-	// Create a channel to receive pod updates (with pre-calculated status) from the watcher
-	podUpdateChan := make(chan podWithStatus, wl.args.PodUpdateChanSize)
-
-	// Create a channel to signal if watchPod exits unexpectedly
-	watcherDone := make(chan struct{})
-
-	// Start pod watcher in a separate goroutine
-	wl.AddToWaitGroup(1)
-	go func() {
-		defer wl.WaitGroupDone()
-		defer close(watcherDone)
-		defer close(podUpdateChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watchPod goroutine: %v", r)
-				cancel(fmt.Errorf("panic in pod watcher: %v", r))
-			}
-		}()
-		watchPod(ctx, wl.args, podUpdateChan)
-	}()
-
-	// Ticker to report progress when idle
 	progressTicker := time.NewTicker(time.Duration(wl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
-	// Send pod updates to the server
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			log.Println("Stopping message sender, draining channel...")
-			wl.drainChannel(podUpdateChan)
-			return
-		case <-watcherDone:
-			// Check if this was due to context cancellation (expected) vs unexpected stop
-			if ctx.Err() != nil {
-				log.Println("Pod watcher stopped due to context cancellation")
-				return
-			}
-			log.Println("Pod watcher stopped unexpectedly, draining channel...")
-			wl.drainChannel(podUpdateChan)
-			cancel(fmt.Errorf("pod watcher stopped"))
+			wl.drainMessageChannel(ch)
 			return
 		case <-progressTicker.C:
-			// Report progress periodically even when idle
 			progressWriter := wl.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
 					log.Printf("Warning: failed to report progress: %v", err)
 				}
 			}
-		case update := <-podUpdateChan:
-			if err := wl.sendPodUpdate(ctx, update); err != nil {
+		case msg, ok := <-ch:
+			if !ok {
+				if ctx.Err() != nil {
+					log.Println("Pod watcher stopped due to context cancellation")
+					return
+				}
+				log.Println("Pod watcher stopped unexpectedly, draining channel...")
+				wl.drainMessageChannel(ch)
+				cancel(fmt.Errorf("pod watcher stopped"))
+				return
+			}
+			if err := wl.BaseListener.SendMessage(ctx, msg); err != nil {
 				cancel(fmt.Errorf("failed to send message: %w", err))
 				return
 			}
@@ -123,43 +105,14 @@ func (wl *WorkflowListener) sendMessages(ctx context.Context, cancel context.Can
 	}
 }
 
-// sendPodUpdate sends a single pod update message
-func (wl *WorkflowListener) sendPodUpdate(ctx context.Context, update podWithStatus) error {
-	// Use pre-calculated status result from the channel to avoid duplicate calculation
-	msg, err := createPodUpdateMessage(update.pod, update.statusResult, wl.args.Backend)
-	if err != nil {
-		log.Printf("Failed to create pod update message: %v", err)
-		return nil // Don't fail the stream for one message
-	}
-
-	unackedMessages := wl.GetUnackedMessages()
-
-	// Add message to unacked queue before sending
-	if err := unackedMessages.AddMessage(ctx, msg); err != nil {
-		log.Printf("Failed to add message to unacked queue: %v", err)
-		return nil // Don't fail the stream
-	}
-
-	if err := wl.GetStream().Send(msg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// drainChannel saves any remaining messages in the channel to unacked queue
+// drainMessageChannel reads remaining messages from ch and adds them to unacked queue.
 // This prevents message loss during connection breaks
-func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
+func (wl *WorkflowListener) drainMessageChannel(ch <-chan *pb.ListenerMessage) {
 	drained := 0
 	unackedMessages := wl.GetUnackedMessages()
 	for {
 		select {
-		case update := <-podUpdateChan:
-			msg, err := createPodUpdateMessage(update.pod, update.statusResult, wl.args.Backend)
-			if err != nil {
-				log.Printf("Failed to create message during drain: %v", err)
-				continue
-			}
+		case msg := <-ch:
 			unackedMessages.AddMessageForced(msg)
 			drained++
 		default:
@@ -171,78 +124,11 @@ func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
 	}
 }
 
-// podWithStatus bundles a pod with its calculated status to avoid duplicate computation
-type podWithStatus struct {
-	pod          *corev1.Pod
-	statusResult utils.TaskStatusResult
-}
-
-// podStateEntry represents a tracked pod state with timestamp
-type podStateEntry struct {
-	status    string
-	timestamp time.Time
-}
-
-// podStateTracker tracks the last sent state for each pod to avoid duplicate messages
-type podStateTracker struct {
-	mu     sync.RWMutex
-	states map[string]podStateEntry // key: workflow_uuid-task_uuid-retry_id
-	ttl    time.Duration            // time after which entries are considered stale
-}
-
-// getPodKey creates a composite key from pod labels
-func getPodKey(pod *corev1.Pod) string {
-	workflowUUID := pod.Labels["osmo.workflow_uuid"]
-	taskUUID := pod.Labels["osmo.task_uuid"]
-	retryID := pod.Labels["osmo.retry_id"]
-	return fmt.Sprintf("%s-%s-%s", workflowUUID, taskUUID, retryID)
-}
-
-// hasChanged checks if the pod's status has changed since last sent, or if the TTL has expired
-// Returns (changed bool, statusResult TaskStatusResult) to avoid duplicate status calculation
-func (pst *podStateTracker) hasChanged(pod *corev1.Pod) (bool, utils.TaskStatusResult) {
-	key := getPodKey(pod)
-
-	statusResult := utils.CalculateTaskStatus(pod)
-	if statusResult.Status == utils.StatusUnknown {
-		return false, utils.TaskStatusResult{}
-	}
-
-	now := time.Now()
-
-	pst.mu.Lock()
-	defer pst.mu.Unlock()
-
-	entry, exists := pst.states[key]
-
-	// Return false if status unchanged and TTL not expired
-	if exists && entry.status == statusResult.Status && now.Sub(entry.timestamp) <= pst.ttl {
-		return false, utils.TaskStatusResult{}
-	}
-
-	// Send if: new pod, status changed, or TTL expired
-	pst.states[key] = podStateEntry{
-		status:    statusResult.Status,
-		timestamp: now,
-	}
-	return true, statusResult
-}
-
-// remove removes a pod from the state tracker
-func (pst *podStateTracker) remove(pod *corev1.Pod) {
-	key := getPodKey(pod)
-	pst.mu.Lock()
-	defer pst.mu.Unlock()
-	delete(pst.states, key)
-}
-
-// watchPod watches for pod changes and sends them to a channel using
-// the Kubernetes informer pattern with native caching support.
-// It filters for OSMO-managed pods and sends updates through the channel.
-func watchPod(
+// watchPods watches for pod changes and writes ListenerMessages to ch.
+func (wl *WorkflowListener) watchPods(
 	ctx context.Context,
-	args utils.ListenerArgs,
-	podUpdateChan chan<- podWithStatus,
+	cancel context.CancelCauseFunc,
+	ch chan<- *pb.ListenerMessage,
 ) {
 	// Create Kubernetes client
 	clientset, err := utils.CreateKubernetesClient()
@@ -251,23 +137,17 @@ func watchPod(
 		return
 	}
 
-	log.Printf("Starting pod watcher for namespace: %s", args.Namespace)
+	log.Printf("Starting pod watcher for namespace: %s", wl.args.Namespace)
 
 	// State tracker to avoid sending duplicate updates
-	// TTL matches Python backend_listener behavior for consistency
-	stateTracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
-		ttl:    time.Duration(args.StateCacheTTLMin) * time.Minute,
-	}
+	stateTracker := newPodStateTracker(time.Duration(wl.args.StateCacheTTLMin) * time.Minute)
 
 	// Create informer factory for the specific namespace
-	// Filter for OSMO-managed pods at the API server level
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(
 		clientset,
-		time.Duration(args.ResyncPeriodSec)*time.Second,
-		informers.WithNamespace(args.Namespace),
+		time.Duration(wl.args.ResyncPeriodSec)*time.Second,
+		informers.WithNamespace(wl.args.Namespace),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
-			// Only watch pods with both OSMO labels
 			opts.LabelSelector = "osmo.task_uuid,osmo.workflow_uuid"
 		}),
 	)
@@ -282,10 +162,11 @@ func watchPod(
 			return
 		}
 
-		// hasChanged calculates status once and returns it to avoid duplicate calculation
-		if changed, statusResult := stateTracker.hasChanged(pod); changed {
+		// shouldProcess calculates status once and returns it to avoid duplicate calculation
+		if changed, statusResult := stateTracker.shouldProcess(pod); changed {
+			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
 			select {
-			case podUpdateChan <- podWithStatus{pod: pod, statusResult: statusResult}:
+			case ch <- msg:
 			case <-ctx.Done():
 				return
 			}
@@ -322,11 +203,10 @@ func watchPod(
 				return
 			}
 
-			// Check if status has changed before sending (same as UpdateFunc)
-			// This prevents duplicate messages when pods are deleted shortly after reaching final state
-			if changed, statusResult := stateTracker.hasChanged(pod); changed {
+			if changed, statusResult := stateTracker.shouldProcess(pod); changed {
+				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
 				select {
-				case podUpdateChan <- podWithStatus{pod: pod, statusResult: statusResult}:
+				case ch <- msg:
 				case <-ctx.Done():
 					return
 				}
@@ -339,6 +219,12 @@ func watchPod(
 		log.Printf("Failed to add event handler: %v", err)
 		return
 	}
+
+	// Set watch error handler
+	// No act because OSMO pod has finializers
+	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
+		log.Printf("Pod watch error: %v", err)
+	})
 
 	// Start the informer
 	informerFactory.Start(ctx.Done())
@@ -365,12 +251,86 @@ func parseRetryID(retryIDStr string) int32 {
 	return retryID
 }
 
+// podStateKey identifies a pod for state tracking (workflow_uuid, task_uuid, retry_id).
+type podStateKey struct {
+	workflowUUID string
+	taskUUID     string
+	retryID      string
+}
+
+// podStateEntry represents a tracked pod state with timestamp
+type podStateEntry struct {
+	status    string
+	timestamp time.Time
+}
+
+// podStateTracker tracks the last sent state for each pod to avoid duplicate messages
+type podStateTracker struct {
+	mu     sync.RWMutex
+	states map[podStateKey]podStateEntry
+	ttl    time.Duration // time after which entries are considered stale
+}
+
+// newPodStateTracker creates a pod state tracker with the given TTL.
+func newPodStateTracker(ttl time.Duration) *podStateTracker {
+	return &podStateTracker{
+		states: make(map[podStateKey]podStateEntry),
+		ttl:    ttl,
+	}
+}
+
+// shouldProcess reports whether the pod should be processed (status changed or TTL expired)
+// and returns the computed status to avoid duplicate calculation.
+func (pst *podStateTracker) shouldProcess(pod *corev1.Pod) (bool, utils.TaskStatusResult) {
+	key := podStateKey{
+		workflowUUID: pod.Labels["osmo.workflow_uuid"],
+		taskUUID:     pod.Labels["osmo.task_uuid"],
+		retryID:      pod.Labels["osmo.retry_id"],
+	}
+
+	statusResult := utils.CalculateTaskStatus(pod)
+	if statusResult.Status == utils.StatusUnknown {
+		return false, utils.TaskStatusResult{}
+	}
+
+	now := time.Now()
+
+	pst.mu.Lock()
+	defer pst.mu.Unlock()
+
+	entry, exists := pst.states[key]
+
+	// Return false if status unchanged and TTL not expired
+	if exists && entry.status == statusResult.Status && now.Sub(entry.timestamp) <= pst.ttl {
+		return false, utils.TaskStatusResult{}
+	}
+
+	// Send if: new pod, status changed, or TTL expired
+	pst.states[key] = podStateEntry{
+		status:    statusResult.Status,
+		timestamp: now,
+	}
+	return true, statusResult
+}
+
+// remove removes a pod from the state tracker
+func (pst *podStateTracker) remove(pod *corev1.Pod) {
+	key := podStateKey{
+		workflowUUID: pod.Labels["osmo.workflow_uuid"],
+		taskUUID:     pod.Labels["osmo.task_uuid"],
+		retryID:      pod.Labels["osmo.retry_id"],
+	}
+	pst.mu.Lock()
+	defer pst.mu.Unlock()
+	delete(pst.states, key)
+}
+
 // createPodUpdateMessage creates a ListenerMessage from a pod object
 func createPodUpdateMessage(
 	pod *corev1.Pod,
 	statusResult utils.TaskStatusResult,
 	backend string,
-) (*pb.ListenerMessage, error) {
+) *pb.ListenerMessage {
 	// Build pod update structure using proto-generated type
 	podUpdate := &pb.UpdatePodBody{
 		WorkflowUuid: pod.Labels["osmo.workflow_uuid"],
@@ -412,5 +372,5 @@ func createPodUpdateMessage(
 		pod.Name, podUpdate.Status,
 	)
 
-	return msg, nil
+	return msg
 }
