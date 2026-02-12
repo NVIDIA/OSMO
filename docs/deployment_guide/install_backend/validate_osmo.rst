@@ -27,7 +27,7 @@ Run sample workflows to validate the backend and pool configuration.
     :gutter: 3
 
     .. grid-item-card:: :octicon:`workflow` Simple Workflow
-        :link: https://github.com/NVIDIA/OSMO/blob/main/cookbook/s/hello_world.yaml
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/tutorials/hello_world.yaml
         :link-type: url
 
         **Validates:** Basic workflow execution, logging, data access and scheduling
@@ -35,7 +35,7 @@ Run sample workflows to validate the backend and pool configuration.
         Submit the ``Hello World`` workflow to verify core functionality.
 
     .. grid-item-card:: :octicon:`workflow` Parallel Workflow
-        :link: https://github.com/NVIDIA/OSMO/blob/main/cookbook/s/parallel_tasks.yaml
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/tutorials/parallel_tasks.yaml
         :link-type: url
 
         **Validates:** Co-scheduling and parallel task execution
