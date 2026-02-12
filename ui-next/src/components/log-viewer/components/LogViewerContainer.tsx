@@ -61,6 +61,8 @@ export interface LogViewerContainerProps {
   className?: string;
   viewerClassName?: string;
   showBorder?: boolean;
+  /** Whether to show the timeline histogram and time range controls (default: true) */
+  showTimeline?: boolean;
 }
 
 /**
@@ -85,6 +87,7 @@ function LogViewerContainerImpl({
   className,
   viewerClassName,
   showBorder = true,
+  showTimeline = true,
 }: LogViewerContainerProps) {
   // Fetch workflow metadata on client if not provided via SSR
   const selectWorkflow = useCallback((rawData: unknown) => {
@@ -357,6 +360,7 @@ function LogViewerContainerImpl({
         filter={filterProps}
         timeline={timelineProps}
         className={viewerClassName}
+        showTimeline={showTimeline}
       />
     </div>
   );

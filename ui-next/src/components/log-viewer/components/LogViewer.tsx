@@ -339,6 +339,8 @@ export interface LogViewerProps {
   timeline: LogViewerTimelineProps;
   /** Additional CSS classes */
   className?: string;
+  /** Whether to show the timeline histogram and time range controls (default: true) */
+  showTimeline?: boolean;
 }
 
 // =============================================================================
@@ -372,7 +374,7 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 // Main Component
 // =============================================================================
 
-function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
+function LogViewerInner({ data, filter, timeline, className, showTimeline = true }: LogViewerProps) {
   // Destructure data props
   const {
     rawEntries,
@@ -610,73 +612,75 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
         />
       </div>
 
-      {/* Section 2: Timeline Histogram - Always visible as a control element */}
-      <div className="shrink-0 border-b px-3 py-2">
-        <TimelineContainer
-          ref={timelineRef}
-          buckets={histogram?.buckets ?? []}
-          pendingBuckets={pendingHistogram?.buckets}
-          onBucketClick={handleBucketClick}
-          height={DEFAULT_HEIGHT}
-          // Time range header with controls
-          showTimeRangeHeader
-          filterStartTime={filterStartTime}
-          filterEndTime={filterEndTime}
-          displayStart={displayStart}
-          displayEnd={displayEnd}
-          onFilterStartTimeChange={handleStartTimeChangeWithClear}
-          onFilterEndTimeChange={handleEndTimeChangeWithClear}
-          onDisplayRangeChange={onDisplayRangeChange}
-          // Presets
-          showPresets
-          activePreset={activePreset}
-          onPresetSelect={handlePresetSelect}
-          // Collapsed state
-          defaultCollapsed={timelineCollapsed}
-          // Enable interactive draggers
-          enableInteractiveDraggers
-          // Entity boundaries for pan limits
-          entityStartTime={entityStartTime}
-          entityEndTime={entityEndTime}
-          // Synchronized "NOW" timestamp
-          now={now}
-          // Zoom controls overlay
-          customControls={
-            <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleZoomIn}
-                    className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
-                  >
-                    <ZoomIn className="size-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <span className="text-xs">Zoom in (Cmd+Wheel up)</span>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleZoomOut}
-                    className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
-                  >
-                    <ZoomOut className="size-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <span className="text-xs">Zoom out (Cmd+Wheel down)</span>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          }
-        />
-      </div>
+      {/* Section 2: Timeline Histogram - Conditionally visible */}
+      {showTimeline && (
+        <div className="shrink-0 border-b px-3 py-2">
+          <TimelineContainer
+            ref={timelineRef}
+            buckets={histogram?.buckets ?? []}
+            pendingBuckets={pendingHistogram?.buckets}
+            onBucketClick={handleBucketClick}
+            height={DEFAULT_HEIGHT}
+            // Time range header with controls
+            showTimeRangeHeader
+            filterStartTime={filterStartTime}
+            filterEndTime={filterEndTime}
+            displayStart={displayStart}
+            displayEnd={displayEnd}
+            onFilterStartTimeChange={handleStartTimeChangeWithClear}
+            onFilterEndTimeChange={handleEndTimeChangeWithClear}
+            onDisplayRangeChange={onDisplayRangeChange}
+            // Presets
+            showPresets
+            activePreset={activePreset}
+            onPresetSelect={handlePresetSelect}
+            // Collapsed state
+            defaultCollapsed={timelineCollapsed}
+            // Enable interactive draggers
+            enableInteractiveDraggers
+            // Entity boundaries for pan limits
+            entityStartTime={entityStartTime}
+            entityEndTime={entityEndTime}
+            // Synchronized "NOW" timestamp
+            now={now}
+            // Zoom controls overlay
+            customControls={
+              <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleZoomIn}
+                      className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
+                    >
+                      <ZoomIn className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <span className="text-xs">Zoom in (Cmd+Wheel up)</span>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleZoomOut}
+                      className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
+                    >
+                      <ZoomOut className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <span className="text-xs">Zoom out (Cmd+Wheel down)</span>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            }
+          />
+        </div>
+      )}
 
       {/* Section 3: LogList (full width) */}
       <div className="min-h-0 flex-1 overflow-hidden">

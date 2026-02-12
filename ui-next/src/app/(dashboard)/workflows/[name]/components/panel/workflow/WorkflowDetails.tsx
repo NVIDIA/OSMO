@@ -53,6 +53,7 @@ import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/v
 import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 import { WorkflowTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTasksTab";
+import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 
 // Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)
 // Saves ~92 KB from initial bundle (CodeMirror + YAML parser + Lezer)
@@ -407,16 +408,27 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         <TabPanel
           tab="logs"
           activeTab={activeTab}
-          centered
-          className="p-4"
+          scrollable={false}
+          className="p-0"
         >
-          <EmptyTabPrompt
-            icon={TextSearch}
-            title="Workflow Logs"
-            description="View stdout/stderr output from the workflow execution"
-            url={workflow.logs}
-            emptyText="No logs available"
-          />
+          {activeTab === "logs" && (
+            <div className="absolute inset-0">
+              <LogViewerContainer
+                workflowId={workflow.name}
+                workflowMetadata={{
+                  name: workflow.name,
+                  status: workflow.status,
+                  submitTime: workflow.submit_time ? new Date(workflow.submit_time) : undefined,
+                  startTime: workflow.start_time ? new Date(workflow.start_time) : undefined,
+                  endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
+                }}
+                scope="workflow"
+                showBorder={false}
+                showTimeline={false}
+                className="h-full"
+              />
+            </div>
+          )}
         </TabPanel>
 
         <TabPanel
