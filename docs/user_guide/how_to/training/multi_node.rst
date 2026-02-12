@@ -24,8 +24,8 @@ Multi-Node Distributed Training
 
 You will learn how to train a model on multiple nodes in OSMO.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_multinode>`__.
-More examples with other distributed training frameworks can be found `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training>`__.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/dnn_training/torchrun_multinode>`__.
+More examples with other distributed training frameworks can be found `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/dnn_training>`__.
 
 .. important::
 

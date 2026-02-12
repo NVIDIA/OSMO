@@ -27,7 +27,7 @@ using `Isaac Lab <https://developer.nvidia.com/isaac/lab>`_, NVIDIA's framework 
 You will learn the basics of launching a training script, monitoring training progress using TensorBoard,
 and reviewing the checkpoints and videos of the trained policy.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/reinforcement_learning>`_.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/reinforcement_learning>`_.
 
 Prerequisites
 -------------

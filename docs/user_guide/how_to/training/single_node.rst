@@ -26,7 +26,7 @@ This tutorial walks you through running a neural network training job on a singl
 You will learn the basics of launching your training script, selecting resources, managing data
 and monitoring training progress using TensorBoard or Weights & Biases.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/single_node>`_.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/dnn_training/single_node>`_.
 
 Launching a Training Script in a Workflow
 -----------------------------------------

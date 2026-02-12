@@ -44,7 +44,7 @@ Fetch the workflow spec:
 
 .. note::
 
-    The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_notebook>`_.
+    The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/groot/groot_notebook>`_.
 
 Add any platform value if necessary to target a specific type of hardware.
 To read more about platforms, please refer to the :ref:`Platforms <concepts_platforms>`.
