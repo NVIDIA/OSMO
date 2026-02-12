@@ -13,6 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
+import { TRPCError } from "@trpc/server";
 import { type CookieSerializeOptions } from "cookie";
 
 import { getLoginInfo } from "~/app/auth/login_info";
@@ -83,11 +84,13 @@ export const OsmoApiFetch = async (
     response.status === 307 ||
     response.status === 308
   ) {
-    if (typeof window !== "undefined") {
-      const location = response.headers.get("location");
-      window.location.assign(location ?? "/auth/login");
-    }
-    return new Response(null, { status: 401 });
+    // Redirect: backend sent us to a different domain (e.g. login). We use redirect: "manual"
+    // so we see the redirect instead of following it (CORS would block the follow). Throw
+    // UNAUTHORIZED with redirectTo so the client tRPC link can redirect to that URL.
+    const redirectTo = response.headers.get("location") ?? "/auth/login";
+    const err = new TRPCError({ code: "UNAUTHORIZED", message: "Redirect to login" });
+    (err as TRPCError & { redirectTo?: string }).redirectTo = redirectTo;
+    throw err;
   }
   return response;
 };

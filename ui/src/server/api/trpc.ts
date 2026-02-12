@@ -21,7 +21,7 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in.
  * The pieces you will need to use are documented accordingly near the end.
  */
-import { initTRPC } from "@trpc/server";
+import { initTRPC, type TRPCError } from "@trpc/server";
 import { type CookieSerializeOptions, parse, serialize } from "cookie";
 import { type NextRequest } from "next/server";
 import superjson from "superjson";
@@ -102,11 +102,16 @@ export const createTRPCContext = (opts: { req: NextRequest; resHeaders: Headers 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    const redirectTo =
+      typeof (error as TRPCError & { redirectTo?: string }).redirectTo === "string"
+        ? (error as TRPCError & { redirectTo: string }).redirectTo
+        : undefined;
     return {
       ...shape,
       data: {
         ...shape.data,
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+        ...(redirectTo !== undefined && { redirectTo }),
       },
     };
   },
