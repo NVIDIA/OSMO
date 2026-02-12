@@ -97,7 +97,7 @@ Uploading Data
 
 Upload data directly to cloud storage (S3, GCS, Azure) using URLs:
 
-.. literalinclude:: ../../../../workflows/tutorials/data_upload.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/data_upload.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -110,7 +110,7 @@ Downloading Data
 
 Download data directly from cloud storage using URLs:
 
-.. literalinclude:: ../../../../workflows/tutorials/data_download.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/data_download.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -159,7 +159,7 @@ Uploading a Dataset
 To upload a dataset from a workflow task, write files to the ``{{output}}`` directory and
 specify a :kbd:`dataset` in the outputs:
 
-.. literalinclude:: ../../../../workflows/tutorials/dataset_upload.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/dataset_upload.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -183,7 +183,7 @@ Downloading a Dataset
 To download a dataset in a workflow, add it to the task's inputs. To reference the dataset, use the
 :ref:`workflow_spec_special_tokens` ``{{input:#}}`` where # is the zero-based index of the input.
 
-.. literalinclude:: ../../../../workflows/tutorials/dataset_download.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/dataset_download.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -197,7 +197,7 @@ Combining URLs and Datasets
 
 You can mix URLs and datasets in the same workflow:
 
-.. literalinclude:: ../../../../workflows/tutorials/data_and_dataset_combined.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/data_and_dataset_combined.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -213,7 +213,7 @@ Filtering Data
 
 Filter which files to download or upload using regex patterns:
 
-.. literalinclude:: ../../../../workflows/tutorials/data_filter.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/data_filter.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
