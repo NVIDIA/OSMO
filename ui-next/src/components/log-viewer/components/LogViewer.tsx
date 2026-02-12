@@ -20,7 +20,7 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatHotkey } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
 import { formatLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import { LOG_LEVEL_STYLES } from "@/lib/api/log-adapter/constants";
@@ -621,7 +621,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
           chips={filterChips}
           onChipsChange={handleFilterChipsChange}
           presets={LOG_FILTER_PRESETS}
-          placeholder="Search logs or use level:, task:, source:, retry:..."
+          placeholder={`Search logs (${formatHotkey("mod+f")})...`}
         />
       </div>
 
