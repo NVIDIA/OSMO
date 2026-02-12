@@ -70,59 +70,18 @@ function FooterInner({
 }: FooterProps) {
   return (
     <div className={cn("border-input shrink-0 border-t px-3 py-2", className)}>
-      <div className="flex items-center justify-between text-xs">
-        {/* Left: Action buttons */}
+      <div className="flex items-center justify-end text-xs">
+        {/* Right-aligned controls in order: scroll, task, wrap, download, new tab */}
         <div className="flex items-center gap-2">
-          {/* External link - opens raw logs in new tab */}
-          {externalLogUrl && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <a
-                  href={externalLogUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:bg-accent rounded p-1"
-                >
-                  <ExternalLink className="size-4" />
-                  <span className="sr-only">Open raw logs in new tab</span>
-                </a>
-              </TooltipTrigger>
-              <TooltipContent side="top">Open raw logs in new tab</TooltipContent>
-            </Tooltip>
+          {/* Scroll/Pin controls */}
+          {onScrollToBottom && onTogglePinnedToBottom && (
+            <ScrollPinControl
+              isStreaming={isStreaming}
+              isPinned={isPinnedToBottom}
+              onScrollToBottom={onScrollToBottom}
+              onTogglePin={onTogglePinnedToBottom}
+            />
           )}
-
-          {/* Download button */}
-          {onDownload && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onDownload}
-                  className="hover:bg-accent rounded p-1"
-                >
-                  <Download className="size-4" />
-                  <span className="sr-only">Download logs</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Download logs</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Wrap lines toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onToggleWrapLines}
-                className={cn(
-                  "rounded p-1 transition-colors",
-                  wrapLines ? "bg-foreground text-background" : "hover:bg-accent",
-                )}
-              >
-                <WrapText className="size-4" />
-                <span className="sr-only">{wrapLines ? "Disable" : "Enable"} line wrap</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
-          </Tooltip>
 
           {/* Show task toggle */}
           <Tooltip>
@@ -141,14 +100,55 @@ function FooterInner({
             <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
           </Tooltip>
 
-          {/* Scroll/Pin controls */}
-          {onScrollToBottom && onTogglePinnedToBottom && (
-            <ScrollPinControl
-              isStreaming={isStreaming}
-              isPinned={isPinnedToBottom}
-              onScrollToBottom={onScrollToBottom}
-              onTogglePin={onTogglePinnedToBottom}
-            />
+          {/* Wrap lines toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleWrapLines}
+                className={cn(
+                  "rounded p-1 transition-colors",
+                  wrapLines ? "bg-foreground text-background" : "hover:bg-accent",
+                )}
+              >
+                <WrapText className="size-4" />
+                <span className="sr-only">{wrapLines ? "Disable" : "Enable"} line wrap</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
+          </Tooltip>
+
+          {/* Download button */}
+          {onDownload && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onDownload}
+                  className="hover:bg-accent rounded p-1"
+                >
+                  <Download className="size-4" />
+                  <span className="sr-only">Download logs</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Download logs</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* External link - opens raw logs in new tab */}
+          {externalLogUrl && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href={externalLogUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:bg-accent rounded p-1"
+                >
+                  <ExternalLink className="size-4" />
+                  <span className="sr-only">Open raw logs in new tab</span>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="top">Open raw logs in new tab</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
