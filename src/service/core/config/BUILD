@@ -31,7 +31,6 @@ osmo_py_library(
     deps = [
         requirement("fastapi"),
         requirement("pydantic"),
-        "//src/lib/utils:cache",
         "//src/lib/utils:common",
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:config_history",

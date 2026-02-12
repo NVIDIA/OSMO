@@ -209,7 +209,7 @@ spec:
           volumes:
             - name: test-config
               configMap:
-                name: "{{backend_name}}-{{test_name}}-config"
+                name: "{{configmap_name}}"
                 defaultMode: 0644
                 optional: false
 

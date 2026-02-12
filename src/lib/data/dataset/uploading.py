@@ -31,7 +31,7 @@ from . import common
 from .. import storage
 from ..storage import common as storage_common, uploading
 from ..storage.core import client, executor, progress, provider
-from ...utils import cache, common as utils_common, osmo_errors
+from ...utils import common as utils_common, osmo_errors
 
 
 ##########################
@@ -361,7 +361,6 @@ def upload(
     enable_progress_tracker: bool = False,
     executor_params: executor.ExecutorParameters | None = None,
     request_headers: List[storage.RequestHeaders] | None = None,
-    cache_config: cache.CacheConfig | None = None,
 ) -> UploadOperationResult:
     """
     Uploads a dataset to a destination storage backend.
@@ -372,7 +371,6 @@ def upload(
     storage_path = upload_start_result.upload_response['storage_path']
     destination = storage.construct_storage_backend(
         storage_path,
-        cache_config=cache_config,
     )
 
     # Resolve the region for the destination storage backend.

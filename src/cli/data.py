@@ -28,8 +28,7 @@ import shtab
 
 from src.lib.data import storage
 from src.lib.data.storage import constants
-from src.lib.utils import client, client_configs, credentials, osmo_errors, validation
-
+from src.lib.utils import client, credentials, osmo_errors, validation
 
 HELP_TEXT = """
 This CLI is used for storing, retrieving, querying a set of data to and from storage backends.
@@ -53,7 +52,6 @@ def _run_upload_command(service_client: client.ServiceClient, args: argparse.Nam
             num_threads=args.threads,
         ),
         logging_level=args.log_level.value,
-        cache_config=client_configs.get_cache_config(),
     )
     storage_client.upload_objects(
         args.local_path,
@@ -77,7 +75,6 @@ def _run_download_command(service_client: client.ServiceClient, args: argparse.N
             num_threads=args.threads,
         ),
         logging_level=args.log_level.value,
-        cache_config=client_configs.get_cache_config(),
     )
     storage_client.download_objects(
         args.local_path,
@@ -97,7 +94,6 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
         storage_uri=args.remote_uri,
         enable_progress_tracker=True,
         logging_level=args.log_level.value,
-        cache_config=client_configs.get_cache_config(),
     )
 
     list_result_gen = storage_client.list_objects(
@@ -175,7 +171,6 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
         storage_uri=args.remote_uri,
         enable_progress_tracker=True,
         logging_level=args.log_level.value,
-        cache_config=client_configs.get_cache_config(),
     )
     storage_client.delete_objects(
         regex=args.regex
@@ -194,7 +189,6 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
     storage_backend = storage.construct_storage_backend(
         uri=args.remote_uri,
         profile=is_storage_profile,
-        cache_config=client_configs.get_cache_config(),
     )
 
     data_cred = credentials.get_static_data_credential_from_config(

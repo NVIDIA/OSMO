@@ -38,11 +38,15 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbi
     """
     endpoint: str = pydantic.Field(
         ...,
-        description='The endpoint URL for the data service',
+        description='The OSMO storage URI for the data service (e.g., s3://bucket)',
     )
     region: str | None = pydantic.Field(
         default=None,
         description='The region for the data service',
+    )
+    override_url: str | None = pydantic.Field(
+        default=None,
+        description='HTTP endpoint URL override the storage URI (e.g., http://minio:9000)',
     )
 
     @pydantic.validator('endpoint')
@@ -80,6 +84,9 @@ class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.for
         if self.region:
             output['region'] = self.region
 
+        if self.override_url:
+            output['override_url'] = self.override_url
+
         return output
 
 
@@ -97,7 +104,7 @@ class DefaultDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
     def to_decrypted_dict(self) -> dict[str, str]:
         """Return credential dict for SDK-based authentication.
 
-        For DefaultDataCredential, only endpoint and region are provided.
+        For DefaultDataCredential, only endpoint, region, and override_url are provided.
         The actual credential resolution occurs at runtime via the SDK's
         default credential chain (workload identity, managed identity, etc.).
         """
@@ -107,6 +114,9 @@ class DefaultDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
 
         if self.region:
             output['region'] = self.region
+
+        if self.override_url:
+            output['override_url'] = self.override_url
 
         return output
 
@@ -147,7 +157,8 @@ def get_static_data_credential_from_config(
                 access_key_id=data_cred_dict['access_key_id'],
                 access_key=pydantic.SecretStr(data_cred_dict['access_key']),
                 endpoint=url,
-                region=data_cred_dict['region'],
+                region=data_cred_dict.get('region'),
+                override_url=data_cred_dict.get('override_url'),
             )
 
             return data_cred

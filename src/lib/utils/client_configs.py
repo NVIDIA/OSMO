@@ -17,11 +17,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import os
-from typing import Optional
 
-import yaml
-
-from . import cache, common
+from . import common
 
 
 def get_client_config_dir(create: bool = True) -> str:
@@ -45,18 +42,6 @@ def get_client_config_dir(create: bool = True) -> str:
         os.makedirs(config_dir, exist_ok=True)
 
     return config_dir
-
-
-def get_cache_config() -> Optional[cache.CacheConfig]:
-    osmo_directory = get_client_config_dir(create=False)
-    password_file = osmo_directory + '/config.yaml'
-
-    if os.path.isfile(password_file):
-        with open(password_file, 'r', encoding='utf-8') as file:
-            configs = yaml.safe_load(file.read())
-            if 'cache' in configs:
-                return cache.CacheConfig(**configs['cache'])
-    return None
 
 
 def get_client_state_dir() -> str:

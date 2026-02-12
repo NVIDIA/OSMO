@@ -23,7 +23,6 @@ osmo_py_library(
     name = "backends",
     srcs = glob(["*.py"]),
     deps = [
-        "//src/lib/utils:cache",
         "//src/lib/utils:common",
         "//src/lib/utils:osmo_errors",
         "//src/lib/data/storage/constants",
