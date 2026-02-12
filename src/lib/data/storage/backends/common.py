@@ -113,7 +113,6 @@ class StorageBackend(
     container: str
     path: str
 
-    override_endpoint: str | None = None
     supports_environment_auth: bool = False
 
     @classmethod
@@ -123,7 +122,6 @@ class StorageBackend(
         uri: str,
         url_details: parse.ParseResult,
         is_profile: bool = False,
-        override_endpoint: str | None = None,
     ) -> 'StorageBackend':
         """
         Constructs a StorageBackend from a URI.
@@ -140,7 +138,6 @@ class StorageBackend(
             and self.profile == other.profile
             and self.netloc == other.netloc
             and self.container == other.container
-            and self.endpoint == other.endpoint
         ):
             return False
 
@@ -162,14 +159,11 @@ class StorageBackend(
             return False
 
     @property
-    def endpoint(self) -> str:
-        if self.override_endpoint:
-            return self.override_endpoint
-        return self.auth_endpoint
-
-    @property
     @abc.abstractmethod
-    def auth_endpoint(self) -> str:
+    def endpoint(self) -> str:
+        """
+        Returns the endpoint of the storage backend.
+        """
         pass
 
     @property
