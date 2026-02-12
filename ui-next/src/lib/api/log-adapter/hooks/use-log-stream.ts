@@ -25,19 +25,15 @@ import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 import { LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter/constants";
 
 export type StreamPhase =
-  | "idle" // Not started (enabled=false or no workflowId)
+  | "idle" // Not started (enabled=false or no logUrl)
   | "connecting" // Fetch in flight, no data yet
   | "streaming" // Reader active, entries accumulating
   | "complete" // Stream ended normally (done=true from reader)
   | "error"; // Stream failed
 
 export interface UseLogStreamParams {
-  /** Workflow ID (required) */
-  workflowId: string;
-  /** Group ID for group-scoped queries */
-  groupId?: string;
-  /** Task ID for task-scoped queries */
-  taskId?: string;
+  /** Full log URL from backend (e.g., workflow.logs or task.logs) */
+  logUrl: string;
   /** Enable/disable the stream */
   enabled?: boolean;
   /** Base URL for API endpoint (default: "") */
@@ -82,14 +78,7 @@ export interface UseLogStreamReturn {
  * - Memory-capped at maxEntries (default 100K) to prevent unbounded growth
  */
 export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
-  const {
-    workflowId,
-    groupId,
-    taskId,
-    enabled = true,
-    baseUrl = "",
-    maxEntries = LOG_QUERY_DEFAULTS.MAX_ENTRIES_LIMIT,
-  } = params;
+  const { logUrl, enabled = true, baseUrl = "", maxEntries = LOG_QUERY_DEFAULTS.MAX_ENTRIES_LIMIT } = params;
 
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [phase, setPhase] = useState<StreamPhase>("idle");
@@ -120,7 +109,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
 
       for (const line of lines) {
         if (line.trim()) {
-          const entry = parseLogLine(line, workflowId);
+          const entry = parseLogLine(line);
           if (entry) newEntries.push(entry);
         }
       }
@@ -134,7 +123,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
         flushPending();
       }
     },
-    [workflowId, maxEntries, flushPending],
+    [maxEntries, flushPending],
   );
 
   // Store latest processChunk in a ref to avoid it being in useEffect deps
@@ -147,7 +136,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
 
   // Lifecycle effect - contains the streaming logic directly
   useEffect(() => {
-    if (!enabled || !workflowId) {
+    if (!enabled || !logUrl) {
       abortRef.current?.abort();
       abortRef.current = null;
       setPhase("idle");
@@ -169,9 +158,8 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
 
     const runStream = async () => {
       try {
-        const url = new URL(`${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`, window.location.origin);
-        if (groupId) url.searchParams.set("group_id", groupId);
-        if (taskId) url.searchParams.set("task_id", taskId);
+        // Build absolute URL from relative backend URL
+        const url = new URL(logUrl.startsWith("/") ? logUrl : `/${logUrl}`, window.location.origin);
 
         const response = await fetch(url.toString(), {
           method: "GET",
@@ -234,7 +222,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
       controller.abort();
       abortRef.current = null;
     };
-  }, [enabled, workflowId, groupId, taskId, baseUrl, restartCount]);
+  }, [enabled, logUrl, baseUrl, restartCount]);
 
   return useMemo(
     () => ({

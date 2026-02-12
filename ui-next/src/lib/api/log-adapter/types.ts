@@ -62,8 +62,6 @@ export type LogSourceType = "user" | "osmo";
  * Loki: native stream labels
  */
 export interface LogLabels {
-  /** Workflow ID */
-  workflow: string;
   /** Task name within workflow */
   task?: string;
   /** Retry attempt (string for Loki compat) */
@@ -74,8 +72,6 @@ export interface LogLabels {
   io_type?: LogIOType;
   /** High-level source: user container vs OSMO infrastructure */
   source?: LogSourceType;
-  /** Original level prefix that was stripped (e.g., "INFO: "), for reconstruction */
-  level_prefix?: string;
   /** Extensible for future labels */
   [key: string]: string | undefined;
 }

@@ -33,8 +33,8 @@ export interface FooterProps {
   onToggleWrapLines: () => void;
   /** Whether task suffix is shown */
   showTask: boolean;
-  /** Callback to toggle task suffix */
-  onToggleShowTask: () => void;
+  /** Callback to toggle task suffix (hidden when undefined, e.g., task scope) */
+  onToggleShowTask?: () => void;
   /** URL to open raw logs in new tab (direct to backend) */
   externalLogUrl?: string;
   /** Callback to download logs */
@@ -83,22 +83,24 @@ function FooterInner({
             />
           )}
 
-          {/* Show task toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onToggleShowTask}
-                className={cn(
-                  "rounded p-1 transition-colors",
-                  showTask ? "bg-foreground text-background" : "hover:bg-accent",
-                )}
-              >
-                <Tag className="size-4" />
-                <span className="sr-only">{showTask ? "Hide" : "Show"} task</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
-          </Tooltip>
+          {/* Show task toggle (hidden when scoped to a single task) */}
+          {onToggleShowTask && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onToggleShowTask}
+                  className={cn(
+                    "rounded p-1 transition-colors",
+                    showTask ? "bg-foreground text-background" : "hover:bg-accent",
+                  )}
+                >
+                  <Tag className="size-4" />
+                  <span className="sr-only">{showTask ? "Hide" : "Show"} task</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{showTask ? "Hide" : "Show"} task</TooltipContent>
+            </Tooltip>
+          )}
 
           {/* Wrap lines toggle */}
           <Tooltip>
