@@ -30,7 +30,8 @@ import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks/use-view-transition";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
-import { FilterBar } from "@/components/filter-bar/filter-bar";
+import { FilterBar, type FilterBarHandle } from "@/components/filter-bar/filter-bar";
+import { useFilterBarShortcut } from "@/components/filter-bar/hooks/use-filter-bar-shortcut";
 import {
   TimelineContainer,
   type TimeRangePreset,
@@ -375,6 +376,13 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 // =============================================================================
 
 function LogViewerInner({ data, filter, timeline, className, showTimeline = true }: LogViewerProps) {
+  // Refs for focus management
+  const containerRef = useRef<HTMLDivElement>(null);
+  const filterBarRef = useRef<FilterBarHandle>(null);
+
+  // Keyboard shortcut: Cmd+F to focus filter bar
+  const { containerProps } = useFilterBarShortcut(containerRef, filterBarRef);
+
   // Destructure data props
   const {
     rawEntries,
@@ -591,7 +599,11 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   }
 
   return (
-    <div className={cn("flex h-full flex-col", className)}>
+    <div
+      ref={containerRef}
+      className={cn("flex h-full flex-col", className)}
+      {...containerProps}
+    >
       {/* Error state (shown above content, doesn't replace it) */}
       {error && (
         <ErrorState
@@ -603,6 +615,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
       {/* Section 1: Filter bar */}
       <div className="shrink-0 border-b p-2">
         <FilterBar
+          ref={filterBarRef}
           data={rawEntries}
           fields={LOG_FILTER_FIELDS}
           chips={filterChips}

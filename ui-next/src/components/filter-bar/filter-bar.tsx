@@ -31,7 +31,7 @@
 
 "use client";
 
-import { useRef, useCallback, useEffect, memo, useId } from "react";
+import { useRef, useCallback, useEffect, memo, useId, forwardRef, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 import { Command } from "@/components/shadcn/command";
 import type { FilterBarProps } from "@/components/filter-bar/lib/types";
@@ -39,17 +39,25 @@ import { useFilterState } from "@/components/filter-bar/hooks/use-filter-state";
 import { FilterBarInput } from "@/components/filter-bar/FilterBarInput";
 import { FilterBarDropdown } from "@/components/filter-bar/FilterBarDropdown";
 
-function FilterBarInner<T>({
-  data,
-  fields,
-  chips,
-  onChipsChange,
-  placeholder = "Search... (try 'pool:' or 'platform:')",
-  className,
-  displayMode,
-  presets,
-  resultsCount,
-}: FilterBarProps<T>) {
+export interface FilterBarHandle {
+  /** Focus the search input */
+  focus: () => void;
+}
+
+function FilterBarInner<T>(
+  {
+    data,
+    fields,
+    chips,
+    onChipsChange,
+    placeholder = "Search... (try 'pool:' or 'platform:')",
+    className,
+    displayMode,
+    presets,
+    resultsCount,
+  }: FilterBarProps<T>,
+  ref: React.Ref<FilterBarHandle>,
+) {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
@@ -95,6 +103,16 @@ function FilterBarInner<T>({
       getSelectionEnd: () => inputRef.current?.selectionEnd ?? null,
     });
   }, [setInputRefCallbacks]);
+
+  // ========== Expose focus method via imperative handle ==========
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => inputRef.current?.focus(),
+    }),
+    [],
+  );
 
   // ========== DOM event adapters ==========
 
@@ -170,5 +188,7 @@ function FilterBarInner<T>({
   );
 }
 
-// Memoized export
-export const FilterBar = memo(FilterBarInner) as typeof FilterBarInner;
+// Memoized export with forwardRef
+export const FilterBar = memo(forwardRef(FilterBarInner)) as <T>(
+  props: FilterBarProps<T> & { ref?: React.Ref<FilterBarHandle> },
+) => React.ReactElement;
