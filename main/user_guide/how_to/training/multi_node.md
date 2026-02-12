@@ -20,8 +20,8 @@ SPDX-License-Identifier: Apache-2.0 -->
 
 You will learn how to train a model on multiple nodes in OSMO.
 
-The complete workflow example is available [here](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_multinode).
-More examples with other distributed training frameworks can be found [here](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training).
+The complete workflow example is available [here](https://github.com/NVIDIA/OSMO/tree/main/cookbook/dnn_training/torchrun_multinode).
+More examples with other distributed training frameworks can be found [here](https://github.com/NVIDIA/OSMO/tree/main/cookbook/dnn_training).
 
 > **Important**
 >
@@ -30,7 +30,7 @@ More examples with other distributed training frameworks can be found [here](htt
 ## Making a TorchRun Multi-Node Training Script
 
 To train a model on multiple nodes in OSMO, you need to first make your training script compatible with distributed training,
-for example, using [train.py](https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/torchrun_multinode/train.py).
+for example, using [train.py](https://github.com/NVIDIA/OSMO/blob/main/cookbook/dnn_training/torchrun_multinode/train.py).
 
 ## Training on Two Nodes
 
@@ -176,7 +176,7 @@ This prevents different initialization timing that causes timeout issues.
 
 In some cases, you may want to synchronize the training starting time by yourself.
 For example, you need to install some heavy dependencies before the training starts and that can take varies of time.
-You can use the a barrier script like [osmo_barrier.py](https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/torchrun_multinode/osmo_barrier.py) to synchronize before the training launches.
+You can use the a barrier script like [osmo_barrier.py](https://github.com/NVIDIA/OSMO/blob/main/cookbook/dnn_training/torchrun_multinode/osmo_barrier.py) to synchronize before the training launches.
 
 ```jinja
 groups:

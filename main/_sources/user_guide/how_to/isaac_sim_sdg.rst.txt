@@ -25,7 +25,7 @@ In this tutorial, you will generate synthetic data using `Isaac Sim <https://dev
 NVIDIA's robotics simulator. By the end of the tutorial, you will have a dataset of synthetic images of warehouse scenes,
 that can be used to train neural network models.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/synthetic_data_generation/isaac_sim>`_.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/synthetic_data_generation/isaac_sim>`_.
 
 Prerequisites
 -------------

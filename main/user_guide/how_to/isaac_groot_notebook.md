@@ -34,12 +34,12 @@ for more on the specific GPUs that are supported.
 Fetch the workflow spec:
 
 ```bash
-$ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/groot/groot_notebook/groot_notebook.yaml
+$ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_notebook/groot_notebook.yaml
 ```
 
 > **Note**
 >
-> The complete workflow example is available [here](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_notebook).
+> The complete workflow example is available [here](https://github.com/NVIDIA/OSMO/tree/main/cookbook/groot/groot_notebook).
 
 Add any platform value if necessary to target a specific type of hardware.
 To read more about platforms, please refer to the [Platforms](../resource_pools/index.md#concepts-platforms).
