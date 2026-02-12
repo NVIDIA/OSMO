@@ -158,8 +158,14 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
 
     const runStream = async () => {
       try {
-        // Build absolute URL from relative backend URL
-        const url = new URL(logUrl.startsWith("/") ? logUrl : `/${logUrl}`, window.location.origin);
+        // Build absolute URL - handle both absolute URLs from backend and relative paths
+        const isAbsoluteUrl = logUrl.startsWith("http://") || logUrl.startsWith("https://");
+        const url = isAbsoluteUrl
+          ? new URL(logUrl)
+          : new URL(logUrl.startsWith("/") ? logUrl : `/${logUrl}`, window.location.origin);
+
+        // Strip last_n_lines param - we always fetch ALL logs progressively
+        url.searchParams.delete("last_n_lines");
 
         const response = await fetch(url.toString(), {
           method: "GET",
