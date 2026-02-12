@@ -29,7 +29,7 @@ the `default-values` section.
 
 **Hello World with template variables example:**
 
-Here’s the Hello World example with template variables: [`template_hello_world.yaml`](../../../workflows/tutorials/template_hello_world.yaml).
+Here’s the Hello World example with template variables: [`template_hello_world.yaml`](../../../cookbook/tutorials/template_hello_world.yaml).
 
 ```yaml
 

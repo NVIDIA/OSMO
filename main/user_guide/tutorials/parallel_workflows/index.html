@@ -72,7 +72,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
-    <meta name="docbuild:last-update" content="Feb 10, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 12, 2026"/>
 
 
   </head>
@@ -761,7 +761,7 @@ or communicate (e.g., distributed training, client-server patterns).</p>
 <li><p>Are defined at the workflow level under <code class="docutils literal notranslate"><span class="pre">tasks:</span></code></p></li>
 <li><p>Have available compute resources</p></li>
 </ol>
-<p><strong>For example:</strong> (<a class="reference download internal" download="" href="../../../_downloads/02d2c5b461ba8a9bc55d2dde118a3a44/parallel_tasks.yaml"><code class="xref download docutils literal notranslate"><span class="pre">parallel_tasks.yaml</span></code></a>)</p>
+<p><strong>For example:</strong> (<a class="reference download internal" download="" href="../../../_downloads/9fca684f1ed2f57b8f0f868c38445a70/parallel_tasks.yaml"><code class="xref download docutils literal notranslate"><span class="pre">parallel_tasks.yaml</span></code></a>)</p>
 <figure class="align-center">
 <img alt="Independent Tasks" class="transparent-bg no-scaled-link" src="../../../_images/independent_tasks.svg" style="width: 40%;" />
 </figure>
@@ -803,7 +803,7 @@ start simultaneously and can communicate over the network.</p>
 <li><p>Groups run serially based on dependencies between them</p></li>
 <li><p>Tasks may run on the same node or different nodes</p></li>
 </ul>
-<p><strong>For example:</strong> (<a class="reference download internal" download="" href="../../../_downloads/6de63c17f8c118c1d2a7594f5377a8fa/group_tasks.yaml"><code class="xref download docutils literal notranslate"><span class="pre">group_tasks.yaml</span></code></a>)</p>
+<p><strong>For example:</strong> (<a class="reference download internal" download="" href="../../../_downloads/afef2114faa29fc8ceec03c46e4fa231/group_tasks.yaml"><code class="xref download docutils literal notranslate"><span class="pre">group_tasks.yaml</span></code></a>)</p>
 <figure class="align-center">
 <img alt="Groups" class="transparent-bg no-scaled-link" src="../../../_images/synchronized_groups.svg" style="width: 40%;" />
 </figure>
@@ -859,7 +859,7 @@ You <strong>cannot</strong> use both in the same workflow.</p>
 <span id="tutorials-parallel-workflows-task-communication"></span><h3>Task Communication<a class="headerlink" href="#task-communication" title="Link to this heading">#</a></h3>
 <p>Tasks <strong>within a workflow group</strong> can communicate over the network using the token <code class="docutils literal notranslate"><span class="pre">{{host:task-name}}</span></code>.
 The token is replaced with the IP address of the task when the task is running.</p>
-<p><strong>Example:</strong> (<a class="reference download internal" download="" href="../../../_downloads/f70c8f75b77397b2dede57c2c69bb9bc/group_tasks_communication.yaml"><code class="xref download docutils literal notranslate"><span class="pre">group_tasks_communication.yaml</span></code></a>)</p>
+<p><strong>Example:</strong> (<a class="reference download internal" download="" href="../../../_downloads/ed962ecdd48e4ce5395d240aa87f8041/group_tasks_communication.yaml"><code class="xref download docutils literal notranslate"><span class="pre">group_tasks_communication.yaml</span></code></a>)</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">workflow</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">grouped-workflow-communication</span>
 <span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
@@ -1052,7 +1052,7 @@ to learn about complex workflow patterns and optimizations.</p>
 </div>
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on Feb 10, 2026.
+  Last updated on Feb 12, 2026.
   <br/>
 </p></div>
       

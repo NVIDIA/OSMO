@@ -29,7 +29,7 @@ terminal. This tutorial will walk you through using the CLI to submit your first
 
 ### Creating a Workflow File
 
-You can download the workflow definition here: [`hello_world.yaml`](../../../../workflows/tutorials/hello_world.yaml).
+You can download the workflow definition here: [`hello_world.yaml`](../../../../cookbook/tutorials/hello_world.yaml).
 Below is the contents of the file:
 
 ```yaml

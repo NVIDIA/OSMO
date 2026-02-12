@@ -53,7 +53,7 @@ Name of the token.
 
 Expiration date of the token. The date is based on UTC time. Format: YYYY-MM-DD
 
-Default: `2026-03-13`
+Default: `2026-03-15`
 * **--description, -d**: 
 
 Description of the token.

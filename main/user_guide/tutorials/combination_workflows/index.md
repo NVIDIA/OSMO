@@ -46,7 +46,7 @@ By the end, you’ll understand:
 ## Simple Example
 
 Let’s build a data processing pipeline with multiple stages by downloading the workflow definition
-here: [`combination_workflow_simple.yaml`](../../../../workflows/tutorials/combination_workflow_simple.yaml).
+here: [`combination_workflow_simple.yaml`](../../../../cookbook/tutorials/combination_workflow_simple.yaml).
 
 ![Simple Combination Workflow](user_guide/tutorials/combination_workflows/combination_workflow_simple.svg)
 ```yaml
@@ -137,7 +137,7 @@ workflow:
 ## Complex Example
 
 Let’s build a more complex data processing pipeline by downloading the workflow definition
-here: [`combination_workflow_complex.yaml`](../../../../workflows/tutorials/combination_workflow_complex.yaml).
+here: [`combination_workflow_complex.yaml`](../../../../cookbook/tutorials/combination_workflow_complex.yaml).
 
 ![Complex Combination Workflow](user_guide/tutorials/combination_workflows/combination_workflow_complex.svg)
 ```yaml
