@@ -161,7 +161,7 @@ services:
 
   ## Default admin user configuration
   ## When configured, the service will create an admin user on startup with the osmo-admin role
-  ## and a PAT (Personal Access Token) set to the specified password
+  ## and an access_token set to the specified password
   ##
   defaultAdmin:
     ## Enable default admin user creation
@@ -173,7 +173,7 @@ services:
     ##
     username: "admin"
 
-    ## Name of the Kubernetes secret containing the default admin password (PAT value)
+    ## Name of the Kubernetes secret containing the default admin password
     ##
     passwordSecretName: default-admin-secret
 
