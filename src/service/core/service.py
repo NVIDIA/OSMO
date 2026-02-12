@@ -328,15 +328,15 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
         existing_hashed_token = bytes(existing_token[0]['access_token'])
         if existing_hashed_token == new_hashed_token:
             logging.info(
-                'Default admin user %s already configured with matching PAT',
+                'Default admin user %s already configured with matching access_token',
                 admin_username)
             return
 
         # Password has changed, delete the old token
-        logging.info('Default admin PAT password changed, updating token')
+        logging.info('Default admin access_token password changed, updating token')
         auth_objects.AccessToken.delete_from_db(postgres, token_name, admin_username)
 
-    # Create the PAT with far future expiration (10 years)
+    # Create the access_token with far future expiration (10 years)
     # Use 10 years from now as the expiration date
     expires_at = (datetime.datetime.now() + datetime.timedelta(days=3650)).strftime('%Y-%m-%d')
 
@@ -346,12 +346,12 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
         token_name=token_name,
         access_token=admin_password,  # This gets hashed inside insert_into_db
         expires_at=expires_at,
-        description='Default admin PAT created during service initialization',
+        description='Default admin access_token created during service initialization',
         roles=['osmo-admin'],
         assigned_by='System'
     )
 
-    logging.info('Default admin user %s configured successfully with PAT', admin_username)
+    logging.info('Default admin user %s configured successfully with access_token', admin_username)
 
 
 def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceConfig):
