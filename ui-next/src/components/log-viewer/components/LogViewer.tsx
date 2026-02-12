@@ -698,8 +698,6 @@ function LogViewerInner({ data, filter, timeline, className }: LogViewerProps) {
           onToggleShowTask={toggleShowTask}
           externalLogUrl={externalLogUrl}
           onDownload={handleDownload}
-          onRefresh={onRefetch}
-          isLoading={isLoading || isStale}
           isStreaming={isStreaming}
           isPinnedToBottom={isPinnedToBottom}
           onScrollToBottom={handleJumpToBottom}

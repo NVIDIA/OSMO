@@ -17,7 +17,7 @@
 "use client";
 
 import { memo } from "react";
-import { Download, ExternalLink, RefreshCcw, Tag, WrapText } from "lucide-react";
+import { Download, ExternalLink, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { ScrollPinControl } from "@/components/log-viewer/components/ScrollPinControl";
@@ -39,10 +39,6 @@ export interface FooterProps {
   externalLogUrl?: string;
   /** Callback to download logs */
   onDownload?: () => void;
-  /** Callback to refresh logs */
-  onRefresh?: () => void;
-  /** Whether currently loading/refreshing */
-  isLoading?: boolean;
   /** Additional CSS classes */
   className?: string;
   /** Whether streaming is active (shows pin option when true) */
@@ -66,8 +62,6 @@ function FooterInner({
   onToggleShowTask,
   externalLogUrl,
   onDownload,
-  onRefresh,
-  isLoading = false,
   className,
   isStreaming = false,
   isPinnedToBottom = false,
@@ -155,26 +149,6 @@ function FooterInner({
               onScrollToBottom={onScrollToBottom}
               onTogglePin={onTogglePinnedToBottom}
             />
-          )}
-        </div>
-
-        {/* Right: Refresh button */}
-        <div className="flex items-center gap-2">
-          {/* Refresh button */}
-          {onRefresh && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onRefresh}
-                  disabled={isLoading}
-                  className="hover:bg-accent rounded p-1 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
-                  <span className="sr-only">Refresh</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Refresh logs</TooltipContent>
-            </Tooltip>
           )}
         </div>
       </div>
