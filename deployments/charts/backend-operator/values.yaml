@@ -295,18 +295,6 @@ services:
       ##
       enabled: true
 
-      ## OTLP collector host
-      ##
-      host: "otel-collector"
-
-      ## OTLP collector port (4317 is standard gRPC port)
-      ##
-      port: 4317
-
-      ## Export interval in milliseconds
-      ##
-      exportIntervalMs: 6000
-
       ## Service component name for metrics
       ##
       component: "osmo-backend-listener"
