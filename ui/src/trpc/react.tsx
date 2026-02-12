@@ -25,6 +25,7 @@ import { env } from "~/env.mjs";
 import { type AppRouter } from "~/server/api/root";
 
 import { getUrl, transformer } from "./shared";
+import { unauthorizedRedirectLink } from "./unauthorizedRedirectLink";
 
 export const api = createTRPCReact<AppRouter>();
 
@@ -35,6 +36,7 @@ export function TRPCReactProvider(props: { children: ReactNode; headers: Headers
     api.createClient({
       transformer,
       links: [
+        unauthorizedRedirectLink<AppRouter>(),
         loggerLink({
           enabled: (op) => env.NODE_ENV === "development" || (op.direction === "down" && op.result instanceof Error),
         }),

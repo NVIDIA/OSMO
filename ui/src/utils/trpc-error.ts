@@ -37,6 +37,8 @@ export const throwTrpcErrorFromResponse = async (response: Response): Promise<ne
   // Determine the appropriate TRPC error code based on HTTP status
   let code: TRPCError["code"] = "INTERNAL_SERVER_ERROR";
 
+  const redirectTo = response.status === 401 ? (response.headers.get("location") ?? "/auth/login") : undefined;
+
   switch (response.status) {
     case 400:
       code = "BAD_REQUEST";
@@ -63,8 +65,12 @@ export const throwTrpcErrorFromResponse = async (response: Response): Promise<ne
       code = "INTERNAL_SERVER_ERROR";
   }
 
-  throw new TRPCError({
+  const err = new TRPCError({
     code,
     message: errorData?.message ?? errorData?.error_code ?? `HTTP ${response.status}: ${response.statusText}`,
   });
+  if (redirectTo !== undefined) {
+    (err as TRPCError & { redirectTo?: string }).redirectTo = redirectTo;
+  }
+  throw err;
 };
