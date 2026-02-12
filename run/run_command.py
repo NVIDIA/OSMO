@@ -112,6 +112,7 @@ class Process:
             return False, self.stdout_file, self.stderr_file, elapsed_time
 
 
+
 def run_command_with_logging(
     cmd: List[str],
     description: Optional[str] = None,
@@ -146,11 +147,10 @@ def run_command_with_logging(
     if cwd is None:
         cwd = os.environ.get('BUILD_WORKSPACE_DIRECTORY', os.getcwd())
 
+
     # Create temp files
-    stdout_file = tempfile.NamedTemporaryFile(
-        mode='w+', delete=False, suffix='.out')  # pylint: disable=consider-using-with
-    stderr_file = tempfile.NamedTemporaryFile(
-        mode='w+', delete=False, suffix='.err')  # pylint: disable=consider-using-with
+    stdout_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.out')  # pylint: disable=consider-using-with
+    stderr_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.err')  # pylint: disable=consider-using-with
 
     try:
         # Start the process
@@ -257,7 +257,7 @@ def run_command_with_logging(
             pass
         # Create a dummy process that represents failure
         dummy_process = subprocess.Popen(['false'], stdout=subprocess.DEVNULL,  # pylint: disable=consider-using-with
-                                         stderr=subprocess.DEVNULL)
+                                          stderr=subprocess.DEVNULL)
         dummy_process.wait()  # This will set return code to 1
         return Process(dummy_process, stdout_file.name, stderr_file.name, name)
 
