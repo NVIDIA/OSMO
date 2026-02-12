@@ -151,7 +151,7 @@ Select one of the deployment options below depending on your needs and environme
 | ⚡ [**Brev Deployment**](https://brev.nvidia.com/launchable/deploy?launchableID=env-36a6a7qnkOMOP2vgiBRaw2e3jpW) | Run it on a Brev instance with a GPU in 10 minutes |
 | 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/) | Deploy production grade on cloud providers  |
 | 📘 [**User Guide**](https://nvidia.github.io/OSMO/main/user_guide/) | Tutorials, workflows, and how-to guides for developers |
-| 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
+| 💡 [**Cookbook**](./cookbook/) | Robotics workflow examples
 | 💻 [**Getting Started**](https://nvidia.github.io/OSMO/main/user_guide/getting_started/install/index.html) | Install command-line interface to get started |
 
 ## Community & Support
