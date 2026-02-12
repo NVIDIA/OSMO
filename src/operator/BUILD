@@ -304,6 +304,7 @@ go_library(
     srcs = [
         "listener.go",
         "event_listener.go",
+        "node_condition_rule_listener.go",
         "node_listener.go",
         "node_usage_listener.go",
         "workflow_listener.go",
@@ -376,6 +377,16 @@ go_test(
         "//src/proto/operator:operator_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+go_test(
+    name = "node_condition_rule_listener_test",
+    srcs = ["node_condition_rule_listener_test.go"],
+    embed = [":listener_lib"],
+    deps = [
+        "//src/operator/utils:utils",
+        "//src/proto/operator:operator_go_proto",
     ],
 )
 

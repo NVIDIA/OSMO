@@ -106,10 +106,14 @@
       },
       {
         "name": "no_ready_condition",
-        "description": "Node without Ready condition",
+        "description": "Node with Ready condition and MemoryPressure",
         "input": {
           "unschedulable": false,
           "conditions": [
+            {
+              "type": "Ready",
+              "status": "True"
+            },
             {
               "type": "MemoryPressure",
               "status": "False"
@@ -117,7 +121,7 @@
           ]
         },
         "expected": {
-          "available": false
+          "available": true
         }
       },
       {
