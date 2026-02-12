@@ -147,118 +147,119 @@ def run_command_with_logging(
         cwd = os.environ.get('BUILD_WORKSPACE_DIRECTORY', os.getcwd())
 
     # Create temp files
-    with (
-        tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.out') as stdout_file,
-        tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.err') as stderr_file
-    ):
-        try:
-            # Start the process
-            process = subprocess.Popen(  # pylint: disable=consider-using-with
-                cmd,
-                cwd=cwd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=env,
-            )
+    stdout_file = tempfile.NamedTemporaryFile(
+        mode='w+', delete=False, suffix='.out')  # pylint: disable=consider-using-with
+    stderr_file = tempfile.NamedTemporaryFile(
+        mode='w+', delete=False, suffix='.err')  # pylint: disable=consider-using-with
 
-            def read_stdout():
-                """Read stdout lines and write directly to file."""
+    try:
+        # Start the process
+        process = subprocess.Popen(  # pylint: disable=consider-using-with
+            cmd,
+            cwd=cwd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+
+        def read_stdout():
+            """Read stdout lines and write directly to file."""
+            try:
+                stdout_stream = process.stdout
+                if stdout_stream is None:
+                    return
+                for line in stdout_stream:
+                    stdout_file.write(line)
+                    if name:
+                        logger.debug('> [%s] %s', name, line.rstrip())
+                    else:
+                        logger.debug('> %s', line.rstrip())
+            except (IOError, OSError):
+                pass
+            finally:
                 try:
-                    stdout_stream = process.stdout
-                    if stdout_stream is None:
-                        return
-                    for line in stdout_stream:
-                        stdout_file.write(line)
-                        if name:
-                            logger.debug('> [%s] %s', name, line.rstrip())
-                        else:
-                            logger.debug('> %s', line.rstrip())
-                except (IOError, OSError):
+                    stdout_file.flush()
+                except (OSError, IOError):
                     pass
-                finally:
-                    try:
-                        stdout_file.flush()
-                    except (OSError, IOError):
-                        pass
 
-            def read_stderr():
-                """Read stderr lines and write directly to file."""
+        def read_stderr():
+            """Read stderr lines and write directly to file."""
+            try:
+                stderr_stream = process.stderr
+                if stderr_stream is None:
+                    return
+                for line in stderr_stream:
+                    stderr_file.write(line)
+                    if name:
+                        logger.debug('> [%s] %s', name, line.rstrip())
+                    else:
+                        logger.debug('> %s', line.rstrip())
+            except (IOError, OSError):
+                pass
+            finally:
                 try:
-                    stderr_stream = process.stderr
-                    if stderr_stream is None:
-                        return
-                    for line in stderr_stream:
-                        stderr_file.write(line)
-                        if name:
-                            logger.debug('> [%s] %s', name, line.rstrip())
-                        else:
-                            logger.debug('> %s', line.rstrip())
-                except (IOError, OSError):
+                    stderr_file.flush()
+                except (OSError, IOError):
                     pass
-                finally:
-                    try:
-                        stderr_file.flush()
-                    except (OSError, IOError):
-                        pass
 
-            stdout_thread = threading.Thread(target=read_stdout, daemon=True)
-            stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-            stdout_thread.start()
-            stderr_thread.start()
+        stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stdout_thread.start()
+        stderr_thread.start()
 
-            if process_input is not None and process.stdin is not None:
-                try:
-                    process.stdin.write(process_input)
-                    process.stdin.flush()
-                except (BrokenPipeError, OSError):
-                    pass
-                finally:
-                    process.stdin.close()
+        if process_input is not None and process.stdin is not None:
+            try:
+                process.stdin.write(process_input)
+                process.stdin.flush()
+            except (BrokenPipeError, OSError):
+                pass
+            finally:
+                process.stdin.close()
 
-            # Create Process object
-            process_obj = Process(process, stdout_file.name, stderr_file.name, name)
+        # Create Process object
+        process_obj = Process(process, stdout_file.name, stderr_file.name, name)
 
-            if async_mode:
-                return process_obj
-
-            # Sync mode - wait for process to complete
-            if description and logger.level != logging.DEBUG:
-                with tqdm(
-                    total=1,
-                    desc=description,
-                    bar_format='{desc}... {elapsed}s',
-                    leave=False,
-                    ncols=80
-                ) as bar:
-                    while process.poll() is None:
-                        time.sleep(0.1)
-                        bar.update(0)
-
-            process.wait()
-
-            stdout_thread.join(timeout=1.0)
-            stderr_thread.join(timeout=1.0)
-
-            # Close files in sync mode
-            stdout_file.close()
-            stderr_file.close()
-
+        if async_mode:
             return process_obj
 
-        except OSError:
-            # Clean up on error
-            try:
-                stdout_file.close()
-                stderr_file.close()
-            except (OSError, IOError):
-                pass
-            # Create a dummy process that represents failure
-            dummy_process = subprocess.Popen(['false'], stdout=subprocess.DEVNULL,  # pylint: disable=consider-using-with
-                                             stderr=subprocess.DEVNULL)
-            dummy_process.wait()  # This will set return code to 1
-            return Process(dummy_process, stdout_file.name, stderr_file.name, name)
+        # Sync mode - wait for process to complete
+        if description and logger.level != logging.DEBUG:
+            with tqdm(
+                total=1,
+                desc=description,
+                bar_format='{desc}... {elapsed}s',
+                leave=False,
+                ncols=80
+            ) as bar:
+                while process.poll() is None:
+                    time.sleep(0.1)
+                    bar.update(0)
+
+        process.wait()
+
+        stdout_thread.join(timeout=1.0)
+        stderr_thread.join(timeout=1.0)
+
+        # Close files in sync mode
+        stdout_file.close()
+        stderr_file.close()
+
+        return process_obj
+
+    except OSError:
+        # Clean up on error
+        try:
+            stdout_file.close()
+            stderr_file.close()
+        except (OSError, IOError):
+            pass
+        # Create a dummy process that represents failure
+        dummy_process = subprocess.Popen(['false'], stdout=subprocess.DEVNULL,  # pylint: disable=consider-using-with
+                                         stderr=subprocess.DEVNULL)
+        dummy_process.wait()  # This will set return code to 1
+        return Process(dummy_process, stdout_file.name, stderr_file.name, name)
 
 
 def cleanup_registered_processes(service_type: str = 'services') -> None:

@@ -19,4 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 
 # Endpoint URLs
 LOCALSTACK_S3_ENDPOINT_KIND = 'http://localstack-s3.osmo.svc.cluster.local:4566'
-LOCALSTACK_S3_ENDPOINT_BAZEL = 'http://localhost:4566'
+LOCALSTACK_S3_ENDPOINT_BAZEL = 'http://localstack:4566'
+LOCALSTACK_S3_ENDPOINT_BAZEL_HOST = 'http://localhost:4566'
+
+# AWS Configuration
+LOCALSTACK_REGION = 'us-east-1'
+LOCALSTACK_ACCESS_KEY_ID = 'test'
+LOCALSTACK_SECRET_ACCESS_KEY = 'test'
+LOCALSTACK_FORCE_PATH_STYLE = 'true'

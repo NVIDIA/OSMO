@@ -31,7 +31,7 @@ from run.host_ip import get_host_ip
 from run.kind_utils import detect_platform
 from run.localstack import (
     LOCALSTACK_S3_ENDPOINT_KIND,
-    LOCALSTACK_S3_ENDPOINT_BAZEL,
+    LOCALSTACK_S3_ENDPOINT_BAZEL_HOST,
 )
 from run.print_next_steps import print_next_steps
 from run.run_command import run_command_with_logging, login_osmo, logout_osmo
@@ -434,7 +434,7 @@ def main():
 
         login_osmo(args.mode)
 
-        localstack_endpoint = LOCALSTACK_S3_ENDPOINT_BAZEL \
+        localstack_endpoint = LOCALSTACK_S3_ENDPOINT_BAZEL_HOST \
             if args.mode == 'bazel' else LOCALSTACK_S3_ENDPOINT_KIND
 
         try:
