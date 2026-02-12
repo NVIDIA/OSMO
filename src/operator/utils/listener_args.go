@@ -31,20 +31,24 @@ type ListenerArgs struct {
 	Backend               string
 	Namespace             string
 	PodUpdateChanSize     int
-	NodeUpdateChanSize    int // Buffer size for node update channel (ResourceListener)
-	UsageChanSize         int // Buffer size for usage update channel (ResourceListener)
-	EventChanSize         int // Buffer size for event channel (EventListener)
+	NodeUpdateChanSize    int // Buffer size for node update channel
+	UsageChanSize         int // Buffer size for usage update channel
+	EventChanSize         int // Buffer size for event channel
 	ResyncPeriodSec       int
 	StateCacheTTLMin      int
-	EventCacheTTLMin      int // TTL in minutes for event deduplication (EventListener)
+	EventCacheTTLMin      int // TTL in minutes for event deduplication
 	MaxUnackedMessages    int
 	NodeConditionPrefix   string
 	ProgressDir           string
 	ProgressFrequencySec  int
+<<<<<<< HEAD
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (ResourceListener)
 
 	// OpenTelemetry metrics configuration
 	Metrics metrics.MetricsConfig
+=======
+	UsageFlushIntervalSec int // Interval for flushing resource usage updates (NodeUsageListener)
+>>>>>>> feature/PROJ-147-operator-redesign
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -59,6 +63,7 @@ func ListenerParse() ListenerArgs {
 		sharedutils.GetEnv("OSMO_NAMESPACE", "osmo"),
 		"Kubernetes namespace to watch")
 	podUpdateChanSize := flag.Int("podUpdateChanSize",
+<<<<<<< HEAD
 		sharedutils.GetEnvInt("POD_UPDATE_CHAN_SIZE", 500),
 		"Buffer size for pod update channel (WorkflowListener)")
 	nodeUpdateChanSize := flag.Int("nodeUpdateChanSize",
@@ -67,6 +72,16 @@ func ListenerParse() ListenerArgs {
 	usageChanSize := flag.Int("usageChanSize",
 		sharedutils.GetEnvInt("USAGE_CHAN_SIZE", 500),
 		"Buffer size for usage update channel (ResourceListener)")
+=======
+		getEnvInt("POD_UPDATE_CHAN_SIZE", 500),
+		"Buffer size for pod update channel")
+	nodeUpdateChanSize := flag.Int("nodeUpdateChanSize",
+		getEnvInt("NODE_UPDATE_CHAN_SIZE", 500),
+		"Buffer size for node update channel")
+	usageChanSize := flag.Int("usageChanSize",
+		getEnvInt("USAGE_CHAN_SIZE", 500),
+		"Buffer size for usage update channel")
+>>>>>>> feature/PROJ-147-operator-redesign
 	eventChanSize := flag.Int("eventChanSize",
 		sharedutils.GetEnvInt("EVENT_CHAN_SIZE", 500),
 		"Buffer size for event channel (EventListener)")
@@ -92,8 +107,13 @@ func ListenerParse() ListenerArgs {
 		sharedutils.GetEnvInt("OSMO_PROGRESS_FREQUENCY_SEC", 15),
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
+<<<<<<< HEAD
 		sharedutils.GetEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
+=======
+		getEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
+		"Interval for flushing resource usage updates (NodeUsageListener)")
+>>>>>>> feature/PROJ-147-operator-redesign
 
 	// OpenTelemetry metrics configuration
 	metricsFlagPtrs := metrics.RegisterMetricsFlags("osmo-operator")

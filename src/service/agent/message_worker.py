@@ -35,6 +35,7 @@ from src.service.core.workflow import objects
 from src.utils import connectors, backend_messages, static_config
 from src.utils.metrics import metrics
 from src.utils.progress_check import progress
+from src.utils.job import task
 
 
 # Redis Stream name for operator messages from backends
@@ -111,6 +112,11 @@ class MessageWorker:
             else:
                 raise
 
+    def _ack_and_remove(self, message_id: str):
+        """Acknowledge the message in the consumer group and remove it from the stream."""
+        self.redis_client.xack(self.stream_name, self.group_name, message_id)
+        self.redis_client.xdel(self.stream_name, message_id)
+
     def process_message(self, message_id: str, message_json: str, backend_name: str):
         """
         Process a message from the operator stream.
@@ -168,21 +174,17 @@ class MessageWorker:
                         logging.error('Unknown backend operation: %s for backend %s',
                                      operation, backend_name)
 
-                    # Acknowledge the message
-                    self.redis_client.xack(self.stream_name, self.group_name, message_id)
                     self._progress_writer.report_progress()
-                    return
                 else:
-                    # Regular logging message - ack and ignore
+                    # Regular logging message - ack and remove
                     logging.debug('Ignoring logging message id=%s', message_id)
-                    self.redis_client.xack(self.stream_name, self.group_name, message_id)
-                    return
+                self._ack_and_remove(message_id)
+                return
             else:
                 logging.error('Unknown message type in protobuf message id=%s', message_id)
-                # Ack invalid message to prevent infinite retries
-                logging.info('Message type: %s', message_type)
-                logging.info('Message body: %s', body_data)
-                self.redis_client.xack(self.stream_name, self.group_name, message_id)
+                # Ack and remove invalid message to prevent infinite retries
+                logging.info('Message: %s', protobuf_msg)
+                self._ack_and_remove(message_id)
                 return
 
             # Convert protobuf format to MessageBody format for consistent handling
@@ -202,7 +204,11 @@ class MessageWorker:
             message_body = backend_messages.MessageOptions(**message_options)
 
             if message_body.update_pod:
+                if message_body.update_pod.status == task.TaskGroupStatus.INITIALIZING:
+                    helpers.create_monitor_job(message_body.update_pod)
                 helpers.queue_update_group_job(message_body.update_pod)
+                helpers.send_pod_conditions(message_body.update_pod,
+                                            self.workflow_config.max_event_log_lines)
             elif message_body.update_node:
                 helpers.update_resource(backend_name, message_body.update_node)
             elif message_body.update_node_usage:
@@ -217,9 +223,9 @@ class MessageWorker:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)
 
-            # Acknowledge the message (remove from pending)
-            self.redis_client.xack(self.stream_name, self.group_name, message_id)
-            logging.debug('Acknowledged message id=%s', message_id)
+            # Acknowledge and remove the message from the stream
+            self._ack_and_remove(message_id)
+            logging.debug('Acknowledged and removed message id=%s', message_id)
 
             # Record metrics
             processing_time = (common.current_time() - message.timestamp).total_seconds()
@@ -241,13 +247,13 @@ class MessageWorker:
         except json.JSONDecodeError as err:
             logging.error('Invalid JSON in message id=%s: %s, raw: %s',
                          message_id, str(err), message_json)
-            # Ack invalid JSON to prevent infinite retries
-            self.redis_client.xack(self.stream_name, self.group_name, message_id)
+            # Ack and remove invalid JSON to prevent infinite retries
+            self._ack_and_remove(message_id)
         except pydantic.ValidationError as err:
             logging.error('Invalid message format id=%s: %s, raw: %s',
                          message_id, str(err), message_json)
-            # Ack invalid messages to prevent infinite retries
-            self.redis_client.xack(self.stream_name, self.group_name, message_id)
+            # Ack and remove invalid messages to prevent infinite retries
+            self._ack_and_remove(message_id)
         except osmo_errors.OSMODatabaseError as db_err:
             logging.error(
                 'Database error processing message id=%s: %s',

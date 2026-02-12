@@ -28,6 +28,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// getPodKey returns a string key for a pod (test helper matching workflow_listener key format).
+func getPodKey(pod *corev1.Pod) string {
+	if pod == nil || pod.Labels == nil {
+		return "--"
+	}
+	return fmt.Sprintf("%s-%s-%s",
+		pod.Labels["osmo.workflow_uuid"],
+		pod.Labels["osmo.task_uuid"],
+		pod.Labels["osmo.retry_id"],
+	)
+}
+
+// getPodStateKey returns a podStateKey for a pod (test helper for tracker.states lookup).
+func getPodStateKey(pod *corev1.Pod) podStateKey {
+	if pod == nil || pod.Labels == nil {
+		return podStateKey{}
+	}
+	return podStateKey{
+		workflowUUID: pod.Labels["osmo.workflow_uuid"],
+		taskUUID:     pod.Labels["osmo.task_uuid"],
+		retryID:      pod.Labels["osmo.retry_id"],
+	}
+}
+
 // Test getPodKey function
 func TestGetPodKey(t *testing.T) {
 	tests := []struct {
@@ -125,12 +149,7 @@ func TestCreatePodUpdateMessage(t *testing.T) {
 		ExitCode: utils.ExitCodeNotSet,
 		Message:  "",
 	}
-	msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
-
-	if err != nil {
-		t.Fatalf("createPodUpdateMessage() error = %v", err)
-	}
-
+	msg := createPodUpdateMessage(pod, statusResult, "test-backend")
 	if msg == nil {
 		t.Fatal("createPodUpdateMessage() returned nil message")
 	}
@@ -188,7 +207,7 @@ func TestCreatePodUpdateMessage(t *testing.T) {
 // Test podStateTracker.hasChanged
 func TestPodStateTracker_HasChanged(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -206,13 +225,13 @@ func TestPodStateTracker_HasChanged(t *testing.T) {
 	}
 
 	// First call should return true (new pod)
-	changed, _ := tracker.hasChanged(pod)
+	changed, _ := tracker.shouldProcess(pod)
 	if !changed {
 		t.Error("First call to hasChanged() should return true for new pod")
 	}
 
 	// Second call with same status should return false
-	changed, _ = tracker.hasChanged(pod)
+	changed, _ = tracker.shouldProcess(pod)
 	if changed {
 		t.Error("Second call to hasChanged() should return false for unchanged pod")
 	}
@@ -222,14 +241,14 @@ func TestPodStateTracker_HasChanged(t *testing.T) {
 	pod.Status.ContainerStatuses = []corev1.ContainerStatus{{Ready: true}}
 
 	// Should return true after status change
-	changed, _ = tracker.hasChanged(pod)
+	changed, _ = tracker.shouldProcess(pod)
 	if !changed {
 		t.Error("hasChanged() should return true after status change")
 	}
 
 	// Test TTL expiration
 	tracker2 := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    1 * time.Millisecond,
 	}
 
@@ -248,11 +267,11 @@ func TestPodStateTracker_HasChanged(t *testing.T) {
 		},
 	}
 
-	tracker2.hasChanged(pod2)
+	tracker2.shouldProcess(pod2)
 	time.Sleep(2 * time.Millisecond)
 
 	// Should return true after TTL expiration
-	changed2, _ := tracker2.hasChanged(pod2)
+	changed2, _ := tracker2.shouldProcess(pod2)
 	if !changed2 {
 		t.Error("hasChanged() should return true after TTL expiration")
 	}
@@ -261,7 +280,7 @@ func TestPodStateTracker_HasChanged(t *testing.T) {
 // Test podStateTracker.remove
 func TestPodStateTracker_Remove(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -279,10 +298,10 @@ func TestPodStateTracker_Remove(t *testing.T) {
 	}
 
 	// Add pod to tracker
-	tracker.hasChanged(pod)
+	tracker.shouldProcess(pod)
 
 	// Verify it's in the tracker
-	key := getPodKey(pod)
+	key := getPodStateKey(pod)
 	if _, exists := tracker.states[key]; !exists {
 		t.Error("Pod should be in tracker after hasChanged()")
 	}
@@ -299,7 +318,7 @@ func TestPodStateTracker_Remove(t *testing.T) {
 // Test podStateTracker with concurrent access (stress test for race conditions)
 func TestPodStateTracker_Concurrent(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -334,10 +353,10 @@ func TestPodStateTracker_Concurrent(t *testing.T) {
 				// Mix of operations
 				switch j % 3 {
 				case 0:
-					tracker.hasChanged(pod)
+					tracker.shouldProcess(pod)
 				case 1:
 					pod.Status.Phase = corev1.PodSucceeded
-					tracker.hasChanged(pod)
+					tracker.shouldProcess(pod)
 				case 2:
 					tracker.remove(pod)
 				}
@@ -365,7 +384,7 @@ func TestPodStateTracker_Concurrent(t *testing.T) {
 		},
 	}
 
-	changed, _ := tracker.hasChanged(testPod)
+	changed, _ := tracker.shouldProcess(testPod)
 	if !changed {
 		t.Error("Tracker should detect new pod after concurrent stress test")
 	}
@@ -374,7 +393,7 @@ func TestPodStateTracker_Concurrent(t *testing.T) {
 // Benchmark podStateTracker.hasChanged
 func BenchmarkPodStateTracker_HasChanged(b *testing.B) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -396,7 +415,7 @@ func BenchmarkPodStateTracker_HasChanged(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tracker.hasChanged(pod)
+		tracker.shouldProcess(pod)
 	}
 }
 
@@ -495,10 +514,9 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 
 		// Use predefined status for unit test
 		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
-		msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
-
-		if err != nil {
-			t.Fatalf("createPodUpdateMessage() error = %v", err)
+		msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+		if msg == nil {
+			t.Fatal("createPodUpdateMessage() returned nil")
 		}
 
 		// Get pod update from message body (oneof)
@@ -555,10 +573,9 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 
 		// Use predefined status for unit test
 		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
-		msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
-
-		if err != nil {
-			t.Fatalf("createPodUpdateMessage() error = %v", err)
+		msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+		if msg == nil {
+			t.Fatal("createPodUpdateMessage() returned nil")
 		}
 
 		// Get pod update from message body (oneof)
@@ -621,10 +638,9 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 
 		// Use predefined status for unit test
 		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
-		msg, err := createPodUpdateMessage(pod, statusResult, "test-backend")
-
-		if err != nil {
-			t.Fatalf("createPodUpdateMessage() error = %v", err)
+		msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+		if msg == nil {
+			t.Fatal("createPodUpdateMessage() returned nil")
 		}
 
 		// Get pod update from message body (oneof)
@@ -717,11 +733,10 @@ func TestCreatePodUpdateMessage_UUIDFormat(t *testing.T) {
 	}
 
 	statusResult := utils.CalculateTaskStatus(pod)
-	msg1, err1 := createPodUpdateMessage(pod, statusResult, "backend")
-	msg2, err2 := createPodUpdateMessage(pod, statusResult, "backend")
-
-	if err1 != nil || err2 != nil {
-		t.Fatalf("createPodUpdateMessage() errors: %v, %v", err1, err2)
+	msg1 := createPodUpdateMessage(pod, statusResult, "backend")
+	msg2 := createPodUpdateMessage(pod, statusResult, "backend")
+	if msg1 == nil || msg2 == nil {
+		t.Fatal("createPodUpdateMessage() returned nil")
 	}
 
 	// UUIDs should be different
@@ -758,10 +773,9 @@ func TestCreatePodUpdateMessage_TimestampFormat(t *testing.T) {
 	}
 
 	statusResult := utils.CalculateTaskStatus(pod)
-	msg, err := createPodUpdateMessage(pod, statusResult, "backend")
-
-	if err != nil {
-		t.Fatalf("createPodUpdateMessage() error = %v", err)
+	msg := createPodUpdateMessage(pod, statusResult, "backend")
+	if msg == nil {
+		t.Fatal("createPodUpdateMessage() returned nil")
 	}
 
 	// Timestamp should be in the format "2006-01-02T15:04:05.999999"
@@ -775,7 +789,7 @@ func TestCreatePodUpdateMessage_TimestampFormat(t *testing.T) {
 // Test podStateTracker with zero TTL
 func TestPodStateTracker_ZeroTTL(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    0, // Zero TTL means always expired
 	}
 
@@ -792,13 +806,13 @@ func TestPodStateTracker_ZeroTTL(t *testing.T) {
 	}
 
 	// First call
-	changed1, _ := tracker.hasChanged(pod)
+	changed1, _ := tracker.shouldProcess(pod)
 	if !changed1 {
 		t.Error("First call should return true")
 	}
 
 	// Second call with zero TTL should still return true (always expired)
-	changed2, _ := tracker.hasChanged(pod)
+	changed2, _ := tracker.shouldProcess(pod)
 	if !changed2 {
 		t.Error("With zero TTL, every call should return true")
 	}
@@ -807,7 +821,7 @@ func TestPodStateTracker_ZeroTTL(t *testing.T) {
 // Test podStateTracker with very large TTL
 func TestPodStateTracker_LargeTTL(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    24 * time.Hour, // Very large TTL
 	}
 
@@ -824,13 +838,13 @@ func TestPodStateTracker_LargeTTL(t *testing.T) {
 	}
 
 	// First call
-	tracker.hasChanged(pod)
+	tracker.shouldProcess(pod)
 
 	// Change status
 	pod.Status.Phase = corev1.PodRunning
 
 	// Should detect change even with large TTL
-	changed, _ := tracker.hasChanged(pod)
+	changed, _ := tracker.shouldProcess(pod)
 	if !changed {
 		t.Error("Should detect status change regardless of TTL")
 	}
@@ -920,7 +934,7 @@ func TestNewWorkflowListener(t *testing.T) {
 // Test that podStateTracker correctly identifies status changes across pod phases
 func TestPodStateTracker_StatusTransitions(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -959,7 +973,7 @@ func TestPodStateTracker_StatusTransitions(t *testing.T) {
 			pod.Status.ContainerStatuses = []corev1.ContainerStatus{}
 		}
 
-		changed, _ := tracker.hasChanged(pod)
+		changed, _ := tracker.shouldProcess(pod)
 		if changed != trans.shouldChange {
 			t.Errorf("%s: hasChanged() = %v, expected %v", trans.description, changed, trans.shouldChange)
 		}
@@ -993,7 +1007,7 @@ func TestParseRetryID_EdgeCases(t *testing.T) {
 // Test that Unknown status doesn't get sent
 func TestPodStateTracker_UnknownStatus(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -1010,7 +1024,7 @@ func TestPodStateTracker_UnknownStatus(t *testing.T) {
 	}
 
 	// Should return false for Unknown status
-	changed, result := tracker.hasChanged(pod)
+	changed, result := tracker.shouldProcess(pod)
 	if changed {
 		t.Error("hasChanged() should return false for Unknown status")
 	}
@@ -1073,10 +1087,9 @@ func TestCreatePodUpdateMessage_AllConditionTypes(t *testing.T) {
 		ExitCode: utils.ExitCodeNotSet,
 		Message:  "",
 	}
-	msg, err := createPodUpdateMessage(pod, statusResult, "backend")
-
-	if err != nil {
-		t.Fatalf("createPodUpdateMessage() error = %v", err)
+	msg := createPodUpdateMessage(pod, statusResult, "backend")
+	if msg == nil {
+		t.Fatal("createPodUpdateMessage() returned nil")
 	}
 
 	updatePod := msg.Body.(*pb.ListenerMessage_UpdatePod).UpdatePod
@@ -1127,10 +1140,9 @@ func TestCreatePodUpdateMessage_ConditionTimestampFormat(t *testing.T) {
 	}
 
 	statusResult := utils.CalculateTaskStatus(pod)
-	msg, err := createPodUpdateMessage(pod, statusResult, "backend")
-
-	if err != nil {
-		t.Fatalf("createPodUpdateMessage() error = %v", err)
+	msg := createPodUpdateMessage(pod, statusResult, "backend")
+	if msg == nil {
+		t.Fatal("createPodUpdateMessage() returned nil")
 	}
 
 	updatePod := msg.Body.(*pb.ListenerMessage_UpdatePod).UpdatePod
@@ -1185,10 +1197,9 @@ func TestCreatePodUpdateMessage_ConditionStatusConversion(t *testing.T) {
 			}
 
 			statusResult := utils.CalculateTaskStatus(pod)
-			msg, err := createPodUpdateMessage(pod, statusResult, "backend")
-
-			if err != nil {
-				t.Fatalf("createPodUpdateMessage() error = %v", err)
+			msg := createPodUpdateMessage(pod, statusResult, "backend")
+			if msg == nil {
+				t.Fatal("createPodUpdateMessage() returned nil")
 			}
 
 			updatePod := msg.Body.(*pb.ListenerMessage_UpdatePod).UpdatePod
@@ -1217,7 +1228,7 @@ func TestGetPodKey_NilLabels(t *testing.T) {
 // Test podStateTracker with multiple pods simultaneously
 func TestPodStateTracker_MultiplePods(t *testing.T) {
 	tracker := &podStateTracker{
-		states: make(map[string]podStateEntry),
+		states: make(map[podStateKey]podStateEntry),
 		ttl:    5 * time.Minute,
 	}
 
@@ -1256,7 +1267,7 @@ func TestPodStateTracker_MultiplePods(t *testing.T) {
 
 	// All should be new
 	for i, pod := range pods {
-		changed, _ := tracker.hasChanged(pod)
+		changed, _ := tracker.shouldProcess(pod)
 		if !changed {
 			t.Errorf("Pod %d should be detected as new", i)
 		}
@@ -1264,7 +1275,7 @@ func TestPodStateTracker_MultiplePods(t *testing.T) {
 
 	// None should have changed
 	for i, pod := range pods {
-		changed, _ := tracker.hasChanged(pod)
+		changed, _ := tracker.shouldProcess(pod)
 		if changed {
 			t.Errorf("Pod %d should not have changed", i)
 		}
@@ -1276,7 +1287,7 @@ func TestPodStateTracker_MultiplePods(t *testing.T) {
 
 	// Only the updated pod should show change
 	for i, pod := range pods {
-		changed, _ := tracker.hasChanged(pod)
+		changed, _ := tracker.shouldProcess(pod)
 		if i == 0 && !changed {
 			t.Errorf("Pod %d should have changed", i)
 		}

@@ -72,15 +72,17 @@ func main() {
 
 	// Create all listeners
 	workflowListener := NewWorkflowListener(cmdArgs)
-	resourceListener := NewResourceListener(cmdArgs)
+	nodeUsageListener := NewNodeUsageListener(cmdArgs)
+	nodeListener := NewNodeListener(cmdArgs)
 	eventListener := NewEventListener(cmdArgs)
 
 	var wg sync.WaitGroup
 
 	// Launch all listeners in parallel
-	wg.Add(3)
+	wg.Add(4)
 	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
-	go runListenerWithRetry(ctx, resourceListener, "ResourceListener", &wg)
+	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", &wg)
+	go runListenerWithRetry(ctx, nodeListener, "NodeListener", &wg)
 	go runListenerWithRetry(ctx, eventListener, "EventListener", &wg)
 
 	// Wait for all listeners to complete
