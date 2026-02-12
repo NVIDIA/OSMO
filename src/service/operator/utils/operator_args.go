@@ -21,6 +21,7 @@ package utils
 import (
 	"flag"
 
+	"go.corp.nvidia.com/osmo/utils/metrics"
 	"go.corp.nvidia.com/osmo/utils/postgres"
 	"go.corp.nvidia.com/osmo/utils/redis"
 )
@@ -36,6 +37,7 @@ type OperatorArgs struct {
 
 	Redis    redis.RedisConfig
 	Postgres postgres.PostgresConfig
+	Metrics  metrics.MetricsConfig
 }
 
 // OperatorParse parses command line arguments and environment variables
@@ -63,6 +65,9 @@ func OperatorParse() OperatorArgs {
 	// PostgreSQL configuration
 	postgresFlagPtrs := postgres.RegisterPostgresFlags()
 
+	// OpenTelemetry metrics configuration
+	metricsFlagPtrs := metrics.RegisterMetricsFlags("osmo-operator-service")
+
 	flag.Parse()
 
 	return OperatorArgs{
@@ -73,5 +78,6 @@ func OperatorParse() OperatorArgs {
 		OperatorProgressFrequencySec: *operatorProgressFrequencySec,
 		Redis:                        redisFlagPtrs.ToRedisConfig(),
 		Postgres:                     postgresFlagPtrs.ToPostgresConfig(),
+		Metrics:                      metricsFlagPtrs.ToMetricsConfig(),
 	}
 }

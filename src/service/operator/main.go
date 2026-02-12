@@ -59,7 +59,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Initialize OpenTelemetry metrics
-	metricsConfig := metrics.LoadMetricsConfig()
+	metricsConfig := args.Metrics
 	if metricsConfig.Enabled {
 		if err := metrics.InitMetricCreator(metricsConfig); err != nil {
 			logger.Error("Failed to initialize metrics",

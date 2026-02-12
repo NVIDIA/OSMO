@@ -33,6 +33,7 @@ go_library(
     visibility = ["//src/service/operator:__subpackages__"],
     deps = [
         "//src/proto/operator:operator_go_proto",
+        "//src/utils/metrics-go",
         "//src/utils/postgres",
         "//src/utils/redis",
         "@com_github_jackc_pgx_v5//pgxpool",

@@ -314,6 +314,7 @@ go_library(
         "//src/lib/utils:utils",
         "//src/operator/utils:utils",
         "//src/proto/operator:operator_go_proto",
+        "//src/utils/metrics-go",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
