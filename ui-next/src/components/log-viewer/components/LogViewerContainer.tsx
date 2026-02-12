@@ -223,21 +223,33 @@ function LogViewerContainerImpl({
     setPendingDisplay(null);
   }, []);
 
-  // Construct external log URL (direct to backend, bypassing UI proxy)
+  // Get external log URL from workflow response (backend provides the correct URL)
+  // Fallback to manual construction only if backend doesn't provide it
   const externalLogUrl = useMemo(() => {
+    // Prefer backend-provided logs URL (handles all environments correctly)
+    if (workflowFromClient?.logs) {
+      // If we need group/task scope, append query params to backend URL
+      if (groupId || taskId) {
+        const url = new URL(workflowFromClient.logs);
+        if (groupId) url.searchParams.set("group_id", groupId);
+        if (taskId) url.searchParams.set("task_id", taskId);
+        return url.toString();
+      }
+      return workflowFromClient.logs;
+    }
+
+    // Fallback: construct URL manually (only used if backend doesn't provide it)
     const hostname = getApiHostname();
-    // Ensure protocol is included (assume https if no protocol specified)
     const baseUrl = hostname.startsWith("http") ? hostname : `https://${hostname}`;
     const basePath = `${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
 
-    // Add query parameters for group/task scope
     const params = new URLSearchParams();
     if (groupId) params.set("group_id", groupId);
     if (taskId) params.set("task_id", taskId);
 
     const queryString = params.toString();
     return queryString ? `${basePath}?${queryString}` : basePath;
-  }, [workflowId, groupId, taskId]);
+  }, [workflowFromClient, workflowId, groupId, taskId]);
 
   // Grouped props for LogViewer (memoized to prevent re-renders)
   const dataProps = useMemo<LogViewerDataProps>(

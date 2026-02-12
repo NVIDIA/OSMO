@@ -151,10 +151,29 @@ export function stripBasePath(path: string): string {
 
 /**
  * Get the configured API hostname.
- * Set NEXT_PUBLIC_OSMO_API_HOSTNAME in .env.local
+ *
+ * Priority:
+ * 1. NEXT_PUBLIC_OSMO_API_HOSTNAME env var (explicit override)
+ * 2. Current window.location.host (production default - UI and API on same host via Envoy)
+ * 3. "localhost:8080" (fallback for SSR/build time)
+ *
+ * In production, the API is accessible at the same hostname as the UI (via Envoy proxy).
+ * In local dev, set NEXT_PUBLIC_OSMO_API_HOSTNAME in .env.local to point to your backend.
  */
 export function getApiHostname(): string {
-  return process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
+  // Explicit override via env var
+  if (process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME) {
+    return process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME;
+  }
+
+  // In browser, use current host (production default)
+  // In production, UI and API are on the same host via Envoy proxy
+  if (typeof window !== "undefined") {
+    return window.location.host;
+  }
+
+  // Fallback for SSR/build time (not used in client-side external links)
+  return "localhost:8080";
 }
 
 // =============================================================================
