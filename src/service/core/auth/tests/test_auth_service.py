@@ -118,9 +118,9 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(response.status_code, 200)
         return response.json()
 
-    def _create_pat(self, token_name: str, expires_at: str = '2027-01-01',
-                    description: str = '', roles: Optional[List[str]] = None) -> str:
-        """Helper to create a PAT for the authenticated user."""
+    def _create_access_token(self, token_name: str, expires_at: str = '2027-01-01',
+                             description: str = '', roles: Optional[List[str]] = None) -> str:
+        """Helper to create an access token for the authenticated user."""
         params: Dict[str, Any] = {'expires_at': expires_at}
         if description:
             params['description'] = description
@@ -134,8 +134,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(response.status_code, 200)
         return response.json()
 
-    def _get_pat_roles(self, user_name: str, token_name: str) -> List[str]:
-        """Helper to get PAT roles directly from the database."""
+    def _get_access_token_roles(self, user_name: str, token_name: str) -> List[str]:
+        """Helper to get access token roles directly from the database."""
         postgres = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT ur.role_name FROM access_token_roles pr
@@ -367,57 +367,57 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertNotIn('osmo-admin', role_names)
         self.assertIn('osmo-user', role_names)
 
-    def test_remove_role_cascades_to_pats(self):
-        """Test that removing a role from a user also removes it from their PATs."""
+    def test_remove_role_cascades_to_access_tokens(self):
+        """Test that removing a role from a user also removes it from their access tokens."""
         # Create user with roles
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin', 'osmo-ml-team'])
 
-        # Create a PAT that inherits all roles
-        self._create_pat('test-pat')
+        # Create an access token that inherits all roles
+        self._create_access_token('test-token')
 
-        # Verify PAT has all roles
-        pat_roles = self._get_pat_roles(self.TEST_USER, 'test-pat')
-        self.assertIn('osmo-user', pat_roles)
-        self.assertIn('osmo-admin', pat_roles)
-        self.assertIn('osmo-ml-team', pat_roles)
+        # Verify access token has all roles
+        token_roles = self._get_access_token_roles(self.TEST_USER, 'test-token')
+        self.assertIn('osmo-user', token_roles)
+        self.assertIn('osmo-admin', token_roles)
+        self.assertIn('osmo-ml-team', token_roles)
 
         # Remove a role from the user
         response = self.client.delete(f'/api/auth/user/{self.TEST_USER}/roles/osmo-admin')
         self.assertEqual(response.status_code, 200)
 
-        # Verify role is removed from both user and PAT
+        # Verify role is removed from both user and access token
         user = self._get_user(self.TEST_USER)
         user_role_names = [r['role_name'] for r in user['roles']]
         self.assertNotIn('osmo-admin', user_role_names)
 
-        pat_roles = self._get_pat_roles(self.TEST_USER, 'test-pat')
-        self.assertNotIn('osmo-admin', pat_roles)
-        self.assertIn('osmo-user', pat_roles)
-        self.assertIn('osmo-ml-team', pat_roles)
+        token_roles = self._get_access_token_roles(self.TEST_USER, 'test-token')
+        self.assertNotIn('osmo-admin', token_roles)
+        self.assertIn('osmo-user', token_roles)
+        self.assertIn('osmo-ml-team', token_roles)
 
-    def test_remove_role_cascades_to_multiple_pats(self):
-        """Test that removing a role cascades to all of user's PATs."""
+    def test_remove_role_cascades_to_multiple_access_tokens(self):
+        """Test that removing a role cascades to all of user's access tokens."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin'])
 
-        # Create multiple PATs
-        self._create_pat('pat1')
-        self._create_pat('pat2')
-        self._create_pat('pat3')
+        # Create multiple access tokens
+        self._create_access_token('token1')
+        self._create_access_token('token2')
+        self._create_access_token('token3')
 
-        # Verify all PATs have the role
-        for pat_name in ['pat1', 'pat2', 'pat3']:
-            pat_roles = self._get_pat_roles(self.TEST_USER, pat_name)
-            self.assertIn('osmo-admin', pat_roles)
+        # Verify all access tokens have the role
+        for token_name in ['token1', 'token2', 'token3']:
+            token_roles = self._get_access_token_roles(self.TEST_USER, token_name)
+            self.assertIn('osmo-admin', token_roles)
 
         # Remove role from user
         response = self.client.delete(f'/api/auth/user/{self.TEST_USER}/roles/osmo-admin')
         self.assertEqual(response.status_code, 200)
 
-        # Verify role is removed from all PATs
-        for pat_name in ['pat1', 'pat2', 'pat3']:
-            pat_roles = self._get_pat_roles(self.TEST_USER, pat_name)
-            self.assertNotIn('osmo-admin', pat_roles)
-            self.assertIn('osmo-user', pat_roles)
+        # Verify role is removed from all access tokens
+        for token_name in ['token1', 'token2', 'token3']:
+            token_roles = self._get_access_token_roles(self.TEST_USER, token_name)
+            self.assertNotIn('osmo-admin', token_roles)
+            self.assertIn('osmo-user', token_roles)
 
     def test_list_user_roles(self):
         """Test listing roles for a user."""
@@ -469,22 +469,22 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertIn('nonexistent@example.com', result['failed'])
 
     # =========================================================================
-    # Access Token (PAT) Tests
+    # Access Token Tests
     # =========================================================================
 
-    def test_create_pat_inherits_all_roles(self):
-        """Test that creating a PAT without specifying roles inherits all user roles."""
+    def test_create_access_token_inherits_all_roles(self):
+        """Test that creating an access token without specifying roles inherits all user roles."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin', 'osmo-ml-team'])
 
-        token = self._create_pat('inherit-all-token')
+        token = self._create_access_token('inherit-all-token')
         self.assertIsNotNone(token)
 
-        # Verify PAT has all user roles
-        pat_roles = self._get_pat_roles(self.TEST_USER, 'inherit-all-token')
-        self.assertEqual(sorted(pat_roles), ['osmo-admin', 'osmo-ml-team', 'osmo-user'])
+        # Verify access token has all user roles
+        token_roles = self._get_access_token_roles(self.TEST_USER, 'inherit-all-token')
+        self.assertEqual(sorted(token_roles), ['osmo-admin', 'osmo-ml-team', 'osmo-user'])
 
-    def test_create_pat_with_subset_of_roles(self):
-        """Test creating a PAT with a specific subset of user's roles."""
+    def test_create_access_token_with_subset_of_roles(self):
+        """Test creating an access token with a specific subset of user's roles."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin', 'osmo-ml-team'])
 
         params = {
@@ -494,13 +494,13 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         response = self.client.post('/api/auth/access_token/subset-token', params=params)
         self.assertEqual(response.status_code, 200)
 
-        # Verify PAT has only the specified roles
-        pat_roles = self._get_pat_roles(self.TEST_USER, 'subset-token')
-        self.assertEqual(sorted(pat_roles), ['osmo-ml-team', 'osmo-user'])
-        self.assertNotIn('osmo-admin', pat_roles)
+        # Verify access token has only the specified roles
+        token_roles = self._get_access_token_roles(self.TEST_USER, 'subset-token')
+        self.assertEqual(sorted(token_roles), ['osmo-ml-team', 'osmo-user'])
+        self.assertNotIn('osmo-admin', token_roles)
 
-    def test_create_pat_with_unassigned_role_fails(self):
-        """Test that creating a PAT with roles not assigned to user fails."""
+    def test_create_access_token_with_unassigned_role_fails(self):
+        """Test that creating an access token with roles not assigned to user fails."""
         self._create_user(self.TEST_USER, roles=['osmo-user'])
 
         params = {
@@ -511,8 +511,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(response.status_code, 400)
         self.assertIn('does not have all the requested roles', response.json()['message'])
 
-    def test_create_pat_user_with_no_roles_fails(self):
-        """Test that creating a PAT for a user with no roles fails."""
+    def test_create_access_token_user_with_no_roles_fails(self):
+        """Test that creating an access token for a user with no roles fails."""
         self._create_user(self.TEST_USER)  # No roles
 
         response = self.client.post(
@@ -522,23 +522,23 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(response.status_code, 400)
         self.assertIn('At least one role', response.json()['message'])
 
-    def test_create_pat_duplicate_name_fails(self):
-        """Test that creating a PAT with duplicate name fails."""
+    def test_create_access_token_duplicate_name_fails(self):
+        """Test that creating an access token with duplicate name fails."""
         self._create_user(self.TEST_USER, roles=['osmo-user'])
-        self._create_pat('duplicate-pat')
+        self._create_access_token('duplicate-token')
 
         response = self.client.post(
-            '/api/auth/access_token/duplicate-pat',
+            '/api/auth/access_token/duplicate-token',
             params={'expires_at': '2027-01-01'}
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn('already exists', response.json()['message'])
 
     def test_list_access_tokens(self):
-        """Test listing PATs for a user."""
+        """Test listing access tokens for a user."""
         self._create_user(self.TEST_USER, roles=['osmo-user'])
-        self._create_pat('token1', description='First token')
-        self._create_pat('token2', description='Second token')
+        self._create_access_token('token1', description='First token')
+        self._create_access_token('token2', description='Second token')
 
         response = self.client.get('/api/auth/access_token')
         self.assertEqual(response.status_code, 200)
@@ -549,9 +549,9 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertIn('token2', token_names)
 
     def test_delete_access_token(self):
-        """Test deleting a PAT."""
+        """Test deleting an access token."""
         self._create_user(self.TEST_USER, roles=['osmo-user'])
-        self._create_pat('delete-me-token')
+        self._create_access_token('delete-me-token')
 
         response = self.client.delete('/api/auth/access_token/delete-me-token')
         self.assertEqual(response.status_code, 200)
@@ -562,9 +562,9 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertNotIn('delete-me-token', token_names)
 
     def test_delete_access_token_cascades_access_token_roles(self):
-        """Test that deleting a PAT removes its access_token_roles entries."""
+        """Test that deleting an access token removes its access_token_roles entries."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin'])
-        self._create_pat('cascade-delete-token')
+        self._create_access_token('cascade-delete-token')
 
         # Verify access_token_roles exist
         postgres = connectors.PostgresConnector.get_instance()
@@ -585,10 +585,10 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
             fetch_cmd, (self.TEST_USER, 'cascade-delete-token'), True)
         self.assertEqual(result[0]['cnt'], 0)
 
-    def test_list_pat_roles(self):
-        """Test listing roles for a specific PAT."""
+    def test_list_access_token_roles(self):
+        """Test listing roles for a specific access token."""
         self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin'])
-        self._create_pat('roles-token')
+        self._create_access_token('roles-token')
 
         response = self.client.get('/api/auth/access_token/roles-token/roles')
         self.assertEqual(response.status_code, 200)
@@ -603,8 +603,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
     # Admin API Tests
     # =========================================================================
 
-    def test_admin_create_pat_for_user(self):
-        """Test admin creating a PAT for another user."""
+    def test_admin_create_access_token_for_user(self):
+        """Test admin creating an access token for another user."""
         self._create_user('target-user@example.com', roles=['osmo-user', 'osmo-ml-team'])
 
         response = self.client.post(
@@ -614,11 +614,11 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(response.status_code, 200)
 
         # Verify token was created with correct roles
-        pat_roles = self._get_pat_roles('target-user@example.com', 'admin-created-token')
-        self.assertEqual(sorted(pat_roles), ['osmo-ml-team', 'osmo-user'])
+        token_roles = self._get_access_token_roles('target-user@example.com', 'admin-created-token')
+        self.assertEqual(sorted(token_roles), ['osmo-ml-team', 'osmo-user'])
 
-    def test_admin_create_pat_for_nonexistent_user_fails(self):
-        """Test that admin creating PAT for non-existent user fails."""
+    def test_admin_create_access_token_for_nonexistent_user_fails(self):
+        """Test that admin creating access token for non-existent user fails."""
         response = self.client.post(
             '/api/auth/user/nobody@example.com/access_token/admin-token',
             params={'expires_at': '2027-01-01'}
@@ -632,8 +632,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
             f"Expected 'not found' or 'role' in message, got: {message}"
         )
 
-    def test_admin_list_pats_for_user(self):
-        """Test admin listing PATs for another user."""
+    def test_admin_list_access_tokens_for_user(self):
+        """Test admin listing access tokens for another user."""
         self._create_user('list-target@example.com', roles=['osmo-user'])
 
         # Create tokens for the target user via API
@@ -657,8 +657,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertIn('user-token-1', token_names)
         self.assertIn('user-token-2', token_names)
 
-    def test_admin_delete_pat_for_user(self):
-        """Test admin deleting another user's PAT."""
+    def test_admin_delete_access_token_for_user(self):
+        """Test admin deleting another user's access token."""
         self._create_user('delete-target@example.com', roles=['osmo-user'])
 
         # Create token for target user via API
@@ -691,35 +691,35 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         response = self.client.delete('/api/auth/user/norole@example.com/roles/osmo-admin')
         self.assertEqual(response.status_code, 200)
 
-    def test_user_deletion_cascades_to_pats(self):
-        """Test that deleting a user cascades to their PATs."""
-        self._create_user('pat-cascade@example.com', roles=['osmo-user'])
+    def test_user_deletion_cascades_to_access_tokens(self):
+        """Test that deleting a user cascades to their access tokens."""
+        self._create_user('token-cascade@example.com', roles=['osmo-user'])
 
         # Create token for target user via API
         response = self.client.post(
-            '/api/auth/user/pat-cascade@example.com/access_token/cascade-token',
+            '/api/auth/user/token-cascade@example.com/access_token/cascade-token',
             params={'expires_at': '2027-01-01', 'description': 'Cascade test'}
         )
         self.assertEqual(response.status_code, 200)
 
-        # Verify PAT exists
+        # Verify access token exists
         postgres = connectors.PostgresConnector.get_instance()
-        tokens = objects.AccessToken.list_from_db(postgres, 'pat-cascade@example.com')
+        tokens = objects.AccessToken.list_from_db(postgres, 'token-cascade@example.com')
         self.assertEqual(len(tokens), 1)
 
         # Delete user
-        response = self.client.delete('/api/auth/user/pat-cascade@example.com')
+        response = self.client.delete('/api/auth/user/token-cascade@example.com')
         self.assertEqual(response.status_code, 200)
 
-        # Verify PAT is gone (explicit deletion in delete_user handles this)
+        # Verify access token is gone (explicit deletion in delete_user handles this)
         fetch_cmd = '''
             SELECT COUNT(*) as cnt FROM access_token WHERE user_name = %s;
         '''
-        result = postgres.execute_fetch_command(fetch_cmd, ('pat-cascade@example.com',), True)
+        result = postgres.execute_fetch_command(fetch_cmd, ('token-cascade@example.com',), True)
         self.assertEqual(result[0]['cnt'], 0)
 
-    def test_pat_expiration_validation(self):
-        """Test that PAT expiration date must be in the future."""
+    def test_access_token_expiration_validation(self):
+        """Test that access token expiration date must be in the future."""
         self._create_user(self.TEST_USER, roles=['osmo-user'])
 
         response = self.client.post(
@@ -729,8 +729,8 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertEqual(response.status_code, 400)
         self.assertIn('past the current date', response.json()['message'])
 
-    def test_pat_name_validation(self):
-        """Test that PAT name must match valid regex."""
+    def test_access_token_name_validation(self):
+        """Test that access token name must match valid regex."""
         self._create_user(self.TEST_USER, roles=['osmo-user'])
 
         response = self.client.post(
