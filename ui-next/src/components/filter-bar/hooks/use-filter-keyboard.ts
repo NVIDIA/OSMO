@@ -27,7 +27,7 @@
  * - Backspace/Delete chip removal
  * - Escape to close dropdown or blur input
  * - Enter to create chip from typed field:value or open dropdown
- * - Tab to autocomplete single matching suggestion
+ * - Tab/Shift+Tab to cycle through suggestions (autocomplete if single match)
  */
 
 import { useCallback } from "react";
@@ -73,6 +73,9 @@ export interface FilterKeyboardActions {
   getInputSelectionStart: () => number | null;
   /** Get cursor selection end */
   getInputSelectionEnd: () => number | null;
+
+  /** Cycle to next/previous suggestion by dispatching arrow key to cmdk */
+  cycleSuggestion: (direction: "forward" | "backward") => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,22 +280,35 @@ function handleEnter<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, a
 }
 
 function handleTab<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, actions: FilterKeyboardActions): void {
-  // Only forward Tab (not Shift+Tab), and only when there's input
-  if (e.shiftKey || !state.inputValue.trim()) return;
+  const { selectables, isOpen } = state;
+  const hasInput = !!state.inputValue.trim();
 
-  const { selectables } = state;
+  // No suggestions - let browser handle Tab normally
+  if (selectables.length === 0) return;
 
-  // Single matching value - autocomplete it
-  const valueItems = selectables.filter((s) => s.type === "value");
-  if (valueItems.length === 1) {
-    e.preventDefault();
-    actions.selectSuggestion(valueItems[0].value);
-    return;
+  // Single-match autocomplete only when the user has typed something
+  if (hasInput) {
+    // Single matching value - autocomplete it
+    const valueItems = selectables.filter((s) => s.type === "value");
+    if (valueItems.length === 1) {
+      e.preventDefault();
+      actions.selectSuggestion(valueItems[0].value);
+      return;
+    }
+
+    // Single matching field prefix - complete it
+    if (selectables.length === 1 && selectables[0].type === "field") {
+      e.preventDefault();
+      actions.fillInput(selectables[0].value);
+      return;
+    }
   }
 
-  // Single matching field prefix - complete it
-  if (selectables.length === 1 && selectables[0].type === "field") {
+  // Multiple suggestions + dropdown open - cycle through them via cmdk
+  // Works with or without input (field prefixes, presets, values)
+  if (selectables.length > 1 && isOpen) {
     e.preventDefault();
-    actions.fillInput(selectables[0].value);
+    const direction = e.shiftKey ? "backward" : "forward";
+    actions.cycleSuggestion(direction);
   }
 }

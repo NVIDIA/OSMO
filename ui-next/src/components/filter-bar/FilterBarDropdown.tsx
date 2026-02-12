@@ -167,8 +167,8 @@ function FilterBarDropdownInner<T>({
 
         {/* Footer */}
         <div className={cn("border-t px-3 py-2 text-xs", dropdownStyles.border, dropdownStyles.muted)}>
-          <kbd className={chipStyles.chip}>↑↓</kbd> navigate <kbd className={chipStyles.chip}>Enter</kbd> select{" "}
-          <kbd className={chipStyles.chip}>Esc</kbd> close
+          <kbd className={chipStyles.chip}>↑↓</kbd> <kbd className={chipStyles.chip}>Tab</kbd> navigate{" "}
+          <kbd className={chipStyles.chip}>Enter</kbd> select <kbd className={chipStyles.chip}>Esc</kbd> close
         </div>
       </div>
     </>
