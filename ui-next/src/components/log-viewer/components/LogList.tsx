@@ -56,6 +56,11 @@ export interface LogListProps {
    * When true, applies subtle visual feedback without blocking interaction.
    */
   isStale?: boolean;
+  /**
+   * Force-hide task tags regardless of store state.
+   * Used when scoped to a single task where the tag is redundant.
+   */
+  hideTask?: boolean;
 }
 
 // =============================================================================
@@ -128,7 +133,7 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
 // =============================================================================
 
 const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInner(
-  { entries, className, isPinnedToBottom = false, onScrollAwayFromBottom, isStale = false },
+  { entries, className, isPinnedToBottom = false, onScrollAwayFromBottom, isStale = false, hideTask = false },
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -138,7 +143,9 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
   // Get store values at parent level - avoid per-row subscriptions
   const wrapLines = useLogViewerStore((s) => s.wrapLines);
-  const showTask = useLogViewerStore((s) => s.showTask);
+  const showTaskStore = useLogViewerStore((s) => s.showTask);
+  // Force-hide task tags when scoped to a single task (hideTask overrides store)
+  const showTask = hideTask ? false : showTaskStore;
 
   // Flatten entries with date separators using incremental algorithm
   // O(k) for streaming appends where k = new entries, O(n) for full replacement

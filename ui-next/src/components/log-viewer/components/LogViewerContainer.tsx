@@ -16,31 +16,14 @@
 
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { getApiHostname } from "@/lib/config";
-import { computeHistogram, filterEntries } from "@/lib/api/log-adapter/adapters/compute";
 import { useLogStream } from "@/lib/api/log-adapter/hooks/use-log-stream";
-import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
 import { LogViewer } from "@/components/log-viewer/components/LogViewer";
-import type {
-  LogViewerDataProps,
-  LogViewerFilterProps,
-  LogViewerTimelineProps,
-} from "@/components/log-viewer/components/LogViewer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
-import { chipsToLogQuery } from "@/components/log-viewer/lib/chips-to-log-query";
+import { useLogPresentation } from "@/components/log-viewer/hooks/useLogPresentation";
 import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer-url-state";
+import { useLogViewerLocalState } from "@/components/log-viewer/lib/use-log-viewer-local-state";
 import { useTick, useTickController } from "@/hooks/use-tick";
-import {
-  DISPLAY_PADDING_RATIO,
-  MIN_PADDING_MS,
-} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
-
-interface PendingDisplayRange {
-  start: Date;
-  end: Date;
-}
 
 export interface WorkflowMetadata {
   name: string;
@@ -51,110 +34,74 @@ export interface WorkflowMetadata {
 }
 
 export interface LogViewerContainerProps {
-  workflowId: string;
+  /** Backend-provided log URL (e.g., task.logs, workflow.logs) */
+  logUrl: string;
+  /** Workflow/task metadata for timeline and status display */
   workflowMetadata?: WorkflowMetadata | null;
+  /** Scope for filter field visibility (default: "workflow") */
   scope?: "workflow" | "group" | "task";
-  /** Group ID (required when scope is "group" or "task") */
-  groupId?: string;
-  /** Task ID (required when scope is "task") */
-  taskId?: string;
   className?: string;
   viewerClassName?: string;
   showBorder?: boolean;
   /** Whether to show the timeline histogram and time range controls (default: true) */
   showTimeline?: boolean;
+  /**
+   * Whether to sync filter/time-range state with URL query parameters.
+   *
+   * - `true`: State is stored in URL params (?f=level:error&start=...).
+   *   Use for the standalone log viewer page where shareable URLs are desired.
+   * - `false` (default): State is local to this component instance.
+   *   Use for embedded log viewers (panel tabs) to ensure full isolation.
+   */
+  urlSync?: boolean;
 }
 
 /**
- * Log viewer container that handles data fetching, live streaming, and URL state.
- * Uses key-based remounting to reset state when workflowId changes.
+ * Log viewer container - thin orchestrator that wires the data layer
+ * (useLogStream) to the presentation layer (useLogPresentation) to
+ * the component layer (LogViewer).
+ *
+ * Callers provide the log URL directly (from task.logs, workflow.logs, etc.)
+ * instead of passing IDs for internal re-fetching.
+ *
+ * Uses key-based remounting to reset state when logUrl changes.
  */
 export function LogViewerContainer(props: LogViewerContainerProps) {
   return (
     <LogViewerContainerImpl
-      key={props.workflowId}
+      key={props.logUrl}
       {...props}
     />
   );
 }
 
 function LogViewerContainerImpl({
-  workflowId,
-  workflowMetadata: workflowMetadataFromSSR,
+  logUrl,
+  workflowMetadata = null,
   scope = "workflow",
-  groupId,
-  taskId,
   className,
   viewerClassName,
   showBorder = true,
   showTimeline = true,
+  urlSync = false,
 }: LogViewerContainerProps) {
-  // Fetch workflow metadata on client if not provided via SSR
-  const selectWorkflow = useCallback((rawData: unknown) => {
-    if (!rawData) return null;
-    try {
-      const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-      return parsed as WorkflowQueryResponse;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const { data: workflowFromClient, isLoading: isLoadingWorkflow } = useGetWorkflowApiWorkflowNameGet(
-    workflowId,
-    { verbose: false },
-    {
-      query: {
-        enabled: !workflowMetadataFromSSR,
-        select: selectWorkflow,
-      },
-    },
-  );
-
-  const workflowMetadata = useMemo(() => {
-    if (workflowMetadataFromSSR) return workflowMetadataFromSSR;
-    if (!workflowFromClient) return null;
-    return {
-      name: workflowFromClient.name,
-      status: workflowFromClient.status,
-      submitTime: workflowFromClient.submit_time ? new Date(workflowFromClient.submit_time) : undefined,
-      startTime: workflowFromClient.start_time ? new Date(workflowFromClient.start_time) : undefined,
-      endTime: workflowFromClient.end_time ? new Date(workflowFromClient.end_time) : undefined,
-    };
-  }, [workflowMetadataFromSSR, workflowFromClient]);
-
   // Synchronized time for running workflows
   useTickController(workflowMetadata?.endTime === undefined);
   const now = useTick();
 
-  // URL-synced state
-  const { filterChips, setFilterChips, startTime, endTime, activePreset, setStartTime, setEndTime, setPreset } =
-    useLogViewerUrlState({
-      entityStartTime: workflowMetadata?.startTime,
-      entityEndTime: workflowMetadata?.endTime,
-      now,
-    });
+  // State layer: choose URL-synced or instance-isolated state
+  // Both hooks are always called (React hooks rules), but only the active one
+  // is wired to the presentation layer. The inactive one is a no-op cost.
+  const stateOptions = {
+    entityStartTime: workflowMetadata?.startTime,
+    entityEndTime: workflowMetadata?.endTime,
+    now,
+  };
+  const urlState = useLogViewerUrlState(stateOptions);
+  const localState = useLogViewerLocalState(stateOptions);
+  const stateApi = urlSync ? urlState : localState;
 
-  // Pending display range for pan/zoom preview
-  const [pendingDisplay, setPendingDisplay] = useState<PendingDisplayRange | null>(null);
-
-  // Convert chips to query filters for client-side filtering
-  const queryFilters = useMemo(() => chipsToLogQuery(filterChips), [filterChips]);
-
-  const filterParams = useMemo(
-    () => ({
-      levels: queryFilters.levels,
-      tasks: queryFilters.tasks,
-      retries: queryFilters.retries,
-      sources: queryFilters.sources,
-      search: queryFilters.search,
-      start: startTime,
-      end: endTime,
-    }),
-    [queryFilters, startTime, endTime],
-  );
-
-  // Unified streaming: fetch all logs progressively
+  // Data layer: stream ALL logs from the provided URL
   const {
     entries: rawEntries,
     phase,
@@ -162,156 +109,23 @@ function LogViewerContainerImpl({
     isStreaming,
     restart,
   } = useLogStream({
-    workflowId,
-    groupId,
-    taskId,
-    enabled: true, // Always enabled - stream completes for finished workflows
+    logUrl,
+    enabled: !!logUrl,
   });
 
-  // Client-side filtering (pure derivation)
-  const filteredEntries = useMemo(() => filterEntries(rawEntries, filterParams), [rawEntries, filterParams]);
-
-  // Entity time boundaries
-  const entityStartTimeMs = workflowMetadata?.startTime?.getTime();
-  const entityEndTimeMs = workflowMetadata?.endTime?.getTime();
-
-  // Compute display range with padding - anchored to entity boundaries for stability
-  const { displayStart, displayEnd } = useMemo(() => {
-    // Use entity times as the anchors for full timeline
-    const dataStart = entityStartTimeMs ? new Date(entityStartTimeMs) : new Date(now - 60 * 60 * 1000);
-    const dataEnd = entityEndTimeMs ? new Date(entityEndTimeMs) : new Date(now);
-
-    const rangeMs = dataEnd.getTime() - dataStart.getTime();
-    const paddingMs = Math.max(rangeMs * DISPLAY_PADDING_RATIO, MIN_PADDING_MS);
-
-    return {
-      displayStart: new Date(dataStart.getTime() - paddingMs),
-      displayEnd: new Date(dataEnd.getTime() + paddingMs),
-    };
-  }, [entityStartTimeMs, entityEndTimeMs, now]);
-
-  // Histogram computation - uses filtered entries (respects all filters)
-  // Display range shows full entity timeline, effective range highlights user's time filter
-  const histogram = useMemo(
-    () =>
-      computeHistogram(filteredEntries, {
-        numBuckets: 50,
-        displayStart,
-        displayEnd,
-        effectiveStart: startTime,
-        effectiveEnd: endTime,
-      }),
-    [filteredEntries, displayStart, displayEnd, startTime, endTime],
-  );
-
-  const pendingHistogram = useMemo(() => {
-    if (!pendingDisplay) return undefined;
-    return computeHistogram(filteredEntries, {
-      numBuckets: 50,
-      displayStart: pendingDisplay.start,
-      displayEnd: pendingDisplay.end,
-      effectiveStart: startTime,
-      effectiveEnd: endTime,
-    });
-  }, [filteredEntries, pendingDisplay, startTime, endTime]);
-
-  const handleDisplayRangeChange = useCallback((newStart: Date, newEnd: Date) => {
-    setPendingDisplay({ start: newStart, end: newEnd });
-  }, []);
-
-  const handleClearPendingDisplay = useCallback(() => {
-    setPendingDisplay(null);
-  }, []);
-
-  // Get external log URL from workflow response (backend provides the correct URL)
-  // Fallback to manual construction only if backend doesn't provide it
-  const externalLogUrl = useMemo(() => {
-    // Prefer backend-provided logs URL (handles all environments correctly)
-    if (workflowFromClient?.logs) {
-      // If we need group/task scope, append query params to backend URL
-      if (groupId || taskId) {
-        const url = new URL(workflowFromClient.logs);
-        if (groupId) url.searchParams.set("group_id", groupId);
-        if (taskId) url.searchParams.set("task_id", taskId);
-        return url.toString();
-      }
-      return workflowFromClient.logs;
-    }
-
-    // Fallback: construct URL manually (only used if backend doesn't provide it)
-    const hostname = getApiHostname();
-    const baseUrl = hostname.startsWith("http") ? hostname : `https://${hostname}`;
-    const basePath = `${baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
-
-    const params = new URLSearchParams();
-    if (groupId) params.set("group_id", groupId);
-    if (taskId) params.set("task_id", taskId);
-
-    const queryString = params.toString();
-    return queryString ? `${basePath}?${queryString}` : basePath;
-  }, [workflowFromClient, workflowId, groupId, taskId]);
-
-  // Grouped props for LogViewer (memoized to prevent re-renders)
-  const dataProps = useMemo<LogViewerDataProps>(
-    () => ({
-      rawEntries,
-      filteredEntries,
-      isLoading: phase === "connecting",
-      isFetching: phase === "streaming",
-      error,
-      histogram,
-      pendingHistogram,
-      isStreaming,
-      externalLogUrl,
-      onRefetch: restart,
-    }),
-    [rawEntries, filteredEntries, phase, error, histogram, pendingHistogram, isStreaming, externalLogUrl, restart],
-  );
-
-  const filterProps = useMemo<LogViewerFilterProps>(
-    () => ({
-      filterChips,
-      onFilterChipsChange: setFilterChips,
-      scope,
-    }),
-    [filterChips, setFilterChips, scope],
-  );
-
-  const entityStartTime = workflowMetadata?.startTime;
-  const entityEndTime = workflowMetadata?.endTime;
-
-  const timelineProps = useMemo<LogViewerTimelineProps | null>(() => {
-    if (!entityStartTime) return null;
-    return {
-      filterStartTime: startTime,
-      filterEndTime: endTime,
-      displayStart,
-      displayEnd,
-      activePreset,
-      onFilterStartTimeChange: setStartTime,
-      onFilterEndTimeChange: setEndTime,
-      onPresetSelect: setPreset,
-      onDisplayRangeChange: handleDisplayRangeChange,
-      onClearPendingDisplay: handleClearPendingDisplay,
-      entityStartTime,
-      entityEndTime,
-      now,
-    };
-  }, [
-    startTime,
-    endTime,
-    displayStart,
-    displayEnd,
-    activePreset,
-    setStartTime,
-    setEndTime,
-    setPreset,
-    handleDisplayRangeChange,
-    handleClearPendingDisplay,
-    entityStartTime,
-    entityEndTime,
+  // Presentation layer: filtering, histogram, display range
+  const { dataProps, filterProps, timelineProps } = useLogPresentation({
+    rawEntries,
+    phase,
+    error,
+    isStreaming,
+    restart,
+    workflowMetadata,
     now,
-  ]);
+    scope,
+    logUrl,
+    stateApi,
+  });
 
   // Render states
   const containerClasses = cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className);
@@ -349,7 +163,7 @@ function LogViewerContainerImpl({
     );
   }
 
-  if (((phase === "connecting" || phase === "idle") && filteredEntries.length === 0) || isLoadingWorkflow) {
+  if ((phase === "connecting" || phase === "idle") && rawEntries.length === 0) {
     return (
       <div className={containerClasses}>
         <LogViewerSkeleton className={viewerClassName} />

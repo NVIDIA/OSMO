@@ -410,16 +410,32 @@ export const handlers = [
       activeStreams.delete(streamKey);
     }
 
-    // Real backend params (preserved but ignored - backend caps at 10K anyway)
+    // Real backend params
     const taskFilter = url.searchParams.get("task_name");
+    const taskId = url.searchParams.get("task_id");
+    const groupId = url.searchParams.get("group_id");
 
     // Get workflow metadata (check mock workflows first, then generated workflows)
     const mockWorkflow = getMockWorkflow(name);
     const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
 
-    const taskNames = taskFilter
-      ? [taskFilter]
-      : (workflow?.groups.flatMap((g) => g.tasks?.map((t) => t.name) ?? []) ?? ["main"]);
+    // Determine which tasks to include in logs
+    let taskNames: string[];
+    if (taskId) {
+      // Task-scoped: find task by UUID and use its name
+      const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.task_uuid === taskId);
+      taskNames = task ? [task.name] : [];
+    } else if (groupId) {
+      // Group-scoped: include all tasks in the group
+      const group = workflow?.groups.find((g) => g.name === groupId);
+      taskNames = group?.tasks?.map((t) => t.name) ?? [];
+    } else if (taskFilter) {
+      // Legacy task_name filter
+      taskNames = [taskFilter];
+    } else {
+      // Workflow-scoped: include all tasks
+      taskNames = workflow?.groups.flatMap((g) => g.tasks?.map((t) => t.name) ?? []) ?? ["main"];
+    }
 
     // Extract time range from workflow metadata for realistic log timestamps
     const workflowStartTime = workflow?.start_time ? new Date(workflow.start_time) : undefined;

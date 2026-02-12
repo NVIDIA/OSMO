@@ -16,10 +16,13 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
+import type { WorkflowMetadata } from "@/components/log-viewer/components/LogViewerContainer";
+import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
 import { addRecentWorkflow } from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
+import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
 
 interface LogViewerPageContentProps {
   workflowId: string;
@@ -28,8 +31,9 @@ interface LogViewerPageContentProps {
 /**
  * Log Viewer Page Content (Client Component)
  *
- * Why Suspense: Starts log fetch during hydration (~50ms earlier than useQuery after mount).
- * Why separate from server component: Client-side hooks enable streaming and live updates.
+ * This is the one call site that only has a workflowId (from URL params).
+ * It fetches the workflow to resolve the log URL and metadata, then passes
+ * them directly to LogViewerContainer.
  */
 export function LogViewerPageContent({ workflowId }: LogViewerPageContentProps) {
   // Save workflow to recent workflows on mount
@@ -43,12 +47,58 @@ export function LogViewerPageContent({ workflowId }: LogViewerPageContentProps) 
     breadcrumbs: [{ label: "Log Viewer", href: "/log-viewer" }],
   });
 
+  // Fetch workflow to get log URL and metadata
+  const selectWorkflow = useCallback((rawData: unknown) => {
+    if (!rawData) return null;
+    try {
+      const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+      return parsed as WorkflowQueryResponse;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const { data: workflow, isLoading } = useGetWorkflowApiWorkflowNameGet(
+    workflowId,
+    { verbose: false },
+    {
+      query: {
+        select: selectWorkflow,
+      },
+    },
+  );
+
+  const logUrl = workflow?.logs ?? "";
+
+  const workflowMetadata = useMemo<WorkflowMetadata | null>(() => {
+    if (!workflow) return null;
+    return {
+      name: workflow.name,
+      status: workflow.status,
+      submitTime: workflow.submit_time ? new Date(workflow.submit_time) : undefined,
+      startTime: workflow.start_time ? new Date(workflow.start_time) : undefined,
+      endTime: workflow.end_time ? new Date(workflow.end_time) : undefined,
+    };
+  }, [workflow]);
+
+  if (isLoading || !workflow) {
+    return (
+      <div className="flex h-full flex-col p-4">
+        <div className="relative flex-1">
+          <LogViewerSkeleton className="h-full" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col p-4">
       <div className="relative flex-1">
         <LogViewerContainer
-          workflowId={workflowId}
+          logUrl={logUrl}
+          workflowMetadata={workflowMetadata}
           scope="workflow"
+          urlSync
           className="h-full"
           viewerClassName="h-full"
         />

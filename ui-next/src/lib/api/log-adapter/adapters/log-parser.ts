@@ -132,23 +132,20 @@ function detectAndStripLevel(msg: string): LevelDetectResult {
  * Used for lines that don't match the standard OSMO format.
  *
  * @param line - Raw log line
- * @param workflowId - Workflow ID for labeling
  * @returns LogEntry with minimal labels
  */
-function parseDumpLine(line: string, workflowId: string): LogEntry {
+function parseDumpLine(line: string): LogEntry {
   const timestamp = new Date();
   const rawMessage = line.replace(ANSI_RE, "");
-  const { level, strippedMessage, prefix } = detectAndStripLevel(rawMessage);
+  const { level, strippedMessage } = detectAndStripLevel(rawMessage);
   return {
     id: `dump-${timestamp.getTime()}-${++idCounter}`,
     timestamp,
     message: strippedMessage,
     labels: {
-      workflow: workflowId,
       level,
       io_type: "stdout" as LogIOType,
       source: "user" as LogSourceType,
-      ...(prefix && { level_prefix: prefix }),
     },
   };
 }
@@ -162,23 +159,22 @@ function parseDumpLine(line: string, workflowId: string): LogEntry {
  * 3. Pre-compiled regexes reused across calls
  *
  * @param line - Raw log line from backend
- * @param workflowId - Workflow ID for labeling
  * @returns Parsed LogEntry or null for empty lines
  */
-export function parseLogLine(line: string, workflowId: string): LogEntry | null {
+export function parseLogLine(line: string): LogEntry | null {
   // Skip empty lines
   if (!line || line.trim().length === 0) return null;
 
   // Fast path: timestamp lines start with digit (0-9 = charCode 48-57)
   const firstChar = line.charCodeAt(0);
   if (firstChar < 48 || firstChar > 57) {
-    return parseDumpLine(line, workflowId);
+    return parseDumpLine(line);
   }
 
   // Parse timestamp: YYYY/MM/DD HH:MM:SS
   const tsMatch = TIMESTAMP_RE.exec(line);
   if (!tsMatch) {
-    return parseDumpLine(line, workflowId);
+    return parseDumpLine(line);
   }
 
   // Construct Date from regex groups (faster than Date.parse)
@@ -200,7 +196,7 @@ export function parseLogLine(line: string, workflowId: string): LogEntry | null 
   const afterTimestamp = line.slice(pos);
   const taskMatch = TASK_RE.exec(afterTimestamp);
   if (!taskMatch) {
-    return parseDumpLine(line, workflowId);
+    return parseDumpLine(line);
   }
 
   const task = taskMatch[1];
@@ -221,7 +217,7 @@ export function parseLogLine(line: string, workflowId: string): LogEntry | null 
 
   // Extract message, strip ANSI codes, and detect/strip level prefix
   const rawMessage = line.slice(pos).replace(ANSI_RE, "");
-  const { level, strippedMessage, prefix } = detectAndStripLevel(rawMessage);
+  const { level, strippedMessage } = detectAndStripLevel(rawMessage);
 
   // Determine IO type and source based on osmo flag
   const ioType: LogIOType = isOsmo ? "osmo_ctrl" : "stdout";
@@ -232,13 +228,11 @@ export function parseLogLine(line: string, workflowId: string): LogEntry | null 
     timestamp,
     message: strippedMessage,
     labels: {
-      workflow: workflowId,
       task,
       retry,
       level,
       io_type: ioType,
       source,
-      ...(prefix && { level_prefix: prefix }),
     },
   };
 }
@@ -255,17 +249,16 @@ export function parseLogLine(line: string, workflowId: string): LogEntry | null 
  * Backend is the source of truth for ordering.
  *
  * @param text - Multi-line log text (newline separated)
- * @param workflowId - Workflow ID for labeling
  * @returns Array of parsed LogEntry objects in backend-provided order
  */
-export function parseLogBatch(text: string, workflowId: string): LogEntry[] {
+export function parseLogBatch(text: string): LogEntry[] {
   if (!text) return [];
 
   const lines = text.split("\n");
   const entries: LogEntry[] = [];
 
   for (const line of lines) {
-    const entry = parseLogLine(line, workflowId);
+    const entry = parseLogLine(line);
     if (entry) {
       entries.push(entry);
     }
@@ -329,20 +322,20 @@ function formatTimestamp(date: Date): string {
  * Reverse of parseLogLine - used for copy-to-clipboard and download.
  *
  * Format patterns:
- * - `{date} [{task}][osmo] {level_prefix}{message}` for osmo_ctrl, download, upload (retry=0)
- * - `{date} [{task} retry-{N}][osmo] {level_prefix}{message}` for osmo_ctrl, download, upload (retry>0)
- * - `{date} [{task}] {level_prefix}{message}` for stdout, stderr (retry=0)
- * - `{date} [{task} retry-{N}] {level_prefix}{message}` for stdout, stderr (retry>0)
- * - `{level_prefix}{message}` for DUMP type (no task label)
+ * - `{date} [{task}][osmo] {LEVEL}: {message}` for osmo_ctrl, download, upload (retry=0)
+ * - `{date} [{task} retry-{N}][osmo] {LEVEL}: {message}` for osmo_ctrl, download, upload (retry>0)
+ * - `{date} [{task}] {LEVEL}: {message}` for stdout, stderr (retry=0)
+ * - `{date} [{task} retry-{N}] {LEVEL}: {message}` for stdout, stderr (retry>0)
+ * - `{LEVEL}: {message}` for DUMP type (no task label)
  *
  * @param entry - Parsed log entry
- * @returns Reconstructed full log line
+ * @returns Reconstructed full log line in standardized format
  */
 export function formatLogLine(entry: LogEntry): string {
   const { timestamp, message, labels } = entry;
 
-  // Restore the level prefix if one was stripped during parsing
-  const levelPrefix = labels.level_prefix ?? "";
+  // Reconstruct level prefix from the level (standardized format)
+  const levelPrefix = labels.level ? `${labels.level.toUpperCase()}: ` : "";
   const fullMessage = `${levelPrefix}${message}`;
 
   // DUMP lines have no prefix (no task label)

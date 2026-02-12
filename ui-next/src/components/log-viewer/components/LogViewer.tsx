@@ -10,6 +10,7 @@
 
 import {
   memo,
+  useMemo,
   useRef,
   useCallback,
   useEffect,
@@ -398,8 +399,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   } = data;
 
   // Destructure filter props
-  // Note: scope is reserved for future scope-aware features (e.g., showing group/task context)
-  const { filterChips, onFilterChipsChange, scope: _scope } = filter;
+  const { filterChips, onFilterChipsChange, scope } = filter;
 
   // Destructure timeline props
   const {
@@ -418,6 +418,12 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
     now,
   } = timeline;
   const { announcer } = useServices();
+
+  // Scope-aware filter fields: hide "task" field when already scoped to a single task
+  const filterFields = useMemo(
+    () => (scope === "task" ? LOG_FILTER_FIELDS.filter((f) => f.id !== "task") : LOG_FILTER_FIELDS),
+    [scope],
+  );
 
   // Store state - group related values to minimize re-renders
   // Using useShallow to batch multiple state values into one subscription
@@ -617,7 +623,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         <FilterBar
           ref={filterBarRef}
           data={rawEntries}
-          fields={LOG_FILTER_FIELDS}
+          fields={filterFields}
           chips={filterChips}
           onChipsChange={handleFilterChipsChange}
           presets={LOG_FILTER_PRESETS}
@@ -703,6 +709,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
           isPinnedToBottom={isPinnedToBottom}
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}
+          hideTask={scope === "task"}
         />
       </div>
 
@@ -711,8 +718,8 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         <Footer
           wrapLines={wrapLines}
           onToggleWrapLines={toggleWrapLines}
-          showTask={showTask}
-          onToggleShowTask={toggleShowTask}
+          showTask={scope === "task" ? false : showTask}
+          onToggleShowTask={scope === "task" ? undefined : toggleShowTask}
           externalLogUrl={externalLogUrl}
           onDownload={handleDownload}
           isStreaming={isStreaming}

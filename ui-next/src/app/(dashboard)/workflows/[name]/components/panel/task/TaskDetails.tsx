@@ -40,6 +40,7 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import { useTick } from "@/hooks/use-tick";
+import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 import { ShellConnectPrompt } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskShell";
 import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
@@ -547,18 +548,40 @@ export const TaskDetails = memo(function TaskDetails({
         <TabPanel
           tab="logs"
           activeTab={activeTab}
-          centered
-          className="p-4"
+          scrollable={false}
+          className="p-0"
         >
-          <EmptyTabPrompt
-            icon={TextSearch}
-            title="Task Logs"
-            description="View stdout/stderr output from the task execution"
-            url={task.logs}
-            secondaryAction={
-              task.error_logs ? { url: task.error_logs, label: "View Error Logs", icon: AlertCircle } : undefined
-            }
-          />
+          {activeTab === "logs" && workflowName && task.logs && (
+            <div className="absolute inset-0">
+              <LogViewerContainer
+                logUrl={task.logs}
+                workflowMetadata={{
+                  name: workflowName,
+                  status: task.status,
+                  submitTime: undefined,
+                  startTime: task.start_time ? new Date(task.start_time) : undefined,
+                  endTime: task.end_time ? new Date(task.end_time) : undefined,
+                }}
+                scope="task"
+                showBorder={false}
+                showTimeline={false}
+                className="h-full"
+              />
+            </div>
+          )}
+          {activeTab === "logs" && (!task.logs || !workflowName) && (
+            <div className="flex h-full items-center justify-center p-4">
+              <EmptyTabPrompt
+                icon={TextSearch}
+                title="Task Logs"
+                description="View stdout/stderr output from the task execution"
+                url={task.logs}
+                secondaryAction={
+                  task.error_logs ? { url: task.error_logs, label: "View Error Logs", icon: AlertCircle } : undefined
+                }
+              />
+            </div>
+          )}
         </TabPanel>
 
         <TabPanel

@@ -414,7 +414,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
           {activeTab === "logs" && (
             <div className="absolute inset-0">
               <LogViewerContainer
-                workflowId={workflow.name}
+                logUrl={workflow.logs}
                 workflowMetadata={{
                   name: workflow.name,
                   status: workflow.status,
