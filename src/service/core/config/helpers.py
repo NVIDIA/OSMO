@@ -20,6 +20,7 @@ from collections import abc
 from datetime import datetime
 import json
 import logging
+import re
 from typing import Any, Dict, List
 
 import pydantic
@@ -220,6 +221,26 @@ def _update_backend_helper(
             values.append(f'{key} = %s')
             params.append(value)
         if key == 'node_conditions' and value:
+            # Validate node condition rules
+            try:
+                node_conditions_dict = json.loads(value)
+                rules = node_conditions_dict.get('rules', {}) or {}
+                # Enforce: 'Ready' can only be set to 'True' if explicitly provided
+                for pattern, status_regex in rules.items():
+                    try:
+                        if re.match(pattern, 'Ready') and status_regex != 'True':
+                            raise osmo_errors.OSMOUserError(
+                                "Overriding 'Ready' rule is not allowed; only 'True' is permitted")
+                    except re.error:
+                        # Ignore invalid regex here;
+                        # other logic already guards re errors during matching
+                        continue
+            except json.JSONDecodeError as e:
+                raise osmo_errors.OSMOUserError(
+                    f"Invalid JSON in node_conditions: {e}") from e
+            except (KeyError, TypeError) as e:
+                raise osmo_errors.OSMOUserError(
+                    f"Invalid node_conditions format: {e}") from e
             send_update = True
         if key == 'tests' and value:
             # Check for duplicates in the original list
