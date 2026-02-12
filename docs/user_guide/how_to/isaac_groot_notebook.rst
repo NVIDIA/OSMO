@@ -40,7 +40,7 @@ Fetch the workflow spec:
 
 .. code-block:: bash
 
-    $ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/groot/groot_notebook/groot_notebook.yaml
+    $ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_notebook/groot_notebook.yaml
 
 .. note::
 
