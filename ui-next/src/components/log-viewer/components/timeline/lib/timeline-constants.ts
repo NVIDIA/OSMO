@@ -28,10 +28,10 @@
 /** Default height of the histogram in pixels */
 export const DEFAULT_HEIGHT = 80;
 
-/** Padding ratio for display range (10% on each side to ensure invalid zones are visible) */
+/** Padding ratio for display range (10% on each side for visual breathing room) */
 export const DISPLAY_PADDING_RATIO = 0.1;
 
-/** Minimum padding in milliseconds (10 seconds to ensure invalid zone visibility) */
+/** Minimum padding in milliseconds (10 seconds for visual breathing room) */
 export const MIN_PADDING_MS = 10_000;
 
 /** Default fallback duration when no data (1 hour in milliseconds) */
@@ -61,20 +61,20 @@ export const MIN_BUCKET_COUNT = 20;
 export const MAX_BUCKET_COUNT = 100;
 
 // =============================================================================
-// Invalid Zone Constraints
+// Marker Constraints
 // =============================================================================
 
-/** Minimum invalid zone buckets per side (minimum 2 for visual feedback) */
-export const MIN_INVALID_ZONE_BUCKETS = 2;
-
-/** Maximum invalid zone percentage per side (10% of viewport) */
-export const MAX_INVALID_ZONE_PERCENT_PER_SIDE = 10;
-
-/** Maximum combined invalid zone percentage (20% total - allows both sides at 10% each) */
-export const MAX_INVALID_ZONE_PERCENT_COMBINED = 20;
-
-/** Gap width as multiple of bucket width (1.0 = one full bar width buffer) */
-export const GAP_BUCKET_MULTIPLIER = 1.0;
+/**
+ * Maximum marker position as percentage of viewport (50%).
+ *
+ * Pan constraints are based on marker positions:
+ * - Start marker (entityStartTime) can be panned up to 50% from left edge
+ * - End marker (entityEndTime or NOW) can be panned up to 50% from right edge
+ *
+ * This allows generous zoom-in for short workflows while keeping markers visible.
+ * When markers reach 50%, users can still pan to see data on either side.
+ */
+export const MAX_MARKER_POSITION_PERCENT = 50;
 
 // =============================================================================
 // Gesture Configuration

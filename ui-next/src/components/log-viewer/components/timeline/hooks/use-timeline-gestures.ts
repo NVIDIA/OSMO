@@ -70,13 +70,9 @@ import {
   ZOOM_OUT_FACTOR,
   KEYBOARD_NUDGE_MS,
   NOW_THRESHOLD_MS,
-  GAP_BUCKET_MULTIPLIER,
-  MAX_INVALID_ZONE_PERCENT_PER_SIDE,
+  MAX_MARKER_POSITION_PERCENT,
 } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
-import {
-  calculateBucketWidth,
-  calculateInvalidZonePositions,
-} from "@/components/log-viewer/components/timeline/lib/invalid-zones";
+import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 import {
   initTimelineDebug,
   logTimelineEvent,
@@ -128,7 +124,7 @@ interface WheelLoggingContext {
 /**
  * Handle zoom in gesture (Cmd/Ctrl + wheel up).
  *
- * Validates constraints (min range, min bucket count, invalid zone limits)
+ * Validates constraints (min range, min bucket count, marker limits)
  * and applies symmetric zoom from center.
  *
  * @returns true if zoom was applied, false if blocked
@@ -176,8 +172,8 @@ function handleZoomIn(ctx: GestureContext, newRangeMs: number, logging: WheelLog
   // Calculate symmetric zoom using pure function
   const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
 
-  // CRITICAL: Validate invalid zone constraints for zoom in
-  // When zooming in near invalid zones, the percentage of invalid zone
+  // Validate marker position constraints for zoom in
+  // When zooming in near markers, their percentage position
   // INCREASES (relative to the smaller viewport), potentially violating limits
   const validation = validateInvalidZoneLimits(
     newStartMs,
@@ -251,7 +247,7 @@ function handleZoomIn(ctx: GestureContext, newRangeMs: number, logging: WheelLog
  * Handle zoom out gesture (Cmd/Ctrl + wheel down).
  *
  * Validates constraints (max range, max bucket count) and applies
- * asymmetric zoom if needed to stay within invalid zone limits.
+ * asymmetric zoom if needed to stay within marker position limits.
  *
  * @returns true if zoom was applied, false if blocked
  */
@@ -366,7 +362,7 @@ function handleZoomOut(ctx: GestureContext, newRangeMs: number, logging: WheelLo
 /**
  * Handle pan gesture (wheel without modifier keys).
  *
- * Pans the display range left or right, constraining to invalid zone limits.
+ * Pans the display range left or right, constraining to marker position limits.
  * If the requested pan would violate limits, constrains to maximum allowed amount.
  *
  * @returns true if pan was applied (even if constrained), false if completely blocked
@@ -398,7 +394,7 @@ function handlePan(ctx: GestureContext, effectiveDelta: number, logging: WheelLo
   let newStart = new Date(displayStartMs + deltaMs);
   let newEnd = new Date(displayEndMs + deltaMs);
 
-  // Validate invalid zone limits
+  // Validate marker position limits
   const validation = validateInvalidZoneLimits(
     newStart.getTime(),
     newEnd.getTime(),
@@ -434,35 +430,107 @@ function handlePan(ctx: GestureContext, effectiveDelta: number, logging: WheelLo
       return false;
     }
 
-    // Calculate CURRENT invalid zones (before pan)
-    const currentInvalidZones = calculateInvalidZonePositions(
-      entityStartTime.getTime(),
-      entityEndTime?.getTime(),
-      now,
-      displayStartMs,
-      displayEndMs,
-      bucketWidthMs,
-      bucketTimestamps.length,
-    );
+    // CRITICAL FIX: Allow panning back from limit
+    // If we're at the LEFT limit but trying to pan RIGHT, allow it (no constraint)
+    // If we're at the RIGHT limit but trying to pan LEFT, allow it (no constraint)
+    // Only constrain when panning FURTHER past the marker limit
+    if (
+      (validation.reason === "left-invalid-zone-limit" && deltaMs > 0) ||
+      (validation.reason === "right-invalid-zone-limit" && deltaMs < 0)
+    ) {
+      // Panning away from the limit - allow it without constraint
+      actions.setPendingDisplay(newStart, newEnd);
+      onDisplayRangeChange(newStart, newEnd);
+      return true;
+    }
 
-    const currentLeftInvalidMs = (currentInvalidZones.leftInvalidWidth / 100) * displayRangeMs;
-    const currentRightInvalidMs = (currentInvalidZones.rightInvalidWidth / 100) * displayRangeMs;
+    // Calculate exact position where marker would be at limit
+    // This ensures smooth panning without snapping/jittering
+    const entityStartMs = entityStartTime.getTime();
+    const rightBoundaryMs = entityEndTime?.getTime() ?? now;
 
-    // Calculate maximum allowed invalid zone using fractional percentage
-    const maxInvalidZoneMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * displayRangeMs;
-
-    // Determine which side is being constrained and calculate headroom
-    let maxAllowedDeltaMs = 0;
+    // Calculate where display range should be positioned to have marker at EXACTLY the limit
+    let constrainedStart: number;
+    let constrainedEnd: number;
 
     if (validation.reason === "left-invalid-zone-limit") {
-      // Panning left - constrain by left invalid zone limit
-      // Available headroom = maxMs - currentMs
-      const availableMs = Math.max(0, maxInvalidZoneMs - currentLeftInvalidMs);
-      maxAllowedDeltaMs = -availableMs;
+      // Panning left - constrain so start marker is at MAX_MARKER_POSITION_PERCENT from left edge
+      // We want: entityStartMs at 50% of viewport → constrainedStart = entityStartMs - (0.5 × range)
+      const maxMarkerOffsetMs = (MAX_MARKER_POSITION_PERCENT / 100) * displayRangeMs;
+      constrainedStart = entityStartMs - maxMarkerOffsetMs;
+      constrainedEnd = constrainedStart + displayRangeMs;
+
+      // Calculate the constrained delta (maximum allowed pan toward limit)
+      const constrainedDeltaMs = constrainedStart - displayStartMs;
+
+      // If we're already past the limit, don't allow further panning in that direction
+      if (constrainedDeltaMs >= 0) {
+        logTimelineEvent({
+          timestamp: Date.now(),
+          dx,
+          dy,
+          effectiveDelta,
+          isZoom: false,
+          wasBlocked: true,
+          blockReason: "at-limit: already past left boundary",
+          oldRange: {
+            start: new Date(displayStartMs).toISOString(),
+            end: new Date(displayEndMs).toISOString(),
+          },
+          newRange: {
+            start: new Date(displayStartMs).toISOString(),
+            end: new Date(displayEndMs).toISOString(),
+          },
+          beforeContext,
+          afterContext: beforeContext,
+        });
+        return false;
+      }
+
+      // Only apply constraint if requested delta would overshoot the limit
+      // (deltaMs < constrainedDeltaMs means requesting more left pan than allowed)
+      if (deltaMs < constrainedDeltaMs) {
+        deltaMs = constrainedDeltaMs;
+      }
     } else if (validation.reason === "right-invalid-zone-limit") {
-      // Panning right - constrain by right invalid zone limit
-      const availableMs = Math.max(0, maxInvalidZoneMs - currentRightInvalidMs);
-      maxAllowedDeltaMs = availableMs;
+      // Panning right - constrain so end marker is at MAX_MARKER_POSITION_PERCENT from right edge
+      // We want: rightBoundaryMs at 50% from right → constrainedEnd = rightBoundaryMs + (0.5 × range)
+      const maxMarkerOffsetMs = (MAX_MARKER_POSITION_PERCENT / 100) * displayRangeMs;
+      constrainedEnd = rightBoundaryMs + maxMarkerOffsetMs;
+      constrainedStart = constrainedEnd - displayRangeMs;
+
+      // Calculate the constrained delta (maximum allowed pan toward limit)
+      const constrainedDeltaMs = constrainedEnd - displayEndMs;
+
+      // If we're already past the limit, don't allow further panning in that direction
+      if (constrainedDeltaMs <= 0) {
+        logTimelineEvent({
+          timestamp: Date.now(),
+          dx,
+          dy,
+          effectiveDelta,
+          isZoom: false,
+          wasBlocked: true,
+          blockReason: "at-limit: already past right boundary",
+          oldRange: {
+            start: new Date(displayStartMs).toISOString(),
+            end: new Date(displayEndMs).toISOString(),
+          },
+          newRange: {
+            start: new Date(displayStartMs).toISOString(),
+            end: new Date(displayEndMs).toISOString(),
+          },
+          beforeContext,
+          afterContext: beforeContext,
+        });
+        return false;
+      }
+
+      // Only apply constraint if requested delta would overshoot the limit
+      // (deltaMs > constrainedDeltaMs means requesting more right pan than allowed)
+      if (deltaMs > constrainedDeltaMs) {
+        deltaMs = constrainedDeltaMs;
+      }
     } else {
       // Combined limit or unknown - block entirely
       logTimelineEvent({
@@ -487,31 +555,7 @@ function handlePan(ctx: GestureContext, effectiveDelta: number, logging: WheelLo
       return false;
     }
 
-    // Apply constrained delta (may be zero if already at limit)
-    if (Math.abs(maxAllowedDeltaMs) < 1) {
-      logTimelineEvent({
-        timestamp: Date.now(),
-        dx,
-        dy,
-        effectiveDelta,
-        isZoom: false,
-        wasBlocked: true,
-        blockReason: "at-limit: no headroom available",
-        oldRange: {
-          start: new Date(displayStartMs).toISOString(),
-          end: new Date(displayEndMs).toISOString(),
-        },
-        newRange: {
-          start: new Date(displayStartMs).toISOString(),
-          end: new Date(displayEndMs).toISOString(),
-        },
-        beforeContext,
-        afterContext: beforeContext, // Blocked - no change
-      });
-      return false;
-    }
-
-    deltaMs = maxAllowedDeltaMs;
+    // Apply constrained delta
     newStart = new Date(displayStartMs + deltaMs);
     newEnd = new Date(displayEndMs + deltaMs);
     wasConstrained = true;
@@ -565,43 +609,17 @@ interface AsymmetricZoomResult {
 /**
  * Calculate asymmetric zoom when symmetric zoom would violate constraints.
  *
- * ## Algorithm (Center-Anchored with Fractional Positioning)
+ * ## Algorithm (Center-Anchored with Marker Positioning)
  *
  * 1. Try symmetric expansion from center
- * 2. Validate against ALL THREE constraints (left, right, combined)
- * 3. If blocked by per-side limit on ONE side:
- *    a. Calculate ideal edge position using fractional limit (exactly 10% of new range)
- *    b. Transfer deficit from constrained expansion to opposite side
+ * 2. Validate against marker position constraints (left, right)
+ * 3. If blocked on ONE side:
+ *    a. Pin the marker on the constrained side at exactly MAX_MARKER_POSITION_PERCENT
+ *    b. Transfer the remaining expansion to the opposite side
  *    c. Validate asymmetric result
  * 4. If blocked by combined limit: BLOCK (both sides contributing)
  * 5. If asymmetric validation fails: BLOCK entirely (all-or-nothing)
  * 6. If valid: return asymmetric zoom
- *
- * ## Fractional Positioning
- *
- * Uses **fractional percentage** (10.0% of viewport) instead of quantized bucket counts.
- * This ensures invalid zones scale smoothly with viewport size:
- * - Zoom OUT: 10% of larger range = more absolute pixels (zone grows naturally)
- * - Zoom IN: 10% of smaller range = fewer absolute pixels (zone shrinks naturally)
- * - No need for monotonic constraints - math guarantees correct behavior
- *
- * **Example**: Zooming from 1000ms → 1250ms viewport (1.25x zoom out)
- *   - Currently: 80ms left invalid zone = 8% of 1000ms
- *   - New limit: 125ms allowed (10% of 1250ms)
- *   - Ideal position: entityStart - gap - 125ms
- *   - Result: 125ms / 1250ms = 10% (at limit ✓)
- *   - Zone grew from 80ms → 125ms (natural scaling with viewport)
- *
- * ## Three-Constraint System
- *
- * Valid states form a triangle:
- *   [10%][data][0%]  ✓ At left boundary
- *   [5%][data][5%]   ✓ Balanced
- *   [0%][data][10%]  ✓ At right boundary
- *   [10%][data][10%] ✓ Both at limit (combined 20%)
- *   [7%][data][3%]   ✓ Within triangle
- *   [11%][data][0%]  ✗ Left exceeds per-side
- *   [10%][data][11%] ✗ Right exceeds per-side
  *
  * @param displayStartMs - Current display start in milliseconds
  * @param displayEndMs - Current display end in milliseconds
@@ -610,7 +628,7 @@ interface AsymmetricZoomResult {
  * @param entityEndTime - Entity end time (undefined if running)
  * @param now - Current "NOW" timestamp
  * @param bucketTimestamps - Bucket timestamps for calculating bucket width
- * @param validateFn - Function to validate invalid zone limits
+ * @param validateFn - Function to validate marker position limits
  * @returns Asymmetric zoom result
  */
 function calculateAsymmetricZoom(
@@ -664,10 +682,9 @@ function calculateAsymmetricZoom(
   // Left and right cases follow identical logic - abstract to reduce duplication
   const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
   if (bucketWidthMs === 0) {
-    return { blocked: true, reason: "no-buckets: cannot calculate invalid zone positioning" };
+    return { blocked: true, reason: "no-buckets: cannot calculate marker positioning" };
   }
 
-  const gapMs = bucketWidthMs * GAP_BUCKET_MULTIPLIER;
   const entityStartMs = entityStartTime.getTime();
   const rightBoundaryMs = entityEndTime?.getTime() ?? now;
 
@@ -678,26 +695,26 @@ function calculateAsymmetricZoom(
   let constrainedEnd: number;
 
   if (reason === "left-invalid-zone-limit") {
-    // Pin left at exactly 10% of NEW range
+    // Pin start marker at exactly MAX_MARKER_POSITION_PERCENT from left edge of NEW range
     //
-    // leftInvalid = (entityStart - gap) - constrainedStart = 10% × newRange
-    // constrainedStart = entityStart - gap - (10% × newRange)
+    // markerOffset = entityStartMs - constrainedStart = MAX_MARKER_POSITION_PERCENT × newRange
+    // constrainedStart = entityStartMs - (MAX_MARKER_POSITION_PERCENT × newRange)
     //
     // Then place right to achieve the full new range:
     // constrainedEnd = constrainedStart + newRange
-    const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
-    constrainedStart = entityStartMs - gapMs - fractionalLimitMs;
+    const maxMarkerOffsetMs = (MAX_MARKER_POSITION_PERCENT / 100) * newRangeMs;
+    constrainedStart = entityStartMs - maxMarkerOffsetMs;
     constrainedEnd = constrainedStart + newRangeMs;
   } else if (reason === "right-invalid-zone-limit") {
-    // Pin right at exactly 10% of NEW range
+    // Pin end marker at exactly MAX_MARKER_POSITION_PERCENT from right edge of NEW range
     //
-    // rightInvalid = constrainedEnd - (rightBoundary + gap) = 10% × newRange
-    // constrainedEnd = rightBoundary + gap + (10% × newRange)
+    // markerOffset = constrainedEnd - rightBoundaryMs = MAX_MARKER_POSITION_PERCENT × newRange
+    // constrainedEnd = rightBoundaryMs + (MAX_MARKER_POSITION_PERCENT × newRange)
     //
     // Then place left to achieve the full new range:
     // constrainedStart = constrainedEnd - newRange
-    const fractionalLimitMs = (MAX_INVALID_ZONE_PERCENT_PER_SIDE / 100) * newRangeMs;
-    constrainedEnd = rightBoundaryMs + gapMs + fractionalLimitMs;
+    const maxMarkerOffsetMs = (MAX_MARKER_POSITION_PERCENT / 100) * newRangeMs;
+    constrainedEnd = rightBoundaryMs + maxMarkerOffsetMs;
     constrainedStart = constrainedEnd - newRangeMs;
   } else {
     return { blocked: true, reason: `unknown-validation-reason: ${reason}` };
@@ -739,22 +756,22 @@ function calculateAsymmetricZoom(
  *    - Trackpad horizontal swipe left → pan left
  *    - Trackpad horizontal swipe right → pan right
  *    - Shifts both start and end by same amount (keeps range constant)
- *    - Subject to invalid zone limits (max 10% of viewport)
+ *    - Subject to marker position limits (max 50% of viewport)
  *
  * 2. **Cmd/Ctrl + wheel/scroll** (metaKey or ctrlKey) → **ZOOM in/out**
  *    - Trackpad pinch in / wheel up with Cmd → zoom in (decrease visible range)
  *    - Trackpad pinch out / wheel down with Cmd → zoom out (increase visible range)
  *    - Keeps center point stable while changing range
- *    - Respects minimum range limit and invalid zone limits (max 10% of viewport)
+ *    - Respects minimum range limit and marker position limits (max 50% of viewport)
  *
  * These behaviors DO NOT interfere with each other - they are handled in completely
  * separate if/else branches.
  *
- * ## Invalid Zone Limits
+ * ## Marker Position Limits
  *
- * Pan and zoom operations are limited to ensure invalid zones (striped areas before
- * workflow start or after completion) don't exceed 10% of the viewport. This prevents
- * users from panning/zooming so far that most of the screen is just invalid zones.
+ * Pan and zoom operations are constrained so that entity markers (start/end)
+ * cannot move beyond 50% of the viewport. This prevents users from panning
+ * so far that entity boundaries are no longer visible.
  *
  * ## Delta Handling
  *
@@ -801,60 +818,8 @@ export function useTimelineWheelGesture(
   // Accepts optional custom display range for post-operation logging
   // skipDomMeasurements: set to true when building "before" context to avoid measuring old DOM state
   const buildDebugContext = useCallback(
-    (customDisplayStart?: number, customDisplayEnd?: number, skipDomMeasurements?: boolean) => {
+    (_customDisplayStart?: number, _customDisplayEnd?: number, _skipDomMeasurements?: boolean) => {
       if (!isTimelineDebugEnabled() || !debugContext) return undefined;
-
-      // Calculate invalid zone positions for debug output
-      const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-      const displayStartMs = customDisplayStart ?? currentDisplay.start.getTime();
-      const displayEndMs = customDisplayEnd ?? currentDisplay.end.getTime();
-      const displayRangeMs = displayEndMs - displayStartMs;
-
-      const invalidZones =
-        debugContext.entityStartTime && bucketWidthMs > 0
-          ? calculateInvalidZonePositions(
-              debugContext.entityStartTime.getTime(),
-              debugContext.entityEndTime?.getTime(),
-              debugContext.now,
-              displayStartMs,
-              displayEndMs,
-              bucketWidthMs,
-              bucketTimestamps.length,
-            )
-          : null;
-
-      // Calculate bucket counts for invalid zones
-      const leftInvalidBuckets = invalidZones
-        ? ((invalidZones.leftInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
-        : 0;
-      const rightInvalidBuckets = invalidZones
-        ? ((invalidZones.rightInvalidWidth / 100) * displayRangeMs) / bucketWidthMs
-        : 0;
-
-      // Capture DOM measurements for debug (helps diagnose CSS vs calculation issues)
-      // Skip DOM measurements if requested (e.g., when building "before" context)
-      let domMeasurements: DebugContext["dom"];
-      if (!skipDomMeasurements && containerRef.current) {
-        const container = containerRef.current;
-        const containerWidth = container.clientWidth;
-
-        // Find first histogram bar to measure actual rendered width
-        const firstBar = container.querySelector("[data-histogram-bar]") as HTMLElement;
-        const barWidth = firstBar?.offsetWidth ?? 0;
-
-        // Find invalid zone elements to measure actual rendered widths
-        const leftInvalidZone = container.querySelector('[data-invalid-zone-side="left"]') as HTMLElement;
-        const rightInvalidZone = container.querySelector('[data-invalid-zone-side="right"]') as HTMLElement;
-        const leftInvalidWidthPx = leftInvalidZone?.offsetWidth ?? 0;
-        const rightInvalidWidthPx = rightInvalidZone?.offsetWidth ?? 0;
-
-        domMeasurements = {
-          containerWidth,
-          barWidth,
-          leftInvalidWidthPx,
-          rightInvalidWidthPx,
-        };
-      }
 
       return {
         entityStart: debugContext.entityStartTime.toISOString(),
@@ -865,17 +830,9 @@ export function useTimelineWheelGesture(
         currentStartPercent: currentStartPercent ?? 0,
         windowLeft: debugContext.overlayPositions?.leftWidth,
         windowRight: debugContext.overlayPositions?.rightStart,
-        // Invalid zone debug info (calculated)
-        leftInvalidWidth: invalidZones?.leftInvalidWidth,
-        rightInvalidWidth: invalidZones?.rightInvalidWidth,
-        leftInvalidBuckets,
-        rightInvalidBuckets,
-        combinedInvalidBuckets: leftInvalidBuckets + rightInvalidBuckets,
-        // DOM measurements (rendered)
-        dom: domMeasurements,
       };
     },
-    [debugContext, currentEffective, currentStartPercent, currentDisplay, bucketTimestamps, containerRef],
+    [debugContext, currentEffective, currentStartPercent],
   );
 
   // Helper to log wheel event after React re-renders and paints DOM updates
@@ -1226,7 +1183,7 @@ export function useTimelineZoomControls(
     // Calculate symmetric zoom (center-anchored)
     const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
 
-    // Validate invalid zone constraints
+    // Validate marker position constraints
     const validation = validateInvalidZoneLimits(
       newStartMs,
       newEndMs,
@@ -1237,7 +1194,7 @@ export function useTimelineZoomControls(
     );
 
     if (validation.blocked) {
-      // Zoom in blocked by invalid zone limits
+      // Zoom in blocked by marker position limits
       return;
     }
 
@@ -1277,7 +1234,7 @@ export function useTimelineZoomControls(
     );
 
     if (asymmetricResult.blocked) {
-      // Zoom out blocked by invalid zone limits
+      // Zoom out blocked by marker position limits
       return;
     }
 
@@ -1302,7 +1259,7 @@ export function useTimelineZoomControls(
     const zoomInValidation = validateZoomInConstraints(newRangeMs, bucketWidthMs);
     if (zoomInValidation.blocked) return false;
 
-    // Check invalid zone constraints
+    // Check marker position constraints
     const { newStartMs, newEndMs } = calculateSymmetricZoom(displayStartMs, displayEndMs, newRangeMs);
     const validation = validateInvalidZoneLimits(
       newStartMs,

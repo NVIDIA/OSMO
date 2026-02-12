@@ -49,19 +49,6 @@ export interface DebugContext {
   currentStartPercent: number;
   windowLeft?: number;
   windowRight?: number;
-  // Invalid zone debug info (calculated)
-  leftInvalidWidth?: number;
-  rightInvalidWidth?: number;
-  leftInvalidBuckets?: number;
-  rightInvalidBuckets?: number;
-  combinedInvalidBuckets?: number;
-  // DOM measurements (rendered)
-  dom?: {
-    containerWidth: number; // px
-    barWidth: number; // px (actual rendered bar width)
-    leftInvalidWidthPx: number; // px
-    rightInvalidWidthPx: number; // px
-  };
 }
 
 export interface WheelDebugEvent {
@@ -123,34 +110,14 @@ export function initTimelineDebug(): void {
     // Expose debug function globally
     (window as unknown as Record<string, () => void>).timelineDebug = () => {
       console.table(
-        wheelDebugLog.map((e) => {
-          const beforeLeft = e.beforeContext?.leftInvalidBuckets?.toFixed(1) || "-";
-          const afterLeft = e.afterContext?.leftInvalidBuckets?.toFixed(1) || "-";
-          const beforeRight = e.beforeContext?.rightInvalidBuckets?.toFixed(1) || "-";
-          const afterRight = e.afterContext?.rightInvalidBuckets?.toFixed(1) || "-";
-          const beforeCombined = e.beforeContext?.combinedInvalidBuckets?.toFixed(1) || "-";
-          const afterCombined = e.afterContext?.combinedInvalidBuckets?.toFixed(1) || "-";
-
-          const beforeBarWidth = e.beforeContext?.dom?.barWidth.toFixed(1) || "-";
-          const afterBarWidth = e.afterContext?.dom?.barWidth.toFixed(1) || "-";
-          const beforeLeftPx = e.beforeContext?.dom?.leftInvalidWidthPx.toFixed(0) || "-";
-          const afterLeftPx = e.afterContext?.dom?.leftInvalidWidthPx.toFixed(0) || "-";
-          const beforeRightPx = e.beforeContext?.dom?.rightInvalidWidthPx.toFixed(0) || "-";
-          const afterRightPx = e.afterContext?.dom?.rightInvalidWidthPx.toFixed(0) || "-";
-
-          return {
-            time: new Date(e.timestamp).toLocaleTimeString(),
-            type: e.isZoom ? "ZOOM" : "PAN",
-            status: e.wasBlocked ? "BLOCKED" : e.asymmetricApplied ? "ASYMMETRIC" : "OK",
-            reason: e.blockReason || "-",
-            "L buckets": `${beforeLeft}→${afterLeft}`,
-            "R buckets": `${beforeRight}→${afterRight}`,
-            "Total buckets": `${beforeCombined}→${afterCombined}`,
-            "Bar width (px)": `${beforeBarWidth}→${afterBarWidth}`,
-            "L px": `${beforeLeftPx}→${afterLeftPx}`,
-            "R px": `${beforeRightPx}→${afterRightPx}`,
-          };
-        }),
+        wheelDebugLog.map((e) => ({
+          time: new Date(e.timestamp).toLocaleTimeString(),
+          type: e.isZoom ? "ZOOM" : "PAN",
+          status: e.wasBlocked ? "BLOCKED" : e.asymmetricApplied ? "ASYMMETRIC" : "OK",
+          reason: e.blockReason || "-",
+          oldRange: `${e.oldRange.start} → ${e.oldRange.end}`,
+          newRange: `${e.newRange.start} → ${e.newRange.end}`,
+        })),
       );
       console.log("\nFull details (last 10):", wheelDebugLog);
       console.log("\nTo copy:", JSON.stringify(wheelDebugLog, null, 2));

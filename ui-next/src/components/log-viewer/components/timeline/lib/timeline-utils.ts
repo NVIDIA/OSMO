@@ -21,10 +21,7 @@
  * These functions are unit-tested and handle all constraint logic.
  */
 
-import {
-  calculateInvalidZonePositions,
-  calculateBucketWidth,
-} from "@/components/log-viewer/components/timeline/lib/invalid-zones";
+import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 import {
   NOW_THRESHOLD_MS,
   DISPLAY_PADDING_RATIO,
@@ -168,9 +165,6 @@ export function calculateOverlayPositions(
 }
 
 /**
- * Result of max invalid zone bucket calculation.
- */
-/**
  * Check if end time is considered "NOW".
  *
  * @param endTime - End time to check (undefined means NOW)
@@ -185,58 +179,48 @@ export function isEndTimeNow(endTime: Date | undefined, now: number, thresholdMs
 }
 
 // =============================================================================
-// Invalid Zone Constraints
+// Marker Position Constraints
 // =============================================================================
 
 /**
- * Result of invalid zone validation.
+ * Result of marker position validation.
  */
 export interface InvalidZoneValidation {
-  /** Whether the display range violates invalid zone limits */
+  /** Whether the display range violates marker position limits */
   blocked: boolean;
   /** Reason for blocking (if blocked) */
   reason?: "left-invalid-zone-limit" | "right-invalid-zone-limit" | "combined-invalid-zone-limit";
-  /** Left invalid zone in bucket count */
+  /** Left marker offset in bucket count (for debug logging) */
   leftInvalidBuckets: number;
-  /** Right invalid zone in bucket count */
+  /** Right marker offset in bucket count (for debug logging) */
   rightInvalidBuckets: number;
 }
 
 /**
- * Validate that invalid zones don't exceed maximum percentage of viewport.
+ * Validate that markers stay within acceptable viewport positions.
  *
- * This prevents panning/zooming too far such that most of the viewport
- * is just invalid zones (striped areas where no logs exist).
+ * Constraint based on marker positions:
+ * - Start marker (entityStartTime) can be at most 50% from left edge
+ * - End marker (entityEndTime or NOW) can be at most 50% from right edge
  *
- * ## Three-Constraint System (Triangle of Valid States)
+ * This prevents panning too far while keeping constraints simple and aligned
+ * with the always-visible entity markers.
  *
- * All THREE constraints must pass:
- * 1. left ≤ 10% (per-side limit)
- * 2. right ≤ 10% (per-side limit)
- * 3. left + right ≤ 20% (combined limit - allows both sides at 10% each)
+ * ## Marker-Based Constraint System
  *
- * Valid states form a triangle:
- *   [10%][data][0%]   ✓ At left boundary
- *   [5%][data][5%]    ✓ Balanced
- *   [0%][data][10%]   ✓ At right boundary
- *   [10%][data][10%]  ✓ Both at limit
- *   [7%][data][3%]    ✓ Within triangle
- *   [11%][data][0%]   ✗ Left exceeds per-side
- *   [10%][data][11%]  ✗ Right exceeds per-side
- *   [11%][data][11%]  ✗ Combined exceeds (22% > 20%)
- *
- * This creates natural "give" during panning while respecting limits.
- *
- * Uses bucket-aligned calculation to ensure invalid zone boundaries snap to bar edges.
+ * Valid states:
+ *   [50%: startMarker][data][50%: endMarker]   ✓ Both at limit
+ *   [30%: startMarker][data][20%: endMarker]   ✓ Within limits
+ *   [60%: startMarker][data][0%: endMarker]    ✗ Start marker beyond 50%
+ *   [0%: startMarker][data][60%: endMarker]    ✗ End marker beyond 50%
  *
  * @param newDisplayStartMs - New display start in milliseconds
  * @param newDisplayEndMs - New display end in milliseconds
  * @param entityStartTime - Entity start time (workflow start)
  * @param entityEndTime - Entity end time (undefined if running)
  * @param now - Current "NOW" timestamp
- * @param bucketTimestamps - Array of bucket timestamps to calculate bucket width
- * @param maxPerSidePercent - Maximum allowed invalid zone percentage per side (default: 10)
- * @param maxCombinedPercent - Maximum allowed combined invalid zone percentage (default: 20)
+ * @param bucketTimestamps - Array of bucket timestamps (unused, kept for compatibility)
+ * @param maxMarkerPositionPercent - Maximum allowed marker position as percentage (default: 50)
  * @returns Validation result
  */
 export function validateInvalidZoneLimits(
@@ -246,15 +230,12 @@ export function validateInvalidZoneLimits(
   entityEndTime: Date | undefined,
   now: number,
   bucketTimestamps: Date[],
-  maxPerSidePercent: number = 10,
-  maxCombinedPercent: number = 20,
+  maxMarkerPositionPercent: number = 50,
 ): InvalidZoneValidation {
   // NOTE: entityStartTime and now are guaranteed (enforced by type system)
 
-  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
-
-  // Guard against zero bucket width
-  if (bucketWidthMs === 0) {
+  const displayRangeMs = newDisplayEndMs - newDisplayStartMs;
+  if (displayRangeMs <= 0) {
     return {
       blocked: false,
       leftInvalidBuckets: 0,
@@ -262,32 +243,29 @@ export function validateInvalidZoneLimits(
     };
   }
 
-  const displayRangeMs = newDisplayEndMs - newDisplayStartMs;
-  const zones = calculateInvalidZonePositions(
-    entityStartTime.getTime(),
-    entityEndTime?.getTime(),
-    now,
-    newDisplayStartMs,
-    newDisplayEndMs,
-    bucketWidthMs,
-    bucketTimestamps.length,
-  );
+  // Calculate marker positions as percentage of viewport
+  const entityStartMs = entityStartTime.getTime();
+  const rightBoundaryMs = entityEndTime?.getTime() ?? now;
 
-  // Convert percentage-based zone widths to milliseconds
-  const leftInvalidMs = (zones.leftInvalidWidth / 100) * displayRangeMs;
-  const rightInvalidMs = (zones.rightInvalidWidth / 100) * displayRangeMs;
+  // Start marker position: percentage from left edge
+  // If startMarker is at 0%, it's at the left edge. If at 50%, it's at center.
+  const startMarkerPositionMs = entityStartMs - newDisplayStartMs;
+  const startMarkerPositionPercent = (startMarkerPositionMs / displayRangeMs) * 100;
 
-  // Calculate bucket counts (how many bars worth of invalid zone) - for debug info
-  const leftInvalidBuckets = leftInvalidMs / bucketWidthMs;
-  const rightInvalidBuckets = rightInvalidMs / bucketWidthMs;
+  // End marker position: percentage from left edge
+  // We want to check if it's too far right (close to right edge)
+  const endMarkerPositionMs = rightBoundaryMs - newDisplayStartMs;
+  const endMarkerPositionPercent = (endMarkerPositionMs / displayRangeMs) * 100;
 
-  // THREE-CONSTRAINT VALIDATION (all must pass)
-  // CRITICAL: Validate against FRACTIONAL percentage limits, not quantized bucket counts
-  // This ensures consistency with asymmetric zoom positioning which uses fractional limits
-  // Using percentage directly avoids quantization mismatches
+  // For backward compatibility with debug info, calculate bucket counts
+  // (not used for validation anymore, but kept for logging)
+  const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
+  const leftInvalidBuckets = bucketWidthMs > 0 ? Math.max(0, startMarkerPositionMs) / bucketWidthMs : 0;
+  const rightInvalidBuckets = bucketWidthMs > 0 ? Math.max(0, newDisplayEndMs - rightBoundaryMs) / bucketWidthMs : 0;
 
-  // Constraint 1: Left per-side limit (percentage-based)
-  if (zones.leftInvalidWidth > maxPerSidePercent) {
+  // MARKER-BASED VALIDATION (simpler than three-constraint system)
+  // Constraint 1: Start marker cannot be more than maxMarkerPositionPercent from left edge
+  if (startMarkerPositionPercent > maxMarkerPositionPercent) {
     return {
       blocked: true,
       reason: "left-invalid-zone-limit",
@@ -296,24 +274,13 @@ export function validateInvalidZoneLimits(
     };
   }
 
-  // Constraint 2: Right per-side limit (percentage-based)
-  if (zones.rightInvalidWidth > maxPerSidePercent) {
+  // Constraint 2: End marker cannot be more than maxMarkerPositionPercent from right edge
+  // (i.e., must be at least (100 - maxMarkerPositionPercent)% from left edge)
+  const minEndMarkerPositionPercent = 100 - maxMarkerPositionPercent;
+  if (endMarkerPositionPercent < minEndMarkerPositionPercent) {
     return {
       blocked: true,
       reason: "right-invalid-zone-limit",
-      leftInvalidBuckets,
-      rightInvalidBuckets,
-    };
-  }
-
-  // Constraint 3: Combined limit (both sides together)
-  // This is the key constraint that creates the triangle of valid states
-  // Combined limit is HIGHER than per-side limit to allow asymmetric zoom
-  const combinedInvalidPercent = zones.leftInvalidWidth + zones.rightInvalidWidth;
-  if (combinedInvalidPercent > maxCombinedPercent) {
-    return {
-      blocked: true,
-      reason: "combined-invalid-zone-limit",
       leftInvalidBuckets,
       rightInvalidBuckets,
     };
