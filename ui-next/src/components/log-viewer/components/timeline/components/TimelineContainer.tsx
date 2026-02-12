@@ -27,8 +27,8 @@
  * ## Architecture (2-Layer Model)
  *
  * Composes two layers:
- * - **Layer 1 (pannable):** TimelineHistogram (bars + invalid zones) - transforms together
- * - **Layer 2 (fixed):** TimelineWindow (overlays + draggers) - stays in place
+ * - **Layer 1 (pannable):** TimelineHistogram (bars) - transforms together
+ * - **Layer 2 (fixed):** Markers, selection overlay - stays in place
  *
  * ## Time Semantics (5 Concepts)
  *
@@ -54,6 +54,10 @@ import { TimelineHistogram } from "@/components/log-viewer/components/timeline/c
 import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/TimeRangePresets";
 import { TimeRangeHeader } from "@/components/log-viewer/components/timeline/components/TimeRangeHeader";
 import { TimelineAxis } from "@/components/log-viewer/components/timeline/components/TimelineAxis";
+import { TimelineSelectionOverlay } from "@/components/log-viewer/components/timeline/components/TimelineSelectionOverlay";
+import { TimelineStartMarker } from "@/components/log-viewer/components/timeline/components/TimelineStartMarker";
+import { TimelineEndMarker } from "@/components/log-viewer/components/timeline/components/TimelineEndMarker";
+import { useTimelineSelection } from "@/components/log-viewer/components/timeline/hooks/use-timeline-selection";
 import { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
 import {
   useTimelineWheelGesture,
@@ -237,7 +241,7 @@ function TimelineContainerInner(
   // GESTURES
   // ============================================================================
 
-  // Extract bucket timestamps for invalid zone validation
+  // Extract bucket timestamps for constraint validation
   const bucketTimestamps = useMemo(() => activeBuckets.map((b) => b.timestamp), [activeBuckets]);
 
   useTimelineWheelGesture(containerRef, timelineState, bucketTimestamps, onDisplayRangeChange ?? (() => {}), {
@@ -257,6 +261,23 @@ function TimelineContainerInner(
   // Expose zoom controls to parent via imperative handle
   useImperativeHandle(ref, () => zoomControls, [zoomControls]);
 
+  // Drag-to-select functionality
+  const handleSelectionCommit = useCallback(
+    (startTime: Date, endTime: Date) => {
+      onFilterStartTimeChange?.(startTime);
+      onFilterEndTimeChange?.(endTime);
+    },
+    [onFilterStartTimeChange, onFilterEndTimeChange],
+  );
+
+  const { selectionRange, isDragging } = useTimelineSelection({
+    containerRef,
+    displayStart: currentDisplay.start,
+    displayEnd: currentDisplay.end,
+    onSelectionCommit: handleSelectionCommit,
+    enabled: true,
+  });
+
   // ============================================================================
   // CALLBACKS
   // ============================================================================
@@ -270,8 +291,7 @@ function TimelineContainerInner(
   // ============================================================================
 
   // NOTE: With guaranteed entityStartTime, we ALWAYS render the timeline.
-  // Even with zero buckets, we show invalid zones and valid time range.
-  // Empty state (TimelineEmptyState) is no longer used.
+  // Even with zero buckets, we show markers and valid time range.
 
   // ============================================================================
   // RENDER
@@ -320,7 +340,7 @@ function TimelineContainerInner(
           <div className="relative">
             <div
               ref={containerRef}
-              className="relative"
+              className="relative cursor-crosshair"
               style={{ height: `${height}px` }}
             >
               {/* Layer 1: Pannable content (TimelineHistogram) */}
@@ -334,6 +354,27 @@ function TimelineContainerInner(
                 entityEndTime={entityEndTime}
                 now={synchronizedNow}
                 onBucketClick={onBucketClick}
+              />
+
+              {/* Layer 2: Selection overlay */}
+              <TimelineSelectionOverlay
+                selectionRange={selectionRange}
+                isDragging={isDragging}
+              />
+
+              {/* Layer 2: Entity start marker */}
+              <TimelineStartMarker
+                entityStartTime={entityStartTime}
+                displayStart={currentDisplay.start}
+                displayEnd={currentDisplay.end}
+              />
+
+              {/* Layer 2: Entity end marker (or "now" for running workflows) */}
+              <TimelineEndMarker
+                entityEndTime={entityEndTime}
+                now={synchronizedNow}
+                displayStart={currentDisplay.start}
+                displayEnd={currentDisplay.end}
               />
             </div>
 
