@@ -19,6 +19,14 @@
  *
  * Handles drag-to-select gestures on the timeline.
  * Converts mouse coordinates to time ranges and updates filter state.
+ *
+ * ## Performance
+ *
+ * PERF (P1): Uses refs for ALL transient drag state (isDragging, dragStartX,
+ * displayStart/End snapshots). Only the final selectionRange that drives the
+ * visual overlay is kept in React state. This prevents listener thrashing:
+ * previously every mousemove during a drag caused handleMouseMove/handleMouseUp
+ * to get new closures, tearing down and re-attaching window event listeners.
  */
 
 import { useCallback, useRef, useState, useEffect } from "react";
@@ -69,9 +77,41 @@ export function useTimelineSelection({
   onSelectionCommit,
   enabled = true,
 }: UseTimelineSelectionParams): UseTimelineSelectionReturn {
+  // Only selectionRange drives the visual overlay - kept in state for re-render.
   const [selectionRange, setSelectionRange] = useState<SelectionRange | null>(null);
+  // isDragging is also in state because the parent uses it for conditional rendering.
   const [isDragging, setIsDragging] = useState(false);
+
+  // Refs for transient drag state - never cause re-renders or listener churn.
   const dragStartXRef = useRef<number | null>(null);
+  const isDraggingRef = useRef(false);
+  const selectionRangeRef = useRef<SelectionRange | null>(null);
+
+  // PERF (P1): RAF handle for batching mousemove → setSelectionRange updates.
+  // Without batching, every mousemove event (which can fire at 120Hz+ on
+  // high-refresh displays) triggers a React state update and re-render.
+  // With RAF batching, we coalesce multiple mousemove events into a single
+  // state update per animation frame (16.67ms at 60fps).
+  const rafIdRef = useRef<number | null>(null);
+
+  // Snapshot of display range at the time listeners are attached.
+  // Updated via ref so handlers always see the latest values without re-binding.
+  const displayStartRef = useRef(displayStart);
+  const displayEndRef = useRef(displayEnd);
+  const onSelectionCommitRef = useRef(onSelectionCommit);
+
+  // Keep refs in sync with props (write in useEffect per React Compiler rules).
+  useEffect(() => {
+    displayStartRef.current = displayStart;
+  }, [displayStart]);
+
+  useEffect(() => {
+    displayEndRef.current = displayEnd;
+  }, [displayEnd]);
+
+  useEffect(() => {
+    onSelectionCommitRef.current = onSelectionCommit;
+  }, [onSelectionCommit]);
 
   /**
    * Converts client X coordinate to percentage of container width.
@@ -90,20 +130,21 @@ export function useTimelineSelection({
   );
 
   /**
-   * Converts percentage to timestamp within display range.
+   * Converts percentage to timestamp within display range (reads from ref).
    */
   const percentToTime = useCallback(
     (percent: number): number => {
-      const startMs = displayStart.getTime();
-      const endMs = displayEnd.getTime();
+      const startMs = displayStartRef.current.getTime();
+      const endMs = displayEndRef.current.getTime();
       const rangeMs = endMs - startMs;
       return startMs + (percent / 100) * rangeMs;
     },
-    [displayStart, displayEnd],
+    [], // Stable: reads from ref
   );
 
   /**
    * Handle mouse down - start selection.
+   * Stable callback: reads transient state from refs, not closures.
    */
   const handleMouseDown = useCallback(
     (e: MouseEvent) => {
@@ -114,26 +155,35 @@ export function useTimelineSelection({
       e.preventDefault();
       const percent = clientXToPercent(e.clientX);
       dragStartXRef.current = e.clientX;
+      isDraggingRef.current = true;
       setIsDragging(true);
 
       // Initialize selection range
       const time = percentToTime(percent);
-      setSelectionRange({
+      const range: SelectionRange = {
         startPercent: percent,
         endPercent: percent,
         startTime: time,
         endTime: time,
-      });
+      };
+      selectionRangeRef.current = range;
+      setSelectionRange(range);
     },
     [enabled, containerRef, clientXToPercent, percentToTime],
   );
 
   /**
    * Handle mouse move - update selection.
+   * Stable callback: reads isDragging from ref, not state.
+   *
+   * PERF (P1): Uses requestAnimationFrame to batch visual updates.
+   * The ref is updated immediately (for mouseup to read the latest value),
+   * but the React state update is deferred to the next animation frame.
+   * Multiple mousemove events within one frame are coalesced into a single render.
    */
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!isDragging || dragStartXRef.current === null) return;
+      if (!isDraggingRef.current || dragStartXRef.current === null) return;
 
       const currentPercent = clientXToPercent(e.clientX);
       const startPercent = clientXToPercent(dragStartXRef.current);
@@ -145,42 +195,63 @@ export function useTimelineSelection({
       const startTime = percentToTime(minPercent);
       const endTime = percentToTime(maxPercent);
 
-      setSelectionRange({
+      const range: SelectionRange = {
         startPercent: minPercent,
         endPercent: maxPercent,
         startTime,
         endTime,
-      });
+      };
+      // Update ref immediately so mouseup always reads latest value
+      selectionRangeRef.current = range;
+
+      // Batch the React state update in a RAF to coalesce rapid mousemove events
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          // Read from ref to get the most recent value (may have been updated
+          // by subsequent mousemove events since RAF was scheduled)
+          setSelectionRange(selectionRangeRef.current);
+        });
+      }
     },
-    [isDragging, clientXToPercent, percentToTime],
+    [clientXToPercent, percentToTime], // No isDragging/selectionRange in deps
   );
 
   /**
    * Handle mouse up - commit selection.
+   * Stable callback: reads all transient state from refs.
    */
   const handleMouseUp = useCallback(() => {
-    if (!isDragging) return;
+    if (!isDraggingRef.current) return;
 
+    // Cancel any pending RAF to avoid a stale state update after drag ends
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    isDraggingRef.current = false;
     setIsDragging(false);
     dragStartXRef.current = null;
 
     // Commit selection if range is meaningful (> 1% width)
-    if (selectionRange && selectionRange.endPercent - selectionRange.startPercent > 1) {
-      onSelectionCommit?.(new Date(selectionRange.startTime), new Date(selectionRange.endTime));
+    const range = selectionRangeRef.current;
+    if (range && range.endPercent - range.startPercent > 1) {
+      onSelectionCommitRef.current?.(new Date(range.startTime), new Date(range.endTime));
     }
 
     // Clear selection after commit
+    selectionRangeRef.current = null;
     setSelectionRange(null);
-  }, [isDragging, selectionRange, onSelectionCommit]);
+  }, []); // Fully stable - reads everything from refs
 
-  // Attach global mouse events
+  // Attach global mouse events - stable listener references prevent thrashing.
   useEffect(() => {
     if (!enabled) return;
 
     const container = containerRef.current;
     if (!container) return;
 
-    // Use capture phase to intercept before other handlers
     container.addEventListener("mousedown", handleMouseDown);
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -189,6 +260,11 @@ export function useTimelineSelection({
       container.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      // Cancel any pending RAF to prevent state updates on unmounted component
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
     };
   }, [enabled, containerRef, handleMouseDown, handleMouseMove, handleMouseUp]);
 

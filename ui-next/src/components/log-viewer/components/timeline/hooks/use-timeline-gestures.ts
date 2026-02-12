@@ -53,7 +53,7 @@
  */
 
 import { useWheel, useDrag } from "@use-gesture/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
 import {
   clampTimeToRange,
@@ -80,9 +80,6 @@ import {
   type DebugContext,
   type WheelDebugEvent,
 } from "@/components/log-viewer/components/timeline/lib/timeline-debug";
-
-// Re-export zoom factors for external use
-export { ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR };
 
 // =============================================================================
 // Types for Helper Functions
@@ -806,20 +803,22 @@ export function useTimelineWheelGesture(
     entityStartTime: Date;
     entityEndTime?: Date;
     now: number;
-    overlayPositions?: { leftWidth: number; rightStart: number; rightWidth: number };
   },
 ): void {
   const { currentDisplay, currentEffective, currentStartPercent, actions } = state;
 
-  // Initialize debug system on first render
   initTimelineDebug();
 
-  // Build debug context object
-  // Accepts optional custom display range for post-operation logging
-  // skipDomMeasurements: set to true when building "before" context to avoid measuring old DOM state
+  // PERF (P2): Cache debug enabled state in a ref for fast hot-path reads.
+  // Avoids repeated isTimelineDebugEnabled() function calls in the wheel handler.
+  const debugEnabledRef = useRef(false);
+  useEffect(() => {
+    debugEnabledRef.current = isTimelineDebugEnabled();
+  }, []);
+
   const buildDebugContext = useCallback(
     (_customDisplayStart?: number, _customDisplayEnd?: number, _skipDomMeasurements?: boolean) => {
-      if (!isTimelineDebugEnabled() || !debugContext) return undefined;
+      if (!debugEnabledRef.current) return undefined;
 
       return {
         entityStart: debugContext.entityStartTime.toISOString(),
@@ -828,8 +827,6 @@ export function useTimelineWheelGesture(
         effectiveStart: currentEffective.start?.toISOString() ?? "undefined",
         effectiveEnd: currentEffective.end?.toISOString() ?? "undefined",
         currentStartPercent: currentStartPercent ?? 0,
-        windowLeft: debugContext.overlayPositions?.leftWidth,
-        windowRight: debugContext.overlayPositions?.rightStart,
       };
     },
     [debugContext, currentEffective, currentStartPercent],
@@ -839,7 +836,7 @@ export function useTimelineWheelGesture(
   // Uses requestAnimationFrame to defer measurement until after browser paint
   const logEventAfterRender = useCallback(
     (event: Omit<WheelDebugEvent, "afterContext">, newStartMs: number, newEndMs: number) => {
-      if (!isTimelineDebugEnabled()) return;
+      if (!debugEnabledRef.current) return;
 
       // Defer measurement until after React re-renders and browser paints
       requestAnimationFrame(() => {
@@ -864,8 +861,10 @@ export function useTimelineWheelGesture(
       const displayEndMs = currentDisplay.end.getTime();
       const displayRangeMs = displayEndMs - displayStartMs;
 
-      // Capture "before" state for debug logging (skip DOM measurements - they'll be stale)
-      const beforeContext = buildDebugContext(undefined, undefined, true);
+      // PERF (P2): Only build debug context when debug is actually enabled.
+      // In production, debugEnabledRef.current is false and we skip
+      // all Date object creation, ISO string conversions, and context allocations.
+      const beforeContext = debugEnabledRef.current ? buildDebugContext(undefined, undefined, true) : undefined;
 
       // Build common context for gesture handlers
       const gestureCtx: GestureContext = {

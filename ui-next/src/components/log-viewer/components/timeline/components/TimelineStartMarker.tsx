@@ -17,8 +17,8 @@
 /**
  * Timeline Start Marker
  *
- * Fixed visual marker showing the entity start time (workflow/task start).
- * Part of Layer 2 (fixed overlays) - stays at the same timeline position while histogram pans.
+ * Visual marker showing the entity start time (workflow/task start).
+ * Displayed below the timeline axis to avoid overlapping with histogram bars.
  */
 
 "use client";
@@ -27,6 +27,7 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
+import { Tag } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -78,20 +79,11 @@ export function TimelineStartMarker({
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={cn("pointer-events-none absolute inset-y-0 z-10", className)}
+          className={cn("absolute top-[2px] z-10 -translate-x-1/2 cursor-default", className)}
           style={{ left: `${positionPercent}%` }}
+          aria-label="Workflow start time"
         >
-          {/* Subtle vertical line marker */}
-          <div className="relative h-full w-px">
-            {/* Main marker line - subtle but visible */}
-            <div className="bg-primary/30 absolute inset-0 w-px" />
-
-            {/* Small circle indicator at top */}
-            <div className="bg-primary absolute top-0 left-1/2 size-1.5 -translate-x-1/2 rounded-full" />
-
-            {/* Interactive hit area for tooltip (pointer-events enabled) */}
-            <div className="pointer-events-auto absolute inset-y-0 -left-2 w-5" />
-          </div>
+          <Tag className="text-primary size-3 rotate-[45deg] fill-current" />
         </div>
       </TooltipTrigger>
       <TooltipContent

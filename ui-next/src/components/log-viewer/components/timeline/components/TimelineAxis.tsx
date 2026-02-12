@@ -29,6 +29,8 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import type { HistogramBucket } from "@/lib/api/log-adapter/types";
+import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 
 // =============================================================================
 // Types
@@ -50,6 +52,10 @@ export interface TimelineAxisProps {
   displayStart: Date;
   /** Display range end */
   displayEnd: Date;
+  /** Histogram buckets for calculating center alignment offset */
+  buckets: HistogramBucket[];
+  /** Pre-computed bucket width in milliseconds (from TimelineContainer) */
+  bucketWidthMs?: number;
   /** Additional CSS classes */
   className?: string;
 }
@@ -118,6 +124,13 @@ function roundDownToInterval(timestamp: number, intervalMs: number): number {
 }
 
 /**
+ * Static month abbreviation lookup.
+ * PERF (P2): Replaces `date.toLocaleString("en-US", { month: "short", timeZone: "UTC" })`
+ * which is ~40x slower due to Intl formatting overhead.
+ */
+const UTC_MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/**
  * Formats a date for axis labels.
  * - Time-only for regular ticks: "14:30"
  * - Date+Time for midnight crossings: "Jan 15 00:00"
@@ -127,7 +140,7 @@ function formatTickLabel(timestamp: number, isMajor: boolean): string {
 
   if (isMajor) {
     // Midnight crossing: show date + time
-    const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+    const month = UTC_MONTH_SHORT[date.getUTCMonth()];
     const day = date.getUTCDate();
     const hours = date.getUTCHours().toString().padStart(2, "0");
     const minutes = date.getUTCMinutes().toString().padStart(2, "0");
@@ -210,10 +223,38 @@ function generateTicks(displayStart: Date, displayEnd: Date): Tick[] {
 // Component
 // =============================================================================
 
-export function TimelineAxis({ displayStart, displayEnd, className }: TimelineAxisProps): React.ReactNode {
-  const ticks = useMemo(() => {
-    return generateTicks(displayStart, displayEnd);
-  }, [displayStart, displayEnd]);
+export function TimelineAxis({
+  displayStart,
+  displayEnd,
+  buckets,
+  bucketWidthMs: bucketWidthMsProp,
+  className,
+}: TimelineAxisProps): React.ReactNode {
+  const ticks = useMemo(() => generateTicks(displayStart, displayEnd), [displayStart, displayEnd]);
+
+  // PERF (P0): Use pre-computed bucketWidthMs from props when available,
+  // falling back to local calculation for standalone usage.
+  const resolvedBucketWidthMs = useMemo(() => {
+    if (bucketWidthMsProp !== undefined) return bucketWidthMsProp;
+    if (buckets.length < 2) return 0;
+    const bucketTimestamps = buckets.map((b) => b.timestamp);
+    return calculateBucketWidth(bucketTimestamps);
+  }, [bucketWidthMsProp, buckets]);
+
+  // Calculate bucket width for center alignment offset
+  const centerOffsetPercent = useMemo(() => {
+    if (resolvedBucketWidthMs === 0) return 0;
+
+    const displayStartMs = displayStart.getTime();
+    const displayEndMs = displayEnd.getTime();
+    const displayRangeMs = displayEndMs - displayStartMs;
+
+    if (displayRangeMs <= 0) return 0;
+
+    // Shift ticks by half bucket width to center them on bars
+    const halfBucketWidthMs = resolvedBucketWidthMs / 2;
+    return (halfBucketWidthMs / displayRangeMs) * 100;
+  }, [resolvedBucketWidthMs, displayStart, displayEnd]);
 
   return (
     <div className={cn("relative h-6 w-full", className)}>
@@ -225,15 +266,15 @@ export function TimelineAxis({ displayStart, displayEnd, className }: TimelineAx
         <div
           key={`${tick.timestamp}-${index}`}
           className="absolute top-0"
-          style={{ left: `${tick.position}%` }}
+          style={{ left: `${tick.position + centerOffsetPercent}%` }}
         >
           {/* Tick mark */}
-          <div className={cn("bg-border absolute left-0", tick.isMajor ? "h-3 w-px" : "h-2 w-px opacity-40")} />
+          <div className={cn("bg-border absolute left-0", tick.isMajor ? "h-3 w-px" : "h-2 w-px")} />
 
           {/* Label - closer to axis */}
           <div
             className={cn(
-              "text-muted-foreground absolute top-[6px] -translate-x-1/2 text-[10px] whitespace-nowrap tabular-nums",
+              "text-muted-foreground absolute top-3 -translate-x-1/2 text-[10px] whitespace-nowrap tabular-nums",
               tick.isMajor ? "font-medium" : "opacity-70",
             )}
           >

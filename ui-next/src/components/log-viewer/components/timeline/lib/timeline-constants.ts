@@ -26,7 +26,7 @@
 // =============================================================================
 
 /** Default height of the histogram in pixels */
-export const DEFAULT_HEIGHT = 80;
+export const DEFAULT_HEIGHT = 75;
 
 /** Padding ratio for display range (10% on each side for visual breathing room) */
 export const DISPLAY_PADDING_RATIO = 0.1;

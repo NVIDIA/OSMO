@@ -17,12 +17,12 @@
 /**
  * Timeline End Marker
  *
- * Fixed visual marker showing the entity end time or current "now" for running workflows.
- * Part of Layer 2 (fixed overlays) - stays at the same timeline position while histogram pans.
+ * Visual marker showing the entity end time or current "now" for running workflows.
+ * Displayed below the timeline axis to avoid overlapping with histogram bars.
  *
  * ## Behavior
  *
- * - If workflow is completed (entityEndTime set): shows static green marker
+ * - If workflow is completed (entityEndTime set): shows static green check marker
  * - If workflow is running (no entityEndTime): shows dynamic blue "running" marker that updates with `now`
  */
 
@@ -32,6 +32,9 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFullUTC } from "@/lib/format-date";
+import { Tag } from "lucide-react";
+import type { HistogramBucket } from "@/lib/api/log-adapter/types";
+import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 
 // =============================================================================
 // Types
@@ -46,6 +49,8 @@ export interface TimelineEndMarkerProps {
   displayStart: Date;
   /** Current display range */
   displayEnd: Date;
+  /** Histogram buckets for center alignment */
+  buckets: HistogramBucket[];
   /** Additional CSS classes */
   className?: string;
 }
@@ -59,75 +64,57 @@ export function TimelineEndMarker({
   now,
   displayStart,
   displayEnd,
+  buckets,
   className,
 }: TimelineEndMarkerProps): React.ReactNode {
-  // Determine if workflow is running (no end time set)
   const isRunning = !entityEndTime;
+  const markerTime = useMemo(() => entityEndTime ?? new Date(now), [entityEndTime, now]);
 
-  // Use entityEndTime if available, otherwise use synchronized "now"
-  const markerTime = useMemo(() => {
-    if (entityEndTime) return entityEndTime;
-    return new Date(now);
-  }, [entityEndTime, now]);
-
-  // Calculate position as percentage within the visible range
+  // Calculate center-aligned visual position within the display range.
+  // Returns null if the marker is outside the visible range.
   const positionPercent = useMemo(() => {
-    const timeMs = markerTime.getTime();
     const displayStartMs = displayStart.getTime();
     const displayEndMs = displayEnd.getTime();
     const displayRangeMs = displayEndMs - displayStartMs;
 
     if (displayRangeMs <= 0) return null;
 
-    const offsetMs = timeMs - displayStartMs;
-    const percent = (offsetMs / displayRangeMs) * 100;
+    // Visibility check using exact marker time (with small margin)
+    const markerMs = markerTime.getTime();
+    const exactPercent = ((markerMs - displayStartMs) / displayRangeMs) * 100;
+    if (exactPercent < -1 || exactPercent > 101) return null;
 
-    // Only show marker if it's within the visible range (with small margin)
-    if (percent < -1 || percent > 101) return null;
+    // Center-align with the containing bucket for visual positioning
+    const bucketTimestamps = buckets.map((b) => b.timestamp);
+    const bucketWidthMs = calculateBucketWidth(bucketTimestamps);
 
-    return percent;
-  }, [markerTime, displayStart, displayEnd]);
+    if (bucketWidthMs === 0) return exactPercent;
 
-  // Don't render if marker is outside visible range
+    const containingBucket = buckets.find((b) => {
+      const bucketStart = b.timestamp.getTime();
+      return markerMs >= bucketStart && markerMs < bucketStart + bucketWidthMs;
+    });
+
+    const visualTimeMs = containingBucket
+      ? containingBucket.timestamp.getTime() + bucketWidthMs / 2
+      : buckets[buckets.length - 1].timestamp.getTime() + bucketWidthMs / 2;
+
+    return ((visualTimeMs - displayStartMs) / displayRangeMs) * 100;
+  }, [markerTime, displayStart, displayEnd, buckets]);
+
   if (positionPercent === null) return null;
 
-  // Color scheme: blue for running, green for completed
-  const colorClasses = isRunning
-    ? "bg-blue-500/30" // Blue for running
-    : "bg-green-500/30"; // Green for completed
-
-  const circleClasses = isRunning
-    ? "bg-blue-500" // Blue circle for running
-    : "bg-green-500"; // Green circle for completed
-
-  const label = isRunning ? "Running" : "Completed";
+  const iconColor = isRunning ? "text-blue-500" : "text-green-500";
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={cn("pointer-events-none absolute inset-y-0 z-10", className)}
+          className={cn("absolute top-[2px] z-10 -translate-x-1/2 cursor-default", className)}
           style={{ left: `${positionPercent}%` }}
+          aria-label={`Workflow ${isRunning ? "running" : "completed"} time`}
         >
-          {/* Subtle vertical line marker */}
-          <div className="relative h-full w-px">
-            {/* Main marker line - color based on state */}
-            <div className={cn("absolute inset-0 w-px", colorClasses)} />
-
-            {/* Small circle indicator at top */}
-            <div className={cn("absolute top-0 left-1/2 size-1.5 -translate-x-1/2 rounded-full", circleClasses)} />
-
-            {/* Pulsing animation for running workflows */}
-            {isRunning && (
-              <div
-                className="absolute top-0 left-1/2 size-1.5 -translate-x-1/2 animate-ping rounded-full bg-blue-500 opacity-75"
-                aria-hidden="true"
-              />
-            )}
-
-            {/* Interactive hit area for tooltip (pointer-events enabled) */}
-            <div className="pointer-events-auto absolute inset-y-0 -left-2 w-5" />
-          </div>
+          <Tag className={cn("size-3 rotate-[45deg] fill-current", iconColor)} />
         </div>
       </TooltipTrigger>
       <TooltipContent
@@ -135,7 +122,7 @@ export function TimelineEndMarker({
         className="text-xs"
       >
         <div className="space-y-0.5">
-          <div className="text-muted-foreground">{label}</div>
+          <div className="text-muted-foreground">{isRunning ? "Running" : "Completed"}</div>
           <div className="font-mono tabular-nums">{formatDateTimeFullUTC(markerTime)}</div>
         </div>
       </TooltipContent>
