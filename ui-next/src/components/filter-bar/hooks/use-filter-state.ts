@@ -102,6 +102,8 @@ export interface InputRefCallbacks {
   blur: () => void;
   getSelectionStart: () => number | null;
   getSelectionEnd: () => number | null;
+  /** Dispatch a keyboard event on the input (bubbles to cmdk root for navigation) */
+  dispatchKeyDown: (key: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +130,7 @@ export function useFilterState<T>({
     blur: () => {},
     getSelectionStart: () => null,
     getSelectionEnd: () => null,
+    dispatchKeyDown: () => {},
   }));
 
   // ========== Composed hooks ==========
@@ -310,6 +313,10 @@ export function useFilterState<T>({
       blurInput: () => inputCallbacks.blur(),
       getInputSelectionStart: () => inputCallbacks.getSelectionStart(),
       getInputSelectionEnd: () => inputCallbacks.getSelectionEnd(),
+      cycleSuggestion: (direction: "forward" | "backward") => {
+        const key = direction === "forward" ? "ArrowDown" : "ArrowUp";
+        inputCallbacks.dispatchKeyDown(key);
+      },
     }),
     [
       removeChip,

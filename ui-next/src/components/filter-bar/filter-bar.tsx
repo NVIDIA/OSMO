@@ -101,6 +101,9 @@ function FilterBarInner<T>(
       blur: () => inputRef.current?.blur(),
       getSelectionStart: () => inputRef.current?.selectionStart ?? null,
       getSelectionEnd: () => inputRef.current?.selectionEnd ?? null,
+      dispatchKeyDown: (key: string) => {
+        inputRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      },
     });
   }, [setInputRefCallbacks]);
 

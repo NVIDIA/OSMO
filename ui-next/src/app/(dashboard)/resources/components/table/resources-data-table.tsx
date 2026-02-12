@@ -222,7 +222,7 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   const emptyContent = useMemo(() => <TableEmptyState message="No resources found" />, []);
 
   return (
-    <div className="table-container flex h-full flex-col">
+    <div className="table-container relative flex h-full flex-col">
       <DataTable<Resource & { _visualRowIndex?: number }>
         data={resourcesWithIndex}
         columns={columns}

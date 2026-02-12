@@ -55,7 +55,8 @@ export const dropdownStyles = {
   dropdownItem: "px-3 py-2 text-sm",
 
   // Dropdown container (no overflow here - CommandList handles scrolling)
-  dropdown: "absolute inset-x-0 top-full z-50 mt-1 flex max-h-[300px] flex-col rounded-md border shadow-lg",
+  // max-h accommodates MAX_SUGGESTIONS_HEIGHT (300px) + footer (~36px) + error (~40px)
+  dropdown: "absolute inset-x-0 top-full z-50 mt-1 flex max-h-[380px] flex-col rounded-md border shadow-lg",
 } as const;
 
 // ============================================================================
