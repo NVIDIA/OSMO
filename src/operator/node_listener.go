@@ -35,7 +35,8 @@ import (
 // NodeListener manages the bidirectional gRPC stream for node events
 type NodeListener struct {
 	*utils.BaseListener
-	args utils.ListenerArgs
+	args   utils.ListenerArgs
+	_rules map[string]string
 }
 
 // NewNodeListener creates a new node listener instance
@@ -43,7 +44,8 @@ func NewNodeListener(args utils.ListenerArgs) *NodeListener {
 	return &NodeListener{
 		BaseListener: utils.NewBaseListener(
 			args, "last_progress_node_listener", utils.StreamNameNode),
-		args: args,
+		args:   args,
+		_rules: map[string]string{"Ready": "True"},
 	}
 }
 
