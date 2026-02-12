@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -143,6 +143,10 @@ spec:
         - --log_name
         - api_service
         {{- end }}
+        {{- if .Values.services.defaultAdmin.enabled }}
+        - --default_admin_username
+        - {{ .Values.services.defaultAdmin.username | quote }}
+        {{- end }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
@@ -164,6 +168,13 @@ spec:
             secretKeyRef:
               name: redis-secret
               key: redis-password
+        {{- end }}
+        {{- if .Values.services.defaultAdmin.enabled }}
+        - name: OSMO_DEFAULT_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.services.defaultAdmin.passwordSecretName }}
+              key: {{ .Values.services.defaultAdmin.passwordSecretKey }}
         {{- end }}
         imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
         securityContext:
