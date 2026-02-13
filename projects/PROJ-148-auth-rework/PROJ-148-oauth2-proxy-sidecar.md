@@ -85,10 +85,10 @@ The current Envoy OAuth2 filter implementation has several limitations:
 ### Current Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              POD                                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
+┌────────────────────────────────────────────────────────────────────────────┐
+│                              POD                                           │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
 │   Browser ──► Envoy Proxy (Port 80) ─────────────────────► OSMO Service    │
 │                      │                                      (Port 8000)    │
 │                      │                                                     │
@@ -98,44 +98,44 @@ The current Envoy OAuth2 filter implementation has several limitations:
 │                      ├── JWT Filter (validate tokens)                      │
 │                      ├── Lua: strip-unauthorized-headers                   │
 │                      └── Rate Limiting                                     │
-│                                                                             │
-│   Problems:                                                                 │
+│                                                                            │
+│   Problems:                                                                │
 │   - Some IDPs don't return id_token on refresh without scope               │
 │   - Workaround forces re-login instead of fixing refresh                   │
 │   - ~220 lines of Lua duplicated across 3 chart templates                  │
 │   - IDP-specific flags (forceReauthOnMissingIdToken)                       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Proposed Architecture (Auth-Request Mode)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              POD                                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
+┌────────────────────────────────────────────────────────────────────────────┐
+│                              POD                                           │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
 │   Browser ──► Envoy (Port 80) ──────────────────────────► OSMO Service     │
 │                   │                                        (Port 8000)     │
 │                   │                                                        │
-│                   ├── ext_authz (HTTP) ──► OAuth2 Proxy (Port 4180)       │
+│                   ├── ext_authz (HTTP) ──► OAuth2 Proxy (Port 4180)        │
 │                   │                              │                         │
 │                   │                              └──► IDP (MS/Google/OIDC) │
 │                   │                                                        │
 │                   ├── JWT Filter (validate id_token / API tokens)          │
-│                   ├── ext_authz (gRPC) ──► authz_sidecar (future)         │
+│                   ├── ext_authz (gRPC) ──► authz_sidecar (future)          │
 │                   ├── Lua: strip-unauthorized-headers                      │
 │                   ├── Lua: add-forwarded-host                              │
 │                   └── Rate Limiting                                        │
-│                                                                             │
-│   /oauth2/* routes ──► OAuth2 Proxy (login, callback, logout only)        │
-│                                                                             │
-│   Removed:                                                                  │
-│   ✗ OAuth2 Filter          ✗ Lua: validate_idtoken                        │
-│   ✗ Lua: pre_oauth2        ✗ Lua: cookie-management                      │
-│   ✗ token/hmac secrets      ✗ forceReauthOnMissingIdToken flag            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                                                                            │
+│   /oauth2/* routes ──► OAuth2 Proxy (login, callback, logout only)         │
+│                                                                            │
+│   Removed:                                                                 │
+│   ✗ OAuth2 Filter          ✗ Lua: validate_idtoken                         │
+│   ✗ Lua: pre_oauth2        ✗ Lua: cookie-management                        │
+│   ✗ token/hmac secrets      ✗ forceReauthOnMissingIdToken flag             │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Key design**: Envoy stays in control of all traffic routing. OAuth2 Proxy is only consulted
