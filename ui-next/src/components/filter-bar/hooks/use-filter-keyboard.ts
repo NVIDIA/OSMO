@@ -237,7 +237,21 @@ function handleEscape<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, 
 function handleEnter<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, actions: FilterKeyboardActions): void {
   const { parsedInput, isOpen, selectables, inputValue } = state;
 
-  // Priority 1: User typed field:value (e.g., "pool:myvalue") - create chip
+  // Priority 1: Dropdown closed - just open it
+  if (!isOpen) {
+    e.preventDefault();
+    actions.openDropdown();
+    return;
+  }
+
+  // Priority 2: Dropdown open with suggestions - let cmdk select the highlighted item.
+  // This must come before the parsed-input check so that Enter selects the
+  // suggestion the user navigated to (via Tab/arrows), not the literal typed text.
+  if (isOpen && selectables.length > 0) {
+    return;
+  }
+
+  // Priority 3: User typed field:value with no matching suggestions - create chip from text
   if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
     e.preventDefault();
     e.stopPropagation();
@@ -245,18 +259,6 @@ function handleEnter<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, a
       actions.resetInput();
       actions.focusInput();
     }
-    return;
-  }
-
-  // Priority 2: Dropdown closed - just open it
-  if (!isOpen) {
-    e.preventDefault();
-    actions.openDropdown();
-    return;
-  }
-
-  // Priority 3: Dropdown open with suggestions - let cmdk handle selection
-  if (isOpen && selectables.length > 0) {
     return;
   }
 
