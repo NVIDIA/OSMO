@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ osmo_py_library(
         "//src/service/core/config",
         "//src/service/core/data",
         "//src/service/core/profile",
+        "//src/service/core/scim",
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",
     ],
