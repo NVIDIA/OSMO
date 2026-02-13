@@ -35,7 +35,8 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useTransition } from "react";
+import { useQueryState, parseAsBoolean } from "nuqs";
 import { WorkflowsDataTable } from "@/app/(dashboard)/workflows/components/table/workflows-data-table";
 import { WorkflowsToolbar } from "@/app/(dashboard)/workflows/components/workflows-toolbar";
 import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
@@ -52,9 +53,12 @@ export function WorkflowsPageContent() {
   const { startTransition: startViewTransition } = useViewTransition();
   const { user } = useUser();
 
+  // Track pending state for show all users toggle
+  const [showAllUsersPending, startShowAllUsersTransition] = useTransition();
+
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
-  // URL: /workflows?f=status:running&f=user:alice
+  // URL: /workflows?f=status:running&f=user:alice&all=true
   // ==========================================================================
 
   // Filter chips - URL-synced via shared hook
@@ -66,6 +70,23 @@ export function WorkflowsPageContent() {
     },
     [setSearchChips, startViewTransition],
   );
+
+  // Show all users toggle - URL-synced (default: false = my workflows only)
+  // URL param: ?all=true (shows all users), omitted/false (shows my workflows)
+  const [showAllUsers, setShowAllUsers] = useQueryState(
+    "all",
+    parseAsBoolean.withDefault(false).withOptions({
+      shallow: true,
+      history: "replace", // Don't pollute history with toggle changes
+      clearOnDefault: true, // Remove param when false (cleaner URLs)
+    }),
+  );
+
+  const handleToggleShowAllUsers = useCallback(() => {
+    startShowAllUsersTransition(() => {
+      void setShowAllUsers((prev) => !prev);
+    });
+  }, [setShowAllUsers]);
 
   // Sort direction from table store (only submit_time is sortable server-side)
   const sortState = useWorkflowsTableStore((s) => s.sort);
@@ -93,6 +114,7 @@ export function WorkflowsPageContent() {
     hasActiveFilters,
   } = useWorkflowsData({
     searchChips,
+    showAllUsers,
     sortDirection,
     refetchInterval: autoRefresh.effectiveInterval,
   });
@@ -129,6 +151,9 @@ export function WorkflowsPageContent() {
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
             currentUsername={user?.username}
+            showAllUsers={showAllUsers}
+            showAllUsersPending={showAllUsersPending}
+            onToggleShowAllUsers={handleToggleShowAllUsers}
             autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>
