@@ -36,7 +36,6 @@ data:
         send_batch_size: 100
 
     exporters:
-      logging:
       prometheus:
         enable_open_metrics: true
         endpoint: "0.0.0.0:4000"

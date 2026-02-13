@@ -832,7 +832,7 @@ sidecars:
 
     ## Docker image for OTEL collector
     ##
-    image: otel/opentelemetry-collector-contrib:0.115.0
+    image: otel/opentelemetry-collector-contrib:0.142.0
 
     ## ConfigMap name for OTEL collector configuration
     ##
