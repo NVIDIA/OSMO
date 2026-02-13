@@ -125,7 +125,6 @@ An OSMO deployment consists of two main components:
 
   getting_started/infrastructure_setup
   getting_started/deploy_service
-  getting_started/service_accounts
   getting_started/create_storage/index
   getting_started/configure_data
 
