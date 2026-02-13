@@ -17,6 +17,7 @@
 "use client";
 
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
   TextSearch,
   Terminal,
@@ -276,7 +277,22 @@ const OverviewTab = memo(function OverviewTab({
         title="Details"
         items={[
           { label: "UUID", value: task.task_uuid, copyable: true, mono: true, truncate: true, show: !!task.task_uuid },
-          { label: "Node", value: task.node_name, copyable: true, mono: true, truncate: true, show: !!task.node_name },
+          {
+            label: "Node",
+            value: task.node_name ? (
+              <Link
+                href={`/resources?view=${encodeURIComponent(task.node_name)}`}
+                className="text-foreground focus-visible:ring-ring hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              >
+                {task.node_name}
+              </Link>
+            ) : null,
+            copyable: true,
+            copyValue: task.node_name,
+            mono: true,
+            truncate: true,
+            show: !!task.node_name,
+          },
           { label: "Pod", value: task.pod_name, copyable: true, mono: true, truncate: true, show: !!task.pod_name },
           { label: "Pod IP", value: task.pod_ip, copyable: true, mono: true, truncate: true, show: !!task.pod_ip },
         ]}
