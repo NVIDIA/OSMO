@@ -17,8 +17,9 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
@@ -49,11 +50,55 @@ export interface WorkflowsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
-  /** Current username for "My Workflows" preset (matches backend x-osmo-user header) */
+  /** Current username (used to determine if user toggle should be shown) */
   currentUsername?: string;
+  /** Show all users' workflows (true) or only current user's (false) */
+  showAllUsers: boolean;
+  /** Whether the show all users toggle is pending (async URL update) */
+  showAllUsersPending: boolean;
+  /** Callback when show all users toggle is clicked */
+  onToggleShowAllUsers: () => void;
   /** Optional auto-refresh controls (if not provided, no refresh button shown) */
   autoRefreshProps?: RefreshControlProps;
 }
+
+// =============================================================================
+// UserToggle - SemiStatefulButton for My/All Workflows
+// =============================================================================
+
+interface UserToggleProps {
+  showAllUsers: boolean;
+  hasUserChips: boolean;
+  isTransitioning: boolean;
+  onToggle: () => void;
+}
+
+const UserToggle = memo(function UserToggle({
+  showAllUsers,
+  hasUserChips,
+  isTransitioning,
+  onToggle,
+}: UserToggleProps) {
+  // When user chips exist, show Users icon (disabled) — chips control filtering
+  const effectiveShowAll = hasUserChips || showAllUsers;
+
+  return (
+    <SemiStatefulButton
+      onClick={onToggle}
+      currentStateIcon={effectiveShowAll ? <Users className="size-4" /> : <User className="size-4" />}
+      nextStateIcon={effectiveShowAll ? <User className="size-4" /> : <Users className="size-4" />}
+      label={effectiveShowAll ? "Show My Workflows" : "Show All Workflows"}
+      aria-label={effectiveShowAll ? "Currently showing all users' workflows" : "Currently showing my workflows"}
+      tooltipSide="top"
+      isTransitioning={isTransitioning}
+      disabled={hasUserChips}
+    />
+  );
+});
+
+// =============================================================================
+// Status Presets
+// =============================================================================
 
 const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
   { id: "running", label: "Running" },
@@ -68,6 +113,9 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   onSearchChipsChange,
   resultsCount,
   currentUsername,
+  showAllUsers,
+  showAllUsersPending,
+  onToggleShowAllUsers,
   autoRefreshProps,
 }: WorkflowsToolbarProps) {
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
@@ -92,32 +140,8 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
     [userField, poolField],
   );
 
-  // Create "My Workflows" preset (only if current user is available)
-  const myWorkflowsPreset = useMemo((): SearchPreset | null => {
-    if (!currentUsername) return null;
-
-    return {
-      id: "my-workflows",
-      // Single-chip preset: clicking toggles user:<current-username>
-      chips: [{ field: "user", value: currentUsername, label: `User: ${currentUsername}` }],
-      render: ({ active }: PresetRenderProps) => (
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded bg-blue-500/10 px-2 py-0.5 transition-all",
-            "text-blue-700 dark:text-blue-300",
-            // Active state: white inner ring
-            active && "ring-2 ring-white/40 ring-inset dark:ring-white/20",
-            // Focused state (keyboard nav via CSS): scale up + shadow
-            "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
-            // Inactive: slightly muted, full opacity on hover or keyboard focus
-            !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
-          )}
-        >
-          <span className="text-xs font-semibold">My Workflows</span>
-        </span>
-      ),
-    };
-  }, [currentUsername]);
+  // Detect if user chips are active (disables the UserToggle button)
+  const hasUserChips = useMemo(() => searchChips.some((chip) => chip.field === "user"), [searchChips]);
 
   // Create status presets that expand to multiple chips
   const statusPresets = useMemo(
@@ -154,19 +178,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   );
 
   // Combine all preset groups
-  const searchPresets = useMemo(() => {
-    const presetGroups = [];
-
-    // Add "My Workflows" preset if available
-    if (myWorkflowsPreset) {
-      presetGroups.push({ label: "Quick Filters:", items: [myWorkflowsPreset] });
-    }
-
-    // Add status presets
-    presetGroups.push({ label: "Status:", items: statusPresets });
-
-    return presetGroups;
-  }, [myWorkflowsPreset, statusPresets]);
+  const searchPresets = useMemo(() => [{ label: "Status:", items: statusPresets }], [statusPresets]);
 
   return (
     <TableToolbar
@@ -181,6 +193,15 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       searchPresets={searchPresets}
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
-    />
+    >
+      {currentUsername && (
+        <UserToggle
+          showAllUsers={showAllUsers}
+          hasUserChips={hasUserChips}
+          isTransitioning={showAllUsersPending}
+          onToggle={onToggleShowAllUsers}
+        />
+      )}
+    </TableToolbar>
   );
 });
