@@ -17,6 +17,8 @@ import type { TRPCLink } from "@trpc/client";
 import type { AnyRouter } from "@trpc/server";
 import { observable, tap } from "@trpc/server/observable";
 
+import { AuthRedirectError } from "./authRedirectFetch";
+
 /**
  * Redirects to /auth/login when any procedure returns UNAUTHORIZED.
  * This covers both:
@@ -44,10 +46,30 @@ export function unauthorizedRedirectLink<TRouter extends AnyRouter>(): TRPCLink<
                 }
               },
               error(err) {
+                // AuthRedirectError: thrown by authRedirectFetch when the HTTP response was 302/401
+                if (err instanceof AuthRedirectError && typeof window !== "undefined") {
+                  window.location.assign(err.redirectTo);
+                  return;
+                }
+                const redirectTo =
+                  err && typeof err === "object" && "redirectTo" in err
+                    ? (err as { redirectTo: string }).redirectTo
+                    : (() => {
+                        const cause =
+                          err && typeof err === "object" && err !== null && "cause" in err
+                            ? (err as { cause?: unknown }).cause
+                            : undefined;
+                        return cause instanceof AuthRedirectError ? cause.redirectTo : undefined;
+                      })();
+                if (typeof redirectTo === "string" && typeof window !== "undefined") {
+                  window.location.assign(redirectTo);
+                  return;
+                }
                 const code = err && typeof err === "object" && "data" in err ? err.data?.code : undefined;
-                const redirectTo = err && typeof err === "object" && "data" in err ? err.data?.redirectTo : undefined;
+                const dataRedirectTo =
+                  err && typeof err === "object" && "data" in err ? err.data?.redirectTo : undefined;
                 if (code === "UNAUTHORIZED" && typeof window !== "undefined") {
-                  window.location.assign(typeof redirectTo === "string" ? redirectTo : "/auth/login");
+                  window.location.assign(typeof dataRedirectTo === "string" ? dataRedirectTo : "/auth/login");
                 }
               },
             }),
