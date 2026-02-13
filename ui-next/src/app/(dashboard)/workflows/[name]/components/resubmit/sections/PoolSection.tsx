@@ -21,12 +21,14 @@
  * 1. On mount: Fetch only selected pool's metadata
  * 2. On dropdown open: Fetch ALL pools once, cache for subsequent selections
  * 3. After all pools loaded: Use cached data for selected pool (no new API calls)
+ * 4. Dropdown only shows pools the user has access to (from profile settings)
  */
 
 "use client";
 
 import { memo, useState, useMemo, useCallback } from "react";
 import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
+import { useProfileSettings } from "@/lib/api/adapter/hooks";
 import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
@@ -153,6 +155,14 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
     },
   );
 
+  // Accessible pool names from profile settings (lightweight — no bucket fetch)
+  const { profile } = useProfileSettings();
+  const accessiblePoolNames = profile?.pool.accessible;
+  const accessibleSet = useMemo(
+    () => (accessiblePoolNames ? new Set(accessiblePoolNames) : null),
+    [accessiblePoolNames],
+  );
+
   // Use all-pools data if available (preferred), fallback to individual pool query
   // This prevents new API calls when selecting different pools after all-pools is loaded
   const allPools = allPoolsData?.pools;
@@ -162,6 +172,13 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
     }
     return individualPoolData ?? null;
   }, [allPools, individualPoolData, pool]);
+
+  // Filter dropdown to only accessible pools (keeps status badges + metadata intact)
+  const accessiblePools = useMemo(() => {
+    if (!allPools) return undefined;
+    if (!accessibleSet) return allPools;
+    return allPools.filter((p) => accessibleSet.has(p.name));
+  }, [allPools, accessibleSet]);
 
   const handleDropdownOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -187,7 +204,7 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
         value={pool}
         onValueChange={onChange}
         selectedPool={selectedPool ?? undefined}
-        allPools={allPoolsData?.pools}
+        allPools={accessiblePools}
         onDropdownOpenChange={handleDropdownOpenChange}
       />
 
