@@ -50,7 +50,7 @@ Simple Example
 ==============
 
 Let's build a data processing pipeline with multiple stages by downloading the workflow definition
-here: :download:`combination_workflow_simple.yaml <../../../../workflows/tutorials/combination_workflow_simple.yaml>`.
+here: :download:`combination_workflow_simple.yaml <../../../../cookbook/tutorials/combination_workflow_simple.yaml>`.
 
 .. figure:: combination_workflow_simple.svg
   :align: center
@@ -58,7 +58,7 @@ here: :download:`combination_workflow_simple.yaml <../../../../workflows/tutoria
   :class: transparent-bg no-scaled-link
   :alt: Simple Combination Workflow
 
-.. literalinclude:: ../../../../workflows/tutorials/combination_workflow_simple.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/combination_workflow_simple.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -91,7 +91,7 @@ Complex Example
 ===============
 
 Let's build a more complex data processing pipeline by downloading the workflow definition
-here: :download:`combination_workflow_complex.yaml <../../../../workflows/tutorials/combination_workflow_complex.yaml>`.
+here: :download:`combination_workflow_complex.yaml <../../../../cookbook/tutorials/combination_workflow_complex.yaml>`.
 
 .. figure:: combination_workflow_complex.svg
   :align: center
@@ -99,7 +99,7 @@ here: :download:`combination_workflow_complex.yaml <../../../../workflows/tutori
   :class: transparent-bg no-scaled-link
   :alt: Complex Combination Workflow
 
-.. literalinclude:: ../../../../workflows/tutorials/combination_workflow_complex.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/combination_workflow_complex.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -124,7 +124,7 @@ here: :download:`combination_workflow_complex.yaml <../../../../workflows/tutori
    the ``lead`` task **does not terminate** before non-lead tasks.
 
    This can be done by coordinating task completion through a barrier script
-   (`osmo_barrier.py <https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/torchrun_multinode/osmo_barrier.py>`_)
+   (`osmo_barrier.py <https://github.com/NVIDIA/OSMO/blob/main/cookbook/dnn_training/torchrun_multinode/osmo_barrier.py>`_)
    or by ensuring that the ``lead`` task duration is longer than the non-lead tasks.
 
 .. important::
