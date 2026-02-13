@@ -77,6 +77,9 @@ export const OsmoApiFetch = async (
 
   // To inspect a fetch URL, this is where you would add a console.log
   const response = await fetch(fetchUrl, fetchOptions);
+
+  // Redirect (302 etc.): backend sent us to another domain (e.g. login). With redirect: "manual"
+  // we see the redirect; if we didn't, CORS would block following it. Throw so the client can redirect.
   if (
     response.type === "opaqueredirect" ||
     response.status === 301 ||
@@ -84,14 +87,23 @@ export const OsmoApiFetch = async (
     response.status === 307 ||
     response.status === 308
   ) {
-    // Redirect: backend sent us to a different domain (e.g. login). We use redirect: "manual"
-    // so we see the redirect instead of following it (CORS would block the follow). Throw
-    // UNAUTHORIZED with redirectTo so the client tRPC link can redirect to that URL.
     const redirectTo = response.headers.get("location") ?? "/auth/login";
     const err = new TRPCError({ code: "UNAUTHORIZED", message: "Redirect to login" });
     (err as TRPCError & { redirectTo?: string }).redirectTo = redirectTo;
     throw err;
   }
+
+  // 401: token expired/missing. Backend may return 401 (e.g. "JWT is missing") instead of 302
+  // when called from the server, or fetch may have followed a 302 and returned the final 401.
+  // Either way, throw UNAUTHORIZED with redirectTo so the client redirects to login instead of
+  // surfacing the raw error (e.g. "JWT is missing").
+  if (response.status === 401) {
+    const redirectTo = response.headers.get("location") ?? "/auth/login";
+    const err = new TRPCError({ code: "UNAUTHORIZED", message: "Unauthorized" });
+    (err as TRPCError & { redirectTo?: string }).redirectTo = redirectTo;
+    throw err;
+  }
+
   return response;
 };
 
