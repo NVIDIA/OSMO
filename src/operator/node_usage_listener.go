@@ -31,6 +31,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // NodeUsageListener manages the bidirectional gRPC stream for pod resource usage
@@ -138,10 +139,34 @@ func (nul *NodeUsageListener) watchPods(
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			// Record kb_event_watch_count metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"kb_event_watch_count",
+					1,
+					"count",
+					"Number of Kubernetes events received from informer watches",
+					map[string]string{"type": "node_usage"},
+				)
+			}
+
 			pod := obj.(*corev1.Pod)
 			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
+			// Record kb_event_watch_count metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"kb_event_watch_count",
+					1,
+					"count",
+					"Number of Kubernetes events received from informer watches",
+					map[string]string{"type": "node_usage"},
+				)
+			}
+
 			pod := newObj.(*corev1.Pod)
 
 			// Handle two cases:
@@ -157,6 +182,18 @@ func (nul *NodeUsageListener) watchPods(
 
 		},
 		DeleteFunc: func(obj interface{}) {
+			// Record kb_event_watch_count metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"kb_event_watch_count",
+					1,
+					"count",
+					"Number of Kubernetes events received from informer watches",
+					map[string]string{"type": "node_usage"},
+				)
+			}
+
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -182,6 +219,17 @@ func (nul *NodeUsageListener) watchPods(
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
+		// Record event_watch_connection_error_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"event_watch_connection_error_count",
+				1,
+				"count",
+				"Count of connection errors when watching Kubernetes resources",
+				map[string]string{"type": "node_usage"},
+			)
+		}
 		nul.rebuildPodsFromStore(podInformer)
 	})
 
@@ -192,9 +240,31 @@ func (nul *NodeUsageListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
+		// Record informer_cache_sync_failure metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"informer_cache_sync_failure",
+				1,
+				"count",
+				"Failed informer cache synchronizations",
+				map[string]string{"listener": "NodeUsageListener"},
+			)
+		}
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
+	// Record informer_cache_sync_success metric
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			ctx,
+			"informer_cache_sync_success",
+			1,
+			"count",
+			"Successful informer cache synchronizations",
+			map[string]string{"listener": "NodeUsageListener"},
+		)
+	}
 
 	// Initial rebuild from store after sync
 	nul.rebuildPodsFromStore(podInformer)
@@ -254,6 +324,17 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 			select {
 			case usageChan <- msg:
 				sent++
+				// Record message_queued_total metric
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_queued_total",
+						1,
+						"count",
+						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "resource"},
+					)
+				}
 			case <-ctx.Done():
 				log.Printf("Flushed %d/%d resource usage messages before shutdown",
 					sent, len(dirtyNodes))

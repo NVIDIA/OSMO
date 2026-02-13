@@ -30,6 +30,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // NodeListener manages the bidirectional gRPC stream for node events
@@ -124,10 +125,33 @@ func (nl *NodeListener) watchNodes(
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
+		// Record kb_event_watch_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kb_event_watch_count",
+				1,
+				"count",
+				"Number of Kubernetes events received from informer watches",
+				map[string]string{"type": "node"},
+			)
+		}
+
 		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
+				// Record message_queued_total metric
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_queued_total",
+						1,
+						"count",
+						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "node"},
+					)
+				}
 			case <-done:
 				return
 			}
@@ -171,6 +195,17 @@ func (nl *NodeListener) watchNodes(
 
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
+		// Record event_watch_connection_error_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"event_watch_connection_error_count",
+				1,
+				"count",
+				"Count of connection errors when watching Kubernetes resources",
+				map[string]string{"type": "node"},
+			)
+		}
 		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 		log.Println("Sending NODE_INVENTORY after watch gap recovery")
 		nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
@@ -181,9 +216,31 @@ func (nl *NodeListener) watchNodes(
 	log.Println("Waiting for node informer cache to sync...")
 	if !cache.WaitForCacheSync(done, nodeInformer.HasSynced) {
 		log.Println("Failed to sync node informer cache")
+		// Record informer_cache_sync_failure metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"informer_cache_sync_failure",
+				1,
+				"count",
+				"Failed informer cache synchronizations",
+				map[string]string{"listener": "NodeListener"},
+			)
+		}
 		return
 	}
 	log.Println("Node informer cache synced successfully")
+	// Record informer_cache_sync_success metric
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			ctx,
+			"informer_cache_sync_success",
+			1,
+			"count",
+			"Successful informer cache synchronizations",
+			map[string]string{"listener": "NodeListener"},
+		)
+	}
 
 	nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 	log.Println("Sending initial NODE_INVENTORY after cache sync")
@@ -216,6 +273,17 @@ func (nl *NodeListener) rebuildNodesFromStore(
 			select {
 			case nodeChan <- msg:
 				sent++
+				// Record message_queued_total metric
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_queued_total",
+						1,
+						"count",
+						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "node"},
+					)
+				}
 			case <-ctx.Done():
 				log.Printf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
 				return
@@ -299,6 +367,17 @@ func (nl *NodeListener) sendNodeInventory(
 
 	select {
 	case nodeChan <- msg:
+		// Record message_queued_total metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"message_queued_total",
+				1,
+				"count",
+				"Total messages added to listener channel buffer",
+				map[string]string{"listener": "node"},
+			)
+		}
 		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
 	case <-ctx.Done():
 		log.Println("sendNodeInventory: context cancelled while sending")

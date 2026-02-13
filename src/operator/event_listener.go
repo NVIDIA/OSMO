@@ -170,6 +170,17 @@ func (el *EventListener) watchEvents(
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
+			// Record message_queued_total metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"message_queued_total",
+					1,
+					"count",
+					"Total messages added to listener channel buffer",
+					map[string]string{"listener": "event"},
+				)
+			}
 		case <-ctx.Done():
 			return
 		}
@@ -209,14 +220,36 @@ func (el *EventListener) watchEvents(
 
 	// Start the informer
 	eventInformerFactory.Start(ctx.Done())
-	log.Println("Starting event informer for namespace: %s", el.args.Namespace)
+	log.Printf("Starting event informer for namespace: %s", el.args.Namespace)
 
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		log.Println("Failed to sync event informer cache")
+		// Record informer_cache_sync_failure metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"informer_cache_sync_failure",
+				1,
+				"count",
+				"Failed informer cache synchronizations",
+				map[string]string{"listener": "EventListener"},
+			)
+		}
 		return
 	}
 	log.Println("Event informer cache synced successfully")
+	// Record informer_cache_sync_success metric
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			ctx,
+			"informer_cache_sync_success",
+			1,
+			"count",
+			"Successful informer cache synchronizations",
+			map[string]string{"listener": "EventListener"},
+		)
+	}
 
 	// Keep the watcher running
 	<-ctx.Done()

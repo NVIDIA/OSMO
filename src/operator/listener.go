@@ -123,7 +123,31 @@ func runListenerWithRetry(
 				return
 			}
 			retryCount++
+			// Record listener_retry_total metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"listener_retry_total",
+					1,
+					"count",
+					"Total number of listener retry attempts after connection failure",
+					map[string]string{"listener": name},
+				)
+			}
+
 			backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
+			// Record listener_retry_backoff_seconds metric
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordHistogram(
+					ctx,
+					"listener_retry_backoff_seconds",
+					backoff.Seconds(),
+					"seconds",
+					"Backoff duration between listener retry attempts",
+					map[string]string{"listener": name},
+				)
+			}
+
 			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoff)
 
 			// Wait for backoff or context cancellation
