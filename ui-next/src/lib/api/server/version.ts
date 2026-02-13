@@ -15,49 +15,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Server-Side Version Fetching
+ * Server-Side Version Prefetching
  *
- * Fetch OSMO version info on the server for SSR/RSC.
+ * Prefetch OSMO version info on the server for SSR/PPR.
+ * Used by the Dashboard page to include version in the streamed response.
  */
 
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import type { Version } from "@/lib/api/adapter/types";
-
-/**
- * Fetch OSMO version info from the server.
- *
- * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
- *
- * @param options - Fetch options - DEPRECATED: Not used with adapter
- * @returns Version info or null if unavailable
- */
-export const fetchVersion = cache(async (): Promise<Version | null> => {
-  try {
-    const { getVersionApiVersionGet } = await import("../generated");
-    const { transformVersionResponse } = await import("../adapter/transforms");
-
-    const rawData = await getVersionApiVersionGet();
-    return transformVersionResponse(rawData);
-  } catch {
-    // Version endpoint may not be available
-    return null;
-  }
-});
 
 /**
  * Fetch raw version response for prefetching.
  * Returns the raw response that the generated hook expects.
  *
+ * IMPORTANT: Errors propagate intentionally. prefetchQuery handles them
+ * by storing error state (not success-with-null), which lets the client
+ * retry via its own fetch instead of being stuck with cached null forever.
+ *
  * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
  */
 const fetchVersionRaw = cache(async (): Promise<unknown> => {
-  try {
-    const { getVersionApiVersionGet } = await import("../generated");
-    return await getVersionApiVersionGet();
-  } catch {
-    return null;
-  }
+  const { getVersionApiVersionGet } = await import("../generated");
+  return await getVersionApiVersionGet();
 });
 
 /**

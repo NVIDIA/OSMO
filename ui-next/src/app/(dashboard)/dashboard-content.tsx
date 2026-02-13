@@ -47,7 +47,6 @@ export function DashboardContent() {
   // Data from hydrated cache
   const { pools, isLoading: poolsLoading } = usePools();
   const { workflows, isLoading: workflowsLoading } = useWorkflowsData({ searchChips: [] });
-  const { version } = useVersion();
 
   // Compute stats from pools
   const poolStats = useMemo(() => {
@@ -183,12 +182,8 @@ export function DashboardContent() {
         </div>
       </div>
 
-      {/* Version info */}
-      {version && (
-        <div className="text-center text-xs text-zinc-400 dark:text-zinc-600">
-          OSMO v{version.major}.{version.minor}.{version.revision}
-        </div>
-      )}
+      {/* Version info — lazy: only fetches when this component renders */}
+      <VersionFooter />
     </div>
   );
 }
@@ -196,6 +191,21 @@ export function DashboardContent() {
 // =============================================================================
 // Subcomponents
 // =============================================================================
+
+/**
+ * Lazy version footer — only triggers the /api/version fetch when rendered.
+ * If the user already opened the profile dropdown, the data is cached (Infinity staleTime)
+ * and this renders instantly with no additional API call.
+ */
+function VersionFooter() {
+  const { version } = useVersion();
+  if (!version) return null;
+  return (
+    <div className="text-center text-xs text-zinc-400 dark:text-zinc-600">
+      OSMO v{version.major}.{version.minor}.{version.revision}
+    </div>
+  );
+}
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,

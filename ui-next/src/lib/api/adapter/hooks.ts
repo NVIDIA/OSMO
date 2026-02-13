@@ -204,12 +204,14 @@ export function useAllResources() {
   };
 }
 
-// SSR: Version is prefetched at dashboard layout level
+// Version is immutable during a session — fetch once, cache forever.
+// No server-side prefetch needed; the client fetches on first render only.
 export function useVersion() {
   const { data, isLoading, error } = useGetVersionApiVersionGet({
     query: {
-      // Version rarely changes - use STATIC stale time
-      staleTime: QUERY_STALE_TIME.STATIC,
+      // Version never changes during a session — cache forever
+      staleTime: Infinity,
+      gcTime: Infinity,
       select: useCallback((rawData: unknown) => {
         if (!rawData) return null;
         return transformVersionResponse(rawData);

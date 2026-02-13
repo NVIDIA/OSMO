@@ -14,41 +14,20 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { Chrome } from "@/components/chrome/chrome";
-import { prefetchVersion } from "@/lib/api/server/version";
-import { createServerQueryClient } from "@/lib/query-client";
 
 /**
- * Dashboard layout with shared data prefetch.
+ * Dashboard layout — thin wrapper that renders the application shell.
  *
- * Prefetches shared data needed by layout-level components (like Header):
- * - Version: Used by Header, static metadata that rarely changes
- *
- * This ensures useVersion() in Header finds data in cache during SSR,
- * avoiding network requests that would fail in mock mode.
- *
- * STREAMING: We start the prefetch but don't await it, allowing the shell
- * to render immediately. The HydrationBoundary will include any cached data
- * that resolves before the response finishes streaming.
+ * Version data (the only previous prefetch) is now fetched client-side once
+ * per session with Infinity staleTime/gcTime, eliminating the per-navigation
+ * server→backend API call that the fire-and-forget prefetch was causing.
  *
  * Error handling is automatic via Next.js error.tsx files:
  * - (dashboard)/error.tsx - Catches all dashboard errors
  * - (dashboard)/pools/error.tsx - Catches pool-specific errors
  * - (dashboard)/resources/error.tsx - Catches resource-specific errors
- * */
-export default async function DashboardLayout(props: { children: React.ReactNode }) {
-  // Start prefetch in parallel - don't block the layout render
-  // The query will populate the cache; client will use cached data or refetch
-  const queryClient = createServerQueryClient();
-
-  // Fire-and-forget prefetch - allows shell to stream immediately
-  // Version endpoint is fast and cached; blocking on it delays everything
-  void prefetchVersion(queryClient);
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Chrome>{props.children}</Chrome>
-    </HydrationBoundary>
-  );
+ */
+export default function DashboardLayout(props: { children: React.ReactNode }) {
+  return <Chrome>{props.children}</Chrome>;
 }
