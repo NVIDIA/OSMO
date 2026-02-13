@@ -141,7 +141,7 @@ func (nl *NodeListener) watchNodes(
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
-				// Record message_queued_total metric
+				// Record metrics
 				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
 					metricCreator.RecordCounter(
 						ctx,
@@ -149,6 +149,15 @@ func (nl *NodeListener) watchNodes(
 						1,
 						"count",
 						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "node"},
+					)
+					// Record message_channel_pending
+					metricCreator.RecordHistogram(
+						ctx,
+						"message_channel_pending",
+						float64(len(nodeChan)),
+						"count",
+						"Number of messages pending in the listener channel buffer",
 						map[string]string{"listener": "node"},
 					)
 				}
@@ -273,7 +282,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 			select {
 			case nodeChan <- msg:
 				sent++
-				// Record message_queued_total metric
+				// Record metrics
 				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
 					metricCreator.RecordCounter(
 						ctx,
@@ -281,6 +290,15 @@ func (nl *NodeListener) rebuildNodesFromStore(
 						1,
 						"count",
 						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "node"},
+					)
+					// Record message_channel_pending
+					metricCreator.RecordHistogram(
+						ctx,
+						"message_channel_pending",
+						float64(len(nodeChan)),
+						"count",
+						"Number of messages pending in the listener channel buffer",
 						map[string]string{"listener": "node"},
 					)
 				}
@@ -367,7 +385,7 @@ func (nl *NodeListener) sendNodeInventory(
 
 	select {
 	case nodeChan <- msg:
-		// Record message_queued_total metric
+		// Record metrics
 		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
 			metricCreator.RecordCounter(
 				ctx,
@@ -375,6 +393,15 @@ func (nl *NodeListener) sendNodeInventory(
 				1,
 				"count",
 				"Total messages added to listener channel buffer",
+				map[string]string{"listener": "node"},
+			)
+			// Record message_channel_pending
+			metricCreator.RecordHistogram(
+				ctx,
+				"message_channel_pending",
+				float64(len(nodeChan)),
+				"count",
+				"Number of messages pending in the listener channel buffer",
 				map[string]string{"listener": "node"},
 			)
 		}

@@ -421,6 +421,8 @@ func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage
 		)
 	}
 
+	// Record gRPC send duration
+	start := time.Now()
 	if err := bl.GetStream().Send(msg); err != nil {
 		// Record grpc_stream_send_error_total metric
 		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
@@ -436,8 +438,19 @@ func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage
 		return err
 	}
 
-	// Record message_sent_total metric after successful send
+	// Record send duration and success metrics
 	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		// Record grpc_message_send_duration_seconds
+		metricCreator.RecordHistogram(
+			ctx,
+			"grpc_message_send_duration_seconds",
+			time.Since(start).Seconds(),
+			"seconds",
+			"Duration of gRPC stream Send call",
+			map[string]string{"stream": string(bl.streamName)},
+		)
+
+		// Record message_sent_total metric after successful send
 		metricCreator.RecordCounter(
 			ctx,
 			"message_sent_total",

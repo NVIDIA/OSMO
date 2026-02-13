@@ -180,14 +180,32 @@ func (wl *WorkflowListener) watchPods(
 			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
 			select {
 			case ch <- msg:
-				// Record message_queued_total metric
+				// Record metrics
 				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					// Record workflow_pod_state_change_total
+					metricCreator.RecordCounter(
+						ctx,
+						"workflow_pod_state_change_total",
+						1,
+						"count",
+						"Workflow pod state changes sent to the service",
+						map[string]string{"status": statusResult.Status},
+					)
 					metricCreator.RecordCounter(
 						ctx,
 						"message_queued_total",
 						1,
 						"count",
 						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "workflow"},
+					)
+					// Record message_channel_pending
+					metricCreator.RecordHistogram(
+						ctx,
+						"message_channel_pending",
+						float64(len(ch)),
+						"count",
+						"Number of messages pending in the listener channel buffer",
 						map[string]string{"listener": "workflow"},
 					)
 				}
@@ -231,14 +249,32 @@ func (wl *WorkflowListener) watchPods(
 				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
 				select {
 				case ch <- msg:
-					// Record message_queued_total metric
+					// Record metrics
 					if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+						// Record workflow_pod_state_change_total
+						metricCreator.RecordCounter(
+							ctx,
+							"workflow_pod_state_change_total",
+							1,
+							"count",
+							"Workflow pod state changes sent to the service",
+							map[string]string{"status": statusResult.Status},
+						)
 						metricCreator.RecordCounter(
 							ctx,
 							"message_queued_total",
 							1,
 							"count",
 							"Total messages added to listener channel buffer",
+							map[string]string{"listener": "workflow"},
+						)
+						// Record message_channel_pending
+						metricCreator.RecordHistogram(
+							ctx,
+							"message_channel_pending",
+							float64(len(ch)),
+							"count",
+							"Number of messages pending in the listener channel buffer",
 							map[string]string{"listener": "workflow"},
 						)
 					}

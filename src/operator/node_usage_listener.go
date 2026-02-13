@@ -324,7 +324,7 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 			select {
 			case usageChan <- msg:
 				sent++
-				// Record message_queued_total metric
+				// Record metrics
 				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
 					metricCreator.RecordCounter(
 						ctx,
@@ -332,6 +332,15 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 						1,
 						"count",
 						"Total messages added to listener channel buffer",
+						map[string]string{"listener": "resource"},
+					)
+					// Record message_channel_pending
+					metricCreator.RecordHistogram(
+						ctx,
+						"message_channel_pending",
+						float64(len(usageChan)),
+						"count",
+						"Number of messages pending in the listener channel buffer",
 						map[string]string{"listener": "resource"},
 					)
 				}

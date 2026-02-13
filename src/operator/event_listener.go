@@ -170,7 +170,7 @@ func (el *EventListener) watchEvents(
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
-			// Record message_queued_total metric
+			// Record metrics
 			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
 				metricCreator.RecordCounter(
 					ctx,
@@ -178,6 +178,15 @@ func (el *EventListener) watchEvents(
 					1,
 					"count",
 					"Total messages added to listener channel buffer",
+					map[string]string{"listener": "event"},
+				)
+				// Record message_channel_pending
+				metricCreator.RecordHistogram(
+					ctx,
+					"message_channel_pending",
+					float64(len(ch)),
+					"count",
+					"Number of messages pending in the listener channel buffer",
 					map[string]string{"listener": "event"},
 				)
 			}
