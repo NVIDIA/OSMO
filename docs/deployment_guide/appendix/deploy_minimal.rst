@@ -704,7 +704,7 @@ What's Next
 Once you have tested OSMO with the minimal deployment and are ready for production use, consider the following steps:
 
 1. Consider upgrading to production deployment (:ref:`deploy_service`)
-2. Setup SSO authentication and authorization (:ref:`authentication_flow_sso`)
+2. Configure authentication and authorization (:ref:`authentication_authorization`)
 3. Configure persistent storage (:ref:`configure_data`)
 4. Add observability and monitoring solutions (:ref:`adding_observability`)
 
