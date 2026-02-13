@@ -95,6 +95,36 @@ func (m *mockStream) addRecvMessage(msg *pb.ListenerMessage) {
 	m.recvMessages = append(m.recvMessages, msg)
 }
 
+// mockNodeConditionStream implements pb.ListenerService_NodeConditionStreamServer for testing.
+type mockNodeConditionStream struct {
+	grpc.ServerStream
+	sentMessages []*pb.NodeConditionsMessage
+	sendError    error
+	ctx          context.Context
+}
+
+func newMockNodeConditionStream(ctx context.Context) *mockNodeConditionStream {
+	return &mockNodeConditionStream{
+		sentMessages: nil,
+		ctx:          ctx,
+	}
+}
+
+func (m *mockNodeConditionStream) Context() context.Context {
+	if m.ctx != nil {
+		return m.ctx
+	}
+	return context.Background()
+}
+
+func (m *mockNodeConditionStream) Send(msg *pb.NodeConditionsMessage) error {
+	if m.sendError != nil {
+		return m.sendError
+	}
+	m.sentMessages = append(m.sentMessages, msg)
+	return nil
+}
+
 // setupTestRedis creates a redis client for testing
 // It connects to localhost:6379 or uses REDIS_TEST_ADDR env var if set
 func setupTestRedis(t *testing.T) *redis.Client {
@@ -969,5 +999,52 @@ func TestListenerStream_MixedMessageTypes(t *testing.T) {
 		if ack.AckUuid != expectedUuids[i] {
 			t.Errorf("ACK %d: expected AckUuid %s, got %s", i, expectedUuids[i], ack.AckUuid)
 		}
+	}
+}
+
+// ============================================================================
+// NodeConditionStream tests
+// ============================================================================
+
+func TestNodeConditionStream_WithoutBackendNameMetadata(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	ctx := context.Background() // no metadata
+	stream := newMockNodeConditionStream(ctx)
+
+	err := service.NodeConditionStream(&pb.NodeConditionStreamRequest{}, stream)
+	if err == nil {
+		t.Fatal("expected error for missing backend-name metadata, got nil")
+	}
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", status.Code(err))
+	}
+	if len(stream.sentMessages) != 0 {
+		t.Errorf("expected 0 messages sent when connection is rejected, got %d",
+			len(stream.sentMessages))
+	}
+}
+
+func TestNodeConditionStream_WithEmptyBackendName(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	redisClient := setupTestRedis(t)
+	service := NewListenerService(logger, redisClient, nil, setupTestOperatorArgs())
+
+	ctx := metadata.NewIncomingContext(context.Background(),
+		metadata.Pairs("backend-name", ""))
+	stream := newMockNodeConditionStream(ctx)
+
+	err := service.NodeConditionStream(&pb.NodeConditionStreamRequest{}, stream)
+	if err == nil {
+		t.Fatal("expected error for empty backend-name metadata, got nil")
+	}
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", status.Code(err))
+	}
+	if len(stream.sentMessages) != 0 {
+		t.Errorf("expected 0 messages sent when connection is rejected, got %d",
+			len(stream.sentMessages))
 	}
 }
