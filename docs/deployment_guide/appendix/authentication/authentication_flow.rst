@@ -41,7 +41,7 @@ The main pieces involved are:
 So in practice: the client gets a token (JWT from IdP or access token), Envoy validates it and sets user/roles headers, and the OSMO service authorizes based on those headers and its role/policy database.
 
 Operating without an identity provider
-=====================================
+=========================================
 
 When you do not configure an IdP, there is no browser “log in with SSO” flow. Access is token-based.
 
