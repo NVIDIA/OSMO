@@ -312,39 +312,19 @@ When creating a pool named ``my-pool``, create a corresponding role:
       $ osmo config set ROLE osmo-my-pool -p my-pool
       Successfully created ROLE config
 
-2. **Configure Pool Access in Keycloak**
+2. **Assign the role to users**
 
-   Follow the :doc:`keycloak_setup` guide to create Keycloak groups and map them to the role.
+   Use OSMO’s user and role APIs to assign the role to users (e.g. ``POST /api/auth/user/{id}/roles`` with ``role_name: osmo-my-pool``). If you use an identity provider, you can instead (or additionally) map IdP groups to this role via ``role_external_mappings``; see :doc:`identity_provider_setup`.
 
-3. **Assign Users**
+Assigning roles to users and creating PATs
+------------------------------------------
 
-   Add users to the Keycloak group to grant them access to the pool.
+Roles are assigned to **users** in OSMO (via the user/role APIs or, when using an IdP, via IdP group mapping). **Personal Access Tokens (PATs)** are then created for a user and inherit that user’s roles (or a subset) at creation time.
 
-Assigning Roles to Service Access Tokens
------------------------------------------
+- To create a user and assign roles via API: ``POST /api/auth/user`` with optional ``roles``, then ``POST /api/auth/user/{id}/roles`` for more roles. See the user management design (e.g. ``external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md``) for full API details.
+- To create a PAT for the current user (CLI): use ``osmo token`` or the access token API (e.g. ``POST /api/auth/access_token/{token_name}`` with ``expires_at`` and optional ``roles`` query params). An admin can create a PAT for any user via ``POST /api/auth/user/{user_id}/access_token/{token_name}``.
 
-To create a service access token with specific roles:
-
-.. code-block:: bash
-
-   $ osmo token set service-token-name \
-     --expires-at 2026-01-01 \
-     --description "Service token for my-role" \
-     --role osmo-my-role
-
-.. note::
-
-   For pool access tokens, include the ``osmo-user`` role in addition to the pool role. The pool role only allows workflow submission by default, while the ``osmo-user`` role provides access to workflow management APIs (cancel, query, etc.).
-
-Example:
-
-.. code-block:: bash
-
-   $ osmo token set pool-token \
-     --expires-at 2026-01-01 \
-     --description "Token for pool access" \
-     --role osmo-my-pool \
-     --role osmo-user
+For pool access, assign both the pool role (e.g. ``osmo-my-pool``) and ``osmo-user`` so the token can submit workflows and use workflow management APIs (cancel, query, etc.).
 
 Best Practices
 ==============
@@ -381,15 +361,15 @@ Pool Access Issues
 ------------------
 
 1. **Verify Role Name**: Ensure the role name starts with ``osmo-`` and matches the pool prefix
-2. **Check Keycloak Configuration**: Verify the role is properly configured in Keycloak
-3. **Confirm Group Membership**: Ensure the user is in the correct Keycloak group
-4. **Review Pool Name**: The pool name must match the role pattern (e.g., role ``osmo-team1`` → pool ``team1-*``)
+2. **Check role assignment**: Ensure the user has the role in OSMO (via user/role APIs or IdP role mapping). Use ``GET /api/auth/user/{id}/roles`` to list the user’s roles
+3. **Review Pool Name**: The pool name must match the role pattern (e.g., role ``osmo-team1`` → pool ``team1-*``)
 
 See Also
 ========
 
-- :doc:`keycloak_setup` for configuring roles in Keycloak
+- :doc:`identity_provider_setup` for configuring an IdP and role mapping
 - :doc:`authentication_flow` for understanding authentication
 - :ref:`roles_config` for complete role configuration reference
 - :doc:`../../install_backend/configure_pool` for pool configuration
+- User and role API details: ``external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md``
 

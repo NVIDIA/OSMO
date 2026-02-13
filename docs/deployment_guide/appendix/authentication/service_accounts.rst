@@ -204,7 +204,7 @@ Delete the service account user (this also deletes all associated tokens):
    - :ref:`cli_reference_user` for user CLI reference
 
 Common Service Account Patterns
-===============================
+================================
 
 Backend Operator
 ----------------
