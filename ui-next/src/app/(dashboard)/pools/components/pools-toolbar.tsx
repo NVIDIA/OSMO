@@ -19,8 +19,9 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { CheckCircle2, Wrench, XCircle } from "lucide-react";
+import { CheckCircle2, User, Users, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
@@ -46,9 +47,39 @@ export interface PoolsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
+  /** Show all pools (true) or only the user's accessible pools (false) */
+  showAllPools: boolean;
+  /** Whether the show all pools toggle is pending (async URL update) */
+  showAllPoolsPending: boolean;
+  /** Callback when show all pools toggle is clicked */
+  onToggleShowAllPools: () => void;
   /** Optional auto-refresh controls (if not provided, no refresh button shown) */
   autoRefreshProps?: RefreshControlProps;
 }
+
+// =============================================================================
+// Pool Toggle (My Pools / All Pools)
+// =============================================================================
+
+interface PoolToggleProps {
+  showAllPools: boolean;
+  isTransitioning: boolean;
+  onToggle: () => void;
+}
+
+const PoolToggle = memo(function PoolToggle({ showAllPools, isTransitioning, onToggle }: PoolToggleProps) {
+  return (
+    <SemiStatefulButton
+      onClick={onToggle}
+      currentStateIcon={showAllPools ? <Users className="size-4" /> : <User className="size-4" />}
+      nextStateIcon={showAllPools ? <User className="size-4" /> : <Users className="size-4" />}
+      label={showAllPools ? "Show My Pools" : "Show All Pools"}
+      aria-label={showAllPools ? "Currently showing all pools" : "Currently showing my pools"}
+      tooltipSide="top"
+      isTransitioning={isTransitioning}
+    />
+  );
+});
 
 /** Status preset configurations */
 const STATUS_PRESET_CONFIG: { id: StatusCategory; label: string }[] = [
@@ -63,6 +94,9 @@ export const PoolsToolbar = memo(function PoolsToolbar({
   searchChips,
   onSearchChipsChange,
   resultsCount,
+  showAllPools,
+  showAllPoolsPending,
+  onToggleShowAllPools,
   autoRefreshProps,
 }: PoolsToolbarProps) {
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
@@ -118,6 +152,11 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
     >
+      <PoolToggle
+        showAllPools={showAllPools}
+        isTransitioning={showAllPoolsPending}
+        onToggle={onToggleShowAllPools}
+      />
       <DisplayModeToggle />
     </TableToolbar>
   );
