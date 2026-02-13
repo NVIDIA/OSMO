@@ -277,16 +277,12 @@ Users that have this role will now be able to submit workflows to the newly crea
 
   For more info, see :ref:`auto_generating_pool_roles`.
 
-**Step 5: Assign the Role to Users in Keycloak**
+**Step 5: Assign the role to users**
 
-To assign users to the role, the following steps must be completed:
+Assign the role ``osmo-heterogeneous_pool`` to users so they can access the pool:
 
-1. Create the role ``osmo-heterogeneous_pool`` in keycloak (see :ref:`keycloak_create_roles`). Even though we created the role in OSMO, we also must
-   create a matching role in Keycloak.
-2. Create the group in keycloak (see :ref:`keycloak_create_groups`). You can pick any name for this group, for example ``OSMO Heterogeneous Pool``.
-3. Assign the role ``osmo-heterogeneous_pool`` to the group ``OSMO Heterogeneous Pool`` (see :ref:`keycloak_assign_roles_to_groups`). Any users who are
-   in this group will now have access to the pool.
-4. Add users to the group ``OSMO Heterogeneous Pool`` (see :ref:`keycloak_assign_users_to_groups`). These users will now have access to the pool.
+- **Without an IdP:** Use the OSMO user and role APIs (e.g. create users with ``POST /api/auth/user``, then assign the role with ``POST /api/auth/user/{id}/roles``). See :doc:`../appendix/authentication/roles_policies` and the user management design (e.g. ``external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md``).
+- **With an IdP:** You can assign the role via the same APIs, and/or map an IdP group to this role using ``role_external_mappings`` so that users in that group get the role when they log in. See :doc:`../appendix/authentication/identity_provider_setup`.
 
 
 Additional Examples
