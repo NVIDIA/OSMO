@@ -150,12 +150,20 @@ Google OAuth2
 
 **Endpoints:**
 
-| Purpose   | URL |
-|-----------|-----|
-| Token     | ``https://oauth2.googleapis.com/token`` |
-| Authorize | ``https://accounts.google.com/o/oauth2/v2/auth`` |
-| JWKS      | ``https://www.googleapis.com/oauth2/v3/certs`` |
-| Issuer    | ``https://accounts.google.com`` |
+.. list-table::
+   :header-rows: 1
+   :widths: 15 80
+
+   * - Purpose
+     - URL
+   * - Token
+     - ``https://oauth2.googleapis.com/token``
+   * - Authorize
+     - ``https://accounts.google.com/o/oauth2/v2/auth``
+   * - JWKS
+     - ``https://www.googleapis.com/oauth2/v3/certs``
+   * - Issuer
+     - ``https://accounts.google.com``
 
 Use ``email`` as the user claim for Google. Audience is typically the full client ID (e.g. ``<client-id>.apps.googleusercontent.com``).
 
