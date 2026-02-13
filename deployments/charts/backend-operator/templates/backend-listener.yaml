@@ -125,9 +125,9 @@ spec:
         - --serviceVersion
         - '{{ .Values.services.backendListener.metrics.version | default .Values.global.osmoImageTag }}'
         - --metricsOtelCollectorHost
-        - '127.0.0.1'
+        - {{ .Values.sidecars.OTEL.host }}
         - --metricsOtelCollectorPort
-        - '4317'
+        - {{ .Values.sidecars.OTEL.port }}
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}

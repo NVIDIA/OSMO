@@ -838,6 +838,14 @@ sidecars:
     ##
     configName: otel-config
 
+    ## Host for OTEL collector
+    ##
+    host: "127.0.0.1"
+
+    ## Port for OTEL collector
+    ##
+    port: 4317
+
     ## Container ports configuration
     ##
     ports:

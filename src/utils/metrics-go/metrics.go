@@ -33,9 +33,9 @@ type MetricsConfig struct {
 type MetricCreator struct {
 	meterProvider      *sdkmetric.MeterProvider
 	meter              metric.Meter
-	counterCache       sync.Map // map[string]counterMetadata
-	upDownCounterCache sync.Map // map[string]upDownCounterMetadata
-	histogramCache     sync.Map // map[string]histogramMetadata
+	counterCache       sync.Map          // map[string]counterMetadata
+	upDownCounterCache sync.Map          // map[string]upDownCounterMetadata
+	histogramCache     sync.Map          // map[string]histogramMetadata
 	globalTags         map[string]string // Immutable after initialization
 }
 
@@ -356,7 +356,7 @@ func RegisterMetricsFlags(defaultComponent string) *MetricsFlagPointers {
 			utils.GetEnvBool("METRICS_OTEL_ENABLE", true),
 			"Enable OpenTelemetry metrics"),
 		host: flag.String("metricsOtelCollectorHost",
-			utils.GetEnv("METRICS_OTEL_COLLECTOR_HOST", "localhost"),
+			utils.GetEnv("METRICS_OTEL_COLLECTOR_HOST", "127.0.0.1"),
 			"OpenTelemetry collector host"),
 		port: flag.Int("metricsOtelCollectorPort",
 			utils.GetEnvInt("METRICS_OTEL_COLLECTOR_PORT", 4317),

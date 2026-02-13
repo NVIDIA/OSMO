@@ -105,9 +105,9 @@ spec:
         - --metrics_otel_enable
         - {{ .Values.sidecars.OTEL.enabled | quote }}
         - --metrics_otel_collector_host
-        - '127.0.0.1'
+        - {{ .Values.sidecars.OTEL.host }}
         - --metrics_otel_collector_port
-        - '4317'
+        - {{ .Values.sidecars.OTEL.port }}
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
         {{- if .Values.global.backendTestNamespace }}
