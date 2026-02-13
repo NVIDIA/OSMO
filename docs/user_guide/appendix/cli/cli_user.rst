@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -17,16 +17,16 @@
 
 :tocdepth: 3
 
-.. _cli_reference_version:
+.. _cli_reference_user:
 
 ================================================
-osmo version
+osmo user
 ================================================
 
 .. argparse-with-postprocess::
    :module: src.cli.main_parser
    :func: create_cli_parser
    :prog: osmo
-   :path: version
-   :ref-prefix: cli_reference_version
+   :path: user
+   :ref-prefix: cli_reference_user
    :argument-anchor:
