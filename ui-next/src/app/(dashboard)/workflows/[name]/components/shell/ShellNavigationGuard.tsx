@@ -29,7 +29,7 @@
 "use client";
 
 import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,6 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/shadcn/button";
 import { useShellSessions } from "@/components/shell/lib/shell-cache";
-import { stripBasePath } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -56,10 +55,33 @@ interface ShellNavigationGuardProps {
 }
 
 interface PendingNavigation {
-  /** The URL to navigate to */
-  url: string;
-  /** Whether this is a programmatic navigation (vs link click) */
-  isProgrammatic: boolean;
+  /** The original anchor element that was clicked. On confirm we re-click it
+   *  so all existing handlers (breadcrumb origin, Next.js Link, etc.) fire. */
+  targetElement?: HTMLAnchorElement;
+  /** Navigation API destination key for replaying back/forward traversals. */
+  traverseKey?: string;
+}
+
+// =============================================================================
+// Navigation API types (subset for back/forward interception)
+// Chrome 102+, Edge 102+, Safari 17.2+
+// @see https://developer.mozilla.org/en-US/docs/Web/API/Navigation_API
+// =============================================================================
+
+interface NavigateEvent extends Event {
+  readonly navigationType: "push" | "replace" | "reload" | "traverse";
+  readonly destination: { readonly url: string; readonly key: string };
+}
+
+interface NavigationAPI extends EventTarget {
+  traverseTo(key: string): { committed: Promise<void>; finished: Promise<void> };
+}
+
+function getNavigationAPI(): NavigationAPI | undefined {
+  if (typeof window !== "undefined" && "navigation" in window) {
+    return (window as unknown as { navigation: NavigationAPI }).navigation;
+  }
+  return undefined;
 }
 
 // =============================================================================
@@ -105,7 +127,6 @@ function getPathnameFromHref(href: string): string {
 // =============================================================================
 
 export function ShellNavigationGuard({ workflowName, onCleanup, children }: ShellNavigationGuardProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const allSessions = useShellSessions();
 
@@ -127,12 +148,6 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
 
   // Track if we're in the process of navigating (after confirmation)
   const isNavigatingRef = useRef(false);
-
-  // Track the current pathname to detect when we've actually navigated
-  const pathnameRef = useRef(pathname);
-  useEffect(() => {
-    pathnameRef.current = pathname;
-  }, [pathname]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // beforeunload: Browser tab close / refresh
@@ -165,10 +180,10 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
       if (isNavigatingRef.current) return;
 
       // Find the closest anchor element
-      const target = (e.target as Element).closest("a");
-      if (!target) return;
+      const anchor = (e.target as Element).closest("a") as HTMLAnchorElement | null;
+      if (!anchor) return;
 
-      const href = target.getAttribute("href");
+      const href = anchor.getAttribute("href");
       if (!href) return;
 
       // Skip external links (absolute URLs to other domains)
@@ -178,7 +193,7 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
       if (href.startsWith("#")) return;
 
       // Skip links that open in new tab
-      if (target.getAttribute("target") === "_blank") return;
+      if (anchor.getAttribute("target") === "_blank") return;
 
       // Extract the pathname from the href (removes query params and hash)
       const targetPathname = getPathnameFromHref(href);
@@ -194,8 +209,9 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
         e.preventDefault();
         e.stopPropagation();
 
-        // Store the pending navigation and show dialog
-        setPendingNavigation({ url: href, isProgrammatic: false });
+        // Store the anchor element so we can re-click it on confirm,
+        // letting all its handlers (breadcrumb origin, Next.js Link, etc.) fire.
+        setPendingNavigation({ targetElement: anchor });
         setIsDialogOpen(true);
       }
     };
@@ -206,38 +222,39 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
   }, [hasActiveSessions, pathname, workflowName]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Browser back/forward button: popstate
+  // Browser back/forward button: Navigation API
+  //
+  // The Navigation API's navigate event fires BEFORE navigation occurs and
+  // is cancelable, unlike popstate which fires after the URL has already
+  // changed and races with Next.js's own popstate handler.
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!hasActiveSessions) return;
 
-    const handlePopState = () => {
-      // Skip if we're already navigating after confirmation
+    const nav = getNavigationAPI();
+    if (!nav) return;
+
+    const handleNavigate = (e: Event) => {
       if (isNavigatingRef.current) return;
 
-      // The browser has already changed the URL, we need to push back
-      // and show the confirmation dialog
-      const currentPathname = window.location.pathname;
+      const navEvent = e as NavigateEvent;
 
-      // Skip if this is just a query param change (nuqs back/forward within workflow)
-      // The pathname will still match the current workflow
-      if (isWithinWorkflow(currentPathname, workflowName)) {
-        // Allow navigation - it's within the same workflow (e.g., nuqs history)
-        return;
+      // Only intercept traverse navigations (back/forward buttons).
+      // Link clicks are handled by the capture-phase click handler above.
+      if (navEvent.navigationType !== "traverse") return;
+
+      const destPathname = new URL(navEvent.destination.url).pathname;
+
+      if (!isWithinWorkflow(destPathname, workflowName)) {
+        navEvent.preventDefault();
+        setPendingNavigation({ traverseKey: navEvent.destination.key });
+        setIsDialogOpen(true);
       }
-
-      // Navigation is leaving the workflow - block it and show confirmation
-      // Push the current path back to prevent navigation
-      window.history.pushState(null, "", pathnameRef.current);
-
-      // Store the pending navigation and show dialog
-      setPendingNavigation({ url: currentPathname, isProgrammatic: true });
-      setIsDialogOpen(true);
     };
 
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    nav.addEventListener("navigate", handleNavigate);
+    return () => nav.removeEventListener("navigate", handleNavigate);
   }, [hasActiveSessions, workflowName]);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -256,20 +273,21 @@ export function ShellNavigationGuard({ workflowName, onCleanup, children }: Shel
     // Close dialog
     setIsDialogOpen(false);
 
-    // Strip basePath before calling router.push() to avoid duplication
-    // The href from the DOM already includes basePath (e.g., "/v2/pools")
-    // but router.push() expects a path without basePath (e.g., "/pools")
-    const targetUrl = stripBasePath(pendingNavigation.url);
-
-    // Use client-side navigation for better performance
-    router.push(targetUrl);
+    if (pendingNavigation.targetElement) {
+      // Link click — re-click the original anchor so all its handlers fire
+      // (breadcrumb origin, Next.js Link routing, etc.).
+      pendingNavigation.targetElement.click();
+    } else if (pendingNavigation.traverseKey) {
+      // Back/forward — replay the traversal via the Navigation API.
+      getNavigationAPI()?.traverseTo(pendingNavigation.traverseKey);
+    }
 
     // Reset state after a short delay (in case navigation fails)
     setTimeout(() => {
       isNavigatingRef.current = false;
       setPendingNavigation(null);
     }, 100);
-  }, [pendingNavigation, onCleanup, router]);
+  }, [pendingNavigation, onCleanup]);
 
   const handleCancelNavigation = useCallback(() => {
     setIsDialogOpen(false);
