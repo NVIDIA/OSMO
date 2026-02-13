@@ -288,6 +288,21 @@ services:
     ##
     eventCacheTTLMin: 15
 
+    ## OpenTelemetry metrics configuration
+    ##
+    metrics:
+      ## Enable OpenTelemetry metrics collection
+      ##
+      enabled: true
+
+      ## Service component name for metrics
+      ##
+      component: "osmo-backend-listener"
+
+      ## Service version (defaults to image tag if not specified)
+      ##
+      version: ""
+
     ## Additional command line arguments to pass to the backend listener
     ##
     extraArgs: []
@@ -817,7 +832,7 @@ sidecars:
 
     ## Docker image for OTEL collector
     ##
-    image: otel/opentelemetry-collector-contrib:0.68.0
+    image: otel/opentelemetry-collector-contrib:0.142.0
 
     ## ConfigMap name for OTEL collector configuration
     ##
@@ -828,6 +843,9 @@ sidecars:
     ports:
     - containerPort: 4000
       name: metrics
+    - containerPort: 4317
+      name: otlp-grpc
+      protocol: TCP
 
     ## Resource limits and requests for OTEL container
     ##

@@ -118,6 +118,16 @@ spec:
         - '{{ .Values.services.backendListener.eventChanSize }}'
         - --eventCacheTTLMin
         - '{{ .Values.services.backendListener.eventCacheTTLMin }}'
+        - --metricsOtelEnable
+        - '{{ .Values.services.backendListener.metrics.enabled }}'
+        - --metricsOtelCollectorComponent
+        - '{{ .Values.services.backendListener.metrics.component }}'
+        - --serviceVersion
+        - '{{ .Values.services.backendListener.metrics.version | default .Values.global.osmoImageTag }}'
+        - --metricsOtelCollectorHost
+        - '127.0.0.1'
+        - --metricsOtelCollectorPort
+        - '4317'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}

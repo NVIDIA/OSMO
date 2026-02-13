@@ -104,6 +104,10 @@ spec:
         - {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
         - --metrics_otel_enable
         - {{ .Values.sidecars.OTEL.enabled | quote }}
+        - --metrics_otel_collector_host
+        - '127.0.0.1'
+        - --metrics_otel_collector_port
+        - '4317'
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
         {{- if .Values.global.backendTestNamespace }}

@@ -31,6 +31,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // EventListener manages the bidirectional gRPC stream connection for Kubernetes events
@@ -144,6 +145,18 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
+		// Record kb_event_watch_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kb_event_watch_count",
+				1,
+				"count",
+				"Number of Kubernetes events received from informer watches",
+				map[string]string{"type": "event"},
+			)
+		}
+
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
 			return
@@ -180,6 +193,18 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
+
+		// Record event_watch_connection_error_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"event_watch_connection_error_count",
+				1,
+				"count",
+				"Count of connection errors when watching Kubernetes resources",
+				map[string]string{"type": "event"},
+			)
+		}
 	})
 
 	// Start the informer

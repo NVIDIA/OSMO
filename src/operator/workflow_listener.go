@@ -32,6 +32,7 @@ import (
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // WorkflowListener manages the bidirectional gRPC stream connection to the operator service
@@ -157,6 +158,18 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
+		// Record kb_event_watch_count metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kb_event_watch_count",
+				1,
+				"count",
+				"Number of Kubernetes events received from informer watches",
+				map[string]string{"type": "pod"},
+			)
+		}
+
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
 			return
@@ -345,7 +358,7 @@ func createPodUpdateMessage(
 		Backend:      backend,
 	}
 
-	// Add conditions
+	// Add conditions and calculate processing time metric
 	for _, cond := range pod.Status.Conditions {
 		podUpdate.Conditions = append(podUpdate.Conditions, &pb.ConditionMessage{
 			Reason:    cond.Reason,
@@ -354,6 +367,21 @@ func createPodUpdateMessage(
 			Status:    cond.Status == corev1.ConditionTrue,
 			Type:      string(cond.Type),
 		})
+
+		// Record event_processing_times metric for significant condition changes
+		if cond.Status == corev1.ConditionTrue && !cond.LastTransitionTime.IsZero() {
+			processingDelay := time.Since(cond.LastTransitionTime.Time).Seconds()
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordHistogram(
+					context.Background(),
+					"event_processing_times",
+					processingDelay,
+					"seconds",
+					"Time elapsed between event occurrence and processing",
+					nil,
+				)
+			}
+		}
 	}
 
 	// Generate random UUID (matching Python's uuid.uuid4().hex format)
