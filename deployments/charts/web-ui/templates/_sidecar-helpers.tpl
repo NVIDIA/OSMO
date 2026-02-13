@@ -241,33 +241,38 @@ OAuth2 Proxy sidecar container
   imagePullPolicy: {{ .Values.sidecars.oauth2Proxy.imagePullPolicy }}
   securityContext:
     {{- toYaml .Values.sidecars.oauth2Proxy.securityContext | nindent 4 }}
+  command: ["/bin/sh", "-c"]
   args:
-    - --http-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.httpPort }}
-    - --metrics-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.metricsPort }}
-    - --reverse-proxy=true
-    - --provider={{ .Values.sidecars.oauth2Proxy.provider }}
-    - --oidc-issuer-url={{ .Values.sidecars.oauth2Proxy.oidcIssuerUrl }}
-    - --client-id={{ .Values.sidecars.oauth2Proxy.clientId }}
-    - --client-secret-file={{ .Values.sidecars.oauth2Proxy.secretPaths.clientSecret }}
-    - --cookie-secret-file={{ .Values.sidecars.oauth2Proxy.secretPaths.cookieSecret }}
-    - --cookie-secure={{ .Values.sidecars.oauth2Proxy.cookieSecure }}
-    - --cookie-name={{ .Values.sidecars.oauth2Proxy.cookieName }}
-    {{- if .Values.sidecars.oauth2Proxy.cookieDomain }}
-    - --cookie-domain={{ .Values.sidecars.oauth2Proxy.cookieDomain }}
-    {{- end }}
-    - --cookie-expire={{ .Values.sidecars.oauth2Proxy.cookieExpire }}
-    - --cookie-refresh={{ .Values.sidecars.oauth2Proxy.cookieRefresh }}
-    - --scope={{ .Values.sidecars.oauth2Proxy.scope }}
-    - --email-domain=*
-    - --set-xauthrequest=true
-    - --set-authorization-header=true
-    - --pass-access-token={{ .Values.sidecars.oauth2Proxy.passAccessToken }}
-    - --upstream=static://200
-    - --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
-    - --silence-ping-logging=true
-    {{- range .Values.sidecars.oauth2Proxy.extraArgs }}
-    - {{ . }}
-    {{- end }}
+    - |
+      COOKIE_SECRET=$(cat {{ .Values.sidecars.oauth2Proxy.secretPaths.cookieSecret }})
+      set -- /bin/oauth2-proxy
+      set -- "$@" --http-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.httpPort }}
+      set -- "$@" --metrics-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.metricsPort }}
+      set -- "$@" --reverse-proxy=true
+      set -- "$@" --provider={{ .Values.sidecars.oauth2Proxy.provider }}
+      set -- "$@" --oidc-issuer-url={{ .Values.sidecars.oauth2Proxy.oidcIssuerUrl }}
+      set -- "$@" --client-id={{ .Values.sidecars.oauth2Proxy.clientId }}
+      set -- "$@" --client-secret-file={{ .Values.sidecars.oauth2Proxy.secretPaths.clientSecret }}
+      set -- "$@" "--cookie-secret=$COOKIE_SECRET"
+      set -- "$@" --cookie-secure={{ .Values.sidecars.oauth2Proxy.cookieSecure }}
+      set -- "$@" --cookie-name={{ .Values.sidecars.oauth2Proxy.cookieName }}
+      {{- if .Values.sidecars.oauth2Proxy.cookieDomain }}
+      set -- "$@" --cookie-domain={{ .Values.sidecars.oauth2Proxy.cookieDomain }}
+      {{- end }}
+      set -- "$@" --cookie-expire={{ .Values.sidecars.oauth2Proxy.cookieExpire }}
+      set -- "$@" --cookie-refresh={{ .Values.sidecars.oauth2Proxy.cookieRefresh }}
+      set -- "$@" "--scope={{ .Values.sidecars.oauth2Proxy.scope }}"
+      set -- "$@" "--email-domain=*"
+      set -- "$@" --set-xauthrequest=true
+      set -- "$@" --set-authorization-header=true
+      set -- "$@" --pass-access-token={{ .Values.sidecars.oauth2Proxy.passAccessToken }}
+      set -- "$@" --upstream=static://200
+      set -- "$@" --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
+      set -- "$@" --silence-ping-logging=true
+      {{- range .Values.sidecars.oauth2Proxy.extraArgs }}
+      set -- "$@" {{ . }}
+      {{- end }}
+      exec "$@"
   ports:
   - name: http
     containerPort: {{ .Values.sidecars.oauth2Proxy.httpPort }}
