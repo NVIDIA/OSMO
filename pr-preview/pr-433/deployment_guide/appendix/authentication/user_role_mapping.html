@@ -1,0 +1,753 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Managing User Role Mapping in OSMO &#8212; OSMO Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/autodoc_pydantic.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/collapsible_code_block.css?v=fddc5587" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/base.css?v=f411dd76" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/lifecycle-timeline.css?v=b1697d17" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/mermaid_custom.css?v=e845640e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/versioning.css?v=ed00f604" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=1c0753c3"></script>
+    <script src="../../../_static/js/collapsible_code_block.js?v=faf3b219"></script>
+    <script src="../../../_static/js/domain_config.js?v=68ccafbe"></script>
+    <script src="../../../_static/js/domain_updater.js?v=d33cbccf"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'deployment_guide/appendix/authentication/user_role_mapping';</script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="../../../_static/js/code_annotation.js?v=217a77bb"></script>
+    <script src="../../../_static/js/tab-set.js?v=4a5fa218"></script>
+    <script src="../../../_static/js/glightbox-init.js?v=08cf799b"></script>
+    <link rel="icon" href="../../../_static/osmo_favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Service Accounts" href="service_accounts.html" />
+    <link rel="prev" title="Identity Provider (IdP) Setup" href="identity_provider_setup.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Feb 13, 2026"/>
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="OSMO Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="OSMO Documentation - Home"/>
+  
+  
+    <p class="title logo__title">OSMO Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    Deployment Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/OSMO/" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction/whats_next.html">What’s Next</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Requirements</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/prereqs.html">Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/tools.html">Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../requirements/system_reqs.html">Instances</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/infrastructure_setup.html">Setup Infrastructure</a></li>
+
+
+
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/s3/index.html">AWS S3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/gcp/index.html">Google Cloud Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../getting_started/create_storage/tos/index.html">Torch Object Storage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/configure_data.html">Configure Data Storage</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Bring Your Own Compute (BYOC)</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../install_backend/create_backend/index.html">Create K8s Cluster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../install_backend/create_backend/cloud_setup.html">Cloud Provider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../install_backend/create_backend/onprem_setup.html">On-Premise</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/dependencies/dependencies.html">Install Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/deploy_backend.html">Deploy Backend Operator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/configure_pool.html">Create Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/validate_osmo.html">Run Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install_backend/observability.html">Add Observability (Optional)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Configuration</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/index.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/pool.html">Resource Pools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/resource_validation.html">Resource Validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/pod_template.html">Pod Templates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/scheduler.html">Scheduler Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/rsync.html">Rsync Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../advanced_config/dataset_buckets.html">Dataset Buckets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../references/configs_definitions/index.html">Configuration API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/service.html">/api/configs/service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/workflow.html">/api/configs/workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/dataset.html">/api/configs/dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/backend.html">/api/configs/backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/pool.html">/api/configs/pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/pod_template.html">/api/configs/pod_template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/resource_validation.html">/api/configs/resource_validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/configs_definitions/roles.html">/api/configs/role</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../references/config_cli/index.html">Configuration CLI</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_show.html">osmo config show</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_update.html">osmo config update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_list.html">osmo config list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_history.html">osmo config history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_diff.html">osmo config diff</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_delete.html">osmo config delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_set.html">osmo config set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_rollback.html">osmo config rollback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../references/config_cli/config_tag.html">osmo config tag</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../deploy_local.html">Local Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy_minimal.html">Minimal Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../workflow_execution.html">Understanding Task Execution</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Authentication and Authorization</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="authentication_flow.html">Authentication Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="roles_policies.html">Roles and Policies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="identity_provider_setup.html">Identity Provider (IdP) Setup</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Managing User Role Mapping in OSMO</a></li>
+<li class="toctree-l2"><a class="reference internal" href="service_accounts.html">Service Accounts</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link"><strong>Deployment Guide</strong></a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Authentication and Authorization</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Managing User Role Mapping in OSMO</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="managing-user-role-mapping-in-osmo">
+<span id="user-role-mapping"></span><h1>Managing User Role Mapping in OSMO<a class="headerlink" href="#managing-user-role-mapping-in-osmo" title="Link to this heading">#</a></h1>
+<p>This section describes how to manage which roles users have in OSMO: by assigning roles directly via APIs, by mapping roles from your identity provider (IdP), and how <strong>role sync mode</strong> controls whether IdP claims can add or remove roles.</p>
+<section id="ways-to-assign-roles">
+<h2>Ways to assign roles<a class="headerlink" href="#ways-to-assign-roles" title="Link to this heading">#</a></h2>
+<p><strong>1. Direct assignment via OSMO APIs</strong></p>
+<p>Roles can be assigned to users regardless of whether you use an IdP:</p>
+<ul class="simple">
+<li><p><strong>Assign a role to a user:</strong> <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/auth/user/{user_id}/roles</span></code> with body <code class="docutils literal notranslate"><span class="pre">{&quot;role_name&quot;:</span> <span class="pre">&quot;osmo-ml-team&quot;}</span></code></p></li>
+<li><p><strong>Remove a role:</strong> <code class="docutils literal notranslate"><span class="pre">DELETE</span> <span class="pre">/api/auth/user/{user_id}/roles/{role_name}</span></code></p></li>
+<li><p><strong>List a user’s roles:</strong> <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/auth/user/{user_id}/roles</span></code></p></li>
+<li><p><strong>Bulk assign a role to multiple users:</strong> <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/auth/roles/{role_name}/users</span></code> with <code class="docutils literal notranslate"><span class="pre">{&quot;user_ids&quot;:</span> <span class="pre">[&quot;user1&#64;example.com&quot;,</span> <span class="pre">&quot;user2&#64;example.com&quot;]}</span></code></p></li>
+</ul>
+<p>When you create a user with <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/auth/user</span></code>, you can optionally pass <code class="docutils literal notranslate"><span class="pre">roles</span></code> in the body to assign initial roles. Only callers with the <code class="docutils literal notranslate"><span class="pre">role:Manage</span></code> action (e.g. users with the <code class="docutils literal notranslate"><span class="pre">osmo-admin</span></code> role) can assign or remove roles.</p>
+<p><strong>2. IdP group/role claims (when using an IdP)</strong></p>
+<p>When users log in via an IdP, the IdP may send group or role names in the JWT (e.g. <code class="docutils literal notranslate"><span class="pre">groups</span></code> or a custom claim). OSMO can map those <strong>external</strong> names to OSMO role names using the <code class="docutils literal notranslate"><span class="pre">role_external_mappings</span></code> table, then apply those roles to the user according to each role’s <strong>sync mode</strong> (see below).</p>
+<ul class="simple">
+<li><p><strong>External name → OSMO role:</strong> e.g. map <code class="docutils literal notranslate"><span class="pre">LDAP_ML_TEAM</span></code> → <code class="docutils literal notranslate"><span class="pre">osmo-ml-team</span></code>, or <code class="docutils literal notranslate"><span class="pre">ad-developers</span></code> → <code class="docutils literal notranslate"><span class="pre">osmo-user</span></code>. Multiple external roles can map to one OSMO role, and one external role can map to multiple OSMO roles.</p></li>
+<li><p><strong>Where to configure:</strong> Role external mappings are managed in the database (e.g. via migrations or admin tooling). By default, each OSMO role gets a 1:1 mapping (OSMO role name ↔ same external name) so if your IdP already sends OSMO role names, no extra mapping is needed.</p></li>
+</ul>
+</section>
+<section id="role-sync-modes">
+<h2>Role sync modes<a class="headerlink" href="#role-sync-modes" title="Link to this heading">#</a></h2>
+<p>When OSMO syncs roles from the IdP on each request, each role has a <strong>sync mode</strong> that controls whether the IdP can add the role, leave it unchanged, or remove it. Sync mode applies only to roles that are <strong>not</strong> <code class="docutils literal notranslate"><span class="pre">ignore</span></code>; roles with <code class="docutils literal notranslate"><span class="pre">ignore</span></code> are never changed by IdP sync and are managed only via the OSMO APIs.</p>
+<p>The following table describes the behavior for each mode. “IDP has role” means the IdP (after external mapping) is providing this role for the user on this request. “User has role” means the user already has this role in OSMO’s <code class="docutils literal notranslate"><span class="pre">user_roles</span></code> table.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 12.2%" />
+<col style="width: 18.4%" />
+<col style="width: 18.4%" />
+<col style="width: 51.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Sync mode</strong></p></th>
+<th class="head"><p><strong>IdP has role</strong></p></th>
+<th class="head"><p><strong>User has role</strong></p></th>
+<th class="head"><p><strong>Action</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ignore</span></code></p></td>
+<td><p>(any)</p></td>
+<td><p>(any)</p></td>
+<td><p>No action. Role is never modified by IdP sync; manage it only via APIs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">import</span></code></p></td>
+<td><p>Yes</p></td>
+<td><p>No</p></td>
+<td><p><strong>Add</strong> role to user.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">import</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+<td><p>No action (keep existing role).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">force</span></code></p></td>
+<td><p>Yes</p></td>
+<td><p>No</p></td>
+<td><p><strong>Add</strong> role to user.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">force</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+<td><p><strong>Remove</strong> role from user.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="summary-by-mode">
+<h3>Summary by mode<a class="headerlink" href="#summary-by-mode" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>ignore</strong> — IdP sync never touches this role. Use for roles you assign only via the OSMO user/role APIs (e.g. a manually granted <code class="docutils literal notranslate"><span class="pre">osmo-admin</span></code> or a pool role that is not reflected in the IdP).</p></li>
+<li><p><strong>import</strong> — Roles are <strong>added</strong> when the IdP provides them, but <strong>never removed</strong> by IdP sync. If the user already has the role and the IdP stops sending it, the user keeps the role. Good for accumulating roles from the IdP and from manual assignment.</p></li>
+<li><p><strong>force</strong> — The user’s set of roles for this mode is driven <strong>entirely</strong> by the IdP. If the IdP provides the role, it is added; if the IdP does <strong>not</strong> provide the role on a request, it is <strong>removed</strong> from the user. Use when you want IdP group membership to be the single source of truth for that role (e.g. “osmo-team-lead” only while the user is in the IdP group).</p></li>
+</ul>
+</section>
+<section id="example-force-mode">
+<h3>Example (force mode)<a class="headerlink" href="#example-force-mode" title="Link to this heading">#</a></h3>
+<p>Role <code class="docutils literal notranslate"><span class="pre">osmo-team-lead</span></code> has <code class="docutils literal notranslate"><span class="pre">sync_mode</span> <span class="pre">=</span> <span class="pre">'force'</span></code>. User <code class="docutils literal notranslate"><span class="pre">alice&#64;example.com</span></code> has that role in <code class="docutils literal notranslate"><span class="pre">user_roles</span></code>. On her next login, the IdP no longer includes the group that maps to <code class="docutils literal notranslate"><span class="pre">osmo-team-lead</span></code>. During role sync, OSMO sees that the IdP does not provide <code class="docutils literal notranslate"><span class="pre">osmo-team-lead</span></code> and that the user currently has it, so it <strong>removes</strong> the role from the user. If you want her to keep the role even when the IdP drops her from the group, use <code class="docutils literal notranslate"><span class="pre">import</span></code> instead of <code class="docutils literal notranslate"><span class="pre">force</span></code> for that role.</p>
+</section>
+<section id="where-sync-mode-is-set">
+<h3>Where sync mode is set<a class="headerlink" href="#where-sync-mode-is-set" title="Link to this heading">#</a></h3>
+<p>Sync mode is a property of the <strong>role</strong> in the OSMO database (e.g. <code class="docutils literal notranslate"><span class="pre">roles.sync_mode</span></code>). Default is <code class="docutils literal notranslate"><span class="pre">import</span></code>. You can view or update role definitions via the OSMO config/role APIs or database, depending on how roles are managed in your deployment.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="index.html"><span class="doc">Authentication and Authorization</span></a> for authentication overview with and without an IdP</p></li>
+<li><p><a class="reference internal" href="roles_policies.html"><span class="doc">Roles and Policies</span></a> for role and policy definitions</p></li>
+<li><p><a class="reference internal" href="identity_provider_setup.html"><span class="doc">Identity Provider (IdP) Setup</span></a> for IdP configuration</p></li>
+<li><p>Design docs: <code class="docutils literal notranslate"><span class="pre">external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md</span></code> (user/role APIs and sync behavior)</p></li>
+</ul>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="identity_provider_setup.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Identity Provider (IdP) Setup</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="service_accounts.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Service Accounts</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ways-to-assign-roles">Ways to assign roles</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#role-sync-modes">Role sync modes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-by-mode">Summary by mode</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-force-mode">Example (force mode)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#where-sync-mode-is-set">Where sync mode is set</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025 NVIDIA CORPORATION &amp; AFFILIATES.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on Feb 13, 2026.
+  <br/>
+</p></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
