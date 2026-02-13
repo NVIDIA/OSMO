@@ -32,7 +32,7 @@ Use an IdP when:
 - You want to map IdP groups or roles to OSMO roles so that access is controlled partly by your directory.
 - You are deploying in production and already have an IdP.
 
-If you are evaluating OSMO or running in an environment without an IdP, use the **default admin** and **Personal Access Tokens** instead (see :ref:`default_admin_setup`).
+If you are evaluating OSMO or running in an environment without an IdP, use the **default admin** and **access tokens** instead (see :ref:`default_admin_setup`).
 
 How it works (short)
 ====================

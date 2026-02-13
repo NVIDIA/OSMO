@@ -28,17 +28,17 @@ Architecture components
 
 The main pieces involved are:
 
-1. **User or client** — A person (browser or CLI) or a script/automation that wants to call OSMO. They must present something that proves their identity: either a JWT (from an IdP or from OSMO) or a Personal Access Token (PAT).
+1. **User or client** — A person (browser or CLI) or a script/automation that wants to call OSMO. They must present something that proves their identity: either a JWT (from an IdP or from OSMO) or a access token.
 
 2. **Envoy** — The API gateway in front of the OSMO service. It can be configured to:
    - **With an IdP:** Run an OAuth2 filter that redirects unauthenticated browser users to your identity provider and validates the JWT returned by the IdP. It then forwards the request to the OSMO service with headers like ``x-osmo-user`` and ``x-osmo-roles`` derived from the JWT.
-   - **Without an IdP:** Allow requests that carry a valid PAT or service-issued JWT and set the same headers for the backend.
+   - **Without an IdP:** Allow requests that carry a valid access token or service-issued JWT and set the same headers for the backend.
 
-3. **Identity provider (IdP)** — Optional. Your organization’s login system (e.g., Microsoft Entra ID, Google, AWS IAM Identity Center). When used, Envoy talks to it directl and the IdP issues JWTs that Envoy validates.
+3. **Identity provider (IdP)** — Optional. Your organization’s login system (e.g., Microsoft Entra ID, Google, AWS IAM Identity Center). When used, Envoy talks to it directly and the IdP issues JWTs that Envoy validates.
 
 4. **OSMO service** — The backend. It trusts the ``x-osmo-user`` and ``x-osmo-roles`` headers set by Envoy (or by an internal path that bypasses Envoy). It does **not** validate the original JWT itself; Envoy is responsible for that. The service uses the user and roles to resolve policies and allow or deny the request.
 
-So in practice: the client gets a token (JWT from IdP or PAT), Envoy validates it and sets user/roles headers, and the OSMO service authorizes based on those headers and its role/policy database.
+So in practice: the client gets a token (JWT from IdP or access token), Envoy validates it and sets user/roles headers, and the OSMO service authorizes based on those headers and its role/policy database.
 
 Operating without an identity provider
 =====================================
@@ -52,25 +52,25 @@ You enable a **default admin** user via Helm (see :ref:`default_admin_setup`). O
 
 - Creates a user with the configured username (e.g. ``admin``).
 - Assigns that user the ``osmo-admin`` role.
-- Creates a Personal Access Token for that user whose secret is the password you stored in a Kubernetes secret.
+- Creates an access token for that user whose secret is the password you stored in a Kubernetes secret.
 
-So the “password” you set for the default admin is effectively the PAT value. You use it with the CLI (e.g. ``osmo login``) or with the API as ``Authorization: Bearer <that-password>``.
+So the “password” you set for the default admin is effectively the access token value. You use it with the CLI (e.g. ``osmo login``) or with the API as ``Authorization: Bearer <that-password>``.
 
-Personal Access Tokens (PATs)
------------------------------
+Access tokens
+-------------
 
 After the default admin is in place (or if you have another admin), you can:
 
 - Create more **users** via the user API (e.g. ``POST /api/auth/user``).
 - Assign **roles** to users (e.g. ``POST /api/auth/user/{id}/roles``).
-- Create **PATs** for users (e.g. ``POST /api/auth/access_token/{token_name}`` or the admin API to create a PAT for any user). Each PAT is tied to a user and gets a set of roles (by default, all of that user’s roles) at creation time.
+- Create **access tokens** for users (e.g. ``POST /api/auth/access_token/{token_name}`` or the admin API to create an access token for any user). Each access token is tied to a user and gets a set of roles (by default, all of that user’s roles) at creation time.
 
-Scripts and the CLI then authenticate by sending the PAT in the ``Authorization: Bearer <PAT>`` header. The OSMO service (or Envoy, if configured to accept PATs) validates the token, resolves the user and roles from the database, and sets the same ``x-osmo-user`` and ``x-osmo-roles`` headers for the backend. Authorization works the same as for IdP-issued JWTs.
+Scripts and the CLI then authenticate by sending the access token in the ``Authorization: Bearer <token>`` header. The OSMO service (or Envoy, if configured to accept access tokens) validates the token, resolves the user and roles from the database, and sets the same ``x-osmo-user`` and ``x-osmo-roles`` headers for the backend. Authorization works the same as for IdP-issued JWTs.
 
 Token-based login (service-issued JWT)
 --------------------------------------
 
-For compatibility with flows that expect a JWT (e.g. some CLI or internal callers), OSMO can issue its own JWTs. For example, a client can exchange a PAT for a short-lived JWT via the appropriate auth endpoint. Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` and the service’s public key). The resulting JWT carries the same user and roles; Envoy validates it and sets ``x-osmo-user`` and ``x-osmo-roles`` as before.
+For compatibility with flows that expect a JWT (e.g. some CLI or internal callers), OSMO can issue its own JWTs. For example, a client can exchange an access token for a short-lived JWT via the appropriate auth endpoint. Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` and the service’s public key). The resulting JWT carries the same user and roles; Envoy validates it and sets ``x-osmo-user`` and ``x-osmo-roles`` as before.
 
 Operating with an identity provider
 ===================================
@@ -121,7 +121,7 @@ Envoy (or the component in front of the OSMO service) is responsible for:
 
 The OSMO service does **not** validate the raw JWT. It trusts the ``x-osmo-user`` and ``x-osmo-roles`` headers. Therefore, in production you must only expose the OSMO service through Envoy (or another gateway) that:
 
-- Validates the JWT or PAT.
+- Validates the JWT or access token.
 - Strips or ignores any downstream ``x-osmo-user`` and ``x-osmo-roles`` from the client.
 - Sets ``x-osmo-user`` and ``x-osmo-roles`` from the validated token.
 
@@ -135,7 +135,7 @@ Verify IdP configuration (redirect URIs, client ID/secret), Envoy OAuth2 and JWT
 Check that the user has roles in OSMO (user/role APIs or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
 
 **Token validation failures**
-Ensure issuer and audience in Envoy match the JWT. Check JWKS URI connectivity from Envoy. For PATs, ensure the token exists and is not expired.
+Ensure issuer and audience in Envoy match the JWT. Check JWKS URI connectivity from Envoy. For access tokens, ensure the token exists and is not expired.
 
 .. seealso::
 
