@@ -8,17 +8,7 @@
 
 "use client";
 
-import {
-  memo,
-  useMemo,
-  useRef,
-  useCallback,
-  useEffect,
-  useState,
-  useLayoutEffect,
-  startTransition,
-  useDeferredValue,
-} from "react";
+import { memo, useMemo, useRef, useCallback, useEffect, useState, startTransition, useDeferredValue } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn, formatHotkey } from "@/lib/utils";
@@ -447,20 +437,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   const logListRef = useRef<{ scrollToBottom: () => void }>(null);
 
   // Local pin state (ephemeral UI state, not persisted)
-  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
-
-  // Auto-pin when streaming starts (transition detection)
-  const prevIsStreamingRef = useRef(false);
-  useLayoutEffect(() => {
-    const wasStreaming = prevIsStreamingRef.current;
-    prevIsStreamingRef.current = isStreaming;
-
-    if (isStreaming && !wasStreaming) {
-      startTransition(() => {
-        setIsPinnedToBottom(true);
-      });
-    }
-  }, [isStreaming]);
+  const [isPinnedToBottom, setIsPinnedToBottom] = useState(false);
 
   // Wrap toggle handlers with View Transitions for smooth visual updates
   const toggleWrapLines = useCallback(() => {
