@@ -24,6 +24,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { env } from "~/env.mjs";
 import { type AppRouter } from "~/server/api/root";
 
+import { authRedirectFetch } from "./authRedirectFetch";
 import { getUrl, transformer } from "./shared";
 import { unauthorizedRedirectLink } from "./unauthorizedRedirectLink";
 
@@ -42,6 +43,7 @@ export function TRPCReactProvider(props: { children: ReactNode; headers: Headers
         }),
         httpBatchLink({
           url: getUrl(),
+          fetch: authRedirectFetch,
           headers() {
             const heads = new Map(props.headers);
             heads.set("x-trpc-source", "react");
