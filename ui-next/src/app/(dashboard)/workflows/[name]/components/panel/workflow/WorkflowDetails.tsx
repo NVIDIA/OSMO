@@ -20,6 +20,7 @@
 
 import { memo, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   TextSearch,
   BarChart3,
@@ -37,6 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { CopyButton } from "@/components/copyable-value";
 import { ActionsSection, type ActionItem } from "@/components/panel/actions-section";
 import { EmptyTabPrompt } from "@/components/panel/empty-tab-prompt";
 import { LinksSection } from "@/components/panel/links-section";
@@ -181,12 +183,30 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
         <CardContent className="divide-border divide-y p-0">
           <div className="p-3">
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+              <span className="text-muted-foreground">UUID</span>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-xs">{workflow.uuid}</span>
+                <CopyButton
+                  value={workflow.uuid}
+                  label="UUID"
+                />
+              </div>
               <span className="text-muted-foreground">User</span>
-              <span>{workflow.submitted_by}</span>
+              <Link
+                href={`/workflows?f=user:${encodeURIComponent(workflow.submitted_by)}`}
+                className="text-foreground focus-visible:ring-ring rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              >
+                {workflow.submitted_by}
+              </Link>
               {workflow.pool && (
                 <>
                   <span className="text-muted-foreground">Pool</span>
-                  <span>{workflow.pool}</span>
+                  <Link
+                    href={`/workflows?f=pool:${encodeURIComponent(workflow.pool)}`}
+                    className="text-foreground focus-visible:ring-ring rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  >
+                    {workflow.pool}
+                  </Link>
                 </>
               )}
               {workflow.backend && (
