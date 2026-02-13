@@ -233,8 +233,7 @@ Generate ext_authz filter for OAuth2 Proxy
                       "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
                       header_name: x-osmo-auth
                   value_match:
-                    safe_regex:
-                      regex: ".+"
+                    prefix: ""
           on_match:
             action:
               name: skip

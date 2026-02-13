@@ -192,8 +192,7 @@ data:
                                     "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
                                     header_name: x-osmo-auth
                                 value_match:
-                                  safe_regex:
-                                    regex: ".+"
+                                  prefix: ""
                         on_match:
                           action:
                             name: skip
@@ -408,6 +407,7 @@ data:
                     port_value: {{ .Values.sidecars.rateLimit.grpcPort }}
         {{- end }}
 
+      {{- if $envoy.idp.host }}
       - name: idp
         connect_timeout: 3s
         type: STRICT_DNS
@@ -429,6 +429,7 @@ data:
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
             sni: {{ $envoy.idp.host }}
+      {{- end }}
 
       {{- if .Values.sidecars.oauth2Proxy.enabled }}
       - name: oauth2-proxy
