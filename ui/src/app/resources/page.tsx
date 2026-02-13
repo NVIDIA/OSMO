@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
-import { z } from "zod";
 
 import { FilterButton } from "~/components/FilterButton";
 import FullPageModal from "~/components/FullPageModal";
@@ -26,15 +25,16 @@ import { FilledIcon } from "~/components/Icon";
 import { IconButton } from "~/components/IconButton";
 import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
+import { Spinner } from "~/components/Spinner";
 import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { convertFields, ResourcesEntrySchema, roundResources } from "~/models";
 import { api } from "~/trpc/react";
 
 import { AggregatePanels, type AggregateProps } from "./components/AggregatePanels";
-import { ResourceDetails, type ResourceListItem } from "./components/ResourceDetails";
+import { ResourceDetails } from "./components/ResourceDetails";
 import { ResourcesFilter } from "./components/ResourcesFilter";
 import { ResourcesTable } from "./components/ResourcesTable";
+import { calcResourceUsages } from "./components/utils";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
 import { UsedFreeToggle } from "../pools/components/UsedFreeToggle";
 import { resourcesToNodes } from "../tasks/components/TasksFilters";
@@ -93,49 +93,19 @@ export default function Resources() {
     }
   }, [showGauges]);
 
-  const processResources = useMemo((): ResourceListItem[] => {
+  const processResources = useMemo(() => {
     if (!isSuccess) {
       return [];
     }
 
-    const parsedResponse = z.array(ResourcesEntrySchema).safeParse(resources);
-
-    if (!parsedResponse.success) {
-      console.error(parsedResponse.error);
-      return [];
-    }
-
-    const result = parsedResponse.data.flatMap((resource) => {
-      const poolPlatformMap = (resource.exposed_fields["pool/platform"] ?? []).reduce(
-        (acc, poolPlatform) => {
-          const [poolName, platformName] = poolPlatform.split("/");
-          if (poolName && platformName) {
-            acc[poolName] = [...(acc[poolName] ?? []), platformName];
-          }
-          return acc;
-        },
-        {} as Record<string, string[]>,
-      );
-
-      return Object.entries(poolPlatformMap).flatMap(([poolName, platforms]) =>
-        platforms.map((platform) => {
-          const item: ResourceListItem = {
-            node: resource.exposed_fields.node ?? "-",
-            pool: poolName,
-            platform,
-            storage: roundResources(convertFields("storage", resource, poolName, platform)),
-            cpu: roundResources(convertFields("cpu", resource, poolName, platform)),
-            memory: roundResources(convertFields("memory", resource, poolName, platform)),
-            gpu: roundResources(convertFields("gpu", resource, poolName, platform)),
-            resourceType: resource.resource_type ?? "-",
-          };
-
-          return item;
-        }),
-      );
-    });
-    return result;
+    return calcResourceUsages(resources);
   }, [resources, isSuccess]);
+
+  const filteredResources = useMemo(() => {
+    return processResources.filter((item) =>
+      isSelectAllPoolsChecked ? true : selectedPools.split(",").includes(item.pool),
+    );
+  }, [processResources, isSelectAllPoolsChecked, selectedPools]);
 
   const forceRefetch = useCallback(() => {
     // Wait to see if the refresh has already happened. If not call it explicitly
@@ -170,51 +140,59 @@ export default function Resources() {
           aria-controls="resources-filters"
         />
       </PageHeader>
-      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
-        <SlideOut
-          id="resources-filter"
-          open={showFilters}
-          onClose={() => {
-            setShowFilters(false);
-          }}
-          aria-label="Resources Filter"
-          className="z-40 border-t-0 w-100"
-        >
-          <ResourcesFilter
-            selectedPools={selectedPools}
-            isSelectAllPoolsChecked={isSelectAllPoolsChecked}
-            isSelectAllNodesChecked={isSelectAllNodesChecked}
-            availableNodes={availableNodes ?? []}
-            nodes={nodes ?? ""}
-            resourceTypes={filterResourceTypes}
-            updateUrl={updateUrl}
-            onRefresh={forceRefetch}
-          />
-        </SlideOut>
-        {showGauges && (
-          <section
-            className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
-            aria-labelledby="gauges-button"
+      {isFetching ? (
+        <div className="h-full w-full flex justify-center items-center">
+          <Spinner size="large" />
+        </div>
+      ) : (
+        <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
+          <SlideOut
+            id="resources-filter"
+            open={showFilters}
+            onClose={() => {
+              setShowFilters(false);
+            }}
+            aria-label="Resources Filter"
+            className="z-40 filter-slideout"
           >
-            <AggregatePanels
-              {...aggregates}
-              isLoading={isFetching}
-              isShowingUsed={isShowingUsed}
+            <ResourcesFilter
+              selectedPools={selectedPools}
+              isSelectAllPoolsChecked={isSelectAllPoolsChecked}
+              isSelectAllNodesChecked={isSelectAllNodesChecked}
+              availableNodes={availableNodes ?? []}
+              nodes={nodes ?? ""}
+              resourceTypes={filterResourceTypes}
+              updateUrl={updateUrl}
+              onRefresh={forceRefetch}
             />
-          </section>
-        )}
-        <ResourcesTable
-          isLoading={isFetching}
-          resources={processResources}
-          isShowingUsed={isShowingUsed}
-          setAggregates={setAggregates}
-          nodes={nodes}
-          allNodes={isSelectAllNodesChecked}
-          filterResourceTypes={filterResourceTypes}
-          selectedResource={selectedResource}
-          updateUrl={updateUrl}
-        />
-      </div>
+          </SlideOut>
+          {showGauges && (
+            <section
+              className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
+            >
+              <AggregatePanels
+                cpu={aggregates.cpu}
+                memory={aggregates.memory}
+                gpu={aggregates.gpu}
+                storage={aggregates.storage}
+                isLoading={isFetching}
+                isShowingUsed={isShowingUsed}
+              />
+            </section>
+          )}
+          <ResourcesTable
+            setAggregates={setAggregates}
+            isLoading={isFetching}
+            resources={filteredResources}
+            isShowingUsed={isShowingUsed}
+            nodes={nodes}
+            allNodes={isSelectAllNodesChecked}
+            filterResourceTypes={filterResourceTypes}
+            selectedResource={selectedResource}
+            updateUrl={updateUrl}
+          />
+        </div>
+      )}
       <FullPageModal
         headerChildren={
           selectedResource?.node && (

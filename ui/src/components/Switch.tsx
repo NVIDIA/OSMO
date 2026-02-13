@@ -66,7 +66,7 @@ export const Switch = ({
         type="button"
         role="switch"
         aria-checked={checked}
-        className="w-full h-full peer rounded-full"
+        className="w-full h-full peer rounded-full outline-offset-2"
         onClick={() => onChange && onChange(!checked)}
         disabled={disabled}
         title={title}

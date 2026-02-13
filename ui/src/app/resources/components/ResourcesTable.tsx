@@ -1,4 +1,4 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -82,6 +82,50 @@ const ResourceButton = ({
       {resource.node}
     </button>
   );
+};
+
+export const calculateAggregatesPerPool = (resources: ResourceListItem[]): Record<string, AggregateProps> => {
+  const aggregatesByPool: Record<string, AggregateProps> = {};
+  const processedNodes = new Set<string>();
+
+  resources.forEach((resource) => {
+    const pool = resource.pool || "N/A";
+    const nodeKey = `${pool}:${resource.node}`;
+
+    if (processedNodes.has(nodeKey)) {
+      return;
+    }
+
+    const current = aggregatesByPool[pool] ?? {
+      cpu: { allocatable: 0, usage: 0 },
+      gpu: { allocatable: 0, usage: 0 },
+      storage: { allocatable: 0, usage: 0 },
+      memory: { allocatable: 0, usage: 0 },
+    };
+
+    aggregatesByPool[pool] = {
+      cpu: {
+        allocatable: current.cpu.allocatable + resource.cpu.allocatable,
+        usage: current.cpu.usage + resource.cpu.usage,
+      },
+      gpu: {
+        allocatable: current.gpu.allocatable + resource.gpu.allocatable,
+        usage: current.gpu.usage + resource.gpu.usage,
+      },
+      storage: {
+        allocatable: current.storage.allocatable + resource.storage.allocatable,
+        usage: current.storage.usage + resource.storage.usage,
+      },
+      memory: {
+        allocatable: current.memory.allocatable + resource.memory.allocatable,
+        usage: current.memory.usage + resource.memory.usage,
+      },
+    };
+
+    processedNodes.add(nodeKey);
+  });
+
+  return aggregatesByPool;
 };
 
 export const ResourcesTable = ({

@@ -1,0 +1,214 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+//
+//http://www.apache.org/licenses/LICENSE-2.0
+//
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+//
+//SPDX-License-Identifier: Apache-2.0
+import { useEffect, useMemo, useState } from "react";
+
+import Link from "next/link";
+
+import ConfirmModal from "~/components/ConfirmModal";
+import { getDateFromValues } from "~/components/DateRangePicker";
+import FullPageModal from "~/components/FullPageModal";
+import { OutlinedIcon } from "~/components/Icon";
+import { StatusFilterType } from "~/components/StatusFilter";
+import { TextInput } from "~/components/TextInput";
+import { UserFilterType } from "~/components/UserFilter";
+import { WorkflowPieChart } from "~/components/WorkflowPieChart";
+import { env } from "~/env.mjs";
+import { type WorkflowStatusType } from "~/models";
+import { api } from "~/trpc/react";
+
+import { getWorkflowStatusArray } from "../workflows/components/StatusFilter";
+import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "../workflows/components/WorkflowsFilters";
+import useToolParamUpdater from "../workflows/hooks/useToolParamUpdater";
+
+export interface WorkflowWidgetDataProps {
+  id: string;
+  name: string;
+  description?: string;
+  filters: WorkflowsFiltersDataProps;
+}
+
+export const WorkflowsWidget = ({
+  widget,
+  currentUserName,
+  onSave,
+  onDelete,
+}: {
+  widget: WorkflowWidgetDataProps;
+  currentUserName: string;
+  onSave: (widget: WorkflowWidgetDataProps) => void;
+  onDelete: () => void;
+}) => {
+  const { getUrlParams } = useToolParamUpdater();
+  const [isEditing, setIsEditing] = useState(false);
+  const [widgetName, setWidgetName] = useState(widget.name);
+  const [widgetDescription, setWidgetDescription] = useState(widget.description ?? "");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  useEffect(() => {
+    if (widgetName === "") {
+      setIsEditing(true);
+    }
+  }, [widgetName]);
+
+  const dateRangeDates = getDateFromValues(
+    widget.filters.dateRange,
+    widget.filters.submittedAfter,
+    widget.filters.submittedBefore,
+  );
+
+  const { data: currentWorkflows } = api.workflows.getStatusTotals.useQuery(
+    {
+      all_users: widget.filters.userType === UserFilterType.ALL,
+      users: widget.filters.userType === UserFilterType.CUSTOM ? (widget.filters.selectedUsers?.split(",") ?? []) : [],
+      all_pools: widget.filters.isSelectAllPoolsChecked,
+      pools: widget.filters.isSelectAllPoolsChecked ? [] : widget.filters.selectedPools.split(","),
+      submitted_after: dateRangeDates.fromDate?.toISOString(),
+      submitted_before: dateRangeDates.toDate?.toISOString(),
+      statuses:
+        widget.filters.statusFilterType === StatusFilterType.CUSTOM
+          ? (widget.filters.statuses?.split(",") as WorkflowStatusType[])
+          : getWorkflowStatusArray(widget.filters.statusFilterType),
+      priority: widget.filters.priority,
+    },
+    {
+      refetchOnWindowFocus: true,
+      refetchInterval: (env.NEXT_PUBLIC_WORKFLOW_REFETCH_INTERVAL / 4) * 1000,
+    },
+  );
+
+  const detailsUrl = useMemo(() => {
+    return `/workflows?${getUrlParams(widget.filters, undefined).toString()}`;
+  }, [widget, getUrlParams]);
+
+  return (
+    <>
+      <section
+        className="card flex flex-col"
+        aria-labelledby="current-workflows-title"
+      >
+        <div className="popup-header body-header">
+          <h2 id="current-workflows-title">{widget.name}</h2>
+          <div className="flex flex-row gap-global">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setIsEditing(true)}
+              title={`Edit ${widget.name}`}
+            >
+              <OutlinedIcon name="edit" />
+            </button>
+            <Link
+              href={detailsUrl}
+              className="btn btn-secondary"
+              title={`View All ${widget.name}`}
+            >
+              <OutlinedIcon name="list_alt" />
+            </Link>
+          </div>
+        </div>
+        <div
+          className="flex flex-col gap-global p-global w-full flex-1 justify-between"
+        >
+          <WorkflowPieChart
+            counts={currentWorkflows ?? {}}
+            size={160}
+            innerRadius={40}
+            ariaLabel={widget.name}
+          />
+        </div>
+        {widget.description && <p className="text-sm text-center p-global text-gray-500">{widget.description}</p>}
+      </section>
+      <FullPageModal
+        open={isEditing}
+        onClose={() => {
+          setIsEditing(false);
+        }}
+        headerChildren={
+          <h2 id="edit-header">{widget.name ? "Edit Workflow" : "New Workflow"}</h2>
+        }
+        aria-labelledby="edit-header"
+        size="md"
+      >
+        <WorkflowsFilters
+          fields={["user", "date", "status", "pool", "priority"]}
+          name={""}
+          userType={widget.filters.userType}
+          selectedUsers={widget.filters.selectedUsers}
+          selectedPools={widget.filters.selectedPools}
+          dateRange={widget.filters.dateRange}
+          statusFilterType={widget.filters.statusFilterType}
+          submittedAfter={widget.filters.submittedAfter}
+          submittedBefore={widget.filters.submittedBefore}
+          isSelectAllPoolsChecked={widget.filters.isSelectAllPoolsChecked}
+          currentUserName={currentUserName}
+          priority={widget.filters.priority}
+          onSave={(data: WorkflowsFiltersDataProps) => {
+            if (!widgetName) {
+              return;
+            }
+
+            setIsEditing(false);
+            onSave({
+              id: widget.id,
+              name: widgetName,
+              description: widgetDescription,
+              filters: data,
+            })
+          }}
+          onDelete={() => setShowConfirmModal(true)}
+          saveButtonText="Save"
+          saveButtonIcon="save"
+        >
+          <TextInput
+            id="widget-name"
+            label="Name"
+            className="w-full"
+            required
+            containerClassName="w-full"
+            value={widgetName}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setWidgetName(event.target.value);
+            }}
+            message={widgetName === "" ? "Name is required" : undefined}
+            isError={widgetName === ""}
+          />
+          <TextInput
+            id="widget-description"
+            label="Description"
+            className="w-full"
+            containerClassName="w-full"
+            value={widgetDescription}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setWidgetDescription(event.target.value);
+            }}
+          />
+        </WorkflowsFilters>
+      </FullPageModal>
+      <ConfirmModal
+        open={showConfirmModal}
+        size="sm"
+        onCancel={() => {
+          setShowConfirmModal(false);
+        }}
+        title="Delete Workflow"
+        message="Are you sure you want to delete this workflow?"
+        onConfirm={() => {
+          onDelete();
+          setShowConfirmModal(false);
+        }}
+      />
+      </>
+  );
+};

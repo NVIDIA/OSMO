@@ -32,7 +32,7 @@ export const StatusFilter = ({
   return (
     <fieldset className="flex flex-col gap-1 mb-2">
       <legend>Status</legend>
-      <div className="flex flex-row gap-radios">
+      <div className="flex flex-row flex-wrap gap-radios">
         <label className="flex items-center gap-1">
           <input
             type="radio"

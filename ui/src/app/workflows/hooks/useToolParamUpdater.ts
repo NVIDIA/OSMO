@@ -17,7 +17,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { allDateRange, defaultDateRange, getBestDateRange, getDateFromValues, type DateRange } from "~/components/DateRangePicker";
+import {
+  allDateRange,
+  defaultDateRange,
+  getBestDateRange,
+  getDateFromValues,
+  type DateRange,
+} from "~/components/DateRangePicker";
 import { StatusFilterType } from "~/components/StatusFilter";
 import { type UrlTypes, useStore } from "~/components/StoreProvider";
 import { UserFilterType } from "~/components/UserFilter";
@@ -103,7 +109,11 @@ export interface ToolParamUpdaterProps {
 }
 
 // Undefined means no change; null means clear
-const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Record<string, string | undefined> = {}) => {
+const useToolParamUpdater = (
+  urlType?: UrlTypes,
+  username?: string,
+  defaults: Record<string, string | undefined> = {},
+) => {
   const pathname = usePathname();
   const router = useRouter();
   const urlParams = useSearchParams();
@@ -201,7 +211,11 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     setRetryId(retryId ?? undefined);
 
     const dateRangeParam = urlParams.get(PARAM_KEYS.dateRange);
-    const dateRangeNum = dateRangeParam ? Number(dateRangeParam) : defaults.dateRange ? Number(defaults.dateRange) : defaultDateRange;
+    const dateRangeNum = dateRangeParam
+      ? Number(dateRangeParam)
+      : defaults.dateRange
+        ? Number(defaults.dateRange)
+        : defaultDateRange;
     if (dateRangeNum !== allDateRange) {
       filterCount++;
     }
@@ -235,7 +249,8 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     setPoolFilter(urlParams.get(PARAM_KEYS.pools) ?? "");
 
     const statusFilterTypeParam = urlParams.get(PARAM_KEYS.statusType);
-    const statusFilterTypeValue = statusFilterTypeParam as StatusFilterType ?? defaults.statusFilterType as StatusFilterType;
+    const statusFilterTypeValue =
+      (statusFilterTypeParam as StatusFilterType) ?? (defaults.statusFilterType as StatusFilterType);
     setStatusFilterType(statusFilterTypeValue);
     setStatusFilter(urlParams.get(PARAM_KEYS.status) ?? undefined);
 
@@ -260,7 +275,7 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     }
   }, [isSelectAllUsersChecked, userFilter, username]);
 
-  const updateUrl = useCallback((props: ToolParamUpdaterProps): void => {
+  const getUrlParams = useCallback((props: ToolParamUpdaterProps, url?: string): URLSearchParams => {
     const {
       tool,
       task,
@@ -286,12 +301,7 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       retry_id,
       entry_command,
     } = props;
-    const newParams = new URLSearchParams(window.location.search);
-
-    if (pathname !== window.location.pathname) {
-      console.info("URL switched... ignoring update");
-      return;
-    }
+    const newParams = new URLSearchParams(url);
 
     if (tool) {
       newParams.set(PARAM_KEYS.tool, tool);
@@ -415,29 +425,44 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       newParams.set(PARAM_KEYS.entry_command, entry_command);
     }
 
-    router.replace(`${pathname}?${newParams.toString()}`);
+    return newParams;
+  }, []);
 
-    if (urlType) {
-      // Remove specific urlParams from the sidebar data
-      newParams.delete(TABLE_PARAM_KEYS.pageSize);
-      newParams.delete(TABLE_PARAM_KEYS.pageIndex);
-      newParams.delete(SORT_PARAM_KEYS.sorting);
-      newParams.delete(PARAM_KEYS.tool);
-      newParams.delete(PARAM_KEYS.workflow);
-      newParams.delete(PARAM_KEYS.task);
-      newParams.delete(PARAM_KEYS.status);
-      newParams.delete(PARAM_KEYS.showWF);
-      newParams.delete(PARAM_KEYS.showTask);
-      newParams.delete(PARAM_KEYS.nodes);
-      newParams.delete(PARAM_KEYS.allNodes);
-      newParams.delete(PARAM_KEYS.filterName);
-      newParams.delete(PARAM_KEYS.full_log);
-      newParams.delete(PARAM_KEYS.last_n_lines);
-      handleChangeSidebarData(urlType, `?${newParams.toString()}`);
-    }
-  }, [handleChangeSidebarData, pathname, router, urlType]);
+  const updateUrl = useCallback(
+    (props: ToolParamUpdaterProps): void => {
+      if (pathname !== window.location.pathname) {
+        console.info("URL switched... ignoring update");
+        return;
+      }
+
+      const newParams = getUrlParams(props, window.location.search);
+
+      router.replace(`${pathname}?${newParams.toString()}`);
+
+      if (urlType) {
+        // Remove specific urlParams from the sidebar data
+        newParams.delete(TABLE_PARAM_KEYS.pageSize);
+        newParams.delete(TABLE_PARAM_KEYS.pageIndex);
+        newParams.delete(SORT_PARAM_KEYS.sorting);
+        newParams.delete(PARAM_KEYS.tool);
+        newParams.delete(PARAM_KEYS.workflow);
+        newParams.delete(PARAM_KEYS.task);
+        newParams.delete(PARAM_KEYS.status);
+        newParams.delete(PARAM_KEYS.showWF);
+        newParams.delete(PARAM_KEYS.showTask);
+        newParams.delete(PARAM_KEYS.nodes);
+        newParams.delete(PARAM_KEYS.allNodes);
+        newParams.delete(PARAM_KEYS.filterName);
+        newParams.delete(PARAM_KEYS.full_log);
+        newParams.delete(PARAM_KEYS.last_n_lines);
+        handleChangeSidebarData(urlType, `?${newParams.toString()}`);
+      }
+    },
+    [handleChangeSidebarData, getUrlParams, pathname, router, urlType],
+  );
 
   return {
+    getUrlParams,
     updateUrl,
     tool,
     fullLog,

@@ -39,7 +39,7 @@ import { api } from "~/trpc/react";
 import { formatForWrapping } from "~/utils/string";
 
 import { getTaskStatusArray } from "./components/StatusFilter";
-import { TasksFilters, type TasksFiltersDataProps } from "./components/TasksFilters";
+import { TasksFilters, type TasksFiltersDataProps, validateFilters } from "./components/TasksFilters";
 import { TasksTable } from "./components/TasksTable";
 import { getActionId } from "./components/TasksTable";
 import TaskDetails from "../workflows/components/TaskDetails";
@@ -152,36 +152,6 @@ export default function Tasks() {
     }
   }, [tool, selectedWorkflow]);
 
-  const validateFilters = useCallback(
-    ({
-      isSelectAllPoolsChecked,
-      selectedPools,
-      dateRange,
-      startedAfter,
-      startedBefore,
-      statusFilterType,
-      statuses,
-      nodes,
-      isSelectAllNodesChecked,
-    }: TasksFiltersDataProps): string[] => {
-      const errors: string[] = [];
-      if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
-        errors.push("Please select at least one pool");
-      }
-      if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
-        errors.push("Please select a date range");
-      }
-      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
-        errors.push("Please select at least one status");
-      }
-      if (!isSelectAllNodesChecked && nodes.length === 0) {
-        errors.push("Please select at least one node");
-      }
-      return errors;
-    },
-    [],
-  );
-
   useEffect(() => {
     if (
       validateFilters({
@@ -209,7 +179,6 @@ export default function Tasks() {
     dateRange,
     dateAfterFilter,
     dateBeforeFilter,
-    validateFilters,
     nameFilter,
     username,
     nodes,
@@ -312,6 +281,45 @@ export default function Tasks() {
     }, 500);
   }, [refetch, isLoading, setSafeTimeout]);
 
+  const onSaveFilters = useCallback(
+    (data: TasksFiltersDataProps) => {
+      updateUrl({
+        dateRange: data.dateRange,
+        dateAfter: data.dateRange === customDateRange ? data.startedAfter : null,
+        dateBefore: data.dateRange === customDateRange ? data.startedBefore : null,
+        statusFilterType: data.statusFilterType,
+        status: data.statusFilterType === StatusFilterType.CUSTOM ? data.statuses : null,
+        allPools: data.isSelectAllPoolsChecked,
+        pools: data.isSelectAllPoolsChecked ? null : data.selectedPools.split(","),
+        allUsers: data.userType === UserFilterType.ALL,
+        users: data.userType === UserFilterType.ALL ? null : data.selectedUsers.split(","),
+        priority: data.priority ?? null,
+      });
+
+      forceRefetch();
+    },
+    [updateUrl, forceRefetch],
+  );
+
+  const onResetFilters = useCallback(() => {
+    updateUrl({
+      status: null,
+      statusFilterType: StatusFilterType.CURRENT,
+      allPools: true,
+      allUsers: false,
+      users: [username],
+      dateRange: null,
+      dateAfter: null,
+      dateBefore: null,
+      priority: null,
+      filterName: null,
+      nodes: undefined,
+      allNodes: true,
+    });
+
+    forceRefetch();
+  }, [updateUrl, forceRefetch, username]);
+
   return (
     <>
       <PageHeader>
@@ -338,7 +346,7 @@ export default function Tasks() {
           id="tasks-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
-          className="w-100 border-t-0"
+          className="filter-slideout"
           aria-label="Tasks Filter"
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}
@@ -354,11 +362,10 @@ export default function Tasks() {
               selectedPools={poolFilter}
               isSelectAllPoolsChecked={isSelectAllPoolsChecked}
               currentUserName={username}
-              onRefresh={forceRefetch}
-              validateFilters={validateFilters}
               priority={priority}
               workflowId={nameFilter ?? ""}
-              updateUrl={updateUrl}
+              onSave={onSaveFilters}
+              onReset={onResetFilters}
               nodes={nodes ?? ""}
               isSelectAllNodesChecked={isSelectAllNodesChecked ?? true}
             />
