@@ -81,6 +81,7 @@ dropdown
 DS
 eks
 entrypoint
+Entra
 env
 ervice
 etcd
@@ -212,6 +213,7 @@ observability
 Observability
 oidc
 OIDC
+Okta
 omni
 Omni
 Omnipackages
@@ -226,6 +228,7 @@ osmoImageTag
 overreports
 ovx
 pathType
+params
 pdx
 perf
 postgres
