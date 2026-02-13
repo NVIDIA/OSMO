@@ -643,6 +643,9 @@ class UserDataCredential(
         if self.region:
             payload['region'] = self.region
 
+        if self.override_url:
+            payload['override_url'] = self.override_url
+
         payload = postgres.encrypt_dict(payload, user)
 
         return CredentialRecord(
@@ -661,6 +664,7 @@ class UserDataCredential(
             access_key_id=self.access_key_id,
             access_key=pydantic.SecretStr(self.access_key),
             region=self.region,
+            override_url=self.override_url,
         )
 
         storage_info.data_auth(data_cred)

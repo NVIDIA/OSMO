@@ -67,6 +67,7 @@ spec:
                 "workflow_data": {
                   "credential": {
                     "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'/workflows",
+                    "override_url": "'"${OBJECT_STORAGE_OVERRIDE_URL}"'",
                     "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                     "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                     "region": "'"${OBJECT_STORAGE_REGION}"'"
@@ -75,6 +76,7 @@ spec:
                 "workflow_log": {
                   "credential": {
                     "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'/workflows",
+                    "override_url": "'"${OBJECT_STORAGE_OVERRIDE_URL}"'",
                     "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                     "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                     "region": "'"${OBJECT_STORAGE_REGION}"'"
@@ -83,6 +85,7 @@ spec:
                 "workflow_app": {
                   "credential": {
                     "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'/apps",
+                    "override_url": "'"${OBJECT_STORAGE_OVERRIDE_URL}"'",
                     "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                     "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                     "region": "'"${OBJECT_STORAGE_REGION}"'"
@@ -139,18 +142,6 @@ spec:
                         "name": "{{ "{{USER_CONTAINER_NAME}}" }}",
                         "env": [
                           {
-                            "name": "AWS_ENDPOINT_URL_S3",
-                            "value": "'"${AWS_ENDPOINT_URL_S3}"'"
-                          },
-                          {
-                            "name": "AWS_S3_FORCE_PATH_STYLE",
-                            "value": "true"
-                          },
-                          {
-                            "name": "AWS_DEFAULT_REGION",
-                            "value": "'"${OBJECT_STORAGE_REGION}"'"
-                          },
-                          {
                             "name": "OSMO_LOGIN_DEV",
                             "value": "true"
                           }
@@ -159,18 +150,6 @@ spec:
                       {
                         "name": "osmo-ctrl",
                         "env": [
-                          {
-                            "name": "AWS_ENDPOINT_URL_S3",
-                            "value": "'"${AWS_ENDPOINT_URL_S3}"'"
-                          },
-                          {
-                            "name": "AWS_S3_FORCE_PATH_STYLE",
-                            "value": "true"
-                          },
-                          {
-                            "name": "AWS_DEFAULT_REGION",
-                            "value": "'"${OBJECT_STORAGE_REGION}"'"
-                          },
                           {
                             "name": "OSMO_LOGIN_DEV",
                             "value": "true"
@@ -280,16 +259,17 @@ spec:
                 "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                 "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                 "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                "override_url": "'"${OBJECT_STORAGE_OVERRIDE_URL}"'",
                 "region": "'"${OBJECT_STORAGE_REGION}"'"
               }
             }'
 
           echo "OSMO configuration completed successfully!"
         env:
-        - name: AWS_ENDPOINT_URL_S3
-          value: {{ .Values.global.objectStorage.awsEndpointUrlS3 | quote }}
         - name: OBJECT_STORAGE_ENDPOINT
           value: {{ .Values.global.objectStorage.endpoint | quote }}
+        - name: OBJECT_STORAGE_OVERRIDE_URL
+          value: {{ .Values.global.objectStorage.overrideUrl | quote }}
         - name: OBJECT_STORAGE_ACCESS_KEY_ID
           value: {{ .Values.global.objectStorage.accessKeyId | quote }}
         - name: OBJECT_STORAGE_ACCESS_KEY
