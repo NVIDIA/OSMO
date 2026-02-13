@@ -163,7 +163,9 @@ listeners:
                               "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
                               header_name: x-osmo-auth
                           value_match:
-                            prefix: ""
+                            safe_regex:
+                              google_re2: {}
+                              regex: ".+"
                   on_match:
                     action:
                       name: skip
