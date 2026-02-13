@@ -70,11 +70,11 @@ Default: `'GENERIC'`
 List of key-value pairs.
 The tabulated information illustrates the mandatory and optional keys for the payload corresponding to each type of credential:
 
-| Credential Type   | Mandatory keys                      | Optional keys               |
-|-------------------|-------------------------------------|-----------------------------|
-| REGISTRY          | auth                                | registry, username          |
-| DATA              | access_key_id, access_key, endpoint | region (default: us-east-1) |
-| GENERIC           |                                     |                             |
+| Credential Type   | Mandatory keys                      | Optional keys        |
+|-------------------|-------------------------------------|----------------------|
+| REGISTRY          | auth                                | registry, username   |
+| DATA              | access_key_id, access_key, endpoint | region, override_url |
+| GENERIC           |                                     |                      |
 * **--payload-file**: 
 
 List of key-value pairs, but the value provided needs to be a path to a file.

@@ -114,7 +114,7 @@ resources:
 
 ## Robotics Simulation Example
 
-Let’s create a workflow ([`robot_simulation.yaml`](../../../../workflows/tutorials/robot_simulation.yaml)) that contains
+Let’s create a workflow ([`robot_simulation.yaml`](../../../../cookbook/tutorials/robot_simulation.yaml)) that contains
 the following tasks:
 
 1. `physics-sim` task that generates physics data (e.g. obstacle distance)

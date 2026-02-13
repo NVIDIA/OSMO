@@ -46,7 +46,7 @@ By the end, you’ll understand:
 ## Simple Example
 
 Let’s build a data processing pipeline with multiple stages by downloading the workflow definition
-here: [`combination_workflow_simple.yaml`](../../../../workflows/tutorials/combination_workflow_simple.yaml).
+here: [`combination_workflow_simple.yaml`](../../../../cookbook/tutorials/combination_workflow_simple.yaml).
 
 ![Simple Combination Workflow](user_guide/tutorials/combination_workflows/combination_workflow_simple.svg)
 ```yaml
@@ -137,7 +137,7 @@ workflow:
 ## Complex Example
 
 Let’s build a more complex data processing pipeline by downloading the workflow definition
-here: [`combination_workflow_complex.yaml`](../../../../workflows/tutorials/combination_workflow_complex.yaml).
+here: [`combination_workflow_complex.yaml`](../../../../cookbook/tutorials/combination_workflow_complex.yaml).
 
 ![Complex Combination Workflow](user_guide/tutorials/combination_workflows/combination_workflow_complex.svg)
 ```yaml
@@ -243,7 +243,7 @@ workflow:
 > the `lead` task **does not terminate** before non-lead tasks.
 
 > This can be done by coordinating task completion through a barrier script
-> ([osmo_barrier.py](https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/torchrun_multinode/osmo_barrier.py))
+> ([osmo_barrier.py](https://github.com/NVIDIA/OSMO/blob/main/cookbook/dnn_training/torchrun_multinode/osmo_barrier.py))
 > or by ensuring that the `lead` task duration is longer than the non-lead tasks.
 
 > **Important**

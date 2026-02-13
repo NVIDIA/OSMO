@@ -60,7 +60,7 @@ Independent tasks run in parallel asynchronously when they:
 2. Are defined at the workflow level under `tasks:`
 3. Have available compute resources
 
-**For example:** ([`parallel_tasks.yaml`](../../../../workflows/tutorials/parallel_tasks.yaml))
+**For example:** ([`parallel_tasks.yaml`](../../../../cookbook/tutorials/parallel_tasks.yaml))
 
 ![Independent Tasks](user_guide/tutorials/parallel_workflows/independent_tasks.svg)
 ```yaml
@@ -106,7 +106,7 @@ Key characteristics of groups:
 - Groups run serially based on dependencies between them
 - Tasks may run on the same node or different nodes
 
-**For example:** ([`group_tasks.yaml`](../../../../workflows/tutorials/group_tasks.yaml))
+**For example:** ([`group_tasks.yaml`](../../../../cookbook/tutorials/group_tasks.yaml))
 
 ![Groups](user_guide/tutorials/parallel_workflows/synchronized_groups.svg)
 ```yaml
@@ -166,7 +166,7 @@ workflow:
 Tasks **within a workflow group** can communicate over the network using the token `{{host:task-name}}`.
 The token is replaced with the IP address of the task when the task is running.
 
-**Example:** ([`group_tasks_communication.yaml`](../../../../workflows/tutorials/group_tasks_communication.yaml))
+**Example:** ([`group_tasks_communication.yaml`](../../../../cookbook/tutorials/group_tasks_communication.yaml))
 
 ```yaml
 

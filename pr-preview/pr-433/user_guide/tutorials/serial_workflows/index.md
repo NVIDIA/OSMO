@@ -101,7 +101,7 @@ OSMO automatically:
 
 ## Your First Serial Workflow
 
-Let’s build a **three-stage** serial workflow ([`serial_workflow.yaml`](../../../../workflows/tutorials/serial_workflow.yaml)):
+Let’s build a **three-stage** serial workflow ([`serial_workflow.yaml`](../../../../cookbook/tutorials/serial_workflow.yaml)):
 
 ![Serial Workflow](user_guide/tutorials/serial_workflows/serial_workflow.svg)
 ```yaml
