@@ -106,28 +106,28 @@ class TestHarness:
             shell=True, check=True)
 
         # Initialize db
-        self.database = postgres.PostgresConnector(self.config)
-        configs = self.database.get_service_configs()
+        postgres.PostgresConnector(self.config)
+        database = postgres.PostgresConnector.get_instance()
+        configs = database.get_service_configs()
 
-        serialized_config = configs.serialize(self.database)
-        self.database.set_config('workflow_backends',
-                                 serialized_config['workflow_backends'],
-                                 connectors.ConfigType.SERVICE)
+        serialized_config = configs.serialize()
+        database.set_config('workflow_backends',
+                            serialized_config['workflow_backends'],
+                            connectors.ConfigType.SERVICE)
 
         # Create job context
         self.job_context = jobs.JobExecutionContext(
-            postgres=self.database,
             redis=self.config)
 
         # Create credentials
-        self.database.secret_manager.add_new_user('user')
-        self.database.execute_commit_command('insert into credential (user_name, cred_name, ' \
+        database.secret_manager.add_new_user('user')
+        database.execute_commit_command('insert into credential (user_name, cred_name, ' \
             "cred_type, profile, payload) values ('user', 'swift', 'DATA', " \
             "'swift://test-endpoint/AUTH_team-team', " \
             "'region=>us-west-1, access_key=>test, access_key_id=>test');", tuple())
 
         # No notifications
-        self.database.execute_commit_command('INSERT INTO notification (user_name, email, slack)' \
+        database.execute_commit_command('INSERT INTO notification (user_name, email, slack)' \
                 " VALUES ('user', FALSE, FALSE) ON CONFLICT DO NOTHING;", tuple())
 
 

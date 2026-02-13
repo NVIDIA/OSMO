@@ -67,7 +67,6 @@ class Worker(kombu.mixins.ConsumerMixin):
         self.config = config
         self.connection = connection
         self.context = jobs.JobExecutionContext(
-            postgres=connectors.PostgresConnector(self.config),
             redis=self.config)
         self.redis_client = connectors.RedisConnector.get_instance().client
         self._worker_metrics = metrics.MetricCreator.get_meter_instance()
@@ -158,7 +157,7 @@ class Worker(kombu.mixins.ConsumerMixin):
         Raise: OSMOServerError: retry limit is reached for the job
         """
         job_retry_count = self.redis_client.incr(f'retry:{job_id}')
-        workflow_config = self.context.postgres.get_workflow_configs()
+        workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
         job_retry_limit = workflow_config.max_retry_per_job
         if job_retry_count > job_retry_limit:
             raise osmo_errors.OSMOServerError(

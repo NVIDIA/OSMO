@@ -63,10 +63,10 @@ class JobTest(unittest.TestCase):
         cls.harness = test_harness.TestHarness(postgres_port=POSTGRES_PORT, redis_port=REDIS_PORT)
 
     def assert_wf_status(self, workflow_id, workflow_status, group_statuses):
-        wf = workflow.Workflow.fetch_from_db(self.harness.database, workflow_id)
+        wf = workflow.Workflow.fetch_from_db(workflow_id)
         self.assertEqual(wf.status, workflow_status)
         for group, status in group_statuses.items():
-            group = task.TaskGroup.fetch_from_db(self.harness.database, workflow_id, group)
+            group = task.TaskGroup.fetch_from_db(workflow_id, group)
             self.assertEqual(group.status, status,
                 f"Status for group {group} in workflow {workflow_id}")
 

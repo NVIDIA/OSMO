@@ -74,9 +74,9 @@ class App(pydantic.BaseModel):
     created_date: datetime.datetime
 
     @classmethod
-    def fetch_from_db(cls, database: connectors.PostgresConnector,
-                      app_name: str) -> 'App':
+    def fetch_from_db(cls, app_name: str) -> 'App':
         """ Fetches the app from the apps table """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT * FROM apps WHERE name = %s
             '''
@@ -90,9 +90,9 @@ class App(pydantic.BaseModel):
         return App(**spec_row)
 
     @classmethod
-    def fetch_from_db_from_uuid(cls, database: connectors.PostgresConnector,
-                                app_uuid: str) -> 'App':
+    def fetch_from_db_from_uuid(cls, app_uuid: str) -> 'App':
         """ Fetches the app from the apps table """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT * FROM apps WHERE uuid = %s
             '''
@@ -106,10 +106,10 @@ class App(pydantic.BaseModel):
         return App(**spec_row)
 
     @classmethod
-    def delete_from_db(cls, database: connectors.PostgresConnector,
-                       app_name: str):
+    def delete_from_db(cls, app_name: str):
         """ Delete an entry from the apps table """
-        cls.fetch_from_db(database, app_name)
+        database = connectors.PostgresConnector.get_instance()
+        cls.fetch_from_db(app_name)
         delete_cmd = '''
             DELETE FROM apps
             WHERE name = %s;
@@ -117,9 +117,10 @@ class App(pydantic.BaseModel):
         database.execute_commit_command(delete_cmd, (app_name,))
 
     @classmethod
-    def insert_into_db(cls, database: connectors.PostgresConnector, name: str, user_name: str,
+    def insert_into_db(cls, name: str, user_name: str,
                        description: str) -> 'App':
         """ Create/update an entry in the apps table """
+        database = connectors.PostgresConnector.get_instance()
         current_time = common.current_time()
         app_uuid = common.generate_unique_id()
         version = 1
@@ -148,8 +149,9 @@ class App(pydantic.BaseModel):
         return App(uuid=app_uuid, name=name, description=description, owner=user_name,
                    created_date=current_time)
 
-    def rename(self, database: connectors.PostgresConnector, new_name: str):
+    def rename(self, new_name: str):
         """ Rename the app in the database """
+        database = connectors.PostgresConnector.get_instance()
         rename_cmd = '''
             UPDATE apps
             SET name = %s
@@ -178,10 +180,10 @@ class AppVersion(pydantic.BaseModel):
     status: AppStatus
 
     @classmethod
-    def list_from_db(cls, database: connectors.PostgresConnector,
-                     app_name: str) \
+    def list_from_db(cls, app_name: str) \
         -> List['AppVersion']:
         """ Fetches the list of apps from the apps table """
+        database = connectors.PostgresConnector.get_instance()
         # TODO: Also check for apps where the user has access to
         fetch_cmd = '''
             SELECT * FROM app_versions
@@ -193,9 +195,9 @@ class AppVersion(pydantic.BaseModel):
         return [AppVersion(**spec_row) for spec_row in spec_rows]
 
     @classmethod
-    def fetch_from_db(cls, database: connectors.PostgresConnector,
-                      app_info: common.AppStructure) -> 'AppVersion':
+    def fetch_from_db(cls, app_info: common.AppStructure) -> 'AppVersion':
         """ Fetches the app from the apps table """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT * FROM app_versions
             WHERE uuid = (select uuid from apps where name = %s)
@@ -219,9 +221,9 @@ class AppVersion(pydantic.BaseModel):
         return AppVersion(**spec_row)
 
     @classmethod
-    def fetch_from_db_with_uuid(cls, database: connectors.PostgresConnector,
-                                app_uuid: str, app_version: int) -> 'AppVersion':
+    def fetch_from_db_with_uuid(cls, app_uuid: str, app_version: int) -> 'AppVersion':
         """ Fetches the app from the apps table """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT * FROM app_versions
             WHERE uuid = %s AND version = %s
@@ -236,9 +238,10 @@ class AppVersion(pydantic.BaseModel):
         return AppVersion(**spec_row)
 
     @classmethod
-    def insert_into_db(cls, database: connectors.PostgresConnector, name: str, user_name: str)\
+    def insert_into_db(cls, name: str, user_name: str)\
          -> 'AppVersion':
         """ Create/update an entry in the apps table """
+        database = connectors.PostgresConnector.get_instance()
         current_time = common.current_time()
 
         insert_cmd = '''
@@ -283,8 +286,9 @@ class AppVersion(pydantic.BaseModel):
                           created_by=user_name, created_date=current_time, uri=app_path,
                           status=AppStatus.PENDING)
 
-    def update_status(self, database: connectors.PostgresConnector, status: AppStatus):
+    def update_status(self, status: AppStatus):
         """ Update the status of an app version """
+        database = connectors.PostgresConnector.get_instance()
         update_cmd = '''
             UPDATE app_versions SET status = %s WHERE uuid = %s AND version = %s
             '''

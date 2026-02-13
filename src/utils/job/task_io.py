@@ -59,7 +59,6 @@ class TaskIO(pydantic.BaseModel, extra=pydantic.Extra.forbid, arbitrary_types_al
     uuid: str
     url: str
     type: str
-    database: connectors.PostgresConnector
     storage_bucket: str
     start_time: datetime.datetime
     end_time: datetime.datetime
@@ -78,7 +77,7 @@ class TaskIO(pydantic.BaseModel, extra=pydantic.Extra.forbid, arbitrary_types_al
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING;
         '''
-        self.database.execute_commit_command(
+        connectors.PostgresConnector.get_instance().execute_commit_command(
             insert_cmd,
             (self.workflow_id, self.group_name, self.task_name, self.retry_id, self.uuid,
              self.url, self.type, self.storage_bucket,

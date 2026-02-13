@@ -971,12 +971,12 @@ class TaskGroupSpec(pydantic.BaseModel):
             tasks=self.tasks)
 
 
-    def parse(self, database: connectors.PostgresConnector,
-              workflow_id: str, group_and_task_uuids: Dict[str, common.UuidPattern]) \
+    def parse(self, workflow_id: str, group_and_task_uuids: Dict[str, common.UuidPattern]) \
                 -> 'TaskGroupSpec':
         """
         Substitutes osmo tokens with real values.
         """
+        database = connectors.PostgresConnector.get_instance()
         backend = connectors.Backend.fetch_from_db(database, self.tasks[0].backend)
         namespace = backend.k8s_namespace
         group_uuid = group_and_task_uuids[self.name]
@@ -1025,7 +1025,6 @@ class Task(pydantic.BaseModel):
     start_time: datetime.datetime | None = None
     end_time: datetime.datetime | None = None
     failure_message: str | None = None
-    database: connectors.PostgresConnector
     exit_actions: Dict[str, str]
     node_name: str | None
     pod_ip: str | None
@@ -1045,7 +1044,7 @@ class Task(pydantic.BaseModel):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING;
         '''
         workflow_uuid = self.workflow_uuid if self.workflow_uuid else ''
-        self.database.execute_commit_command(
+        connectors.PostgresConnector.get_instance().execute_commit_command(
             insert_cmd,
             (self.workflow_id_internal, self.name, self.group_name, self.task_db_key,
              self.retry_id, self.task_uuid, status.name,
@@ -1061,7 +1060,7 @@ class Task(pydantic.BaseModel):
             return self.workflow_id_internal
 
         fetch_cmd = 'SELECT workflow_id FROM tasks WHERE task_uuid = %s'
-        task_info = self.database.execute_fetch_command(
+        task_info = connectors.PostgresConnector.get_instance().execute_fetch_command(
             fetch_cmd, (self.task_uuid,), True)
         try:
             fetched_workflow_id: str = task_info[0]['workflow_id']
@@ -1084,12 +1083,13 @@ class Task(pydantic.BaseModel):
         '''
 
         # Database write
-        self.database.execute_commit_command(
+        connectors.PostgresConnector.get_instance().execute_commit_command(
             update_cmd,
             (hashed_token, self.task_db_key))
 
     @classmethod
     def from_db_row(cls, task_row, database) -> 'Task':
+        # pylint: disable=unused-argument
         return Task(workflow_id=task_row['workflow_id'],
                     workflow_uuid=task_row['workflow_uuid'],
                     name=task_row['name'], group_name=task_row['group_name'],
@@ -1099,21 +1099,18 @@ class Task(pydantic.BaseModel):
                     status=task_row['status'], start_time=task_row['start_time'],
                     end_time=task_row['end_time'],
                     failure_message=task_row['failure_message'],
-                    database=database,
                     exit_actions=task_row['exit_actions'],
                     node_name=task_row['node_name'],
                     lead=task_row['lead'])
 
     @classmethod
-    def fetch_row_from_db(cls, database: connectors.PostgresConnector,
-                          workflow_id: task_common.NamePattern,
+    def fetch_row_from_db(cls, workflow_id: task_common.NamePattern,
                           name: task_common.NamePattern,
                           retry_id: int = -1) -> Dict:
         """
         Fetches the raw row from the database.
 
         Args:
-            database (PostgresConnector): The database.
             workflow_id (NamePattern): The workflow id.
             name (NamePattern): The task name.
             retry_id (int): The retry_id. -1 means the latest retry.
@@ -1121,6 +1118,7 @@ class Task(pydantic.BaseModel):
         Returns:
             The raw row from the database.
         """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT tasks.*, workflows.workflow_uuid
             FROM tasks
@@ -1137,8 +1135,7 @@ class Task(pydantic.BaseModel):
                 f'Task {name} of workflow {workflow_id} is not found.') from err
 
     @classmethod
-    def fetch_from_db(cls, database: connectors.PostgresConnector,
-                      workflow_id: task_common.NamePattern,
+    def fetch_from_db(cls, workflow_id: task_common.NamePattern,
                       name: task_common.NamePattern,
                       retry_id: int = -1) -> 'Task':
         """
@@ -1155,12 +1152,12 @@ class Task(pydantic.BaseModel):
         Returns:
             Task: The task.
         """
-        task_row = cls.fetch_row_from_db(database, workflow_id, name, retry_id)
+        database = connectors.PostgresConnector.get_instance()
+        task_row = cls.fetch_row_from_db(workflow_id, name, retry_id)
         return cls.from_db_row(task_row, database)
 
     @classmethod
-    def fetch_group_name(cls, database: connectors.PostgresConnector,
-                         workflow_id: task_common.NamePattern,
+    def fetch_group_name(cls, workflow_id: task_common.NamePattern,
                          name: task_common.NamePattern) -> str:
         """
         Get the group name from a database task entry.
@@ -1175,6 +1172,7 @@ class Task(pydantic.BaseModel):
         Returns:
             The group name.
         """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = 'SELECT group_name FROM tasks WHERE workflow_id = %s AND name = %s;'
         rows = database.execute_fetch_command(fetch_cmd, (workflow_id, name), True)
         try:
@@ -1185,8 +1183,7 @@ class Task(pydantic.BaseModel):
         return group_name
 
     @classmethod
-    def fetch_from_db_from_uuid(cls, database: connectors.PostgresConnector,
-                                workflow_uuid: task_common.NamePattern,
+    def fetch_from_db_from_uuid(cls, workflow_uuid: task_common.NamePattern,
                                 task_uuid: common.UuidPattern,
                                 retry_id: int = -1) -> 'Task':
         """
@@ -1203,6 +1200,7 @@ class Task(pydantic.BaseModel):
         Returns:
             Task: The task.
         """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT tasks.*, workflows.workflow_uuid
             FROM tasks
@@ -1219,8 +1217,7 @@ class Task(pydantic.BaseModel):
         return cls.from_db_row(task_row, database)
 
     @classmethod
-    def list_task_rows_by_group_name(cls, database: connectors.PostgresConnector,
-                                     workflow_id: task_common.NamePattern,
+    def list_task_rows_by_group_name(cls, workflow_id: task_common.NamePattern,
                                      group_name: task_common.NamePattern,
                                      verbose: bool = False, sort: bool = False) -> List:
         """
@@ -1238,6 +1235,7 @@ class Task(pydantic.BaseModel):
         Returns:
             List: The task database rows.
         """
+        database = connectors.PostgresConnector.get_instance()
         if verbose:
             fetch_cmd = f'''
                 SELECT tasks.*, workflows.workflow_uuid
@@ -1269,11 +1267,11 @@ class Task(pydantic.BaseModel):
         return task_rows
 
     @classmethod
-    def list_by_group_name(cls, database: connectors.PostgresConnector,
-                           workflow_id: task_common.NamePattern,
+    def list_by_group_name(cls, workflow_id: task_common.NamePattern,
                            group_name: task_common.NamePattern,
                            verbose: bool = False) -> List['Task']:
-        task_rows = Task.list_task_rows_by_group_name(database, workflow_id, group_name, verbose)
+        database = connectors.PostgresConnector.get_instance()
+        task_rows = Task.list_task_rows_by_group_name(workflow_id, group_name, verbose)
         return [cls.from_db_row(task_row, database) for task_row in task_rows]
 
     def update_status_to_db(self, update_time: datetime.datetime, status: TaskGroupStatus,
@@ -1329,7 +1327,7 @@ class Task(pydantic.BaseModel):
             if message:
                 update_cmd.add_field('failure_message', message)
         update_cmd.add_field('status', status.name)
-        self.database.execute_commit_command(*update_cmd.get_args())
+        connectors.PostgresConnector.get_instance().execute_commit_command(*update_cmd.get_args())
 
     def create_new(self) -> 'Task':
         """ Creates an new Task from the existing one. """
@@ -1340,7 +1338,6 @@ class Task(pydantic.BaseModel):
                     task_uuid=self.task_uuid,
                     task_db_key=common.generate_unique_id(),
                     retry_id=self.retry_id + 1,
-                    database=self.database,
                     exit_actions=self.exit_actions,
                     lead=self.lead)
 
@@ -1397,7 +1394,6 @@ class TaskGroup(pydantic.BaseModel):
     remaining_upstream_groups: Set[str]
     downstream_groups: Set[str]
     failure_message: str | None = None
-    database: connectors.PostgresConnector
     processing_start_time: datetime.datetime | None = None
     scheduling_start_time: datetime.datetime | None = None
     initializing_start_time: datetime.datetime | None = None
@@ -1421,7 +1417,7 @@ class TaskGroup(pydantic.BaseModel):
              remaining_upstream_groups, downstream_groups, cleaned_up, scheduler_settings)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s) ON CONFLICT DO NOTHING;
         '''
-        self.database.execute_commit_command(
+        connectors.PostgresConnector.get_instance().execute_commit_command(
             insert_cmd,
             (self.workflow_id_internal, self.name, self.group_uuid, spec, status.name,
              failure_message,
@@ -1435,7 +1431,7 @@ class TaskGroup(pydantic.BaseModel):
             return self.workflow_id_internal
 
         fetch_cmd = 'SELECT workflow_id FROM groups where group_uuid = %s'
-        workflow_info = self.database.execute_fetch_command(fetch_cmd,
+        workflow_info = connectors.PostgresConnector.get_instance().execute_fetch_command(fetch_cmd,
                                                             (self.group_uuid,), True)
         try:
             fetched_workflow_id: str = workflow_info[0]['workflow_id']
@@ -1448,6 +1444,7 @@ class TaskGroup(pydantic.BaseModel):
 
     @classmethod
     def from_db_row(cls, group_row, database, verbose: bool = False) -> 'TaskGroup':
+        # pylint: disable=unused-argument
         """
         Gets TaskGroup from DB row
 
@@ -1461,7 +1458,7 @@ class TaskGroup(pydantic.BaseModel):
         if group_row.downstream_groups:
             downstream_groups = decode_hstore(group_row.downstream_groups)
 
-        tasks = Task.list_by_group_name(database, group_row.workflow_id, group_row.name, verbose)
+        tasks = Task.list_by_group_name(group_row.workflow_id, group_row.name, verbose)
 
         scheduler_settings: connectors.BackendSchedulerSettings | None = None
         if group_row.scheduler_settings:
@@ -1477,12 +1474,11 @@ class TaskGroup(pydantic.BaseModel):
                          processing_start_time=group_row.processing_start_time,
                          scheduling_start_time=group_row.scheduling_start_time,
                          initializing_start_time=group_row.initializing_start_time,
-                         status=group_row.status, database=database,
+                         status=group_row.status,
                          scheduler_settings=scheduler_settings)
 
     @classmethod
-    def fetch_from_db(cls, database: connectors.PostgresConnector,
-                      workflow_id: task_common.NamePattern,
+    def fetch_from_db(cls, workflow_id: task_common.NamePattern,
                       name: task_common.NamePattern, verbose: bool = False) -> 'TaskGroup':
         """
         Creates a Task instance from a database task entry.
@@ -1497,6 +1493,7 @@ class TaskGroup(pydantic.BaseModel):
         Returns:
             Task: The task.
         """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s AND name = %s;'
         group_rows = database.execute_fetch_command(fetch_cmd, (workflow_id, name))
         try:
@@ -1507,8 +1504,7 @@ class TaskGroup(pydantic.BaseModel):
         return cls.from_db_row(group_row, database, verbose)
 
     @classmethod
-    def fetch_active_group_size(cls, database: connectors.PostgresConnector,
-                                workflow_id: task_common.NamePattern,
+    def fetch_active_group_size(cls, workflow_id: task_common.NamePattern,
                                 name: task_common.NamePattern) -> int:
         """
         Get the number of tasks that are in non-finished status.
@@ -1523,6 +1519,7 @@ class TaskGroup(pydantic.BaseModel):
         Returns:
             The group size.
         """
+        database = connectors.PostgresConnector.get_instance()
         fetch_cmd = '''
             SELECT t.status FROM tasks t
             WHERE workflow_id = %s AND group_name = %s
@@ -1545,8 +1542,7 @@ class TaskGroup(pydantic.BaseModel):
         return size
 
     @classmethod
-    def fetch_task_secrets(cls, database: connectors.PostgresConnector,
-                           workflow_id: task_common.NamePattern,
+    def fetch_task_secrets(cls, workflow_id: task_common.NamePattern,
                            task_name: task_common.NamePattern,
                            user: str, retry_id: int) -> Set:
         """
@@ -1562,6 +1558,7 @@ class TaskGroup(pydantic.BaseModel):
         Returns:
             Set of secret values
         """
+        database = connectors.PostgresConnector.get_instance()
 
         fetch_cmd = '''
             SELECT spec FROM groups
@@ -1605,8 +1602,7 @@ class TaskGroup(pydantic.BaseModel):
         return task_cred_values
 
     @classmethod
-    def fetch_task_secrets_uuid(cls, database: connectors.PostgresConnector,
-                                workflow_id: task_common.NamePattern,
+    def fetch_task_secrets_uuid(cls, workflow_id: task_common.NamePattern,
                                 task_uuid: task_common.NamePattern,
                                 user: str, retry_id: int) -> Set:
         """
@@ -1622,6 +1618,7 @@ class TaskGroup(pydantic.BaseModel):
         Returns:
             Set of secret values
         """
+        database = connectors.PostgresConnector.get_instance()
 
         fetch_cmd = '''
             SELECT groups.spec, tasks.name FROM tasks INNER JOIN groups
@@ -1665,7 +1662,7 @@ class TaskGroup(pydantic.BaseModel):
 
     def fetch_status(self):
         fetch_cmd = 'SELECT status FROM groups WHERE workflow_id = %s and name = %s;'
-        group_rows = self.database.execute_fetch_command(fetch_cmd,
+        group_rows = connectors.PostgresConnector.get_instance().execute_fetch_command(fetch_cmd,
                                                          (self.workflow_id, self.name))
         try:
             group_row = group_rows[0]
@@ -1690,7 +1687,7 @@ class TaskGroup(pydantic.BaseModel):
         if status.in_queue() or status.canceled():
             group_status = status
         else:
-            tasks = Task.list_by_group_name(self.database, self.workflow_id, self.name)
+            tasks = Task.list_by_group_name(self.workflow_id, self.name)
             group_status = self._aggregate_status(tasks)
             if group_status == self.status:
                 return
@@ -1738,7 +1735,7 @@ class TaskGroup(pydantic.BaseModel):
             if group_status.failed():
                 update_cmd.add_field('failure_message', message)
         update_cmd.add_field('status', group_status.name)
-        self.database.execute_commit_command(*update_cmd.get_args())
+        connectors.PostgresConnector.get_instance().execute_commit_command(*update_cmd.get_args())
 
     def update_downstream_groups_in_db(self) -> List['TaskGroup']:
         """
@@ -1755,7 +1752,7 @@ class TaskGroup(pydantic.BaseModel):
 
         downstream_groups = []
         for group_name in self.downstream_groups:
-            group_rows = self.database.execute_fetch_command(
+            group_rows = connectors.PostgresConnector.get_instance().execute_fetch_command(
                 update_cmd, (self.name, self.workflow_id, group_name))
             try:
                 group_row = group_rows[0]
@@ -1763,7 +1760,7 @@ class TaskGroup(pydantic.BaseModel):
                 raise osmo_errors.OSMODatabaseError(
                     f'Group {group_name} of workflow {self.workflow_id} is not found.') from err
             if not group_row.remaining_upstream_groups:
-                downstream_groups.append(TaskGroup.from_db_row(group_row, self.database))
+                downstream_groups.append(TaskGroup.from_db_row(group_row, connectors.PostgresConnector.get_instance()))
         return downstream_groups
 
     def set_tasks_to_processing(self):
@@ -1774,14 +1771,14 @@ class TaskGroup(pydantic.BaseModel):
             UPDATE tasks SET status = 'PROCESSING' WHERE workflow_id = %s AND group_name = %s
                 AND status IN ('WAITING');
         '''
-        self.database.execute_commit_command(update_cmd, (self.workflow_id, self.name))
+        connectors.PostgresConnector.get_instance().execute_commit_command(update_cmd, (self.workflow_id, self.name))
 
     @staticmethod
-    def patch_cleaned_up(database: connectors.PostgresConnector,
-                         workflow_id: str, group: str) -> bool:
+    def patch_cleaned_up(workflow_id: str, group: str) -> bool:
         """
         Marks the task as cleaned up. Returns True if all tasks in the workflow are now cleaned up.
         """
+        database = connectors.PostgresConnector.get_instance()
 
         # Mark the current group as cleaned_up
         update_cmd = '''
@@ -1917,7 +1914,7 @@ class TaskGroup(pydantic.BaseModel):
         all_secrets, user_secrets = {}, {}
         for task in self.spec.tasks:
             for cred_name, cred_map in task.credentials.items():
-                payload = self.database.get_generic_cred(user, cred_name)
+                payload = connectors.PostgresConnector.get_instance().get_generic_cred(user, cred_name)
                 if isinstance(cred_map, str):
                     for cred_key, cred_value in payload.items():
                         cred_file = File(path=cred_map + '/' + cred_key,
@@ -2101,7 +2098,7 @@ class TaskGroup(pydantic.BaseModel):
         registry_creds_user = {}
         for task in self.spec.tasks:
             image_info = common.docker_parse(task.image)
-            payload = self.database.get_registry_cred(user, image_info.host)
+            payload = connectors.PostgresConnector.get_instance().get_registry_cred(user, image_info.host)
             if payload:
                 auth_string = f'''{payload['username']}:{payload['auth']}'''
                 registry_creds_user[image_info.host] = \
@@ -2151,16 +2148,16 @@ class TaskGroup(pydantic.BaseModel):
             raise osmo_errors.OSMOServerError('Workflow data credential is not set')
 
         if pool_info is None:
-            pool_info = connectors.Pool.fetch_from_db(self.database, pool)
+            pool_info = connectors.Pool.fetch_from_db(connectors.PostgresConnector.get_instance(), pool)
         if service_config is None:
-            service_config = self.database.get_service_configs()
+            service_config = connectors.PostgresConnector.get_instance().get_service_configs()
         if dataset_config is None:
-            dataset_config = self.database.get_dataset_configs()
+            dataset_config = connectors.PostgresConnector.get_instance().get_dataset_configs()
         if data_endpoints is None:
-            data_endpoints = self.database.get_all_data_creds(user)
+            data_endpoints = connectors.PostgresConnector.get_instance().get_all_data_creds(user)
         if backend_config is None:
             backend_config = connectors.Backend.fetch_from_db(
-                self.database, self.spec.tasks[0].backend)
+                connectors.PostgresConnector.get_instance(), self.spec.tasks[0].backend)
 
         files = task_spec.get_filemounts(self.group_uuid, k8s_factory)
         all_files = {file.digest: file for file in files}
@@ -2540,8 +2537,8 @@ class TaskGroup(pydantic.BaseModel):
         last_timestamp = datetime.datetime.now()
 
         postgres = connectors.PostgresConnector.get_instance()
-        service_config = self.database.get_service_configs()
-        dataset_config = self.database.get_dataset_configs()
+        service_config = connectors.PostgresConnector.get_instance().get_service_configs()
+        dataset_config = connectors.PostgresConnector.get_instance().get_dataset_configs()
         backend_config = connectors.Backend.fetch_from_db(postgres, self.spec.tasks[0].backend)
         k8s_factory = self.get_k8s_object_factory(backend_config)
         pool_info = connectors.Pool.fetch_from_db(postgres, pool)

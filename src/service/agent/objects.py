@@ -77,7 +77,6 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
         self.connection = connection
         self.config = config
         self.context = jobs.JobExecutionContext(
-            postgres=connectors.PostgresConnector.get_instance(),
             redis=config)
         self.redis_client = redis.from_url(config.redis_url)
         self._worker_metrics = metrics.MetricCreator.get_meter_instance()
@@ -206,7 +205,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
             # Check if the job has exceeded the maximum retry limit.
             job_retry_count = self.redis_client.incr(f'retry:{job.job_id}')
             self.redis_client.expire(f'retry:{job.job_id}', UNIQUE_JOB_TTL, nx=True)
-            workflow_config = self.context.postgres.get_workflow_configs()
+            workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
             job_retry_limit = workflow_config.max_retry_per_job
             if job_retry_count > job_retry_limit:
                 error_message = f'Job {job} failed after retrying {job_retry_limit} times'
@@ -225,7 +224,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
             if isinstance(job, jobs.WorkflowJob):
                 # Initialize workflow object and redis connections
                 job_workflow = workflow.Workflow.fetch_from_db(
-                    self.context.postgres, job.workflow_id)
+                    connectors.PostgresConnector.get_instance(), job.workflow_id)
                 log_redis = None
                 try:
                     log_redis = redis.from_url(job_workflow.logs)
@@ -290,7 +289,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 self._task_uuid = message_option.pod_log.task
                 if self._current_job.workflow is not None:
                     self._task_cred_values = task.TaskGroup.fetch_task_secrets_uuid(
-                        self.context.postgres,
+                        connectors.PostgresConnector.get_instance(),
                         self._current_job.workflow.workflow_id,
                         message_option.pod_log.task,
                         self._current_job.workflow.user,
@@ -306,7 +305,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 source='OSMO', retry_id=message_option.pod_log.retry_id,
                 text=message_option.pod_log.text)
             if self._current_job.log_redis and self._current_job.workflow:
-                workflow_config = self.context.postgres.get_workflow_configs()
+                workflow_config = connectors.PostgresConnector.get_instance().get_workflow_configs()
                 self._current_job.log_redis.xadd(
                     f'{self._current_job.workflow.workflow_id}-' +\
                     f'{message_option.pod_log.task}-{message_option.pod_log.retry_id}-error-logs',
