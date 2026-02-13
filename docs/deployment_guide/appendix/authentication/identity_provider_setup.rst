@@ -45,14 +45,31 @@ How it works (short)
 Placeholders used below
 =======================
 
-| Placeholder       | Meaning                     | Example |
-|-------------------|-----------------------------|--------|
-| ``<your-domain>`` | OSMO service hostname       | ``osmo.example.com`` |
-| ``<tenant-id>``   | Microsoft tenant ID         | ``12345678-1234-1234-1234-123456789abc`` |
-| ``<client-id>``   | OAuth2 client/application ID| From IdP app registration |
-| ``<client-secret>`` | OAuth2 client secret      | From IdP app registration |
-| ``<instance-id>`` | AWS Identity Center instance ID | ``ssoins-abc123def456`` |
-| ``<region>``      | AWS region                   | ``us-east-1`` |
+.. list-table::
+   :header-rows: 1
+   :widths: 20 35 45
+
+   * - Placeholder
+     - Meaning
+     - Example
+   * - ``<your-domain>``
+     - OSMO service hostname
+     - ``osmo.example.com``
+   * - ``<tenant-id>``
+     - Microsoft tenant ID
+     - ``12345678-1234-1234-1234-123456789abc``
+   * - ``<client-id>``
+     - OAuth2 client/application ID
+     - From IdP app registration
+   * - ``<client-secret>``
+     - OAuth2 client secret
+     - From IdP app registration
+   * - ``<instance-id>``
+     - AWS Identity Center instance ID
+     - ``ssoins-abc123def456``
+   * - ``<region>``
+     - AWS region
+     - ``us-east-1``
 
 Create Kubernetes secrets
 ===========================
@@ -81,12 +98,20 @@ Microsoft Entra ID (Azure AD)
 
 **Endpoints:**
 
-| Purpose   | URL |
-|-----------|-----|
-| Token     | ``https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token`` |
-| Authorize | ``https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize`` |
-| JWKS      | ``https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys`` |
-| Issuer    | ``https://login.microsoftonline.com/<tenant-id>/v2.0`` |
+.. list-table::
+   :header-rows: 1
+   :widths: 15 80
+
+   * - Purpose
+     - URL
+   * - Token
+     - ``https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token``
+   * - Authorize
+     - ``https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize``
+   * - JWKS
+     - ``https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys``
+   * - Issuer
+     - ``https://login.microsoftonline.com/<tenant-id>/v2.0``
 
 **Example Envoy-related Helm values:**
 
@@ -143,12 +168,20 @@ AWS IAM Identity Center (AWS SSO)
 
 **Endpoints:**
 
-| Purpose   | URL |
-|-----------|-----|
-| Token     | ``https://oidc.<region>.amazonaws.com/token`` |
-| Authorize | ``https://<instance-id>.awsapps.com/start/authorize`` |
-| JWKS      | ``https://oidc.<region>.amazonaws.com/keys`` |
-| Issuer    | ``https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>`` |
+.. list-table::
+   :header-rows: 1
+   :widths: 15 80
+
+   * - Purpose
+     - URL
+   * - Token
+     - ``https://oidc.<region>.amazonaws.com/token``
+   * - Authorize
+     - ``https://<instance-id>.awsapps.com/start/authorize``
+   * - JWKS
+     - ``https://oidc.<region>.amazonaws.com/keys``
+   * - Issuer
+     - ``https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>``
 
 Replace ``<region>`` and ``<instance-id>`` with your values. User claim is often ``email`` or ``sub``.
 

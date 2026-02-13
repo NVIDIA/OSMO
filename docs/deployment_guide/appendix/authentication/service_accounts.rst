@@ -262,7 +262,7 @@ For monitoring systems or automation scripts:
 
 .. seealso::
 
-   - :ref:`access_tokens` for personal access token documentation
+   - :ref:`authentication_authorization` for authentication and access token overview
    - :ref:`deploy_backend` for backend operator deployment
 
 Best Practices
