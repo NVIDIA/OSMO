@@ -27,7 +27,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//src/utils/postgres",
-        "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
+        "@com_github_hashicorp_golang_lru_v2//:go_default_library",
     ],
 )
 
