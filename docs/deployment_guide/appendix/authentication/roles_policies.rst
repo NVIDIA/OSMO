@@ -316,13 +316,13 @@ When creating a pool named ``my-pool``, create a corresponding role:
 
    Use OSMO’s user and role APIs to assign the role to users (e.g. ``POST /api/auth/user/{id}/roles`` with ``role_name: osmo-my-pool``). If you use an identity provider, you can instead (or additionally) map IdP groups to this role via ``role_external_mappings``; see :doc:`identity_provider_setup`.
 
-Assigning roles to users and creating PATs
+Assigning roles to users and creating access tokens
 ------------------------------------------
 
-Roles are assigned to **users** in OSMO (via the user/role APIs or, when using an IdP, via IdP group mapping). **Personal Access Tokens (PATs)** are then created for a user and inherit that user’s roles (or a subset) at creation time.
+Roles are assigned to **users** in OSMO (via the user/role APIs or, when using an IdP, via IdP group mapping). **Access tokens** are then created for a user and inherit that user’s roles (or a subset) at creation time.
 
 - To create a user and assign roles via API: ``POST /api/auth/user`` with optional ``roles``, then ``POST /api/auth/user/{id}/roles`` for more roles. See the user management design (e.g. ``external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md``) for full API details.
-- To create a PAT for the current user (CLI): use ``osmo token`` or the access token API (e.g. ``POST /api/auth/access_token/{token_name}`` with ``expires_at`` and optional ``roles`` query params). An admin can create a PAT for any user via ``POST /api/auth/user/{user_id}/access_token/{token_name}``.
+- To create an access token for the current user (CLI): use ``osmo token`` or the access token API (e.g. ``POST /api/auth/access_token/{token_name}`` with ``expires_at`` and optional ``roles`` query params). An admin can create an access token for any user via ``POST /api/auth/user/{user_id}/access_token/{token_name}``.
 
 For pool access, assign both the pool role (e.g. ``osmo-my-pool``) and ``osmo-user`` so the token can submit workflows and use workflow management APIs (cancel, query, etc.).
 

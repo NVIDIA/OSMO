@@ -92,7 +92,7 @@ OSMO can run **without** an identity provider (IdP) or **with** one. Choose one 
 Without an identity provider (default admin)
 --------------------------------------------
 
-Best for development, testing, or environments where you do not use corporate SSO. The OSMO service creates a single admin user at startup; you log in with that user’s password (used as a Personal Access Token) and then create more users and PATs via the API or CLI.
+Best for development, testing, or environments where you do not use corporate SSO. The OSMO service creates a single admin user at startup; you log in with that user’s password (used as a access token) and then create more users and access tokens via the API or CLI.
 
 1. In **Step 3** below, create a Kubernetes secret with the default admin password (see :ref:`deploy_service_default_admin_secret`).
 2. In your Helm values (**Step 4**), enable the default admin and point to that secret (see :ref:`deploy_service_osmo_values`). Do **not** enable the Envoy OAuth2 filter for an IdP; you can still use Envoy for TLS or other routing.
@@ -130,7 +130,7 @@ Create secrets for the database and Redis:
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo
 
 
-**If using the default admin (no IdP):** create a secret with the default admin password. The service will create an admin user and a PAT with this value at startup:
+**If using the default admin (no IdP):** create a secret with the default admin password. The service will create an admin user and an access token with this value at startup:
 
 .. code-block:: bash
 
@@ -297,7 +297,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample (adju
         #   token_endpoint: <idp-token-url>
         #   logout_endpoint: <idp-logout-url>
 
-      # Default admin (no IdP): enable to create an admin user and PAT at startup
+      # Default admin (no IdP): enable to create an admin user and access token at startup
       defaultAdmin:
         enabled: false  # Set true when not using an IdP
         username: "admin"
@@ -414,7 +414,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample (adju
           clientSecretKey: client_secret
           hmacSecretKey: hmac_secret
 
-        # JWT validation: configure providers for your IdP and (if using PATs) for OSMO-issued tokens
+        # JWT validation: configure providers for your IdP and (if using access tokens) for OSMO-issued tokens
         jwt:
           user_header: x-osmo-user
           providers:
@@ -424,7 +424,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample (adju
             jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
             user_claim: preferred_username
             cluster: oauth
-          # OSMO-issued JWTs (e.g. for PAT-based access)
+          # OSMO-issued JWTs (e.g. for access-token-based access)
           - issuer: osmo
             audience: osmo
             jwks_uri: http://localhost:8000/api/auth/keys

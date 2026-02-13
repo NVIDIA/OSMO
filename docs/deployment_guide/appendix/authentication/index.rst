@@ -37,8 +37,8 @@ OSMO does not run its own user directory. Instead, it can operate in two main wa
    Best for: development, testing, or environments where you do not use a corporate login (e.g., Microsoft Entra ID, Google, Okta).
 
    - You configure a **default admin** user and password at deploy time. The OSMO service creates this user on startup and assigns it the ``osmo-admin`` role.
-   - Users and scripts authenticate using **Personal Access Tokens (PATs)**. An admin creates users and assigns roles in OSMO, then creates PATs for those users (or users create PATs for themselves if they have permission).
-   - There is no browser “log in with SSO” flow; access is token-based (PATs and, for internal use, service-issued JWTs).
+   - Users and scripts authenticate using **access tokens**. An admin creates users and assigns roles in OSMO, then creates access tokens for those users (or users create access tokens for themselves if they have permission).
+   - There is no browser “log in with SSO” flow; access is token-based (access tokens and, for internal use, service-issued JWTs).
 
 **2. With an identity provider (IdP)**
 
@@ -49,7 +49,7 @@ OSMO does not run its own user directory. Instead, it can operate in two main wa
    - Roles can come from:
      - **OSMO’s database** — users and roles are managed via OSMO’s user and role APIs (and optionally created automatically when users first log in).
      - **Your IdP** — group or role claims from the IdP can be mapped to OSMO roles (e.g., “LDAP_ML_TEAM” → ``osmo-ml-team``).
-   - PATs are still supported for scripts and automation; they are tied to a user in OSMO and inherit that user’s roles.
+   - access tokens are still supported for scripts and automation; they are tied to a user in OSMO and inherit that user’s roles.
 
 In both modes, **roles** in OSMO define what a user or token can do (see :doc:`roles_policies`). The only difference is how users and their roles are created and updated: manually in OSMO (no IdP) or via login + IdP/API (with IdP).
 
@@ -62,18 +62,18 @@ Major concepts
 
 - **Policy:** A rule that allows or denies specific actions (e.g., “allow GET /api/workflows”). Roles contain one or more policies.
 
-- **Personal Access Token (PAT):** A long-lived secret used by scripts or the CLI to authenticate as a user. PATs are tied to a user and get a subset of that user’s roles at creation time.
+- **Access token:** A long-lived secret used by scripts or the CLI to authenticate as a user. Access tokens are tied to a user and get a subset of that user’s roles at creation time.
 
-- **Default admin:** A single admin user created by the OSMO service on startup when no IdP is used. Configured via Helm (e.g. ``services.defaultAdmin.enabled``, ``username``, and a Kubernetes secret for the password). This user has the ``osmo-admin`` role and one PAT set to that password, so you can log in and create more users/roles/PATs.
+- **Default admin:** A single admin user created by the OSMO service on startup when no IdP is used. Configured via Helm (e.g. ``services.defaultAdmin.enabled``, ``username``, and a Kubernetes secret for the password). This user has the ``osmo-admin`` role and one access token set to that password, so you can log in and create more users, roles, and access tokens.
 
 How authorization works (high level)
 =====================================
 
 When a request hits OSMO:
 
-1. **Identity** is determined from the request: either a JWT (from the IdP or from OSMO for PAT-based access) or, in development, possibly headers set by the gateway.
+1. **Identity** is determined from the request: either a JWT (from the IdP or from OSMO for access-token-based access) or, in development, possibly headers set by the gateway.
 2. **Roles** for that identity are resolved from:
-   - OSMO’s database (user → roles, and for PATs, token → roles),
+   - OSMO’s database (user → roles, and for access tokens, token → roles),
    - and, when using an IdP, from IdP claims (e.g., groups) mapped to OSMO roles.
 3. OSMO loads the **policies** for those roles and checks whether any policy allows the requested action.
 4. The request is **allowed** or **denied** (e.g., 403 Forbidden).
@@ -85,7 +85,8 @@ Quick navigation
 
 - **Understanding the full flow (with or without IdP)?** → :doc:`authentication_flow`
 - **Setting up roles and policies?** → :doc:`roles_policies`
-- **Managing user role mapping and sync modes?** → :doc:`../user_role_mapping`
+- **Managing user role mapping and sync modes?** → :doc:`user_role_mapping`
+- **Service accounts (access tokens, backend operators)?** → :doc:`service_accounts`
 - **Using an IdP (e.g., Microsoft Entra ID, Google)?** → :doc:`identity_provider_setup`
 - **Using OSMO without an IdP (default admin)?** → :ref:`default_admin_setup` (below) and :doc:`../../getting_started/deploy_service`
 
@@ -103,9 +104,9 @@ The OSMO API service reads Helm values under ``services.defaultAdmin``. When def
 
 - On startup, the service ensures a **user** exists with the configured username.
 - It assigns that user the **osmo-admin** role.
-- It creates or updates a **Personal Access Token** for that user whose secret is the **password** you provide (from a Kubernetes secret). So “logging in” as the default admin means using that password as the PAT.
+- It creates or updates a **access token** for that user whose secret is the **password** you provide (from a Kubernetes secret). So “logging in” as the default admin means using that password as the access token.
 
-You use this PAT (or the username + password, which acts as the PAT) with the CLI or API to create more users, assign roles, and create additional PATs. After that, you can rely on normal user/role/PAT management; the default admin is just the bootstrap account.
+You use this token with the CLI or API to create more users, assign roles, and create additional access tokens. After that, you can rely on normal user/role/token management; the default admin is just the bootstrap account.
 
 What to configure (Helm)
 -------------------------
@@ -142,7 +143,7 @@ Then in your Helm values:
        passwordSecretName: default-admin-secret
        passwordSecretKey: password
 
-After deployment, use the default admin username and that password as the PAT (e.g. with ``osmo login`` or ``Authorization: Bearer <password>``) to access the API and create more users and PATs.
+After deployment, use the default admin username and that password as the access token (e.g. with ``osmo login`` or ``Authorization: Bearer <password>``) to access the API and create more users and access tokens.
 
 .. seealso::
 
