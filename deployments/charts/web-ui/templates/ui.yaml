@@ -241,12 +241,14 @@ spec:
         {{- end }}
 
       {{- include "ui.envoy-sidecar-container" . | nindent 6}}
+      {{- include "ui.oauth2-proxy-sidecar-container" . | nindent 6}}
       {{- include "ui.log-agent-sidecar-container" . | nindent 6}}
       {{- with .Values.extraContainers }}
         {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
         {{- include "ui.envoy-volumes" . | nindent 8 }}
+        {{- include "ui.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "ui.log-agent-volumes" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
