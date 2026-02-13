@@ -32,7 +32,8 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useTransition } from "react";
+import { useQueryState, parseAsBoolean } from "nuqs";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
@@ -49,6 +50,7 @@ import { PoolsToolbar } from "@/app/(dashboard)/pools/components/pools-toolbar";
 import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
 import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
 import { usePoolsAutoRefresh } from "@/app/(dashboard)/pools/hooks/use-pools-auto-refresh";
+import { useProfileSettings } from "@/lib/api/adapter/hooks";
 
 // =============================================================================
 // Client Component
@@ -77,6 +79,31 @@ export function PoolsPageContent() {
   // Auto-refresh settings
   const autoRefresh = usePoolsAutoRefresh();
 
+  // Track pending state for show all pools toggle
+  const [showAllPoolsPending, startShowAllPoolsTransition] = useTransition();
+
+  // Show all pools toggle - URL-synced (default: false = my pools only)
+  // URL param: ?all=true (shows all pools), omitted/false (shows my accessible pools)
+  const [showAllPools, setShowAllPools] = useQueryState(
+    "all",
+    parseAsBoolean.withDefault(false).withOptions({
+      shallow: true,
+      history: "replace",
+      clearOnDefault: true,
+    }),
+  );
+
+  const handleToggleShowAllPools = useCallback(() => {
+    startShowAllPoolsTransition(() => {
+      void setShowAllPools((prev) => !prev);
+    });
+  }, [setShowAllPools]);
+
+  // Fetch user profile settings for accessible pool names.
+  // Always enabled so data is pre-cached when toggling to "my pools" (avoids reflow).
+  const { profile } = useProfileSettings();
+  const accessiblePoolNames = useMemo(() => profile?.pool.accessible ?? [], [profile]);
+
   // ==========================================================================
   // Data Fetching with FilterBar filtering
   // Data is hydrated from server prefetch - no loading spinner on initial load!
@@ -84,7 +111,12 @@ export function PoolsPageContent() {
   // ==========================================================================
 
   const { pools, allPools, sharingGroups, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } =
-    usePoolsData({ searchChips, refetchInterval: autoRefresh.effectiveInterval });
+    usePoolsData({
+      searchChips,
+      showAllPools,
+      accessiblePoolNames,
+      refetchInterval: autoRefresh.effectiveInterval,
+    });
 
   // ==========================================================================
   // Pool Panel State - URL state controls both selection and mounting
@@ -149,6 +181,9 @@ export function PoolsPageContent() {
             searchChips={searchChips}
             onSearchChipsChange={setSearchChips}
             resultsCount={resultsCount}
+            showAllPools={showAllPools}
+            showAllPoolsPending={showAllPoolsPending}
+            onToggleShowAllPools={handleToggleShowAllPools}
             autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>

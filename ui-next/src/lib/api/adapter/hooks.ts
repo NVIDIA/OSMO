@@ -698,7 +698,53 @@ export const profileKeys = {
 };
 
 /**
- * Fetch user profile settings.
+ * Fetch profile settings only (no bucket fetch).
+ *
+ * Returns notification preferences, pool settings, and accessible pool names.
+ * Uses only GET /api/profile/settings — does NOT call GET /api/bucket.
+ *
+ * Use this when you only need pool/notification settings (e.g., accessible pool names).
+ * For bucket info, use useProfile() instead.
+ *
+ * @param options.enabled - Whether to enable the query (default: true).
+ *   Set to false to skip the API call entirely (e.g., when showing all pools).
+ *
+ * @example
+ * ```ts
+ * const { profile, isLoading, error } = useProfileSettings({ enabled: !showAllPools });
+ * if (profile) {
+ *   console.log(profile.pool.accessible); // accessible pool names
+ * }
+ * ```
+ */
+export function useProfileSettings({ enabled = true }: { enabled?: boolean } = {}) {
+  const profileQuery = useGetNotificationSettingsApiProfileSettingsGet({
+    query: {
+      queryKey: profileKeys.detail(),
+      staleTime: QUERY_STALE_TIME.STANDARD,
+      enabled,
+      select: useCallback((rawData: unknown) => {
+        if (!rawData) return null;
+        const response = rawData as { profile?: unknown; pools?: string[] };
+        const profile = transformUserProfile(response.profile);
+        if (response.pools && Array.isArray(response.pools)) {
+          profile.pool.accessible = response.pools;
+        }
+        return profile;
+      }, []),
+    },
+  });
+
+  return {
+    profile: profileQuery.data ?? null,
+    isLoading: profileQuery.isLoading,
+    error: profileQuery.error,
+    refetch: profileQuery.refetch,
+  };
+}
+
+/**
+ * Fetch user profile settings with bucket information.
  *
  * Returns notification preferences, bucket, and pool settings.
  * Uses GET /api/profile/settings and GET /api/bucket endpoints.
