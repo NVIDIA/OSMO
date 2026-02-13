@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -60,7 +61,7 @@ type histogramMetadata struct {
 }
 
 var (
-	instance    *MetricCreator
+	instance    atomic.Pointer[MetricCreator]
 	initMutex   sync.Mutex
 	initialized bool
 	initErr     error
@@ -81,7 +82,7 @@ func InitMetricCreator(config MetricsConfig) error {
 	defer initMutex.Unlock()
 
 	// If already successfully initialized, return success immediately
-	if initialized && instance != nil {
+	if initialized && instance.Load() != nil {
 		return nil
 	}
 
@@ -92,7 +93,7 @@ func InitMetricCreator(config MetricsConfig) error {
 		return err
 	}
 
-	instance = mc
+	instance.Store(mc)
 	initialized = true
 	initErr = nil
 	return nil
@@ -100,8 +101,9 @@ func InitMetricCreator(config MetricsConfig) error {
 
 // GetMetricCreator returns the global MetricCreator singleton.
 // Returns nil if InitMetricCreator has not been called or failed.
+// Safe for concurrent use - uses atomic.Pointer for race-free reads.
 func GetMetricCreator() *MetricCreator {
-	return instance
+	return instance.Load()
 }
 
 func newMetricCreator(config MetricsConfig) (*MetricCreator, error) {
