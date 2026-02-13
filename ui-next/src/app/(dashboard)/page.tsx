@@ -15,20 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dashboard Page (Streaming SSR with Server Prefetch)
+ * Dashboard Page (Streaming SSR / PPR)
  *
  * The main dashboard with key metrics and recent workflows.
  *
- * Architecture: Hybrid streaming for optimal UX
- * 1. Page shell + skeleton stream immediately (fast TTFB)
- * 2. DashboardWithData suspends while prefetching all data in parallel
+ * Architecture: Streaming with PPR-ready Suspense boundary
+ * 1. DashboardSkeleton renders as static shell (instant TTFB)
+ * 2. DashboardWithData suspends while prefetching pools, workflows, version in parallel
  * 3. When APIs respond, content streams in and replaces skeleton
- * 4. Client hydrates with data already in cache (no client fetch!)
- *
- * Performance:
- * - TTFB: ~100ms (shell + skeleton)
- * - Parallel prefetch: pools, workflows, version all fetched simultaneously
- * - Client network requests: 0 (data in hydrated cache)
+ * 4. Client hydrates with data already in cache (zero client fetches)
  */
 
 import { Suspense } from "react";

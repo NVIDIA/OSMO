@@ -36,7 +36,6 @@ import { useRouter, usePathname } from "next/navigation";
 
 export function Header() {
   const { user, isLoading, logout } = useUser();
-  const { version } = useVersion();
   const pageConfig = usePageConfig();
   const { toggleSidebar } = useSidebar();
 
@@ -126,17 +125,7 @@ export function Header() {
               <DropdownMenuItem asChild>
                 <Link href="/profile">Profile Settings</Link>
               </DropdownMenuItem>
-              {version && (
-                <>
-                  <DropdownMenuSeparator />
-                  <div className="px-2 py-1.5">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      OSMO {version.major}.{version.minor}.{version.revision}
-                      {version.hash && ` (${version.hash.slice(0, 7)})`}
-                    </p>
-                  </div>
-                </>
-              )}
+              <VersionMenuItem />
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 dark:text-red-400"
@@ -153,6 +142,28 @@ export function Header() {
         ) : null}
       </div>
     </header>
+  );
+}
+
+/**
+ * Lazy version display — only fetches /api/version when the dropdown mounts.
+ * Radix DropdownMenuContent is unmounted until opened, so the fetch is deferred
+ * until the user actually opens their profile menu. Once fetched, TanStack Query
+ * caches it with Infinity staleTime so subsequent opens are instant.
+ */
+function VersionMenuItem() {
+  const { version } = useVersion();
+  if (!version) return null;
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <div className="px-2 py-1.5">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          OSMO {version.major}.{version.minor}.{version.revision}
+          {version.hash && ` (${version.hash.slice(0, 7)})`}
+        </p>
+      </div>
+    </>
   );
 }
 
