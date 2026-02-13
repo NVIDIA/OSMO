@@ -225,3 +225,41 @@ func CreateOrUpdateBackend(
 
 	return isCreate, isUpdate, nil
 }
+
+// BackendActionQueueName returns the Redis list key used for backend node condition updates.
+func BackendActionQueueName(backendName string) string {
+	return "backend-connections:" + backendName
+}
+
+// FetchBackendNodeConditions loads node_conditions.rules for a backend from the database.
+// Returns an error if the backend is not found or on parse failure.
+func FetchBackendNodeConditions(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	backendName string,
+) (map[string]string, error) {
+	var rulesJSON []byte
+	err := pool.QueryRow(
+		ctx,
+		`SELECT COALESCE(node_conditions->'rules', '{}'::jsonb) FROM backends WHERE name = $1`,
+		backendName,
+	).Scan(&rulesJSON)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to fetch backend node_conditions: %w", err)
+	}
+
+	var rules map[string]string
+	if len(rulesJSON) == 0 {
+		return map[string]string{}, nil
+	}
+	if err := json.Unmarshal(rulesJSON, &rules); err != nil {
+		return nil, fmt.Errorf("failed to parse node_conditions rules: %w", err)
+	}
+	if rules == nil {
+		rules = make(map[string]string)
+	}
+	return rules, nil
+}

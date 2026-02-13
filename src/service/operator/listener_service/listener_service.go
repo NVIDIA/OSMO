@@ -20,6 +20,7 @@ package listener_service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -34,11 +35,13 @@ import (
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 	"go.corp.nvidia.com/osmo/service/operator/utils"
+	backoff "go.corp.nvidia.com/osmo/utils"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
 const (
 	operatorMessagesStream = "{osmo}:{message-queue}:operator_messages"
+	redisBlockTimeout      = 5 * time.Second
 )
 
 // ListenerService handles workflow listener gRPC streaming operations
@@ -198,6 +201,91 @@ func (ls *ListenerService) handleListenerStream(
 func (ls *ListenerService) ListenerStream(
 	stream pb.ListenerService_ListenerStreamServer) error {
 	return ls.handleListenerStream(stream)
+}
+
+// NodeConditionStream sends initial node conditions from the DB, then streams updates
+func (ls *ListenerService) NodeConditionStream(
+	req *pb.NodeConditionStreamRequest,
+	stream pb.ListenerService_NodeConditionStreamServer,
+) error {
+	_ = req
+	ctx := stream.Context()
+
+	backendName, err := utils.ExtractBackendName(ctx)
+	if err != nil {
+		ls.logger.ErrorContext(ctx, "node condition stream: missing backend name",
+			slog.String("error", err.Error()))
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	ls.logger.InfoContext(ctx, "opening node condition stream for backend",
+		slog.String("backend_name", backendName))
+	defer ls.logger.InfoContext(ctx, "closing node condition stream for backend",
+		slog.String("backend_name", backendName))
+
+	// Send initial node conditions from DB
+	rules, err := utils.FetchBackendNodeConditions(ctx, ls.pgPool, backendName)
+	if err != nil {
+		ls.logger.ErrorContext(ctx, "failed to fetch backend node conditions",
+			slog.String("backend_name", backendName),
+			slog.String("error", err.Error()))
+		return status.Error(codes.Internal, err.Error())
+	}
+
+	if err := stream.Send(&pb.NodeConditionsMessage{Rules: rules}); err != nil {
+		return err
+	}
+	ls.logger.InfoContext(ctx, "sent initial node conditions to backend",
+		slog.String("backend_name", backendName))
+
+	queueName := utils.BackendActionQueueName(backendName)
+	retryCount := 0
+
+	for {
+		result, err := ls.redisClient.BLPop(ctx, redisBlockTimeout, queueName).Result()
+		if err == nil && len(result) == 2 {
+			retryCount = 0
+			payload := result[1]
+
+			ls.logger.InfoContext(ctx, "sending node conditions to backend from queue",
+				slog.String("backend_name", backendName),
+				slog.String("queue", queueName),
+				slog.String("payload", payload))
+
+			var parsed struct {
+				Rules map[string]string `json:"rules"`
+			}
+			if err := json.Unmarshal([]byte(payload), &parsed); err != nil {
+				ls.logger.WarnContext(ctx, "failed to parse queue payload, skipping",
+					slog.String("backend_name", backendName),
+					slog.String("error", err.Error()))
+				continue
+			}
+			if parsed.Rules == nil {
+				parsed.Rules = make(map[string]string)
+			}
+
+			if err := stream.Send(&pb.NodeConditionsMessage{Rules: parsed.Rules}); err != nil {
+				return err
+			}
+		} else {
+			if ctx.Err() != nil {
+				return nil
+			}
+			backoffDur := redisBlockTimeout
+			if err != redis.Nil {
+				retryCount++
+				backoffDur = backoff.CalculateBackoff(retryCount, 30*time.Second)
+				ls.logger.ErrorContext(ctx, "redis BLPop error, retrying with backoff",
+					slog.String("backend_name", backendName),
+					slog.String("queue", queueName),
+					slog.String("error", err.Error()),
+					slog.Duration("backoff", backoffDur))
+			}
+			time.Sleep(backoffDur)
+			continue
+		}
+	}
 }
 
 // InitBackend handles backend initialization requests
