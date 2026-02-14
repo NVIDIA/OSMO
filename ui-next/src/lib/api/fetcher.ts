@@ -214,5 +214,14 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     return {} as T;
   }
 
+  // Check Content-Type to determine how to parse the response
+  const contentType = response.headers.get("content-type");
+
+  // If Content-Type is text/plain, return the text directly
+  if (contentType?.includes("text/plain")) {
+    return text as T;
+  }
+
+  // Otherwise, parse as JSON (default behavior)
   return JSON.parse(text);
 };
