@@ -303,6 +303,8 @@ export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
     getValues: (tasks) => [...new Set(tasks.map((t) => t.status))],
     match: (task, value) => task.status.toLowerCase() === value.toLowerCase(),
     hint: "specific status",
+    exhaustive: true,
+    requiresValidValue: true,
   },
   {
     id: "node",

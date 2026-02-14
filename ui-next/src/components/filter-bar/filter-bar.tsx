@@ -74,6 +74,7 @@ function FilterBarInner<T>(
     showDropdown,
     isFieldLoading,
     loadingFieldLabel,
+    highlightedSuggestionValue,
     handleSelect,
     handleInputChange,
     handleFocus,
@@ -101,9 +102,6 @@ function FilterBarInner<T>(
       blur: () => inputRef.current?.blur(),
       getSelectionStart: () => inputRef.current?.selectionStart ?? null,
       getSelectionEnd: () => inputRef.current?.selectionEnd ?? null,
-      dispatchKeyDown: (key: string) => {
-        inputRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
-      },
     });
   }, [setInputRefCallbacks]);
 
@@ -147,6 +145,7 @@ function FilterBarInner<T>(
         loop
         label="Search and filter"
         className="overflow-visible bg-transparent"
+        value={highlightedSuggestionValue}
       >
         {/* Visually hidden label for accessibility and autofill */}
         <label
@@ -185,6 +184,7 @@ function FilterBarInner<T>(
           isPresetActive={isPresetActive}
           isFieldLoading={isFieldLoading}
           loadingFieldLabel={loadingFieldLabel}
+          highlightedSuggestionValue={highlightedSuggestionValue}
         />
       </Command>
     </div>

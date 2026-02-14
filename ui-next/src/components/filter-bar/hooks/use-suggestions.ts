@@ -63,6 +63,7 @@ function isAlreadySelected(chips: SearchChip[], fieldId: string, value: string):
 /**
  * Generate suggestions based on current input.
  * Filters out values that already have corresponding chips.
+ *
  */
 function generateSuggestions<T>(
   inputValue: string,
@@ -96,9 +97,6 @@ function generateSuggestions<T>(
     const currentPrefix = field.prefix;
     const prefixQuery = parsedInput.query.toLowerCase();
 
-    // Get available values (sync: from data, async: pre-loaded)
-    const values = getFieldValues(field, data);
-
     // Find sub-fields that extend this prefix (e.g., "quota:" has sub-fields "quota:free:", "quota:used:")
     const matchingSubFields = fields.filter((f) => {
       if (!f.prefix || f.prefix === currentPrefix || !f.prefix.startsWith(currentPrefix)) {
@@ -109,6 +107,9 @@ function generateSuggestions<T>(
       // Match if user's query starts with or is contained in the suffix
       return prefixQuery === "" || suffix.startsWith(prefixQuery);
     });
+
+    // Get available values (sync: from data, async: pre-loaded)
+    const values = getFieldValues(field, data);
 
     // If no values available, show freeFormHint (if any) and sub-fields
     if (values.length === 0) {
@@ -196,11 +197,6 @@ function generateSuggestions<T>(
  * - Generating value suggestions when prefix is active (based on getValues)
  * - Handling hierarchical prefixes (quota:free:)
  * - Showing freeFormHint when no suggestions available
- *
- * Suggestion logic:
- * - getValues() returns values → show suggestions (limited to 8 for non-exhaustive)
- * - getValues() returns empty → show freeFormHint (if any) and sub-fields
- * - exhaustive: true → no "Suggestions:" hint, no limit
  *
  * This hook is UI-agnostic and can work with any dropdown implementation.
  */

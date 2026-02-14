@@ -34,7 +34,7 @@
 
 "use client";
 
-import { memo, useRef, useMemo } from "react";
+import { memo, useRef, useMemo, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
@@ -85,6 +85,8 @@ export interface FilterBarDropdownProps<T> {
   isFieldLoading?: boolean;
   /** Label for the loading field (e.g., "users") - shown in loading message */
   loadingFieldLabel?: string;
+  /** Currently highlighted cmdk value — drives scroll-into-view */
+  highlightedSuggestionValue?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +105,23 @@ function FilterBarDropdownInner<T>({
   isPresetActive,
   isFieldLoading,
   loadingFieldLabel,
+  highlightedSuggestionValue,
 }: FilterBarDropdownProps<T>) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Scroll the highlighted CommandItem into view (presets + non-virtualized suggestions).
+  // For virtualized suggestions, VirtualizedSuggestions handles its own scrollToIndex.
+  useEffect(() => {
+    if (!highlightedSuggestionValue || !listRef.current) return;
+    // Use rAF so the DOM has updated after React's render (especially after virtualizer re-render)
+    requestAnimationFrame(() => {
+      const el = listRef.current?.querySelector<HTMLElement>(
+        `[cmdk-item][data-value="${CSS.escape(highlightedSuggestionValue)}"]`,
+      );
+      el?.scrollIntoView({ block: "nearest" });
+    });
+  }, [highlightedSuggestionValue]);
+
   if (!showDropdown) return null;
 
   return (
@@ -117,6 +135,7 @@ function FilterBarDropdownInner<T>({
 
       {/* Dropdown panel */}
       <div
+        ref={listRef}
         className={cn(
           dropdownStyles.dropdown,
           dropdownStyles.surface,
@@ -160,6 +179,7 @@ function FilterBarDropdownInner<T>({
               <SuggestionsSection
                 selectables={selectables}
                 onSelect={onSelect}
+                highlightedSuggestionValue={highlightedSuggestionValue}
               />
             )
           )}
@@ -167,8 +187,8 @@ function FilterBarDropdownInner<T>({
 
         {/* Footer */}
         <div className={cn("border-t px-3 py-2 text-xs", dropdownStyles.border, dropdownStyles.muted)}>
-          <kbd className={chipStyles.chip}>↑↓</kbd> <kbd className={chipStyles.chip}>Tab</kbd> navigate{" "}
-          <kbd className={chipStyles.chip}>Enter</kbd> select <kbd className={chipStyles.chip}>Esc</kbd> close
+          <kbd className={chipStyles.chip}>↑↓</kbd> <kbd className={chipStyles.chip}>Tab</kbd> fill{" "}
+          <kbd className={chipStyles.chip}>Enter</kbd> accept <kbd className={chipStyles.chip}>Esc</kbd> undo
         </div>
       </div>
     </>
@@ -272,9 +292,10 @@ const LoadingSection = memo(function LoadingSection({ label }: LoadingSectionPro
 interface SuggestionsSectionProps<T> {
   selectables: Suggestion<T>[];
   onSelect: (value: string) => void;
+  highlightedSuggestionValue?: string;
 }
 
-function SuggestionsSectionInner<T>({ selectables, onSelect }: SuggestionsSectionProps<T>) {
+function SuggestionsSectionInner<T>({ selectables, onSelect, highlightedSuggestionValue }: SuggestionsSectionProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Automatic virtualization: only when content exceeds visible area
@@ -295,6 +316,7 @@ function SuggestionsSectionInner<T>({ selectables, onSelect }: SuggestionsSectio
       selectables={selectables}
       onSelect={onSelect}
       scrollRef={scrollRef}
+      highlightedSuggestionValue={highlightedSuggestionValue}
     />
   );
 }
@@ -334,15 +356,33 @@ interface VirtualizedSuggestionsProps<T> {
   selectables: Suggestion<T>[];
   onSelect: (value: string) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  highlightedSuggestionValue?: string;
 }
 
-function VirtualizedSuggestionsInner<T>({ selectables, onSelect, scrollRef }: VirtualizedSuggestionsProps<T>) {
+function VirtualizedSuggestionsInner<T>({
+  selectables,
+  onSelect,
+  scrollRef,
+  highlightedSuggestionValue,
+}: VirtualizedSuggestionsProps<T>) {
   const virtualizer = useVirtualizerCompat({
     count: selectables.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
   });
+
+  // Scroll the virtualizer to the highlighted item so it's rendered in the DOM
+  const highlightedIdx = useMemo(
+    () => (highlightedSuggestionValue ? selectables.findIndex((s) => s.value === highlightedSuggestionValue) : -1),
+    [highlightedSuggestionValue, selectables],
+  );
+
+  useEffect(() => {
+    if (highlightedIdx >= 0) {
+      virtualizer.scrollToIndex(highlightedIdx, { align: "auto" });
+    }
+  }, [highlightedIdx, virtualizer]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();

@@ -19,21 +19,21 @@
 /**
  * Orchestration hook for FilterBar.
  *
- * Composes useChips + useSuggestions + useFilterKeyboard + local state
- * into a single interface that the FilterBar component consumes.
+ * Composes useChips + useSuggestions + useFilterKeyboard into a single
+ * interface that the FilterBar component consumes.
  *
  * Responsibilities:
- * - Own all local state (input value, dropdown open, focused chip)
- * - Compose child hooks (useChips, useSuggestions, useFilterKeyboard)
- * - Derive computed values (showPresets, showSuggestions, showDropdown)
- * - Provide stable action handlers (useCallback)
- * - Single source of truth for resetInput (was duplicated 4x)
+ * - Own local UI state (input value, dropdown open, focused chip)
+ * - Compose child hooks
+ * - Derive computed values (showPresets, showDropdown)
+ * - Provide stable action handlers
  *
- * The component becomes pure composition: refs + useId + JSX.
+ * Navigation state (Tab-cycling levels, frozen suggestions) is owned by
+ * useFilterKeyboard - this hook only reads its outputs.
  */
 
-import { useState, useCallback, useMemo } from "react";
-import type { SearchChip, SearchField, SearchPreset, Suggestion, ParsedInput } from "@/components/filter-bar/lib/types";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import type { SearchChip, SearchField, SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
 import { isAsyncField } from "@/components/filter-bar/lib/types";
 import { useChips } from "@/components/filter-bar/hooks/use-chips";
 import { useSuggestions } from "@/components/filter-bar/hooks/use-suggestions";
@@ -54,31 +54,25 @@ export interface UseFilterStateOptions<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Return type
+// Return type (only what the FilterBar component actually consumes)
 // ---------------------------------------------------------------------------
 
 export interface UseFilterStateReturn<T> {
   // State
   inputValue: string;
-  isOpen: boolean;
   focusedChipIndex: number;
   validationError: string | null;
 
   // Derived
-  parsedInput: ParsedInput<T>;
-  suggestions: Suggestion<T>[];
   selectables: Suggestion<T>[];
   hints: Suggestion<T>[];
-  flatPresets: SearchPreset[];
   showPresets: boolean;
-  showSuggestions: boolean;
   showDropdown: boolean;
-  /** Whether the active field is an async field currently loading data */
   isFieldLoading: boolean;
-  /** Label for the loading field (e.g., "users") */
   loadingFieldLabel: string | undefined;
+  highlightedSuggestionValue: string | undefined;
 
-  // Actions (stable refs)
+  // Actions
   handleSelect: (value: string) => void;
   handleInputChange: (value: string) => void;
   handleFocus: () => void;
@@ -87,27 +81,24 @@ export interface UseFilterStateReturn<T> {
   handleBlur: (containerEl: HTMLElement | null, relatedTarget: EventTarget | null) => void;
   handleBackdropDismiss: () => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
-  resetInput: () => void;
 
-  // From useChips (needed by component for preset rendering)
+  // Preset state
   isPresetActive: (preset: SearchPreset) => boolean;
 
-  // Input ref helpers (keyboard hook needs these)
+  // Ref setup
   setInputRefCallbacks: (callbacks: InputRefCallbacks) => void;
 }
 
-/** Callbacks the orchestration hook needs from the component's inputRef */
+/** Callbacks the component provides for imperative input access */
 export interface InputRefCallbacks {
   focus: () => void;
   blur: () => void;
   getSelectionStart: () => number | null;
   getSelectionEnd: () => number | null;
-  /** Dispatch a keyboard event on the input (bubbles to cmdk root for navigation) */
-  dispatchKeyDown: (key: string) => void;
 }
 
 // ---------------------------------------------------------------------------
-// Hook implementation
+// Hook
 // ---------------------------------------------------------------------------
 
 export function useFilterState<T>({
@@ -118,20 +109,28 @@ export function useFilterState<T>({
   displayMode,
   presets,
 }: UseFilterStateOptions<T>): UseFilterStateReturn<T> {
-  // ========== Local state ==========
+  // ========== Local UI state ==========
+
   const [inputValue, setInputValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [focusedChipIndex, setFocusedChipIndex] = useState(-1);
 
-  // Input ref callbacks (set by the component after render)
-  // Using useState to avoid stale closures - the setter is stable
-  const [inputCallbacks, setInputRefCallbacks] = useState<InputRefCallbacks>(() => ({
+  // ========== Input ref (stable ref, not state - avoids extra render on mount) ==========
+
+  const inputCallbacksRef = useRef<InputRefCallbacks>({
     focus: () => {},
     blur: () => {},
     getSelectionStart: () => null,
     getSelectionEnd: () => null,
-    dispatchKeyDown: () => {},
-  }));
+  });
+
+  const setInputRefCallbacks = useCallback((callbacks: InputRefCallbacks) => {
+    inputCallbacksRef.current = callbacks;
+  }, []);
+
+  // ========== Bridge: keyboard hook's resetNavigation (populated after hook call) ==========
+
+  const resetNavigationRef = useRef<() => void>(() => {});
 
   // ========== Composed hooks ==========
 
@@ -144,13 +143,7 @@ export function useFilterState<T>({
     validationError,
     setValidationError,
     clearValidationError,
-  } = useChips({
-    chips,
-    onChipsChange,
-    data,
-    fields,
-    displayMode,
-  });
+  } = useChips({ chips, onChipsChange, data, fields, displayMode });
 
   const { parsedInput, suggestions, flatPresets } = useSuggestions({
     inputValue,
@@ -160,37 +153,30 @@ export function useFilterState<T>({
     presets,
   });
 
-  // ========== Derived values ==========
+  // ========== Derived ==========
 
   const selectables = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
   const hints = useMemo(() => suggestions.filter((s) => s.type === "hint"), [suggestions]);
 
-  const showPresets = isOpen && !!presets && presets.length > 0 && inputValue === "";
-  const showSuggestions = isOpen && suggestions.length > 0;
-
-  // Async field loading: when user has typed a prefix that matches an async field that is still loading
-  const isFieldLoading = !!(
-    parsedInput.field &&
-    parsedInput.hasPrefix &&
-    isAsyncField(parsedInput.field) &&
-    parsedInput.field.isLoading
+  // Preset cmdk values for keyboard cycling (independent of inputValue)
+  const presetValues = useMemo(
+    () => (presets ?? []).flatMap((g) => g.items.map((p) => `preset:${p.id}`)),
+    [presets],
   );
-  const loadingFieldLabel = isFieldLoading && parsedInput.field ? parsedInput.field.label : undefined;
 
-  const showDropdown = showPresets || showSuggestions || !!validationError || isFieldLoading;
-
-  // ========== Single source of truth: resetInput ==========
+  // ========== Actions ==========
 
   const resetInput = useCallback(() => {
     setInputValue("");
     setIsOpen(false);
     clearValidationError();
+    resetNavigationRef.current();
   }, [clearValidationError]);
-
-  // ========== Action handlers ==========
 
   const handleSelect = useCallback(
     (value: string) => {
+      resetNavigationRef.current();
+
       // Preset selection
       if (value.startsWith("preset:")) {
         const presetId = value.slice(7);
@@ -199,7 +185,7 @@ export function useFilterState<T>({
           togglePreset(preset);
           setInputValue("");
           setIsOpen(false);
-          inputCallbacks.focus();
+          inputCallbacksRef.current.focus();
         }
         return;
       }
@@ -211,17 +197,17 @@ export function useFilterState<T>({
       if (suggestion.type === "field") {
         // Field prefix selected - fill input with prefix
         setInputValue(suggestion.value);
-        inputCallbacks.focus();
+        inputCallbacksRef.current.focus();
       } else {
         // Value selected - create chip
         if (addChip(suggestion.field, suggestion.value)) {
           setInputValue("");
           setIsOpen(false);
-          inputCallbacks.focus();
+          inputCallbacksRef.current.focus();
         }
       }
     },
-    [suggestions, flatPresets, addChip, togglePreset, inputCallbacks],
+    [suggestions, flatPresets, addChip, togglePreset],
   );
 
   const handleInputChange = useCallback(
@@ -230,6 +216,7 @@ export function useFilterState<T>({
       setIsOpen(true);
       clearValidationError();
       setFocusedChipIndex(-1);
+      resetNavigationRef.current();
     },
     [clearValidationError],
   );
@@ -249,7 +236,11 @@ export function useFilterState<T>({
 
   const handleClearAll = useCallback(() => {
     clearChips();
-  }, [clearChips]);
+    setInputValue("");
+    setIsOpen(false);
+    clearValidationError();
+    resetNavigationRef.current();
+  }, [clearChips, clearValidationError]);
 
   const handleBlur = useCallback(
     (containerEl: HTMLElement | null, relatedTarget: EventTarget | null) => {
@@ -268,7 +259,7 @@ export function useFilterState<T>({
 
   // ========== Keyboard hook ==========
 
-  const keyboardState: FilterKeyboardState<T> = useMemo(
+  const keyboardState = useMemo<FilterKeyboardState<T>>(
     () => ({
       chipCount: chips.length,
       focusedChipIndex,
@@ -277,11 +268,12 @@ export function useFilterState<T>({
       parsedInput,
       selectables,
       fields,
+      presetValues,
     }),
-    [chips.length, focusedChipIndex, inputValue, isOpen, parsedInput, selectables, fields],
+    [chips.length, focusedChipIndex, inputValue, isOpen, parsedInput, selectables, fields, presetValues],
   );
 
-  const keyboardActions: FilterKeyboardActions = useMemo(
+  const keyboardActions = useMemo<FilterKeyboardActions>(
     () => ({
       focusChip: setFocusedChipIndex,
       unfocusChips: () => setFocusedChipIndex(-1),
@@ -296,65 +288,64 @@ export function useFilterState<T>({
         return false;
       },
       addTextChip: (value: string) => {
-        // Add a text search chip directly without requiring a field definition
-        onChipsChange([
-          ...chips,
-          {
-            field: "text",
-            value,
-            label: value,
-          },
-        ]);
+        onChipsChange([...chips, { field: "text", value, label: value }]);
       },
       selectSuggestion: handleSelect,
       fillInput: setInputValue,
       showError: setValidationError,
-      focusInput: () => inputCallbacks.focus(),
-      blurInput: () => inputCallbacks.blur(),
-      getInputSelectionStart: () => inputCallbacks.getSelectionStart(),
-      getInputSelectionEnd: () => inputCallbacks.getSelectionEnd(),
-      cycleSuggestion: (direction: "forward" | "backward") => {
-        const key = direction === "forward" ? "ArrowDown" : "ArrowUp";
-        inputCallbacks.dispatchKeyDown(key);
-      },
+      focusInput: () => inputCallbacksRef.current.focus(),
+      blurInput: () => inputCallbacksRef.current.blur(),
+      getInputSelectionStart: () => inputCallbacksRef.current.getSelectionStart(),
+      getInputSelectionEnd: () => inputCallbacksRef.current.getSelectionEnd(),
     }),
-    [
-      removeChip,
-      resetInput,
-      parsedInput,
-      addChip,
-      handleSelect,
-      setValidationError,
-      inputCallbacks,
-      onChipsChange,
-      chips,
-    ],
+    [removeChip, resetInput, parsedInput, addChip, handleSelect, setValidationError, onChipsChange, chips],
   );
 
-  const { handleKeyDown } = useFilterKeyboard(keyboardState, keyboardActions);
+  const { handleKeyDown, highlightedSuggestionValue, displaySelectables, navigationLevel, resetNavigation } =
+    useFilterKeyboard(keyboardState, keyboardActions);
+
+  // Wire up the bridge ref so resetInput/handleInputChange/handleClearAll can reset navigation
+  useEffect(() => {
+    resetNavigationRef.current = resetNavigation;
+  }, [resetNavigation]);
+
+  // ========== Derived from keyboard + suggestions ==========
+
+  // Presets show when no field is committed: empty input OR browsing fields
+  const showPresets =
+    isOpen && !!presets && presets.length > 0 && (inputValue === "" || navigationLevel === "field");
+
+  // Only show async loading state when NOT in keyboard navigation
+  const isFieldLoading = !!(
+    navigationLevel === null &&
+    parsedInput.field &&
+    parsedInput.hasPrefix &&
+    isAsyncField(parsedInput.field) &&
+    parsedInput.field.isLoading
+  );
+  const loadingFieldLabel = isFieldLoading && parsedInput.field ? parsedInput.field.label : undefined;
+
+  // Hints belong to a committed field context. At field level (browsing fields),
+  // no field is committed so hints don't apply. At value level or when typing
+  // with a prefix, hints flow naturally from the matched field.
+  const visibleHints = navigationLevel === "field" ? [] : hints;
+
+  const hasContent = displaySelectables.length > 0 || visibleHints.length > 0;
+  const showDropdown = showPresets || (isOpen && hasContent) || !!validationError || isFieldLoading;
 
   // ========== Return ==========
 
   return {
-    // State
     inputValue,
-    isOpen,
     focusedChipIndex,
     validationError,
-
-    // Derived
-    parsedInput,
-    suggestions,
-    selectables,
-    hints,
-    flatPresets,
+    selectables: displaySelectables,
+    hints: visibleHints,
     showPresets,
-    showSuggestions,
     showDropdown,
     isFieldLoading,
     loadingFieldLabel,
-
-    // Actions
+    highlightedSuggestionValue,
     handleSelect,
     handleInputChange,
     handleFocus,
@@ -363,12 +354,7 @@ export function useFilterState<T>({
     handleBlur,
     handleBackdropDismiss,
     handleKeyDown,
-    resetInput,
-
-    // From useChips
     isPresetActive,
-
-    // Ref helpers
     setInputRefCallbacks,
   };
 }
