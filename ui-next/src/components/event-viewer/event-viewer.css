@@ -25,6 +25,13 @@
   /* Component-specific CSS variables */
   :root {
     --stage-fg: white;
+
+    /* Event viewer grid column widths - single source of truth */
+    --col-task-min: 150px;
+    --col-retry: 50px;
+    --col-duration: 100px;
+    --col-lifecycle-min: 300px;
+    --col-events: 60px;
   }
 
   .dark {
@@ -33,15 +40,24 @@
 
   /* Scroll inner wrapper - establishes min-width so the scroll container
      can detect overflow and show a horizontal scrollbar. Without this,
-     child grids with min-width would overflow their w-full parents silently. */
+     child grids with min-width would overflow their w-full parents silently.
+     Min-width is calculated from column variables to ensure consistency. */
   .event-viewer-scroll-inner {
-    min-width: 660px; /* Sum of grid minimums: 150 + 50 + 100 + 300 + 60 */
+    min-width: calc(
+      var(--col-task-min) + var(--col-retry) + var(--col-duration) +
+        var(--col-lifecycle-min) + var(--col-events)
+    );
   }
 
   /* Grid column templates for event viewer tables */
   .event-viewer-grid {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) 50px 100px minmax(300px, 2fr) 60px;
+    grid-template-columns:
+      minmax(var(--col-task-min), 1fr)
+      var(--col-retry)
+      var(--col-duration)
+      minmax(var(--col-lifecycle-min), 2fr)
+      var(--col-events);
   }
 
   .event-details-grid {

@@ -272,6 +272,60 @@ export function getBadgeClass(status: string): string {
 - More semantic (data describes WHAT, CSS describes HOW)
 - Follows Tailwind 4's CSS-first approach
 
+### CSS Variables: Single Source of Truth
+
+**❌ Duplicating values in multiple CSS properties:**
+```css
+/* BAD: Same values defined twice - can get out of sync */
+.scroll-inner {
+  min-width: 660px; /* 150 + 50 + 100 + 300 + 60 */
+}
+.grid {
+  grid-template-columns: minmax(150px, 1fr) 50px 100px minmax(300px, 2fr) 60px;
+}
+```
+
+**✅ Use CSS custom properties for shared values:**
+```css
+/* GOOD: Single source of truth */
+:root {
+  --col-task-min: 150px;
+  --col-retry: 50px;
+  --col-duration: 100px;
+  --col-lifecycle-min: 300px;
+  --col-events: 60px;
+}
+
+.scroll-inner {
+  min-width: calc(
+    var(--col-task-min) + var(--col-retry) + var(--col-duration) +
+      var(--col-lifecycle-min) + var(--col-events)
+  );
+}
+
+.grid {
+  grid-template-columns:
+    minmax(var(--col-task-min), 1fr)
+    var(--col-retry)
+    var(--col-duration)
+    minmax(var(--col-lifecycle-min), 2fr)
+    var(--col-events);
+}
+```
+
+**Why this is better:**
+- Single source of truth - can't get out of sync
+- Clear variable names document intent
+- Easy to adjust values globally
+- No comments needed to explain magic numbers
+- Follows DRY (Don't Repeat Yourself) principle
+
+**When to use CSS variables:**
+- Values used in multiple CSS properties
+- Values that might need to be adjusted together
+- Values that need to be calculated or combined (with `calc()`)
+- Component-specific spacing/sizing that differs from global design tokens
+
 ### Other Anti-Patterns
 
 - **Inline style objects** → Tailwind utilities or CSS variables
@@ -286,8 +340,9 @@ Before declaring styling code "clean":
 1. ✅ No JavaScript functions returning class strings (use data attributes + CSS)
 2. ✅ No inline `style` objects (use Tailwind or CSS variables)
 3. ✅ No magic values (use CSS variables from `globals.css`)
-4. ✅ Styling concerns separated from business logic
-5. ✅ GPU-accelerated animations (transform/opacity, not width/height)
+4. ✅ No duplicated values in CSS (use CSS custom properties for shared values)
+5. ✅ Styling concerns separated from business logic
+6. ✅ GPU-accelerated animations (transform/opacity, not width/height)
 
 ## Production/Mock Code Separation
 
