@@ -1394,7 +1394,7 @@ sidecars:
 
     ## OAuth2 Proxy container image
     ##
-    image: "quay.io/oauth2-proxy/oauth2-proxy:v7.6.0"
+    image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
 
     ## Image pull policy
     ##
