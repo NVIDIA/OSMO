@@ -224,8 +224,8 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   },
   groupPatterns: {
     names: ["data-prep", "train", "eval", "export", "validate", "preprocess", "postprocess", "inference", "checkpoint"],
-    tasksPerGroup: { min: 1, max: isDev ? 3 : 8 },
-    groupsPerWorkflow: { min: 1, max: isDev ? 3 : 6 },
+    tasksPerGroup: { min: 5, max: isDev ? 7 : 8 },
+    groupsPerWorkflow: { min: 2, max: isDev ? 2 : 6 },
   },
   timing: {
     queueTime: { min: 0, max: 7200, p50: 60, p90: 900 },

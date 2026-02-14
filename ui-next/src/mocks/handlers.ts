@@ -527,22 +527,41 @@ export const handlers = [
   // Streaming is handled via the regular /logs endpoint with Transfer-Encoding: chunked
 
   // Workflow events
+  // Backend returns PlainTextResponse (streaming text), not JSON
+  // Query params: task_name, retry_id (optional - for task-specific filtering)
+  // Format: {ISO timestamp} [{entity}] {reason}: {message}
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/workflow/:name/events", async ({ params }) => {
+  http.get("*/api/workflow/:name/events", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
+    const url = new URL(request.url);
+    const taskName = url.searchParams.get("task_name");
+    // retryId unused for now - could be used to filter specific retry attempts
+    // const retryId = url.searchParams.get("retry_id");
+
     const workflow = workflowGenerator.getByName(name);
+    if (!workflow) {
+      return HttpResponse.text("", { status: 404 });
+    }
 
-    const events = eventGenerator.generateWorkflowEvents(
-      name,
-      workflow?.status || "RUNNING",
-      workflow?.submit_time || new Date().toISOString(),
-      workflow?.start_time || undefined,
-      workflow?.end_time || undefined,
-    );
+    // ✅ Delegate event generation to generator (single source of truth)
+    const events = eventGenerator.generateEventsForWorkflow(workflow, taskName ?? undefined);
 
-    return HttpResponse.json({ events });
+    // Format to plain text (backend format)
+    // Backend format: "2026-02-09 05:15:08+00:00" (space-separated, +00:00 timezone)
+    const lines = events.map((event) => {
+      const timestamp = new Date(event.first_timestamp)
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "+00:00");
+      return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
+    });
+
+    // Return plain text response (newline-separated)
+    return HttpResponse.text(lines.join("\n"), {
+      headers: { "Content-Type": "text/plain" },
+    });
   }),
 
   // Workflow spec (YAML or Jinja template)
@@ -1008,27 +1027,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     });
   }),
 
-  // Task events
-  // SINGLE SOURCE OF TRUTH: Get task data from workflow
-  http.get("*/api/workflow/:name/task/:taskName/events", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const workflowName = params.name as string;
-    const taskName = params.taskName as string;
-
-    const workflow = workflowGenerator.getByName(workflowName);
-    const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
-
-    const events = eventGenerator.generateTaskEvents(
-      workflowName,
-      taskName,
-      task?.status || "RUNNING",
-      task?.start_time,
-      task?.end_time,
-    );
-
-    return HttpResponse.json({ events });
-  }),
+  // Task events (DEPRECATED - use /api/workflow/:name/events?task_name=X&retry_id=Y instead)
+  // Keeping for backward compatibility if any direct calls exist
 
   // ==========================================================================
   // Terminal / Exec (PTY Sessions)
