@@ -258,6 +258,20 @@
   --status-warning-bg: oklch(0.95 0.05 85);
   --status-danger-bg: oklch(0.95 0.05 25);
 
+  /* Lifecycle progress stage colors (light mode) */
+  --stage-pending: oklch(0.75 0.12 75);
+  --stage-pending-bg: oklch(0.95 0.04 85);
+  --stage-init: oklch(0.6 0.15 260);
+  --stage-init-bg: oklch(0.95 0.04 260);
+  --stage-running: oklch(0.6 0.15 250);
+  --stage-running-bg: oklch(0.95 0.04 250);
+  --stage-completed: oklch(0.7 0.15 145);
+  --stage-completed-bg: oklch(0.95 0.05 145);
+  --stage-failed: oklch(0.65 0.2 25);
+  --stage-failed-bg: oklch(0.95 0.05 25);
+  --stage-inactive: oklch(0.92 0 0);
+  --stage-inactive-fg: oklch(0.7 0 0);
+
   /* Table colors (light mode) */
   --table-surface: #ffffff;
   --table-header: #f0f0f0;
@@ -332,6 +346,20 @@
   --status-success-bg: oklch(0.25 0.05 145);
   --status-warning-bg: oklch(0.25 0.05 85);
   --status-danger-bg: oklch(0.25 0.05 25);
+
+  /* Lifecycle progress stage colors (dark mode) */
+  --stage-pending: oklch(0.8 0.12 75);
+  --stage-pending-bg: oklch(0.25 0.04 85);
+  --stage-init: oklch(0.7 0.12 260);
+  --stage-init-bg: oklch(0.25 0.04 260);
+  --stage-running: oklch(0.7 0.12 250);
+  --stage-running-bg: oklch(0.25 0.04 250);
+  --stage-completed: oklch(0.75 0.12 145);
+  --stage-completed-bg: oklch(0.25 0.05 145);
+  --stage-failed: oklch(0.75 0.18 25);
+  --stage-failed-bg: oklch(0.25 0.05 25);
+  --stage-inactive: oklch(0.25 0 0);
+  --stage-inactive-fg: oklch(0.5 0 0);
 
   /* Table colors (dark mode) */
   --table-surface: #09090b; /* zinc-950 / sidebar */
