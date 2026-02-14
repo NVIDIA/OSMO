@@ -33,6 +33,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        checksum/envoy-config: {{ include (print $.Template.BasePath "/envoy-config.yaml") . | sha256sum }}
       {{- with .Values.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
