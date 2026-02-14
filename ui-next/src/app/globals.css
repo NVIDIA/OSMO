@@ -272,6 +272,13 @@
   --stage-inactive: oklch(0.92 0 0);
   --stage-inactive-fg: oklch(0.7 0 0);
 
+  /* Event viewer grid layouts */
+  --event-viewer-grid-cols: minmax(180px, 1fr) 70px 100px minmax(280px, 2fr) 80px;
+  --event-details-grid-cols: 76px 110px 1fr;
+
+  /* Lifecycle segment foreground colors */
+  --stage-fg: white;
+
   /* Table colors (light mode) */
   --table-surface: #ffffff;
   --table-header: #f0f0f0;
@@ -360,6 +367,9 @@
   --stage-failed-bg: oklch(0.25 0.05 25);
   --stage-inactive: oklch(0.25 0 0);
   --stage-inactive-fg: oklch(0.5 0 0);
+
+  /* Lifecycle segment foreground colors (dark mode) */
+  --stage-fg: oklch(0.145 0 0);
 
   /* Table colors (dark mode) */
   --table-surface: #09090b; /* zinc-950 / sidebar */
