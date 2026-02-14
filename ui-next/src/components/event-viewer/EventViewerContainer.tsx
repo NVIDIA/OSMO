@@ -27,19 +27,24 @@ import "@/components/event-viewer/event-viewer.css";
 export interface EventViewerContainerProps {
   url: string;
   className?: string;
-  showBorder?: boolean;
+  /** Scope: "workflow" shows search bar and expand/collapse controls, "task" always expands all rows with no controls */
+  scope?: "workflow" | "task";
 }
 
-export function EventViewerContainer({ url, className, showBorder = true }: EventViewerContainerProps) {
+export function EventViewerContainer({ url, className, scope = "workflow" }: EventViewerContainerProps) {
+  const isTaskScope = scope === "task";
+
   const [searchTerm, setSearchTerm] = useState("");
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
-  const { events, isLoading, error, refetch } = useEvents({ url, enabled: true });
+  const { events, isLoading, error, refetch } = useEvents({ url });
 
   const groupedTasks = useMemo(() => groupEventsByTask(events), [events]);
 
   const filteredTasks = useMemo(() => {
+    // In task scope, no search filtering
+    if (isTaskScope) return groupedTasks;
     if (!deferredSearchTerm) return groupedTasks;
 
     const term = deferredSearchTerm.toLowerCase();
@@ -52,7 +57,15 @@ export function EventViewerContainer({ url, className, showBorder = true }: Even
       }
       return false;
     });
-  }, [groupedTasks, deferredSearchTerm]);
+  }, [groupedTasks, deferredSearchTerm, isTaskScope]);
+
+  // In task scope, always expand all tasks
+  const effectiveExpandedIds = useMemo(() => {
+    if (isTaskScope) {
+      return new Set(filteredTasks.map((t) => t.id));
+    }
+    return expandedIds;
+  }, [isTaskScope, filteredTasks, expandedIds]);
 
   // Expand/collapse handlers
   const toggleExpand = useCallback((taskId: string) => {
@@ -93,7 +106,7 @@ export function EventViewerContainer({ url, className, showBorder = true }: Even
   // Loading state
   if (isLoading && events.length === 0) {
     return (
-      <div className={cn("flex items-center justify-center p-8", showBorder && "rounded-lg border", className)}>
+      <div className={cn("flex items-center justify-center p-8", className)}>
         <div className="text-center">
           <div className="mb-2 inline-block size-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]" />
           <p className="text-muted-foreground text-sm">Loading events...</p>
@@ -105,7 +118,7 @@ export function EventViewerContainer({ url, className, showBorder = true }: Even
   // Error state
   if (error) {
     return (
-      <div className={cn("p-4 text-center", showBorder && "rounded-lg border", className)}>
+      <div className={cn("p-4 text-center", className)}>
         <p className="text-destructive mb-2 text-sm">Failed to load events: {error.message}</p>
         <button
           onClick={refetch}
@@ -120,69 +133,65 @@ export function EventViewerContainer({ url, className, showBorder = true }: Even
   // Empty state
   if (groupedTasks.length === 0) {
     return (
-      <div className={cn("p-8 text-center", showBorder && "rounded-lg border", className)}>
+      <div className={cn("p-8 text-center", className)}>
         <p className="text-muted-foreground text-sm">No events available</p>
       </div>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col",
-        showBorder &&
-          "border-t-table-border-top border-l-table-border-left border-r-table-border-right border-b-table-border-bottom overflow-hidden rounded-lg border-t border-r border-b border-l",
-        className,
-      )}
-    >
-      {/* Filter bar */}
-      <div className="bg-card border-border border-b px-4 py-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Search */}
-          <div
-            className={cn(
-              "relative flex min-w-[300px] flex-1 items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors",
-              "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
-              "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
-            )}
-          >
-            <Search className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
-            <input
-              type="search"
-              placeholder="Search tasks or events..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="min-w-[150px] flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-zinc-400 focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            />
-          </div>
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      {/* Filter bar - only in workflow scope */}
+      {!isTaskScope && (
+        <div className="bg-card border-border border-b px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search */}
+            <div
+              className={cn(
+                "relative flex min-w-[300px] flex-1 items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors",
+                "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+                "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
+              )}
+            >
+              <Search className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <input
+                type="search"
+                placeholder="Search tasks or events..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="min-w-[150px] flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-zinc-400 focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+            </div>
 
-          {/* Expand/Collapse All */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={expandAll}
-              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-              title="Expand all tasks"
-            >
-              <ChevronsUpDown className="size-3" />
-              <span>Expand All</span>
-            </button>
-            <button
-              onClick={collapseAll}
-              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-              title="Collapse all tasks"
-            >
-              <ChevronsDownUp className="size-3" />
-              <span>Collapse All</span>
-            </button>
+            {/* Expand/Collapse All */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={expandAll}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                title="Expand all tasks"
+              >
+                <ChevronsUpDown className="size-3" />
+                <span>Expand All</span>
+              </button>
+              <button
+                onClick={collapseAll}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                title="Collapse all tasks"
+              >
+                <ChevronsDownUp className="size-3" />
+                <span>Collapse All</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Table */}
       <EventViewerTable
         tasks={filteredTasks}
-        expandedIds={expandedIds}
-        onToggleExpand={toggleExpand}
+        expandedIds={effectiveExpandedIds}
+        onToggleExpand={isTaskScope ? undefined : toggleExpand}
+        showHeader={!isTaskScope}
         className="min-h-0 flex-1"
       />
     </div>

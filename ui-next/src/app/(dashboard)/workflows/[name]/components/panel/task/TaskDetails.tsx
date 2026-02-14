@@ -611,6 +611,7 @@ export const TaskDetails = memo(function TaskDetails({
             <div className="absolute inset-0">
               <EventViewerContainer
                 url={task.events}
+                scope="task"
                 className="h-full"
               />
             </div>

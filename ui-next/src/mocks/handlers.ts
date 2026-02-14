@@ -1029,6 +1029,33 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 
   // Task events (DEPRECATED - use /api/workflow/:name/events?task_name=X&retry_id=Y instead)
   // Keeping for backward compatibility if any direct calls exist
+  http.get("*/api/workflow/:name/task/:taskName/events", async ({ params }) => {
+    await delay(MOCK_DELAY);
+
+    const workflowName = params.name as string;
+    const taskName = params.taskName as string;
+
+    const workflow = workflowGenerator.getByName(workflowName);
+    if (!workflow) {
+      return HttpResponse.text("", { status: 404 });
+    }
+
+    // Generate events for the specific task
+    const events = eventGenerator.generateEventsForWorkflow(workflow, taskName);
+
+    // Format to plain text (backend format)
+    const lines = events.map((event) => {
+      const timestamp = new Date(event.first_timestamp)
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "+00:00");
+      return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
+    });
+
+    return HttpResponse.text(lines.join("\n"), {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }),
 
   // ==========================================================================
   // Terminal / Exec (PTY Sessions)
