@@ -40,7 +40,6 @@ import { Card, CardContent } from "@/components/shadcn/card";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { CopyButton } from "@/components/copyable-value";
 import { ActionsSection, type ActionItem } from "@/components/panel/actions-section";
-import { EmptyTabPrompt } from "@/components/panel/empty-tab-prompt";
 import { LinksSection } from "@/components/panel/links-section";
 import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
@@ -48,6 +47,7 @@ import { TabPanel } from "@/components/panel/tab-panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { getStatusIcon } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { EventViewerContainer } from "@/components/event-viewer/EventViewerContainer";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
 import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTimeline";
@@ -454,17 +454,17 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         <TabPanel
           tab="events"
           activeTab={activeTab}
-          centered
-          className="p-4"
+          scrollable={false}
+          className="p-0"
         >
-          <EmptyTabPrompt
-            icon={History}
-            title="Kubernetes Events"
-            description="Pod scheduling, container lifecycle, and resource events"
-            url={workflow.events}
-            buttonLabel="View Events"
-            emptyText="No events available"
-          />
+          {activeTab === "events" && (
+            <div className="absolute inset-0">
+              <EventViewerContainer
+                url={workflow.events}
+                className="h-full"
+              />
+            </div>
+          )}
         </TabPanel>
 
         <TabPanel

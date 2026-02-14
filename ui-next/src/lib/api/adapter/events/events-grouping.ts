@@ -24,8 +24,8 @@ import { derivePodPhase } from "@/lib/api/adapter/events/events-utils";
  * and all of its lifecycle events. The `podPhase` field provides the canonical
  * K8s pod phase derived from the event stream.
  *
- * Fields that are cheap to derive from `events` are available via helper
- * functions (e.g., `getLastStage`, `taskHasErrors`) rather than being stored.
+ * Cheap derivations are available via helper functions (e.g., `getLastStage`)
+ * rather than being stored as fields.
  */
 export interface TaskGroup {
   /** Unique identifier (entity string from event stream, e.g., "worker_27 retry-2") */
@@ -41,8 +41,6 @@ export interface TaskGroup {
   podPhase: PodPhase;
   /** Human-readable duration string (e.g., "2h 15m", "45s") */
   duration: string;
-  /** Timestamp of the earliest event for this task */
-  startTime: Date | null;
   /** All events for this task, sorted chronologically (oldest first) */
   events: K8sEvent[];
 }
@@ -59,27 +57,9 @@ export function getLastStage(task: TaskGroup): LifecycleStage | null {
   return task.events[task.events.length - 1].stage;
 }
 
-/**
- * Check whether any event in the task has error severity.
- */
-export function taskHasErrors(task: TaskGroup): boolean {
-  return task.events.some((e) => e.severity === "error");
-}
-
-/**
- * Check whether any event in the task has warning severity.
- */
-export function taskHasWarnings(task: TaskGroup): boolean {
-  return task.events.some((e) => e.severity === "warn");
-}
-
 // ============================================================================
 // Internal Helpers
 // ============================================================================
-
-function isTerminalPhase(phase: PodPhase): boolean {
-  return phase === "Succeeded" || phase === "Failed";
-}
 
 function calculateDuration(startTime: Date | null, endTime: Date | undefined, terminal: boolean): string {
   if (!startTime) return "\u2014"; // em dash
@@ -132,7 +112,7 @@ export function groupEventsByTask(events: K8sEvent[]): TaskGroup[] {
     const taskName = taskEvents[0]?.taskName ?? entity;
     const retryId = taskEvents[0]?.retryId ?? 0;
     const podPhase = derivePodPhase(taskEvents);
-    const terminal = isTerminalPhase(podPhase);
+    const terminal = podPhase === "Succeeded" || podPhase === "Failed";
 
     tasks.push({
       id: entity,
@@ -140,16 +120,17 @@ export function groupEventsByTask(events: K8sEvent[]): TaskGroup[] {
       retryId,
       podPhase,
       duration: calculateDuration(startTime, endTime, terminal),
-      startTime,
       events: taskEvents,
     });
   }
 
-  // Sort tasks by start time (earliest first)
+  // Sort tasks by first event timestamp (earliest first)
   tasks.sort((a, b) => {
-    if (!a.startTime) return 1;
-    if (!b.startTime) return -1;
-    return a.startTime.getTime() - b.startTime.getTime();
+    const aTime = a.events[0]?.timestamp;
+    const bTime = b.events[0]?.timestamp;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+    return aTime.getTime() - bTime.getTime();
   });
 
   return tasks;
