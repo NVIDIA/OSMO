@@ -1470,6 +1470,100 @@ const response = await listDatasetFromBucketApiBucketListDatasetGet({
 
 ---
 
+### 24. Events API Returns Plain Text Without Pod Status Data
+
+**Priority:** Medium
+**Status:** Active workaround in `events-parser.ts`, `events-utils.ts`, `events-grouping.ts`
+
+The events endpoint (`GET /api/workflow/:name/events`) returns plain text event lines with no structured pod status information. The UI must infer pod phase, container state, and lifecycle stage entirely from event reasons.
+
+**Current backend format:**
+```
+2026-02-12 08:38:57+00:00 [worker_27] Created: Created container worker-27
+2026-02-12 08:39:02+00:00 [worker_27] Started: Started container worker-27
+```
+
+**What's missing:**
+1. **Pod phase** (`Pending`/`Running`/`Succeeded`/`Failed`/`Unknown`) -- must be inferred from event reasons
+2. **Pod conditions** (`Ready`, `PodScheduled`, `Initialized`, `ContainersReady`) -- not available
+3. **Container status** (ready, restartCount, image) -- not available
+4. **Structured event fields** (source.component, source.host, involvedObject.uid) -- not in plain text
+5. **Event count** (how many times event repeated) -- plain text has no deduplication
+
+**Workaround (client-side inference):**
+
+```typescript
+// events-utils.ts - derivePodPhase() infers phase from most recent event reason
+// e.g., "Started" -> Running, "OOMKilled" -> Failed, "Completed" -> Succeeded
+export function derivePodPhase(events: K8sEvent[]): PodPhase {
+  // Walk from newest to oldest event, return phase of first matching reason
+  for (const event of sorted) {
+    if (SUCCEEDED_REASONS.has(event.reason)) return "Succeeded";
+    if (FAILED_REASONS.has(event.reason)) return "Failed";
+    if (RUNNING_REASONS.has(event.reason)) return "Running";
+    if (PENDING_REASONS.has(event.reason)) return "Pending";
+  }
+  return "Unknown";
+}
+```
+
+**Limitations of inference:**
+- Cannot distinguish `Pending` (scheduling) from `Pending` (image pull in progress) without examining lifecycle stages
+- Cannot get actual pod conditions (readiness probes, liveness probes)
+- Cannot track container restart counts (would need structured API)
+- Cannot determine init container vs main container status
+- Edge cases: if a pod fails and restarts, the event stream may not clearly indicate recovery
+
+**Ideal API response (structured JSON or enriched plain text):**
+
+Option A: JSON response with pod status
+```json
+{
+  "events": [
+    {
+      "timestamp": "2026-02-12T08:38:57Z",
+      "type": "Normal",
+      "reason": "Created",
+      "message": "Created container worker-27",
+      "source": { "component": "kubelet", "host": "dgx-a100-01" },
+      "involvedObject": { "kind": "Pod", "name": "worker-27", "uid": "abc-123" },
+      "count": 1
+    }
+  ],
+  "podStatus": {
+    "phase": "Running",
+    "conditions": [
+      { "type": "PodScheduled", "status": "True", "lastTransitionTime": "..." },
+      { "type": "Ready", "status": "True", "lastTransitionTime": "..." }
+    ],
+    "containerStatuses": [
+      { "name": "training", "ready": true, "restartCount": 0, "state": { "running": { "startedAt": "..." } } }
+    ]
+  }
+}
+```
+
+Option B: Include pod phase in plain text header
+```
+# phase=Running conditions=PodScheduled:True,Ready:True
+2026-02-12 08:38:57+00:00 [worker_27] Created: Created container worker-27
+...
+```
+
+**When fixed:**
+1. Update `events-parser.ts` to parse structured JSON (or enriched plain text)
+2. Remove `derivePodPhase()` and `deriveContainerState()` inference logic
+3. Use actual pod status from API response directly
+4. `TaskGroup.podPhase` and container states become accurate, not inferred
+
+**Benefits:**
+- Accurate pod phase without heuristic inference
+- Real pod conditions (readiness, liveness) available to UI
+- Container restart counts and init container status visible
+- Proper container state tracking across restarts
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -1497,6 +1591,7 @@ const response = await listDatasetFromBucketApiBucketListDatasetGet({
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
 | #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
 | #23 Dataset pagination with filters | **High** | datasets.ts (client-side filtering) | Add offset param to API |
+| #24 Events API lacks pod status data | Medium | events-parser.ts, events-utils.ts, events-grouping.ts | Use actual pod status from API |
 
 ### Priority Guide
 
