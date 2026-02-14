@@ -112,10 +112,10 @@ class Jwt:
 
 class TokenLoginStorage(pydantic.BaseModel):
     """Stores id_token and refresh_token for logging in"""
-    refresh_token: str | None
+    refresh_token: str | None = None
     id_token: str
-    refresh_url: str | None
-    username: str | None
+    refresh_url: str | None = None
+    username: str | None = None
     _id_token_jwt: Jwt | None = pydantic.PrivateAttr(None)
 
     @property
