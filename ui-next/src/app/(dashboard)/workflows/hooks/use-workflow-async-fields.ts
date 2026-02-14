@@ -113,11 +113,11 @@ export function useWorkflowAsyncFields(): UseWorkflowAsyncFieldsReturn {
       label: "User",
       hint: "submitted by",
       prefix: "user:",
-      freeFormHint: "Type any username, press Enter",
       getValues: getUserValues,
       isLoading: usersLoading,
-      // User list is filtered (only users who submitted workflows), not exhaustive
-      exhaustive: false,
+      // Complete list of users who submitted workflows
+      exhaustive: true,
+      requiresValidValue: true,
     }),
     [getUserValues, usersLoading],
   );
@@ -129,13 +129,11 @@ export function useWorkflowAsyncFields(): UseWorkflowAsyncFieldsReturn {
       label: "Pool",
       hint: "pool name",
       prefix: "pool:",
-      freeFormHint: "Type any pool, press Enter",
       getValues: getPoolValues,
       isLoading: poolsLoading,
-      // Pool list is complete (all pools in system), exhaustive
+      // Pool list is complete (all pools in system)
       exhaustive: true,
-      // Allow free-form input (backend validates), don't require exact match
-      requiresValidValue: false,
+      requiresValidValue: true,
     }),
     [getPoolValues, poolsLoading],
   );
