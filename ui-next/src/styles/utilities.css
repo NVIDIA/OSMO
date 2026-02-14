@@ -194,4 +194,75 @@
       opacity: 0.7;
     }
   }
+
+  /* ==========================================================================
+     Event Badge Styling
+     Use data attributes for semantic, maintainable event status badges
+     ========================================================================== */
+
+  /* Base badge styling - default/info state */
+  .event-badge {
+    @apply bg-[color:oklch(0.95_0.03_250)] text-[color:oklch(0.45_0.1_250)] dark:bg-[color:oklch(0.25_0.04_250)] dark:text-[color:oklch(0.75_0.1_250)];
+  }
+
+  /* Error severity */
+  .event-badge[data-severity="error"] {
+    @apply bg-danger-bg text-danger;
+  }
+
+  /* Warning severity */
+  .event-badge[data-severity="warn"] {
+    @apply bg-warning-bg text-warning;
+  }
+
+  /* Success events (positive lifecycle events) */
+  .event-badge[data-reason="Ready"],
+  .event-badge[data-reason="Started"],
+  .event-badge[data-reason="Pulled"],
+  .event-badge[data-reason="Scheduled"] {
+    @apply bg-success-bg text-success;
+  }
+
+  /* ==========================================================================
+     Lifecycle Segment Styling
+     Use data attributes for semantic state-based styling
+     ========================================================================== */
+
+  .lifecycle-segment {
+    background: var(--stage-inactive);
+    color: var(--stage-inactive-fg);
+  }
+
+  /* Done state - completed successfully */
+  .lifecycle-segment[data-state="done"] {
+    background: var(--stage-completed);
+    color: var(--stage-fg);
+  }
+
+  /* Failed state - error occurred */
+  .lifecycle-segment[data-state="failed"] {
+    background: var(--stage-failed);
+    color: var(--stage-fg);
+  }
+
+  /* Active state with stage-specific colors */
+  .lifecycle-segment[data-state="active"][data-stage="pending"] {
+    background: var(--stage-pending);
+    color: var(--stage-fg);
+  }
+
+  .lifecycle-segment[data-state="active"][data-stage="init"] {
+    background: var(--stage-init);
+    color: var(--stage-fg);
+  }
+
+  .lifecycle-segment[data-state="active"][data-stage="running"] {
+    background: var(--stage-running);
+    color: var(--stage-fg);
+  }
+
+  .lifecycle-segment[data-state="active"][data-stage="done"] {
+    background: var(--stage-completed);
+    color: var(--stage-fg);
+  }
 }
