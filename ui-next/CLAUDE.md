@@ -230,6 +230,65 @@ Before declaring code "clean":
 4. ✅ Derived values are helpers, not fields (unless justified)
 5. ✅ Challenged every field: "Could consumers compute this inline?"
 
+## Styling Architecture & Tailwind Best Practices
+
+**Use the `tailwind-css-architect` agent proactively to review styling code for anti-patterns.**
+
+### When to Use tailwind-css-architect
+
+Launch this agent when:
+- Building new components with significant styling logic
+- Reviewing code that computes CSS classes in JavaScript
+- Refactoring styling patterns for consistency
+- After writing styling-heavy features (modals, tables, cards, layouts)
+
+### Styling Anti-Patterns to Detect
+
+**❌ JavaScript functions returning class strings:**
+```typescript
+// BAD: Mixing styling logic with JavaScript
+export function getBadgeClass(status: string): string {
+  if (status === "error") return "bg-red-100 text-red-800";
+  if (status === "warn") return "bg-yellow-100 text-yellow-800";
+  return "bg-gray-100 text-gray-800";
+}
+```
+
+**✅ Data attributes + CSS selectors:**
+```typescript
+// GOOD: Separation of concerns
+<span className="badge" data-status={status}>
+```
+```css
+.badge[data-status="error"] { @apply bg-red-100 text-red-800; }
+.badge[data-status="warn"] { @apply bg-yellow-100 text-yellow-800; }
+.badge { @apply bg-gray-100 text-gray-800; }
+```
+
+**Why this is better:**
+- Separation of concerns (styling in CSS, not JS)
+- Single source of truth for all badge styles
+- Easier to test (CSS is independent)
+- More semantic (data describes WHAT, CSS describes HOW)
+- Follows Tailwind 4's CSS-first approach
+
+### Other Anti-Patterns
+
+- **Inline style objects** → Tailwind utilities or CSS variables
+- **Magic color/spacing values** → CSS variables in `globals.css`
+- **Computed styles in render** → CSS custom properties with inline styles
+- **Style logic mixed with business logic** → Extract to semantic CSS classes
+
+### Styling Checklist
+
+Before declaring styling code "clean":
+
+1. ✅ No JavaScript functions returning class strings (use data attributes + CSS)
+2. ✅ No inline `style` objects (use Tailwind or CSS variables)
+3. ✅ No magic values (use CSS variables from `globals.css`)
+4. ✅ Styling concerns separated from business logic
+5. ✅ GPU-accelerated animations (transform/opacity, not width/height)
+
 ## Production/Mock Code Separation
 
 **NEVER add mock-related code to production source files.**
