@@ -43,6 +43,7 @@ import { TabPanel } from "@/components/panel/tab-panel";
 import { useTick } from "@/hooks/use-tick";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 import { ShellConnectPrompt } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskShell";
+import { EventViewerContainer } from "@/components/event-viewer/EventViewerContainer";
 import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import type { TaskTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
@@ -603,17 +604,17 @@ export const TaskDetails = memo(function TaskDetails({
         <TabPanel
           tab="events"
           activeTab={activeTab}
-          centered
-          className="p-4"
+          scrollable={false}
+          className="p-0"
         >
-          <EmptyTabPrompt
-            icon={History}
-            title="Kubernetes Events"
-            description="Pod scheduling, container lifecycle, and resource events"
-            url={task.events}
-            buttonLabel="View Events"
-            emptyText="No events available"
-          />
+          {activeTab === "events" && (
+            <div className="absolute inset-0">
+              <EventViewerContainer
+                url={task.events}
+                className="h-full"
+              />
+            </div>
+          )}
         </TabPanel>
       </div>
     </div>

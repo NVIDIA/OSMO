@@ -31,6 +31,13 @@
     --stage-fg: oklch(0.145 0 0);
   }
 
+  /* Scroll inner wrapper - establishes min-width so the scroll container
+     can detect overflow and show a horizontal scrollbar. Without this,
+     child grids with min-width would overflow their w-full parents silently. */
+  .event-viewer-scroll-inner {
+    min-width: 830px; /* Sum of grid minimums: 180 + 70 + 150 + 350 + 80 */
+  }
+
   /* Grid column templates for event viewer tables */
   .event-viewer-grid {
     display: grid;
@@ -39,7 +46,7 @@
 
   .event-details-grid {
     display: grid;
-    grid-template-columns: 150px 110px 1fr;
+    grid-template-columns: 150px 140px 1fr;
   }
 
   /* ==========================================================================
@@ -120,6 +127,85 @@
   .lifecycle-segment[data-state="active"][data-stage="done"] {
     background: var(--stage-completed);
     color: var(--stage-fg);
+  }
+
+  /* ==========================================================================
+     Expand / Collapse Animation (CSS Grid rows technique)
+
+     How it works:
+     - The wrapper uses `display: grid` with `grid-template-rows`
+     - Collapsed: `grid-template-rows: 0fr` (height collapses to 0)
+     - Expanded:  `grid-template-rows: 1fr` (height grows to content)
+     - The inner `overflow: hidden` prevents content from overflowing
+       during the transition
+     - Opacity fades in tandem for a polished feel
+
+     This is GPU-friendly: the browser optimizes grid-template-rows
+     transitions internally, and opacity is a composited property.
+     ========================================================================== */
+
+  .event-panel-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows var(--duration-slow) var(--ease-out),
+      opacity var(--duration-slow) var(--ease-out);
+  }
+
+  .event-panel-wrapper[data-expanded="true"] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .event-panel-inner {
+    overflow: hidden;
+  }
+
+  /* ==========================================================================
+     Event Row Stagger Animation
+
+     Each event row inside the expanded panel fades + slides in with a
+     small stagger delay. The `--row-index` custom property is set inline
+     on each row and controls the animation-delay.
+
+     Uses translateY (GPU-accelerated) instead of margin/padding.
+     ========================================================================== */
+
+  @keyframes event-row-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .event-row-animated {
+    animation: event-row-reveal var(--duration-moderate) var(--ease-out) both;
+    animation-delay: calc(var(--row-index, 0) * 30ms);
+  }
+
+  /* ==========================================================================
+     Reduced Motion Support
+
+     When the user prefers reduced motion, disable all expand/collapse and
+     stagger animations. The grid still toggles between 0fr/1fr but
+     instantly, so content is still shown/hidden correctly.
+     ========================================================================== */
+
+  @media (prefers-reduced-motion: reduce) {
+    .event-panel-wrapper {
+      transition-duration: 0.01ms;
+    }
+
+    .event-row-animated {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
   }
 
   /* ==========================================================================
