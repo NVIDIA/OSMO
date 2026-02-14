@@ -19,7 +19,7 @@
  * Based on canonical K8s event reasons and pod lifecycle semantics.
  */
 
-import type { EventSeverity, K8sEvent, LifecycleStage, PodPhase } from "@/lib/api/adapter/events/events-types";
+import type { EventSeverity, LifecycleStage } from "@/lib/api/adapter/events/events-types";
 import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
 
 // ============================================================================
@@ -105,12 +105,12 @@ export function classifyEvent(
 }
 
 // ============================================================================
-// Pod Phase Derivation
+// Pod Phase Reason Sets (used by computeDerivedState)
 // ============================================================================
 
-const SUCCEEDED_REASONS = new Set<string>([K8S_EVENT_REASONS.SUCCEEDED, K8S_EVENT_REASONS.COMPLETED]);
+export const SUCCEEDED_REASONS = new Set<string>([K8S_EVENT_REASONS.SUCCEEDED, K8S_EVENT_REASONS.COMPLETED]);
 
-const FAILED_REASONS = new Set<string>([
+export const FAILED_REASONS = new Set<string>([
   K8S_EVENT_REASONS.FAILED,
   K8S_EVENT_REASONS.OOM_KILLED,
   K8S_EVENT_REASONS.EVICTED,
@@ -118,9 +118,9 @@ const FAILED_REASONS = new Set<string>([
   // Note: CRASH_LOOP_BACK_OFF is NOT terminal - pod is still Running and retrying
 ]);
 
-const RUNNING_REASONS = new Set<string>([K8S_EVENT_REASONS.STARTED, K8S_EVENT_REASONS.READY]);
+export const RUNNING_REASONS = new Set<string>([K8S_EVENT_REASONS.STARTED, K8S_EVENT_REASONS.READY]);
 
-const PENDING_REASONS = new Set<string>([
+export const PENDING_REASONS = new Set<string>([
   K8S_EVENT_REASONS.SCHEDULED,
   K8S_EVENT_REASONS.PULLING,
   K8S_EVENT_REASONS.PULLED,
@@ -132,30 +132,3 @@ const PENDING_REASONS = new Set<string>([
   K8S_EVENT_REASONS.INVALID_IMAGE_NAME,
   K8S_EVENT_REASONS.PREEMPTING,
 ]);
-
-/**
- * Derive pod phase from event stream.
- *
- * Uses the most recent event to determine current phase, working backwards
- * through history. This correctly handles recovery scenarios where a pod
- * may have had a failure event followed by a successful restart.
- *
- * Reference: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
- */
-export function derivePodPhase(events: K8sEvent[]): PodPhase {
-  if (events.length === 0) return "Unknown";
-
-  // Sort by timestamp DESC (newest first) to find the most recent relevant event
-  const sorted = [...events].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-
-  for (const event of sorted) {
-    const reason = event.reason;
-
-    if (SUCCEEDED_REASONS.has(reason)) return "Succeeded";
-    if (FAILED_REASONS.has(reason)) return "Failed";
-    if (RUNNING_REASONS.has(reason)) return "Running";
-    if (PENDING_REASONS.has(reason)) return "Pending";
-  }
-
-  return "Unknown";
-}
