@@ -179,4 +179,19 @@
     background-size: 6px 1px;
     opacity: 0.4;
   }
+
+  /* ==========================================================================
+     Event Viewer Animations
+     ========================================================================== */
+
+  /* Pulse animation for active lifecycle stage */
+  @keyframes stage-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
 }
