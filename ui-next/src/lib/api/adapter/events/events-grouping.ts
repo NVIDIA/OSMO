@@ -14,19 +14,16 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import type { K8sEvent, LifecycleStage, PodPhase } from "@/lib/api/adapter/events/events-types";
-import { derivePodPhase } from "@/lib/api/adapter/events/events-utils";
+import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 import { naturalCompare } from "@/lib/utils";
+import { computeDerivedState, type TaskDerivedState } from "@/lib/api/adapter/events/events-derived-state";
 
 /**
  * Grouped task with its events.
  *
  * Represents a single task entity (identified by [entity] in the event stream)
- * and all of its lifecycle events. The `podPhase` field provides the canonical
- * K8s pod phase derived from the event stream.
- *
- * Cheap derivations are available via helper functions (e.g., `getLastStage`)
- * rather than being stored as fields.
+ * and all of its lifecycle events. All derived properties (podPhase, lifecycle,
+ * flags) live on `derived` and are computed once from events during grouping.
  */
 export interface TaskGroup {
   /** Unique identifier (entity string from event stream, e.g., "worker_27 retry-2") */
@@ -35,27 +32,15 @@ export interface TaskGroup {
   name: string;
   /** Retry attempt number (0 for initial, >0 for retries) */
   retryId: number;
-  /**
-   * Canonical K8s pod phase derived from the event stream.
-   * Reference: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-   */
-  podPhase: PodPhase;
   /** Human-readable duration string (e.g., "2h 15m", "45s") */
   duration: string;
   /** All events for this task, sorted chronologically (oldest first) */
   events: K8sEvent[];
-}
-
-// ============================================================================
-// Helper Functions (compute on demand instead of storing)
-// ============================================================================
-
-/**
- * Get the lifecycle stage of the most recent event for a task.
- */
-export function getLastStage(task: TaskGroup): LifecycleStage | null {
-  if (task.events.length === 0) return null;
-  return task.events[task.events.length - 1].stage;
+  /**
+   * Cached derived state computed once from events.
+   * SSOT: Events array -> computeDerivedState() -> cached here.
+   */
+  derived: TaskDerivedState;
 }
 
 // ============================================================================
@@ -86,10 +71,11 @@ function calculateDuration(startTime: Date | null, endTime: Date | undefined, te
 // ============================================================================
 
 /**
- * Group interleaved events by task entity and derive pod lifecycle state.
+ * Group interleaved events by task entity and compute derived state.
  *
  * Events are grouped by their `entity` field (e.g., "worker_27" or "worker_27 retry-2").
- * Each group gets its pod phase derived from the event stream using `derivePodPhase()`.
+ * Each group gets all derived state (podPhase, lifecycle, flags) computed once via
+ * `computeDerivedState()`.
  */
 export function groupEventsByTask(events: K8sEvent[]): TaskGroup[] {
   const taskMap = new Map<string, K8sEvent[]>();
@@ -112,16 +98,17 @@ export function groupEventsByTask(events: K8sEvent[]): TaskGroup[] {
     const endTime = taskEvents[taskEvents.length - 1]?.timestamp;
     const taskName = taskEvents[0]?.taskName ?? entity;
     const retryId = taskEvents[0]?.retryId ?? 0;
-    const podPhase = derivePodPhase(taskEvents);
-    const terminal = podPhase === "Succeeded" || podPhase === "Failed";
+
+    const derived = computeDerivedState(taskEvents);
+    const terminal = derived.podPhase === "Succeeded" || derived.podPhase === "Failed";
 
     tasks.push({
       id: entity,
       name: taskName,
       retryId,
-      podPhase,
       duration: calculateDuration(startTime, endTime, terminal),
       events: taskEvents,
+      derived,
     });
   }
 
