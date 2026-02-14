@@ -219,6 +219,44 @@ export function formatTime24UTC(date: Date | string | null): string {
 }
 
 /**
+ * Format date and time in succinct format with seconds.
+ * Output: "2/12 2:30:45p" (same year) or "2/12/26 2:30:45p" (different year)
+ *
+ * Compact format for table cells - extends formatDateTimeSuccinct with seconds.
+ * Matches workflow table format but includes seconds for precision.
+ *
+ * @param date - The date to format
+ * @param referenceYear - The year to compare against (pass from useTick for consistency)
+ */
+export function formatDateTimeSuccinctWithSeconds(date: Date | string | null, referenceYear?: number): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const year = d.getFullYear();
+  const hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, "0");
+  const seconds = d.getSeconds().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "p" : "a";
+  const hour12 = hours % 12 || 12;
+
+  // If no reference year provided, always show the full year for SSR safety
+  if (referenceYear === undefined) {
+    return `${month}/${day}/${year % 100} ${hour12}:${minutes}:${seconds}${ampm}`;
+  }
+
+  // Compare against reference year
+  if (year === referenceYear) {
+    return `${month}/${day} ${hour12}:${minutes}:${seconds}${ampm}`;
+  }
+
+  return `${month}/${day}/${year % 100} ${hour12}:${minutes}:${seconds}${ampm}`;
+}
+
+/**
  * Format time in 24-hour format with milliseconds.
  * Output: "14:30:45.123"
  *
