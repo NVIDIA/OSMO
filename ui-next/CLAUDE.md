@@ -170,6 +170,66 @@ const [urlOpen] = useQueryState('open');
 const [isOpen, setIsOpen] = useQueryState('open');
 ```
 
+## Code Simplification Standards
+
+When refactoring or reviewing code, apply these standards:
+
+### Dead Code vs Redundant Code
+
+- **Dead code**: Unused functions/variables (grep can find)
+- **Redundant code**: Used but shouldn't exist (requires reasoning)
+
+Both must be removed.
+
+### Challenge Every Abstraction
+
+Every field, function, and type must justify its existence:
+
+```typescript
+// ❌ Redundant: trivial derivation stored as state
+interface TaskGroup {
+  podPhase: PodPhase;           // "Pending" | "Running" | "Succeeded" | "Failed"
+  status: TaskStatus;            // "pending" | "running" | "completed" | "failed"
+}
+
+// ✅ Single source of truth + helper for UI labels
+interface TaskGroup {
+  podPhase: PodPhase;            // Only canonical field
+}
+function getStatusLabel(phase: PodPhase): string { /* ... */ }
+```
+
+### Anti-Patterns to Detect
+
+- **Derived fields from trivial transformations**: If it's a simple `switch`/`map`, make it a helper function
+- **Multiple representations of same concept**: Pick one canonical representation (prefer the standard/upstream one)
+- **Stored computed values**: If cheap to compute, derive on-demand
+- **Intermediate values as fields**: Only store if expensive to recompute or needed for reconciliation
+
+### When to Store vs Compute
+
+**Store** if:
+- Expensive to compute repeatedly
+- Needed for time-travel/history
+- Required for reconciliation logic
+- Comes from external source (API, user input)
+
+**Compute** if:
+- Cheap transformation (O(1) switch/map)
+- Always derivable from other fields
+- Only used in one place
+- Makes testing simpler
+
+### Refactoring Checklist
+
+Before declaring code "clean":
+
+1. ✅ Removed dead code (unused references)
+2. ✅ Removed redundant code (unjustified abstractions)
+3. ✅ Single source of truth for each concept
+4. ✅ Derived values are helpers, not fields (unless justified)
+5. ✅ Challenged every field: "Could consumers compute this inline?"
+
 ## Production/Mock Code Separation
 
 **NEVER add mock-related code to production source files.**
