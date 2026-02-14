@@ -24,47 +24,56 @@ import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 export interface TaskRowProps {
   task: TaskGroup;
   isExpanded: boolean;
-  onToggleExpand: (taskId: string) => void;
+  onToggleExpand?: (taskId: string) => void;
   isLast: boolean;
 }
 
 /**
- * Renders a single task row with expand/collapse behavior.
+ * Renders a single task row with optional expand/collapse behavior.
  * Shows task name, retry badge, lifecycle progress, duration, and event count.
  * When expanded, renders EventDetailsPanel below.
+ * If onToggleExpand is undefined, row is always expanded and not interactive.
  */
 export const TaskRow = memo(function TaskRow({ task, isExpanded, onToggleExpand, isLast }: TaskRowProps) {
-  const onToggle = useCallback(() => onToggleExpand(task.id), [onToggleExpand, task.id]);
+  const isInteractive = onToggleExpand !== undefined;
+  const onToggle = useCallback(() => onToggleExpand?.(task.id), [onToggleExpand, task.id]);
 
   return (
     <div>
       {/* Task row */}
       <div
         className={cn(
-          "hover:bg-muted cursor-pointer transition-colors duration-150",
+          "transition-colors duration-150",
+          isInteractive && "hover:bg-muted cursor-pointer",
           !isExpanded && !isLast && "border-border border-b",
         )}
-        onClick={onToggle}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        aria-expanded={isExpanded}
+        onClick={isInteractive ? onToggle : undefined}
+        role={isInteractive ? "button" : undefined}
+        tabIndex={isInteractive ? 0 : undefined}
+        onKeyDown={
+          isInteractive
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onToggle();
+                }
+              }
+            : undefined
+        }
+        aria-expanded={isInteractive ? isExpanded : undefined}
       >
         <div className="event-viewer-grid items-center">
           {/* Task name */}
           <div className="flex items-center gap-2.5 px-4 py-3">
-            <ChevronRight
-              className={cn(
-                "text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none",
-                isExpanded && "rotate-90",
-              )}
-              style={{ transitionDuration: "var(--duration-slow)", transitionTimingFunction: "var(--ease-spring)" }}
-            />
+            {isInteractive && (
+              <ChevronRight
+                className={cn(
+                  "text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none",
+                  isExpanded && "rotate-90",
+                )}
+                style={{ transitionDuration: "var(--duration-slow)", transitionTimingFunction: "var(--ease-spring)" }}
+              />
+            )}
             <div className="min-w-0">
               <div className="text-foreground truncate font-mono text-xs font-medium">{task.name}</div>
               {task.events.length > 0 && task.events[0]?.involvedObject.kind === "Task" && (

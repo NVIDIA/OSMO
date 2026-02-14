@@ -16,6 +16,7 @@
 
 import type { K8sEvent, LifecycleStage, PodPhase } from "@/lib/api/adapter/events/events-types";
 import { derivePodPhase } from "@/lib/api/adapter/events/events-utils";
+import { naturalCompare } from "@/lib/utils";
 
 /**
  * Grouped task with its events.
@@ -124,13 +125,14 @@ export function groupEventsByTask(events: K8sEvent[]): TaskGroup[] {
     });
   }
 
-  // Sort tasks by first event timestamp (earliest first)
+  // Sort tasks using natural sort (handles numeric suffixes correctly)
+  // Example: task_1, task_2, task_10 (not task_1, task_10, task_2)
+  // Groups retries together: task_1 retry-0, task_1 retry-1, task_1 retry-2
   tasks.sort((a, b) => {
-    const aTime = a.events[0]?.timestamp;
-    const bTime = b.events[0]?.timestamp;
-    if (!aTime) return 1;
-    if (!bTime) return -1;
-    return aTime.getTime() - bTime.getTime();
+    const nameCompare = naturalCompare(a.name, b.name);
+    if (nameCompare !== 0) return nameCompare;
+    // If names are equal, sort by retry ID (ascending)
+    return a.retryId - b.retryId;
   });
 
   return tasks;

@@ -34,11 +34,18 @@ const HEADERS = ["Task", "Retry", "Duration", "Lifecycle", "Events"] as const;
 export interface EventViewerTableProps {
   tasks: TaskGroup[];
   expandedIds: Set<string>;
-  onToggleExpand: (taskId: string) => void;
+  onToggleExpand?: (taskId: string) => void;
+  showHeader?: boolean;
   className?: string;
 }
 
-export function EventViewerTable({ tasks, expandedIds, onToggleExpand, className }: EventViewerTableProps) {
+export function EventViewerTable({
+  tasks,
+  expandedIds,
+  onToggleExpand,
+  showHeader = true,
+  className,
+}: EventViewerTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizerCompat({
@@ -89,18 +96,20 @@ export function EventViewerTable({ tasks, expandedIds, onToggleExpand, className
         {/* Inner wrapper enforces min-width so horizontal scroll activates */}
         <div className="event-viewer-scroll-inner">
           {/* Table header - inside scroll container for horizontal sync */}
-          <div className="table-header sticky top-0 z-10">
-            <div className="event-viewer-grid text-muted-foreground text-xs font-semibold">
-              {HEADERS.map((header) => (
-                <div
-                  key={header}
-                  className="px-4 py-2"
-                >
-                  {header}
-                </div>
-              ))}
+          {showHeader && (
+            <div className="table-header sticky top-0 z-10">
+              <div className="event-viewer-grid text-muted-foreground text-xs font-semibold">
+                {HEADERS.map((header) => (
+                  <div
+                    key={header}
+                    className="px-4 py-2"
+                  >
+                    {header}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Virtualized table body */}
           <div
