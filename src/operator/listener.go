@@ -80,10 +80,10 @@ func main() {
 
 	// Launch all listeners in parallel
 	wg.Add(4)
-	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
-	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", &wg)
-	go runListenerWithRetry(ctx, nodeListener, "NodeListener", &wg)
-	go runListenerWithRetry(ctx, eventListener, "EventListener", &wg)
+	go runListenerWithRetry(ctx, workflowListener, "workflow", &wg)
+	go runListenerWithRetry(ctx, nodeUsageListener, "node_usage", &wg)
+	go runListenerWithRetry(ctx, nodeListener, "node", &wg)
+	go runListenerWithRetry(ctx, eventListener, "event", &wg)
 
 	// Wait for all listeners to complete
 	wg.Wait()
@@ -217,6 +217,18 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
 		}
 
 		retryCount++
+		// Record backend_init_retry_total metric
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"backend_init_retry_total",
+				1,
+				"count",
+				"Retry attempts during backend initialization",
+				nil,
+			)
+		}
+
 		if retryCount == 1 {
 			log.Printf("Failed to initialize backend: %v. Retrying...", err)
 		}

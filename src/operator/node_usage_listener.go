@@ -45,7 +45,7 @@ type NodeUsageListener struct {
 func NewNodeUsageListener(args utils.ListenerArgs) *NodeUsageListener {
 	return &NodeUsageListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_node_usage_listener", utils.StreamNameResource),
+			args, "last_progress_node_usage_listener", utils.StreamNameNodeUsage),
 		args:       args,
 		aggregator: utils.NewNodeUsageAggregator(args.Namespace),
 	}
@@ -90,6 +90,17 @@ func (nul *NodeUsageListener) sendMessages(
 					return
 				}
 				log.Printf("usage watcher stopped unexpectedly...")
+				// Record message_channel_closed_unexpectedly_total
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_channel_closed_unexpectedly_total",
+						1,
+						"count",
+						"Message channel closed without context cancellation",
+						map[string]string{"listener": "node_usage"},
+					)
+				}
 				cancel(fmt.Errorf("usage watcher stopped"))
 				return
 			}
@@ -111,6 +122,17 @@ func (nul *NodeUsageListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
+		// Record kubernetes_client_creation_error_total
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kubernetes_client_creation_error_total",
+				1,
+				"count",
+				"Failures to create Kubernetes client",
+				map[string]string{"listener": "node_usage"},
+			)
+		}
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}
@@ -248,7 +270,7 @@ func (nul *NodeUsageListener) watchPods(
 				1,
 				"count",
 				"Failed informer cache synchronizations",
-				map[string]string{"listener": "NodeUsageListener"},
+				map[string]string{"listener": "node_usage"},
 			)
 		}
 		return
@@ -262,7 +284,7 @@ func (nul *NodeUsageListener) watchPods(
 			1,
 			"count",
 			"Successful informer cache synchronizations",
-			map[string]string{"listener": "NodeUsageListener"},
+			map[string]string{"listener": "node_usage"},
 		)
 	}
 
@@ -281,7 +303,19 @@ func (nul *NodeUsageListener) watchPods(
 			return
 		case <-flushTicker.C:
 			// Debounced flush of dirty nodes - send usage messages
+			start := time.Now()
 			nul.flushDirtyNodes(ctx, ch)
+			// Record flush duration
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordHistogram(
+					ctx,
+					"node_usage_flush_duration_seconds",
+					time.Since(start).Seconds(),
+					"seconds",
+					"Duration of dirty node usage flush cycle",
+					nil,
+				)
+			}
 		}
 	}
 }
@@ -289,6 +323,18 @@ func (nul *NodeUsageListener) watchPods(
 // rebuildPodsFromStore rebuilds aggregator state from pod informer cache
 func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
 	log.Println("Rebuilding pod aggregator state from informer store...")
+
+	// Record informer_rebuild_total
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			context.Background(),
+			"informer_rebuild_total",
+			1,
+			"count",
+			"Number of full state rebuilds from informer store",
+			map[string]string{"listener": "node_usage"},
+		)
+	}
 
 	// Reset aggregator state
 	nul.aggregator.Reset()
@@ -317,6 +363,18 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 		return
 	}
 
+	// Record node_usage_flush_nodes_count
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordHistogram(
+			ctx,
+			"node_usage_flush_nodes_count",
+			float64(len(dirtyNodes)),
+			"count",
+			"Number of dirty nodes flushed per usage update cycle",
+			nil,
+		)
+	}
+
 	sent := 0
 	for _, hostname := range dirtyNodes {
 		msg := nul.buildNodeUsageMessage(hostname)
@@ -332,7 +390,7 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 						1,
 						"count",
 						"Total messages added to listener channel buffer",
-						map[string]string{"listener": "resource"},
+						map[string]string{"listener": "node_usage"},
 					)
 					// Record message_channel_pending
 					metricCreator.RecordHistogram(
@@ -341,7 +399,7 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 						float64(len(usageChan)),
 						"count",
 						"Number of messages pending in the listener channel buffer",
-						map[string]string{"listener": "resource"},
+						map[string]string{"listener": "node_usage"},
 					)
 				}
 			case <-ctx.Done():

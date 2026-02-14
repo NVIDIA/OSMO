@@ -91,6 +91,17 @@ func (el *EventListener) sendMessages(
 					return
 				}
 				log.Println("Event watcher stopped unexpectedly")
+				// Record message_channel_closed_unexpectedly_total
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_channel_closed_unexpectedly_total",
+						1,
+						"count",
+						"Message channel closed without context cancellation",
+						map[string]string{"listener": "event"},
+					)
+				}
 				cancel(fmt.Errorf("event watcher stopped"))
 				return
 			}
@@ -122,6 +133,20 @@ func (el *EventListener) watchEvents(
 				return
 			case <-cleanupTicker.C:
 				tracker.cleanup()
+				// Record event_tracker_size after cleanup
+				tracker.mu.RLock()
+				size := len(tracker.sent)
+				tracker.mu.RUnlock()
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordHistogram(
+						ctx,
+						"event_tracker_size",
+						float64(size),
+						"count",
+						"Number of entries in event deduplication tracker after cleanup",
+						nil,
+					)
+				}
 				log.Println("Event tracker cleanup completed")
 			}
 		}
@@ -130,6 +155,17 @@ func (el *EventListener) watchEvents(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
+		// Record kubernetes_client_creation_error_total
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kubernetes_client_creation_error_total",
+				1,
+				"count",
+				"Failures to create Kubernetes client",
+				map[string]string{"listener": "event"},
+			)
+		}
 		return
 	}
 
@@ -164,6 +200,17 @@ func (el *EventListener) watchEvents(
 
 		// Check if we should process this event (deduplication)
 		if !tracker.shouldProcess(event.Type, event.Reason, event.InvolvedObject.Name) {
+			// Record event_deduplicated_total
+			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+				metricCreator.RecordCounter(
+					ctx,
+					"event_deduplicated_total",
+					1,
+					"count",
+					"Events skipped due to deduplication",
+					nil,
+				)
+			}
 			return
 		}
 
@@ -242,7 +289,7 @@ func (el *EventListener) watchEvents(
 				1,
 				"count",
 				"Failed informer cache synchronizations",
-				map[string]string{"listener": "EventListener"},
+				map[string]string{"listener": "event"},
 			)
 		}
 		return
@@ -256,7 +303,7 @@ func (el *EventListener) watchEvents(
 			1,
 			"count",
 			"Successful informer cache synchronizations",
-			map[string]string{"listener": "EventListener"},
+			map[string]string{"listener": "event"},
 		)
 	}
 

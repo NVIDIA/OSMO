@@ -94,6 +94,17 @@ func (wl *WorkflowListener) sendMessages(
 					return
 				}
 				log.Println("Pod watcher stopped unexpectedly, draining channel...")
+				// Record message_channel_closed_unexpectedly_total
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_channel_closed_unexpectedly_total",
+						1,
+						"count",
+						"Message channel closed without context cancellation",
+						map[string]string{"listener": "workflow"},
+					)
+				}
 				wl.drainMessageChannel(ch)
 				cancel(fmt.Errorf("pod watcher stopped"))
 				return
@@ -135,6 +146,17 @@ func (wl *WorkflowListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
+		// Record kubernetes_client_creation_error_total
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kubernetes_client_creation_error_total",
+				1,
+				"count",
+				"Failures to create Kubernetes client",
+				map[string]string{"listener": "workflow"},
+			)
+		}
 		return
 	}
 
@@ -323,7 +345,7 @@ func (wl *WorkflowListener) watchPods(
 				1,
 				"count",
 				"Failed informer cache synchronizations",
-				map[string]string{"listener": "WorkflowListener"},
+				map[string]string{"listener": "workflow"},
 			)
 		}
 		return
@@ -337,7 +359,7 @@ func (wl *WorkflowListener) watchPods(
 			1,
 			"count",
 			"Successful informer cache synchronizations",
-			map[string]string{"listener": "WorkflowListener"},
+			map[string]string{"listener": "workflow"},
 		)
 	}
 

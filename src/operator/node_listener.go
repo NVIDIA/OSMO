@@ -88,6 +88,17 @@ func (nl *NodeListener) sendMessages(
 					return
 				}
 				log.Printf("node watcher stopped unexpectedly...")
+				// Record message_channel_closed_unexpectedly_total
+				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+					metricCreator.RecordCounter(
+						ctx,
+						"message_channel_closed_unexpectedly_total",
+						1,
+						"count",
+						"Message channel closed without context cancellation",
+						map[string]string{"listener": "node"},
+					)
+				}
 				cancel(fmt.Errorf("node watcher stopped"))
 				return
 			}
@@ -110,6 +121,17 @@ func (nl *NodeListener) watchNodes(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
+		// Record kubernetes_client_creation_error_total
+		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+			metricCreator.RecordCounter(
+				ctx,
+				"kubernetes_client_creation_error_total",
+				1,
+				"count",
+				"Failures to create Kubernetes client",
+				map[string]string{"listener": "node"},
+			)
+		}
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}
@@ -233,7 +255,7 @@ func (nl *NodeListener) watchNodes(
 				1,
 				"count",
 				"Failed informer cache synchronizations",
-				map[string]string{"listener": "NodeListener"},
+				map[string]string{"listener": "node"},
 			)
 		}
 		return
@@ -247,7 +269,7 @@ func (nl *NodeListener) watchNodes(
 			1,
 			"count",
 			"Successful informer cache synchronizations",
-			map[string]string{"listener": "NodeListener"},
+			map[string]string{"listener": "node"},
 		)
 	}
 
@@ -267,6 +289,18 @@ func (nl *NodeListener) rebuildNodesFromStore(
 	nodeChan chan<- *pb.ListenerMessage,
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
+
+	// Record informer_rebuild_total
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordCounter(
+			ctx,
+			"informer_rebuild_total",
+			1,
+			"count",
+			"Number of full state rebuilds from informer store",
+			map[string]string{"listener": "node"},
+		)
+	}
 
 	sent := 0
 	skipped := 0
@@ -370,6 +404,18 @@ func (nl *NodeListener) sendNodeInventory(
 		}
 		hostname := utils.GetNodeHostname(node)
 		hostnames = append(hostnames, hostname)
+	}
+
+	// Record node_inventory_size
+	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+		metricCreator.RecordHistogram(
+			ctx,
+			"node_inventory_size",
+			float64(len(hostnames)),
+			"count",
+			"Number of hostnames in NODE_INVENTORY messages",
+			nil,
+		)
 	}
 
 	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")

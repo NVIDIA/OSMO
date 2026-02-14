@@ -50,10 +50,10 @@ type SendMessagesFunc func(
 type StreamName string
 
 const (
-	StreamNameWorkflow StreamName = "workflow"
-	StreamNameResource StreamName = "resource"
-	StreamNameNode     StreamName = "node"
-	StreamNameEvent    StreamName = "event"
+	StreamNameWorkflow  StreamName = "workflow"
+	StreamNameNodeUsage StreamName = "node_usage"
+	StreamNameNode      StreamName = "node"
+	StreamNameEvent     StreamName = "event"
 )
 
 // BaseListener contains common functionality for all listeners
