@@ -35,7 +35,7 @@
   /* FilterBar-specific blue accent colors (matches original design) */
   --fb-accent-light: rgb(219 234 254); /* blue-100 */
   --fb-accent-light-hover: rgb(191 219 254); /* blue-200 */
-  --fb-accent: rgb(37 99 235); /* blue-600 */
+  --fb-accent: var(--search-accent); /* Uses global search accent for consistency */
   --fb-accent-dark: rgb(29 78 216); /* blue-700 */
 
   /* Dropdown max height */
@@ -47,35 +47,20 @@
 :is(.dark *) {
   --fb-accent-light: rgb(30 58 138 / 0.4); /* blue-900/40 */
   --fb-accent-light-hover: rgb(30 64 175); /* blue-800 */
-  --fb-accent: rgb(96 165 250); /* blue-400 */
+  --fb-accent: var(--search-accent); /* Uses global search accent for consistency */
   --fb-accent-dark: rgb(147 197 253); /* blue-300 */
 }
 
 /* =============================================================================
    Input Container
+   Extends .search-input-container (from utilities.css) with FilterBar-specific
+   overrides: chip wrapping, tighter gap, error states.
    ============================================================================= */
 
 .fb-input-container {
-  position: relative;
   z-index: 50;
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem; /* 6px */
-  border-radius: 0.375rem;
-  border: 1px solid var(--border);
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  transition-property: color, background-color, border-color;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-
-.fb-input-container:focus-within {
-  border-color: var(--fb-accent);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--fb-accent);
+  gap: 0.375rem; /* tighter gap for inline chips */
 }
 
 .fb-input-container[data-error] {
@@ -89,24 +74,9 @@
   box-shadow: 0 0 0 1px var(--destructive);
 }
 
+/* FilterBar input needs wider min-width to accommodate filter expressions */
 .fb-input {
   min-width: 150px;
-  flex: 1 1 0%;
-  border: 0;
-  background-color: transparent;
-  padding: 0;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  outline: none;
-}
-
-.fb-input::placeholder {
-  color: var(--muted-foreground);
-}
-
-.fb-input:focus {
-  outline: none;
-  box-shadow: none;
 }
 
 .fb-clear-button {
@@ -130,18 +100,10 @@
 }
 
 /* =============================================================================
-   Search Icon (in input container)
+   Search Icon - Error State
+   Base styles come from .search-input-icon (utilities.css).
+   Only the FilterBar-specific error variant is defined here.
    ============================================================================= */
-
-.fb-search-icon {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-  color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
-  transition-property: color;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
 
 .fb-search-icon[data-error] {
   color: var(--destructive);

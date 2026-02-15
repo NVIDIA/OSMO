@@ -98,12 +98,12 @@ export const FilterBarInput = memo(function FilterBarInput({
 
   return (
     <div
-      className="fb-input-container bg-background"
+      className="search-input-container fb-input-container bg-background"
       data-error={validationError ? "" : undefined}
       onClick={handleContainerClick}
     >
       <Search
-        className="fb-search-icon"
+        className="search-input-icon fb-search-icon"
         data-error={validationError ? "" : undefined}
       />
 
@@ -126,7 +126,7 @@ export const FilterBarInput = memo(function FilterBarInput({
         onFocus={onFocus}
         onKeyDown={onKeyDown}
         placeholder={chips.length === 0 ? placeholder : "Add filter..."}
-        className="fb-input"
+        className="search-input fb-input"
         role="combobox"
         aria-expanded={showDropdown || undefined}
         aria-controls="filter-bar-listbox"

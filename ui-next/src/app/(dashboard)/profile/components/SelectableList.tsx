@@ -16,7 +16,6 @@
 
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
-import { Input } from "@/components/shadcn/input";
 import { cn } from "@/lib/utils";
 
 export interface SelectableListItem {
@@ -50,14 +49,14 @@ export function SelectableList({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative mb-4 shrink-0">
-        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-        <Input
+      <div className="search-input-container bg-background mb-4 shrink-0">
+        <Search className="search-input-icon" />
+        <input
           type="text"
           placeholder={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="bg-muted pl-9"
+          className="search-input"
         />
       </div>
 

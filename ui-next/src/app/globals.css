@@ -253,6 +253,9 @@
   --status-warning: oklch(0.75 0.15 75);
   --status-danger: oklch(0.65 0.2 25);
 
+  /* Search input accent (blue-600 for consistent focus rings) */
+  --search-accent: oklch(0.532 0.218 264.376);
+
   /* Status background colors (light mode) */
   --status-success-bg: oklch(0.95 0.05 145);
   --status-warning-bg: oklch(0.95 0.05 85);
@@ -363,6 +366,9 @@
   --status-success-bg: oklch(0.25 0.05 145);
   --status-warning-bg: oklch(0.25 0.05 85);
   --status-danger-bg: oklch(0.25 0.05 25);
+
+  /* Search input accent (blue-400 for dark mode) */
+  --search-accent: oklch(0.696 0.17 264.376);
 
   /* Lifecycle progress stage colors (dark mode) */
   --stage-pending: oklch(0.8 0.12 75);
