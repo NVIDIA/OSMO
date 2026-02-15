@@ -235,6 +235,21 @@ export interface ProfileUpdate {
 }
 
 // =============================================================================
+// Bucket Types
+// =============================================================================
+
+/**
+ * Bucket information with dataset path and metadata.
+ */
+export interface Bucket {
+  name: string; // Bucket identifier
+  path: string; // Full dataset path (e.g., "s3://my-bucket/datasets")
+  description: string; // Bucket description
+  mode: string; // Access mode
+  defaultCredential: boolean; // Whether it uses default credentials
+}
+
+// =============================================================================
 // Credential Types
 // =============================================================================
 

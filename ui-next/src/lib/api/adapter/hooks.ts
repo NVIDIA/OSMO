@@ -750,7 +750,7 @@ export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
 /**
  * Fetch available buckets and default bucket.
  *
- * Returns list of accessible bucket names and the user's default bucket.
+ * Returns list of accessible buckets with their metadata and the user's default bucket.
  * Uses GET /api/bucket endpoint.
  *
  * @param options.enabled - Whether to enable the query (default: true)
@@ -758,7 +758,9 @@ export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
  * @example
  * ```ts
  * const { buckets, defaultBucket, isLoading } = useBuckets();
- * console.log(`Default: ${defaultBucket}, Available: ${buckets.join(', ')}`);
+ * for (const bucket of buckets) {
+ *   console.log(`${bucket.name}: ${bucket.path}`);
+ * }
  * ```
  */
 export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
@@ -773,10 +775,32 @@ export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
           if (!rawData || typeof rawData !== "object") {
             return { buckets: [], defaultBucket: "" };
           }
-          const response = rawData as { default?: string; buckets?: Record<string, unknown> };
-          const bucketNames = response.buckets ? Object.keys(response.buckets) : [];
+          const response = rawData as {
+            default?: string;
+            buckets?: Record<string, { path: string; description: string; mode: string; default_cred: boolean }>;
+          };
+          const buckets: Array<{
+            name: string;
+            path: string;
+            description: string;
+            mode: string;
+            defaultCredential: boolean;
+          }> = [];
+
+          if (response.buckets) {
+            for (const [name, info] of Object.entries(response.buckets)) {
+              buckets.push({
+                name,
+                path: info.path,
+                description: info.description,
+                mode: info.mode,
+                defaultCredential: info.default_cred,
+              });
+            }
+          }
+
           return {
-            buckets: bucketNames,
+            buckets,
             defaultBucket: response.default || "",
           };
         }, []),
