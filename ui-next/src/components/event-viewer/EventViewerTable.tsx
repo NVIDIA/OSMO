@@ -24,10 +24,10 @@ import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 
 /**
  * Estimated collapsed row height (px).
- * Must match actual two-line layout: py-3 (12) + text-xs line (16) + subtitle line (16) + py-3 (12) = 56.
- * The TaskRow always renders a subtitle placeholder so every collapsed row is this height.
+ * Single-line layout: py-3 (12) + badge content (~20) + py-3 (12) = 44.
+ * Badge cells (retry, event count) are the tallest at ~44px.
  */
-const ROW_HEIGHT_COLLAPSED = 56;
+const ROW_HEIGHT_COLLAPSED = 44;
 
 /** Estimated height per event row when expanded (px) */
 const ROW_HEIGHT_PER_EVENT = 28;
@@ -43,6 +43,8 @@ export interface EventViewerTableProps {
   expandedIds: Set<string>;
   onToggleExpand?: (taskId: string) => void;
   showHeader?: boolean;
+  /** Whether the parent entity (workflow/task) has reached a terminal state */
+  isParentTerminal?: boolean;
   className?: string;
 }
 
@@ -51,6 +53,7 @@ export function EventViewerTable({
   expandedIds,
   onToggleExpand,
   showHeader = true,
+  isParentTerminal,
   className,
 }: EventViewerTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -184,6 +187,7 @@ export function EventViewerTable({
                     onToggleExpand={onToggleExpand}
                     isLast={virtualRow.index === tasks.length - 1}
                     isOdd={virtualRow.index % 2 !== 0}
+                    isParentTerminal={isParentTerminal}
                   />
                 </div>
               );

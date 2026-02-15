@@ -209,14 +209,67 @@ describe("getProgressIndex", () => {
   });
 
   describe("Unknown phase", () => {
-    it("returns 0 (Pending) for Unknown phase", () => {
+    it("returns 0 (Pending) for Unknown phase with no events", () => {
       const task = makeTask("Unknown", []);
       expect(getProgressIndex(task)).toBe(0);
     });
 
-    it("returns 0 (Pending) for Unknown phase even with events", () => {
+    it("returns 1 (Init) for Unknown phase with Scheduled event (furthest stage wins)", () => {
+      // Even though podPhase is Unknown, the Scheduled event proves the task
+      // completed scheduling — getProgressIndex uses furthestProgressIndex
       const task = makeTask("Unknown", [makeEvent("Scheduled", "scheduling", "info", 0)]);
-      expect(getProgressIndex(task)).toBe(0);
+      expect(getProgressIndex(task)).toBe(1);
+    });
+  });
+
+  describe("Missing events (gaps in lifecycle)", () => {
+    it("returns 2 (Running) when only Started event exists (no Pending/Init events)", () => {
+      // Missing Scheduled, Pulling, Created events — Started proves task reached Running
+      const task = makeTask("Running", [makeEvent("Started", "container", "info", 0)]);
+      expect(getProgressIndex(task)).toBe(2);
+    });
+
+    it("returns 3 (Done) when only Completed event exists (no earlier events)", () => {
+      const task = makeTask("Succeeded", [makeEvent("Completed", "completion", "info", 0)]);
+      expect(getProgressIndex(task)).toBe(3);
+    });
+
+    it("returns 2 (Running) when Running events exist but no Init events", () => {
+      const task = makeTask("Running", [
+        makeEvent("Scheduled", "scheduling", "info", 0),
+        // Missing: Pulling, Pulled, Created
+        makeEvent("Started", "container", "info", 5),
+      ]);
+      expect(getProgressIndex(task)).toBe(2);
+    });
+  });
+
+  describe("Out-of-order events", () => {
+    it("returns 2 (Running) when Scheduled arrives after Started", () => {
+      // Events arrive out of order: Started first, then Scheduled with later timestamp
+      const task = makeTask("Running", [
+        makeEvent("Started", "container", "info", 0),
+        makeEvent("Scheduled", "scheduling", "info", 1),
+      ]);
+      expect(getProgressIndex(task)).toBe(2);
+    });
+
+    it("returns 2 (Running) when Pulling arrives after Started", () => {
+      const task = makeTask("Running", [
+        makeEvent("Scheduled", "scheduling", "info", 0),
+        makeEvent("Started", "container", "info", 1),
+        makeEvent("Pulling", "image", "info", 2),
+      ]);
+      expect(getProgressIndex(task)).toBe(2);
+    });
+
+    it("does not regress from Running when later Pending event arrives", () => {
+      const task = makeTask("Running", [
+        makeEvent("Started", "container", "info", 0),
+        makeEvent("FailedScheduling", "scheduling", "error", 1),
+        makeEvent("Scheduled", "scheduling", "info", 2),
+      ]);
+      expect(getProgressIndex(task)).toBe(2);
     });
   });
 });

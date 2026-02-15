@@ -24,6 +24,16 @@
  * Architecture:
  * - Events (raw data) → computeDerivedState() → TaskDerivedState (cached)
  * - UI logic operates on TaskDerivedState (O(1) lookups, not O(n) scans)
+ *
+ * Robustness:
+ * Events may arrive out of order or be dropped entirely. The derived state
+ * uses the "furthest stage reached" strategy — scanning ALL events for the
+ * highest progression index rather than relying on the last event alone.
+ * This means:
+ * - Missing events: if we see "Running" without "Pending"/"Init" events,
+ *   we infer the task passed through those stages.
+ * - Out-of-order events: a late "Pending" event after a "Running" event
+ *   backfills information but does not regress the derived state.
  */
 
 import type { K8sEvent, PodPhase, LifecycleStage } from "@/lib/api/adapter/events/events-types";
@@ -55,34 +65,98 @@ export interface TaskDerivedState {
 
   /** Whether task has a "Scheduled" event (for progress bar distinction) */
   hasScheduledEvent: boolean;
+
+  /**
+   * Furthest non-failure progress index reached (0=pending, 1=init, 2=running, 3=done).
+   * -1 if no non-failure events exist.
+   *
+   * Accounts for the "Scheduled" event boundary: a Scheduled event means
+   * scheduling completed, so the index is bumped from 0 (pending) to 1 (init).
+   *
+   * Used by the progress bar to determine how far a task progressed,
+   * independent of event ordering or gaps.
+   */
+  furthestProgressIndex: number;
+
+  /**
+   * Set of progress indices (0–3) that have at least one directly observed event.
+   *
+   * Used by the progress bar to distinguish "observed" stages (shown as completed)
+   * from "inferred" stages (shown in darker gray — we know the task passed through
+   * them because a later stage was reached, but we never received events for them).
+   */
+  observedStageIndices: ReadonlySet<number>;
+}
+
+// ============================================================================
+// Progress Index Mapping
+// ============================================================================
+
+/**
+ * Map a single event to a UI progress index (0–3) based on its stage and reason.
+ *
+ * Progress indices correspond to the 4 visual lifecycle stages:
+ *   0 = Pending  (scheduling)
+ *   1 = Init     (image pull, container creation, volume mounts)
+ *   2 = Running  (at least one container started/ready)
+ *   3 = Done     (completed/succeeded)
+ *  -1 = Failure  (not part of linear progression)
+ *
+ * Special handling for "container" stage:
+ * In K8s, a pod in Pending phase can have containers being Created. The
+ * transition to Running only happens when at least one container actually
+ * starts (Started event). So "Created" and "PodReadyToStartContainers"
+ * map to index 1 (init), while all other container events map to index 2.
+ */
+function eventProgressIndex(event: K8sEvent): number {
+  switch (event.stage) {
+    case "scheduling":
+      return 0;
+    case "initialization":
+    case "image":
+      return 1;
+    case "container": {
+      // K8s distinction: Created/PodReadyToStartContainers are still init;
+      // Started/Ready/Killing/ContainersReady indicate running phase
+      const reason = event.reason;
+      if (reason === K8S_EVENT_REASONS.CREATED || reason === K8S_EVENT_REASONS.POD_READY_TO_START_CONTAINERS) {
+        return 1;
+      }
+      return 2;
+    }
+    case "runtime":
+      return 2;
+    case "completion":
+      return 3;
+    case "failure":
+      return -1;
+    default:
+      return -1;
+  }
 }
 
 /**
  * Map a lifecycle stage to a UI lifecycle category.
+ *
+ * Uses the furthest progress index for non-terminal states (robust to
+ * out-of-order and missing events). Terminal event types (failure, completion)
+ * from the most recent event take precedence for current-state accuracy.
  */
-function deriveLifecycle(lastEventStage: LifecycleStage | null, events: K8sEvent[]): Lifecycle {
-  if (!lastEventStage) return "Pending";
+function deriveLifecycle(furthestProgressIndex: number, lastEventStage: LifecycleStage | null): Lifecycle {
+  // Terminal event types: the most recent event determines current state
+  if (lastEventStage === "completion") return "Done";
+  if (lastEventStage === "failure") return "Failed";
 
-  switch (lastEventStage) {
-    case "scheduling":
-      return "Pending";
-    case "image":
-    case "initialization":
-      return "Init";
-    case "container":
-    case "runtime":
-      return "Running";
-    case "completion":
+  // Non-terminal: use furthest progress (handles out-of-order & missing events)
+  switch (furthestProgressIndex) {
+    case 3:
       return "Done";
-    case "failure":
-      return "Failed";
-    default: {
-      const hasFailure = events.some((e) => e.stage === "failure");
-      if (hasFailure) return "Failed";
-      const hasCompletion = events.some((e) => e.stage === "completion");
-      if (hasCompletion) return "Done";
+    case 2:
       return "Running";
-    }
+    case 1:
+      return "Init";
+    default:
+      return "Pending";
   }
 }
 
@@ -93,14 +167,49 @@ function deriveLifecycle(lastEventStage: LifecycleStage | null, events: K8sEvent
  * This is the ONLY function that should traverse the events array.
  * All other derivations should use the cached TaskDerivedState.
  *
+ * Strategy:
+ * - Forward pass: track furthest progress index and observed stage indices
+ * - Backward pass: find most recent pod-phase-relevant event for podPhase
+ * - Derive lifecycle from furthest progress + last event stage
+ *
  * @precondition events array must be sorted ASC by timestamp (enforced by caller)
  */
 export function computeDerivedState(events: K8sEvent[]): TaskDerivedState {
   if (events.length === 0) {
-    return { podPhase: "Unknown", lifecycle: "Pending", hasScheduledEvent: false };
+    return {
+      podPhase: "Unknown",
+      lifecycle: "Pending",
+      hasScheduledEvent: false,
+      furthestProgressIndex: -1,
+      observedStageIndices: new Set(),
+    };
   }
 
-  // Derive pod phase from most recent event (iterate backwards, no sort needed)
+  // --- Single forward pass: track stage progression and flags ---
+  let furthestProgressIndex = -1;
+  const observedStageIndices = new Set<number>();
+  let hasScheduledEvent = false;
+
+  for (const event of events) {
+    const progressIdx = eventProgressIndex(event);
+    if (progressIdx >= 0) {
+      observedStageIndices.add(progressIdx);
+      if (progressIdx > furthestProgressIndex) {
+        furthestProgressIndex = progressIdx;
+      }
+    }
+    if (event.reason === K8S_EVENT_REASONS.SCHEDULED) {
+      hasScheduledEvent = true;
+    }
+  }
+
+  // "Scheduled" event means scheduling is COMPLETE → task is at least in init.
+  // Bump from pending (0) to init (1) when we know scheduling succeeded.
+  if (hasScheduledEvent && furthestProgressIndex === 0) {
+    furthestProgressIndex = 1;
+  }
+
+  // --- Backward pass: derive pod phase from most recent relevant event ---
   let podPhase: PodPhase = "Unknown";
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i];
@@ -122,10 +231,15 @@ export function computeDerivedState(events: K8sEvent[]): TaskDerivedState {
     }
   }
 
-  // Derive lifecycle from last event stage
-  const hasScheduledEvent = events.some((e) => e.reason === K8S_EVENT_REASONS.SCHEDULED);
+  // Derive lifecycle from furthest progress + last event stage
   const lastEventStage = events[events.length - 1]?.stage ?? null;
-  const lifecycle = deriveLifecycle(lastEventStage, events);
+  const lifecycle = deriveLifecycle(furthestProgressIndex, lastEventStage);
 
-  return { podPhase, lifecycle, hasScheduledEvent };
+  return {
+    podPhase,
+    lifecycle,
+    hasScheduledEvent,
+    furthestProgressIndex,
+    observedStageIndices,
+  };
 }
