@@ -38,14 +38,23 @@ export function BucketsSection() {
   const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateProfile();
   const { announcer } = useServices();
 
-  // Merge bucket data into profile
+  // Create bucket lookup map for efficient access to bucket metadata
+  const bucketMap = useMemo(() => {
+    const map = new Map<string, { path: string; description: string }>();
+    for (const bucket of buckets) {
+      map.set(bucket.name, { path: bucket.path, description: bucket.description });
+    }
+    return map;
+  }, [buckets]);
+
+  // Merge bucket names into profile
   const fullProfile = useMemo(() => {
     if (!profile) return null;
     return {
       ...profile,
       bucket: {
         ...profile.bucket,
-        accessible: buckets,
+        accessible: buckets.map((b) => b.name),
       },
     };
   }, [profile, buckets]);
@@ -53,12 +62,15 @@ export function BucketsSection() {
   const buildUpdate = useCallback((value: string): ProfileUpdate => ({ bucket: { default: value } }), []);
 
   const buildItem = useCallback(
-    (value: string): SelectableListItem => ({
-      value,
-      label: value,
-      subtitle: `s3://${value}`,
-    }),
-    [],
+    (value: string): SelectableListItem => {
+      const bucketInfo = bucketMap.get(value);
+      return {
+        value,
+        label: value,
+        subtitle: bucketInfo?.path ?? `s3://${value}`, // Use actual path from API, fallback to s3://
+      };
+    },
+    [bucketMap],
   );
 
   const isLoading = profileLoading || bucketsLoading;
@@ -77,7 +89,7 @@ export function BucketsSection() {
           <SelectionCard
             icon={FolderOpen}
             title="Data Buckets"
-            description="Select the default S3/GCS/Azure bucket for dataset storage."
+            description="Select the default bucket for dataset storage."
             currentDefault={fullProfile.bucket.default}
             accessible={fullProfile.bucket.accessible}
             updateProfile={updateProfile}
