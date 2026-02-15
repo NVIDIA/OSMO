@@ -38,7 +38,7 @@ import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useServices } from "@/contexts/service-context";
 import { useMounted } from "@/hooks/use-mounted";
 import { useCredentials, useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter/hooks";
-import { LazySection } from "@/app/(dashboard)/profile/components/LazySection";
+import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/CredentialsSkeleton";
 import type { Credential, CredentialCreate } from "@/lib/api/adapter/types";
 
 type CredentialType = "REGISTRY" | "DATA" | "GENERIC";
@@ -52,7 +52,7 @@ interface CredentialFormData {
 }
 
 const CREDENTIAL_GROUPS: Array<{
-  key: "REGISTRY" | "DATA" | "GENERIC";
+  key: CredentialType;
   icon: React.ElementType;
   title: string;
 }> = [
@@ -674,21 +674,19 @@ export function CredentialsSection() {
   const { mutateAsync: upsertCredential, isPending: isUpserting } = useUpsertCredential();
   const { mutateAsync: deleteCredential, isPending: isDeleting } = useDeleteCredential();
 
-  const [showNewForm, setShowNewForm] = useState(false);
   const [newFormData, setNewFormData] = useState<CredentialFormData | null>(null);
-  const [passwordVisibility, setPasswordVisibility] = useState<Record<string, boolean>>({});
+  const [showNewFormPassword, setShowNewFormPassword] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
 
   const grouped = useMemo(() => groupCredentialsByType(credentials ?? []), [credentials]);
 
   const handleAddNew = useCallback(() => {
-    setShowNewForm(true);
     setNewFormData(createEmptyFormData());
   }, []);
 
   const handleCancelNew = useCallback(() => {
-    setShowNewForm(false);
     setNewFormData(null);
+    setShowNewFormPassword(false);
   }, []);
 
   const handleSaveNew = useCallback(async () => {
@@ -698,8 +696,8 @@ export function CredentialsSection() {
       await upsertCredential(formDataToCredentialCreate(newFormData));
       toast.success(`Credential "${newFormData.name}" created successfully`);
       announcer.announce(`Credential "${newFormData.name}" created successfully`, "polite");
-      setShowNewForm(false);
       setNewFormData(null);
+      setShowNewFormPassword(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create credential";
       toast.error(message);
@@ -726,11 +724,19 @@ export function CredentialsSection() {
     }
   }, [deleteConfirmName, deleteCredential, announcer]);
 
-  const handleTogglePassword = useCallback((key: string) => {
-    setPasswordVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
-
   const isMutating = isUpserting || isDeleting;
+
+  if (!hasIntersected || isLoading || !credentials) {
+    return (
+      <section
+        ref={ref}
+        id="credentials"
+        className="profile-scroll-offset"
+      >
+        <CredentialsSkeleton />
+      </section>
+    );
+  }
 
   return (
     <section
@@ -738,94 +744,87 @@ export function CredentialsSection() {
       id="credentials"
       className="profile-scroll-offset"
     >
-      <LazySection
-        hasIntersected={hasIntersected}
-        isLoading={isLoading}
-      >
-        {credentials && (
-          <Card data-variant="sectioned">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Key className="size-5" />
-                Credentials
-                <Badge
-                  variant="secondary"
-                  className="badge-nvidia-count"
-                >
-                  {credentials.length} total
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                Manage credentials for container registries, data storage, and generic secrets. Credentials cannot be
-                edited - delete and recreate to update.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-6">
-                {showNewForm && newFormData ? (
-                  <NewCredentialForm
-                    formData={newFormData}
-                    onChange={setNewFormData}
-                    onSave={handleSaveNew}
-                    onCancel={handleCancelNew}
-                    isSaving={isUpserting}
-                    showPassword={passwordVisibility["__new__"] ?? false}
-                    onTogglePassword={() => handleTogglePassword("__new__")}
-                  />
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="border-border hover:border-nvidia w-full justify-center gap-2 border-dashed py-3"
-                    onClick={handleAddNew}
-                    disabled={isMutating}
-                  >
-                    <Plus className="size-4" />
-                    New Credential
-                  </Button>
-                )}
-              </div>
+      <Card data-variant="sectioned">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Key className="size-5" />
+            Credentials
+            <Badge
+              variant="secondary"
+              className="badge-nvidia-count"
+            >
+              {credentials.length} total
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            Manage credentials for container registries, data storage, and generic secrets. Credentials cannot be edited
+            - delete and recreate to update.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-6">
+            {newFormData ? (
+              <NewCredentialForm
+                formData={newFormData}
+                onChange={setNewFormData}
+                onSave={handleSaveNew}
+                onCancel={handleCancelNew}
+                isSaving={isUpserting}
+                showPassword={showNewFormPassword}
+                onTogglePassword={() => setShowNewFormPassword((prev) => !prev)}
+              />
+            ) : (
+              <Button
+                variant="outline"
+                className="border-border hover:border-nvidia w-full justify-center gap-2 border-dashed py-3"
+                onClick={handleAddNew}
+                disabled={isMutating}
+              >
+                <Plus className="size-4" />
+                New Credential
+              </Button>
+            )}
+          </div>
 
-              {credentials.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No credentials configured</p>
-              ) : (
-                <div className="space-y-8">
-                  {CREDENTIAL_GROUPS.map(({ key, icon: Icon, title }) => {
-                    const groupCredentials = grouped[key];
-                    if (!groupCredentials || groupCredentials.length === 0) return null;
+          {credentials.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No credentials configured</p>
+          ) : (
+            <div className="space-y-8">
+              {CREDENTIAL_GROUPS.map(({ key, icon: Icon, title }) => {
+                const groupCredentials = grouped[key];
+                if (!groupCredentials || groupCredentials.length === 0) return null;
 
-                    return (
-                      <div key={key}>
-                        <h3 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold">
-                          <Icon className="size-4" />
-                          {title}
-                        </h3>
-                        <div className="space-y-2">
-                          {groupCredentials.map((cred) => (
-                            <CredentialItem
-                              key={cred.cred_name}
-                              credential={cred}
-                              onDelete={() => setDeleteConfirmName(cred.cred_name)}
-                              isSaving={isMutating}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
+                return (
+                  <div key={key}>
+                    <h3 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold">
+                      <Icon className="size-4" />
+                      {title}
+                    </h3>
+                    <div className="space-y-2">
+                      {groupCredentials.map((cred) => (
+                        <CredentialItem
+                          key={cred.cred_name}
+                          credential={cred}
+                          onDelete={() => setDeleteConfirmName(cred.cred_name)}
+                          isSaving={isMutating}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
 
-            <DeleteConfirmDialog
-              open={deleteConfirmName !== null}
-              credentialName={deleteConfirmName ?? ""}
-              onConfirm={handleConfirmDelete}
-              onCancel={handleCancelDelete}
-              isDeleting={isDeleting}
-            />
-          </Card>
-        )}
-      </LazySection>
+        <DeleteConfirmDialog
+          open={deleteConfirmName !== null}
+          credentialName={deleteConfirmName ?? ""}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+          isDeleting={isDeleting}
+        />
+      </Card>
     </section>
   );
 }

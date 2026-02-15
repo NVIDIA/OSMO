@@ -26,11 +26,9 @@ import { cn } from "@/lib/utils";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
-import { LazySection } from "@/app/(dashboard)/profile/components/LazySection";
+import { NotificationsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/NotificationsSkeleton";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
-// Notification edits - stores only the user's changes, not the full state
-// This pattern avoids useEffect synchronization issues with React Compiler
 interface NotificationEdits {
   email?: boolean;
   slack?: boolean;
@@ -93,86 +91,91 @@ export function NotificationsSection() {
     }
   }, [stagedNotifications, isDirty, updateProfile, announcer]);
 
+  if (!hasIntersected || isLoading || !profile) {
+    return (
+      <section
+        ref={ref}
+        id="notifications"
+        className="profile-scroll-offset"
+      >
+        <NotificationsSkeleton />
+      </section>
+    );
+  }
+
   return (
     <section
       ref={ref}
       id="notifications"
       className="profile-scroll-offset"
     >
-      <LazySection
-        hasIntersected={hasIntersected}
-        isLoading={isLoading}
+      <Card
+        data-variant="sectioned"
+        className={cn(isDirty && "border-nvidia")}
       >
-        {profile && (
-          <Card
-            data-variant="sectioned"
-            className={cn(isDirty && "border-nvidia")}
-          >
-            <CardHeader className="gap-0 border-b">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Bell className="size-5" />
-                Notifications
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-0">
-                <div className="border-border flex items-center justify-between border-b py-3">
-                  <div className="flex flex-col gap-1">
-                    <label
-                      htmlFor="notification-email"
-                      className="text-sm font-medium"
-                    >
-                      Email Notifications
-                    </label>
-                    <p className="text-muted-foreground text-xs">Receive workflow status updates via email</p>
-                  </div>
-                  <Switch
-                    id="notification-email"
-                    checked={stagedNotifications.email}
-                    onCheckedChange={(checked) => handleChange("email", checked)}
-                    disabled={isUpdatingProfile}
-                  />
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <div className="flex flex-col gap-1">
-                    <label
-                      htmlFor="notification-slack"
-                      className="text-sm font-medium"
-                    >
-                      Slack Notifications
-                    </label>
-                    <p className="text-muted-foreground text-xs">Receive workflow status updates via Slack</p>
-                  </div>
-                  <Switch
-                    id="notification-slack"
-                    checked={stagedNotifications.slack}
-                    onCheckedChange={(checked) => handleChange("slack", checked)}
-                    disabled={isUpdatingProfile}
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="border-t">
-              <div className="flex w-full items-center justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={handleReset}
-                  disabled={!isDirty || isUpdatingProfile}
+        <CardHeader className="gap-0 border-b">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Bell className="size-5" />
+            Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-0">
+            <div className="border-border flex items-center justify-between border-b py-3">
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="notification-email"
+                  className="text-sm font-medium"
                 >
-                  Reset
-                </Button>
-                <Button
-                  className="btn-nvidia"
-                  onClick={handleSave}
-                  disabled={!isDirty || isUpdatingProfile}
-                >
-                  Save
-                </Button>
+                  Email Notifications
+                </label>
+                <p className="text-muted-foreground text-xs">Receive workflow status updates via email</p>
               </div>
-            </CardFooter>
-          </Card>
-        )}
-      </LazySection>
+              <Switch
+                id="notification-email"
+                checked={stagedNotifications.email}
+                onCheckedChange={(checked) => handleChange("email", checked)}
+                disabled={isUpdatingProfile}
+              />
+            </div>
+            <div className="flex items-center justify-between py-3">
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="notification-slack"
+                  className="text-sm font-medium"
+                >
+                  Slack Notifications
+                </label>
+                <p className="text-muted-foreground text-xs">Receive workflow status updates via Slack</p>
+              </div>
+              <Switch
+                id="notification-slack"
+                checked={stagedNotifications.slack}
+                onCheckedChange={(checked) => handleChange("slack", checked)}
+                disabled={isUpdatingProfile}
+              />
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="border-t">
+          <div className="flex w-full items-center justify-end gap-3">
+            <Button
+              variant="secondary"
+              onClick={handleReset}
+              disabled={!isDirty || isUpdatingProfile}
+            >
+              Reset
+            </Button>
+            <Button
+              className="btn-nvidia"
+              onClick={handleSave}
+              disabled={!isDirty || isUpdatingProfile}
+            >
+              Save
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
     </section>
   );
 }
