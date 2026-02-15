@@ -166,6 +166,7 @@ function RegistryFields({
           value={values.url}
           onChange={(e) => onChange("url", e.target.value)}
           disabled={disabled}
+          autoComplete="url"
         />
       </div>
       <div>
@@ -182,6 +183,7 @@ function RegistryFields({
           value={values.username}
           onChange={(e) => onChange("username", e.target.value)}
           disabled={disabled}
+          autoComplete="username"
         />
       </div>
       <div>
@@ -200,6 +202,7 @@ function RegistryFields({
             onChange={(e) => onChange("password", e.target.value)}
             disabled={disabled}
             className="pr-10"
+            autoComplete="new-password"
           />
           <Button
             type="button"
@@ -247,6 +250,7 @@ function DataFields({
           value={values.endpoint}
           onChange={(e) => onChange("endpoint", e.target.value)}
           disabled={disabled}
+          autoComplete="off"
         />
       </div>
       <div>
@@ -263,6 +267,7 @@ function DataFields({
           value={values.access_key}
           onChange={(e) => onChange("access_key", e.target.value)}
           disabled={disabled}
+          autoComplete="off"
         />
       </div>
       <div>
@@ -281,6 +286,7 @@ function DataFields({
             onChange={(e) => onChange("secret_key", e.target.value)}
             disabled={disabled}
             className="pr-10"
+            autoComplete="off"
           />
           <Button
             type="button"
@@ -369,6 +375,7 @@ function GenericFields({
             onChange={(e) => handlePairChange(index, "value", e.target.value)}
             disabled={disabled}
             className="flex-1"
+            autoComplete="off"
           />
           <Button
             type="button"
@@ -447,8 +454,21 @@ function NewCredentialForm({
     [formData, onChange],
   );
 
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (valid && !isSaving) {
+        onSave();
+      }
+    },
+    [valid, isSaving, onSave],
+  );
+
   return (
-    <div className="space-y-4 rounded-md border p-4">
+    <form
+      className="space-y-4 rounded-md border p-4"
+      onSubmit={handleSubmit}
+    >
       <div>
         <label
           htmlFor="cred-name"
@@ -463,6 +483,7 @@ function NewCredentialForm({
           value={formData.name}
           onChange={(e) => onChange({ ...formData, name: e.target.value })}
           disabled={isSaving}
+          autoComplete="off"
         />
       </div>
 
@@ -540,6 +561,7 @@ function NewCredentialForm({
 
       <div className="flex justify-end gap-2 pt-2">
         <Button
+          type="button"
           variant="secondary"
           onClick={onCancel}
           disabled={isSaving}
@@ -547,14 +569,14 @@ function NewCredentialForm({
           Cancel
         </Button>
         <Button
+          type="submit"
           className="btn-nvidia"
-          onClick={onSave}
           disabled={!valid || isSaving}
         >
           Save
         </Button>
       </div>
-    </div>
+    </form>
   );
 }
 
