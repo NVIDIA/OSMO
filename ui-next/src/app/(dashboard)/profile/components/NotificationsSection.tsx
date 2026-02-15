@@ -108,7 +108,7 @@ export function NotificationsSection() {
             data-variant="sectioned"
             className={cn(isDirty && "border-nvidia")}
           >
-            <CardHeader className="border-b">
+            <CardHeader className="gap-0 border-b">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Bell className="size-5" />
                 Notifications

@@ -346,11 +346,11 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 
-  /* Brand colors - same in dark mode */
+  /* Brand colors - same in dark mode except bg */
   --nvidia-green: #76b900;
   --nvidia-green-dark: #5a8c00;
   --nvidia-green-light: #9ed439;
-  --nvidia-green-bg: #f3f9e8;
+  --nvidia-green-bg: #1a2e0a;
   --nvidia-green-bg-dark: #1a2e0a;
 
   /* CodeMirror theme tokens (dark mode) */

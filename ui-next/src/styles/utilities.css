@@ -192,7 +192,7 @@
 
   /* Count badge with NVIDIA brand tinting */
   .badge-nvidia-count {
-    @apply bg-nvidia-bg text-nvidia-dark ml-1 text-xs;
+    @apply bg-nvidia-bg text-nvidia-dark dark:text-nvidia-light ml-1 text-xs;
   }
 
   /* ==========================================================================

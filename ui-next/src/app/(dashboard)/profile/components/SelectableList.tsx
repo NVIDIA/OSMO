@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { useState, useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface SelectableListItem {
@@ -58,6 +58,17 @@ export function SelectableList({
           onChange={(e) => setSearchQuery(e.target.value)}
           className="search-input"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="text-muted-foreground hover:text-foreground ml-1 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="size-3" />
+            <span>Clear</span>
+          </button>
+        )}
       </div>
 
       {filteredItems.length > 0 ? (
