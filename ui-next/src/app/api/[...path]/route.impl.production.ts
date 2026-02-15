@@ -34,7 +34,6 @@
  *
  * This catches all /api/* routes EXCEPT:
  * - /api/health - Handled by app/api/health/route.ts
- * - /api/workflow/[name]/logs - Handled by app/api/workflow/[name]/logs/route.ts
  *
  * Route Handlers have higher priority than catch-all routes, so they work correctly.
  */
@@ -47,9 +46,31 @@ import { forwardAuthHeaders } from "@/lib/api/server/proxy-headers";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// ---------------------------------------------------------------------------
+// Hop-by-hop headers that MUST NOT be forwarded (RFC 9110 §7.6.1, HTTP/2 §8.1)
+// ---------------------------------------------------------------------------
+const HOP_BY_HOP_HEADERS = new Set([
+  "transfer-encoding",
+  "connection",
+  "keep-alive",
+  "upgrade",
+  "proxy-connection",
+  "te",
+]);
+
+// ---------------------------------------------------------------------------
+// Client request headers worth forwarding for content-negotiation & streaming
+// ---------------------------------------------------------------------------
+const FORWARDED_REQUEST_HEADERS = ["accept", "accept-encoding", "accept-language"] as const;
+
 /**
  * Proxy all API requests to backend.
  * Supports: GET, POST, PUT, PATCH, DELETE
+ *
+ * Streaming-aware: propagates the client abort signal to the upstream fetch
+ * so that long-lived streams (logs, events) are torn down promptly when the
+ * browser disconnects. This prevents orphaned connections from accumulating
+ * on the backend and exhausting HTTP/2 stream limits at the ALB.
  */
 async function proxyRequest(request: NextRequest, method: string) {
   const { pathname, searchParams } = request.nextUrl;
@@ -64,6 +85,15 @@ async function proxyRequest(request: NextRequest, method: string) {
 
   // Forward auth headers using centralized utility
   const headers = forwardAuthHeaders(request);
+
+  // Forward content-negotiation headers so backend can respond appropriately
+  // (e.g., Accept: text/plain for streaming log/event endpoints)
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
 
   // Also forward content-type for POST/PUT/PATCH requests
   const contentType = request.headers.get("content-type");
@@ -82,11 +112,17 @@ async function proxyRequest(request: NextRequest, method: string) {
   }
 
   try {
-    // Proxy request to backend
+    // Proxy request to backend.
+    // CRITICAL: propagate the client's abort signal so that when the browser
+    // disconnects (tab close, navigation, component unmount), the upstream
+    // connection is torn down immediately. Without this, orphaned upstream
+    // connections accumulate and can exhaust HTTP/2 stream limits at the
+    // ALB, causing GOAWAY frames that kill unrelated long-lived streams.
     const response = await fetch(fullUrl, {
       method,
       headers,
       body,
+      signal: request.signal,
       // Don't follow redirects - let client handle them
       redirect: "manual",
     });
@@ -94,13 +130,24 @@ async function proxyRequest(request: NextRequest, method: string) {
     // Forward response headers from backend as-is (transparent proxy)
     const responseHeaders = new Headers();
 
-    // Copy all headers from backend response
+    // Copy all headers from backend response, skipping hop-by-hop headers
     response.headers.forEach((value, key) => {
-      // Skip headers that cause issues with streaming
-      if (!["transfer-encoding", "connection", "keep-alive"].includes(key.toLowerCase())) {
+      if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
         responseHeaders.set(key, value);
       }
     });
+
+    // Disable buffering in upstream proxies (Nginx, Envoy, ALB).
+    // Without this, intermediaries may buffer the entire response before
+    // forwarding, which breaks streaming for log/event endpoints.
+    responseHeaders.set("X-Accel-Buffering", "no");
+
+    // Prevent caching of proxied API responses by CDNs or shared caches.
+    // Individual endpoints can override via their own Cache-Control header
+    // (already copied above), but this ensures a safe default.
+    if (!responseHeaders.has("cache-control")) {
+      responseHeaders.set("Cache-Control", "no-store");
+    }
 
     // Stream response body directly (zero-copy proxying)
     // This reduces latency and memory usage by not buffering the entire response
@@ -110,6 +157,11 @@ async function proxyRequest(request: NextRequest, method: string) {
       headers: responseHeaders,
     });
   } catch (error) {
+    // Suppress AbortError when client disconnected — this is expected
+    if (error instanceof Error && error.name === "AbortError") {
+      return new Response(null, { status: 499 }); // nginx-style "client closed request"
+    }
+
     console.error("API proxy error:", error);
     return new Response(
       JSON.stringify({

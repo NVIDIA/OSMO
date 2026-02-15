@@ -23,13 +23,15 @@ import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { parseLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 import { LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter/constants";
+import { isTransientError, getRetryDelay, abortableDelay, MAX_AUTO_RETRIES } from "@/lib/api/stream-retry";
 
 export type StreamPhase =
   | "idle" // Not started (enabled=false or no logUrl)
   | "connecting" // Fetch in flight, no data yet
   | "streaming" // Reader active, entries accumulating
+  | "reconnecting" // Stream dropped, auto-retrying with backoff
   | "complete" // Stream ended normally (done=true from reader)
-  | "error"; // Stream failed
+  | "error"; // Stream failed (after retries exhausted)
 
 export interface UseLogStreamParams {
   /** Full log URL from backend (e.g., workflow.logs or task.logs) */
@@ -51,11 +53,13 @@ export interface UseLogStreamReturn {
   error: Error | null;
   /** Whether the stream is actively receiving data */
   isStreaming: boolean;
+  /** Whether the stream is auto-retrying after a transient error */
+  isReconnecting: boolean;
   /** Whether data has been received (entries.length > 0) */
   hasData: boolean;
   /** Progress indicator: number of entries received so far */
   entryCount: number;
-  /** Manually restart the stream */
+  /** Manually restart the stream (resets retry counter) */
   restart: () => void;
 }
 
@@ -64,6 +68,13 @@ export interface UseLogStreamReturn {
  *
  * Combines the patterns from useLogData (React Query-based) and useLogTail (streaming)
  * into a single hook that always uses true streaming for optimal progressive rendering.
+ *
+ * **Automatic retry**: When the stream is interrupted by a transient error
+ * (e.g., HTTP/2 GOAWAY from ALB, network hiccup), the hook automatically
+ * reconnects with exponential backoff (up to {@link MAX_AUTO_RETRIES} attempts).
+ * During reconnection, previously received entries remain visible. The backend
+ * sends full log history on each connection, so data is seamlessly replaced
+ * once the new stream delivers its first chunk.
  *
  * Key characteristics:
  * - No last_n_lines limit - always fetches ALL logs from the workflow
@@ -134,7 +145,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
   const [restartCount, setRestartCount] = useState(0);
   const restart = useCallback(() => setRestartCount((c) => c + 1), []);
 
-  // Lifecycle effect - contains the streaming logic directly
+  // Lifecycle effect - contains the streaming logic with auto-retry
   useEffect(() => {
     if (!enabled || !logUrl) {
       abortRef.current?.abort();
@@ -157,67 +168,110 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
     setError(null);
 
     const runStream = async () => {
-      try {
-        // Build absolute URL - handle both absolute URLs from backend and relative paths
-        const isAbsoluteUrl = logUrl.startsWith("http://") || logUrl.startsWith("https://");
-        const url = isAbsoluteUrl
-          ? new URL(logUrl)
-          : new URL(logUrl.startsWith("/") ? logUrl : `/${logUrl}`, window.location.origin);
+      let retryCount = 0;
 
-        // Strip last_n_lines param - we always fetch ALL logs progressively
-        url.searchParams.delete("last_n_lines");
+      // Build absolute URL once — it won't change across retries.
+      const isAbsoluteUrl = logUrl.startsWith("http://") || logUrl.startsWith("https://");
+      const url = isAbsoluteUrl
+        ? new URL(logUrl)
+        : new URL(logUrl.startsWith("/") ? logUrl : `/${logUrl}`, window.location.origin);
 
-        const response = await fetch(url.toString(), {
-          method: "GET",
-          headers: { Accept: "text/plain" },
-          signal: controller.signal,
-          credentials: "include",
-          redirect: "manual",
-        });
+      // Strip last_n_lines param - we always fetch ALL logs progressively
+      url.searchParams.delete("last_n_lines");
 
-        handleRedirectResponse(response, "log streaming");
-
-        if (!response.ok) {
-          throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
-        }
-        if (!response.body) {
-          throw new Error("Response body is not readable");
-        }
-        if (controller.signal.aborted) return;
-
-        if (isActive()) setPhase("streaming");
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
+      // ----------------------------------------------------------------
+      // Retry loop: reconnects automatically on transient errors
+      // (e.g., ERR_HTTP2_PROTOCOL_ERROR from ALB GOAWAY frames).
+      // ----------------------------------------------------------------
+      while (!controller.signal.aborted) {
         try {
-          while (true) {
-            const { done, value } = await reader.read();
+          const response = await fetch(url.toString(), {
+            method: "GET",
+            headers: { Accept: "text/plain" },
+            signal: controller.signal,
+            credentials: "include",
+            redirect: "manual",
+          });
 
-            if (done) {
-              if (buffer.trim()) processChunkRef.current(buffer);
-              if (isActive()) setPhase("complete");
-              break;
-            }
+          handleRedirectResponse(response, "log streaming");
 
-            buffer += decoder.decode(value, { stream: true });
-            const lastNewline = buffer.lastIndexOf("\n");
-            if (lastNewline !== -1) {
-              processChunkRef.current(buffer.slice(0, lastNewline));
-              buffer = buffer.slice(lastNewline + 1);
-            }
+          if (!response.ok) {
+            throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
           }
-        } finally {
-          await reader.cancel().catch(() => {});
-          reader.releaseLock();
-        }
-      } catch (err) {
-        if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
-          if (isActive()) setPhase("idle");
-        } else if (isActive()) {
-          setError(err instanceof Error ? err : new Error(String(err)));
-          setPhase("error");
+          if (!response.body) {
+            throw new Error("Response body is not readable");
+          }
+          if (controller.signal.aborted) return;
+
+          // Connection succeeded — reset retry counter.
+          retryCount = 0;
+
+          // Clear refs for fresh accumulation. We do NOT call setEntries([])
+          // here so that previously received entries remain visible during the
+          // brief window before the first RAF flush delivers new data.
+          // The next flushPending() will naturally replace React state.
+          entriesRef.current = [];
+          pendingRef.current = [];
+
+          if (isActive()) setPhase("streaming");
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+
+              if (done) {
+                if (buffer.trim()) processChunkRef.current(buffer);
+                if (isActive()) setPhase("complete");
+                return; // Stream completed normally — exit retry loop
+              }
+
+              buffer += decoder.decode(value, { stream: true });
+              const lastNewline = buffer.lastIndexOf("\n");
+              if (lastNewline !== -1) {
+                processChunkRef.current(buffer.slice(0, lastNewline));
+                buffer = buffer.slice(lastNewline + 1);
+              }
+            }
+          } finally {
+            await reader.cancel().catch(() => {});
+            reader.releaseLock();
+          }
+        } catch (err) {
+          // Intentional abort (unmount, disable, or manual restart)
+          if (err instanceof Error && (err.name === "AbortError" || controller.signal.aborted)) {
+            if (isActive()) setPhase("idle");
+            return;
+          }
+
+          // Transient error — retry with exponential backoff
+          if (isTransientError(err) && retryCount < MAX_AUTO_RETRIES && isActive()) {
+            retryCount++;
+            const delay = getRetryDelay(retryCount - 1);
+
+            if (isActive()) setPhase("reconnecting");
+
+            try {
+              await abortableDelay(delay, controller.signal);
+            } catch {
+              // Aborted during delay (unmount or manual restart)
+              if (isActive()) setPhase("idle");
+              return;
+            }
+
+            // Loop continues → retry fetch
+            continue;
+          }
+
+          // Terminal error (non-transient or retries exhausted)
+          if (isActive()) {
+            setError(err instanceof Error ? err : new Error(String(err)));
+            setPhase("error");
+          }
+          return;
         }
       }
     };
@@ -236,6 +290,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
       phase,
       error,
       isStreaming: phase === "streaming",
+      isReconnecting: phase === "reconnecting",
       hasData: entries.length > 0,
       entryCount: entries.length,
       restart,

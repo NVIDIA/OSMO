@@ -305,8 +305,9 @@ export type StreamPhase =
   | "idle" // Not started (enabled=false or no workflowId)
   | "connecting" // Fetch in flight, no data yet
   | "streaming" // Reader active, entries accumulating
+  | "reconnecting" // Stream dropped, auto-retrying with backoff
   | "complete" // Stream ended normally (done=true from reader)
-  | "error"; // Stream failed
+  | "error"; // Stream failed (after retries exhausted)
 
 /**
  * @deprecated Use StreamPhase instead

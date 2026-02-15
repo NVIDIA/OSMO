@@ -22,8 +22,12 @@ import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { TaskRow } from "@/components/event-viewer/TaskRow";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 
-/** Estimated collapsed row height (px) */
-const ROW_HEIGHT_COLLAPSED = 48;
+/**
+ * Estimated collapsed row height (px).
+ * Must match actual two-line layout: py-3 (12) + text-xs line (16) + subtitle line (16) + py-3 (12) = 56.
+ * The TaskRow always renders a subtitle placeholder so every collapsed row is this height.
+ */
+const ROW_HEIGHT_COLLAPSED = 56;
 
 /** Estimated height per event row when expanded (px) */
 const ROW_HEIGHT_PER_EVENT = 28;
@@ -67,18 +71,26 @@ export function EventViewerTable({
     [tasks, expandedIds],
   );
 
-  // Encode expand state + filtered event count into the virtualizer item key.
-  // When either changes, the virtualizer discards the stale cached measurement
-  // for that item and falls back to estimateSize. Items that haven't changed
-  // keep their exact ResizeObserver measurements — no blanket reset needed.
+  // Encode expand state into the virtualizer item key.  When the expand state
+  // changes the virtualizer discards the stale cached measurement for that item
+  // and falls back to estimateSize.  Items that haven't changed keep their exact
+  // ResizeObserver measurements — no blanket reset needed.
+  //
+  // IMPORTANT: event count is only included for *expanded* rows (where it affects
+  // height).  For collapsed rows the height is constant regardless of event count,
+  // so encoding it would needlessly invalidate cached measurements every time a
+  // new event streams in, causing visible row-position shifts.
   const getItemKey = useMemo(
     () => (index: number) => {
       const task = tasks[index];
       if (!task) return index;
-      const expanded = expandedIds.has(task.id) ? 1 : 0;
+      const expanded = expandedIds.has(task.id);
+      if (!expanded) return task.id;
+      // Expanded: height depends on visible event count → encode it so the
+      // cached measurement is discarded when the panel grows/shrinks.
       const eventCount =
         (task as TaskGroup & { _filteredEventsCount?: number })._filteredEventsCount ?? task.events.length;
-      return `${task.id}:${expanded}:${eventCount}`;
+      return `${task.id}:1:${eventCount}`;
     },
     [tasks, expandedIds],
   );
