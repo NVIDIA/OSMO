@@ -141,16 +141,6 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
     timelineColor = "green";
   }
 
-  // Calculate fill percentage for each line segment
-  // Timeline always goes to a dot, never stops in the middle
-  // lineIdx 0 = line after first dot (Pending -> Init)
-  // lineIdx 1 = line after second dot (Init -> Running)
-  // lineIdx 2 = line after third dot (Running -> Done)
-  const getLineFillPercentage = (lineIdx: number): number => {
-    // Line is filled if we've reached or passed the next stage
-    return lineIdx < progressIdx ? 100 : 0;
-  };
-
   return (
     <div
       className={cn("lifecycle-timeline", className)}
@@ -193,7 +183,7 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
               <div className="timeline-line">
                 <div
                   className="timeline-line-fill"
-                  style={{ width: `${getLineFillPercentage(idx)}%` }}
+                  style={{ transform: `scaleX(${idx < progressIdx ? 1 : 0})` }}
                 />
               </div>
             )}
