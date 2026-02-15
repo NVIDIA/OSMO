@@ -116,22 +116,18 @@ export function RefreshControl(props: RefreshControlProps) {
       </Tooltip>
 
       <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isRefreshing}
-                className="h-8 w-5 rounded-l-none p-0"
-              >
-                <ChevronDown className="h-3 w-3" />
-                <span className="sr-only">Auto-refresh options</span>
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Auto-refresh settings</TooltipContent>
-        </Tooltip>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isRefreshing}
+            className="h-8 w-5 rounded-l-none p-0"
+            aria-label="Auto-refresh settings"
+          >
+            <ChevronDown className="h-3 w-3" />
+            <span className="sr-only">Auto-refresh options</span>
+          </Button>
+        </DropdownMenuTrigger>
 
         <DropdownMenuContent
           align="end"
