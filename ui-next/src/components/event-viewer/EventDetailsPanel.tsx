@@ -18,9 +18,13 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinctWithSeconds } from "@/lib/format-date";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
+import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 
 export interface EventDetailsPanelProps {
-  task: TaskGroup;
+  task: TaskGroup & {
+    /** Filtered events subset when event-level filters are active */
+    _filteredEvents?: K8sEvent[];
+  };
   className?: string;
   /** When true, event rows animate in with a stagger effect */
   isAnimated?: boolean;
@@ -29,31 +33,28 @@ export interface EventDetailsPanelProps {
 /**
  * Expanded panel showing event details for a task.
  * Renders a mini table with time, event reason badge, and message for each event.
+ * Displays filtered events if available, otherwise all events.
  */
 export const EventDetailsPanel = memo(function EventDetailsPanel({
   task,
   className,
   isAnimated,
 }: EventDetailsPanelProps) {
-  if (task.events.length === 0) {
+  // Use filtered events when available, fallback to all events
+  const eventsToDisplay = task._filteredEvents ?? task.events;
+
+  if (eventsToDisplay.length === 0) {
     return (
-      <div className={cn("text-muted-foreground bg-card py-6 text-center text-xs", className)}>
+      <div className={cn("text-muted-foreground py-6 text-center text-xs", className)}>
         No events available for this task
       </div>
     );
   }
 
   return (
-    <div className={cn("bg-card", className)}>
-      {/* Mini header for nested events table */}
-      <div className="event-details-grid text-muted-foreground/70 border-border items-center border-b py-1.5 pr-4 pl-11 text-xs font-medium tracking-wider uppercase">
-        <div>Time</div>
-        <div>Event</div>
-        <div>Details</div>
-      </div>
-
+    <div className={cn(className)}>
       {/* Event rows */}
-      {task.events.map((event, index) => {
+      {eventsToDisplay.map((event, index) => {
         const timeStr = formatDateTimeSuccinctWithSeconds(event.timestamp);
         const absTime = formatDateTimeFull(event.timestamp);
         // Cap stagger index at 12 so rows beyond that appear simultaneously
@@ -63,7 +64,7 @@ export const EventDetailsPanel = memo(function EventDetailsPanel({
           <div
             key={event.id}
             className={cn(
-              "event-details-grid hover:bg-accent items-start py-1.5 pr-4 pl-11 transition-colors duration-100",
+              "event-details-grid items-start py-1.5 pr-4 pl-11",
               "[&:not(:last-child)]:border-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-dashed",
               isAnimated && "event-row-animated",
             )}

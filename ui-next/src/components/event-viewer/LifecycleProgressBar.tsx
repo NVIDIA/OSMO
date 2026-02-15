@@ -17,7 +17,6 @@
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type TaskGroup } from "@/lib/api/adapter/events/events-grouping";
-import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
 
 /**
  * Visual lifecycle stages for the progress bar.
@@ -50,36 +49,22 @@ const LIFECYCLE_STAGES = [
 type StageKey = (typeof LIFECYCLE_STAGES)[number]["key"];
 
 /**
- * Check whether the pod was successfully scheduled by looking for a
- * "Scheduled" event. This is the dividing line between the scheduling
- * sub-phase (visual "Pending") and the initialization sub-phase
- * (visual "Init") within the K8s Pending phase.
- *
- * Note: FailedScheduling and Preempting also have stage "scheduling"
- * but do NOT indicate successful scheduling. Only "Scheduled" does.
- */
-function hasBeenScheduled(task: TaskGroup): boolean {
-  return task.events.some((e) => e.reason === K8S_EVENT_REASONS.SCHEDULED);
-}
-
-/**
  * Determine how far a failed task progressed before failure.
  *
- * Examines non-failure events to find the furthest lifecycle stage reached.
- * Uses the "Scheduled" event as the marker between the scheduling (index 0)
- * and initialization (index 1) sub-phases, since both map to stage "scheduling"
- * in the event classification.
+ * Finds the furthest lifecycle stage reached by examining non-failure events.
  */
 function getFailedProgressIndex(task: TaskGroup): number {
   const nonFailureEvents = task.events.filter((e) => e.stage !== "failure");
   if (nonFailureEvents.length === 0) return 0;
 
   const lastStage = nonFailureEvents[nonFailureEvents.length - 1]?.stage;
+  if (!lastStage) return 0;
+
   if (lastStage === "completion") return 3;
   if (lastStage === "container" || lastStage === "runtime") return 2;
   if (lastStage === "image" || lastStage === "initialization") return 1;
-  // lastStage is "scheduling" -- check if scheduling actually succeeded
-  if (hasBeenScheduled(task)) return 1;
+  // "scheduling" stage -- only advance to Init if scheduling actually succeeded
+  if (task.derived.hasScheduledEvent) return 1;
   return 0;
 }
 
@@ -99,20 +84,20 @@ function getFailedProgressIndex(task: TaskGroup): number {
  * creation -- all still within the Pending phase but past scheduling.
  */
 export function getProgressIndex(task: TaskGroup): number {
-  if (task.podPhase === "Failed") {
+  const { podPhase } = task.derived;
+
+  if (podPhase === "Failed") {
     return getFailedProgressIndex(task);
   }
 
-  switch (task.podPhase) {
+  switch (podPhase) {
     case "Succeeded":
       return 3; // done
     case "Running":
       return 2; // running
     case "Pending":
-      // Within Pending, the "Scheduled" event marks the boundary between
-      // the scheduling sub-phase (waiting for a node) and the initialization
-      // sub-phase (image pull, init containers, container creation).
-      return hasBeenScheduled(task) ? 1 : 0;
+      // "Scheduled" event marks boundary between scheduling (0) and init (1)
+      return task.derived.hasScheduledEvent ? 1 : 0;
     case "Unknown":
     default:
       return 0; // pending
@@ -162,9 +147,10 @@ export interface LifecycleProgressBarProps {
 }
 
 export function LifecycleProgressBar({ task, className }: LifecycleProgressBarProps) {
-  const isFailed = task.podPhase === "Failed";
+  const { podPhase } = task.derived;
+  const isFailed = podPhase === "Failed";
   const progressIdx = getProgressIndex(task);
-  const isTerminal = task.podPhase === "Succeeded" || isFailed;
+  const isTerminal = podPhase === "Succeeded" || isFailed;
 
   return (
     <div className={cn("flex h-5.5 gap-0.5 overflow-hidden rounded", className)}>
