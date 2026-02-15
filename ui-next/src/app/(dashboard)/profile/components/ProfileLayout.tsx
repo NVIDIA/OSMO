@@ -16,32 +16,47 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-"use client";
-
-import { usePage } from "@/components/chrome/page-context";
+import { Suspense } from "react";
+import { ProfilePageTitle } from "@/app/(dashboard)/profile/components/ProfilePageTitle";
 import { ProfileNavigation } from "@/app/(dashboard)/profile/components/ProfileNavigation";
 import { UserInfoSection } from "@/app/(dashboard)/profile/components/UserInfoSection";
 import { NotificationsSection } from "@/app/(dashboard)/profile/components/NotificationsSection";
 import { BucketsSection } from "@/app/(dashboard)/profile/components/BucketsSection";
 import { PoolsSection } from "@/app/(dashboard)/profile/components/PoolsSection";
 import { CredentialsSection } from "@/app/(dashboard)/profile/components/CredentialsSection";
+import { NotificationsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/NotificationsSkeleton";
+import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
+import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/CredentialsSkeleton";
 
 export function ProfileLayout() {
-  usePage({ title: "Profile Settings" });
-
   return (
-    <div className="mx-auto flex max-w-[1400px] gap-6 p-8">
-      <ProfileNavigation />
+    <>
+      <ProfilePageTitle />
+      <div className="mx-auto flex max-w-[1400px] gap-6 p-8">
+        <ProfileNavigation />
 
-      <main className="min-w-0 flex-1">
-        <div className="space-y-8">
-          <UserInfoSection />
-          <NotificationsSection />
-          <PoolsSection />
-          <BucketsSection />
-          <CredentialsSection />
-        </div>
-      </main>
-    </div>
+        <main className="min-w-0 flex-1">
+          <div className="space-y-8">
+            <UserInfoSection />
+
+            <Suspense fallback={<NotificationsSkeleton />}>
+              <NotificationsSection />
+            </Suspense>
+
+            <Suspense fallback={<SelectionSkeleton />}>
+              <PoolsSection />
+            </Suspense>
+
+            <Suspense fallback={<SelectionSkeleton />}>
+              <BucketsSection />
+            </Suspense>
+
+            <Suspense fallback={<CredentialsSkeleton />}>
+              <CredentialsSection />
+            </Suspense>
+          </div>
+        </main>
+      </div>
+    </>
   );
 }

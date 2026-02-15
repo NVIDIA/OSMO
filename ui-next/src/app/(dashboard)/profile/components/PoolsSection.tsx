@@ -22,7 +22,7 @@ import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
 import { SelectionCard } from "@/app/(dashboard)/profile/components/SelectionCard";
-import { LazySection } from "@/app/(dashboard)/profile/components/LazySection";
+import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
 export function PoolsSection() {
@@ -38,33 +38,38 @@ export function PoolsSection() {
 
   const buildUpdate = useCallback((value: string): ProfileUpdate => ({ pool: { default: value } }), []);
 
+  if (!hasIntersected || isLoading || !profile) {
+    return (
+      <section
+        ref={ref}
+        id="pools"
+        className="profile-scroll-offset"
+      >
+        <SelectionSkeleton />
+      </section>
+    );
+  }
+
   return (
     <section
       ref={ref}
       id="pools"
       className="profile-scroll-offset"
     >
-      <LazySection
-        hasIntersected={hasIntersected}
-        isLoading={isLoading}
-      >
-        {profile && (
-          <SelectionCard
-            icon={Server}
-            title="Pools"
-            description="Select your default compute pool for workflow execution."
-            currentDefault={profile.pool.default}
-            accessible={profile.pool.accessible}
-            updateProfile={updateProfile}
-            isUpdating={isUpdatingProfile}
-            announcer={announcer}
-            buildUpdate={buildUpdate}
-            searchPlaceholder="Search pools..."
-            emptyMessage="No accessible pools"
-            entityLabel="pool"
-          />
-        )}
-      </LazySection>
+      <SelectionCard
+        icon={Server}
+        title="Pools"
+        description="Select your default compute pool for workflow execution."
+        currentDefault={profile.pool.default}
+        accessible={profile.pool.accessible}
+        updateProfile={updateProfile}
+        isUpdating={isUpdatingProfile}
+        announcer={announcer}
+        buildUpdate={buildUpdate}
+        searchPlaceholder="Search pools..."
+        emptyMessage="No accessible pools"
+        entityLabel="pool"
+      />
     </section>
   );
 }

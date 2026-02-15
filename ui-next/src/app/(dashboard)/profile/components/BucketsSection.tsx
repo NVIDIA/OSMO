@@ -22,7 +22,7 @@ import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useBuckets, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
 import { SelectionCard } from "@/app/(dashboard)/profile/components/SelectionCard";
-import { LazySection } from "@/app/(dashboard)/profile/components/LazySection";
+import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
 import type { SelectableListItem } from "@/app/(dashboard)/profile/components/SelectableList";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
@@ -38,7 +38,6 @@ export function BucketsSection() {
   const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateProfile();
   const { announcer } = useServices();
 
-  // Create bucket lookup map for efficient access to bucket metadata
   const bucketMap = useMemo(() => {
     const map = new Map<string, { path: string; description: string }>();
     for (const bucket of buckets) {
@@ -47,7 +46,6 @@ export function BucketsSection() {
     return map;
   }, [buckets]);
 
-  // Merge bucket names into profile
   const fullProfile = useMemo(() => {
     if (!profile) return null;
     return {
@@ -75,34 +73,39 @@ export function BucketsSection() {
 
   const isLoading = profileLoading || bucketsLoading;
 
+  if (!hasIntersected || isLoading || !fullProfile) {
+    return (
+      <section
+        ref={ref}
+        id="buckets"
+        className="profile-scroll-offset"
+      >
+        <SelectionSkeleton />
+      </section>
+    );
+  }
+
   return (
     <section
       ref={ref}
       id="buckets"
       className="profile-scroll-offset"
     >
-      <LazySection
-        hasIntersected={hasIntersected}
-        isLoading={isLoading}
-      >
-        {fullProfile && (
-          <SelectionCard
-            icon={FolderOpen}
-            title="Data Buckets"
-            description="Select the default bucket for dataset storage."
-            currentDefault={fullProfile.bucket.default}
-            accessible={fullProfile.bucket.accessible}
-            updateProfile={updateProfile}
-            isUpdating={isUpdatingProfile}
-            announcer={announcer}
-            buildUpdate={buildUpdate}
-            buildItem={buildItem}
-            searchPlaceholder="Search buckets..."
-            emptyMessage="No accessible buckets"
-            entityLabel="bucket"
-          />
-        )}
-      </LazySection>
+      <SelectionCard
+        icon={FolderOpen}
+        title="Data Buckets"
+        description="Select the default bucket for dataset storage."
+        currentDefault={fullProfile.bucket.default}
+        accessible={fullProfile.bucket.accessible}
+        updateProfile={updateProfile}
+        isUpdating={isUpdatingProfile}
+        announcer={announcer}
+        buildUpdate={buildUpdate}
+        buildItem={buildItem}
+        searchPlaceholder="Search buckets..."
+        emptyMessage="No accessible buckets"
+        entityLabel="bucket"
+      />
     </section>
   );
 }

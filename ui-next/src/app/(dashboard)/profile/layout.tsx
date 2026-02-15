@@ -18,13 +18,6 @@
 
 import type { Metadata } from "next";
 
-/**
- * Profile Route Layout
- *
- * Provides metadata for the profile page. The actual layout rendering
- * is handled by the parent (dashboard) layout.
- */
-
 export const metadata: Metadata = {
   title: "Profile | OSMO",
   description: "Manage your OSMO profile settings and preferences.",
