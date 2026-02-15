@@ -32,6 +32,9 @@
     --col-duration: 100px;
     --col-lifecycle-min: 300px;
     --col-events: 60px;
+
+    /* Event details (expanded panel) column widths */
+    --col-event-time: 150px;
   }
 
   .dark {
@@ -59,9 +62,18 @@
       var(--col-events);
   }
 
+  /* Parent container: single grid context so max-content sizes the event
+     column across ALL rows (not per-row). Rows use subgrid to inherit tracks. */
+  .event-details-panel {
+    display: grid;
+    grid-template-columns: var(--col-event-time) max-content 1fr;
+    column-gap: 0.5rem;
+  }
+
   .event-details-grid {
     display: grid;
-    grid-template-columns: 150px 140px 1fr;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
   }
 
   /* ==========================================================================

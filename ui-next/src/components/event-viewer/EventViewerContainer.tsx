@@ -17,7 +17,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, startTransition, useDeferredValue } from "react";
-import { ChevronsDownUp, ChevronsUpDown, Radio } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Loader2, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEventStream } from "@/lib/api/adapter/events/use-event-stream";
 import { groupEventsByTask } from "@/lib/api/adapter/events/events-grouping";
@@ -42,7 +42,7 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
   const { searchChips, setSearchChips } = useUrlChips({ paramName: "ef" });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
-  const { events, phase, error, isStreaming, restart } = useEventStream({ url });
+  const { events, phase, error, isStreaming, isReconnecting, restart } = useEventStream({ url });
 
   const groupedTasks = useMemo(() => groupEventsByTask(events), [events]);
 
@@ -103,13 +103,14 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
     });
   }, []);
 
-  // Loading state (connecting with no data yet)
-  if ((phase === "connecting" || phase === "idle") && events.length === 0) {
+  // Loading state (connecting/reconnecting with no data yet)
+  if ((phase === "connecting" || phase === "reconnecting" || phase === "idle") && events.length === 0) {
+    const message = phase === "reconnecting" ? "Reconnecting..." : "Loading events...";
     return (
       <div className={cn("flex items-center justify-center p-8", className)}>
         <div className="text-center">
           <div className="mb-2 inline-block size-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-          <p className="text-muted-foreground text-sm">Loading events...</p>
+          <p className="text-muted-foreground text-sm">{message}</p>
         </div>
       </div>
     );
@@ -161,6 +162,12 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
             <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400">
               <Radio className="size-3 animate-pulse" />
               <span>Live</span>
+            </div>
+          )}
+          {isReconnecting && (
+            <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-600 dark:text-yellow-400">
+              <Loader2 className="size-3 animate-spin" />
+              <span>Reconnecting</span>
             </div>
           )}
 

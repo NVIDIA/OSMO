@@ -97,11 +97,14 @@ export const TaskRow = memo(
               )}
               <div className="min-w-0">
                 <div className="text-foreground truncate font-mono text-xs font-medium">{task.name}</div>
-                {task.events.length > 0 && task.events[0]?.involvedObject.kind === "Task" && (
-                  <div className="text-muted-foreground truncate text-xs">
-                    {task.events[0].source.host || "node unknown"}
-                  </div>
-                )}
+                {/* Always render subtitle to keep row height stable across all tasks.
+                    Without this, rows with/without node info have different heights,
+                    causing the virtualizer estimate to mismatch and rows to shift. */}
+                <div className="text-muted-foreground truncate text-xs">
+                  {task.events.length > 0 && task.events[0]?.involvedObject.kind === "Task"
+                    ? task.events[0].source.host || "node unknown"
+                    : "\u00A0"}
+                </div>
               </div>
             </div>
 

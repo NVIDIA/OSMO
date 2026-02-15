@@ -52,7 +52,7 @@ export const EventDetailsPanel = memo(function EventDetailsPanel({
   }
 
   return (
-    <div className={cn(className)}>
+    <div className={cn("event-details-panel pr-4 pl-11", className)}>
       {/* Event rows */}
       {eventsToDisplay.map((event, index) => {
         const timeStr = formatDateTimeSuccinctWithSeconds(event.timestamp);
@@ -64,7 +64,7 @@ export const EventDetailsPanel = memo(function EventDetailsPanel({
           <div
             key={event.id}
             className={cn(
-              "event-details-grid items-start py-1.5 pr-4 pl-11",
+              "event-details-grid items-start py-1.5",
               "[&:not(:last-child)]:border-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-dashed",
               isAnimated && "event-row-animated",
             )}
@@ -84,7 +84,7 @@ export const EventDetailsPanel = memo(function EventDetailsPanel({
             {/* Event reason badge */}
             <div className="flex items-center">
               <span
-                className="event-badge inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+                className="event-badge inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap"
                 data-severity={event.severity}
                 data-reason={event.reason}
               >

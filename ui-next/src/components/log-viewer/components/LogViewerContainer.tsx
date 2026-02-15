@@ -163,7 +163,7 @@ function LogViewerContainerImpl({
     );
   }
 
-  if ((phase === "connecting" || phase === "idle") && rawEntries.length === 0) {
+  if ((phase === "connecting" || phase === "reconnecting" || phase === "idle") && rawEntries.length === 0) {
     return (
       <div className={containerClasses}>
         <LogViewerSkeleton className={viewerClassName} />
