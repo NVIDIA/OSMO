@@ -78,7 +78,7 @@ listeners:
                   local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
 
                   -- If jwt verification failed, do nothing
-                  if (meta.verified_jwt == nil) then
+                  if (meta == nil or meta.verified_jwt == nil) then
                     return
                   end
 

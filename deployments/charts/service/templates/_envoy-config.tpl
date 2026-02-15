@@ -227,6 +227,65 @@ data:
               {{- end }}
 
               - name: jwt-authn-with-matcher
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
+
+                  # If any of these paths match, then skip the jwt filter
+                  xds_matcher:
+                    matcher_list:
+                      matchers:
+                      - predicate:
+                          single_predicate:
+                            input:
+                              name: request-headers
+                              typed_config:
+                                "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                header_name: x-osmo-auth-skip
+                            value_match:
+                              exact: "true"
+                        on_match:
+                          action:
+                            name: skip
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
+
+                  # Otherwise, go through the regular jwt process
+                  extension_config:
+                    name: envoy.filters.http.jwt_authn
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                      providers:
+                        {{- range $i, $provider := $envoy.jwt.providers }}
+                        provider_{{$i}}:
+                          issuer: {{ $provider.issuer }}
+                          audiences:
+                          - {{ $provider.audience }}
+                          forward: true
+                          payload_in_metadata: verified_jwt
+                          from_headers:
+                          - name: x-osmo-auth
+                          - name: authorization
+                            value_prefix: "Bearer "
+                          remote_jwks:
+                            http_uri:
+                              uri: {{ $provider.jwks_uri }}
+                              cluster: {{ $provider.cluster }}
+                              timeout: 5s
+                            cache_duration:
+                              seconds: 600
+                            async_fetch:
+                              failed_refetch_duration: 1s
+                            retry_policy:
+                              num_retries: 3
+                              retry_back_off:
+                                base_interval: 0.01s
+                                max_interval: 3s
+                          claim_to_headers:
+                          - claim_name: {{$provider.user_claim}}
+                            header_name: {{$envoy.jwt.user_header}}
+
+
+                        {{- end }}
                       rules:
                       - match:
                           prefix: /
@@ -255,7 +314,7 @@ data:
                         local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
 
                         -- If jwt verification failed, do nothing
-                        if (meta.verified_jwt == nil) then
+                        if (meta == nil or meta.verified_jwt == nil) then
                           return
                         end
 
