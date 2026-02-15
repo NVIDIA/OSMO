@@ -23,6 +23,19 @@ import type { EventSeverity, LifecycleStage } from "@/lib/api/adapter/events/eve
 import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
 
 // ============================================================================
+// Timeline Color Type
+// ============================================================================
+
+/**
+ * Timeline colors for visual status indication:
+ * - green: Success/healthy (Scheduled, Ready, Started, Completed)
+ * - blue: In-progress (Pulling, Creating containers)
+ * - amber: Non-terminal failures (ImagePullBackOff, CrashLoopBackOff, FailedScheduling)
+ * - red: Terminal failures (OOMKilled, Failed, Evicted)
+ */
+export type TimelineColor = "green" | "blue" | "amber" | "red";
+
+// ============================================================================
 // Event Reason Classification
 // ============================================================================
 
@@ -132,3 +145,56 @@ export const PENDING_REASONS = new Set<string>([
   K8S_EVENT_REASONS.INVALID_IMAGE_NAME,
   K8S_EVENT_REASONS.PREEMPTING,
 ]);
+
+// ============================================================================
+// Event Reason to Timeline Color Mapping
+// ============================================================================
+
+/**
+ * Maps Kubernetes event reasons to timeline colors for visual status indication.
+ *
+ * Color semantics:
+ * - green: Terminal success (Completed, Succeeded)
+ * - blue: In-progress/active (Scheduled, Pulling, Started, Ready - non-terminal healthy states)
+ * - amber: Non-terminal failures (ImagePullBackOff, CrashLoopBackOff, FailedScheduling)
+ * - red: Terminal failures (OOMKilled, Failed, Evicted)
+ */
+export const EVENT_COLOR_MAP: Record<string, TimelineColor> = {
+  // Pending stage
+  [K8S_EVENT_REASONS.SCHEDULED]: "blue",
+  [K8S_EVENT_REASONS.FAILED_SCHEDULING]: "amber",
+  [K8S_EVENT_REASONS.PREEMPTING]: "amber",
+
+  // Init stage
+  [K8S_EVENT_REASONS.PULLING]: "blue",
+  [K8S_EVENT_REASONS.PULLED]: "blue",
+  [K8S_EVENT_REASONS.CREATED]: "blue",
+  [K8S_EVENT_REASONS.ERR_IMAGE_PULL]: "amber",
+  [K8S_EVENT_REASONS.IMAGE_PULL_BACK_OFF]: "amber",
+  [K8S_EVENT_REASONS.POD_READY_TO_START_CONTAINERS]: "blue",
+
+  // Running stage
+  [K8S_EVENT_REASONS.STARTED]: "blue",
+  [K8S_EVENT_REASONS.READY]: "blue",
+  [K8S_EVENT_REASONS.CONTAINERS_READY]: "blue",
+  [K8S_EVENT_REASONS.UNHEALTHY]: "amber",
+  [K8S_EVENT_REASONS.NOT_READY]: "amber",
+  [K8S_EVENT_REASONS.CRASH_LOOP_BACK_OFF]: "amber",
+  [K8S_EVENT_REASONS.BACK_OFF]: "amber",
+  [K8S_EVENT_REASONS.OOM_KILLED]: "red",
+  [K8S_EVENT_REASONS.EVICTED]: "red",
+  [K8S_EVENT_REASONS.CONTAINER_DIED]: "red",
+
+  // Done stage
+  [K8S_EVENT_REASONS.COMPLETED]: "green",
+  [K8S_EVENT_REASONS.SUCCEEDED]: "green",
+  [K8S_EVENT_REASONS.FAILED]: "red",
+};
+
+/**
+ * Map an event reason to a timeline color.
+ * Defaults to "blue" (in-progress) for unknown reasons.
+ */
+export function mapEventReasonToColor(reason: string): TimelineColor {
+  return EVENT_COLOR_MAP[reason] ?? "blue";
+}

@@ -42,6 +42,8 @@ import {
   FAILED_REASONS,
   RUNNING_REASONS,
   PENDING_REASONS,
+  type TimelineColor,
+  mapEventReasonToColor,
 } from "@/lib/api/adapter/events/events-utils";
 import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
 
@@ -86,6 +88,18 @@ export interface TaskDerivedState {
    * them because a later stage was reached, but we never received events for them).
    */
   observedStageIndices: ReadonlySet<number>;
+
+  /**
+   * Timeline color for visual status indication.
+   * Derived from the most recent event at the furthest stage reached.
+   *
+   * Color semantics:
+   * - green: Success/healthy (Scheduled, Ready, Started, Completed)
+   * - blue: In-progress (Pulling, Creating containers)
+   * - amber: Non-terminal failures (ImagePullBackOff, CrashLoopBackOff)
+   * - red: Terminal failures (OOMKilled, Failed, Evicted)
+   */
+  timelineColor: TimelineColor;
 }
 
 // ============================================================================
@@ -161,6 +175,37 @@ function deriveLifecycle(furthestProgressIndex: number, lastEventStage: Lifecycl
 }
 
 /**
+ * Determine timeline color based on events and pod phase.
+ *
+ * Strategy:
+ * 1. Terminal pod states (Succeeded/Failed) override everything
+ * 2. Scan backwards for most recent event at furthest stage reached
+ * 3. Map that event's reason to a color
+ * 4. Default to "blue" (in-progress) if no matching event found
+ *
+ * This gives us robust color determination that matches the visual timeline,
+ * showing the semantic status of the task's furthest progress.
+ */
+function determineTimelineColor(events: K8sEvent[], furthestProgressIndex: number, podPhase: PodPhase): TimelineColor {
+  // Terminal pod states override everything
+  if (podPhase === "Succeeded") return "green";
+  if (podPhase === "Failed") return "red";
+
+  // Scan backwards for most recent event at furthest stage
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    const eventIdx = eventProgressIndex(event);
+
+    if (eventIdx === furthestProgressIndex) {
+      return mapEventReasonToColor(event.reason);
+    }
+  }
+
+  // Default: in-progress (blue)
+  return "blue";
+}
+
+/**
  * Compute all derived state from events in a single pass.
  * Called once during groupEventsByTask().
  *
@@ -171,6 +216,7 @@ function deriveLifecycle(furthestProgressIndex: number, lastEventStage: Lifecycl
  * - Forward pass: track furthest progress index and observed stage indices
  * - Backward pass: find most recent pod-phase-relevant event for podPhase
  * - Derive lifecycle from furthest progress + last event stage
+ * - Derive timeline color from furthest progress + pod phase
  *
  * @precondition events array must be sorted ASC by timestamp (enforced by caller)
  */
@@ -182,6 +228,7 @@ export function computeDerivedState(events: K8sEvent[]): TaskDerivedState {
       hasScheduledEvent: false,
       furthestProgressIndex: -1,
       observedStageIndices: new Set(),
+      timelineColor: "blue",
     };
   }
 
@@ -235,11 +282,15 @@ export function computeDerivedState(events: K8sEvent[]): TaskDerivedState {
   const lastEventStage = events[events.length - 1]?.stage ?? null;
   const lifecycle = deriveLifecycle(furthestProgressIndex, lastEventStage);
 
+  // Derive timeline color from events, furthest progress, and pod phase
+  const timelineColor = determineTimelineColor(events, furthestProgressIndex, podPhase);
+
   return {
     podPhase,
     lifecycle,
     hasScheduledEvent,
     furthestProgressIndex,
     observedStageIndices,
+    timelineColor,
   };
 }

@@ -274,6 +274,12 @@
   --stage-inferred: oklch(0.72 0 0);
   --stage-inferred-fg: oklch(0.92 0 0);
 
+  /* Timeline status colors (light mode) - semantic colors for event-based timeline */
+  --timeline-green: oklch(0.7 0.15 145); /* Success/healthy */
+  --timeline-blue: oklch(0.6 0.15 260); /* In-progress */
+  --timeline-amber: oklch(0.75 0.16 95); /* Warning/non-terminal failure - more yellow */
+  --timeline-red: oklch(0.65 0.2 25); /* Terminal failure */
+
   /* Table colors (light mode) */
   --table-surface: #ffffff;
   --table-header: #f0f0f0;
@@ -364,6 +370,12 @@
   --stage-inactive-fg: oklch(0.5 0 0);
   --stage-inferred: oklch(0.45 0 0);
   --stage-inferred-fg: oklch(0.2 0 0);
+
+  /* Timeline status colors (dark mode) - semantic colors for event-based timeline */
+  --timeline-green: oklch(0.75 0.12 145); /* Success/healthy */
+  --timeline-blue: oklch(0.7 0.12 260); /* In-progress */
+  --timeline-amber: oklch(0.8 0.16 95); /* Warning/non-terminal failure - more yellow */
+  --timeline-red: oklch(0.75 0.18 25); /* Terminal failure */
 
   /* Table colors (dark mode) */
   --table-surface: #09090b; /* zinc-950 / sidebar */
