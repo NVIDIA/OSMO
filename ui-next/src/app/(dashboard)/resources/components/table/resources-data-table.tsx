@@ -216,7 +216,7 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   // Row class for zebra striping
   const rowClassName = useCallback((resource: Resource & { _visualRowIndex?: number }) => {
     const visualIndex = resource._visualRowIndex ?? 0;
-    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No resources found" />, []);

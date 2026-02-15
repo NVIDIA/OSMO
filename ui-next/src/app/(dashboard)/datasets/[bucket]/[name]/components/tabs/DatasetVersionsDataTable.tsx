@@ -169,7 +169,7 @@ export const DatasetVersionsDataTable = memo(function DatasetVersionsDataTable({
   // Row class name for zebra striping
   const rowClassName = useCallback((version: DatasetVersionWithMetadata) => {
     const visualIndex = version._visualRowIndex ?? 0;
-    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
   }, []);
 
   const emptyContent = useMemo(() => {
