@@ -27,12 +27,10 @@
 
 import { memo, useCallback, type RefObject } from "react";
 import { X, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { inputStyles, dropdownStyles } from "@/components/filter-bar/styles";
 import { FilterBarChip } from "@/components/filter-bar/FilterBarChip";
 import type { SearchChip, ResultsCount } from "@/components/filter-bar/lib/types";
 
-export interface FilterBarInputProps {
+interface FilterBarInputProps {
   /** Current filter chips */
   chips: SearchChip[];
   /** Index of keyboard-focused chip (-1 = none) */
@@ -100,19 +98,13 @@ export const FilterBarInput = memo(function FilterBarInput({
 
   return (
     <div
-      className={cn(
-        inputStyles.container,
-        dropdownStyles.border,
-        dropdownStyles.surface,
-        validationError && inputStyles.containerError,
-      )}
+      className="fb-input-container bg-background"
+      data-error={validationError ? "" : undefined}
       onClick={handleContainerClick}
     >
       <Search
-        className={cn(
-          "size-4 shrink-0 transition-colors",
-          validationError ? "text-red-500" : dropdownStyles.mutedLight,
-        )}
+        className="fb-search-icon"
+        data-error={validationError ? "" : undefined}
       />
 
       {chips.map((chip, index) => (
@@ -134,7 +126,7 @@ export const FilterBarInput = memo(function FilterBarInput({
         onFocus={onFocus}
         onKeyDown={onKeyDown}
         placeholder={chips.length === 0 ? placeholder : "Add filter..."}
-        className={inputStyles.input}
+        className="fb-input"
         role="combobox"
         aria-expanded={showDropdown || undefined}
         aria-controls="filter-bar-listbox"
@@ -146,7 +138,7 @@ export const FilterBarInput = memo(function FilterBarInput({
         <button
           type="button"
           onClick={handleClearAllClick}
-          className={cn(inputStyles.clearButton, dropdownStyles.muted, dropdownStyles.hoverBg)}
+          className="fb-clear-button"
         >
           <X className="size-3" />
           <span>Clear</span>
@@ -155,12 +147,10 @@ export const FilterBarInput = memo(function FilterBarInput({
 
       {/* Results count */}
       {resultsCount && (
-        <span className={cn("shrink-0 text-xs tabular-nums", dropdownStyles.muted)}>
+        <span className="fb-results-count">
           {resultsCount.filtered !== undefined ? (
             <>
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                {resultsCount.filtered.toLocaleString()}
-              </span>
+              <span className="fb-results-count-highlight">{resultsCount.filtered.toLocaleString()}</span>
               {" of "}
               {resultsCount.total.toLocaleString()}
               {" results"}

@@ -44,7 +44,7 @@ import type { FilterKeyboardActions, FilterKeyboardState } from "@/components/fi
 // Options
 // ---------------------------------------------------------------------------
 
-export interface UseFilterStateOptions<T> {
+interface UseFilterStateOptions<T> {
   chips: SearchChip[];
   onChipsChange: (chips: SearchChip[]) => void;
   data: T[];
@@ -57,7 +57,7 @@ export interface UseFilterStateOptions<T> {
 // Return type (only what the FilterBar component actually consumes)
 // ---------------------------------------------------------------------------
 
-export interface UseFilterStateReturn<T> {
+interface UseFilterStateReturn<T> {
   // State
   inputValue: string;
   focusedChipIndex: number;
@@ -90,7 +90,7 @@ export interface UseFilterStateReturn<T> {
 }
 
 /** Callbacks the component provides for imperative input access */
-export interface InputRefCallbacks {
+interface InputRefCallbacks {
   focus: () => void;
   blur: () => void;
   getSelectionStart: () => number | null;
@@ -136,6 +136,7 @@ export function useFilterState<T>({
 
   const {
     addChip,
+    addTextChip,
     removeChip,
     clearChips,
     isPresetActive,
@@ -145,7 +146,7 @@ export function useFilterState<T>({
     clearValidationError,
   } = useChips({ chips, onChipsChange, data, fields, displayMode });
 
-  const { parsedInput, suggestions, flatPresets } = useSuggestions({
+  const { parsedInput, selectables, hints, flatPresets } = useSuggestions({
     inputValue,
     fields,
     data,
@@ -155,14 +156,8 @@ export function useFilterState<T>({
 
   // ========== Derived ==========
 
-  const selectables = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
-  const hints = useMemo(() => suggestions.filter((s) => s.type === "hint"), [suggestions]);
-
   // Preset cmdk values for keyboard cycling (independent of inputValue)
-  const presetValues = useMemo(
-    () => (presets ?? []).flatMap((g) => g.items.map((p) => `preset:${p.id}`)),
-    [presets],
-  );
+  const presetValues = useMemo(() => (presets ?? []).flatMap((g) => g.items.map((p) => `preset:${p.id}`)), [presets]);
 
   // ========== Actions ==========
 
@@ -190,8 +185,8 @@ export function useFilterState<T>({
         return;
       }
 
-      // Find the suggestion by value
-      const suggestion = suggestions.find((s) => s.value === value || s.label === value);
+      // Find the suggestion by value (search both selectables and hints)
+      const suggestion = selectables.find((s) => s.value === value || s.label === value);
       if (!suggestion || suggestion.type === "hint") return;
 
       if (suggestion.type === "field") {
@@ -207,7 +202,7 @@ export function useFilterState<T>({
         }
       }
     },
-    [suggestions, flatPresets, addChip, togglePreset],
+    [selectables, flatPresets, addChip, togglePreset],
   );
 
   const handleInputChange = useCallback(
@@ -287,9 +282,7 @@ export function useFilterState<T>({
         }
         return false;
       },
-      addTextChip: (value: string) => {
-        onChipsChange([...chips, { field: "text", value, label: value }]);
-      },
+      addTextChip,
       selectSuggestion: handleSelect,
       fillInput: setInputValue,
       showError: setValidationError,
@@ -298,7 +291,7 @@ export function useFilterState<T>({
       getInputSelectionStart: () => inputCallbacksRef.current.getSelectionStart(),
       getInputSelectionEnd: () => inputCallbacksRef.current.getSelectionEnd(),
     }),
-    [removeChip, resetInput, parsedInput, addChip, handleSelect, setValidationError, onChipsChange, chips],
+    [removeChip, resetInput, parsedInput, addChip, handleSelect, setValidationError, addTextChip],
   );
 
   const { handleKeyDown, highlightedSuggestionValue, displaySelectables, navigationLevel, resetNavigation } =
@@ -312,8 +305,7 @@ export function useFilterState<T>({
   // ========== Derived from keyboard + suggestions ==========
 
   // Presets show when no field is committed: empty input OR browsing fields
-  const showPresets =
-    isOpen && !!presets && presets.length > 0 && (inputValue === "" || navigationLevel === "field");
+  const showPresets = isOpen && !!presets && presets.length > 0 && (inputValue === "" || navigationLevel === "field");
 
   // Only show async loading state when NOT in keyboard navigation
   const isFieldLoading = !!(

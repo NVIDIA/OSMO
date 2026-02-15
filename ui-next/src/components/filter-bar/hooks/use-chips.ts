@@ -27,7 +27,7 @@ import { useCallback, useState } from "react";
 import type { SearchField, SearchChip, SearchPreset } from "@/components/filter-bar/lib/types";
 import { getFieldValues } from "@/components/filter-bar/lib/types";
 
-export interface UseChipsOptions<T> {
+interface UseChipsOptions<T> {
   chips: SearchChip[];
   onChipsChange: (chips: SearchChip[]) => void;
   data: T[];
@@ -36,9 +36,11 @@ export interface UseChipsOptions<T> {
   displayMode?: "free" | "used";
 }
 
-export interface UseChipsReturn<T> {
+interface UseChipsReturn<T> {
   /** Add a chip for a field/value pair (validates first). Returns true if added. */
   addChip: (field: SearchField<T>, value: string) => boolean;
+  /** Add a text search chip (no validation, always succeeds) */
+  addTextChip: (value: string) => void;
   removeChip: (index: number) => void;
   clearChips: () => void;
   isPresetActive: (preset: SearchPreset) => boolean;
@@ -126,6 +128,13 @@ export function useChips<T>({
     [chips, onChipsChange, data, displayMode, fields],
   );
 
+  const addTextChip = useCallback(
+    (value: string) => {
+      onChipsChange([...chips, { field: "text", value, label: value }]);
+    },
+    [chips, onChipsChange],
+  );
+
   const removeChip = useCallback(
     (index: number) => {
       onChipsChange(chips.filter((_, i) => i !== index));
@@ -188,6 +197,7 @@ export function useChips<T>({
 
   return {
     addChip,
+    addTextChip,
     removeChip,
     clearChips,
     isPresetActive,

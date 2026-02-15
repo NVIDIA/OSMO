@@ -36,11 +36,8 @@
 
 import { memo, useRef, useMemo, useEffect } from "react";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import { dropdownStyles, chipStyles } from "@/components/filter-bar/styles";
-import { FilterBarPreset } from "@/components/filter-bar/FilterBarPreset";
 import type { SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -62,7 +59,7 @@ const MAX_SUGGESTIONS_HEIGHT = 300;
 // Props
 // ---------------------------------------------------------------------------
 
-export interface FilterBarDropdownProps<T> {
+interface FilterBarDropdownProps<T> {
   /** Whether the dropdown is visible */
   showDropdown: boolean;
   /** Current validation error message */
@@ -136,25 +133,11 @@ function FilterBarDropdownInner<T>({
       {/* Dropdown panel */}
       <div
         ref={listRef}
-        className={cn(
-          dropdownStyles.dropdown,
-          dropdownStyles.surface,
-          validationError ? dropdownStyles.borderError : dropdownStyles.border,
-        )}
+        className="fb-dropdown bg-popover"
+        data-error={validationError ? "" : undefined}
       >
         {/* Validation error */}
-        {validationError && (
-          <div
-            className={cn(
-              dropdownStyles.dropdownItem,
-              dropdownStyles.nonInteractive,
-              "border-b border-red-100 dark:border-red-900",
-              dropdownStyles.error,
-            )}
-          >
-            ⚠ {validationError}
-          </div>
-        )}
+        {validationError && <div className="fb-validation-error">⚠ {validationError}</div>}
 
         {/* Scrollable content area - cmdk handles keyboard navigation */}
         <CommandList className="max-h-none min-h-0 flex-1 overflow-y-auto">
@@ -186,9 +169,9 @@ function FilterBarDropdownInner<T>({
         </CommandList>
 
         {/* Footer */}
-        <div className={cn("border-t px-3 py-2 text-xs", dropdownStyles.border, dropdownStyles.muted)}>
-          <kbd className={chipStyles.chip}>↑↓</kbd> <kbd className={chipStyles.chip}>Tab</kbd> fill{" "}
-          <kbd className={chipStyles.chip}>Enter</kbd> accept <kbd className={chipStyles.chip}>Esc</kbd> undo
+        <div className="fb-footer border-border">
+          <kbd className="fb-footer-kbd">↑↓</kbd> <kbd className="fb-footer-kbd">Tab</kbd> fill{" "}
+          <kbd className="fb-footer-kbd">Enter</kbd> accept <kbd className="fb-footer-kbd">Esc</kbd> undo
         </div>
       </div>
     </>
@@ -214,11 +197,7 @@ const PresetsSection = memo(function PresetsSection({ presets, onSelect, isPrese
         <CommandGroup
           key={group.label}
           heading={group.label}
-          className={cn(
-            "grid grid-cols-[auto_1fr] items-center gap-x-3 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800",
-            "[&>[cmdk-group-heading]]:text-xs [&>[cmdk-group-heading]]:font-medium [&>[cmdk-group-heading]]:text-zinc-500",
-            "[&>[cmdk-group-items]]:flex [&>[cmdk-group-items]]:flex-wrap [&>[cmdk-group-items]]:gap-1.5",
-          )}
+          className="fb-preset-group"
         >
           {group.items.map((preset) => (
             <CommandItem
@@ -227,10 +206,7 @@ const PresetsSection = memo(function PresetsSection({ presets, onSelect, isPrese
               onSelect={onSelect}
               className="group w-auto bg-transparent p-0"
             >
-              <FilterBarPreset
-                preset={preset}
-                isActive={isPresetActive(preset)}
-              />
+              {preset.render({ active: isPresetActive(preset), focused: false })}
             </CommandItem>
           ))}
         </CommandGroup>
@@ -249,11 +225,11 @@ interface HintsSectionProps<T> {
 
 function HintsSectionInner<T>({ hints }: HintsSectionProps<T>) {
   return (
-    <div className="border-b border-zinc-100 dark:border-zinc-800">
+    <div className="fb-section-border">
       {hints.map((hint, index) => (
         <div
           key={`hint-${hint.field.id}-${index}`}
-          className={cn(dropdownStyles.dropdownItem, dropdownStyles.nonInteractive, "italic", dropdownStyles.muted)}
+          className="fb-dropdown-item fb-hint"
         >
           {hint.label}
         </div>
@@ -275,12 +251,12 @@ interface LoadingSectionProps {
 const LoadingSection = memo(function LoadingSection({ label }: LoadingSectionProps) {
   return (
     <div
-      className={cn(dropdownStyles.dropdownItem, dropdownStyles.nonInteractive, "flex items-center gap-2")}
+      className="fb-dropdown-item fb-loading"
       role="status"
       aria-live="polite"
     >
-      <Loader2 className={cn("size-4 animate-spin", dropdownStyles.muted)} />
-      <span className={dropdownStyles.muted}>Loading {label ? label.toLowerCase() : "suggestions"}...</span>
+      <Loader2 className="text-muted-foreground size-4 animate-spin" />
+      <span className="text-muted-foreground">Loading {label ? label.toLowerCase() : "suggestions"}...</span>
     </div>
   );
 });
@@ -387,44 +363,36 @@ function VirtualizedSuggestionsInner<T>({
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
-  // Memoize the visible range to avoid re-creating item keys
-  const visibleItems = useMemo(
-    () =>
-      virtualItems.map((virtualRow) => ({
-        virtualRow,
-        suggestion: selectables[virtualRow.index],
-      })),
-    [virtualItems, selectables],
-  );
-
   return (
     <CommandGroup className="p-0">
       {/* Scroll container with CSS containment for performance */}
       <div
         ref={scrollRef}
-        className="contain-layout-paint scrollbar-styled overflow-y-auto overscroll-contain"
-        style={{ maxHeight: MAX_SUGGESTIONS_HEIGHT }}
+        className="fb-suggestions-scroll"
       >
         {/* Spacer element sized to total content height */}
         <div
           className="relative w-full"
           style={{ height: totalSize }}
         >
-          {visibleItems.map(({ virtualRow, suggestion }) => (
-            <div
-              key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${virtualRow.index}`}
-              className="gpu-layer absolute left-0 w-full"
-              style={{
-                height: virtualRow.size,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <SuggestionItem
-                suggestion={suggestion}
-                onSelect={onSelect}
-              />
-            </div>
-          ))}
+          {virtualItems.map((virtualRow) => {
+            const suggestion = selectables[virtualRow.index];
+            return (
+              <div
+                key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${virtualRow.index}`}
+                className="gpu-layer absolute left-0 w-full"
+                style={{
+                  height: virtualRow.size,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <SuggestionItem
+                  suggestion={suggestion}
+                  onSelect={onSelect}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     </CommandGroup>
@@ -452,8 +420,8 @@ function SuggestionItemInner<T>({ suggestion, onSelect }: SuggestionItemProps<T>
       <span className="flex items-center gap-2">
         {suggestion.type === "field" ? (
           <>
-            <span className={cn("font-mono text-xs", dropdownStyles.prefix)}>{suggestion.label}</span>
-            {suggestion.hint && <span className={dropdownStyles.muted}>{suggestion.hint}</span>}
+            <span className="fb-suggestion-field-prefix">{suggestion.label}</span>
+            {suggestion.hint && <span className="text-muted-foreground">{suggestion.hint}</span>}
           </>
         ) : (
           <span>{suggestion.label}</span>

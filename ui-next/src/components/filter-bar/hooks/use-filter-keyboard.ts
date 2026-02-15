@@ -108,15 +108,19 @@ interface SuggestionCycleItem<T> {
 /** An item in the Tab-cycling rotation (presets + suggestions) */
 type CycleItem<T> = PresetCycleItem | SuggestionCycleItem<T>;
 
+/**
+ * Navigation state as discriminated union for type-safe state machine.
+ * Ensures level + items + index are always consistent.
+ */
+type NavigationState<T> =
+  | { level: null }
+  | { level: "field"; items: CycleItem<T>[]; highlightedIndex: number }
+  | { level: "value"; items: CycleItem<T>[]; highlightedIndex: number };
+
 /** Bundled navigation context passed to handler functions */
 interface NavCtx<T> {
-  level: "field" | "value" | null;
-  highlightedIndex: number;
-  /** Combined cycle list (presets + suggestions) for Tab rotation */
-  cycleItems: CycleItem<T>[] | null;
-  setLevel: (level: "field" | "value" | null) => void;
-  setHighlightedIndex: (index: number) => void;
-  setCycleItems: (items: CycleItem<T>[] | null) => void;
+  state: NavigationState<T>;
+  setState: (state: NavigationState<T>) => void;
   reset: () => void;
 }
 
@@ -128,46 +132,36 @@ export function useFilterKeyboard<T>(
   state: FilterKeyboardState<T>,
   actions: FilterKeyboardActions,
 ): UseFilterKeyboardReturn<T> {
-  // ========== Internal navigation state ==========
-  const [navLevel, setNavLevel] = useState<"field" | "value" | null>(null);
-  const [highlightedIdx, setHighlightedIdx] = useState(-1);
-  const [cycleItems, setCycleItems] = useState<CycleItem<T>[] | null>(null);
+  // ========== Internal navigation state (discriminated union) ==========
+  const [navState, setNavState] = useState<NavigationState<T>>({ level: null });
 
   // ========== Derived ==========
 
-  // Display selectables: frozen suggestions from cycleItems during navigation, live otherwise
+  // Display selectables: frozen suggestions from items during navigation, live otherwise
   const displaySelectables = useMemo(() => {
-    if (!cycleItems) return state.selectables;
-    return cycleItems
-      .filter((c): c is SuggestionCycleItem<T> => c.kind === "suggestion")
-      .map((c) => c.suggestion);
-  }, [cycleItems, state.selectables]);
+    if (navState.level === null) return state.selectables;
+    return navState.items.filter((c): c is SuggestionCycleItem<T> => c.kind === "suggestion").map((c) => c.suggestion);
+  }, [navState, state.selectables]);
 
   // Highlighted value from the cycle list (presets and suggestions share a .value field)
   const highlightedSuggestionValue =
-    highlightedIdx >= 0 && cycleItems && highlightedIdx < cycleItems.length
-      ? cycleItems[highlightedIdx].value
+    navState.level !== null && navState.highlightedIndex >= 0 && navState.highlightedIndex < navState.items.length
+      ? navState.items[navState.highlightedIndex].value
       : undefined;
 
   const resetNavigation = useCallback(() => {
-    setNavLevel(null);
-    setHighlightedIdx(-1);
-    setCycleItems(null);
+    setNavState({ level: null });
   }, []);
 
   // ========== Navigation context (memoized bundle for handlers) ==========
 
   const nav = useMemo<NavCtx<T>>(
     () => ({
-      level: navLevel,
-      highlightedIndex: highlightedIdx,
-      cycleItems,
-      setLevel: setNavLevel,
-      setHighlightedIndex: setHighlightedIdx,
-      setCycleItems,
+      state: navState,
+      setState: setNavState,
       reset: resetNavigation,
     }),
-    [navLevel, highlightedIdx, cycleItems, resetNavigation],
+    [navState, resetNavigation],
   );
 
   // ========== Main handler ==========
@@ -209,7 +203,7 @@ export function useFilterKeyboard<T>(
     handleKeyDown,
     highlightedSuggestionValue,
     displaySelectables,
-    navigationLevel: navLevel,
+    navigationLevel: navState.level,
     resetNavigation,
   };
 }
@@ -289,19 +283,17 @@ function onEscape<T>(
   actions: FilterKeyboardActions,
   nav: NavCtx<T>,
 ): void {
-  // Go back from value level → field level
-  if (nav.level === "value") {
+  // Go back from value level → field level (transition to field level with no items/index - will be re-snapshotted on next Tab)
+  if (nav.state.level === "value") {
     e.preventDefault();
     e.stopPropagation();
-    nav.setLevel("field");
-    nav.setHighlightedIndex(-1);
-    nav.setCycleItems(null);
+    nav.setState({ level: "field", items: [], highlightedIndex: -1 });
     actions.fillInput("");
     return;
   }
 
   // Go back from field level → exit navigation
-  if (nav.level === "field") {
+  if (nav.state.level === "field") {
     e.preventDefault();
     e.stopPropagation();
     nav.reset();
@@ -337,14 +329,13 @@ function onEnter<T>(
   }
 
   // Navigation: commit current level
-  if (nav.level !== null) {
+  if (nav.state.level !== null) {
     e.preventDefault();
     e.stopPropagation();
 
     // Field level → commit selected item
-    if (nav.level === "field" && nav.highlightedIndex >= 0) {
-      const items = nav.cycleItems ?? [];
-      const current = items[nav.highlightedIndex];
+    if (nav.state.level === "field" && nav.state.highlightedIndex >= 0) {
+      const current = nav.state.items[nav.state.highlightedIndex];
       if (!current) return;
 
       if (current.kind === "preset") {
@@ -353,16 +344,14 @@ function onEnter<T>(
         return;
       }
 
-      // Field: transition to value level
+      // Field: transition to value level (with empty items - will be re-snapshotted on next Tab)
       actions.fillInput(current.inputValue);
-      nav.setLevel("value");
-      nav.setHighlightedIndex(-1);
-      nav.setCycleItems(null);
+      nav.setState({ level: "value", items: [], highlightedIndex: -1 });
       return;
     }
 
     // Value level → create chip
-    if (nav.level === "value" && nav.highlightedIndex >= 0) {
+    if (nav.state.level === "value" && nav.state.highlightedIndex >= 0) {
       if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
         if (actions.addChipFromParsedInput()) {
           actions.resetInput();
@@ -413,12 +402,12 @@ function onTab<T>(
   const { selectables, isOpen, presetValues } = state;
 
   // No suggestions/presets and not navigating → let browser handle Tab
-  if (nav.level === null && selectables.length === 0 && presetValues.length === 0) return;
+  if (nav.state.level === null && selectables.length === 0 && presetValues.length === 0) return;
 
   // Already navigating → cycle through items (or re-snapshot if empty after level transition)
-  if (nav.level !== null) {
+  if (nav.state.level !== null) {
     e.preventDefault();
-    if (nav.cycleItems && nav.cycleItems.length > 0) {
+    if (nav.state.items.length > 0) {
       advanceCycle(e.shiftKey ? "backward" : "forward", nav, actions);
     } else {
       // Cycle list empty after level transition (Enter field→value or Escape value→field).
@@ -460,18 +449,19 @@ function onTab<T>(
 
 /** Advance the cycle index in the given direction and fill the input accordingly */
 function advanceCycle<T>(direction: "forward" | "backward", nav: NavCtx<T>, actions: FilterKeyboardActions): void {
-  const items = nav.cycleItems ?? [];
-  if (items.length === 0) return;
+  if (nav.state.level === null || nav.state.items.length === 0) return;
 
   const nextIdx =
     direction === "forward"
-      ? (nav.highlightedIndex + 1) % items.length
-      : nav.highlightedIndex <= 0
-        ? items.length - 1
-        : nav.highlightedIndex - 1;
+      ? (nav.state.highlightedIndex + 1) % nav.state.items.length
+      : nav.state.highlightedIndex <= 0
+        ? nav.state.items.length - 1
+        : nav.state.highlightedIndex - 1;
 
-  nav.setHighlightedIndex(nextIdx);
-  const item = items[nextIdx];
+  // Update state with new index
+  nav.setState({ ...nav.state, highlightedIndex: nextIdx });
+
+  const item = nav.state.items[nextIdx];
   if (item) {
     actions.fillInput(item.kind === "preset" ? "" : item.inputValue);
   }
@@ -480,7 +470,7 @@ function advanceCycle<T>(direction: "forward" | "backward", nav: NavCtx<T>, acti
 /** ArrowUp/ArrowDown: during navigation, cycle through the same list as Tab */
 function onArrowVertical<T>(e: React.KeyboardEvent, nav: NavCtx<T>, actions: FilterKeyboardActions): void {
   // Not navigating → let cmdk handle arrow navigation
-  if (nav.level === null) return;
+  if (nav.state.level === null) return;
 
   e.preventDefault();
   e.stopPropagation();
@@ -519,17 +509,13 @@ function enterNavigationMode<T>(state: FilterKeyboardState<T>, nav: NavCtx<T>, a
   if ((hasFields || hasPresets) && !parsedInput.hasPrefix) {
     // Field level: cycle through presets + field prefixes
     const items = buildFieldCycleItems(presetValues, selectables);
-    nav.setLevel("field");
-    nav.setCycleItems(items);
-    nav.setHighlightedIndex(0);
+    nav.setState({ level: "field", items, highlightedIndex: 0 });
     const first = items[0];
     if (first) actions.fillInput(first.kind === "preset" ? "" : first.inputValue);
   } else if (hasValues && parsedInput.hasPrefix) {
     // Value level: cycle through values
     const items = buildValueCycleItems(selectables);
-    nav.setLevel("value");
-    nav.setCycleItems(items);
-    nav.setHighlightedIndex(0);
+    nav.setState({ level: "value", items, highlightedIndex: 0 });
     const first = items[0];
     if (first?.kind === "suggestion") actions.fillInput(first.inputValue);
   }
