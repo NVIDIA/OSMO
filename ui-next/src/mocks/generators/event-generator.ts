@@ -22,7 +22,7 @@
 
 import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type EventPatterns } from "@/mocks/seed/types";
-import { hashString } from "@/mocks/utils";
+import { hashString, abortableDelay } from "@/mocks/utils";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import type { MockWorkflow } from "@/mocks/generators/workflow-generator";
 
@@ -315,6 +315,154 @@ export class EventGenerator {
     events.push(this.createTaskEvent(new Date(currentTime), "Normal", "Ready", taskName, "Container is ready"));
 
     return events;
+  }
+
+  /**
+   * Create an async generator for streaming event generation.
+   * Yields formatted event lines with configurable delay for real-time simulation.
+   *
+   * Simulates ongoing pod lifecycle events for active (non-terminal) workflows:
+   * - New task scheduling events
+   * - Container pulling/creating/starting events
+   * - Periodic health check events
+   * - Occasional warnings (probe failures, resource pressure)
+   *
+   * @param options.workflow - The mock workflow to generate events for
+   * @param options.taskNameFilter - Optional task name to filter events
+   * @param options.signal - AbortSignal to stop generation when the consumer disconnects
+   * @param options.streamDelayMs - Delay between stream entries in milliseconds (default: 3000)
+   */
+  async *createStream(options: {
+    workflow: MockWorkflow;
+    taskNameFilter?: string;
+    signal?: AbortSignal;
+    streamDelayMs?: number;
+  }): AsyncGenerator<string, void, unknown> {
+    const { workflow, taskNameFilter, signal, streamDelayMs = 3000 } = options;
+
+    faker.seed(this.baseSeed + hashString(workflow.name + ":stream"));
+
+    // Get running/initializing tasks for ongoing event generation
+    const allTasks = workflow.groups.flatMap((g) => g.tasks ?? []);
+    const tasks = taskNameFilter ? allTasks.filter((t) => t.name === taskNameFilter) : allTasks;
+
+    // Filter to tasks that would produce ongoing events (running, initializing, pending)
+    const activeTasks = tasks.filter((t) => {
+      const lifecycle = this.mapTaskStatusToLifecycle(t.status);
+      return lifecycle === "running" || lifecycle === "initializing" || lifecycle === "pending";
+    });
+
+    // If no active tasks, use all tasks for event generation (simulate new activity)
+    const streamTasks = activeTasks.length > 0 ? activeTasks : tasks;
+    if (streamTasks.length === 0) return;
+
+    // Ongoing event templates for realistic lifecycle simulation
+    const ongoingEventTemplates: Array<{
+      type: "Normal" | "Warning";
+      reason: string;
+      messageTemplate: (taskName: string) => string;
+      weight: number;
+    }> = [
+      // Normal lifecycle events (high frequency)
+      {
+        type: "Normal",
+        reason: "Pulling",
+        messageTemplate: (name) => `Pulling image "nvcr.io/nvidia/pytorch:24.12" for ${name}`,
+        weight: 5,
+      },
+      {
+        type: "Normal",
+        reason: "Pulled",
+        messageTemplate: () => "Successfully pulled image",
+        weight: 5,
+      },
+      {
+        type: "Normal",
+        reason: "Created",
+        messageTemplate: () => "Created container training",
+        weight: 4,
+      },
+      {
+        type: "Normal",
+        reason: "Started",
+        messageTemplate: () => "Started container training",
+        weight: 4,
+      },
+      {
+        type: "Normal",
+        reason: "Scheduled",
+        messageTemplate: (name) =>
+          `Successfully assigned ${name} to dgx-a100-${faker.number.int({ min: 1, max: 48 }).toString().padStart(2, "0")}`,
+        weight: 3,
+      },
+      // Health check events (medium frequency)
+      {
+        type: "Normal",
+        reason: "HealthCheckPassed",
+        messageTemplate: () => "Liveness probe succeeded",
+        weight: 6,
+      },
+      {
+        type: "Normal",
+        reason: "Ready",
+        messageTemplate: () => "Readiness probe succeeded",
+        weight: 4,
+      },
+      // Warning events (low frequency)
+      {
+        type: "Warning",
+        reason: "Unhealthy",
+        messageTemplate: () => "Readiness probe failed: connection refused",
+        weight: 1,
+      },
+      {
+        type: "Warning",
+        reason: "FailedScheduling",
+        messageTemplate: () => "0/48 nodes available: 48 Insufficient nvidia.com/gpu",
+        weight: 1,
+      },
+      {
+        type: "Warning",
+        reason: "BackOff",
+        messageTemplate: (name) => `Back-off restarting failed container in pod ${name}`,
+        weight: 1,
+      },
+    ];
+
+    // Build weighted array for random selection
+    const weightedTemplates: typeof ongoingEventTemplates = [];
+    for (const template of ongoingEventTemplates) {
+      for (let i = 0; i < template.weight; i++) {
+        weightedTemplates.push(template);
+      }
+    }
+
+    // Stream events indefinitely until aborted
+    let currentTime = new Date();
+
+    while (!signal?.aborted) {
+      // Pick a random task and event template
+      const task = faker.helpers.arrayElement(streamTasks);
+      const template = faker.helpers.arrayElement(weightedTemplates);
+
+      // Advance time with jitter
+      const jitter = faker.number.int({ min: 0, max: 1000 });
+      currentTime = new Date(currentTime.getTime() + streamDelayMs + jitter);
+
+      // Format to backend event line format:
+      // "{timestamp} [{entity}] {reason}: {message}"
+      const timestamp = currentTime
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "+00:00");
+      const message = template.messageTemplate(task.name);
+      const line = `${timestamp} [${task.name}] ${template.reason}: ${message}\n`;
+
+      yield line;
+
+      // Abort-aware delay between events
+      await abortableDelay(streamDelayMs, signal);
+    }
   }
 
   /**

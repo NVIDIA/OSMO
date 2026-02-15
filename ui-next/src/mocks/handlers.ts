@@ -527,10 +527,14 @@ export const handlers = [
   // Streaming is handled via the regular /logs endpoint with Transfer-Encoding: chunked
 
   // Workflow events
-  // Backend returns PlainTextResponse (streaming text), not JSON
+  // Backend returns PlainTextResponse (streaming text via Redis Streams), not JSON
   // Query params: task_name, retry_id (optional - for task-specific filtering)
   // Format: {ISO timestamp} [{entity}] {reason}: {message}
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
+  //
+  // Streaming behavior (mirrors log endpoint):
+  // - Terminal workflows (end_time exists): Generate all events upfront, stream as ~64KB chunks
+  // - Active workflows (end_time undefined): Stream existing events, then yield new events with delays
   http.get("*/api/workflow/:name/events", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
@@ -545,10 +549,19 @@ export const handlers = [
       return HttpResponse.text("", { status: 404 });
     }
 
+    // Abort any existing event stream for this workflow to prevent concurrent streams
+    // (Prevents MaxListenersExceededWarning during HMR or rapid navigation)
+    const streamKey = `events:${name}`;
+    const existingController = activeStreams.get(streamKey);
+    if (existingController) {
+      existingController.abort();
+      activeStreams.delete(streamKey);
+    }
+
     // ✅ Delegate event generation to generator (single source of truth)
     const events = eventGenerator.generateEventsForWorkflow(workflow, taskName ?? undefined);
 
-    // Format to plain text (backend format)
+    // Format to plain text lines (backend format)
     // Backend format: "2026-02-09 05:15:08+00:00" (space-separated, +00:00 timezone)
     const lines = events.map((event) => {
       const timestamp = new Date(event.first_timestamp)
@@ -558,9 +571,81 @@ export const handlers = [
       return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
     });
 
-    // Return plain text response (newline-separated)
-    return HttpResponse.text(lines.join("\n"), {
-      headers: { "Content-Type": "text/plain" },
+    const encoder = new TextEncoder();
+    const isCompleted = workflow.end_time !== undefined;
+
+    let stream: ReadableStream<Uint8Array>;
+
+    if (isCompleted) {
+      // Completed workflows: Generate all events synchronously and stream in chunks
+      // This simulates reading from object storage (fast, no line-by-line delays)
+      const allText = lines.join("\n");
+      const CHUNK_SIZE = 64 * 1024; // 64KB chunks
+      const chunks: string[] = [];
+      for (let i = 0; i < allText.length; i += CHUNK_SIZE) {
+        chunks.push(allText.slice(i, i + CHUNK_SIZE));
+      }
+
+      stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+          controller.close();
+        },
+      });
+    } else {
+      // Running workflows: Stream existing events first (catch-up), then yield new events with delays
+      const abortController = new AbortController();
+
+      // Register this controller so concurrent requests can abort it
+      activeStreams.set(streamKey, abortController);
+
+      const streamGen = eventGenerator.createStream({
+        workflow,
+        taskNameFilter: taskName ?? undefined,
+        signal: abortController.signal,
+      });
+
+      stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            // Phase 1: Catch-up — yield all existing events immediately
+            for (const line of lines) {
+              controller.enqueue(encoder.encode(line + "\n"));
+            }
+
+            // Phase 2: Live — yield new events from async generator with delays
+            for await (const line of streamGen) {
+              controller.enqueue(encoder.encode(line));
+            }
+          } catch {
+            // Stream closed, aborted, or error occurred
+          } finally {
+            // Clean up the active stream tracker
+            activeStreams.delete(streamKey);
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
+          }
+        },
+        cancel() {
+          // Signal the async generator to stop yielding immediately
+          abortController.abort();
+          // Clean up immediately on cancel
+          activeStreams.delete(streamKey);
+        },
+      });
+    }
+
+    return new HttpResponse(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=us-ascii",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-cache",
+      },
     });
   }),
 
