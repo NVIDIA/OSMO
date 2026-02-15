@@ -66,6 +66,7 @@ import type {
   BreadcrumbSegment,
 } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
+import { isTaskTerminal } from "@/lib/api/status-metadata.generated";
 
 interface OverviewTabProps {
   task: TaskDetailsProps["task"];
@@ -612,6 +613,7 @@ export const TaskDetails = memo(function TaskDetails({
               <EventViewerContainer
                 url={task.events}
                 scope="task"
+                isTerminal={isTaskTerminal(task.status)}
                 className="h-full"
               />
             </div>

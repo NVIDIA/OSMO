@@ -129,29 +129,39 @@
     color: var(--stage-fg);
   }
 
+  /* Inferred state - stage was passed through but no events were observed.
+     Uses a darker gray than inactive to indicate implicit completion.
+     Example: task reached Running but no Pending/Init events were received. */
+  .lifecycle-segment[data-state="inferred"] {
+    background: var(--stage-inferred);
+    color: var(--stage-inferred-fg);
+  }
+
   /* Failed state - error occurred */
   .lifecycle-segment[data-state="failed"] {
     background: var(--stage-failed);
     color: var(--stage-fg);
   }
 
-  /* Active state with stage-specific colors */
-  .lifecycle-segment[data-state="active"][data-stage="pending"] {
+  /* Active & terminal states with stage-specific colors.
+     "active" pulses (controlled by JS), "terminal" never pulses —
+     the parent entity terminated but the pod didn't complete this stage. */
+  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="pending"] {
     background: var(--stage-pending);
     color: var(--stage-fg);
   }
 
-  .lifecycle-segment[data-state="active"][data-stage="init"] {
+  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="init"] {
     background: var(--stage-init);
     color: var(--stage-fg);
   }
 
-  .lifecycle-segment[data-state="active"][data-stage="running"] {
+  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="running"] {
     background: var(--stage-running);
     color: var(--stage-fg);
   }
 
-  .lifecycle-segment[data-state="active"][data-stage="done"] {
+  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="done"] {
     background: var(--stage-completed);
     color: var(--stage-fg);
   }

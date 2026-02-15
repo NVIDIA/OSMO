@@ -49,27 +49,7 @@ const LIFECYCLE_STAGES = [
 type StageKey = (typeof LIFECYCLE_STAGES)[number]["key"];
 
 /**
- * Determine how far a failed task progressed before failure.
- *
- * Finds the furthest lifecycle stage reached by examining non-failure events.
- */
-function getFailedProgressIndex(task: TaskGroup): number {
-  const nonFailureEvents = task.events.filter((e) => e.stage !== "failure");
-  if (nonFailureEvents.length === 0) return 0;
-
-  const lastStage = nonFailureEvents[nonFailureEvents.length - 1]?.stage;
-  if (!lastStage) return 0;
-
-  if (lastStage === "completion") return 3;
-  if (lastStage === "container" || lastStage === "runtime") return 2;
-  if (lastStage === "image" || lastStage === "initialization") return 1;
-  // "scheduling" stage -- only advance to Init if scheduling actually succeeded
-  if (task.derived.hasScheduledEvent) return 1;
-  return 0;
-}
-
-/**
- * Get progress index (0-3) based on pod phase and event history.
+ * Get progress index (0-3) from the derived furthest progress.
  *
  * Maps the K8s pod lifecycle to our 4 visual stages:
  *   0 = Pending (scheduling)  -- waiting for node assignment
@@ -77,37 +57,39 @@ function getFailedProgressIndex(task: TaskGroup): number {
  *   2 = Running               -- at least one container executing
  *   3 = Done                  -- terminal state (Succeeded or Failed)
  *
- * Within the K8s "Pending" phase, we use the presence of a "Scheduled" event
- * to distinguish scheduling (index 0) from initialization (index 1). Per the
- * K8s spec, after PodScheduled=True the pod progresses through
- * PodReadyToStartContainers, init containers, image pulls, and container
- * creation -- all still within the Pending phase but past scheduling.
+ * Uses `furthestProgressIndex` from the derived state, which scans ALL events
+ * for the highest stage reached. This is robust to:
+ * - Missing events: a "Running" event without "Pending"/"Init" events still
+ *   shows the task at the Running stage (and infers earlier stages).
+ * - Out-of-order events: a late "Pending" event after "Running" does not
+ *   regress the progress.
  */
 export function getProgressIndex(task: TaskGroup): number {
-  const { podPhase } = task.derived;
-
-  if (podPhase === "Failed") {
-    return getFailedProgressIndex(task);
-  }
-
-  switch (podPhase) {
-    case "Succeeded":
-      return 3; // done
-    case "Running":
-      return 2; // running
-    case "Pending":
-      // "Scheduled" event marks boundary between scheduling (0) and init (1)
-      return task.derived.hasScheduledEvent ? 1 : 0;
-    case "Unknown":
-    default:
-      return 0; // pending
-  }
+  const { furthestProgressIndex } = task.derived;
+  return furthestProgressIndex >= 0 ? furthestProgressIndex : 0;
 }
+
+/**
+ * Segment state for the lifecycle progress bar.
+ *
+ *   done      – Stage completed successfully (green + check icon)
+ *   inferred  – Stage was passed through but no events were observed for it.
+ *               Shown in darker gray to indicate implicit completion.
+ *               Example: we received a "Running" event but no "Pending" or
+ *               "Init" events — those stages are inferred as completed.
+ *   active    – Stage currently in progress (stage-specific color, may pulse)
+ *   failed    – Stage where failure occurred (red + X icon)
+ *   terminal  – Parent entity terminated but pod didn't complete this stage.
+ *               Same stage-specific color as "active" but never pulses,
+ *               indicating the task is no longer progressing.
+ *   inactive  – Stage not yet reached (gray)
+ */
+type SegmentState = "done" | "inferred" | "active" | "failed" | "terminal" | "inactive";
 
 interface LifecycleSegmentProps {
   stage: StageKey;
   label: string;
-  state: "done" | "active" | "failed" | "inactive";
+  state: SegmentState;
   showPulse: boolean;
 }
 
@@ -130,6 +112,12 @@ function LifecycleSegment({ stage, label, state, showPulse }: LifecycleSegmentPr
           strokeWidth={3}
         />
       )}
+      {state === "inferred" && (
+        <Check
+          className="size-2.5 opacity-50"
+          strokeWidth={2}
+        />
+      )}
       {state === "failed" && (
         <X
           className="size-2.5"
@@ -143,24 +131,56 @@ function LifecycleSegment({ stage, label, state, showPulse }: LifecycleSegmentPr
 
 export interface LifecycleProgressBarProps {
   task: TaskGroup;
+  /**
+   * Whether the parent entity (workflow or task) has reached a terminal state.
+   *
+   * When true, enables inference for missing terminal events:
+   * - Last phase is Running → inferred as Done (completed successfully)
+   * - Last phase is Pending/Init → shown as "terminal" (settled, no pulse)
+   */
+  isParentTerminal?: boolean;
   className?: string;
 }
 
-export function LifecycleProgressBar({ task, className }: LifecycleProgressBarProps) {
+export function LifecycleProgressBar({ task, isParentTerminal, className }: LifecycleProgressBarProps) {
   const { podPhase } = task.derived;
   const isFailed = podPhase === "Failed";
-  const progressIdx = getProgressIndex(task);
-  const isTerminal = podPhase === "Succeeded" || isFailed;
+  const isPodTerminal = podPhase === "Succeeded" || isFailed;
+
+  let progressIdx = getProgressIndex(task);
+
+  // Infer completion when the parent entity is terminal but pod events are
+  // incomplete. If the last known pod phase is Running, we can confidently
+  // assume the pod completed — we just never received the terminal event.
+  const inferredDone = !isPodTerminal && !!isParentTerminal && podPhase === "Running";
+  if (inferredDone) {
+    progressIdx = 3; // All stages complete
+  }
+
+  // Parent is terminal but pod never reached Running or a terminal phase.
+  // The task stopped without progressing further (e.g., canceled while in
+  // Pending/Init). Show as "terminal" — same color as active but no pulse.
+  const showTerminal = !isPodTerminal && !inferredDone && !!isParentTerminal;
 
   return (
     <div className={cn("flex h-5.5 gap-0.5 overflow-hidden rounded", className)}>
       {LIFECYCLE_STAGES.map((stage, idx) => {
-        let state: "done" | "active" | "failed" | "inactive";
+        let state: SegmentState;
 
         if (idx < progressIdx) {
-          state = "done";
+          // Stage before current: completed (observed) or inferred (no events)
+          const isObserved = task.derived.observedStageIndices.has(idx);
+          state = isObserved ? "done" : "inferred";
         } else if (idx === progressIdx) {
-          state = isFailed ? "failed" : "active";
+          if (isFailed) {
+            state = "failed";
+          } else if (inferredDone) {
+            state = "done";
+          } else if (showTerminal) {
+            state = "terminal";
+          } else {
+            state = "active";
+          }
         } else {
           state = "inactive";
         }
@@ -171,7 +191,7 @@ export function LifecycleProgressBar({ task, className }: LifecycleProgressBarPr
             stage={stage.key}
             label={stage.label}
             state={state}
-            showPulse={state === "active" && !isTerminal}
+            showPulse={state === "active" && !isPodTerminal}
           />
         );
       })}

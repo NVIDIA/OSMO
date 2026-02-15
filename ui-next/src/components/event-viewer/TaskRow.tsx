@@ -38,6 +38,8 @@ export interface TaskRowProps {
   isLast: boolean;
   /** Whether this is an odd-indexed section (for zebra striping) */
   isOdd: boolean;
+  /** Whether the parent entity (workflow/task) has reached a terminal state */
+  isParentTerminal?: boolean;
 }
 
 /**
@@ -47,7 +49,7 @@ export interface TaskRowProps {
  * If onToggleExpand is undefined, row is always expanded and not interactive.
  */
 export const TaskRow = memo(
-  function TaskRow({ task, isExpanded, onToggleExpand, isLast, isOdd }: TaskRowProps) {
+  function TaskRow({ task, isExpanded, onToggleExpand, isLast, isOdd, isParentTerminal }: TaskRowProps) {
     const isInteractive = onToggleExpand !== undefined;
     const onToggle = useCallback(() => onToggleExpand?.(task.id), [onToggleExpand, task.id]);
 
@@ -95,17 +97,7 @@ export const TaskRow = memo(
                   style={{ transitionDuration: "var(--duration-slow)", transitionTimingFunction: "var(--ease-spring)" }}
                 />
               )}
-              <div className="min-w-0">
-                <div className="text-foreground truncate font-mono text-xs font-medium">{task.name}</div>
-                {/* Always render subtitle to keep row height stable across all tasks.
-                    Without this, rows with/without node info have different heights,
-                    causing the virtualizer estimate to mismatch and rows to shift. */}
-                <div className="text-muted-foreground truncate text-xs">
-                  {task.events.length > 0 && task.events[0]?.involvedObject.kind === "Task"
-                    ? task.events[0].source.host || "node unknown"
-                    : "\u00A0"}
-                </div>
-              </div>
+              <div className="text-foreground min-w-0 truncate font-mono text-xs font-medium">{task.name}</div>
             </div>
 
             {/* Retry badge */}
@@ -126,7 +118,10 @@ export const TaskRow = memo(
 
             {/* Lifecycle progress bar */}
             <div className="px-4 py-3">
-              <LifecycleProgressBar task={task} />
+              <LifecycleProgressBar
+                task={task}
+                isParentTerminal={isParentTerminal}
+              />
             </div>
 
             {/* Event count */}
@@ -174,7 +169,8 @@ export const TaskRow = memo(
       prev.isOdd === next.isOdd &&
       prev.task._allEventsCount === next.task._allEventsCount &&
       prev.task._filteredEventsCount === next.task._filteredEventsCount &&
-      prev.task._hasEventFilters === next.task._hasEventFilters
+      prev.task._hasEventFilters === next.task._hasEventFilters &&
+      prev.isParentTerminal === next.isParentTerminal
     );
   },
 );

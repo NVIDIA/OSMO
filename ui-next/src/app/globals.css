@@ -271,6 +271,8 @@
   --stage-failed-bg: oklch(0.95 0.05 25);
   --stage-inactive: oklch(0.92 0 0);
   --stage-inactive-fg: oklch(0.7 0 0);
+  --stage-inferred: oklch(0.72 0 0);
+  --stage-inferred-fg: oklch(0.92 0 0);
 
   /* Table colors (light mode) */
   --table-surface: #ffffff;
@@ -360,6 +362,8 @@
   --stage-failed-bg: oklch(0.25 0.05 25);
   --stage-inactive: oklch(0.25 0 0);
   --stage-inactive-fg: oklch(0.5 0 0);
+  --stage-inferred: oklch(0.45 0 0);
+  --stage-inferred-fg: oklch(0.2 0 0);
 
   /* Table colors (dark mode) */
   --table-surface: #09090b; /* zinc-950 / sidebar */

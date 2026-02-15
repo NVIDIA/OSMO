@@ -48,6 +48,7 @@ import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { getStatusIcon } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { EventViewerContainer } from "@/components/event-viewer/EventViewerContainer";
+import { isWorkflowTerminal } from "@/lib/api/status-metadata.generated";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
 import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTimeline";
@@ -461,6 +462,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
             <div className="absolute inset-0">
               <EventViewerContainer
                 url={workflow.events}
+                isTerminal={isWorkflowTerminal(workflow.status)}
                 className="h-full"
               />
             </div>

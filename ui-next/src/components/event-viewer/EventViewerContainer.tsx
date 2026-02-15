@@ -33,9 +33,14 @@ export interface EventViewerContainerProps {
   className?: string;
   /** Scope: "workflow" shows search bar and expand/collapse controls, "task" always expands all rows with no controls */
   scope?: "workflow" | "task";
+  /**
+   * Whether the parent entity (workflow or task) has reached a terminal state.
+   * Enables inference of missing terminal events in the lifecycle progress bar.
+   */
+  isTerminal?: boolean;
 }
 
-export function EventViewerContainer({ url, className, scope = "workflow" }: EventViewerContainerProps) {
+export function EventViewerContainer({ url, className, scope = "workflow", isTerminal }: EventViewerContainerProps) {
   const isTaskScope = scope === "task";
 
   // URL-synced filter chips (only in workflow scope)
@@ -199,6 +204,7 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
         expandedIds={effectiveExpandedIds}
         onToggleExpand={isTaskScope ? undefined : toggleExpand}
         showHeader={!isTaskScope}
+        isParentTerminal={isTerminal}
         className="min-h-0 flex-1"
       />
     </div>
