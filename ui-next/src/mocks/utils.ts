@@ -101,3 +101,30 @@ export function hashString(str: string): number {
   }
   return hash;
 }
+
+// ============================================================================
+// Abort-Aware Delay
+// ============================================================================
+
+/**
+ * setTimeout that resolves immediately when an AbortSignal fires.
+ * Prevents dangling timers from keeping async generators alive after
+ * the consumer disconnects.
+ *
+ * Shared by LogGenerator and EventGenerator for streaming mock data.
+ */
+export function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      resolve();
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}

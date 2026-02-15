@@ -31,7 +31,7 @@ import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type LogPatterns, type MockVolume } from "@/mocks/seed/types";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 import { getWorkflowLogConfig, type WorkflowLogConfig } from "@/mocks/mock-workflows";
-import { hashString } from "@/mocks/utils";
+import { hashString, abortableDelay } from "@/mocks/utils";
 
 // ============================================================================
 // Constants
@@ -147,26 +147,7 @@ const JSON_BLOBS = [
 // Helpers
 // ============================================================================
 
-/**
- * setTimeout that resolves immediately when an AbortSignal fires.
- * Prevents dangling timers from keeping async generators alive after
- * the consumer disconnects.
- */
-function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
-  if (signal.aborted) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    function onAbort() {
-      clearTimeout(timer);
-      resolve();
-    }
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
+// abortableDelay imported from @/mocks/utils (shared with event-generator)
 
 // ============================================================================
 // Generator Class
