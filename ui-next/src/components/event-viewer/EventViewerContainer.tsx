@@ -17,9 +17,9 @@
 "use client";
 
 import { useState, useMemo, useCallback, startTransition, useDeferredValue } from "react";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEvents } from "@/lib/api/adapter/events/events-hooks";
+import { useEventStream } from "@/lib/api/adapter/events/use-event-stream";
 import { groupEventsByTask } from "@/lib/api/adapter/events/events-grouping";
 import { EventViewerTable } from "@/components/event-viewer/EventViewerTable";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
@@ -42,7 +42,7 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
   const { searchChips, setSearchChips } = useUrlChips({ paramName: "ef" });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
-  const { events, isLoading, error, refetch } = useEvents({ url });
+  const { events, phase, error, isStreaming, restart } = useEventStream({ url });
 
   const groupedTasks = useMemo(() => groupEventsByTask(events), [events]);
 
@@ -103,8 +103,8 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
     });
   }, []);
 
-  // Loading state
-  if (isLoading && events.length === 0) {
+  // Loading state (connecting with no data yet)
+  if ((phase === "connecting" || phase === "idle") && events.length === 0) {
     return (
       <div className={cn("flex items-center justify-center p-8", className)}>
         <div className="text-center">
@@ -121,7 +121,7 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
       <div className={cn("p-4 text-center", className)}>
         <p className="text-destructive mb-2 text-sm">Failed to load events: {error.message}</p>
         <button
-          onClick={refetch}
+          onClick={restart}
           className="text-muted-foreground hover:text-foreground text-sm underline hover:no-underline"
         >
           Retry
@@ -155,6 +155,14 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
               presets={EVENT_PRESETS}
             />
           </div>
+
+          {/* Streaming status indicator */}
+          {isStreaming && (
+            <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400">
+              <Radio className="size-3 animate-pulse" />
+              <span>Live</span>
+            </div>
+          )}
 
           {/* Expand/Collapse All */}
           <div className="flex shrink-0 items-center gap-1">
