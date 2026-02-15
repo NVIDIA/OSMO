@@ -24,11 +24,29 @@ import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type EventPatterns } from "@/mocks/seed/types";
 import { hashString, abortableDelay } from "@/mocks/utils";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import type { MockWorkflow } from "@/mocks/generators/workflow-generator";
 
 // ============================================================================
 // Types
 // ============================================================================
+
+/**
+ * Minimal workflow shape needed for event generation.
+ * Satisfied by both MockWorkflow (from workflow-generator) and
+ * WorkflowQueryResponse (from generated API / mock-workflows).
+ */
+export interface EventWorkflowInput {
+  name: string;
+  submit_time: string;
+  end_time?: string;
+  groups: Array<{
+    tasks?: Array<{
+      name: string;
+      status: TaskGroupStatus;
+      start_time?: string;
+      node_name?: string;
+    }>;
+  }>;
+}
 
 export interface GeneratedEvent {
   type: "Normal" | "Warning";
@@ -65,7 +83,7 @@ export class EventGenerator {
    * Generate events for an existing workflow (uses actual tasks from workflow generator)
    * This is the primary method called by MSW handlers.
    */
-  generateEventsForWorkflow(workflow: MockWorkflow, taskNameFilter?: string): GeneratedEvent[] {
+  generateEventsForWorkflow(workflow: EventWorkflowInput, taskNameFilter?: string): GeneratedEvent[] {
     faker.seed(this.baseSeed + hashString(workflow.name));
 
     // Use showcase events if workflow name contains "showcase" or "demo"
@@ -333,7 +351,7 @@ export class EventGenerator {
    * @param options.streamDelayMs - Delay between stream entries in milliseconds (default: 3000)
    */
   async *createStream(options: {
-    workflow: MockWorkflow;
+    workflow: EventWorkflowInput;
     taskNameFilter?: string;
     signal?: AbortSignal;
     streamDelayMs?: number;

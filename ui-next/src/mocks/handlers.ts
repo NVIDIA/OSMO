@@ -544,7 +544,9 @@ export const handlers = [
     // retryId unused for now - could be used to filter specific retry attempts
     // const retryId = url.searchParams.get("retry_id");
 
-    const workflow = workflowGenerator.getByName(name);
+    // Check mock workflows first (e.g. mock-streaming-running), then generated workflows
+    const mockWorkflow = getMockWorkflow(name);
+    const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
     if (!workflow) {
       return HttpResponse.text("", { status: 404 });
     }
@@ -1120,7 +1122,9 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
 
-    const workflow = workflowGenerator.getByName(workflowName);
+    // Check mock workflows first, then generated workflows
+    const mockWorkflow = getMockWorkflow(workflowName);
+    const workflow = mockWorkflow ?? workflowGenerator.getByName(workflowName);
     if (!workflow) {
       return HttpResponse.text("", { status: 404 });
     }
