@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEventCallback } from "usehooks-ts";
@@ -217,11 +217,18 @@ export function ResizablePanel({
 
   const prevPhase = usePrevious(phase);
 
-  // Trigger slide-in animation when panel first mounts during "opening" phase
-  // CSS transitions require a previous state to transition from. When the aside
-  // first mounts, we need to set the initial transform, force a reflow, then
-  // set the final transform to trigger the transition.
-  useEffect(() => {
+  // Trigger slide-in animation when panel first mounts during "opening" phase.
+  //
+  // MUST be useLayoutEffect (not useEffect) because the DOM manipulation must
+  // happen BEFORE the browser paints. useEffect runs after paint, which causes
+  // a one-frame flash where the panel appears at translateX(0) before jumping
+  // to translateX(100%) and sliding in. useLayoutEffect fires synchronously
+  // after commit but before paint, ensuring the reflow trick establishes the
+  // starting position before the user sees anything.
+  //
+  // Without this, panels that don't use View Transitions (which mask the flash
+  // with a cross-fade overlay) appear to "fade in" instead of sliding.
+  useLayoutEffect(() => {
     if (phase === "opening" && prevPhase === "closed" && panelRef.current) {
       const panel = panelRef.current;
       // Set initial off-screen position
