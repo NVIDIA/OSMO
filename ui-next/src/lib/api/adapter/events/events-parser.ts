@@ -181,24 +181,45 @@ export function parseEventLine(line: string): K8sEvent | null {
 }
 
 // ============================================================================
+// Chunk Parsing (Incremental / Streaming)
+// ============================================================================
+
+/**
+ * Parse a chunk of text containing one or more event lines.
+ * Returns events in arrival order (no sorting).
+ *
+ * Use this for incremental/streaming parsing where the caller
+ * accumulates events and the downstream grouping layer handles ordering.
+ */
+export function parseEventChunk(text: string): K8sEvent[] {
+  const lines = text.split("\n");
+  const events: K8sEvent[] = [];
+
+  for (const line of lines) {
+    if (line.trim()) {
+      const event = parseEventLine(line);
+      if (event) events.push(event);
+    }
+  }
+
+  return events;
+}
+
+// ============================================================================
 // Response Parsing
 // ============================================================================
 
 /**
  * Parse plain text event stream into structured K8s events.
  * Returns events sorted by timestamp DESC (newest first).
+ *
+ * @deprecated Prefer {@link parseEventChunk} for streaming use cases.
+ * This function is retained for backward compatibility with non-streaming callers.
  */
 export function parseEventsResponse(rawResponse: string): K8sEvent[] {
   if (typeof rawResponse !== "string") return [];
 
-  const lines = rawResponse.split("\n");
-  const events: K8sEvent[] = [];
-
-  for (const line of lines) {
-    const event = parseEventLine(line);
-    if (event) events.push(event);
-  }
-
+  const events = parseEventChunk(rawResponse);
   events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   return events;
