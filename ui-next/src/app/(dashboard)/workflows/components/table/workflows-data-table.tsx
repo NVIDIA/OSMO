@@ -192,7 +192,7 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   const rowClassName = useCallback((workflow: WorkflowListEntry & { _visualRowIndex?: number }) => {
     const { category } = getStatusDisplay(workflow.status);
     const visualIndex = workflow._visualRowIndex ?? 0;
-    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
     return cn("workflows-row", `workflows-row--${category}`, zebraClass);
   }, []);
 

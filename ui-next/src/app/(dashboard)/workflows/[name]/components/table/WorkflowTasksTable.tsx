@@ -579,13 +579,13 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
   const rowClassName = useCallback((task: TaskWithDuration) => {
     // Use visual row index for consistent striping (ignores skipped section headers)
     const visualIndex = task._visualRowIndex ?? 0;
-    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
   }, []);
 
   // Section class name for zebra striping and borders (matches task rows)
   const sectionClassName = useCallback((section: Section<TaskWithDuration, GroupSectionMeta>) => {
     const visualIndex = section.metadata?._visualRowIndex ?? 0;
-    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
     // Add bottom border to match task rows
     return `${zebraClass} border-b border-zinc-200 dark:border-zinc-800`;
   }, []);

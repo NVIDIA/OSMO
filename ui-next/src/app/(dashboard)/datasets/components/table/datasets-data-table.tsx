@@ -173,7 +173,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   // Row class for zebra striping
   const rowClassName = useCallback((dataset: Dataset & { _visualRowIndex?: number }) => {
     const visualIndex = dataset._visualRowIndex ?? 0;
-    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No datasets found" />, []);

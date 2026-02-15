@@ -211,7 +211,7 @@ export const PoolsDataTable = memo(function PoolsDataTable({
       const { category } = getStatusDisplay(pool.status);
       const isSelected = selectedPoolName === pool.name;
       const visualIndex = pool._visualRowIndex ?? 0;
-      const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-50/50 dark:bg-zinc-900/50";
+      const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
       return ["pools-row", `pools-row--${category}`, isSelected && "pools-row--selected", zebraClass]
         .filter(Boolean)
         .join(" ");
