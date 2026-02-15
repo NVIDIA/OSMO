@@ -299,6 +299,15 @@
   /* Minimap colors (light mode) */
   --minimap-node-fill: #d4d4d8; /* zinc-300 */
   --minimap-node-stroke: #a1a1aa; /* zinc-400 */
+
+  /* Profile page layout */
+  --profile-scroll-offset: 6rem; /* scroll-margin-top for sticky header clearance */
+  --profile-selection-card-height: 600px; /* fixed height for pool/bucket selection cards */
+  --profile-selected-border-width: 3px; /* left accent border on selected list items */
+
+  /* Profile card spacing - single source of truth for sectioned cards */
+  --card-section-padding: 1.5rem; /* 24px - consistent vertical rhythm for bordered sections */
+  --card-header-padding: 1rem; /* 16px - tighter padding for headers */
 }
 
 .dark {

@@ -179,4 +179,59 @@
     background-size: 6px 1px;
     opacity: 0.4;
   }
+
+  /* ==========================================================================
+     NVIDIA Brand Component Utilities
+     Reusable branded patterns used across profile and form components
+     ========================================================================== */
+
+  /* Primary action button with NVIDIA brand styling */
+  .btn-nvidia {
+    @apply bg-nvidia hover:bg-nvidia-dark disabled:opacity-50;
+  }
+
+  /* Count badge with NVIDIA brand tinting */
+  .badge-nvidia-count {
+    @apply bg-nvidia-bg text-nvidia-dark ml-1 text-xs;
+  }
+
+  /* ==========================================================================
+     Profile Page Utilities
+     Scoped layout values for the profile settings page
+     ========================================================================== */
+
+  /* Scroll offset for profile sections to clear the sticky header */
+  .profile-scroll-offset {
+    scroll-margin-top: var(--profile-scroll-offset);
+  }
+
+  /* Selected list item left accent border with compensated padding */
+  .selected-accent-border {
+    border-left-width: var(--profile-selected-border-width);
+    padding-left: calc(1rem - var(--profile-selected-border-width));
+  }
+
+  /* ==========================================================================
+     Card Variant: Sectioned (bordered sections)
+     Eliminates gap-6 + pb-* stacking by using a single spacing model.
+     Sections own their own padding; Card provides zero gap/padding.
+     Borders are applied via Tailwind's border-b/border-t classes.
+     ========================================================================== */
+
+  [data-slot="card"][data-variant="sectioned"] {
+    gap: 0;
+    padding-block: 0;
+  }
+
+  [data-slot="card"][data-variant="sectioned"] > [data-slot="card-header"] {
+    padding-block: var(--card-header-padding);
+  }
+
+  [data-slot="card"][data-variant="sectioned"] > [data-slot="card-content"] {
+    padding-block: var(--card-section-padding);
+  }
+
+  [data-slot="card"][data-variant="sectioned"] > [data-slot="card-footer"] {
+    padding-block: var(--card-section-padding);
+  }
 }
