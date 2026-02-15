@@ -28,7 +28,6 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/shadcn/button";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import type { SearchChip } from "@/stores/types";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
@@ -118,20 +117,15 @@ function TableToolbarInner<T>({
         />
 
         <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label="Toggle columns"
-                >
-                  <Columns className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Toggle columns</TooltipContent>
-          </Tooltip>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="Toggle columns"
+            >
+              <Columns className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
             className="w-48"

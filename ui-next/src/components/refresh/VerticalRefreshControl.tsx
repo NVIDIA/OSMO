@@ -138,39 +138,35 @@ export function VerticalRefreshControl(props: RefreshControlProps) {
       </Tooltip>
 
       <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                disabled={isRefreshing}
-                className={cn(
-                  "-mt-1 flex h-4 w-full items-center justify-center rounded-md",
-                  "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600",
-                  "dark:text-zinc-500 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-400",
-                  "transition-colors",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                )}
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={isRefreshing}
+            aria-label={`Auto-refresh: ${isAutoRefreshActive ? intervalLabel : "Off"}`}
+            className={cn(
+              "-mt-1 flex h-4 w-full items-center justify-center rounded-md",
+              "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600",
+              "dark:text-zinc-500 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-400",
+              "transition-colors",
+              "disabled:cursor-not-allowed disabled:opacity-50",
+            )}
+          >
+            {isAutoRefreshActive ? (
+              <span
+                className="text-[9px] font-medium"
+                aria-hidden="true"
               >
-                {isAutoRefreshActive ? (
-                  <span
-                    className="text-[9px] font-medium"
-                    aria-hidden="true"
-                  >
-                    {intervalLabel}
-                  </span>
-                ) : (
-                  <ChevronDown
-                    className="size-2.5"
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="sr-only">Auto-refresh settings</span>
-              </button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="left">Auto-refresh: {isAutoRefreshActive ? intervalLabel : "Off"}</TooltipContent>
-        </Tooltip>
+                {intervalLabel}
+              </span>
+            ) : (
+              <ChevronDown
+                className="size-2.5"
+                aria-hidden="true"
+              />
+            )}
+            <span className="sr-only">Auto-refresh settings</span>
+          </button>
+        </DropdownMenuTrigger>
 
         <DropdownMenuContent
           align="end"
