@@ -135,8 +135,8 @@ function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>, isActive: b
       e.stopPropagation();
     };
 
-    // Note: Cannot use passive: true here because we call stopPropagation
-    element.addEventListener("wheel", handleWheel, { passive: false });
+    // Note: passive listener is fine since we only call stopPropagation (not preventDefault)
+    element.addEventListener("wheel", handleWheel, { passive: true });
 
     return () => {
       element.removeEventListener("wheel", handleWheel);
