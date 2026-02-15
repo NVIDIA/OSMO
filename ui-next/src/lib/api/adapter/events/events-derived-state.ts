@@ -39,7 +39,7 @@ import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
  * Lifecycle stages for UI filtering.
  * Derived from event data, not pod phase.
  */
-export type Lifecycle = "Pending" | "Init" | "Running" | "Done";
+export type Lifecycle = "Pending" | "Init" | "Running" | "Failed" | "Done";
 
 /**
  * Derived state computed once from events and cached on TaskGroup.
@@ -73,11 +73,15 @@ function deriveLifecycle(lastEventStage: LifecycleStage | null, events: K8sEvent
     case "runtime":
       return "Running";
     case "completion":
-    case "failure":
       return "Done";
+    case "failure":
+      return "Failed";
     default: {
-      const hasTerminal = events.some((e) => e.stage === "completion" || e.stage === "failure");
-      return hasTerminal ? "Done" : "Running";
+      const hasFailure = events.some((e) => e.stage === "failure");
+      if (hasFailure) return "Failed";
+      const hasCompletion = events.some((e) => e.stage === "completion");
+      if (hasCompletion) return "Done";
+      return "Running";
     }
   }
 }
