@@ -34,7 +34,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/envoy-config: {{ include (print $.Template.BasePath "/envoy-config.yaml") . | sha256sum }}
+        checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         sidecar.opentelemetry.io/inject: "true"
