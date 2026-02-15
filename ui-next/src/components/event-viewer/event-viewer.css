@@ -18,14 +18,12 @@
 
 /* =============================================================================
    Event Viewer Component Styles
-   Grid layouts, event badges, and lifecycle segment styling
+   Grid layouts, event badges, and timeline dot visualization
    ============================================================================= */
 
 @layer components {
   /* Component-specific CSS variables */
   :root {
-    --stage-fg: white;
-
     /* Event viewer grid column widths - single source of truth */
     --col-task-min: 150px;
     --col-retry: 50px;
@@ -35,10 +33,15 @@
 
     /* Event details (expanded panel) column widths */
     --col-event-time: 150px;
-  }
 
-  .dark {
-    --stage-fg: oklch(0.145 0 0);
+    /* Timeline dot dimensions */
+    --timeline-dot-size: 9px;
+    --timeline-dot-border: 2px;
+    --timeline-line-height: 4px;
+    --timeline-label-offset: -20px;
+    --timeline-label-font: 0.65rem;
+    --timeline-glow-spread: 3px;
+    --timeline-glow-opacity: 20%;
   }
 
   /* Scroll inner wrapper - establishes min-width so the scroll container
@@ -111,59 +114,6 @@
   .event-badge[data-reason="Scheduled"] {
     background-color: var(--status-success-bg);
     color: var(--status-success);
-  }
-
-  /* ==========================================================================
-     Lifecycle Segment Styling
-     Use data attributes for semantic state-based styling
-     ========================================================================== */
-
-  .lifecycle-segment {
-    background: var(--stage-inactive);
-    color: var(--stage-inactive-fg);
-  }
-
-  /* Done state - completed successfully */
-  .lifecycle-segment[data-state="done"] {
-    background: var(--stage-completed);
-    color: var(--stage-fg);
-  }
-
-  /* Inferred state - stage was passed through but no events were observed.
-     Uses a darker gray than inactive to indicate implicit completion.
-     Example: task reached Running but no Pending/Init events were received. */
-  .lifecycle-segment[data-state="inferred"] {
-    background: var(--stage-inferred);
-    color: var(--stage-inferred-fg);
-  }
-
-  /* Failed state - error occurred */
-  .lifecycle-segment[data-state="failed"] {
-    background: var(--stage-failed);
-    color: var(--stage-fg);
-  }
-
-  /* Active & terminal states with stage-specific colors.
-     "active" pulses (controlled by JS), "terminal" never pulses —
-     the parent entity terminated but the pod didn't complete this stage. */
-  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="pending"] {
-    background: var(--stage-pending);
-    color: var(--stage-fg);
-  }
-
-  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="init"] {
-    background: var(--stage-init);
-    color: var(--stage-fg);
-  }
-
-  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="running"] {
-    background: var(--stage-running);
-    color: var(--stage-fg);
-  }
-
-  .lifecycle-segment:is([data-state="active"], [data-state="terminal"])[data-stage="done"] {
-    background: var(--stage-completed);
-    color: var(--stage-fg);
   }
 
   /* ==========================================================================
@@ -246,20 +196,6 @@
   }
 
   /* ==========================================================================
-     Stage Pulse Animation
-     ========================================================================== */
-
-  @keyframes stage-pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.7;
-    }
-  }
-
-  /* ==========================================================================
      Timeline Dots Visualization
      Matches the HTML prototype structure with step containers and individual lines
      ========================================================================== */
@@ -267,7 +203,6 @@
   .lifecycle-timeline {
     display: flex;
     align-items: center;
-    gap: 0;
     position: relative;
     padding: 0.5rem 1.5rem 1.5rem 1.5rem;
   }
@@ -286,65 +221,62 @@
 
   /* Timeline dots */
   .timeline-dot {
-    width: 9px;
-    height: 9px;
+    width: var(--timeline-dot-size);
+    height: var(--timeline-dot-size);
     border-radius: 50%;
     background: var(--stage-inactive);
-    border: 2px solid var(--border);
+    border: var(--timeline-dot-border) solid var(--border);
     position: relative;
     z-index: 2;
-    transition: all var(--duration-normal) var(--ease-out);
+    transition:
+      background var(--duration-normal) var(--ease-out),
+      border-color var(--duration-normal) var(--ease-out),
+      opacity var(--duration-normal) var(--ease-out),
+      box-shadow var(--duration-normal) var(--ease-out);
   }
 
-  /* Done state - inherits timeline color (event-based semantic color) */
-  .timeline-dot[data-state="done"] {
+  /* Active states: done, inferred, active, terminal all inherit timeline color */
+  .timeline-dot:is([data-state="done"], [data-state="inferred"], [data-state="active"], [data-state="terminal"]) {
     background: var(--current-timeline-color);
     border-color: var(--current-timeline-color);
   }
 
-  /* Inferred state - inherits timeline color with reduced opacity */
+  /* Inferred: reduced opacity to indicate implicit completion */
   .timeline-dot[data-state="inferred"] {
-    background: var(--current-timeline-color);
-    border-color: var(--current-timeline-color);
     opacity: 0.7;
   }
 
-  /* Failed state - always red regardless of timeline color */
+  /* Failed: always red regardless of timeline color */
   .timeline-dot[data-state="failed"] {
     background: var(--timeline-red);
     border-color: var(--timeline-red);
   }
 
-  /* Active state - inherits timeline color with glow effect */
+  /* Active: glow effect to indicate current stage */
   .timeline-dot[data-state="active"] {
-    background: var(--current-timeline-color);
-    border-color: var(--current-timeline-color);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--current-timeline-color) 20%, transparent);
-  }
-
-  /* Terminal state - inherits timeline color (no glow, no pulse) */
-  .timeline-dot[data-state="terminal"] {
-    background: var(--current-timeline-color);
-    border-color: var(--current-timeline-color);
+    box-shadow: 0 0 0 var(--timeline-glow-spread)
+      color-mix(in srgb, var(--current-timeline-color) var(--timeline-glow-opacity), transparent);
   }
 
   /* Connecting line (background - always visible, muted for inactive segments) */
   .timeline-line {
     flex: 1;
-    height: 4px;
+    height: var(--timeline-line-height);
     background: color-mix(in srgb, var(--stage-inactive) 30%, transparent);
     position: relative;
   }
 
-  /* Filled portion of the line (60% opacity for subtle appearance) */
+  /* Filled portion of the line - uses scaleX for GPU-accelerated animation */
   .timeline-line-fill {
     position: absolute;
     top: 0;
     left: 0;
+    width: 100%;
     height: 100%;
     background: var(--current-timeline-color);
     opacity: 0.7;
-    transition: width var(--duration-moderate) var(--ease-out);
+    transform-origin: left;
+    transition: transform var(--duration-moderate) var(--ease-out);
   }
 
   /* Timeline color mapping - sets CSS custom property based on event-based status */
@@ -367,10 +299,10 @@
   /* Labels centered under dots */
   .timeline-label {
     position: absolute;
-    bottom: -20px;
-    left: 4px;
+    bottom: var(--timeline-label-offset);
+    left: calc(var(--timeline-dot-size) / 2);
     transform: translateX(-50%);
-    font-size: 0.65rem;
+    font-size: var(--timeline-label-font);
     color: var(--text-muted);
     white-space: nowrap;
     font-weight: 500;

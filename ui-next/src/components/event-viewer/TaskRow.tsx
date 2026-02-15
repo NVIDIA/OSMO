@@ -126,15 +126,9 @@ export const TaskRow = memo(
 
             {/* Event count */}
             <div className="px-4 py-3 text-right">
-              {hasSomeEventsFiltered ? (
-                <span className="bg-muted text-muted-foreground inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums">
-                  {filteredEventsCount}/{allEventsCount}
-                </span>
-              ) : (
-                <span className="bg-muted text-muted-foreground inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">
-                  {task.events.length}
-                </span>
-              )}
+              <span className="bg-muted text-muted-foreground inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums">
+                {hasSomeEventsFiltered ? `${filteredEventsCount}/${allEventsCount}` : task.events.length}
+              </span>
             </div>
           </div>
         </div>
