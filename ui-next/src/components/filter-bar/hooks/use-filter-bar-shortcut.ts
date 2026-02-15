@@ -40,13 +40,19 @@ import { useEffect, type RefObject } from "react";
 import { useAnnouncer } from "@/hooks/use-announcer";
 import type { FilterBarHandle } from "@/components/filter-bar/filter-bar";
 
-export interface UseFilterBarShortcutReturn {
+interface UseFilterBarShortcutReturn {
   /** Props to spread on the container element */
   containerProps: {
     tabIndex: number;
     style: { outline: string };
   };
 }
+
+// Hoisted constant to avoid recreating on every render
+const CONTAINER_PROPS = {
+  tabIndex: -1, // Make container focusable but not in tab order
+  style: { outline: "none" } as const, // Remove focus outline
+} as const;
 
 /**
  * Adds Cmd+F keyboard shortcut to focus a FilterBar.
@@ -79,10 +85,5 @@ export function useFilterBarShortcut(
     }
   }, [containerRef, filterBarRef, announce]);
 
-  return {
-    containerProps: {
-      tabIndex: -1, // Make container focusable but not in tab order
-      style: { outline: "none" }, // Remove focus outline
-    },
-  };
+  return { containerProps: CONTAINER_PROPS };
 }

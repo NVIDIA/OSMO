@@ -27,11 +27,9 @@
 
 import { memo } from "react";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { dropdownStyles, chipStyles, chipVariantStyles } from "@/components/filter-bar/styles";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
 
-export interface FilterBarChipProps {
+interface FilterBarChipProps {
   chip: SearchChip;
   onRemove: () => void;
   focused?: boolean;
@@ -52,17 +50,26 @@ export const FilterBarChip = memo(function FilterBarChip({ chip, onRemove, focus
     if (!match) return chip.label;
 
     const [, prefix, freeUsed, value] = match;
-    const variantClass = chipVariantStyles[chip.variant];
 
     return (
       <>
-        {prefix} <span className={cn("font-semibold", variantClass)}>{freeUsed}</span>: {value}
+        {prefix}{" "}
+        <span
+          className="fb-chip-variant"
+          data-variant={chip.variant}
+        >
+          {freeUsed}
+        </span>
+        : {value}
       </>
     );
   };
 
   return (
-    <span className={cn(chipStyles.chip, focused && dropdownStyles.focusRing)}>
+    <span
+      className="fb-chip"
+      data-focused={focused ? "" : undefined}
+    >
       {renderLabel()}
       <button
         type="button"
@@ -70,7 +77,7 @@ export const FilterBarChip = memo(function FilterBarChip({ chip, onRemove, focus
           e.stopPropagation();
           onRemove();
         }}
-        className={chipStyles.chipButton}
+        className="fb-chip-button"
       >
         <X className="size-3" />
       </button>

@@ -28,7 +28,7 @@ import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } f
 import { getFieldValues } from "@/components/filter-bar/lib/types";
 import { parseInput, getFieldHint } from "@/components/filter-bar/lib/parse-input";
 
-export interface UseSuggestionsOptions<T> {
+interface UseSuggestionsOptions<T> {
   /** Current input value */
   inputValue: string;
   /** Field definitions */
@@ -44,11 +44,13 @@ export interface UseSuggestionsOptions<T> {
   }[];
 }
 
-export interface UseSuggestionsReturn<T> {
+interface UseSuggestionsReturn<T> {
   /** Parsed input with field and query */
   parsedInput: ParsedInput<T>;
-  /** All suggestions for the dropdown */
-  suggestions: Suggestion<T>[];
+  /** Selectable suggestions (field prefixes and values) */
+  selectables: Suggestion<T>[];
+  /** Non-interactive hint suggestions */
+  hints: Suggestion<T>[];
   /** Flattened preset items for navigation */
   flatPresets: SearchPreset[];
 }
@@ -197,6 +199,7 @@ function generateSuggestions<T>(
  * - Generating value suggestions when prefix is active (based on getValues)
  * - Handling hierarchical prefixes (quota:free:)
  * - Showing freeFormHint when no suggestions available
+ * - Partitioning suggestions into selectables and hints
  *
  * This hook is UI-agnostic and can work with any dropdown implementation.
  */
@@ -211,10 +214,24 @@ export function useSuggestions<T>({
   const parsedInput = useMemo(() => parseInput(inputValue, fields), [inputValue, fields]);
 
   // Generate suggestions (excludes already-selected values)
-  const suggestions = useMemo(
+  const allSuggestions = useMemo(
     () => generateSuggestions(inputValue, parsedInput, fields, data, chips),
     [inputValue, parsedInput, fields, data, chips],
   );
+
+  // Partition into selectables and hints (single pass)
+  const { selectables, hints } = useMemo(() => {
+    const sel: Suggestion<T>[] = [];
+    const hin: Suggestion<T>[] = [];
+    for (const suggestion of allSuggestions) {
+      if (suggestion.type === "hint") {
+        hin.push(suggestion);
+      } else {
+        sel.push(suggestion);
+      }
+    }
+    return { selectables: sel, hints: hin };
+  }, [allSuggestions]);
 
   // Flatten presets for navigation
   const flatPresets = useMemo(() => {
@@ -224,7 +241,8 @@ export function useSuggestions<T>({
 
   return {
     parsedInput,
-    suggestions,
+    selectables,
+    hints,
     flatPresets,
   };
 }
