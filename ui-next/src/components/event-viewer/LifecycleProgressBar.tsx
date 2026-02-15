@@ -14,7 +14,6 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 
@@ -86,46 +85,19 @@ export function getProgressIndex(task: TaskGroup): number {
  */
 type SegmentState = "done" | "inferred" | "active" | "failed" | "terminal" | "inactive";
 
-interface LifecycleSegmentProps {
+interface TimelineDotProps {
   stage: StageKey;
-  label: string;
   state: SegmentState;
   showPulse: boolean;
 }
 
-function LifecycleSegment({ stage, label, state, showPulse }: LifecycleSegmentProps) {
+function TimelineDot({ stage, state, showPulse }: TimelineDotProps) {
   return (
     <div
-      className={cn(
-        "lifecycle-segment flex flex-1 items-center justify-center",
-        "text-[10px] leading-none font-medium tracking-wide",
-        "gap-0.5 whitespace-nowrap select-none",
-        "first:rounded-l last:rounded-r",
-        showPulse && "animate-[stage-pulse_2s_ease-in-out_infinite]",
-      )}
+      className={cn("timeline-dot", showPulse && "animate-[dot-pulse_2s_ease-in-out_infinite]")}
       data-state={state}
       data-stage={stage}
-    >
-      {state === "done" && (
-        <Check
-          className="size-2.5"
-          strokeWidth={3}
-        />
-      )}
-      {state === "inferred" && (
-        <Check
-          className="size-2.5 opacity-50"
-          strokeWidth={2}
-        />
-      )}
-      {state === "failed" && (
-        <X
-          className="size-2.5"
-          strokeWidth={3}
-        />
-      )}
-      <span>{state === "failed" ? "Failed" : label}</span>
-    </div>
+    />
   );
 }
 
@@ -162,8 +134,28 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
   // Pending/Init). Show as "terminal" — same color as active but no pulse.
   const showTerminal = !isPodTerminal && !inferredDone && !!isParentTerminal;
 
+  // Determine final timeline color, overriding for inferred completion
+  // When inferredDone is true, show green (success) instead of blue (in-progress)
+  let timelineColor = task.derived.timelineColor;
+  if (inferredDone) {
+    timelineColor = "green";
+  }
+
+  // Calculate fill percentage for each line segment
+  // Timeline always goes to a dot, never stops in the middle
+  // lineIdx 0 = line after first dot (Pending -> Init)
+  // lineIdx 1 = line after second dot (Init -> Running)
+  // lineIdx 2 = line after third dot (Running -> Done)
+  const getLineFillPercentage = (lineIdx: number): number => {
+    // Line is filled if we've reached or passed the next stage
+    return lineIdx < progressIdx ? 100 : 0;
+  };
+
   return (
-    <div className={cn("flex h-5.5 gap-0.5 overflow-hidden rounded", className)}>
+    <div
+      className={cn("lifecycle-timeline", className)}
+      data-timeline-color={timelineColor}
+    >
       {LIFECYCLE_STAGES.map((stage, idx) => {
         let state: SegmentState;
 
@@ -185,14 +177,33 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
           state = "inactive";
         }
 
+        const isLastStage = idx === LIFECYCLE_STAGES.length - 1;
+
         return (
-          <LifecycleSegment
+          <div
             key={stage.key}
-            stage={stage.key}
-            label={stage.label}
-            state={state}
-            showPulse={state === "active" && !isPodTerminal}
-          />
+            className={cn("timeline-step", isLastStage && "timeline-step-last")}
+          >
+            <TimelineDot
+              stage={stage.key}
+              state={state}
+              showPulse={state === "active" && !isPodTerminal}
+            />
+            {!isLastStage && (
+              <div className="timeline-line">
+                <div
+                  className="timeline-line-fill"
+                  style={{ width: `${getLineFillPercentage(idx)}%` }}
+                />
+              </div>
+            )}
+            <span
+              className="timeline-label"
+              data-state={state}
+            >
+              {stage.label}
+            </span>
+          </div>
         );
       })}
     </div>

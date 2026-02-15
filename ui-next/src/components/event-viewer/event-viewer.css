@@ -258,4 +258,148 @@
       opacity: 0.7;
     }
   }
+
+  /* ==========================================================================
+     Timeline Dots Visualization
+     Matches the HTML prototype structure with step containers and individual lines
+     ========================================================================== */
+
+  .lifecycle-timeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+    padding: 0.5rem 1.5rem 1.5rem 1.5rem;
+  }
+
+  .timeline-step {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  /* Last step (Done) doesn't take flex space - just dot + label */
+  .timeline-step-last {
+    flex: 0;
+  }
+
+  /* Timeline dots */
+  .timeline-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--stage-inactive);
+    border: 2px solid var(--border);
+    position: relative;
+    z-index: 2;
+    transition: all var(--duration-normal) var(--ease-out);
+  }
+
+  /* Done state - inherits timeline color (event-based semantic color) */
+  .timeline-dot[data-state="done"] {
+    background: var(--current-timeline-color);
+    border-color: var(--current-timeline-color);
+  }
+
+  /* Inferred state - inherits timeline color with reduced opacity */
+  .timeline-dot[data-state="inferred"] {
+    background: var(--current-timeline-color);
+    border-color: var(--current-timeline-color);
+    opacity: 0.7;
+  }
+
+  /* Failed state - always red regardless of timeline color */
+  .timeline-dot[data-state="failed"] {
+    background: var(--timeline-red);
+    border-color: var(--timeline-red);
+  }
+
+  /* Active state - inherits timeline color with glow effect */
+  .timeline-dot[data-state="active"] {
+    background: var(--current-timeline-color);
+    border-color: var(--current-timeline-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--current-timeline-color) 20%, transparent);
+  }
+
+  /* Terminal state - inherits timeline color (no glow, no pulse) */
+  .timeline-dot[data-state="terminal"] {
+    background: var(--current-timeline-color);
+    border-color: var(--current-timeline-color);
+  }
+
+  /* Connecting line (background - always visible, muted for inactive segments) */
+  .timeline-line {
+    flex: 1;
+    height: 4px;
+    background: color-mix(in srgb, var(--stage-inactive) 30%, transparent);
+    position: relative;
+  }
+
+  /* Filled portion of the line (60% opacity for subtle appearance) */
+  .timeline-line-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--current-timeline-color);
+    opacity: 0.7;
+    transition: width var(--duration-moderate) var(--ease-out);
+  }
+
+  /* Timeline color mapping - sets CSS custom property based on event-based status */
+  .lifecycle-timeline[data-timeline-color="green"] {
+    --current-timeline-color: var(--timeline-green);
+  }
+
+  .lifecycle-timeline[data-timeline-color="blue"] {
+    --current-timeline-color: var(--timeline-blue);
+  }
+
+  .lifecycle-timeline[data-timeline-color="amber"] {
+    --current-timeline-color: var(--timeline-amber);
+  }
+
+  .lifecycle-timeline[data-timeline-color="red"] {
+    --current-timeline-color: var(--timeline-red);
+  }
+
+  /* Labels centered under dots */
+  .timeline-label {
+    position: absolute;
+    bottom: -20px;
+    left: 4px;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-weight: 500;
+    transition: color var(--duration-normal) var(--ease-out);
+  }
+
+  /* Inactive labels are more muted */
+  .timeline-label[data-state="inactive"] {
+    color: var(--text-disabled);
+    opacity: 0.5;
+  }
+
+  /* Dot pulse animation (only for active dots) */
+  @keyframes dot-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.1);
+    }
+  }
+
+  /* Reduced motion: disable dot pulse */
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-dot {
+      animation: none !important;
+    }
+  }
 }
