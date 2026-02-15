@@ -50,7 +50,7 @@ import { PoolsToolbar } from "@/app/(dashboard)/pools/components/pools-toolbar";
 import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
 import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
 import { usePoolsAutoRefresh } from "@/app/(dashboard)/pools/hooks/use-pools-auto-refresh";
-import { useProfileSettings } from "@/lib/api/adapter/hooks";
+import { useProfile } from "@/lib/api/adapter/hooks";
 
 // =============================================================================
 // Client Component
@@ -99,9 +99,9 @@ export function PoolsPageContent() {
     });
   }, [setShowAllPools]);
 
-  // Fetch user profile settings for accessible pool names.
+  // Fetch user profile settings for accessible pool names (no buckets needed).
   // Always enabled so data is pre-cached when toggling to "my pools" (avoids reflow).
-  const { profile } = useProfileSettings();
+  const { profile } = useProfile();
   const accessiblePoolNames = useMemo(() => profile?.pool.accessible ?? [], [profile]);
 
   // ==========================================================================

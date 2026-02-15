@@ -700,74 +700,28 @@ export const profileKeys = {
 };
 
 /**
- * Fetch profile settings only (no bucket fetch).
+ * Fetch user profile settings (pools, notifications, default bucket).
  *
- * Returns notification preferences, pool settings, and accessible pool names.
- * Uses only GET /api/profile/settings — does NOT call GET /api/bucket.
+ * Returns notification preferences and pool settings.
+ * Uses GET /api/profile/settings endpoint only.
  *
- * Use this when you only need pool/notification settings (e.g., accessible pool names).
- * For bucket info, use useProfile() instead.
+ * Note: For user's name and email, use useUser() hook which reads from JWT token.
+ * Note: For bucket list, use useBuckets() hook separately.
  *
- * @param options.enabled - Whether to enable the query (default: true).
- *   Set to false to skip the API call entirely (e.g., when showing all pools).
+ * @param options.enabled - Whether to enable the query (default: true)
  *
  * @example
  * ```ts
- * const { profile, isLoading, error } = useProfileSettings({ enabled: !showAllPools });
- * if (profile) {
- *   console.log(profile.pool.accessible); // accessible pool names
- * }
+ * const { profile } = useProfile();
+ * console.log(profile?.pool.accessible, profile?.notifications);
  * ```
  */
-export function useProfileSettings({ enabled = true }: { enabled?: boolean } = {}) {
+export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
   const profileQuery = useGetNotificationSettingsApiProfileSettingsGet({
     query: {
       queryKey: profileKeys.detail(),
       staleTime: QUERY_STALE_TIME.STANDARD,
       enabled,
-      select: useCallback((rawData: unknown) => {
-        if (!rawData) return null;
-        const response = rawData as { profile?: unknown; pools?: string[] };
-        const profile = transformUserProfile(response.profile);
-        if (response.pools && Array.isArray(response.pools)) {
-          profile.pool.accessible = response.pools;
-        }
-        return profile;
-      }, []),
-    },
-  });
-
-  return {
-    profile: profileQuery.data ?? null,
-    isLoading: profileQuery.isLoading,
-    error: profileQuery.error,
-    refetch: profileQuery.refetch,
-  };
-}
-
-/**
- * Fetch user profile settings with bucket information.
- *
- * Returns notification preferences, bucket, and pool settings.
- * Uses GET /api/profile/settings and GET /api/bucket endpoints.
- *
- * Note: For user's name and email, use useUser() hook which reads from JWT token.
- * Note: Buckets are fetched separately because backend doesn't include them in ProfileResponse.
- *
- * @example
- * ```ts
- * const { profile, isLoading, error } = useProfile();
- * if (profile) {
- *   console.log(profile.notifications, profile.bucket.default, profile.pool.default);
- * }
- * ```
- */
-export function useProfile() {
-  // Fetch profile settings
-  const profileQuery = useGetNotificationSettingsApiProfileSettingsGet({
-    query: {
-      queryKey: profileKeys.detail(),
-      staleTime: QUERY_STALE_TIME.STANDARD,
       select: useCallback((rawData: unknown) => {
         if (!rawData) return null;
         // Backend returns ProfileResponse { profile: UserProfile, pools: string[] }
@@ -782,43 +736,15 @@ export function useProfile() {
     },
   });
 
-  // Fetch buckets separately (backend inconsistency - pools are in ProfileResponse, buckets are not)
-  const bucketsQuery = useGetBucketInfoApiBucketGet(
-    undefined, // No params needed
-    {
-      query: {
-        queryKey: [...profileKeys.all, "buckets"] as const,
-        staleTime: QUERY_STALE_TIME.STANDARD,
-        select: useCallback((rawData: unknown) => {
-          if (!rawData || typeof rawData !== "object") return [];
-          const response = rawData as { buckets?: Record<string, unknown> };
-          return response.buckets ? Object.keys(response.buckets) : [];
-        }, []),
-      },
-    },
+  return useMemo(
+    () => ({
+      profile: profileQuery.data ?? null,
+      isLoading: profileQuery.isLoading,
+      error: profileQuery.error,
+      refetch: profileQuery.refetch,
+    }),
+    [profileQuery.data, profileQuery.isLoading, profileQuery.error, profileQuery.refetch],
   );
-
-  // Merge buckets into profile
-  const profile = useMemo(() => {
-    if (!profileQuery.data) return null;
-    return {
-      ...profileQuery.data,
-      bucket: {
-        ...profileQuery.data.bucket,
-        accessible: bucketsQuery.data ?? [],
-      },
-    };
-  }, [profileQuery.data, bucketsQuery.data]);
-
-  return {
-    profile,
-    isLoading: profileQuery.isLoading || bucketsQuery.isLoading,
-    error: profileQuery.error || bucketsQuery.error,
-    refetch: useCallback(() => {
-      profileQuery.refetch();
-      bucketsQuery.refetch();
-    }, [profileQuery, bucketsQuery]),
-  };
 }
 
 /**
@@ -827,19 +753,22 @@ export function useProfile() {
  * Returns list of accessible bucket names and the user's default bucket.
  * Uses GET /api/bucket endpoint.
  *
+ * @param options.enabled - Whether to enable the query (default: true)
+ *
  * @example
  * ```ts
  * const { buckets, defaultBucket, isLoading } = useBuckets();
  * console.log(`Default: ${defaultBucket}, Available: ${buckets.join(', ')}`);
  * ```
  */
-export function useBuckets() {
+export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
   const { data, isLoading, error, refetch } = useGetBucketInfoApiBucketGet(
     undefined, // No params needed
     {
       query: {
         queryKey: [...profileKeys.all, "buckets"] as const,
         staleTime: QUERY_STALE_TIME.STANDARD,
+        enabled,
         select: useCallback((rawData: unknown) => {
           if (!rawData || typeof rawData !== "object") {
             return { buckets: [], defaultBucket: "" };
@@ -855,13 +784,16 @@ export function useBuckets() {
     },
   );
 
-  return {
-    buckets: data?.buckets ?? [],
-    defaultBucket: data?.defaultBucket ?? "",
-    isLoading,
-    error,
-    refetch,
-  };
+  return useMemo(
+    () => ({
+      buckets: data?.buckets ?? [],
+      defaultBucket: data?.defaultBucket ?? "",
+      isLoading,
+      error,
+      refetch,
+    }),
+    [data, isLoading, error, refetch],
+  );
 }
 
 /**
@@ -878,11 +810,12 @@ export function useBuckets() {
  * }
  * ```
  */
-export function useCredentials() {
+export function useCredentials({ enabled = true }: { enabled?: boolean } = {}) {
   const { data, isLoading, error, refetch } = useGetUserCredentialApiCredentialsGet({
     query: {
       queryKey: profileKeys.credentials(),
       staleTime: QUERY_STALE_TIME.STANDARD,
+      enabled,
       select: useCallback((rawData: unknown) => {
         if (!rawData) return [];
         // Backend returns string that needs parsing

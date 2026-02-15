@@ -16,26 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Profile Page
- *
- * User profile settings page with card-based sections for:
- * - User Information (read-only)
- * - Notification Preferences (stage+commit)
- * - Default Bucket (stage+commit)
- * - Pools Selection (stage+commit)
- * - Credentials Management (immediate save)
- *
- * Design Patterns:
- * - Stage+commit: Make changes, then explicitly Save or Reset
- * - Immediate save: CRUD operations save instantly
- * - Collapsible inline forms: No modals except delete confirmation
- *
- * Note: This page uses client-side data fetching since profile data
- * is user-specific and cannot be prefetched on the server without
- * authentication context.
- */
-
 import { ProfileLayout } from "@/app/(dashboard)/profile/components/ProfileLayout";
 
 export default function ProfilePage() {

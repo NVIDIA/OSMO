@@ -28,7 +28,7 @@
 
 import { memo, useState, useMemo, useCallback } from "react";
 import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
-import { useProfileSettings } from "@/lib/api/adapter/hooks";
+import { useProfile } from "@/lib/api/adapter/hooks";
 import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
@@ -155,8 +155,8 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
     },
   );
 
-  // Accessible pool names from profile settings (lightweight — no bucket fetch)
-  const { profile } = useProfileSettings();
+  // Accessible pool names from profile settings (no bucket fetch needed)
+  const { profile } = useProfile();
   const accessiblePoolNames = profile?.pool.accessible;
   const accessibleSet = useMemo(
     () => (accessiblePoolNames ? new Set(accessiblePoolNames) : null),

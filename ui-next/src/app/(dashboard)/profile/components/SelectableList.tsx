@@ -14,16 +14,10 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * SelectableList Component
- *
- * A reusable searchable list with radio indicators for selecting a single item.
- * Used by both Pools and Buckets cards in the profile page.
- */
-
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/shadcn/input";
+import { cn } from "@/lib/utils";
 
 export interface SelectableListItem {
   value: string;
@@ -37,7 +31,6 @@ interface SelectableListProps {
   onSelect: (value: string) => void;
   searchPlaceholder?: string;
   emptyMessage?: string;
-  className?: string;
 }
 
 export function SelectableList({
@@ -46,7 +39,6 @@ export function SelectableList({
   onSelect,
   searchPlaceholder = "Search...",
   emptyMessage = "No items found",
-  className = "",
 }: SelectableListProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -58,7 +50,6 @@ export function SelectableList({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Search input */}
       <div className="relative mb-4 shrink-0">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
@@ -70,9 +61,8 @@ export function SelectableList({
         />
       </div>
 
-      {/* List container - shrinks to content size */}
       {filteredItems.length > 0 ? (
-        <div className={`border-border bg-muted max-h-full overflow-y-auto rounded-md border ${className}`}>
+        <div className="border-border bg-muted max-h-full overflow-y-auto rounded-md border">
           <div className="flex flex-col">
             {filteredItems.map((item) => {
               const isSelected = item.value === selectedValue;
@@ -81,16 +71,17 @@ export function SelectableList({
                   key={item.value}
                   type="button"
                   onClick={() => onSelect(item.value)}
-                  className={`bg-background border-border flex cursor-pointer items-center justify-between border-b px-4 py-3 text-left transition-colors last:border-b-0 ${
-                    isSelected ? "bg-nvidia-bg border-l-nvidia border-l-[3px] pl-[calc(1rem-3px)]" : "hover:bg-muted"
-                  }`}
+                  className={cn(
+                    "bg-background border-border flex cursor-pointer items-center justify-between border-b px-4 py-3 text-left transition-colors last:border-b-0",
+                    isSelected ? "bg-nvidia-bg border-l-nvidia selected-accent-border" : "hover:bg-muted",
+                  )}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Radio indicator */}
                     <div
-                      className={`size-4 shrink-0 rounded-full border-2 ${
-                        isSelected ? "border-nvidia" : "border-border"
-                      } relative transition-colors`}
+                      className={cn(
+                        "relative size-4 shrink-0 rounded-full border-2 transition-colors",
+                        isSelected ? "border-nvidia" : "border-border",
+                      )}
                     >
                       {isSelected && (
                         <div className="bg-nvidia absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full" />
