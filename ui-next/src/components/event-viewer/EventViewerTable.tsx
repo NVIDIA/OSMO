@@ -16,14 +16,17 @@
 
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { TaskRow } from "@/components/event-viewer/TaskRow";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 
 /** Estimated collapsed row height (px) */
-const ROW_HEIGHT_ESTIMATE = 48;
+const ROW_HEIGHT_COLLAPSED = 48;
+
+/** Estimated height per event row when expanded (px) */
+const ROW_HEIGHT_PER_EVENT = 28;
 
 /** Overscan count for smooth scrolling */
 const OVERSCAN_COUNT = 10;
@@ -48,12 +51,44 @@ export function EventViewerTable({
 }: EventViewerTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Expansion-aware size estimates so off-screen items get reasonable
+  // positions before ResizeObserver measures them for real.
+  // Uses filtered event count when available so estimates stay accurate
+  // after severity/event-level filters shrink the expanded panel.
+  const estimateSize = useCallback(
+    (index: number) => {
+      const task = tasks[index];
+      if (!task || !expandedIds.has(task.id)) return ROW_HEIGHT_COLLAPSED;
+      // Prefer filtered count (from event-level filters) over full count
+      const eventCount =
+        (task as TaskGroup & { _filteredEventsCount?: number })._filteredEventsCount ?? task.events.length;
+      return ROW_HEIGHT_COLLAPSED + eventCount * ROW_HEIGHT_PER_EVENT;
+    },
+    [tasks, expandedIds],
+  );
+
+  // Encode expand state + filtered event count into the virtualizer item key.
+  // When either changes, the virtualizer discards the stale cached measurement
+  // for that item and falls back to estimateSize. Items that haven't changed
+  // keep their exact ResizeObserver measurements — no blanket reset needed.
+  const getItemKey = useMemo(
+    () => (index: number) => {
+      const task = tasks[index];
+      if (!task) return index;
+      const expanded = expandedIds.has(task.id) ? 1 : 0;
+      const eventCount =
+        (task as TaskGroup & { _filteredEventsCount?: number })._filteredEventsCount ?? task.events.length;
+      return `${task.id}:${expanded}:${eventCount}`;
+    },
+    [tasks, expandedIds],
+  );
+
   const virtualizer = useVirtualizerCompat({
     count: tasks.length,
     getScrollElement: useCallback(() => scrollRef.current, []),
-    estimateSize: useCallback(() => ROW_HEIGHT_ESTIMATE, []),
+    estimateSize,
     overscan: OVERSCAN_COUNT,
-    getItemKey: useCallback((index: number) => tasks[index]?.id ?? index, [tasks]),
+    getItemKey,
   });
 
   if (tasks.length === 0) {
@@ -92,6 +127,7 @@ export function EventViewerTable({
       <div
         ref={scrollRef}
         className="scrollbar-styled relative min-h-0 flex-1 overflow-auto"
+        style={{ contain: "strict" }}
       >
         {/* Inner wrapper enforces min-width so horizontal scroll activates */}
         <div className="event-viewer-scroll-inner">
@@ -135,6 +171,7 @@ export function EventViewerTable({
                     isExpanded={expandedIds.has(task.id)}
                     onToggleExpand={onToggleExpand}
                     isLast={virtualRow.index === tasks.length - 1}
+                    isOdd={virtualRow.index % 2 !== 0}
                   />
                 </div>
               );

@@ -18,6 +18,7 @@ import { describe, it, expect } from "vitest";
 import { getProgressIndex } from "@/components/event-viewer/LifecycleProgressBar";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import type { K8sEvent, PodPhase, LifecycleStage, EventSeverity } from "@/lib/api/adapter/events/events-types";
+import { computeDerivedState, type TaskDerivedState } from "@/lib/api/adapter/events/events-derived-state";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -50,13 +51,14 @@ function makeEvent(
 }
 
 function makeTask(podPhase: PodPhase, events: K8sEvent[]): TaskGroup {
+  const derived: TaskDerivedState = { ...computeDerivedState(events), podPhase };
   return {
     id: "worker_0",
     name: "worker_0",
     retryId: 0,
-    podPhase,
     duration: "1m",
     events,
+    derived,
   };
 }
 

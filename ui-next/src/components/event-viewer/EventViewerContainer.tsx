@@ -16,12 +16,16 @@
 
 "use client";
 
-import { useState, useMemo, useDeferredValue, useCallback, startTransition } from "react";
-import { Search, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { useState, useMemo, useCallback, startTransition, useDeferredValue } from "react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEvents } from "@/lib/api/adapter/events/events-hooks";
 import { groupEventsByTask } from "@/lib/api/adapter/events/events-grouping";
 import { EventViewerTable } from "@/components/event-viewer/EventViewerTable";
+import { FilterBar } from "@/components/filter-bar/filter-bar";
+import { useUrlChips } from "@/hooks/use-url-chips";
+import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/event-search-fields";
+import { filterTaskGroups } from "@/app/(dashboard)/workflows/[name]/lib/event-filtering";
 import "@/components/event-viewer/event-viewer.css";
 
 export interface EventViewerContainerProps {
@@ -34,30 +38,26 @@ export interface EventViewerContainerProps {
 export function EventViewerContainer({ url, className, scope = "workflow" }: EventViewerContainerProps) {
   const isTaskScope = scope === "task";
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const deferredSearchTerm = useDeferredValue(searchTerm);
+  // URL-synced filter chips (only in workflow scope)
+  const { searchChips, setSearchChips } = useUrlChips({ paramName: "ef" });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   const { events, isLoading, error, refetch } = useEvents({ url });
 
   const groupedTasks = useMemo(() => groupEventsByTask(events), [events]);
 
-  const filteredTasks = useMemo(() => {
-    // In task scope, no search filtering
-    if (isTaskScope) return groupedTasks;
-    if (!deferredSearchTerm) return groupedTasks;
+  // Defer search chips to keep FilterBar input responsive (P0 performance requirement)
+  const deferredSearchChips = useDeferredValue(searchChips);
 
-    const term = deferredSearchTerm.toLowerCase();
-    return groupedTasks.filter((task) => {
-      if (task.name.toLowerCase().includes(term)) return true;
-      for (const e of task.events) {
-        if (e.reason.toLowerCase().includes(term) || e.message.toLowerCase().includes(term)) {
-          return true;
-        }
-      }
-      return false;
-    });
-  }, [groupedTasks, deferredSearchTerm, isTaskScope]);
+  // Apply hierarchical filtering (task-level and event-level)
+  const filteredTasks = useMemo(() => {
+    // In task scope, no filtering
+    if (isTaskScope) return groupedTasks;
+    // No chips = no filtering
+    if (deferredSearchChips.length === 0) return groupedTasks;
+    // Apply hierarchical filtering with deferred chips
+    return filterTaskGroups(groupedTasks, deferredSearchChips);
+  }, [groupedTasks, deferredSearchChips, isTaskScope]);
 
   // In task scope, always expand all tasks
   const effectiveExpandedIds = useMemo(() => {
@@ -143,45 +143,37 @@ export function EventViewerContainer({ url, className, scope = "workflow" }: Eve
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {/* Filter bar - only in workflow scope */}
       {!isTaskScope && (
-        <div className="bg-card border-border border-b px-4 py-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div
-              className={cn(
-                "relative flex min-w-[300px] flex-1 items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors",
-                "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
-                "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
-              )}
-            >
-              <Search className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
-              <input
-                type="search"
-                placeholder="Search tasks or events..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="min-w-[150px] flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-zinc-400 focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-              />
-            </div>
+        <div className="bg-card border-border flex items-center gap-3 border-b px-4 py-3">
+          {/* FilterBar with search fields and presets */}
+          <div className="min-w-0 flex-1">
+            <FilterBar
+              data={groupedTasks}
+              fields={EVENT_SEARCH_FIELDS}
+              chips={searchChips}
+              onChipsChange={setSearchChips}
+              placeholder="Search tasks or events..."
+              presets={EVENT_PRESETS}
+            />
+          </div>
 
-            {/* Expand/Collapse All */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={expandAll}
-                className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-                title="Expand all tasks"
-              >
-                <ChevronsUpDown className="size-3" />
-                <span>Expand All</span>
-              </button>
-              <button
-                onClick={collapseAll}
-                className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-                title="Collapse all tasks"
-              >
-                <ChevronsDownUp className="size-3" />
-                <span>Collapse All</span>
-              </button>
-            </div>
+          {/* Expand/Collapse All */}
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={expandAll}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+              title="Expand all tasks"
+            >
+              <ChevronsUpDown className="size-3" />
+              <span>Expand All</span>
+            </button>
+            <button
+              onClick={collapseAll}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+              title="Collapse all tasks"
+            >
+              <ChevronsDownUp className="size-3" />
+              <span>Collapse All</span>
+            </button>
           </div>
         </div>
       )}

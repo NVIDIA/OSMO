@@ -44,8 +44,7 @@
      Min-width is calculated from column variables to ensure consistency. */
   .event-viewer-scroll-inner {
     min-width: calc(
-      var(--col-task-min) + var(--col-retry) + var(--col-duration) +
-        var(--col-lifecycle-min) + var(--col-events)
+      var(--col-task-min) + var(--col-retry) + var(--col-duration) + var(--col-lifecycle-min) + var(--col-events)
     );
   }
 
@@ -146,41 +145,32 @@
   }
 
   /* ==========================================================================
-     Expand / Collapse Animation (CSS Grid rows technique)
+     Expand / Collapse (CSS Grid rows technique)
 
      How it works:
      - The wrapper uses `display: grid` with `grid-template-rows`
      - Collapsed: `grid-template-rows: 0fr` (height collapses to 0)
      - Expanded:  `grid-template-rows: 1fr` (height grows to content)
      - The inner `overflow: hidden` prevents content from overflowing
-       during the transition
-     - Opacity fades in tandem for a polished feel
 
-     Hysteresis (different timing for expand vs collapse):
-     - Expand: Medium speed with spring easing (feels responsive)
-     - Collapse: Faster with out easing (quick cleanup)
-
-     This is GPU-friendly: the browser optimizes grid-template-rows
-     transitions internally, and opacity is a composited property.
+     IMPORTANT: grid-template-rows changes are INSTANT (no transition).
+     Animating height desynchronises TanStack Virtual's ResizeObserver
+     measurements, causing overlapping rows and gaps. Opacity still
+     fades for visual polish without affecting layout.
      ========================================================================== */
 
   .event-panel-wrapper {
     display: grid;
     grid-template-rows: 0fr;
     opacity: 0;
-    /* Collapse transition (TO collapsed state) - faster */
-    transition:
-      grid-template-rows var(--duration-fast) var(--ease-out),
-      opacity var(--duration-fast) var(--ease-out);
+    /* Only transition opacity — height change must be instant for virtualizer */
+    transition: opacity var(--duration-fast) var(--ease-out);
   }
 
   .event-panel-wrapper[data-expanded="true"] {
     grid-template-rows: 1fr;
     opacity: 1;
-    /* Expand transition (TO expanded state) - medium speed with spring */
-    transition:
-      grid-template-rows var(--duration-normal) var(--ease-spring),
-      opacity var(--duration-normal) var(--ease-out);
+    transition: opacity var(--duration-normal) var(--ease-out);
   }
 
   .event-panel-inner {
