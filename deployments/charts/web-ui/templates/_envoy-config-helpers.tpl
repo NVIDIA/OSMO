@@ -305,7 +305,6 @@ Generate JWT filter configuration
             forward: true
             payload_in_metadata: verified_jwt
             from_headers:
-            - name: x-osmo-auth
             - name: authorization
               value_prefix: "Bearer "
             remote_jwks:

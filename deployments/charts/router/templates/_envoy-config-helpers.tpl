@@ -234,9 +234,9 @@ listeners:
                     forward: true
                     payload_in_metadata: verified_jwt
                     from_headers:
-                    - name: x-osmo-auth
                     - name: authorization
                       value_prefix: "Bearer "
+                    - name: x-osmo-auth
                     remote_jwks:
                       http_uri:
                         uri: {{ $provider.jwks_uri }}
