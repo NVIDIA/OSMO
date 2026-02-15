@@ -41,7 +41,7 @@ export function UserInfoSection() {
       className="profile-scroll-offset"
     >
       <Card data-variant="sectioned">
-        <CardHeader className="border-b">
+        <CardHeader className="gap-0 border-b">
           <CardTitle className="flex items-center gap-2 text-lg">
             <User className="size-5" />
             User Information
