@@ -35,14 +35,15 @@ import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { SpecToolbar } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/SpecToolbar";
 import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
 import { useSpecViewState } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecViewState";
+import type { WorkflowQueryResponse } from "@/lib/api/generated";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface WorkflowSpecViewerProps {
-  /** Workflow ID/name for fetching spec */
-  workflowId: string;
+  /** Workflow object containing spec URLs */
+  workflow: WorkflowQueryResponse | undefined;
 }
 
 // =============================================================================
@@ -126,12 +127,12 @@ const ErrorState = memo(function ErrorState({ error, onRetry }: ErrorStateProps)
 // Main Component
 // =============================================================================
 
-export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflowId }: WorkflowSpecViewerProps) {
+export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflow }: WorkflowSpecViewerProps) {
   // View state (URL-synced)
   const { activeView, setActiveView } = useSpecViewState();
 
-  // Data fetching
-  const { content, isLoading, error, isNotFound, refetch } = useSpecData(workflowId, activeView);
+  // Data fetching (hook handles undefined workflow)
+  const { content, isLoading, error, isNotFound, refetch } = useSpecData(workflow, activeView);
 
   // Show loading skeleton on initial load
   if (isLoading && !content) {
@@ -160,7 +161,9 @@ export const WorkflowSpecViewer = memo(function WorkflowSpecViewer({ workflowId 
         activeView={activeView}
         onViewChange={setActiveView}
         content={content}
-        workflowName={workflowId}
+        workflowName={workflow?.name ?? ""}
+        specUrl={workflow?.spec ?? ""}
+        templateSpecUrl={workflow?.template_spec ?? ""}
         isLoading={isLoading}
       />
 

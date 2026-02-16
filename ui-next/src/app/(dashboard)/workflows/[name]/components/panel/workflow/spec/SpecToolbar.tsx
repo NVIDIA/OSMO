@@ -48,6 +48,10 @@ export interface SpecToolbarProps {
   content: string | null;
   /** Workflow name for download filename */
   workflowName: string;
+  /** Backend URL for YAML spec */
+  specUrl: string;
+  /** Backend URL for Jinja template spec */
+  templateSpecUrl: string;
   /** Whether content is loading */
   isLoading?: boolean;
 }
@@ -61,6 +65,8 @@ export const SpecToolbar = memo(function SpecToolbar({
   onViewChange,
   content,
   workflowName,
+  specUrl,
+  templateSpecUrl,
   isLoading = false,
 }: SpecToolbarProps) {
   const { copied, copy } = useCopy();
@@ -196,9 +202,7 @@ export const SpecToolbar = memo(function SpecToolbar({
               aria-label={`Open raw ${activeView === "yaml" ? "spec" : "template"} in new tab`}
             >
               <a
-                href={getBasePathUrl(
-                  `/api/workflow/${encodeURIComponent(workflowName)}/spec${activeView === "jinja" ? "?use_template=true" : ""}`,
-                )}
+                href={getBasePathUrl(activeView === "yaml" ? specUrl : templateSpecUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
