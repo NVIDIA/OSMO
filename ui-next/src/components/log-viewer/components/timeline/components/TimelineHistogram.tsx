@@ -109,7 +109,7 @@ function BucketTooltipContent({ bucket }: BucketTooltipProps) {
                 style={{ backgroundColor: LOG_LEVEL_STYLES[level].color }}
               />
               <span>{LOG_LEVEL_LABELS[level]}:</span>
-              <span className="font-mono">{count.toLocaleString()}</span>
+              <span className="font-mono">{count.toLocaleString("en-US")}</span>
             </div>
           );
         })}

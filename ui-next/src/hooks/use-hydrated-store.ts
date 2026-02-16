@@ -50,7 +50,7 @@
  * 3. Could affect the rendered output (not just side effects)
  */
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useEffect } from "react";
 
 // Track if we're past initial hydration globally
 let isHydrated = false;
@@ -81,22 +81,27 @@ function getServerHydrationSnapshot(): boolean {
   return false;
 }
 
-// Mark as hydrated after first client render
-if (typeof window !== "undefined") {
-  // Use microtask to ensure this runs after React's initial hydration
-  queueMicrotask(() => {
-    isHydrated = true;
-    hydrationListeners.forEach((listener) => listener());
-  });
-}
-
 /**
  * Hook that returns true only after hydration is complete.
  * This is more reliable than useMounted for store values because
  * it uses useSyncExternalStore's hydration-safe semantics.
+ *
+ * CRITICAL: Uses useEffect to mark hydration complete AFTER React's commit phase,
+ * not queueMicrotask at module level which could fire during hydration.
  */
 export function useIsHydrated(): boolean {
-  return useSyncExternalStore(subscribeToHydration, getHydrationSnapshot, getServerHydrationSnapshot);
+  const hydrated = useSyncExternalStore(subscribeToHydration, getHydrationSnapshot, getServerHydrationSnapshot);
+
+  // Mark hydration complete after first client commit
+  // This runs AFTER React's hydration pass completes, unlike queueMicrotask
+  useEffect(() => {
+    if (!isHydrated) {
+      isHydrated = true;
+      hydrationListeners.forEach((listener) => listener());
+    }
+  }, []);
+
+  return hydrated;
 }
 
 /**
