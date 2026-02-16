@@ -145,6 +145,7 @@ export interface MockWorkflow {
   image?: string;
   // URLs for detail fetching
   spec_url: string;
+  template_spec_url: string;
   logs_url: string;
   events_url: string;
 }
@@ -251,6 +252,7 @@ export class WorkflowGenerator {
       groups,
       image,
       spec_url: `/api/workflow/${name}/spec`,
+      template_spec_url: `/api/workflow/${name}/template-spec`,
       logs_url: `/api/workflow/${name}/logs`,
       events_url: `/api/workflow/${name}/events`,
     };
@@ -532,6 +534,7 @@ export class WorkflowGenerator {
       groups,
       image,
       spec_url: `/api/workflow/${name}/spec`,
+      template_spec_url: `/api/workflow/${name}/template-spec`,
       logs_url: `/api/workflow/${name}/logs`,
       events_url: `/api/workflow/${name}/events`,
     };
