@@ -145,8 +145,6 @@ export function ResourcePanelContent({
               error={error}
               onRetry={refetch}
               title="Failed to load pool details"
-              authAware
-              loginMessage="You need to log in to view resource details."
             />
           ) : isLoadingPools ? (
             <div className="space-y-3">

@@ -23,6 +23,7 @@ import { useProfile, useBuckets, useUpdateProfile } from "@/lib/api/adapter/hook
 import { useServices } from "@/contexts/service-context";
 import { SelectionCard } from "@/app/(dashboard)/profile/components/SelectionCard";
 import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
+import { SectionErrorCard } from "@/app/(dashboard)/profile/components/SectionErrorCard";
 import type { SelectableListItem } from "@/app/(dashboard)/profile/components/SelectableList";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
@@ -33,10 +34,26 @@ export function BucketsSection() {
     triggerOnce: true,
   });
 
-  const { profile, isLoading: profileLoading } = useProfile({ enabled: hasIntersected });
-  const { buckets, isLoading: bucketsLoading } = useBuckets({ enabled: hasIntersected });
+  const {
+    profile,
+    isLoading: profileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useProfile({ enabled: hasIntersected });
+  const {
+    buckets,
+    isLoading: bucketsLoading,
+    error: bucketsError,
+    refetch: refetchBuckets,
+  } = useBuckets({ enabled: hasIntersected });
   const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateProfile();
   const { announcer } = useServices();
+
+  const error = profileError || bucketsError;
+  const refetch = useCallback(() => {
+    refetchProfile();
+    refetchBuckets();
+  }, [refetchProfile, refetchBuckets]);
 
   const bucketMap = useMemo(() => {
     const map = new Map<string, { path: string; description: string }>();
@@ -73,7 +90,41 @@ export function BucketsSection() {
 
   const isLoading = profileLoading || bucketsLoading;
 
-  if (!hasIntersected || isLoading || !fullProfile) {
+  // Show skeleton only when not intersected or actively loading (but not if there's an error)
+  if (!hasIntersected || (isLoading && !error)) {
+    return (
+      <section
+        ref={ref}
+        id="buckets"
+        className="profile-scroll-offset"
+      >
+        <SelectionSkeleton />
+      </section>
+    );
+  }
+
+  // Error state - show card with error content
+  if (error) {
+    return (
+      <section
+        ref={ref}
+        id="buckets"
+        className="profile-scroll-offset"
+      >
+        <SectionErrorCard
+          icon={FolderOpen}
+          title="Data Buckets"
+          description="Select the default bucket for dataset storage."
+          errorLabel="Unable to load buckets"
+          error={error}
+          onRetry={refetch}
+        />
+      </section>
+    );
+  }
+
+  // Guard against missing data
+  if (!fullProfile) {
     return (
       <section
         ref={ref}

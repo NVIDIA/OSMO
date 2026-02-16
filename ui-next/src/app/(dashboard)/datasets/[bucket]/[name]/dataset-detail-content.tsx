@@ -28,6 +28,8 @@ import { useQueryState } from "nuqs";
 import { Info, History, FolderTree } from "lucide-react";
 import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { TabPanel } from "@/components/panel/tab-panel";
+import { Button } from "@/components/shadcn/button";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
 import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
 import { DatasetVersionsDataTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/DatasetVersionsDataTable";
@@ -40,7 +42,7 @@ interface Props {
 }
 
 export function DatasetDetailContent({ bucket, name }: Props) {
-  const { dataset, versions, error } = useDatasetDetail(bucket, name);
+  const { dataset, versions, isLoading, error, refetch } = useDatasetDetail(bucket, name);
 
   // Tab state in URL (deep-linkable)
   const [activeTab, setActiveTab] = useQueryState("tab", {
@@ -78,10 +80,16 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Error loading dataset</h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{error.message}</p>
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-md space-y-4 text-center">
+          <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Dataset</h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{error.message}</p>
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+          >
+            Try again
+          </Button>
         </div>
       </div>
     );
@@ -94,7 +102,12 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 p-6">
-        <DatasetDetailHeader dataset={dataset} />
+        <InlineErrorBoundary
+          title="Header error"
+          compact
+        >
+          <DatasetDetailHeader dataset={dataset} />
+        </InlineErrorBoundary>
       </div>
 
       {/* Tab Navigation - Chrome-style tabs matching workflows */}
@@ -111,7 +124,12 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           activeTab={activeTab}
           padding="with-bottom"
         >
-          <OverviewTab dataset={dataset} />
+          <InlineErrorBoundary
+            title="Unable to display overview"
+            onReset={refetch}
+          >
+            <OverviewTab dataset={dataset} />
+          </InlineErrorBoundary>
         </TabPanel>
 
         <TabPanel
@@ -119,10 +137,19 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           activeTab={activeTab}
           padding="with-bottom"
         >
-          <DatasetVersionsDataTable
-            versions={versions}
-            currentVersion={dataset.version}
-          />
+          <InlineErrorBoundary
+            title="Unable to display versions table"
+            resetKeys={[versions.length]}
+            onReset={refetch}
+          >
+            <DatasetVersionsDataTable
+              versions={versions}
+              currentVersion={dataset.version}
+              isLoading={isLoading}
+              error={error ?? undefined}
+              onRetry={refetch}
+            />
+          </InlineErrorBoundary>
         </TabPanel>
 
         <TabPanel

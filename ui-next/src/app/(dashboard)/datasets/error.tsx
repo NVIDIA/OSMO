@@ -19,24 +19,24 @@
 import { RouteError } from "@/components/error/route-error";
 
 /**
- * Pools section error boundary.
+ * Datasets page error boundary.
  *
- * Catches errors in /pools and /pools/[poolName].
+ * Catches errors in /datasets, /datasets/[bucket], and /datasets/[bucket]/[name].
  */
-export default function PoolsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function DatasetsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <RouteError
       error={error}
       reset={reset}
-      title="Unable to load pools"
-      description="We couldn't fetch the pool list. Give it another shot."
+      title="Unable to load datasets"
+      description="We couldn't fetch the dataset list. Give it another shot."
       header={
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pools</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">View and manage compute pools</p>
+          <h1 className="text-2xl font-bold tracking-tight">Datasets</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Browse and manage datasets across buckets</p>
         </div>
       }
-      logPrefix="Pools error boundary"
+      logPrefix="Datasets error boundary"
     />
   );
 }

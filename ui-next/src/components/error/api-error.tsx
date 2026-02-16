@@ -37,14 +37,6 @@ export interface ApiErrorProps {
   title?: string;
   /** Optional className for container */
   className?: string;
-  /**
-   * Enable auth-aware mode: shows login prompt for unauthenticated users.
-   * When true, unauthenticated users see a simpler "Log in" message.
-   * When false (default), all users see the full error details.
-   */
-  authAware?: boolean;
-  /** Message shown when user is not authenticated (only used when authAware=true) */
-  loginMessage?: string;
 }
 
 /**
@@ -55,17 +47,7 @@ export interface ApiErrorProps {
  *
  * @example
  * ```tsx
- * // Basic usage
  * <ApiError error={error} onRetry={refetch} title="Unable to load pools" />
- *
- * // Auth-aware: shows login prompt for unauthenticated users
- * <ApiError
- *   error={error}
- *   onRetry={refetch}
- *   title="Unable to load pools"
- *   authAware
- *   loginMessage="You need to log in to view pools."
- * />
  * ```
  */
 

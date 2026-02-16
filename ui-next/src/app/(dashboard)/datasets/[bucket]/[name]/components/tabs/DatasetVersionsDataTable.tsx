@@ -26,6 +26,7 @@
 import { useMemo, useCallback, useState, memo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
 import { TableEmptyState } from "@/components/data-table/TableEmptyState";
+import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState } from "@/components/data-table/types";
@@ -54,11 +55,20 @@ import { VERSION_SEARCH_FIELDS } from "@/app/(dashboard)/datasets/[bucket]/[name
 interface DatasetVersionsDataTableProps {
   versions: DatasetVersion[];
   currentVersion?: number;
+  /** Loading state */
+  isLoading?: boolean;
+  /** Error state */
+  error?: Error;
+  /** Retry callback */
+  onRetry?: () => void;
 }
 
 export const DatasetVersionsDataTable = memo(function DatasetVersionsDataTable({
   versions,
   currentVersion,
+  isLoading = false,
+  error,
+  onRetry,
 }: DatasetVersionsDataTableProps) {
   // Search chips for filtering
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
@@ -181,6 +191,22 @@ export const DatasetVersionsDataTable = memo(function DatasetVersionsDataTable({
     }
     return null;
   }, [versions.length, processedVersions.length]);
+
+  // Loading state (using consolidated component)
+  if (isLoading && versions.length === 0) {
+    return <TableLoadingSkeleton rowHeight={rowHeight} />;
+  }
+
+  // Error state (using consolidated component)
+  if (error) {
+    return (
+      <TableErrorState
+        error={error}
+        title="Unable to load versions"
+        onRetry={onRetry}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

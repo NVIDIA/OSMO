@@ -548,6 +548,129 @@ grep -r "DropdownMenu\|Dialog\|Popover\|Sheet" src/ | grep -v "useMounted"
 - ✅ Animate: `transform`, `opacity` (GPU-accelerated)
 - ❌ NEVER animate: `width`, `height`, `margin`, `padding` (causes reflow)
 
+## Error Boundary Requirements
+
+**CRITICAL: Use granular, component-level error boundaries. Never let one component's failure break the entire page.**
+
+### Philosophy: Isolate Failures
+
+Each independent data source MUST have its own error boundary:
+- If pools fail to load, workflows should still work
+- If toolbar fails, table should still render
+- If one profile card fails, other cards remain functional
+
+### Required Pattern
+
+```tsx
+// ✅ REQUIRED: Component-level error boundaries
+<div className="flex h-full flex-col gap-4 p-6">
+  {/* Toolbar - independent boundary */}
+  <div className="shrink-0">
+    <InlineErrorBoundary title="Toolbar error" compact>
+      <Toolbar />
+    </InlineErrorBoundary>
+  </div>
+
+  {/* Main content - independent boundary */}
+  <div className="min-h-0 flex-1">
+    <InlineErrorBoundary
+      title="Unable to display table"
+      resetKeys={[data.length]}
+      onReset={refetch}
+    >
+      <DataTable />
+    </InlineErrorBoundary>
+  </div>
+</div>
+```
+
+### Error Boundary Checklist
+
+When creating pages or components that fetch data:
+
+1. ✅ Identify each independent data source
+2. ✅ Wrap with `InlineErrorBoundary` from `@/components/error/inline-error-boundary`
+3. ✅ Use descriptive `title` prop ("Unable to load pools" not "Error")
+4. ✅ Connect `onReset` to refetch function for retry button
+5. ✅ Pass `resetKeys={[data]}` to auto-recover when data changes
+6. ✅ Use `compact` mode for UI chrome (toolbars, filters)
+7. ✅ Use full mode for content areas (tables, cards) - includes stack trace
+
+### What InlineErrorBoundary Provides
+
+- ✅ Error message display
+- ✅ Collapsible stack trace (for debugging)
+- ✅ Copy button (copies error + stack for bug reports)
+- ✅ Retry button (calls onReset handler)
+- ✅ Automatic error logging via logError()
+
+### Examples by Page Type
+
+**List pages** (datasets, workflows, pools, resources):
+```tsx
+// Toolbar (compact error)
+<InlineErrorBoundary title="Toolbar error" compact>
+  <Toolbar />
+</InlineErrorBoundary>
+
+// Table (full error with stack trace)
+<InlineErrorBoundary
+  title="Unable to display workflows table"
+  resetKeys={[workflows.length]}
+  onReset={refetch}
+>
+  <WorkflowsDataTable />
+</InlineErrorBoundary>
+```
+
+**Settings pages** (profile):
+```tsx
+// Each card is independent
+<InlineErrorBoundary title="Unable to load pools">
+  <Suspense fallback={<Skeleton />}>
+    <PoolsSection />
+  </Suspense>
+</InlineErrorBoundary>
+
+<InlineErrorBoundary title="Unable to load buckets">
+  <Suspense fallback={<Skeleton />}>
+    <BucketsSection />
+  </Suspense>
+</InlineErrorBoundary>
+```
+
+### Route-Level Error Boundaries (Backstop Only)
+
+Route-level `error.tsx` files remain as fallbacks for:
+- Layout crashes
+- Routing errors
+- Unexpected errors outside component boundaries
+
+They should **rarely trigger** since component boundaries catch most errors.
+
+### Anti-Patterns
+
+```tsx
+// ❌ FORBIDDEN: Single page-level boundary
+<InlineErrorBoundary title="Page error">
+  <Toolbar />
+  <Table />
+  <Sidebar />
+</InlineErrorBoundary>
+// If toolbar fails, entire page breaks!
+
+// ✅ REQUIRED: Component-level boundaries
+<InlineErrorBoundary title="Toolbar error" compact>
+  <Toolbar />
+</InlineErrorBoundary>
+<InlineErrorBoundary title="Table error" onReset={refetchTable}>
+  <Table />
+</InlineErrorBoundary>
+<InlineErrorBoundary title="Sidebar error" onReset={refetchSidebar}>
+  <Sidebar />
+</InlineErrorBoundary>
+```
+
 ## Accessibility Requirements
 
 All interactive elements MUST be keyboard accessible (Enter/Space/Escape/Tab/Arrows).
@@ -612,6 +735,8 @@ announcer.announce("Copied to clipboard", "polite");
 | `src/lib/api/adapter/README.md` | Adapter layer philosophy |
 | `src/lib/auth/README.md` | Auth setup (Envoy prod, local dev) |
 | `src/app/(dashboard)/pools/` | Reference feature module |
+| `ERROR_BOUNDARIES.md` | Error boundary patterns and examples |
+| `ERROR_BOUNDARY_AUDIT.md` | Current error boundary coverage audit |
 
 ## Tech Stack
 
@@ -631,6 +756,8 @@ Before submitting code:
 - [ ] ALL imports direct to source files (NO barrel exports)?
 - [ ] Types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
 - [ ] Using enum values (e.g., `PoolStatus.ONLINE`) not strings (`"ONLINE"`)?
+- [ ] **Component-level error boundaries for all data-fetching components?**
+- [ ] **Error boundaries include descriptive titles, onReset, and resetKeys?**
 - [ ] Every interactive element keyboard accessible?
 - [ ] Using TanStack/Zustand/nuqs instead of manual state?
 - [ ] No magic numbers (use constants/config)?

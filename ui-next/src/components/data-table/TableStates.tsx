@@ -102,7 +102,7 @@ export function TableLoadingSkeleton({
 export function TableErrorState({ error, title = "Unable to load data", onRetry, className }: TableErrorStateProps) {
   return (
     <div className={cn("table-container h-full", className)}>
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+      <div className="flex flex-1 flex-col items-center gap-3 p-8 pt-12 text-center">
         <div className="text-sm text-red-600 dark:text-red-400">{title}</div>
         <div className="text-xs text-zinc-500 dark:text-zinc-400">{error.message}</div>
         {onRetry && (

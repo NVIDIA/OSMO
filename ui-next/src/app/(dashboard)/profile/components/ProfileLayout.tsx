@@ -17,6 +17,7 @@
  */
 
 import { Suspense } from "react";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { ProfilePageTitle } from "@/app/(dashboard)/profile/components/ProfilePageTitle";
 import { ProfileNavigation } from "@/app/(dashboard)/profile/components/ProfileNavigation";
 import { UserInfoSection } from "@/app/(dashboard)/profile/components/UserInfoSection";
@@ -37,23 +38,33 @@ export function ProfileLayout() {
 
         <main className="min-w-0 flex-1">
           <div className="space-y-8">
-            <UserInfoSection />
+            <InlineErrorBoundary title="Unable to load user info">
+              <UserInfoSection />
+            </InlineErrorBoundary>
 
-            <Suspense fallback={<NotificationsSkeleton />}>
-              <NotificationsSection />
-            </Suspense>
+            <InlineErrorBoundary title="Unable to load notifications">
+              <Suspense fallback={<NotificationsSkeleton />}>
+                <NotificationsSection />
+              </Suspense>
+            </InlineErrorBoundary>
 
-            <Suspense fallback={<SelectionSkeleton />}>
-              <PoolsSection />
-            </Suspense>
+            <InlineErrorBoundary title="Unable to load pools">
+              <Suspense fallback={<SelectionSkeleton />}>
+                <PoolsSection />
+              </Suspense>
+            </InlineErrorBoundary>
 
-            <Suspense fallback={<SelectionSkeleton />}>
-              <BucketsSection />
-            </Suspense>
+            <InlineErrorBoundary title="Unable to load buckets">
+              <Suspense fallback={<SelectionSkeleton />}>
+                <BucketsSection />
+              </Suspense>
+            </InlineErrorBoundary>
 
-            <Suspense fallback={<CredentialsSkeleton />}>
-              <CredentialsSection />
-            </Suspense>
+            <InlineErrorBoundary title="Unable to load credentials">
+              <Suspense fallback={<CredentialsSkeleton />}>
+                <CredentialsSection />
+              </Suspense>
+            </InlineErrorBoundary>
           </div>
         </main>
       </div>

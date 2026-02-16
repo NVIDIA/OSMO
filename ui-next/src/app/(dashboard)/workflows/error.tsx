@@ -19,24 +19,24 @@
 import { RouteError } from "@/components/error/route-error";
 
 /**
- * Pools section error boundary.
+ * Workflows page error boundary.
  *
- * Catches errors in /pools and /pools/[poolName].
+ * Catches errors in /workflows and /workflows/[name].
  */
-export default function PoolsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function WorkflowsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <RouteError
       error={error}
       reset={reset}
-      title="Unable to load pools"
-      description="We couldn't fetch the pool list. Give it another shot."
+      title="Unable to load workflows"
+      description="We couldn't fetch the workflow list. Give it another shot."
       header={
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pools</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">View and manage compute pools</p>
+          <h1 className="text-2xl font-bold tracking-tight">Workflows</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">View and manage workflow executions</p>
         </div>
       }
-      logPrefix="Pools error boundary"
+      logPrefix="Workflows error boundary"
     />
   );
 }

@@ -28,6 +28,7 @@
 import { useMemo, useCallback, memo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
 import { TableEmptyState } from "@/components/data-table/TableEmptyState";
+import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
 import { useDisplayMode, useCompactMode, type DisplayMode } from "@/stores/shared-preferences-store";
@@ -111,6 +112,10 @@ export interface ResourcesDataTableProps {
   totalCount?: number;
   /** Show loading skeleton */
   isLoading?: boolean;
+  /** Error state */
+  error?: Error;
+  /** Retry callback */
+  onRetry?: () => void;
   /** Show the Pools column (for cross-pool views) */
   showPoolsColumn?: boolean;
   /** Custom click handler for row selection */
@@ -135,6 +140,8 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   resources,
   totalCount,
   isLoading = false,
+  error,
+  onRetry,
   showPoolsColumn = false,
   onResourceClick,
   selectedResourceId,
@@ -154,6 +161,9 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   const setSort = useResourcesTableStore((s) => s.setSort);
   const columnSizingPreferences = useResourcesTableStore((s) => s.columnSizingPreferences);
   const setColumnSizingPreference = useResourcesTableStore((s) => s.setColumnSizingPreference);
+
+  // Row height based on compact mode
+  const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT_SM : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Merge showPoolsColumn prop with store visibility
   const effectiveVisibleIds = useMemo(() => {
@@ -177,9 +187,6 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
 
   // Fixed columns (not draggable)
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
-
-  // Row height based on compact mode
-  const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT_SM : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Handle column sizing preference change
   const handleColumnSizingPreferenceChange = useCallback(
@@ -220,6 +227,22 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No resources found" />, []);
+
+  // Loading state (using consolidated component)
+  if (isLoading && resources.length === 0) {
+    return <TableLoadingSkeleton rowHeight={rowHeight} />;
+  }
+
+  // Error state (using consolidated component)
+  if (error) {
+    return (
+      <TableErrorState
+        error={error}
+        title="Unable to load resources"
+        onRetry={onRetry}
+      />
+    );
+  }
 
   return (
     <div className="table-container relative flex h-full flex-col">
