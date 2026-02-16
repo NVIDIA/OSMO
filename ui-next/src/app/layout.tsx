@@ -147,12 +147,14 @@ export default function RootLayout({
         {/* Suspense boundary required for cacheComponents (Next.js 16) */}
         {/* Client providers use useState which needs Suspense for prerendering */}
         <Suspense fallback={<AppLoadingFallback />}>
-          <Providers runtimeEnv={runtimeEnv}>{children}</Providers>
+          <Providers runtimeEnv={runtimeEnv}>
+            {children}
+            <Toaster
+              richColors
+              position="bottom-right"
+            />
+          </Providers>
         </Suspense>
-        <Toaster
-          richColors
-          position="bottom-right"
-        />
       </body>
     </html>
   );

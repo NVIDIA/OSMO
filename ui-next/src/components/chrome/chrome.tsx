@@ -23,8 +23,7 @@ import { SIDEBAR_CSS_VARS } from "@/components/chrome/constants";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
-import { useSharedPreferences, initialState as sharedPreferencesInitialState } from "@/stores/shared-preferences-store";
-import { useMounted } from "@/hooks/use-mounted";
+import { useSharedPreferences, useSidebarOpen } from "@/stores/shared-preferences-store";
 
 interface ChromeProps {
   children: React.ReactNode;
@@ -32,12 +31,8 @@ interface ChromeProps {
 
 // PPR: Suspense allows static shell to prerender, dynamic content streams after hydration
 export const Chrome = memo(function Chrome({ children }: ChromeProps) {
-  const storeSidebarOpen = useSharedPreferences((s) => s.sidebarOpen);
+  const sidebarOpen = useSidebarOpen(); // Hydration-safe selector
   const setSidebarOpen = useSharedPreferences((s) => s.setSidebarOpen);
-
-  // Prevent hydration mismatch: localStorage differs between server/client
-  const mounted = useMounted();
-  const sidebarOpen = mounted ? storeSidebarOpen : sharedPreferencesInitialState.sidebarOpen;
 
   return (
     <Suspense fallback={<ChromeSkeleton>{children}</ChromeSkeleton>}>
