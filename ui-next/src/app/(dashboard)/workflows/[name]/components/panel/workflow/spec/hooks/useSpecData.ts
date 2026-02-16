@@ -17,19 +17,20 @@
 /**
  * useSpecData - React Query hooks for fetching workflow specs
  *
- * Fetches YAML specs and templates from the backend.
+ * Fetches YAML specs and templates from backend URLs (workflow.spec, workflow.template_spec).
  * Uses immutable caching (staleTime: Infinity) since specs never change.
  *
  * @example
  * ```tsx
- * const { yamlSpec, jinjaSpec, isLoading, error } = useSpecData(workflowId, activeView);
+ * const { yamlSpec, jinjaSpec, isLoading, error } = useSpecData(workflow, activeView);
  * ```
  */
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getBasePathUrl } from "@/lib/config";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
+import { refreshCoordinator } from "@/lib/auth/refresh-coordinator";
+import type { WorkflowQueryResponse } from "@/lib/api/generated";
 
 // =============================================================================
 // Types
@@ -67,14 +68,14 @@ const SPEC_GC_TIME = 30 * 60 * 1000;
 // Fetch Functions
 // =============================================================================
 
-async function fetchSpec(workflowId: string, useTemplate: boolean): Promise<string> {
-  const path = useTemplate
-    ? `/api/workflow/${encodeURIComponent(workflowId)}/spec?use_template=true`
-    : `/api/workflow/${encodeURIComponent(workflowId)}/spec`;
+/**
+ * Fetch spec from backend URL (provided by workflow.spec or workflow.template_spec)
+ */
+async function fetchSpec(specUrl: string): Promise<string> {
+  // Ensure fresh token before direct fetch
+  await refreshCoordinator.ensureFreshToken();
 
-  const url = getBasePathUrl(path);
-
-  const response = await fetch(url, {
+  const response = await fetch(specUrl, {
     method: "GET",
     headers: {
       Accept: "text/plain",
@@ -102,28 +103,37 @@ async function fetchSpec(workflowId: string, useTemplate: boolean): Promise<stri
 /**
  * Fetches workflow spec data with lazy loading for templates.
  *
- * - YAML spec is always fetched (default view)
- * - Template is only fetched when activeView === 'jinja'
+ * - YAML spec is always fetched (default view) from workflow.spec URL
+ * - Template is only fetched when activeView === 'jinja' from workflow.template_spec URL
  * - Both use immutable caching (staleTime: Infinity)
  * - Retry logic is handled by the global QueryClient (see query-client.ts)
  */
-export function useSpecData(workflowId: string, activeView: SpecView): UseSpecDataReturn {
+export function useSpecData(workflow: WorkflowQueryResponse | undefined, activeView: SpecView): UseSpecDataReturn {
+  const specUrl = workflow?.spec;
+  const templateUrl = workflow?.template_spec;
+
   // Always fetch YAML (default view)
   const yamlQuery = useQuery({
-    queryKey: ["workflow", workflowId, "spec", "yaml"],
-    queryFn: () => fetchSpec(workflowId, false),
+    queryKey: ["spec", specUrl],
+    queryFn: () => {
+      if (!specUrl) throw new Error("Spec URL is not available");
+      return fetchSpec(specUrl);
+    },
     staleTime: SPEC_STALE_TIME,
     gcTime: SPEC_GC_TIME,
-    enabled: Boolean(workflowId),
+    enabled: Boolean(specUrl),
   });
 
   // Only fetch template when user switches to template view
   const jinjaQuery = useQuery({
-    queryKey: ["workflow", workflowId, "spec", "jinja"],
-    queryFn: () => fetchSpec(workflowId, true),
+    queryKey: ["spec", templateUrl],
+    queryFn: () => {
+      if (!templateUrl) throw new Error("Template URL is not available");
+      return fetchSpec(templateUrl);
+    },
     staleTime: SPEC_STALE_TIME,
     gcTime: SPEC_GC_TIME,
-    enabled: Boolean(workflowId) && activeView === "jinja",
+    enabled: Boolean(templateUrl) && activeView === "jinja",
   });
 
   // Select data based on active view

@@ -474,7 +474,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
           activeTab={activeTab}
           scrollable={false}
         >
-          {activeTab === "spec" && <WorkflowSpecViewer workflowId={workflow.name} />}
+          {activeTab === "spec" && <WorkflowSpecViewer workflow={workflow} />}
         </TabPanel>
       </div>
     </div>

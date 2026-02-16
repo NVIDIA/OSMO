@@ -53,7 +53,7 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
   workflow,
   onClose,
 }: ResubmitPanelContentProps) {
-  const { content: spec, isLoading: isSpecLoading } = useSpecData(workflow.name, "yaml");
+  const { content: spec, isLoading: isSpecLoading } = useSpecData(workflow, "yaml");
 
   const form = useResubmitForm({
     workflow,
