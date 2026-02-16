@@ -24,6 +24,7 @@ import { useLogPresentation } from "@/components/log-viewer/hooks/useLogPresenta
 import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 import { useLogViewerLocalState } from "@/components/log-viewer/lib/use-log-viewer-local-state";
 import { useTick, useTickController } from "@/hooks/use-tick";
+import { formatDateTimeFull } from "@/lib/format-date";
 
 export interface WorkflowMetadata {
   name: string;
@@ -154,7 +155,7 @@ function LogViewerContainerImpl({
             <p className="text-foreground text-sm font-medium">Workflow Not Started</p>
             <p className="text-muted-foreground text-xs">
               {workflowMetadata.submitTime
-                ? `Submitted ${workflowMetadata.submitTime.toLocaleString()}, waiting to start`
+                ? `Submitted ${formatDateTimeFull(workflowMetadata.submitTime)}, waiting to start`
                 : "Workflow has been submitted but hasn't started yet"}
             </p>
           </div>

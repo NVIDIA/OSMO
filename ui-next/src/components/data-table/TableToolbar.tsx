@@ -28,7 +28,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/shadcn/button";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useSharedPreferences, useCompactMode } from "@/stores/shared-preferences-store";
 import type { SearchChip } from "@/stores/types";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import type { SearchField, SearchPreset, ResultsCount } from "@/components/filter-bar/lib/types";
@@ -88,7 +88,7 @@ function TableToolbarInner<T>({
   autoRefreshProps,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  const compactMode = useCompactMode(); // Hydration-safe
   const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
 
   return (

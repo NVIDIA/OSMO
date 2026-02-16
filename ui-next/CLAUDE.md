@@ -356,36 +356,162 @@ Before declaring styling code "clean":
 
 ## SSR/Hydration Safety
 
-**localStorage + SSR = hydration mismatches.** Server renders default state, client has different localStorage values.
+**CRITICAL:** Hydration mismatches occur when server-rendered HTML differs from client's first render. This causes React to discard SSR work and re-render everything, degrading performance and causing visible flashing.
+
+### The 5 Root Causes of Hydration Mismatches
+
+| Anti-Pattern | Why It Fails | How to Fix |
+|--------------|--------------|------------|
+| **1. localStorage/sessionStorage** | Server has no storage, client reads persisted values | Use `useHydratedStore` wrapper |
+| **2. Locale-dependent formatting** | Server locale ≠ browser locale | Use explicit locale or SSR-safe formatters |
+| **3. Non-deterministic values** | `Date.now()`, `Math.random()`, `crypto.randomUUID()` vary per render | Move to `useEffect` or `useTick` |
+| **4. Browser-only APIs** | `window`, `document`, `navigator` don't exist on server | Guard with `typeof window !== "undefined"` or `useMounted()` |
+| **5. Radix/Popover components** | Generate IDs/ARIA attributes differently on server vs client | Wrap with `useMounted()` guard |
+
+### Anti-Pattern #1: localStorage + Zustand Stores
 
 ```tsx
 // ❌ FORBIDDEN: Direct store access for persisted values
 const displayMode = useSharedPreferences((s) => s.displayMode);
+// Server renders "free", client reads "used" from localStorage → MISMATCH
 
-// ✅ REQUIRED: Use hydration-safe selectors from @/stores
-import { useDisplayMode, useCompactMode, useSidebarOpen } from "@/stores";
-const displayMode = useDisplayMode();
+// ✅ REQUIRED: Use hydration-safe selectors from @/stores/shared-preferences-store
+import { useDisplayMode, useCompactMode, useSidebarOpen } from "@/stores/shared-preferences-store";
+const displayMode = useDisplayMode(); // Returns initial state during SSR + hydration, then switches to persisted value
 ```
+
+**How it works:**
+- Server + first client render: returns `initialState` (e.g., `"free"`)
+- After hydration: returns actual localStorage value (e.g., `"used"`)
+- Uses `useHydratedStore` + `useSyncExternalStore` for guaranteed consistency
+
+### Anti-Pattern #2: Locale-Dependent Formatting
 
 ```tsx
 // ❌ FORBIDDEN: Locale-dependent formatting during SSR
-date.toLocaleString();
+date.toLocaleString(); // Server (en-US) renders "1/15/2026", client (de-DE) renders "15.1.2026" → MISMATCH
+number.toLocaleString(); // Server renders "1,000", client renders "1.000" → MISMATCH
 
-// ✅ REQUIRED: SSR-safe formatters
+// ✅ REQUIRED: Explicit locale for deterministic output
+date.toLocaleString("en-US"); // Always "1/15/2026" on server and client
+number.toLocaleString("en-US"); // Always "1,000" on server and client
+
+// ✅ BETTER: Use SSR-safe formatters from @/lib/format-date
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
-formatDateTimeFull(date);
+formatDateTimeFull(date); // "Jan 15, 2026 at 3:45 PM" (consistent, en-US locale)
+```
+
+**Why explicit locale matters:**
+- `.toLocaleString()` without args uses system locale
+- Server runs in container with one locale (e.g., `en-US`)
+- Client runs in browser with user's locale (e.g., `de-DE`, `ja-JP`)
+- Result: Different output between server and client → hydration error
+
+### Anti-Pattern #3: Non-Deterministic Values in Render
+
+```tsx
+// ❌ FORBIDDEN: Date.now() in render
+const [mountTime] = useState(Date.now()); // Server: 1000, Client: 1005 → MISMATCH
+
+// ✅ REQUIRED: Initialize as null, set in useEffect
+const [mountTime, setMountTime] = useState<number | null>(null);
+useEffect(() => {
+  setMountTime(Date.now()); // Runs only on client after hydration
+}, []);
+
+// ✅ ALTERNATIVE: Use useTick for synchronized time
+import { useTick } from "@/hooks/use-tick";
+const now = useTick(); // SSR-safe, returns consistent value during hydration
 ```
 
 ```tsx
-// ❌ FORBIDDEN: Radix components without hydration guard
-return <DropdownMenu>...</DropdownMenu>;
+// ❌ FORBIDDEN: Math.random() in render
+const id = useMemo(() => Math.random(), []); // Different on server vs client
 
-// ✅ REQUIRED: Guard with useMounted
-import { useMounted } from "@/hooks";
-const mounted = useMounted();
-if (!mounted) return <Button disabled>...</Button>;
-return <DropdownMenu>...</DropdownMenu>;
+// ✅ REQUIRED: Use React's useId or crypto.randomUUID in useEffect
+const id = useId(); // Stable across server/client
 ```
+
+### Anti-Pattern #4: Browser APIs Without Guards
+
+```tsx
+// ❌ FORBIDDEN: Direct browser API access
+const hostname = window.location.hostname; // ReferenceError: window is not defined (SSR)
+
+// ✅ REQUIRED: Guard with typeof check
+const hostname = typeof window !== "undefined" ? window.location.hostname : "localhost";
+
+// ✅ BETTER: Use useMounted for component-level guard
+import { useMounted } from "@/hooks/use-mounted";
+const mounted = useMounted();
+const hostname = mounted ? window.location.hostname : "localhost";
+```
+
+### Anti-Pattern #5: Radix Components Without Guards
+
+```tsx
+// ❌ FORBIDDEN: Radix components without hydration guard
+return <DropdownMenu>...</DropdownMenu>; // Generates IDs/ARIA attrs differently on server vs client
+
+// ✅ REQUIRED: Wrap with useMounted guard
+import { useMounted } from "@/hooks/use-mounted";
+const mounted = useMounted();
+
+if (!mounted) {
+  return <Button disabled>Menu</Button>; // SSR + first client render: simple placeholder
+}
+
+return <DropdownMenu>...</DropdownMenu>; // After hydration: full component
+```
+
+**Why Radix needs guards:**
+- Radix uses `useId()` internally for accessibility attributes
+- React 19's `useId()` generates different IDs on server vs client during hydration
+- After hydration completes, IDs stabilize
+- Guarding with `useMounted()` ensures consistent render
+
+### Pre-Deployment Validation
+
+**Before deploying, ALWAYS audit for these patterns:**
+
+```bash
+# 1. Direct store access (should use hydration-safe selectors)
+grep -r "useSharedPreferences((s) => s\.(displayMode|compactMode|sidebarOpen)" src/
+
+# 2. Locale-dependent formatting (should use explicit locale or SSR-safe formatters)
+grep -r "\.toLocaleString()" src/ | grep -v "en-US" | grep -v "test\|mock"
+
+# 3. Non-deterministic values in render (should be in useEffect)
+grep -r "Date\.now()\|Math\.random()\|crypto\.randomUUID()" src/ | grep -v "useEffect\|test"
+
+# 4. Unguarded browser APIs (should have typeof guards)
+grep -r "window\.\|document\.\|navigator\." src/ | grep -v "typeof.*!==.*undefined"
+
+# 5. Radix components without useMounted (should be wrapped)
+grep -r "DropdownMenu\|Dialog\|Popover\|Sheet" src/ | grep -v "useMounted"
+```
+
+### Debugging Hydration Mismatches
+
+**When you see: "Hydration failed because the server rendered HTML didn't match the client"**
+
+1. **Check React DevTools:** Identify which component is mismatching
+2. **Search for anti-patterns:** Use the grep commands above in the failing component
+3. **Add `suppressHydrationWarning`:** ONLY as last resort for intentional mismatches (e.g., timestamps)
+4. **Never ignore hydration warnings:** They indicate real bugs that degrade performance
+
+### SSR-Safe Alternatives Reference
+
+| Unsafe Pattern | SSR-Safe Alternative | Import From |
+|----------------|---------------------|-------------|
+| `useSharedPreferences((s) => s.displayMode)` | `useDisplayMode()` | `@/stores/shared-preferences-store` |
+| `useSharedPreferences((s) => s.compactMode)` | `useCompactMode()` | `@/stores/shared-preferences-store` |
+| `date.toLocaleString()` | `formatDateTimeFull(date)` | `@/lib/format-date` |
+| `number.toLocaleString()` | `number.toLocaleString("en-US")` | *(inline)* |
+| `Date.now()` in render | `useTick()` or `useEffect` | `@/hooks/use-tick` |
+| `Math.random()` in render | `useId()` or `useEffect` | `react` |
+| `window.location.hostname` | `typeof window !== "undefined" ? ... : fallback` | *(inline)* |
+| `<DropdownMenu>` | `useMounted() ? <DropdownMenu> : <Button>` | `@/hooks/use-mounted` |
 
 ## Debugging React Issues: Check These First
 

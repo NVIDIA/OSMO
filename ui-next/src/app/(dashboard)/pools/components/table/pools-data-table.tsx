@@ -35,7 +35,7 @@ import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import {
@@ -102,9 +102,9 @@ export const PoolsDataTable = memo(function PoolsDataTable({
     rowHeightCompact: ["--pools-row-height-compact", "2rem"],
   } as const);
 
-  // Shared preferences
-  const displayMode = useSharedPreferences((s) => s.displayMode);
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const displayMode = useDisplayMode();
+  const compactMode = useCompactMode();
 
   // Table store state
   const storeVisibleColumnIds = asPoolColumnIds(usePoolsTableStore((s) => s.visibleColumnIds));

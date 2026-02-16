@@ -29,7 +29,7 @@ import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState } from "@/components/data-table/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { naturalCompare } from "@/lib/utils";
@@ -63,8 +63,8 @@ export const DatasetVersionsDataTable = memo(function DatasetVersionsDataTable({
   // Search chips for filtering
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
 
-  // Shared preferences (compact mode)
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const compactMode = useCompactMode();
 
   // Versions table store (column visibility, order, sort)
   const visibleColumnIds = useVersionsTableStore((s) => s.visibleColumnIds);

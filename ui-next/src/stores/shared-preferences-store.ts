@@ -57,7 +57,7 @@
 import { create } from "zustand";
 import { persist, devtools, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { createHydratedSelector } from "@/hooks/use-hydrated-store";
+import { useHydratedStore } from "@/hooks/use-hydrated-store";
 
 // =============================================================================
 // Types
@@ -226,28 +226,34 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
  * Hydration-safe display mode selector.
  * Returns "free" during SSR, then actual value after hydration.
  */
-export const useDisplayMode = createHydratedSelector(
-  useSharedPreferences,
-  (s) => s.displayMode,
-  initialState.displayMode,
-);
+export function useDisplayMode(): DisplayMode {
+  return useHydratedStore<SharedPreferencesStore, DisplayMode>(
+    useSharedPreferences,
+    (s) => s.displayMode,
+    initialState.displayMode,
+  );
+}
 
 /**
  * Hydration-safe compact mode selector.
  * Returns false during SSR, then actual value after hydration.
  */
-export const useCompactMode = createHydratedSelector(
-  useSharedPreferences,
-  (s) => s.compactMode,
-  initialState.compactMode,
-);
+export function useCompactMode(): boolean {
+  return useHydratedStore<SharedPreferencesStore, boolean>(
+    useSharedPreferences,
+    (s) => s.compactMode,
+    initialState.compactMode,
+  );
+}
 
 /**
  * Hydration-safe sidebar open state selector.
  * Returns true during SSR, then actual value after hydration.
  */
-export const useSidebarOpen = createHydratedSelector(
-  useSharedPreferences,
-  (s) => s.sidebarOpen,
-  initialState.sidebarOpen,
-);
+export function useSidebarOpen(): boolean {
+  return useHydratedStore<SharedPreferencesStore, boolean>(
+    useSharedPreferences,
+    (s) => s.sidebarOpen,
+    initialState.sidebarOpen,
+  );
+}

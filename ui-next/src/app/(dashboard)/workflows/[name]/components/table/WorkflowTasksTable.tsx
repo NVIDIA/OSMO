@@ -33,7 +33,7 @@ import { naturalCompare } from "@/lib/utils";
 import { DataTable } from "@/components/data-table/DataTable";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import type { Section, SortState } from "@/components/data-table/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useTick } from "@/hooks/use-tick";
@@ -131,8 +131,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     [machine],
   );
 
-  // Shared preferences (compact mode)
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const compactMode = useCompactMode();
 
   // Task table store (column visibility, order, sort)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));

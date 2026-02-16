@@ -28,7 +28,7 @@ import { naturalCompare } from "@/lib/utils";
 import { DataTable } from "@/components/data-table/DataTable";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import type { SortState } from "@/components/data-table/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/stores/shared-preferences-store";
 import { STATUS_SORT_ORDER } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import type { TaskWithDuration, GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import type { TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
@@ -91,8 +91,8 @@ export const GroupTasksTab = memo(function GroupTasksTab({
     [machine],
   );
 
-  // Shared preferences (compact mode - used for row height calculation)
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe - used for row height calculation)
+  const compactMode = useCompactMode();
 
   // Task table store (column visibility, order, sort - persisted via Zustand)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));

@@ -150,14 +150,14 @@ export const FilterBarInput = memo(function FilterBarInput({
         <span className="fb-results-count">
           {resultsCount.filtered !== undefined ? (
             <>
-              <span className="fb-results-count-highlight">{resultsCount.filtered.toLocaleString()}</span>
+              <span className="fb-results-count-highlight">{resultsCount.filtered.toLocaleString("en-US")}</span>
               {" of "}
-              {resultsCount.total.toLocaleString()}
+              {resultsCount.total.toLocaleString("en-US")}
               {" results"}
             </>
           ) : (
             <>
-              {resultsCount.total.toLocaleString()}
+              {resultsCount.total.toLocaleString("en-US")}
               {" results"}
             </>
           )}
