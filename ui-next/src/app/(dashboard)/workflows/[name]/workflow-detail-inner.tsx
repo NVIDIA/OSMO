@@ -331,7 +331,10 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   const dagContentElement = useMemo(() => {
     if (!displayDagVisible || !workflow) return undefined;
     return (
-      <InlineErrorBoundary title="DAG visualization error" onReset={refetch}>
+      <InlineErrorBoundary
+        title="DAG visualization error"
+        onReset={refetch}
+      >
         <WorkflowDAGContent
           workflow={workflow}
           groups={groupsWithLayout}

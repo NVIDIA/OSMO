@@ -30,7 +30,6 @@ import { ApiError } from "@/components/error/api-error";
 import { CopyableValue, CopyableBlock } from "@/components/copyable-value";
 import { ItemSelector } from "@/components/item-selector";
 import { BooleanIndicator } from "@/components/boolean-indicator";
-import { PlaceholderSection } from "@/components/placeholder-section";
 import { useResourceDetail } from "@/lib/api/adapter/hooks";
 import type { Resource, TaskConfig } from "@/lib/api/adapter/types";
 import { useViewTransition } from "@/hooks/use-view-transition";
@@ -186,15 +185,6 @@ export function ResourcePanelContent({
               </CardContent>
             </Card>
           )}
-        </section>
-
-        {/* Placeholder: Active Tasks */}
-        <section>
-          <PlaceholderSection
-            title="Active Tasks"
-            description="Tasks currently running on this resource will appear here"
-            note="Coming soon: Cross-reference with task monitoring"
-          />
         </section>
       </div>
     </div>

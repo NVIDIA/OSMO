@@ -35,9 +35,9 @@
     --col-event-time: 150px;
 
     /* Timeline dot dimensions */
-    --timeline-dot-size: 9px;
+    --timeline-dot-size: 8px;
     --timeline-dot-border: 2px;
-    --timeline-line-height: 4px;
+    --timeline-line-height: 2px;
     --timeline-label-offset: -20px;
     --timeline-label-font: 0.65rem;
     --timeline-glow-spread: 3px;

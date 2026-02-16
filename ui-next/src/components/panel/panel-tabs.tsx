@@ -257,7 +257,7 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
   return (
     <div
       ref={containerRef}
-      className={cn("panel-tabs relative shrink-0 bg-gray-100 pt-1.5 dark:bg-zinc-800", className)}
+      className={cn("panel-tabs relative shrink-0 bg-gray-100 py-1.5 dark:bg-zinc-800", className)}
     >
       {/* Hidden measurement row: always renders ALL tabs in full icon+text mode.
           Uses visibility:hidden + h-0 + overflow-hidden so it occupies no visual space
@@ -290,15 +290,17 @@ export function PanelTabs({ tabs, value, onValueChange, iconOnly: iconOnlyProp, 
               tabIndex={isActive ? 0 : -1}
               role="tab"
               className={cn(
-                // Fixed height ensures no layout shift when switching between icon-only and icon+text modes.
-                // Height = 28px: 16px content (icon/text) + 6px top padding + 6px bottom padding
-                "panel-tab relative z-10 flex h-7 flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors outline-none",
+                // Layout: padding-driven height (no fixed h-*) so active tab can extend
+                // into the container's bottom padding for flush alignment with content.
+                // Inactive: pt-1.5 + 16px content + pb-1.5 = 28px
+                // Active:   pt-1.5 + 16px content + pb-3   = 34px, with -mb-1.5 to keep row height at 28px
+                "panel-tab relative z-10 flex flex-1 items-center justify-center gap-1.5 pt-1.5 text-sm font-medium transition-colors outline-none",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1",
                 "min-w-0",
                 iconOnly ? "px-2" : "px-4",
                 isActive
-                  ? "rounded-t-md bg-white text-gray-900 dark:bg-zinc-900 dark:text-zinc-100"
-                  : "text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300",
+                  ? "-mb-1.5 rounded-t-md bg-white pb-3 text-gray-900 dark:bg-zinc-900 dark:text-zinc-100"
+                  : "pb-1.5 text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300",
                 isActive &&
                   !isFirst &&
                   "before:absolute before:bottom-0 before:-left-[6px] before:size-[6px] before:bg-[radial-gradient(circle_at_0%_0%,transparent_6px,white_6px)] dark:before:bg-[radial-gradient(circle_at_0%_0%,transparent_6px,rgb(24,24,27)_6px)]",
