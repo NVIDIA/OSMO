@@ -157,7 +157,7 @@ export function PoolsPageContent() {
   );
 
   // Panel width management
-  const { panelWidth, setPanelWidth, handleWidthPreset } = usePanelWidth({
+  const { panelWidth, setPanelWidth } = usePanelWidth({
     storedWidth: usePoolsTableStore((s) => s.panelWidth),
     setStoredWidth: usePoolsTableStore((s) => s.setPanelWidth),
   });
@@ -231,7 +231,6 @@ export function PoolsPageContent() {
           <PoolPanelHeader
             pool={selectedPool}
             onClose={handleClose}
-            onWidthPreset={handleWidthPreset}
           />
           <PanelContent
             pool={selectedPool}

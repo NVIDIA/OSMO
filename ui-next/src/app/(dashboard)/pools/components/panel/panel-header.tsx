@@ -40,10 +40,9 @@ import { getStatusDisplay, getStatusStyles } from "@/app/(dashboard)/pools/lib/c
 export interface PoolPanelHeaderProps {
   pool: Pool;
   onClose: () => void;
-  onWidthPreset: (pct: number) => void;
 }
 
-export const PoolPanelHeader = memo(function PoolPanelHeader({ pool, onClose, onWidthPreset }: PoolPanelHeaderProps) {
+export const PoolPanelHeader = memo(function PoolPanelHeader({ pool, onClose }: PoolPanelHeaderProps) {
   const statusDisplay = getStatusDisplay(pool.status);
   const statusStyles = getStatusStyles(pool.status);
 
@@ -72,7 +71,6 @@ export const PoolPanelHeader = memo(function PoolPanelHeader({ pool, onClose, on
       actions={
         <PanelHeaderActions
           badge="Pool"
-          onWidthPreset={onWidthPreset}
           onClose={onClose}
         />
       }

@@ -40,14 +40,9 @@ import { SeparatedParts } from "@/components/panel/separated-parts";
 export interface ResourcePanelHeaderProps {
   resource: Resource;
   onClose: () => void;
-  onWidthPreset: (pct: number) => void;
 }
 
-export const ResourcePanelHeader = memo(function ResourcePanelHeader({
-  resource,
-  onClose,
-  onWidthPreset,
-}: ResourcePanelHeaderProps) {
+export const ResourcePanelHeader = memo(function ResourcePanelHeader({ resource, onClose }: ResourcePanelHeaderProps) {
   const resourceTypeDisplay = getResourceAllocationTypeDisplay(resource.resourceType);
 
   // Build title content with name and resource type badge
@@ -85,7 +80,6 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
       actions={
         <PanelHeaderActions
           badge="Resource"
-          onWidthPreset={onWidthPreset}
           onClose={onClose}
         />
       }

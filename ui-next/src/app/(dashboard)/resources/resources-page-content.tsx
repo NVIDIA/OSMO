@@ -171,7 +171,7 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
   );
 
   // Panel width management
-  const { panelWidth, setPanelWidth, handleWidthPreset } = usePanelWidth({
+  const { panelWidth, setPanelWidth } = usePanelWidth({
     storedWidth: useResourcesTableStore((s) => s.panelWidth),
     setStoredWidth: useResourcesTableStore((s) => s.setPanelWidth),
   });
@@ -256,7 +256,6 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
           <ResourcePanelHeader
             resource={selectedResource}
             onClose={handleClosePanel}
-            onWidthPreset={handleWidthPreset}
           />
           <ResourcePanelContent
             resource={selectedResource}
