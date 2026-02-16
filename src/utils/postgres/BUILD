@@ -24,6 +24,19 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/utils/postgres",
     visibility = ["//visibility:public"],
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/utils",
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+    ],
+)
+
+go_test(
+    name = "postgres_test",
+    srcs = ["postgres_client_test.go"],
+    embed = [":postgres"],
+    deps = [
+>>>>>>> origin/main
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )

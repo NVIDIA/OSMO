@@ -555,6 +555,10 @@ sidecars:
       ##
       hmacSecretKey: hmac_secret
 
+      ## Force re-authentication when IdToken is missing on refresh
+      ##
+      forceReauthOnMissingIdToken: false
+
     ## SSL configuration
     ##
     ssl:

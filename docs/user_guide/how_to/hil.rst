@@ -285,12 +285,12 @@ And finally, we will add the locomotion-policy task:
   1. Running the install_dependencies.sh script to install the dependencies for the locomotion policy.
   2. Launch the locomotion policy, and the application will start publishing the movements while subscribing to the robot's state.
 
-The complete workflow file and required scripts can be found on `Github <https://github.com/NVIDIA/OSMO/tree/main/workflows/hil>`_.
+The complete workflow file and required scripts can be found on `Github <https://github.com/NVIDIA/OSMO/tree/main/cookbook/hil>`_.
 
 Interfacing with Simulation Window
 ----------------------------------
 
-For a refresher on connecting to the Isaac Sim Streaming Client, see the `Livestream tutorial <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/isaacsim>`_.
+For a refresher on connecting to the Isaac Sim Streaming Client, see the `Livestream tutorial <https://github.com/NVIDIA/OSMO/tree/main/cookbook/integration_and_tools/isaacsim>`_.
 
 After you submit the workflow, you will need to look at the logs for the ``isaac-lab`` task.
 You can click on the link for ``Workflow Overview``, and click on the ``Logs`` tab of the ``isaac-lab`` task

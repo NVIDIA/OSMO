@@ -1381,21 +1381,39 @@ class CleanupWorkflow(WorkflowJob):
         async def migrate_logs(redis_url: str, redis_key: str, file_name: str):
             ''' Uploads logs to S3 and deletes them from Redis. Returns the S3 file path. '''
 
+<<<<<<< HEAD
             async with aiofiles.tempfile.NamedTemporaryFile(mode='w+') as temp_file:
                 await connectors.write_redis_log_to_disk(
                     redis_url,
                     redis_key,
                     str(temp_file.name),
+=======
+            fd, tmp_path = tempfile.mkstemp(suffix='.log')
+            try:
+                os.close(fd)
+
+                await connectors.write_redis_log_to_disk(
+                    redis_url,
+                    redis_key,
+                    tmp_path,
+>>>>>>> origin/main
                 )
 
                 await progress_writer.report_progress_async()
 
+<<<<<<< HEAD
                 await temp_file.flush()
 
                 # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
                 def _upload_logs() -> storage.UploadSummary:
                     return storage_client.upload_objects(
                         source=str(temp_file.name),
+=======
+                # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
+                def _upload_logs() -> storage.UploadSummary:
+                    return storage_client.upload_objects(
+                        source=tmp_path,
+>>>>>>> origin/main
                         destination_prefix=self.workflow_id,
                         destination_name=file_name,
                     )
@@ -1403,6 +1421,15 @@ class CleanupWorkflow(WorkflowJob):
                 await asyncio.to_thread(_upload_logs)
 
                 await progress_writer.report_progress_async()
+<<<<<<< HEAD
+=======
+            finally:
+                # Clean up the temp file ourselves
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+>>>>>>> origin/main
 
         semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
 

@@ -56,8 +56,6 @@ export const DatasetVersionDetails = ({ datasetVersion, bucket }: DatasetVersion
         <dd>{convertToReadableTimezone(datasetVersion.last_used)}</dd>
         <dt>Size</dt>
         <dd>{convertBytes(datasetVersion.size)}</dd>
-        <dt>Retention Policy</dt>
-        <dd>{Math.floor(datasetVersion.retention_policy / (24 * 60 * 60))} days</dd>
         <dt>Tags</dt>
         <dd>
           <div className="flex flex-wrap gap-1">

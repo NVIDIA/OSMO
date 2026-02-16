@@ -18,30 +18,43 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from PyInstaller.utils import hooks  # type: ignore
+from PyInstaller.utils.hooks import collect_all, collect_submodules  # type: ignore
 
-# Collect entry points
-datas_set = set()
-hiddenimports_set = set()
+warn_on_missing_hiddenimports = False
 
-data_files = (
-    'azure',
+datas = []
+binaries = []
+hiddenimports = []
+
+packages_to_collect = [
+    'azure.core',
+    'azure.identity',
     'azure.storage',
+    'azure.storage.blob',
+    'msal',
+    'msal_extensions',
     'isodate',
-)
+]
 
-for data_file in data_files:
-    datas_set.update(hooks.collect_data_files(data_file, include_py_files=True))
+for package in packages_to_collect:
+    try:
+        pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(package)
+        datas.extend(pkg_datas)
+        binaries.extend(pkg_binaries)
+        hiddenimports.extend(pkg_hiddenimports)
+    except Exception:  # pylint: disable=broad-except
+        pass
 
 hiddenimports_files = (
     'cryptography.hazmat.primitives.ciphers.aead',
     'cryptography.hazmat.primitives.padding',
     'wsgiref',
+    'wsgiref.handlers',
 )
 
-# Add hidden imports
 for hiddenimport_file in hiddenimports_files:
-    hiddenimports_set.update(hooks.collect_submodules(hiddenimport_file))
+    hiddenimports.extend(collect_submodules(hiddenimport_file))
 
-datas = list(datas_set)
-hiddenimports = list(hiddenimports_set)
+datas = list(set(datas))
+binaries = list(set(binaries))
+hiddenimports = list(set(hiddenimports))

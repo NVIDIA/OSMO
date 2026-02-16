@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import time
 import traceback
 from typing import Dict, Optional
 from urllib.parse import urlparse
+import zlib
 
 import pydantic
 import websockets
@@ -44,7 +45,7 @@ from src.utils.progress_check import progress
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 QUEUE_RETRY_INTERVAL = 0.05
 COMMAND_QUEUE_SIZE = 256
-MAX_MESSAGE_SIZE = 10 * 1024 * 1024
+MAX_MESSAGE_SIZE = 16 * 1024 * 1024
 
 
 class JobContext(backend_jobs.BackendJobExecutionContext):
@@ -202,6 +203,8 @@ async def receive_messages(websocket,
         os.path.join(config.progress_folder_path, config.worker_heartbeat_progress_file))
     while True:
         value = await websocket.recv()
+        if isinstance(value, bytes):
+            value = zlib.decompress(value).decode('utf-8')
         service_job = json.loads(value)
         if service_job.get('type', '') == 'heartbeat':
             progress_writer.report_progress()

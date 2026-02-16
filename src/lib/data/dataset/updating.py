@@ -29,7 +29,7 @@ import ijson
 from . import common, uploading
 from .. import storage
 from ..storage.core import executor
-from ...utils import cache, osmo_errors
+from ...utils import osmo_errors
 
 
 #################################
@@ -193,7 +193,6 @@ def update(
     enable_progress_tracker: bool = False,
     executor_params: executor.ExecutorParameters | None = None,
     request_headers: List[storage.RequestHeaders] | None = None,
-    cache_config: cache.CacheConfig | None = None,
 ) -> uploading.UploadOperationResult:
     """
     Updates a dataset to a destination storage backend.
@@ -207,7 +206,6 @@ def update(
     :param bool enable_progress_tracker: Whether to enable progress tracking.
     :param executor.ExecutorParameters | None executor_params: The executor parameters.
     :param List[storage.RequestHeaders] | None request_headers: The request headers.
-    :param cache.CacheConfig | None cache_config: The cache config.
 
     :return: The update operation result.
     :rtype: uploading.UploadOperationResult
@@ -218,7 +216,6 @@ def update(
     storage_path = update_start_result.upload_response['storage_path']
     destination = storage.construct_storage_backend(
         storage_path,
-        cache_config=cache_config,
     )
 
     # Resolve the region for the destination storage backend.

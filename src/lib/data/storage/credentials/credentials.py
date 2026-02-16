@@ -38,11 +38,15 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbi
     """
     endpoint: str = pydantic.Field(
         ...,
-        description='The endpoint URL for the data service',
+        description='The OSMO storage URI for the data service (e.g., s3://bucket)',
     )
     region: str | None = pydantic.Field(
         default=None,
         description='The region for the data service',
+    )
+    override_url: str | None = pydantic.Field(
+        default=None,
+        description='HTTP endpoint URL override the storage URI (e.g., http://minio:9000)',
     )
 
     @pydantic.validator('endpoint')
@@ -80,6 +84,9 @@ class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.for
         if self.region:
             output['region'] = self.region
 
+        if self.override_url:
+            output['override_url'] = self.override_url
+
         return output
 
 
@@ -88,12 +95,30 @@ class DefaultDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
     Data credential that delegates resolution to the underlying SDK.
 
     Uses the SDK's default credential chain (e.g., Azure's DefaultAzureCredential,
-    boto3's credential resolution) which may include environment variables, 
+    boto3's credential resolution) which may include environment variables,
     workload identity, instance metadata, and other provider-specific methods.
 
     Intentionally left empty as all credential resolution is handled by the SDK.
     """
-    pass
+
+    def to_decrypted_dict(self) -> dict[str, str]:
+        """Return credential dict for SDK-based authentication.
+
+        For DefaultDataCredential, only endpoint, region, and override_url are provided.
+        The actual credential resolution occurs at runtime via the SDK's
+        default credential chain (workload identity, managed identity, etc.).
+        """
+        output = {
+            'endpoint': self.endpoint,
+        }
+
+        if self.region:
+            output['region'] = self.region
+
+        if self.override_url:
+            output['override_url'] = self.override_url
+
+        return output
 
 
 DataCredential = Union[
@@ -132,7 +157,8 @@ def get_static_data_credential_from_config(
                 access_key_id=data_cred_dict['access_key_id'],
                 access_key=pydantic.SecretStr(data_cred_dict['access_key']),
                 endpoint=url,
-                region=data_cred_dict['region'],
+                region=data_cred_dict.get('region'),
+                override_url=data_cred_dict.get('override_url'),
             )
 
             return data_cred

@@ -16,7 +16,27 @@
 
 load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
+################################################################
+#                      Go Libraries                            #
+################################################################
+
+go_library(
+    name = "utils",
+    srcs = [
+        "env.go",
+    ],
+    importpath = "go.corp.nvidia.com/osmo/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@in_gopkg_yaml_v3//:go_default_library",
+    ],
+)
+
+################################################################
+#                    Python Libraries                          #
+################################################################
 
 osmo_py_library(
     name = "static_config",

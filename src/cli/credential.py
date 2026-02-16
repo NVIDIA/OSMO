@@ -43,11 +43,14 @@ def _save_config(data_cred: credentials.StaticDataCredential):
     except FileNotFoundError:
         config = {'auth': {'data': {}}}
 
-    config['auth']['data'][data_cred.endpoint] = {
+    cred_data = {
         'access_key_id': data_cred.access_key_id,
         'access_key': data_cred.access_key.get_secret_value(),
         'region': data_cred.region,
     }
+    if data_cred.override_url:
+        cred_data['override_url'] = data_cred.override_url
+    config['auth']['data'][data_cred.endpoint] = cred_data
     with open(password_file, 'w', encoding='utf-8') as file:
         yaml.dump(config, file)
     os.chmod(password_file, stat.S_IREAD | stat.S_IWRITE)
@@ -216,15 +219,15 @@ def setup_parser(parser: argparse._SubParsersAction):
             'payload corresponding to each type of credential:\n'
             '\n'
             # pylint: disable=line-too-long
-            '+-----------------+-------------------------------------+-----------------------------+\n'
-            '| Credential Type | Mandatory keys                      | Optional keys               |\n'
-            '+-----------------+-------------------------------------+-----------------------------+\n'
-            '| REGISTRY        | auth                                | registry, username          |\n'
-            '+-----------------+-------------------------------------+-----------------------------+\n'
-            '| DATA            | access_key_id, access_key, endpoint | region (default: us-east-1) |\n'
-            '+-----------------+-------------------------------------+-----------------------------+\n'
-            '| GENERIC         |                                     |                             |\n'
-            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '+-----------------+-------------------------------------+--------------------------------------+\n'
+            '| Credential Type | Mandatory keys                      | Optional keys                        |\n'
+            '+-----------------+-------------------------------------+--------------------------------------+\n'
+            '| REGISTRY        | auth                                | registry, username                   |\n'
+            '+-----------------+-------------------------------------+--------------------------------------+\n'
+            '| DATA            | access_key_id, access_key, endpoint | region, override_url                 |\n'
+            '+-----------------+-------------------------------------+--------------------------------------+\n'
+            '| GENERIC         |                                     |                                      |\n'
+            '+-----------------+-------------------------------------+--------------------------------------+\n'
             # pylint: enable=line-too-long
             '\n'
         ),
