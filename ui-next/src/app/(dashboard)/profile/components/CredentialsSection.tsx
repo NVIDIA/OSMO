@@ -39,6 +39,7 @@ import { useServices } from "@/contexts/service-context";
 import { useMounted } from "@/hooks/use-mounted";
 import { useCredentials, useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter/hooks";
 import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/CredentialsSkeleton";
+import { SectionErrorCard } from "@/app/(dashboard)/profile/components/SectionErrorCard";
 import type { Credential, CredentialCreate } from "@/lib/api/adapter/types";
 
 type CredentialType = "REGISTRY" | "DATA" | "GENERIC";
@@ -669,7 +670,7 @@ export function CredentialsSection() {
     triggerOnce: true,
   });
 
-  const { credentials, isLoading } = useCredentials({ enabled: hasIntersected });
+  const { credentials, isLoading, error, refetch } = useCredentials({ enabled: hasIntersected });
   const { announcer } = useServices();
   const { mutateAsync: upsertCredential, isPending: isUpserting } = useUpsertCredential();
   const { mutateAsync: deleteCredential, isPending: isDeleting } = useDeleteCredential();
@@ -726,7 +727,8 @@ export function CredentialsSection() {
 
   const isMutating = isUpserting || isDeleting;
 
-  if (!hasIntersected || isLoading || !credentials) {
+  // Show skeleton only when not intersected or actively loading (but not if there's an error)
+  if (!hasIntersected || (isLoading && !error)) {
     return (
       <section
         ref={ref}
@@ -734,6 +736,26 @@ export function CredentialsSection() {
         className="profile-scroll-offset"
       >
         <CredentialsSkeleton />
+      </section>
+    );
+  }
+
+  // Error state - show card with error content (check this before checking credentials)
+  if (error) {
+    return (
+      <section
+        ref={ref}
+        id="credentials"
+        className="profile-scroll-offset"
+      >
+        <SectionErrorCard
+          icon={Key}
+          title="Credentials"
+          description="Manage credentials for container registries, data storage, and generic secrets."
+          errorLabel="Unable to load credentials"
+          error={error}
+          onRetry={refetch}
+        />
       </section>
     );
   }

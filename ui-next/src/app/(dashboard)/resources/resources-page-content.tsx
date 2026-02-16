@@ -34,7 +34,6 @@
 
 import { useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome/page-context";
-import { ApiError, type ApiErrorProps } from "@/components/error/api-error";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
@@ -201,7 +200,7 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
       </div>
 
       {/* Adaptive resource summary cards */}
-      {!error && aggregates && (
+      {aggregates && (
         <div className="shrink-0">
           <AdaptiveSummary
             aggregates={aggregates}
@@ -212,39 +211,28 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
         </div>
       )}
 
-      {/* Error display */}
-      {error && (
-        <ApiError
-          error={error as ApiErrorProps["error"]}
-          onRetry={refetch}
-          title="Unable to load resources"
-          authAware
-          loginMessage="You need to log in to view resources."
-        />
-      )}
-
       {/* Main resources table */}
-      {!error && (
-        <div className="min-h-0 flex-1">
-          <InlineErrorBoundary
-            title="Unable to display resources table"
-            resetKeys={[resources.length]}
-            onReset={refetch}
-          >
-            <ResourcesDataTable
-              resources={resources}
-              totalCount={totalCount}
-              isLoading={isLoading}
-              showPoolsColumn
-              onResourceClick={handleResourceClick}
-              selectedResourceId={selectedResourceName ?? undefined}
-              hasNextPage={hasNextPage}
-              onLoadMore={fetchNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-            />
-          </InlineErrorBoundary>
-        </div>
-      )}
+      <div className="min-h-0 flex-1">
+        <InlineErrorBoundary
+          title="Unable to display resources table"
+          resetKeys={[resources.length]}
+          onReset={refetch}
+        >
+          <ResourcesDataTable
+            resources={resources}
+            totalCount={totalCount}
+            isLoading={isLoading}
+            error={error ?? undefined}
+            onRetry={refetch}
+            showPoolsColumn
+            onResourceClick={handleResourceClick}
+            selectedResourceId={selectedResourceName ?? undefined}
+            hasNextPage={hasNextPage}
+            onLoadMore={fetchNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+          />
+        </InlineErrorBoundary>
+      </div>
     </div>
   );
 

@@ -19,6 +19,7 @@
 import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from "react-error-boundary";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
+import { ErrorDetails } from "@/components/error/error-details";
 import { cn } from "@/lib/utils";
 import { logError } from "@/lib/logger";
 
@@ -80,15 +81,19 @@ export function InlineFallback({
           <AlertCircle className="size-5 text-red-600 dark:text-red-400" />
         </div>
 
-        <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-red-900 dark:text-red-100">{title}</h3>
-          <p className="mt-1 text-sm text-red-700 dark:text-red-300">{message}</p>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="font-medium text-red-900 dark:text-red-100">{title}</h3>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-300">{message}</p>
+          </div>
+
+          <ErrorDetails error={error} />
 
           <Button
             variant="outline"
             size="sm"
             onClick={resetErrorBoundary}
-            className="mt-3 gap-1.5 border-red-300 text-red-700 hover:bg-red-100 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900"
+            className="gap-1.5 border-red-300 text-red-700 hover:bg-red-100 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900"
           >
             <RefreshCw className="size-3.5" />
             Try again

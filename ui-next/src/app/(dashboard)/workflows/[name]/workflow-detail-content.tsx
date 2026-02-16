@@ -48,7 +48,6 @@
 "use client";
 
 import { usePage } from "@/components/chrome/page-context";
-import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { preloadElkWorker } from "@/components/dag/layout/elk-worker-client";
 import { WorkflowDetailInnerWithProvider } from "@/app/(dashboard)/workflows/[name]/workflow-detail-inner";
 
@@ -120,17 +119,13 @@ export function WorkflowDetailContent({ name, initialView }: WorkflowDetailConte
     breadcrumbs: [{ label: "Workflows", href: "/workflows" }],
   });
 
+  // No top-level boundary - components handle their own errors for granular failure isolation
   return (
-    <InlineErrorBoundary
-      title="Unable to display workflow"
-      onReset={() => window.location.reload()}
-    >
-      <div className="h-full">
-        <WorkflowDetailInnerWithProvider
-          name={name}
-          initialView={initialView}
-        />
-      </div>
-    </InlineErrorBoundary>
+    <div className="h-full">
+      <WorkflowDetailInnerWithProvider
+        name={name}
+        initialView={initialView}
+      />
+    </div>
   );
 }

@@ -27,6 +27,7 @@ import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
 import { NotificationsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/NotificationsSkeleton";
+import { SectionErrorCard } from "@/app/(dashboard)/profile/components/SectionErrorCard";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
 interface NotificationEdits {
@@ -41,7 +42,7 @@ export function NotificationsSection() {
     triggerOnce: true,
   });
 
-  const { profile, isLoading } = useProfile({ enabled: hasIntersected });
+  const { profile, isLoading, error, refetch } = useProfile({ enabled: hasIntersected });
   const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateProfile();
   const { announcer } = useServices();
 
@@ -91,7 +92,41 @@ export function NotificationsSection() {
     }
   }, [stagedNotifications, isDirty, updateProfile, announcer]);
 
-  if (!hasIntersected || isLoading || !profile) {
+  // Show skeleton only when not intersected or actively loading (but not if there's an error)
+  if (!hasIntersected || (isLoading && !error)) {
+    return (
+      <section
+        ref={ref}
+        id="notifications"
+        className="profile-scroll-offset"
+      >
+        <NotificationsSkeleton />
+      </section>
+    );
+  }
+
+  // Error state - show card with error content
+  if (error) {
+    return (
+      <section
+        ref={ref}
+        id="notifications"
+        className="profile-scroll-offset"
+      >
+        <SectionErrorCard
+          icon={Bell}
+          title="Notifications"
+          description="Configure workflow notification preferences."
+          errorLabel="Unable to load notification settings"
+          error={error}
+          onRetry={refetch}
+        />
+      </section>
+    );
+  }
+
+  // Guard against missing data
+  if (!profile) {
     return (
       <section
         ref={ref}

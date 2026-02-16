@@ -23,6 +23,7 @@ import { useProfile, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
 import { SelectionCard } from "@/app/(dashboard)/profile/components/SelectionCard";
 import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
+import { SectionErrorCard } from "@/app/(dashboard)/profile/components/SectionErrorCard";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
 export function PoolsSection() {
@@ -32,13 +33,47 @@ export function PoolsSection() {
     triggerOnce: true,
   });
 
-  const { profile, isLoading } = useProfile({ enabled: hasIntersected });
+  const { profile, isLoading, error, refetch } = useProfile({ enabled: hasIntersected });
   const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateProfile();
   const { announcer } = useServices();
 
   const buildUpdate = useCallback((value: string): ProfileUpdate => ({ pool: { default: value } }), []);
 
-  if (!hasIntersected || isLoading || !profile) {
+  // Show skeleton only when not intersected or actively loading (but not if there's an error)
+  if (!hasIntersected || (isLoading && !error)) {
+    return (
+      <section
+        ref={ref}
+        id="pools"
+        className="profile-scroll-offset"
+      >
+        <SelectionSkeleton />
+      </section>
+    );
+  }
+
+  // Error state - show card with error content
+  if (error) {
+    return (
+      <section
+        ref={ref}
+        id="pools"
+        className="profile-scroll-offset"
+      >
+        <SectionErrorCard
+          icon={Server}
+          title="Pools"
+          description="Select your default compute pool for workflow execution."
+          errorLabel="Unable to load pools"
+          error={error}
+          onRetry={refetch}
+        />
+      </section>
+    );
+  }
+
+  // Guard against missing data
+  if (!profile) {
     return (
       <section
         ref={ref}

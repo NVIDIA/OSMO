@@ -39,7 +39,8 @@ import {
   usePanelWidth,
 } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 
-import { DAGErrorBoundary } from "@/components/dag/components/DAGErrorBoundary";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
+import { Button } from "@/components/shadcn/button";
 import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
 import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
 import { WorkflowDetailLayout } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDetailLayout";
@@ -255,68 +256,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
 
   const isReady = !isLoading && !error && !isNotFound && workflow;
 
-  const panelOverrideContent = useMemo(() => {
-    if (isLoading) {
-      return (
-        <div className="p-4">
-          <div
-            data-slot="skeleton"
-            className="bg-accent mb-4 h-6 w-3/4 animate-pulse rounded-md"
-          />
-          <div
-            data-slot="skeleton"
-            className="bg-accent mb-2 h-4 w-1/2 animate-pulse rounded-md"
-          />
-          <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
-          <div
-            data-slot="skeleton"
-            className="bg-accent mb-2 h-4 w-20 animate-pulse rounded-md"
-          />
-          <div
-            data-slot="skeleton"
-            className="bg-accent mb-2 h-16 w-full animate-pulse rounded-md"
-          />
-        </div>
-      );
-    }
-    if (isNotFound) {
-      return (
-        <div className="flex h-full items-center justify-center p-4">
-          <div className="text-center">
-            <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-zinc-100">Workflow Not Found</h2>
-            <p className="mb-4 text-gray-500 dark:text-zinc-400">
-              The workflow <code className="rounded bg-gray-100 px-2 py-1 font-mono dark:bg-zinc-800">{name}</code> does
-              not exist.
-            </p>
-            <Link
-              href="/workflows"
-              className="text-blue-600 hover:underline dark:text-blue-400"
-            >
-              Back to workflows
-            </Link>
-          </div>
-        </div>
-      );
-    }
-    if (error) {
-      return (
-        <div className="flex h-full items-center justify-center p-4">
-          <div className="text-center">
-            <h2 className="mb-2 text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Workflow</h2>
-            <p className="mb-4 text-gray-500 dark:text-zinc-400">{error.message}</p>
-            <button
-              onClick={() => refetch()}
-              className="text-blue-600 hover:underline dark:text-blue-400"
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  }, [isLoading, isNotFound, error, name, refetch]);
-
   const handleTogglePanelCollapsed = useEventCallback(toggleCollapsed);
   const handleExpandPanel = useEventCallback(expand);
 
@@ -349,7 +288,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     isPanelCollapsed,
     togglePanelCollapsed: handleTogglePanelCollapsed,
     expandPanel: handleExpandPanel,
-    panelOverrideContent,
     onCancelWorkflow: handleCancelWorkflow,
     onResubmitWorkflow: handleResubmitWorkflow,
     selectedTab,
@@ -393,22 +331,24 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
   const dagContentElement = useMemo(() => {
     if (!displayDagVisible || !workflow) return undefined;
     return (
-      <WorkflowDAGContent
-        workflow={workflow}
-        groups={groupsWithLayout}
-        selectedGroupName={selectedGroupName}
-        selectedTaskName={selectedTaskName}
-        selectedTaskRetryId={selectedTaskRetryId}
-        onSelectGroup={handleNavigateToGroupWithExpand}
-        onSelectTask={handleNavigateToTaskWithExpand}
-        isPanning={isPanning}
-        onPanningChange={setIsPanning}
-        selectionKey={selectionKey}
-        containerRef={containerRef}
-        panelPct={stablePanelPct}
-        isPanelCollapsed={isPanelCollapsed}
-        isDragging={isDragging}
-      />
+      <InlineErrorBoundary title="DAG visualization error" onReset={refetch}>
+        <WorkflowDAGContent
+          workflow={workflow}
+          groups={groupsWithLayout}
+          selectedGroupName={selectedGroupName}
+          selectedTaskName={selectedTaskName}
+          selectedTaskRetryId={selectedTaskRetryId}
+          onSelectGroup={handleNavigateToGroupWithExpand}
+          onSelectTask={handleNavigateToTaskWithExpand}
+          isPanning={isPanning}
+          onPanningChange={setIsPanning}
+          selectionKey={selectionKey}
+          containerRef={containerRef}
+          panelPct={stablePanelPct}
+          isPanelCollapsed={isPanelCollapsed}
+          isDragging={isDragging}
+        />
+      </InlineErrorBoundary>
     );
   }, [
     displayDagVisible,
@@ -425,23 +365,69 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     stablePanelPct,
     isPanelCollapsed,
     isDragging,
+    refetch,
   ]);
 
   const panelElement = useMemo(
     () => (
-      <>
+      <InlineErrorBoundary
+        title="Unable to display panel"
+        onReset={refetch}
+        resetKeys={[currentPanelView, selectedGroupName, selectedTaskName]}
+      >
         <DetailsPanel {...panelProps} />
-        {shellContainerProps && <ShellContainer {...shellContainerProps} />}
-      </>
+        {shellContainerProps && (
+          <InlineErrorBoundary
+            title="Shell error"
+            compact
+            onReset={refetch}
+          >
+            <ShellContainer {...shellContainerProps} />
+          </InlineErrorBoundary>
+        )}
+      </InlineErrorBoundary>
     ),
-    [panelProps, shellContainerProps],
+    [panelProps, shellContainerProps, refetch, currentPanelView, selectedGroupName, selectedTaskName],
   );
 
   return (
-    <DAGErrorBoundary>
-      <ShellProvider workflowName={name}>
-        <ShellPortalProvider>
-          {workflow ? (
+    <ShellProvider workflowName={name}>
+      <ShellPortalProvider>
+        {/* Show error/loading/not-found states before checking for workflow */}
+        {isLoading && !workflow ? (
+          <LoadingSpinner />
+        ) : error ? (
+          <div className="flex h-full items-center justify-center p-6">
+            <div className="max-w-md space-y-4 text-center">
+              <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Workflow</h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">{error.message}</p>
+              <Button
+                onClick={() => refetch()}
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </div>
+          </div>
+        ) : isNotFound ? (
+          <div className="flex h-full items-center justify-center p-6">
+            <div className="max-w-md space-y-4 text-center">
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Workflow Not Found</h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                The workflow <code className="rounded bg-zinc-100 px-2 py-1 font-mono dark:bg-zinc-800">{name}</code>{" "}
+                does not exist.
+              </p>
+              <Link href="/workflows">
+                <Button variant="outline">Back to workflows</Button>
+              </Link>
+            </div>
+          </div>
+        ) : workflow ? (
+          <InlineErrorBoundary
+            title="Resubmit panel error"
+            compact
+            onReset={refetch}
+          >
             <ResubmitPanel
               workflow={workflow}
               open={resubmitPanelOpen}
@@ -457,21 +443,27 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
                 <LoadingSpinner />
               )}
             </ResubmitPanel>
-          ) : (
-            <LoadingSpinner />
-          )}
+          </InlineErrorBoundary>
+        ) : (
+          <LoadingSpinner />
+        )}
 
-          {workflow && (
+        {workflow && (
+          <InlineErrorBoundary
+            title="Cancel dialog error"
+            compact
+            onReset={refetch}
+          >
             <CancelWorkflowDialog
               workflowName={workflow.name}
               open={cancelDialogOpen}
               onOpenChange={setCancelDialogOpen}
               onRefetch={refetch}
             />
-          )}
-        </ShellPortalProvider>
-      </ShellProvider>
-    </DAGErrorBoundary>
+          </InlineErrorBoundary>
+        )}
+      </ShellPortalProvider>
+    </ShellProvider>
   );
 }
 
