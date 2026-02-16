@@ -35,7 +35,7 @@ import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { ColumnSizingPreference } from "@/components/data-table/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { Dataset } from "@/lib/api/adapter/datasets";
 import {
@@ -110,8 +110,8 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
     currentUrlRef.current = search ? `${pathname}?${search}` : pathname;
   }, [pathname, searchParams]);
 
-  // Shared preferences
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const compactMode = useCompactMode();
 
   // Table store state
   const storeVisibleColumnIds = asDatasetColumnIds(useDatasetsTableStore((s) => s.visibleColumnIds));

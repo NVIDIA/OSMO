@@ -43,7 +43,7 @@ import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import type { Resource } from "@/lib/api/adapter/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResourcePanelHeader } from "@/app/(dashboard)/resources/components/panel/panel-header";
@@ -63,9 +63,9 @@ export function ResourcesPageContent({ initialAggregates }: { initialAggregates?
   usePage({ title: "Resources" });
   const { startTransition } = useViewTransition();
 
-  // Shared preferences for display mode
-  const displayMode = useSharedPreferences((s) => s.displayMode);
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const displayMode = useDisplayMode();
+  const compactMode = useCompactMode();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links

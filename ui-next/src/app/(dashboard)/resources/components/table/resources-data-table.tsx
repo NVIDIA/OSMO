@@ -30,7 +30,7 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useSharedPreferences, type DisplayMode } from "@/stores/shared-preferences-store";
+import { useDisplayMode, useCompactMode, type DisplayMode } from "@/stores/shared-preferences-store";
 import type { Resource } from "@/lib/api/adapter/types";
 import {
   MANDATORY_COLUMN_IDS,
@@ -142,9 +142,9 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   onLoadMore,
   isFetchingNextPage = false,
 }: ResourcesDataTableProps) {
-  // Shared preferences
-  const displayMode = useSharedPreferences((s) => s.displayMode);
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const displayMode = useDisplayMode();
+  const compactMode = useCompactMode();
 
   // Table store (column visibility, order, and preferences)
   const storeVisibleColumnIds = asResourceColumnIds(useResourcesTableStore((s) => s.visibleColumnIds));

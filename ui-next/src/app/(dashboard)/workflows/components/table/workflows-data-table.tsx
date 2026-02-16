@@ -36,7 +36,7 @@ import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/stores/shared-preferences-store";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { WorkflowListEntry } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
@@ -113,8 +113,8 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
     currentUrlRef.current = search ? `${pathname}?${search}` : pathname;
   }, [pathname, searchParams]);
 
-  // Shared preferences
-  const compactMode = useSharedPreferences((s) => s.compactMode);
+  // Shared preferences (hydration-safe)
+  const compactMode = useCompactMode();
 
   // Table store state
   const storeVisibleColumnIds = asWorkflowColumnIds(useWorkflowsTableStore((s) => s.visibleColumnIds));
