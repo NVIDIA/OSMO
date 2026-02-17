@@ -4069,7 +4069,7 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     # Workflow actions
                     role.RoleAction(action='workflow:*'),
                     # Dataset actions
-                    role.RoleAction(action='dataset:*')
+                    role.RoleAction(action='dataset:*'),
                     # Credentials actions
                     role.RoleAction(action='credentials:*'),
                     # Pool actions
