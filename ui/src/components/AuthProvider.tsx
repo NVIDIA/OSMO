@@ -131,6 +131,27 @@ class Auth {
       return;
     }
 
+    // Try OAuth2 Proxy session first. When OAuth2 Proxy handles browser
+    // authentication, Envoy sets x-osmo-user on the server-side request.
+    // The /auth/session endpoint reads this header and returns the user.
+    // If this succeeds, skip the cookie-based token flow entirely.
+    try {
+      const sessionRes = await fetch("/auth/session", { cache: "no-store" });
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        if (sessionData.authenticated && sessionData.user) {
+          this.claims = {
+            email: sessionData.user,
+            preferred_username: sessionData.user,
+          } as AuthClaims;
+          return;
+        }
+      }
+    } catch {
+      // Session endpoint not available or OAuth2 Proxy not configured.
+      // Fall through to legacy cookie-based flow.
+    }
+
     if (env.NEXT_PUBLIC_OSMO_ENV === "local-against-production") {
       const idToken = localStorage.getItem("IdToken");
       const refreshToken = localStorage.getItem("RefreshToken");
@@ -232,6 +253,23 @@ class Auth {
   }
 
   async logout() {
+    this.claims = null;
+    this.id_token = "";
+    this.refresh_token = "";
+
+    // Try OAuth2 Proxy logout first
+    try {
+      const sessionRes = await fetch("/auth/session", { cache: "no-store" });
+      if (sessionRes.ok) {
+        // OAuth2 Proxy is handling auth — redirect to its sign-out endpoint
+        window.location.href = "/oauth2/sign_out";
+        return;
+      }
+    } catch {
+      // OAuth2 Proxy not available, fall through to legacy logout
+    }
+
+    // Legacy cookie-based logout
     if (env.NEXT_PUBLIC_OSMO_ENV === "local-against-production") {
       localStorage.removeItem("IdToken");
       localStorage.removeItem("RefreshToken");
@@ -239,9 +277,6 @@ class Auth {
       setCookies("IdToken", "", -1);
       setCookies("RefreshToken", "", -1);
     }
-    this.claims = null;
-    this.id_token = "";
-    this.refresh_token = "";
 
     const res = await fetch(`/auth/logout`, { cache: "no-store" });
     const data = await res.json();
