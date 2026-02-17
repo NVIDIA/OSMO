@@ -40,7 +40,7 @@ const (
 	resourceTypeApp         = "app"
 	resourceTypeResources   = "resources"
 	resourceTypeRouter      = "router"
-	resourceTypeBucket      = "bucket"
+	resourceTypeDataset     = "dataset"
 	resourceTypeConfig      = "config"
 	resourceTypeProfile     = "profile"
 	resourceTypeWorkflow    = "workflow"
@@ -57,7 +57,7 @@ const (
 	ResourceTypeApp         ResourceType = resourceTypeApp
 	ResourceTypeResources   ResourceType = resourceTypeResources
 	ResourceTypeRouter      ResourceType = resourceTypeRouter
-	ResourceTypeBucket      ResourceType = resourceTypeBucket
+	ResourceTypeDataset     ResourceType = resourceTypeDataset
 	ResourceTypeConfig      ResourceType = resourceTypeConfig
 	ResourceTypeProfile     ResourceType = resourceTypeProfile
 	ResourceTypeWorkflow    ResourceType = resourceTypeWorkflow
@@ -77,11 +77,11 @@ const (
 	ActionWorkflowPortForward = resourceTypeWorkflow + ":PortForward"
 	ActionWorkflowRsync       = resourceTypeWorkflow + ":Rsync"
 
-	// Bucket actions
-	ActionBucketList   = resourceTypeBucket + ":List"
-	ActionBucketRead   = resourceTypeBucket + ":Read"
-	ActionBucketWrite  = resourceTypeBucket + ":Write"
-	ActionBucketDelete = resourceTypeBucket + ":Delete"
+	// Dataset actions
+	ActionDatasetList   = resourceTypeDataset + ":List"
+	ActionDatasetRead   = resourceTypeDataset + ":Read"
+	ActionDatasetWrite  = resourceTypeDataset + ":Write"
+	ActionDatasetDelete = resourceTypeDataset + ":Delete"
 
 	// Credentials actions
 	ActionCredentialsCreate = resourceTypeCredentials + ":Create"
@@ -211,17 +211,17 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/pool", Methods: []string{"GET"}},
 		{Path: "/api/pool_quota", Methods: []string{"GET"}},
 	},
-	// ==================== BUCKET ====================
-	ActionBucketList: {
+	// ==================== DATASET ====================
+	ActionDatasetList: {
 		{Path: "/api/bucket", Methods: []string{"GET"}},
 	},
-	ActionBucketRead: {
+	ActionDatasetRead: {
 		{Path: "/api/bucket/*", Methods: []string{"GET"}},
 	},
-	ActionBucketWrite: {
+	ActionDatasetWrite: {
 		{Path: "/api/bucket/*", Methods: []string{"POST", "PUT"}},
 	},
-	ActionBucketDelete: {
+	ActionDatasetDelete: {
 		{Path: "/api/bucket/*", Methods: []string{"DELETE"}},
 	},
 
@@ -637,8 +637,8 @@ func extractResourceFromPath(
 	// Determine resource identifier based on resource type
 	// Global/public resources don't require resource checks - access is action-based only
 	switch resourceType {
-	case ResourceTypeBucket:
-		// Bucket-scoped resources - the resource ID IS the scope
+	case ResourceTypeDataset:
+		// Dataset-scoped resources - the resource ID IS the scope (scope prefix stays "bucket")
 		if actionName == "List" {
 			return ""
 		}
@@ -1042,7 +1042,12 @@ func ConvertRoleToSemantic(role *Role) *Role {
 		}
 
 		if len(semanticActions) > 0 {
+			effect := policy.Effect
+			if effect == "" {
+				effect = EffectAllow
+			}
 			newRole.Policies = append(newRole.Policies, RolePolicy{
+				Effect:    effect,
 				Actions:   semanticActions,
 				Resources: resources,
 			})
@@ -1084,6 +1089,8 @@ const (
 type AccessResult struct {
 	// Allowed indicates whether access is granted
 	Allowed bool
+	// Denied indicates an explicit Deny policy matched (takes precedence over Allow)
+	Denied bool
 	// Matched indicates whether any action pattern matched
 	Matched bool
 	// MatchedAction is the semantic action string that matched
@@ -1244,19 +1251,41 @@ func matchResource(pattern, resource string) bool {
 // This function only handles semantic actions. Legacy actions should be converted
 // to semantic actions using ConvertRoleToSemantic before calling this function.
 //
-// The function resolves the path/method to a semantic action and checks against
-// the role's policies.
+// Deny takes precedence: if any policy with effect Deny matches, access is denied
+// even if another policy with effect Allow matches.
 //
 // ctx and pgClient are optional - used for pool-scoped resource lookups
 func CheckPolicyAccess(
 	ctx context.Context, role *Role, path, method string, pgClient *postgres.PostgresClient,
 ) AccessResult {
+	// First pass: check for any Deny that matches
 	for _, policy := range role.Policies {
+		if policy.Effect != EffectDeny {
+			continue
+		}
 		for _, action := range policy.Actions {
 			if !action.IsSemanticAction() {
 				continue
 			}
+			result := CheckSemanticAction(ctx, &action, policy.Resources, path, method, pgClient)
+			if result.Matched {
+				result.RoleName = role.Name
+				result.Allowed = false
+				result.Denied = true
+				return result
+			}
+		}
+	}
 
+	// Second pass: check for Allow that matches (empty effect defaults to Allow)
+	for _, policy := range role.Policies {
+		if policy.Effect != EffectAllow && policy.Effect != "" {
+			continue
+		}
+		for _, action := range policy.Actions {
+			if !action.IsSemanticAction() {
+				continue
+			}
 			result := CheckSemanticAction(ctx, &action, policy.Resources, path, method, pgClient)
 			if result.Matched {
 				result.RoleName = role.Name
@@ -1275,28 +1304,27 @@ func CheckPolicyAccess(
 }
 
 // CheckRolesAccess checks if any of the given roles grants access to the path and method.
-// Returns the first AccessResult that grants access, or the last denial if none grant access.
+// Deny takes precedence: if any role has a matching Deny policy, access is denied.
+// Otherwise returns the first AccessResult that grants access.
 //
 // ctx and pgClient are optional - used for pool-scoped resource lookups
 func CheckRolesAccess(
 	ctx context.Context, roles []*Role, path, method string, pgClient *postgres.PostgresClient,
 ) AccessResult {
-	var lastResult AccessResult
+	// First pass: if any role has a matching Deny, deny access
+	for _, role := range roles {
+		result := CheckPolicyAccess(ctx, role, path, method, pgClient)
+		if result.Denied {
+			return result
+		}
+	}
 
+	// Second pass: first Allow wins
 	for _, role := range roles {
 		result := CheckPolicyAccess(ctx, role, path, method, pgClient)
 		if result.Allowed {
 			return result
 		}
-		// Keep track of the last result (for deny information)
-		if result.Matched {
-			lastResult = result
-		}
-	}
-
-	// If we had a matched deny, return it
-	if lastResult.Matched {
-		return lastResult
 	}
 
 	// No match at all

@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import re
+from enum import Enum
 from typing import Any, Dict, List
 
 import pydantic
@@ -26,6 +27,13 @@ from . import osmo_errors
 
 # Semantic action pattern: resource:Action (e.g., "workflow:Create", "*:*")
 SEMANTIC_ACTION_PATTERN = r'^(\*|[a-z]+):(\*|[A-Z][a-zA-Z]*)$'
+
+
+class PolicyEffect(str, Enum):
+    """Effect of a policy statement: Allow or Deny. Deny takes precedence over Allow."""
+
+    ALLOW = "Allow"
+    DENY = "Deny"
 
 
 class RoleAction(pydantic.BaseModel):
@@ -75,7 +83,10 @@ class RolePolicy(pydantic.BaseModel):
     Single Role Policy Entry.
 
     Contains a list of actions and optional resources the policy applies to.
+    If effect is Deny and the policy matches, access is denied even if another
+    policy allows it.
     """
+    effect: PolicyEffect = PolicyEffect.ALLOW
     actions: List[RoleAction]
     # Resources this policy applies to (e.g., ["*"], ["pool/production"], ["bucket/*"])
     # If empty or not specified, the policy applies to all resources ("*")
@@ -100,6 +111,7 @@ class RolePolicy(pydantic.BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         result: Dict[str, Any] = {
+            'effect': self.effect.value,
             'actions': [action.to_dict() for action in sorted(self.actions)]
         }
         if self.resources:
@@ -122,7 +134,11 @@ class Role(pydantic.BaseModel):
             role_copy = role.copy()
             role_copy['policies'] = []
             for policy in role['policies']:
+                effect = policy.get('effect', PolicyEffect.ALLOW)
+                if isinstance(effect, PolicyEffect):
+                    effect = effect.value
                 policy_dict = {
+                    'effect': effect,
                     'actions': [action['action'] for action in policy['actions']]
                 }
                 if 'resources' in policy and policy['resources']:

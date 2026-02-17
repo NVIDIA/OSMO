@@ -4067,46 +4067,19 @@ DEFAULT_ROLES: Dict[str, Role] = {
             role.RolePolicy(
                 actions=[
                     # Workflow actions
-                    role.RoleAction(action='workflow:Create'),
-                    role.RoleAction(action='workflow:List'),
-                    role.RoleAction(action='workflow:Read'),
-                    role.RoleAction(action='workflow:Update'),
-                    role.RoleAction(action='workflow:Delete'),
-                    role.RoleAction(action='workflow:Cancel'),
-                    role.RoleAction(action='workflow:Exec'),
-                    role.RoleAction(action='workflow:PortForward'),
-                    role.RoleAction(action='workflow:Rsync'),
-                    # Bucket actions
-                    role.RoleAction(action='bucket:List'),
-                    role.RoleAction(action='bucket:Read'),
-                    role.RoleAction(action='bucket:Write'),
-                    role.RoleAction(action='bucket:Delete'),
+                    role.RoleAction(action='workflow:*'),
+                    # Dataset actions
+                    role.RoleAction(action='dataset:*')
                     # Credentials actions
-                    role.RoleAction(action='credentials:Create'),
-                    role.RoleAction(action='credentials:Read'),
-                    role.RoleAction(action='credentials:Update'),
-                    role.RoleAction(action='credentials:Delete'),
+                    role.RoleAction(action='credentials:*'),
                     # Pool actions
                     role.RoleAction(action='pool:List'),
                     # Profile actions
-                    role.RoleAction(action='profile:Read'),
-                    role.RoleAction(action='profile:Update'),
-                    # User actions
-                    role.RoleAction(action='user:List'),
+                    role.RoleAction(action='profile:*'),
                     # App actions
-                    role.RoleAction(action='app:Create'),
-                    role.RoleAction(action='app:Read'),
-                    role.RoleAction(action='app:Update'),
-                    role.RoleAction(action='app:Delete'),
+                    role.RoleAction(action='app:*'),
                     # Resources actions
                     role.RoleAction(action='resources:Read'),
-                    # Config actions
-                    role.RoleAction(action='config:Read'),
-                    # Auth actions
-                    role.RoleAction(action='auth:Token'),
-                    # System actions
-                    role.RoleAction(action='system:Health'),
-                    role.RoleAction(action='system:Version'),
                 ],
                 resources=['*']
             )
@@ -4150,8 +4123,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     role.RoleAction(action='system:Health'),
                     role.RoleAction(action='system:Version'),
                     role.RoleAction(action='auth:Login'),
-                    role.RoleAction(action='auth:Refresh'),
-                    role.RoleAction(action='auth:Token'),
                 ],
                 resources=['*']
             )

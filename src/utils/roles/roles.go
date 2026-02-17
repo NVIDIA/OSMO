@@ -62,9 +62,23 @@ func (ra *RoleAction) IsLegacyAction() bool {
 	return ra.Action == "" && (ra.Base != "" || ra.Path != "" || ra.Method != "")
 }
 
+// PolicyEffect is the effect of a policy statement: Allow or Deny.
+type PolicyEffect string
+
+const (
+	// EffectAllow grants access when the policy matches.
+	EffectAllow PolicyEffect = "Allow"
+	// EffectDeny denies access when the policy matches. Deny takes precedence over Allow.
+	EffectDeny PolicyEffect = "Deny"
+)
+
 // RolePolicy represents a role policy with multiple actions.
 // Policies can optionally specify resources to scope the actions.
+// If Effect is Deny and the policy matches, access is denied even if another policy allows it.
 type RolePolicy struct {
+	// Effect is whether this policy allows or denies access. Default is Allow.
+	Effect PolicyEffect `json:"effect,omitempty"`
+
 	// Actions is the list of actions this policy allows or denies.
 	Actions []RoleAction `json:"actions"`
 
@@ -151,6 +165,10 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 					slog.String("policy_raw", string(policyRaw)),
 				)
 				return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
+			}
+			// Default effect to Allow when not specified (backward compatibility)
+			if policy.Effect == "" {
+				policy.Effect = EffectAllow
 			}
 			// Ensure Resources is never nil (always an empty list if not specified)
 			if policy.Resources == nil {
