@@ -88,7 +88,6 @@ py_test(
     srcs = [
         "test_topology.py"
     ],
-    tags = ["manual"],
     deps = [
         "//src/utils/job",
     ]
