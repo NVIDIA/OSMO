@@ -197,6 +197,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowPortForward: {
 		{Path: "/api/workflow/*/portforward/*", Methods: []string{"*"}},
+		{Path: "/api/workflow/*/webserver/*", Methods: []string{"*"}},
 		{Path: "/api/router/portforward/*/client/*", Methods: []string{"*"}},
 		{Path: "/api/router/webserver/*", Methods: []string{"GET"}},
 	},
