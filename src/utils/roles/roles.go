@@ -207,3 +207,55 @@ func GetAllRoleNames(ctx context.Context, client *postgres.PostgresClient) ([]st
 
 	return roleNames, nil
 }
+
+// GetPoolForWorkflow returns the pool name for a given workflow ID
+// by querying the workflows table. Returns empty string and error if not found.
+func GetPoolForWorkflow(
+	ctx context.Context, client *postgres.PostgresClient, workflowID string,
+) (string, error) {
+	query := `SELECT pool FROM workflows WHERE workflow_id = $1`
+
+	var pool string
+	err := client.Pool().QueryRow(ctx, query, workflowID).Scan(&pool)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pool for workflow %s: %w", workflowID, err)
+	}
+
+	return pool, nil
+}
+
+// UpdateRolePolicies updates the policies for a role in the database.
+// This converts the policies to JSONB[] format expected by PostgreSQL.
+func UpdateRolePolicies(
+	ctx context.Context, client *postgres.PostgresClient, role *Role, logger *slog.Logger,
+) error {
+	// Convert each policy to JSON
+	policiesJSON := make([][]byte, len(role.Policies))
+	for i, policy := range role.Policies {
+		policyBytes, err := json.Marshal(policy)
+		if err != nil {
+			return fmt.Errorf("failed to marshal policy for role %s: %w", role.Name, err)
+		}
+		policiesJSON[i] = policyBytes
+	}
+
+	// Update the role's policies in the database
+	// PostgreSQL expects JSONB[] which we construct from individual JSON values
+	query := `UPDATE roles SET policies = $1::jsonb[] WHERE name = $2`
+
+	_, err := client.Pool().Exec(ctx, query, policiesJSON, role.Name)
+	if err != nil {
+		logger.Error("failed to update role policies",
+			slog.String("role", role.Name),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("failed to update role %s: %w", role.Name, err)
+	}
+
+	logger.Debug("updated role policies",
+		slog.String("role", role.Name),
+		slog.Int("policies", len(role.Policies)),
+	)
+
+	return nil
+}
