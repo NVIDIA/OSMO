@@ -32,8 +32,8 @@ SEMANTIC_ACTION_PATTERN = r'^(\*|[a-z]+):(\*|[A-Z][a-zA-Z]*)$'
 class PolicyEffect(str, Enum):
     """Effect of a policy statement: Allow or Deny. Deny takes precedence over Allow."""
 
-    ALLOW = "Allow"
-    DENY = "Deny"
+    ALLOW = 'Allow'
+    DENY = 'Deny'
 
 
 class RoleAction(pydantic.BaseModel):
