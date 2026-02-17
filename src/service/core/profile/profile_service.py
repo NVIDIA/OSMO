@@ -48,6 +48,7 @@ def get_notification_settings(
         try:
             access_token = auth_objects.AccessToken.fetch_from_db(
                 postgres, token_name_header, user_name)
+            expires_at = access_token.expires_at.strftime('%Y-%m-%d')
         except osmo_errors.OSMOUserError:
             pass
         token_identity = objects.TokenIdentity(
