@@ -126,7 +126,8 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
             expires_at = common.convert_str_to_time(token_result['expires_at'].split('T')[0],
                                                     '%Y-%m-%d').date()
             print(f'{common.TAB}expires_at: {expires_at}')
-        roles_list = result.get('roles', [])
-        print(f'roles: {", ".join(roles_list)}')
+        print(f'roles:')
+        for role in result.get('roles', []):
+            print(f'{common.TAB}- {role}')
     else:
         print(json.dumps(result, indent=2))
