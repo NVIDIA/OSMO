@@ -723,6 +723,16 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
+        # Creates table for group templates.
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS group_templates (
+                name TEXT,
+                group_template JSONB,
+                PRIMARY KEY (name)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
         # Creates table for dynamic configs.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS pools (
@@ -742,6 +752,8 @@ class PostgresConnector:
                 parsed_resource_validations JSONB,
                 common_pod_template TEXT[],
                 parsed_pod_template JSONB,
+                common_group_templates TEXT[],
+                parsed_group_templates JSONB,
                 enable_maintenance BOOLEAN,
                 action_permissions JSONB,
                 resources JSONB,
@@ -750,6 +762,17 @@ class PostgresConnector:
             );
         '''
         self.execute_commit_command(create_cmd, ())
+
+        # Add group template columns to pools table if they don't exist (migration)
+        alter_cmd = '''
+            ALTER TABLE pools ADD COLUMN IF NOT EXISTS common_group_templates TEXT[] DEFAULT ARRAY[]::text[];
+        '''
+        self.execute_commit_command(alter_cmd, ())
+
+        alter_cmd = '''
+            ALTER TABLE pools ADD COLUMN IF NOT EXISTS parsed_group_templates JSONB DEFAULT '[]'::jsonb;
+        '''
+        self.execute_commit_command(alter_cmd, ())
 
         # Creates table for workflows.
         create_cmd = '''
@@ -2998,6 +3021,81 @@ class PodTemplate(pydantic.BaseModel):
             BackendTests.update_pod_template(database, test_info['name'])
 
 
+class GroupTemplate(pydantic.BaseModel):
+    """ Group Template Entry """
+    group_template: Dict
+
+    @classmethod
+    def list_from_db(cls, database: PostgresConnector, names: List[str] | None = None) \
+        -> Dict[str, Dict]:
+        """ Fetches the list of group templates from the group template table """
+        list_of_names = ''
+        fetch_input: Tuple = ()
+        if names:
+            list_of_names = 'WHERE name in %s'
+            fetch_input = (tuple(names),)
+        fetch_cmd = f'SELECT * FROM group_templates {list_of_names} ORDER BY name;'
+        spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
+
+        return {spec_row['name']: spec_row['group_template'] for spec_row in spec_rows}
+
+    @classmethod
+    def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict:
+        """ Fetches the group template from the group template table """
+        fetch_cmd = 'SELECT * FROM group_templates WHERE name = %s;'
+        spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
+        if not spec_rows:
+            raise osmo_errors.OSMOUserError(f'Group Template {name} does not exist.')
+
+        spec_row = spec_rows[0]
+
+        return spec_row['group_template']
+
+    @classmethod
+    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
+        fetch_cmd = '''
+            SELECT name
+            FROM pools
+            WHERE %s=ANY(common_group_templates);
+            '''
+        return database.execute_fetch_command(fetch_cmd, (name,), True)
+
+    @classmethod
+    def delete_from_db(cls, database: PostgresConnector, name: str):
+        pools = cls.get_pools(database, name)
+        if pools:
+            raise osmo_errors.OSMOUserError(f'Group template {name} is used in pools ' +\
+                                            f'{", ".join([pool["name"] for pool in pools])}')
+
+        delete_cmd = '''
+            DELETE FROM group_templates WHERE name = %s;
+            '''
+        database.execute_commit_command(delete_cmd, (name,))
+
+    def insert_into_db(self, database: PostgresConnector, name: str):
+        """ Create/update an entry in the group templates table """
+        # Basic validation
+        if 'apiVersion' not in self.group_template:
+            raise osmo_errors.OSMOUserError('Group template must have "apiVersion" field.')
+        if 'kind' not in self.group_template:
+            raise osmo_errors.OSMOUserError('Group template must have "kind" field.')
+        if 'metadata' not in self.group_template or 'name' not in self.group_template['metadata']:
+            raise osmo_errors.OSMOUserError('Group template must have "metadata.name" field.')
+
+        insert_cmd = '''
+            INSERT INTO group_templates
+            (name, group_template)
+            VALUES (%s, %s)
+            ON CONFLICT (name)
+            DO UPDATE SET
+                group_template = EXCLUDED.group_template;
+            '''
+        database.execute_commit_command(insert_cmd, (name, json.dumps(self.group_template)))
+
+        for pool_info in GroupTemplate.get_pools(database, name):
+            Pool.update_group_templates(database, pool_info['name'])
+
+
 class Toleration(pydantic.BaseModel):
     """ Single Toleration Entry """
     key: str
@@ -3125,6 +3223,7 @@ class PoolEditable(PoolBase, extra=pydantic.Extra.ignore):
     common_default_variables: Dict = {}
     common_resource_validations: List[str] = []
     common_pod_template: List[str] = []
+    common_group_templates: List[str] = []
     platforms: Dict[str, PlatformEditable] = {}
 
 
@@ -3135,6 +3234,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
     parsed_resource_validations: List[ResourceAssertion] = []
     common_pod_template: List[str] = []
     parsed_pod_template: Dict = {}
+    common_group_templates: List[str] = []
+    parsed_group_templates: List[Dict] = []
     platforms: Dict[str, Platform] = {}
     last_heartbeat: datetime.datetime | None = None
 
@@ -3173,6 +3274,21 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              json.dumps(pool_info.parsed_resource_validations),
              name))
 
+    @classmethod
+    def update_group_templates(cls, database: PostgresConnector, name: str):
+        """ Updates group_templates """
+        pool_info = cls.fetch_from_db(database, name)
+        pool_info.calculate_group_templates(database)
+
+        insert_cmd = '''
+            UPDATE pools
+            SET parsed_group_templates = %s
+            WHERE name = %s;
+            '''
+        database.execute_commit_command(
+            insert_cmd,
+            (json.dumps(pool_info.parsed_group_templates),
+             name))
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Pool':
@@ -3391,10 +3507,41 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         for _, platform_info in self.platforms.items():
             self.set_resource_validations(platform_info, resource_validations)
 
+    def calculate_group_templates(self, database: PostgresConnector):
+        ''' Construct Pool group_templates '''
+        # Fetch all group templates by name
+        group_template_specs = GroupTemplate.list_from_db(database, self.common_group_templates)
+
+        # Build parsed_group_templates by merging templates with same (kind, metadata.name)
+        # Key: (kind, metadata.name), Value: merged template
+        merged_templates: Dict[tuple, Dict] = {}
+
+        for template_name in self.common_group_templates:
+            if template_name not in group_template_specs:
+                raise osmo_errors.OSMOUsageError(
+                    f'Group template {template_name} does not exist!')
+
+            template = group_template_specs[template_name]
+            key = (template.get('kind'), template.get('metadata', {}).get('name'))
+
+            if key in merged_templates:
+                # Merge with existing template
+                merged_templates[key] = common.recursive_dict_update(
+                    merged_templates[key],
+                    template,
+                    common.merge_lists_on_name)
+            else:
+                # First template with this key
+                merged_templates[key] = copy.deepcopy(template)
+
+        # Convert to list
+        self.parsed_group_templates = list(merged_templates.values())
+
     def insert_into_db(self, database: PostgresConnector, name: str):
         """ Create/update an entry in the pools table """
         self.calculate_pod_template(database)
         self.calculate_resource_validations(database)
+        self.calculate_group_templates(database)
 
         if self.default_platform and self.default_platform not in self.platforms:
             raise osmo_errors.OSMOUsageError(
@@ -3420,9 +3567,10 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              default_exec_timeout, default_queue_timeout,
              max_exec_timeout, max_queue_timeout, default_exit_actions,
              common_default_variables, common_resource_validations, parsed_resource_validations,
-             common_pod_template, parsed_pod_template, enable_maintenance,
-             action_permissions, resources, topology_keys)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             common_pod_template, parsed_pod_template,
+             common_group_templates, parsed_group_templates,
+             enable_maintenance, action_permissions, resources, topology_keys)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
@@ -3440,6 +3588,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 parsed_resource_validations = EXCLUDED.parsed_resource_validations,
                 common_pod_template = EXCLUDED.common_pod_template,
                 parsed_pod_template = EXCLUDED.parsed_pod_template,
+                common_group_templates = EXCLUDED.common_group_templates,
+                parsed_group_templates = EXCLUDED.parsed_group_templates,
                 enable_maintenance = EXCLUDED.enable_maintenance,
                 action_permissions = EXCLUDED.action_permissions,
                 resources = EXCLUDED.resources,
@@ -3457,6 +3607,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              json.dumps(self.common_default_variables),
              self.common_resource_validations, json.dumps(self.parsed_resource_validations),
              self.common_pod_template, json.dumps(self.parsed_pod_template),
+             self.common_group_templates, json.dumps(self.parsed_group_templates),
              self.enable_maintenance,
              json.dumps(self.action_permissions, default=common.pydantic_encoder),
              json.dumps(self.resources, default=common.pydantic_encoder),
