@@ -151,7 +151,7 @@ def create_access_token(token_name: str,
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
+    access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
         # No roles specified - inherit all user's roles
@@ -274,7 +274,7 @@ def admin_create_access_token(
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    access_token = secrets.token_hex(task_lib.REFRESH_TOKEN_LENGTH)
+    access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
         # No roles specified - inherit all user's roles
