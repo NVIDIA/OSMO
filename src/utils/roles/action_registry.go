@@ -19,9 +19,12 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"context"
 	"sort"
 	"strings"
 	"sync"
+
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 // ResourceType represents the type of resource in the authorization model
@@ -65,6 +68,7 @@ const (
 const (
 	// Workflow actions
 	ActionWorkflowCreate      = resourceTypeWorkflow + ":Create"
+	ActionWorkflowList        = resourceTypeWorkflow + ":List"
 	ActionWorkflowRead        = resourceTypeWorkflow + ":Read"
 	ActionWorkflowUpdate      = resourceTypeWorkflow + ":Update"
 	ActionWorkflowDelete      = resourceTypeWorkflow + ":Delete"
@@ -74,19 +78,19 @@ const (
 	ActionWorkflowRsync       = resourceTypeWorkflow + ":Rsync"
 
 	// Bucket actions
+	ActionBucketList   = resourceTypeBucket + ":List"
 	ActionBucketRead   = resourceTypeBucket + ":Read"
 	ActionBucketWrite  = resourceTypeBucket + ":Write"
 	ActionBucketDelete = resourceTypeBucket + ":Delete"
-
-	// Pool actions
-	ActionPoolRead   = resourceTypePool + ":Read"
-	ActionPoolDelete = resourceTypePool + ":Delete"
 
 	// Credentials actions
 	ActionCredentialsCreate = resourceTypeCredentials + ":Create"
 	ActionCredentialsRead   = resourceTypeCredentials + ":Read"
 	ActionCredentialsUpdate = resourceTypeCredentials + ":Update"
 	ActionCredentialsDelete = resourceTypeCredentials + ":Delete"
+
+	// Pool actions
+	ActionPoolList = resourceTypePool + ":List"
 
 	// Profile actions
 	ActionProfileRead   = resourceTypeProfile + ":Read"
@@ -113,9 +117,6 @@ const (
 	ActionAuthRefresh      = resourceTypeAuth + ":Refresh"
 	ActionAuthToken        = resourceTypeAuth + ":Token"
 	ActionAuthServiceToken = resourceTypeAuth + ":ServiceToken"
-
-	// Router actions
-	ActionRouterClient = resourceTypeRouter + ":Client"
 
 	// System actions (public)
 	ActionSystemHealth  = resourceTypeSystem + ":Health"
@@ -171,15 +172,15 @@ var (
 var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== WORKFLOW ====================
 	ActionWorkflowCreate: {
-		{Path: "/api/workflow", Methods: []string{"POST"}},
+		{Path: "/api/pool/*/workflow", Methods: []string{"POST"}},
+	},
+	ActionWorkflowList: {
+		{Path: "/api/workflow", Methods: []string{"GET"}},
+		{Path: "/api/task", Methods: []string{"GET"}},
+		{Path: "/api/tag", Methods: []string{"GET"}},
 	},
 	ActionWorkflowRead: {
-		{Path: "/api/workflow", Methods: []string{"GET"}},
 		{Path: "/api/workflow/*", Methods: []string{"GET"}},
-		{Path: "/api/workflow/spec", Methods: []string{"GET"}},
-		{Path: "/api/task", Methods: []string{"GET"}},
-		{Path: "/api/task/*", Methods: []string{"GET"}},
-		{Path: "/api/tag", Methods: []string{"GET"}},
 	},
 	ActionWorkflowUpdate: {
 		{Path: "/api/workflow/*", Methods: []string{"PUT", "PATCH"}},
@@ -192,17 +193,29 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowExec: {
 		{Path: "/api/workflow/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
+		{Path: "/api/router/exec/*/client/*", Methods: []string{"*"}},
 	},
 	ActionWorkflowPortForward: {
 		{Path: "/api/workflow/*/portforward/*", Methods: []string{"*"}},
+		{Path: "/api/workflow/*/webserver/*", Methods: []string{"*"}},
+		{Path: "/api/router/portforward/*/client/*", Methods: []string{"*"}},
+		{Path: "/api/router/webserver/*", Methods: []string{"GET"}},
 	},
 	ActionWorkflowRsync: {
 		{Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
+		{Path: "/api/router/rsync/*/client/*", Methods: []string{"*"}},
 	},
 
+	// ==================== POOL ====================
+	ActionPoolList: {
+		{Path: "/api/pool", Methods: []string{"GET"}},
+		{Path: "/api/pool_quota", Methods: []string{"GET"}},
+	},
 	// ==================== BUCKET ====================
-	ActionBucketRead: {
+	ActionBucketList: {
 		{Path: "/api/bucket", Methods: []string{"GET"}},
+	},
+	ActionBucketRead: {
 		{Path: "/api/bucket/*", Methods: []string{"GET"}},
 	},
 	ActionBucketWrite: {
@@ -210,15 +223,6 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionBucketDelete: {
 		{Path: "/api/bucket/*", Methods: []string{"DELETE"}},
-	},
-
-	// ==================== POOL ====================
-	ActionPoolRead: {
-		{Path: "/api/pool", Methods: []string{"GET"}},
-		{Path: "/api/pool/*", Methods: []string{"GET"}},
-	},
-	ActionPoolDelete: {
-		{Path: "/api/pool/*", Methods: []string{"DELETE"}},
 	},
 
 	// ==================== CREDENTIALS ====================
@@ -238,11 +242,10 @@ var ActionRegistry = map[string][]EndpointPattern{
 
 	// ==================== PROFILE ====================
 	ActionProfileRead: {
-		{Path: "/api/profile", Methods: []string{"GET"}},
-		{Path: "/api/profile/*", Methods: []string{"GET"}},
+		{Path: "/api/profile/settings", Methods: []string{"GET"}},
 	},
 	ActionProfileUpdate: {
-		{Path: "/api/profile/*", Methods: []string{"PUT", "PATCH"}},
+		{Path: "/api/profile/settings", Methods: []string{"POST"}},
 	},
 
 	// ==================== USER ====================
@@ -300,13 +303,6 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/auth/access_token/service/*", Methods: []string{"*"}},
 	},
 
-	// ==================== ROUTER ====================
-	ActionRouterClient: {
-		{Path: "/api/router/webserver/*", Methods: []string{"*"}},
-		{Path: "/api/router/webserver_enabled", Methods: []string{"*"}},
-		{Path: "/api/router/*/*/client/*", Methods: []string{"*"}},
-	},
-
 	// ==================== SYSTEM (PUBLIC) ====================
 	ActionSystemHealth: {
 		{Path: "/health", Methods: []string{"*"}},
@@ -323,7 +319,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/agent/worker/*", Methods: []string{"*"}},
 	},
 	ActionInternalLogger: {
-		{Path: "/api/logger/workflow/*", Methods: []string{"*"}},
+		{Path: "/api/logger/workflow/*/osmo_ctrl/*", Methods: []string{"*"}},
 	},
 	ActionInternalRouter: {
 		{Path: "/api/router/*/*/backend/*", Methods: []string{"*"}},
@@ -451,7 +447,10 @@ func getPatternIndex() *patternIndex {
 // ResolvePathToAction converts an API path and method to a semantic action
 // Returns the action and resource, or empty strings if no match found
 // Optimized with pre-compiled patterns and indexed lookups
-func ResolvePathToAction(path, method string) (action string, resource string) {
+// ctx and pgClient are optional - if pgClient is nil, pool-scoped resources return "pool/*"
+func ResolvePathToAction(
+	ctx context.Context, path, method string, pgClient *postgres.PostgresClient,
+) (action string, resource string) {
 	// Normalize path - remove trailing slash and query string
 	normalizedPath := strings.TrimSuffix(path, "/")
 	if idx := strings.Index(normalizedPath, "?"); idx != -1 {
@@ -464,11 +463,11 @@ func ResolvePathToAction(path, method string) (action string, resource string) {
 	// Step 1: Try exact match first (O(1) lookup)
 	if methodMap, exists := pidx.exactMatches[normalizedPath]; exists {
 		if cp, found := methodMap[method]; found {
-			return cp.action, extractResourceFromPath(normalizedPath, cp.action)
+			return cp.action, extractResourceFromPath(ctx, normalizedPath, cp.action, pgClient)
 		}
 		// Try wildcard method
 		if cp, found := methodMap["*"]; found {
-			return cp.action, extractResourceFromPath(normalizedPath, cp.action)
+			return cp.action, extractResourceFromPath(ctx, normalizedPath, cp.action, pgClient)
 		}
 	}
 
@@ -501,7 +500,7 @@ func ResolvePathToAction(path, method string) (action string, resource string) {
 	// Step 4: Check patterns (already sorted by specificity)
 	for _, cp := range patternsToCheck {
 		if matchPathCompiled(pathParts, cp) {
-			return cp.action, extractResourceFromPath(normalizedPath, cp.action)
+			return cp.action, extractResourceFromPath(ctx, normalizedPath, cp.action, pgClient)
 		}
 	}
 
@@ -614,68 +613,145 @@ func MatchMethod(requestMethod string, allowedMethods []string) bool {
 
 // extractResourceFromPath extracts the scoped resource identifier from the path
 // based on the Resource-Action Model's scope definitions:
-//   - Global/public resources (pool, credentials, user, app, system, auth, router, resources) return "*"
+//   - Global/public resources return "" (empty) - no resource check needed
 //   - Self-scoped resources (bucket, config) return "{scope}/{id}"
 //   - User-scoped resources (profile) return "user/{id}"
-//   - Pool-scoped resources (workflow, task) return "pool/*" (pool cannot be determined from path)
+//   - Pool-scoped resources (workflow, task) return "pool/{pool_name}" via DB lookup
 //   - Internal resources return "backend/{id}"
-func extractResourceFromPath(path, action string) string {
+//
+// Returns empty string when no resource scope check is required.
+// ctx and pgClient are used for pool-scoped resources to look up the pool from workflow_id
+func extractResourceFromPath(
+	ctx context.Context, path, action string, pgClient *postgres.PostgresClient,
+) string {
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 
 	// Extract resource type from action (e.g., "workflow:Create" -> "workflow")
 	actionParts := strings.Split(action, ":")
-	if len(actionParts) < 1 {
-		return "*"
+	if len(actionParts) < 2 {
+		return ""
 	}
-	resourceType := actionParts[0]
+	resourceType := ResourceType(actionParts[0])
+	actionName := actionParts[1]
 
-	// Determine scope based on resource type (from Resource-Action Model)
-	switch ResourceType(resourceType) {
-	// Global/public resources - no specific scope
-	case ResourceTypeSystem, ResourceTypeAuth, ResourceTypeUser, ResourceTypePool,
-		ResourceTypeCredentials, ResourceTypeApp, ResourceTypeResources, ResourceTypeRouter:
-		return "*"
-
-	// Self-scoped resources - the resource ID IS the scope
+	// Determine resource identifier based on resource type
+	// Global/public resources don't require resource checks - access is action-based only
+	switch resourceType {
 	case ResourceTypeBucket:
-		return extractScopedResourceID(string(ResourceTypeBucket), parts, []string{"bucket"})
-	case ResourceTypeConfig:
-		return extractScopedResourceID(string(ResourceTypeConfig), parts, []string{"configs"})
-
-	// User-scoped resources - profile is scoped to user
-	case ResourceTypeProfile:
-		return extractScopedResourceID(string(ResourceTypeUser), parts, []string{"profile"})
-
-	// Pool-scoped resources - workflow/task are scoped to pool
-	// Pool cannot be determined from path alone
-	case ResourceTypeWorkflow:
-		return "pool/*"
-
-	// Internal resources - scoped to backend/workflow
-	case ResourceTypeInternal:
-		if len(parts) >= 3 {
-			return "backend/" + parts[2]
+		// Bucket-scoped resources - the resource ID IS the scope
+		if actionName == "List" {
+			return ""
 		}
-		return "backend/*"
+		return "bucket/" + extractScopedResourceID(parts, "bucket")
+
+	case ResourceTypeConfig:
+		// Config-scoped resources - the resource ID IS the scope
+		// Path uses "configs" (plural) in the URL
+		return "config/" + extractScopedResourceID(parts, "configs")
+
+	case ResourceTypeWorkflow:
+		// List action doesn't need resource scope check
+		if actionName == "List" {
+			return ""
+		}
+		// Pool-scoped resources - workflow/task are scoped to pool
+		return extractWorkflowPoolResource(ctx, parts, actionName, pgClient)
+
+	case ResourceTypeInternal:
+		// Backend-scoped resources - internal actions
+		if actionName == "Operator" {
+			return "backend/" + extractScopedResourceID(parts, "agent")
+		} else if actionName == "Logger" {
+			return "backend/" + extractScopedResourceID(parts, "logger")
+		} else if actionName == "Router" {
+			return "backend/" + extractScopedResourceID(parts, "router")
+		}
+		return ""
 
 	default:
-		return "*"
+		// Global/public resources - no resource check needed
+		return ""
 	}
 }
 
-// extractScopedResourceID extracts the resource ID from path parts and formats as "{scope}/{id}"
-func extractScopedResourceID(scope string, parts []string, pathSegments []string) string {
-	for i, part := range parts {
-		for _, segment := range pathSegments {
-			if part == segment {
-				if i+1 < len(parts) && parts[i+1] != "" {
-					return scope + "/" + parts[i+1]
+// extractWorkflowPoolResource extracts the pool resource for workflow operations
+// For Create: pool is in the path as /api/pool/{pool}/workflow
+// For other operations: workflow_id is in the path, look up pool from DB
+func extractWorkflowPoolResource(
+	ctx context.Context, parts []string, actionName string, pgClient *postgres.PostgresClient,
+) string {
+	// For Create action, pool is in the path: /api/pool/{pool}/workflow
+	// Path parts: ["api", "pool", "{pool}", "workflow"]
+	if actionName == "Create" {
+		for i, part := range parts {
+			if part == "pool" && i+1 < len(parts) {
+				poolName := parts[i+1]
+				if poolName != "" && poolName != "workflow" {
+					return string(ResourceTypePool) + "/" + poolName
 				}
-				return scope + "/*"
+			}
+		}
+		// Fallback if pool not found in path
+		return string(ResourceTypePool) + "/*"
+	}
+
+	// For other operations, workflow_id location depends on path pattern:
+	// - /api/workflow/{workflow_id}/* -> after "workflow"
+	// - /api/router/exec/{workflow_id}/client/* -> after "exec"
+	// - /api/router/portforward/{workflow_id}/client/* -> after "portforward"
+	// - /api/router/rsync/{workflow_id}/client/* -> after "rsync"
+	// - /api/router/webserver/* -> no pool check needed
+	workflowID := ""
+
+	// Check for router paths first
+	for i, part := range parts {
+		if part == "router" && i+1 < len(parts) {
+			nextPart := parts[i+1]
+			// /api/router/webserver/* - no pool check needed
+			if nextPart == "webserver" {
+				return ""
+			}
+			// /api/router/{exec|portforward|rsync}/{workflow_id}/client/*
+			if (nextPart == "exec" || nextPart == "portforward" || nextPart == "rsync") && i+2 < len(parts) {
+				workflowID = parts[i+2]
+				break
 			}
 		}
 	}
-	return scope + "/*"
+
+	// If not a router path, check for workflow path: /api/workflow/{workflow_id}/*
+	if workflowID == "" {
+		for i, part := range parts {
+			if part == "workflow" && i+1 < len(parts) {
+				workflowID = parts[i+1]
+				break
+			}
+		}
+	}
+
+	// If no workflow_id found or no postgres client, return wildcard
+	if workflowID == "" || pgClient == nil {
+		return string(ResourceTypePool) + "/*"
+	}
+
+	// Look up pool from workflow_id
+	poolName, err := GetPoolForWorkflow(ctx, pgClient, workflowID)
+	if err != nil || poolName == "" {
+		return string(ResourceTypePool) + "/*"
+	}
+
+	return string(ResourceTypePool) + "/" + poolName
+}
+
+// extractScopedResourceID extracts the resource ID from path parts and formats as "{scope}/{id}"
+// Returns the next part after a matching segment, or "*" if nothing is found
+func extractScopedResourceID(parts []string, previousPart string) string {
+	for i, part := range parts {
+		if part == previousPart && i+1 < len(parts) && parts[i+1] != "" {
+			return parts[i+1]
+		}
+	}
+	return "*"
 }
 
 // GetAllActions returns all registered action names
@@ -842,7 +918,10 @@ func ConvertLegacyActionToSemantic(action *RoleAction) []string {
 	for semanticAction, endpoints := range ActionRegistry {
 		for _, ep := range endpoints {
 			// Check if the method matches
-			if legacyMethod != "*" && !containsMethod(ep.Methods, legacyMethod) && !containsMethod(ep.Methods, "*") {
+			methodMatches := legacyMethod == "*" ||
+				containsMethod(ep.Methods, legacyMethod) ||
+				containsMethod(ep.Methods, "*")
+			if !methodMatches {
 				continue
 			}
 
@@ -1024,9 +1103,38 @@ type AccessResult struct {
 //   - "*" or "*:*" matches all actions
 //   - "workflow:*" matches all workflow actions
 //   - "*:Read" matches all Read actions across resources
-func CheckSemanticAction(policyAction *RoleAction, policyResources []string, path, method string) AccessResult {
+//
+// ctx and pgClient are optional - used for pool-scoped resource lookups
+func CheckSemanticAction(
+	ctx context.Context,
+	policyAction *RoleAction,
+	policyResources []string,
+	path, method string,
+	pgClient *postgres.PostgresClient,
+) AccessResult {
+	// Universal wildcard - allow all access without requiring path resolution
+	// This is used for admin roles that should have access to all endpoints
+	if policyAction.Action == "*:*" || policyAction.Action == "*" {
+		// Check if resources constraint allows it
+		resourceAllowed := len(policyResources) == 0
+		for _, pr := range policyResources {
+			if pr == "*" {
+				resourceAllowed = true
+				break
+			}
+		}
+		if resourceAllowed {
+			return AccessResult{
+				Allowed:       true,
+				Matched:       true,
+				MatchedAction: policyAction.Action,
+				ActionType:    ActionTypeSemantic,
+			}
+		}
+	}
+
 	// Resolve the path to a semantic action
-	resolvedAction, resolvedResource := ResolvePathToAction(path, method)
+	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
 	if resolvedAction == "" {
 		// Path doesn't map to any known action
 		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
@@ -1097,6 +1205,11 @@ func matchSemanticAction(pattern, action string) bool {
 //   - "pool/*" matches all resources in pool scope
 //   - "bucket/my-bucket" matches exact resource
 func matchResource(pattern, resource string) bool {
+	// Empty resource means no scope check is needed - always matches
+	if resource == "" {
+		return true
+	}
+
 	// Exact match
 	if pattern == resource {
 		return true
@@ -1133,14 +1246,18 @@ func matchResource(pattern, resource string) bool {
 //
 // The function resolves the path/method to a semantic action and checks against
 // the role's policies.
-func CheckPolicyAccess(role *Role, path, method string) AccessResult {
+//
+// ctx and pgClient are optional - used for pool-scoped resource lookups
+func CheckPolicyAccess(
+	ctx context.Context, role *Role, path, method string, pgClient *postgres.PostgresClient,
+) AccessResult {
 	for _, policy := range role.Policies {
 		for _, action := range policy.Actions {
 			if !action.IsSemanticAction() {
 				continue
 			}
 
-			result := CheckSemanticAction(&action, policy.Resources, path, method)
+			result := CheckSemanticAction(ctx, &action, policy.Resources, path, method, pgClient)
 			if result.Matched {
 				result.RoleName = role.Name
 				return result
@@ -1159,11 +1276,15 @@ func CheckPolicyAccess(role *Role, path, method string) AccessResult {
 
 // CheckRolesAccess checks if any of the given roles grants access to the path and method.
 // Returns the first AccessResult that grants access, or the last denial if none grant access.
-func CheckRolesAccess(roles []*Role, path, method string) AccessResult {
+//
+// ctx and pgClient are optional - used for pool-scoped resource lookups
+func CheckRolesAccess(
+	ctx context.Context, roles []*Role, path, method string, pgClient *postgres.PostgresClient,
+) AccessResult {
 	var lastResult AccessResult
 
 	for _, role := range roles {
-		result := CheckPolicyAccess(role, path, method)
+		result := CheckPolicyAccess(ctx, role, path, method, pgClient)
 		if result.Allowed {
 			return result
 		}
