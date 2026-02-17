@@ -17,8 +17,17 @@ import { env } from "~/env.mjs";
 import { getRequestScheme } from "~/utils/common";
 
 export async function GET(request: Request) {
+  const authorizationHeader = request.headers.get("authorization");
   const id_token = request.headers.get("x-osmo-auth") ?? "";
-  const osmoHeaders = { headers: { "x-osmo-auth": id_token } };
+
+  // Forward Authorization header (from OAuth2 Proxy) or x-osmo-auth (legacy)
+  const headers: Record<string, string> = {};
+  if (authorizationHeader) {
+    headers["authorization"] = authorizationHeader;
+  } else {
+    headers["x-osmo-auth"] = id_token;
+  }
+  const osmoHeaders = { headers };
 
   // Check if the token is valid by fetching workflows. This is the same as the kubernetes readiness
   // probe. all_pools=true is important for users that don't have a default pool
