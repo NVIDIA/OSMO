@@ -423,8 +423,6 @@ def main():
 
     connectors.PostgresConnector(config)
 
-    # Note: Authorization is now handled by the authz_sidecar (Go service).
-
     uvicorn_config = uvicorn.Config(app, host=host, port=port)
     uvicorn_server = uvicorn.Server(config=uvicorn_config)
     loop = asyncio.get_event_loop()
