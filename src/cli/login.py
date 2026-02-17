@@ -65,8 +65,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     token_group = login_parser.add_mutually_exclusive_group()
     token_group.add_argument('--token', help='Token if logging in with credentials.')
     token_group.add_argument('--token-file', type=argparse.FileType('r'),
-                             help='File containing the refresh token URL, '\
-                                  'with all parameters appended.').complete = shtab.FILE
+                             help='File containing the refresh token.').complete = shtab.FILE
 
     logout_parser = parser.add_parser('logout',
         help='Remove stored access tokens.')
@@ -119,14 +118,16 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
             raise osmo_errors.OSMOUserError('Must provide password')
         service_client.login_manager.owner_password_login(url, username, password)
 
-    # Login by directly reading the idtoken from a file
+    # Login by directly reading the refresh token from a file or argument
     elif args.method == 'token':
         if args.token_file:
-            refresh_url = args.token_file.read().strip()
+            token = args.token_file.read().strip()
+            args.token_file.close()
         elif args.token:
-            refresh_url = login.construct_token_refresh_url(url, args.token)
+            token = args.token
         else:
             raise osmo_errors.OSMOUserError('Must provide token file with --token_file or --token')
+        refresh_url = login.construct_token_refresh_url(url, token)
         service_client.login_manager.token_login(url, refresh_url)
 
     # For developers, simply send username as a header
