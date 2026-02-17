@@ -22,234 +22,156 @@ import (
 	"log/slog"
 	"os"
 	"testing"
-	"time"
 )
 
-func TestRoleCache_GetSet(t *testing.T) {
+func TestRoleCache_SetAndGet(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: true,
-		TTL:     1 * time.Hour,
-		MaxSize: 10,
-	}
-	cache := NewRoleCache(config, logger)
+	cache := NewRoleCache(100, logger)
 
-	roleNames := []string{"osmo-user", "osmo-default"}
 	testRoles := []*Role{
 		{Name: "osmo-user"},
 		{Name: "osmo-default"},
+		{Name: "osmo-admin"},
 	}
 
-	// Test cache miss
-	_, found := cache.Get(roleNames)
-	if found {
-		t.Error("expected cache miss, got hit")
+	// Set roles in cache
+	cache.Set(testRoles)
+
+	// Test size
+	if cache.Size() != 3 {
+		t.Errorf("expected size 3, got %d", cache.Size())
 	}
 
-	// Set cache
-	cache.Set(roleNames, testRoles)
+	// Test getting existing roles
+	roleNames := []string{"osmo-user", "osmo-default"}
+	found, missing := cache.Get(roleNames)
 
-	// Test cache hit
-	cached, found := cache.Get(roleNames)
-	if !found {
-		t.Error("expected cache hit, got miss")
+	if len(found) != 2 {
+		t.Errorf("expected 2 found roles, got %d", len(found))
 	}
 
-	if len(cached) != len(testRoles) {
-		t.Errorf("expected %d roles, got %d", len(testRoles), len(cached))
+	if len(missing) != 0 {
+		t.Errorf("expected 0 missing roles, got %d", len(missing))
 	}
 
-	for i, role := range cached {
-		if role.Name != testRoles[i].Name {
-			t.Errorf("expected role %s, got %s", testRoles[i].Name, role.Name)
+	// Verify role names
+	foundUser := false
+	foundDefault := false
+	for _, role := range found {
+		if role.Name == "osmo-user" {
+			foundUser = true
+		}
+		if role.Name == "osmo-default" {
+			foundDefault = true
+		}
+	}
+
+	if !foundUser || !foundDefault {
+		t.Error("expected to find osmo-user and osmo-default roles")
+	}
+}
+
+func TestRoleCache_GetWithMissing(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	cache := NewRoleCache(100, logger)
+
+	testRoles := []*Role{
+		{Name: "osmo-user"},
+	}
+
+	cache.Set(testRoles)
+
+	// Request a mix of existing and non-existing roles
+	roleNames := []string{"osmo-user", "non-existent-role", "another-missing"}
+	found, missing := cache.Get(roleNames)
+
+	// Should find 1 and miss 2
+	if len(found) != 1 {
+		t.Errorf("expected 1 found role, got %d", len(found))
+	}
+
+	if len(missing) != 2 {
+		t.Errorf("expected 2 missing roles, got %d", len(missing))
+	}
+
+	if found[0].Name != "osmo-user" {
+		t.Errorf("expected osmo-user, got %s", found[0].Name)
+	}
+
+	// Verify missing contains the right names
+	expectedMissing := map[string]bool{"non-existent-role": true, "another-missing": true}
+	for _, name := range missing {
+		if !expectedMissing[name] {
+			t.Errorf("unexpected missing role: %s", name)
 		}
 	}
 }
 
-func TestRoleCache_CacheKeyOrdering(t *testing.T) {
+func TestRoleCache_EmptyGet(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: true,
-		TTL:     1 * time.Hour,
-		MaxSize: 10,
-	}
-	cache := NewRoleCache(config, logger)
+	cache := NewRoleCache(100, logger)
 
 	testRoles := []*Role{
-		{Name: "role1"},
-		{Name: "role2"},
+		{Name: "osmo-user"},
 	}
 
-	// Set with one order
-	cache.Set([]string{"role2", "role1"}, testRoles)
+	cache.Set(testRoles)
 
-	// Get with different order - should still hit cache
-	cached, found := cache.Get([]string{"role1", "role2"})
-	if !found {
-		t.Error("expected cache hit with different role order")
+	// Request with empty list
+	found, missing := cache.Get([]string{})
+
+	if len(found) != 0 {
+		t.Errorf("expected 0 found roles for empty request, got %d", len(found))
 	}
 
-	if len(cached) != len(testRoles) {
-		t.Errorf("expected %d roles, got %d", len(testRoles), len(cached))
-	}
-}
-
-func TestRoleCache_Expiration(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: true,
-		TTL:     100 * time.Millisecond, // Very short TTL for testing
-		MaxSize: 10,
-	}
-	cache := NewRoleCache(config, logger)
-
-	roleNames := []string{"osmo-user"}
-	testRoles := []*Role{{Name: "osmo-user"}}
-
-	// Set cache
-	cache.Set(roleNames, testRoles)
-
-	// Should hit immediately
-	_, found := cache.Get(roleNames)
-	if !found {
-		t.Error("expected cache hit immediately after set")
-	}
-
-	// Wait for expiration
-	time.Sleep(150 * time.Millisecond)
-
-	// Should miss after expiration
-	_, found = cache.Get(roleNames)
-	if found {
-		t.Error("expected cache miss after expiration")
+	if len(missing) != 0 {
+		t.Errorf("expected 0 missing roles for empty request, got %d", len(missing))
 	}
 }
 
-func TestRoleCache_Disabled(t *testing.T) {
+func TestRoleCache_EmptyCache(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: false,
-		TTL:     1 * time.Hour,
-		MaxSize: 10,
+	cache := NewRoleCache(100, logger)
+
+	// Don't set any roles
+
+	if cache.Size() != 0 {
+		t.Errorf("expected size 0, got %d", cache.Size())
 	}
-	cache := NewRoleCache(config, logger)
 
-	roleNames := []string{"osmo-user"}
-	testRoles := []*Role{{Name: "osmo-user"}}
+	// Request roles from empty cache
+	found, missing := cache.Get([]string{"osmo-user", "osmo-admin"})
 
-	// Set cache (should do nothing)
-	cache.Set(roleNames, testRoles)
+	if len(found) != 0 {
+		t.Errorf("expected 0 found roles from empty cache, got %d", len(found))
+	}
 
-	// Should always miss when disabled
-	_, found := cache.Get(roleNames)
-	if found {
-		t.Error("expected cache miss when cache is disabled")
+	if len(missing) != 2 {
+		t.Errorf("expected 2 missing roles from empty cache, got %d", len(missing))
 	}
 }
 
-func TestRoleCache_MaxSize(t *testing.T) {
+func TestRoleCache_SetOverwrite(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: true,
-		TTL:     1 * time.Hour,
-		MaxSize: 3,
-	}
-	cache := NewRoleCache(config, logger)
+	cache := NewRoleCache(100, logger)
 
-	// Add 4 entries (exceeds max size of 3)
-	for i := 0; i < 4; i++ {
-		roleNames := []string{string(rune('a' + i))}
-		testRoles := []*Role{{Name: string(rune('a' + i))}}
-		cache.Set(roleNames, testRoles)
-		time.Sleep(10 * time.Millisecond) // Ensure different timestamps
-	}
+	// Set initial roles
+	cache.Set([]*Role{
+		{Name: "osmo-user", Description: "original"},
+	})
 
-	// Cache size should not exceed max
-	stats := cache.Stats()
-	size := stats["size"].(int)
-	if size > config.MaxSize {
-		t.Errorf("cache size %d exceeds max size %d", size, config.MaxSize)
+	// Set again with updated role
+	cache.Set([]*Role{
+		{Name: "osmo-user", Description: "updated"},
+	})
+
+	// Should have the updated version
+	found, _ := cache.Get([]string{"osmo-user"})
+	if len(found) != 1 {
+		t.Fatalf("expected 1 role, got %d", len(found))
 	}
 
-	// Size should be exactly max size (LRU evicted the oldest entry)
-	if size != config.MaxSize {
-		t.Errorf("expected cache size %d, got %d", config.MaxSize, size)
-	}
-}
-
-func TestRoleCache_Stats(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: true,
-		TTL:     1 * time.Hour,
-		MaxSize: 10,
-	}
-	cache := NewRoleCache(config, logger)
-
-	roleNames := []string{"osmo-user"}
-	testRoles := []*Role{{Name: "osmo-user"}}
-
-	// Cause a miss
-	cache.Get(roleNames)
-
-	// Set and cause a hit
-	cache.Set(roleNames, testRoles)
-	cache.Get(roleNames)
-
-	stats := cache.Stats()
-
-	if stats["enabled"].(bool) != true {
-		t.Error("expected cache to be enabled")
-	}
-
-	if stats["hits"].(int64) != 1 {
-		t.Errorf("expected 1 hit, got %d", stats["hits"])
-	}
-
-	if stats["misses"].(int64) != 1 {
-		t.Errorf("expected 1 miss, got %d", stats["misses"])
-	}
-
-	hitRate := stats["hit_rate"].(float64)
-	expectedHitRate := 50.0 // 1 hit out of 2 total
-	if hitRate != expectedHitRate {
-		t.Errorf("expected hit rate %f, got %f", expectedHitRate, hitRate)
-	}
-}
-
-func TestRoleCache_Clear(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	config := RoleCacheConfig{
-		Enabled: true,
-		TTL:     1 * time.Hour,
-		MaxSize: 10,
-	}
-	cache := NewRoleCache(config, logger)
-
-	roleNames := []string{"osmo-user"}
-	testRoles := []*Role{{Name: "osmo-user"}}
-
-	// Set cache
-	cache.Set(roleNames, testRoles)
-
-	// Should hit
-	_, found := cache.Get(roleNames)
-	if !found {
-		t.Error("expected cache hit before clear")
-	}
-
-	// Clear cache
-	cache.Clear()
-
-	// Should miss after clear
-	_, found = cache.Get(roleNames)
-	if found {
-		t.Error("expected cache miss after clear")
-	}
-
-	// Stats should show size 0
-	stats := cache.Stats()
-	if stats["size"].(int) != 0 {
-		t.Errorf("expected cache size 0 after clear, got %d", stats["size"])
+	if found[0].Description != "updated" {
+		t.Errorf("expected description 'updated', got '%s'", found[0].Description)
 	}
 }

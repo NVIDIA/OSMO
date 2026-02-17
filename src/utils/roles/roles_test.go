@@ -160,8 +160,9 @@ func TestRoleAction_JSONParsing(t *testing.T) {
 			},
 		},
 		{
-			name:      "parse mixed format (both semantic and legacy)",
-			jsonInput: `{"action": "workflow:Create", "base": "http", "path": "/api/test", "method": "POST"}`,
+			name: "parse mixed format (both semantic and legacy)",
+			jsonInput: `{"action": "workflow:Create", "base": "http", ` +
+				`"path": "/api/test", "method": "POST"}`,
 			expectedAction: RoleAction{
 				Action: "workflow:Create",
 				Base:   "http",
@@ -276,8 +277,9 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 			},
 		},
 		{
-			name:      "parse policy with mixed actions",
-			jsonInput: `{"actions": [{"action": "workflow:Create"}, {"base": "http", "path": "/api/legacy", "method": "POST"}]}`,
+			name: "parse policy with mixed actions",
+			jsonInput: `{"actions": [{"action": "workflow:Create"}, ` +
+				`{"base": "http", "path": "/api/legacy", "method": "POST"}]}`,
 			expectedPolicy: RolePolicy{
 				Actions: []RoleAction{
 					{Action: "workflow:Create"},
@@ -286,8 +288,9 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 			},
 		},
 		{
-			name:      "parse policy with resources",
-			jsonInput: `{"actions": [{"action": "workflow:Create"}], "resources": ["pool/production", "pool/staging"]}`,
+			name: "parse policy with resources",
+			jsonInput: `{"actions": [{"action": "workflow:Create"}], ` +
+				`"resources": ["pool/production", "pool/staging"]}`,
 			expectedPolicy: RolePolicy{
 				Actions: []RoleAction{
 					{Action: "workflow:Create"},
@@ -322,7 +325,9 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 				Actions: []RoleAction{
 					{Action: "workflow:Create"},
 				},
-				Resources: nil, // Note: This will be nil after direct unmarshal; GetRoles initializes to []string{}
+				// Note: This will be nil after direct unmarshal;
+				// GetRoles initializes to []string{}
+				Resources: nil,
 			},
 		},
 	}
@@ -372,7 +377,8 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 				}
 			} else {
 				if len(policy.Resources) != len(tt.expectedPolicy.Resources) {
-					t.Errorf("len(Resources) = %d, want %d", len(policy.Resources), len(tt.expectedPolicy.Resources))
+					t.Errorf("len(Resources) = %d, want %d",
+						len(policy.Resources), len(tt.expectedPolicy.Resources))
 					return
 				}
 				for i, res := range policy.Resources {
@@ -530,7 +536,9 @@ func TestRole_FullParsing(t *testing.T) {
 	if len(policy1.Actions) != 4 {
 		t.Errorf("len(Policies[0].Actions) = %d, want 4", len(policy1.Actions))
 	}
-	expectedActions1 := []string{"workflow:Create", "workflow:Read", "workflow:Update", "workflow:Delete"}
+	expectedActions1 := []string{
+		"workflow:Create", "workflow:Read", "workflow:Update", "workflow:Delete",
+	}
 	for i, action := range policy1.Actions {
 		if action.Action != expectedActions1[i] {
 			t.Errorf("Policies[0].Actions[%d].Action = %q, want %q", i, action.Action, expectedActions1[i])
@@ -792,7 +800,8 @@ func TestResourcePatterns(t *testing.T) {
 			}
 
 			if len(parsed.Resources) != len(resources) {
-				t.Errorf("after round-trip, len(Resources) = %d, want %d", len(parsed.Resources), len(resources))
+				t.Errorf("after round-trip, len(Resources) = %d, want %d",
+					len(parsed.Resources), len(resources))
 				return
 			}
 

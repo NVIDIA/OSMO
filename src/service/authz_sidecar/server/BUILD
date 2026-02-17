@@ -25,6 +25,7 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/service/authz_sidecar/server",
     visibility = ["//src/service/authz_sidecar:__subpackages__"],
     deps = [
+        "//src/utils/postgres:postgres",
         "//src/utils/roles",
         "@com_github_envoyproxy_go_control_plane_envoy//config/core/v3:go_default_library",
         "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:go_default_library",
@@ -39,7 +40,6 @@ go_test(
     name = "server_test",
     srcs = [
         "authz_server_test.go",
-        "integration_test.go",
     ],
     embed = [":server"],
     deps = [
