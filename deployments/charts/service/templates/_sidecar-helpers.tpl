@@ -397,6 +397,7 @@ OAuth2 Proxy sidecar container
     - --upstream=static://200
     - --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
     - --silence-ping-logging=true
+    - --skip-provider-button=true
     {{- range .Values.sidecars.oauth2Proxy.extraArgs }}
     - {{ . }}
     {{- end }}
