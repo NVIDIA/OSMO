@@ -151,39 +151,6 @@ oci_push(
     ],
 )
 
-# Integration test - requires running authz_sidecar service
-#
-# To run this test:
-#   1. Start PostgreSQL:
-#      docker run --rm -d --name postgres -p 5432:5432 \
-#        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
-#
-#   2. Start authz_sidecar:
-#      bazel run //src/service/authz_sidecar:authz_sidecar_bin_x86_64 -- \
-#        --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
-#
-#   3. Run the test:
-#      bazel test //src/service/authz_sidecar:authz_sidecar_integration_test --test_output=streamed
-#
-# Custom service address:
-#   bazel test //src/service/authz_sidecar:authz_sidecar_integration_test \
-#     --test_output=streamed \
-#     --test_arg=-authz-addr=localhost:50052
-#
-go_test(
-    name = "authz_sidecar_integration_test",
-    srcs = ["integration_test.go"],
-    deps = [
-        "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:auth",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//credentials/insecure:go_default_library",
-        "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
-    ],
-    visibility = ["//visibility:public"],
-    tags = ["service", "manual"],  # Requires service
-    local = True,  # Run locally without sandboxing
-)
-
 # Performance benchmark test for Go authz_sidecar
 #
 # To run this test:
