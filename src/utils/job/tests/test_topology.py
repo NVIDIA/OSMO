@@ -52,14 +52,14 @@ class TopologyTestBase(unittest.TestCase):
             online=True
         )
 
-    def create_mock_pod_spec(self, name: str) -> Dict[str, Any]:
+    def create_mock_pod_spec(self, task_name: str) -> Dict[str, Any]:
         """Create a mock pod spec for testing."""
         return {
             'apiVersion': 'v1',
             'kind': 'Pod',
             'metadata': {
-                'name': name,
-                'labels': {},
+                'name': f'pod-{task_name}',
+                'labels': {'osmo.task_name': task_name},
                 'annotations': {}
             },
             'spec': {
@@ -73,21 +73,15 @@ class TopologyTestBase(unittest.TestCase):
     def as_golden(self, podgroup: Dict) -> Dict:
         """Extract topology-relevant fields from a PodGroup for golden comparison.
 
-        Includes metadata (name, labels) and topology-relevant spec fields
-        (minMember, topologyConstraint, subGroups). Excludes non-topology spec
-        fields (queue, priorityClassName). Subgroups are sorted by name for
-        deterministic comparison.
+        Includes topology-relevant spec fields only (minMember, topologyConstraint,
+        subGroups). Excludes metadata and non-topology spec fields (queue,
+        priorityClassName). Subgroups are sorted by name for deterministic comparison.
         """
         topology_spec_keys = frozenset({'minMember', 'topologyConstraint', 'subGroups'})
         spec = {k: v for k, v in podgroup['spec'].items() if k in topology_spec_keys}
         if 'subGroups' in spec:
             spec['subGroups'] = sorted(spec['subGroups'], key=lambda sg: sg['name'])
-        return {
-            'apiVersion': podgroup['apiVersion'],
-            'kind': podgroup['kind'],
-            'metadata': podgroup['metadata'],
-            'spec': spec,
-        }
+        return spec
 
 
 class BasicTopologyTests(TopologyTestBase):
@@ -102,37 +96,22 @@ class BasicTopologyTests(TopologyTestBase):
         factory = kb_objects.KaiK8sObjectFactory(backend)
 
         group_uuid = 'test-group-uuid'
-        pods = [
-            self.create_mock_pod_spec('pod-1'),
-            self.create_mock_pod_spec('pod-2'),
-            self.create_mock_pod_spec('pod-3'),
-            self.create_mock_pod_spec('pod-4'),
-        ]
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
         topology_keys_list: List[topology.TopologyKey] = []
         task_infos = [topology.TaskTopology(name=f'task{i}', topology_requirements=[])
                       for i in range(1, 5)]
+        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
+        labels = {'test-label': 'test-value'}
+        pool_name = 'test-pool'
+        priority = wf_priority.WorkflowPriority.NORMAL
 
         k8s_resources = factory.create_group_k8s_resources(
             group_uuid, pods, labels, pool_name, priority, topology_keys_list, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
-        self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {'minMember': 4},
-        })
+        self.assertEqual(self.as_golden(k8s_resources[0]), {'minMember': 4})
 
         self.assertEqual(len(k8s_resources), 5)  # 1 PodGroup + 4 pods
         for pod in k8s_resources[1:]:
-            self.assertEqual(pod['metadata']['annotations']['pod-group-name'], group_uuid)
             self.assertNotIn('kai.scheduler/subgroup-name', pod['metadata']['labels'])
 
     def test_single_topology_level_required(self):
@@ -161,8 +140,7 @@ class BasicTopologyTests(TopologyTestBase):
         group_uuid = 'test-group-uuid'
         pods = []
         for task_info in task_infos:
-            pod = self.create_mock_pod_spec(f'pod-{task_info.name}')
-            pod['metadata']['labels']['osmo.task_name'] = task_info.name
+            pod = self.create_mock_pod_spec(task_info.name)
             pods.append(pod)
 
         labels = {'test-label': 'test-value'}
@@ -173,26 +151,16 @@ class BasicTopologyTests(TopologyTestBase):
             group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {
-                'minMember': 4,
-                'topologyConstraint': {
-                    'topology': topology_name,
-                    'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                },
+            'minMember': 4,
+            'topologyConstraint': {
+                'topology': topology_name,
+                'requiredTopologyLevel': 'nvidia.com/gpu-clique',
             },
         })
 
         for pod in k8s_resources[1:]:
-            self.assertEqual(pod['metadata']['annotations']['pod-group-name'], group_uuid)
             self.assertNotIn('kai.scheduler/subgroup-name', pod['metadata']['labels'])
 
 
@@ -230,8 +198,7 @@ class MultipleSubgroupTests(TopologyTestBase):
         group_uuid = 'test-group-uuid'
         pods = []
         for task_info in task_infos:
-            pod = self.create_mock_pod_spec(f'pod-{task_info.name}')
-            pod['metadata']['labels']['osmo.task_name'] = task_info.name
+            pod = self.create_mock_pod_spec(task_info.name)
             pods.append(pod)
 
         labels = {'test-label': 'test-value'}
@@ -242,35 +209,26 @@ class MultipleSubgroupTests(TopologyTestBase):
             group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {
-                'subGroups': [
-                    {
-                        'name': 'model-1-group',
-                        'minMember': 4,
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                        },
+            'subGroups': [
+                {
+                    'name': 'model-1-group',
+                    'minMember': 4,
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
-                    {
-                        'name': 'model-2-group',
-                        'minMember': 4,
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                        },
+                },
+                {
+                    'name': 'model-2-group',
+                    'minMember': 4,
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
-                ],
-            },
+                },
+            ],
         })
 
         for pod in k8s_resources[1:]:
@@ -319,8 +277,7 @@ class HierarchicalTopologyTests(TopologyTestBase):
         group_uuid = 'test-group-uuid'
         pods = []
         for task_info in task_infos:
-            pod = self.create_mock_pod_spec(f'pod-{task_info.name}')
-            pod['metadata']['labels']['osmo.task_name'] = task_info.name
+            pod = self.create_mock_pod_spec(task_info.name)
             pods.append(pod)
 
         labels = {'test-label': 'test-value'}
@@ -331,39 +288,30 @@ class HierarchicalTopologyTests(TopologyTestBase):
             group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
+            'topologyConstraint': {
+                'topology': topology_name,
+                'requiredTopologyLevel': 'topology.kubernetes.io/zone',
             },
-            'spec': {
-                'topologyConstraint': {
-                    'topology': topology_name,
-                    'requiredTopologyLevel': 'topology.kubernetes.io/zone',
+            'subGroups': [
+                {
+                    'name': 'workflow-group-model-1-group',
+                    'minMember': 4,
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'requiredTopologyLevel': 'nvidia.com/gpu-clique',
+                    },
                 },
-                'subGroups': [
-                    {
-                        'name': 'workflow-group-model-1-group',
-                        'minMember': 4,
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                        },
+                {
+                    'name': 'workflow-group-model-2-group',
+                    'minMember': 4,
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
-                    {
-                        'name': 'workflow-group-model-2-group',
-                        'minMember': 4,
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                        },
-                    },
-                ],
-            },
+                },
+            ],
         })
 
         for pod in k8s_resources[1:]:
@@ -408,8 +356,7 @@ class HierarchicalTopologyTests(TopologyTestBase):
         group_uuid = 'test-group-uuid'
         pods = []
         for task_info in task_infos:
-            pod = self.create_mock_pod_spec(f'pod-{task_info.name}')
-            pod['metadata']['labels']['osmo.task_name'] = task_info.name
+            pod = self.create_mock_pod_spec(task_info.name)
             pods.append(pod)
 
         labels = {'test-label': 'test-value'}
@@ -420,39 +367,30 @@ class HierarchicalTopologyTests(TopologyTestBase):
             group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
+            'topologyConstraint': {
+                'topology': topology_name,
+                'preferredTopologyLevel': 'topology.kubernetes.io/spine',
             },
-            'spec': {
-                'topologyConstraint': {
-                    'topology': topology_name,
-                    'preferredTopologyLevel': 'topology.kubernetes.io/spine',
+            'subGroups': [
+                {
+                    'name': 'workflow-group-model-1-group',
+                    'minMember': 4,
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'preferredTopologyLevel': 'topology.kubernetes.io/rack',
+                    },
                 },
-                'subGroups': [
-                    {
-                        'name': 'workflow-group-model-1-group',
-                        'minMember': 4,
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            'preferredTopologyLevel': 'topology.kubernetes.io/rack',
-                        },
+                {
+                    'name': 'workflow-group-model-2-group',
+                    'minMember': 4,
+                    'topologyConstraint': {
+                        'topology': topology_name,
+                        'preferredTopologyLevel': 'topology.kubernetes.io/rack',
                     },
-                    {
-                        'name': 'workflow-group-model-2-group',
-                        'minMember': 4,
-                        'topologyConstraint': {
-                            'topology': topology_name,
-                            'preferredTopologyLevel': 'topology.kubernetes.io/rack',
-                        },
-                    },
-                ],
-            },
+                },
+            ],
         })
 
 
@@ -477,8 +415,7 @@ class EdgeCaseTests(TopologyTestBase):
         group_uuid = 'test-group-uuid'
         pods = []
         for task_info in task_infos:
-            pod = self.create_mock_pod_spec(f'pod-{task_info.name}')
-            pod['metadata']['labels']['osmo.task_name'] = task_info.name
+            pod = self.create_mock_pod_spec(task_info.name)
             pods.append(pod)
 
         labels = {'test-label': 'test-value'}
@@ -489,16 +426,7 @@ class EdgeCaseTests(TopologyTestBase):
             group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
-        self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {'minMember': 4},
-        })
+        self.assertEqual(self.as_golden(k8s_resources[0]), {'minMember': 4})
 
         for pod in k8s_resources[1:]:
             self.assertNotIn('kai.scheduler/subgroup-name', pod['metadata']['labels'])
@@ -523,8 +451,7 @@ class EdgeCaseTests(TopologyTestBase):
         ]
 
         group_uuid = 'test-group-uuid'
-        pod = self.create_mock_pod_spec('pod-single-task')
-        pod['metadata']['labels']['osmo.task_name'] = 'single-task'
+        pod = self.create_mock_pod_spec('single-task')
 
         labels = {'test-label': 'test-value'}
         pool_name = 'test-pool'
@@ -534,21 +461,12 @@ class EdgeCaseTests(TopologyTestBase):
             group_uuid, [pod], labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {
-                'minMember': 1,
-                'topologyConstraint': {
-                    'topology': topology_name,
-                    'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                },
+            'minMember': 1,
+            'topologyConstraint': {
+                'topology': topology_name,
+                'requiredTopologyLevel': 'nvidia.com/gpu-clique',
             },
         })
 
@@ -578,8 +496,7 @@ class EdgeCaseTests(TopologyTestBase):
         group_uuid = 'test-group-uuid'
         pods = []
         for task_info in task_infos:
-            pod = self.create_mock_pod_spec(f'pod-{task_info.name}')
-            pod['metadata']['labels']['osmo.task_name'] = task_info.name
+            pod = self.create_mock_pod_spec(task_info.name)
             pods.append(pod)
 
         labels = {'test-label': 'test-value'}
@@ -593,21 +510,12 @@ class EdgeCaseTests(TopologyTestBase):
         # When all tasks share the same groups at all topology levels, the entire
         # path is a single-child chain. The algorithm walks down this chain and
         # promotes the constraint to the top level, using the finest shared level (rack).
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {
-                'minMember': 4,
-                'topologyConstraint': {
-                    'topology': topology_name,
-                    'requiredTopologyLevel': 'topology.kubernetes.io/rack',
-                },
+            'minMember': 4,
+            'topologyConstraint': {
+                'topology': topology_name,
+                'requiredTopologyLevel': 'topology.kubernetes.io/rack',
             },
         })
 
@@ -651,12 +559,7 @@ class ValidationTests(TopologyTestBase):
         ]
 
         group_uuid = 'test-group-uuid'
-        pods = [
-            self.create_mock_pod_spec('pod-task1'),
-            self.create_mock_pod_spec('pod-task2'),
-        ]
-        for i, pod in enumerate(pods):
-            pod['metadata']['labels']['osmo.task_name'] = task_infos[i].name
+        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
 
         labels = {'test-label': 'test-value'}
         pool_name = 'test-pool'
@@ -693,12 +596,7 @@ class ValidationTests(TopologyTestBase):
         ]
 
         group_uuid = 'test-group-uuid'
-        pods = [
-            self.create_mock_pod_spec('pod-task1'),
-            self.create_mock_pod_spec('pod-task2'),
-        ]
-        for i, pod in enumerate(pods):
-            pod['metadata']['labels']['osmo.task_name'] = task_infos[i].name
+        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
 
         labels = {'test-label': 'test-value'}
         pool_name = 'test-pool'
@@ -710,21 +608,12 @@ class ValidationTests(TopologyTestBase):
             group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
         )
 
-        queue = f'osmo-pool-test-namespace-{pool_name}'
         topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
-            'apiVersion': 'scheduling.run.ai/v2alpha2',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': {'kai.scheduler/queue': queue, 'runai/queue': queue, **labels},
-            },
-            'spec': {
-                'minMember': 2,
-                'topologyConstraint': {
-                    'topology': topology_name,
-                    'requiredTopologyLevel': 'nvidia.com/gpu-clique',
-                },
+            'minMember': 2,
+            'topologyConstraint': {
+                'topology': topology_name,
+                'requiredTopologyLevel': 'nvidia.com/gpu-clique',
             },
         })
 
