@@ -31,6 +31,7 @@ import (
 
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
+	backoff "go.corp.nvidia.com/osmo/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 	"go.corp.nvidia.com/osmo/utils/metrics"
 )
@@ -123,15 +124,15 @@ func runListenerWithRetry(
 				return
 			}
 			retryCount++
-			backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoff)
+			backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
+			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoffDur)
 
 			// Wait for backoff or context cancellation
 			select {
 			case <-ctx.Done():
 				log.Printf("[%s] Context cancelled during backoff, shutting down", name)
 				return
-			case <-time.After(backoff):
+			case <-time.After(backoffDur):
 				continue
 			}
 		}
@@ -197,7 +198,7 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
 			log.Printf("Failed to initialize backend: %v. Retrying...", err)
 		}
 
-		backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-		time.Sleep(backoff)
+		backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
+		time.Sleep(backoffDur)
 	}
 }
