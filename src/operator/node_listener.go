@@ -28,23 +28,27 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // NodeListener manages the bidirectional gRPC stream for node events
 type NodeListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
+	inst *utils.Instruments
 }
 
 // NewNodeListener creates a new node listener instance
-func NewNodeListener(args utils.ListenerArgs) *NodeListener {
+func NewNodeListener(args utils.ListenerArgs, inst *utils.Instruments) *NodeListener {
 	return &NodeListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_node_listener", utils.StreamNameNode),
+			args, "last_progress_node_listener", utils.StreamNameNode, inst),
 		args: args,
+		inst: inst,
 	}
 }
 
@@ -88,17 +92,8 @@ func (nl *NodeListener) sendMessages(
 					return
 				}
 				log.Printf("node watcher stopped unexpectedly...")
-				// Record message_channel_closed_unexpectedly_total
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_channel_closed_unexpectedly_total",
-						1,
-						"count",
-						"Message channel closed without context cancellation",
-						map[string]string{"listener": "node"},
-					)
-				}
+				nl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "node")))
 				cancel(fmt.Errorf("node watcher stopped"))
 				return
 			}
@@ -121,17 +116,8 @@ func (nl *NodeListener) watchNodes(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		// Record kubernetes_client_creation_error_total
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kubernetes_client_creation_error_total",
-				1,
-				"count",
-				"Failures to create Kubernetes client",
-				map[string]string{"listener": "node"},
-			)
-		}
+		nl.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "node")))
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}
@@ -147,42 +133,17 @@ func (nl *NodeListener) watchNodes(
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
-		// Record kb_event_watch_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kb_event_watch_count",
-				1,
-				"count",
-				"Number of Kubernetes events received from informer watches",
-				map[string]string{"type": "node"},
-			)
-		}
+		nl.inst.KBEventWatchCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "node")))
 
 		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
-				// Record metrics
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_queued_total",
-						1,
-						"count",
-						"Total messages added to listener channel buffer",
-						map[string]string{"listener": "node"},
-					)
-					// Record message_channel_pending
-					metricCreator.RecordHistogram(
-						ctx,
-						"message_channel_pending",
-						float64(len(nodeChan)),
-						"count",
-						"Number of messages pending in the listener channel buffer",
-						map[string]string{"listener": "node"},
-					)
-				}
+				nl.inst.MessageQueuedTotal.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "node")))
+				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)),
+					metric.WithAttributes(attribute.String("listener", "node")))
 			case <-done:
 				return
 			}
@@ -226,17 +187,8 @@ func (nl *NodeListener) watchNodes(
 
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
-		// Record event_watch_connection_error_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"event_watch_connection_error_count",
-				1,
-				"count",
-				"Count of connection errors when watching Kubernetes resources",
-				map[string]string{"type": "node"},
-			)
-		}
+		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "node")))
 		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 		log.Println("Sending NODE_INVENTORY after watch gap recovery")
 		nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
@@ -247,31 +199,13 @@ func (nl *NodeListener) watchNodes(
 	log.Println("Waiting for node informer cache to sync...")
 	if !cache.WaitForCacheSync(done, nodeInformer.HasSynced) {
 		log.Println("Failed to sync node informer cache")
-		// Record informer_cache_sync_failure metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"informer_cache_sync_failure",
-				1,
-				"count",
-				"Failed informer cache synchronizations",
-				map[string]string{"listener": "node"},
-			)
-		}
+		nl.inst.InformerCacheSyncFailure.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "node")))
 		return
 	}
 	log.Println("Node informer cache synced successfully")
-	// Record informer_cache_sync_success metric
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordCounter(
-			ctx,
-			"informer_cache_sync_success",
-			1,
-			"count",
-			"Successful informer cache synchronizations",
-			map[string]string{"listener": "node"},
-		)
-	}
+	nl.inst.InformerCacheSyncSuccess.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("listener", "node")))
 
 	nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 	log.Println("Sending initial NODE_INVENTORY after cache sync")
@@ -290,17 +224,8 @@ func (nl *NodeListener) rebuildNodesFromStore(
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
 
-	// Record informer_rebuild_total
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordCounter(
-			ctx,
-			"informer_rebuild_total",
-			1,
-			"count",
-			"Number of full state rebuilds from informer store",
-			map[string]string{"listener": "node"},
-		)
-	}
+	nl.inst.InformerRebuildTotal.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("listener", "node")))
 
 	sent := 0
 	skipped := 0
@@ -316,26 +241,10 @@ func (nl *NodeListener) rebuildNodesFromStore(
 			select {
 			case nodeChan <- msg:
 				sent++
-				// Record metrics
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_queued_total",
-						1,
-						"count",
-						"Total messages added to listener channel buffer",
-						map[string]string{"listener": "node"},
-					)
-					// Record message_channel_pending
-					metricCreator.RecordHistogram(
-						ctx,
-						"message_channel_pending",
-						float64(len(nodeChan)),
-						"count",
-						"Number of messages pending in the listener channel buffer",
-						map[string]string{"listener": "node"},
-					)
-				}
+				nl.inst.MessageQueuedTotal.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "node")))
+				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)),
+					metric.WithAttributes(attribute.String("listener", "node")))
 			case <-ctx.Done():
 				log.Printf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
 				return
@@ -406,17 +315,7 @@ func (nl *NodeListener) sendNodeInventory(
 		hostnames = append(hostnames, hostname)
 	}
 
-	// Record node_inventory_size
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordHistogram(
-			ctx,
-			"node_inventory_size",
-			float64(len(hostnames)),
-			"count",
-			"Number of hostnames in NODE_INVENTORY messages",
-			nil,
-		)
-	}
+	nl.inst.NodeInventorySize.Record(ctx, float64(len(hostnames)))
 
 	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
 	msg := &pb.ListenerMessage{
@@ -431,26 +330,10 @@ func (nl *NodeListener) sendNodeInventory(
 
 	select {
 	case nodeChan <- msg:
-		// Record metrics
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"message_queued_total",
-				1,
-				"count",
-				"Total messages added to listener channel buffer",
-				map[string]string{"listener": "node"},
-			)
-			// Record message_channel_pending
-			metricCreator.RecordHistogram(
-				ctx,
-				"message_channel_pending",
-				float64(len(nodeChan)),
-				"count",
-				"Number of messages pending in the listener channel buffer",
-				map[string]string{"listener": "node"},
-			)
-		}
+		nl.inst.MessageQueuedTotal.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "node")))
+		nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)),
+			metric.WithAttributes(attribute.String("listener", "node")))
 		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
 	case <-ctx.Done():
 		log.Println("sendNodeInventory: context cancelled while sending")

@@ -30,23 +30,27 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // WorkflowListener manages the bidirectional gRPC stream connection to the operator service
 type WorkflowListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
+	inst *utils.Instruments
 }
 
 // NewWorkflowListener creates a new workflow listener instance
-func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
+func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *WorkflowListener {
 	return &WorkflowListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_workflow_listener", utils.StreamNameWorkflow),
+			args, "last_progress_workflow_listener", utils.StreamNameWorkflow, inst),
 		args: args,
+		inst: inst,
 	}
 }
 
@@ -94,17 +98,8 @@ func (wl *WorkflowListener) sendMessages(
 					return
 				}
 				log.Println("Pod watcher stopped unexpectedly, draining channel...")
-				// Record message_channel_closed_unexpectedly_total
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_channel_closed_unexpectedly_total",
-						1,
-						"count",
-						"Message channel closed without context cancellation",
-						map[string]string{"listener": "workflow"},
-					)
-				}
+				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "workflow")))
 				wl.drainMessageChannel(ch)
 				cancel(fmt.Errorf("pod watcher stopped"))
 				return
@@ -146,17 +141,8 @@ func (wl *WorkflowListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		// Record kubernetes_client_creation_error_total
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kubernetes_client_creation_error_total",
-				1,
-				"count",
-				"Failures to create Kubernetes client",
-				map[string]string{"listener": "workflow"},
-			)
-		}
+		wl.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "workflow")))
 		return
 	}
 
@@ -180,17 +166,8 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		// Record kb_event_watch_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kb_event_watch_count",
-				1,
-				"count",
-				"Number of Kubernetes events received from informer watches",
-				map[string]string{"type": "pod"},
-			)
-		}
+		wl.inst.KBEventWatchCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "pod")))
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
@@ -199,38 +176,15 @@ func (wl *WorkflowListener) watchPods(
 
 		// shouldProcess calculates status once and returns it to avoid duplicate calculation
 		if changed, statusResult := stateTracker.shouldProcess(pod); changed {
-			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
+			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 			select {
 			case ch <- msg:
-				// Record metrics
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					// Record workflow_pod_state_change_total
-					metricCreator.RecordCounter(
-						ctx,
-						"workflow_pod_state_change_total",
-						1,
-						"count",
-						"Workflow pod state changes sent to the service",
-						map[string]string{"status": statusResult.Status},
-					)
-					metricCreator.RecordCounter(
-						ctx,
-						"message_queued_total",
-						1,
-						"count",
-						"Total messages added to listener channel buffer",
-						map[string]string{"listener": "workflow"},
-					)
-					// Record message_channel_pending
-					metricCreator.RecordHistogram(
-						ctx,
-						"message_channel_pending",
-						float64(len(ch)),
-						"count",
-						"Number of messages pending in the listener channel buffer",
-						map[string]string{"listener": "workflow"},
-					)
-				}
+				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("status", statusResult.Status)))
+				wl.inst.MessageQueuedTotal.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "workflow")))
+				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)),
+					metric.WithAttributes(attribute.String("listener", "workflow")))
 			case <-ctx.Done():
 				return
 			}
@@ -268,38 +222,15 @@ func (wl *WorkflowListener) watchPods(
 			}
 
 			if changed, statusResult := stateTracker.shouldProcess(pod); changed {
-				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
+				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 				select {
 				case ch <- msg:
-					// Record metrics
-					if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-						// Record workflow_pod_state_change_total
-						metricCreator.RecordCounter(
-							ctx,
-							"workflow_pod_state_change_total",
-							1,
-							"count",
-							"Workflow pod state changes sent to the service",
-							map[string]string{"status": statusResult.Status},
-						)
-						metricCreator.RecordCounter(
-							ctx,
-							"message_queued_total",
-							1,
-							"count",
-							"Total messages added to listener channel buffer",
-							map[string]string{"listener": "workflow"},
-						)
-						// Record message_channel_pending
-						metricCreator.RecordHistogram(
-							ctx,
-							"message_channel_pending",
-							float64(len(ch)),
-							"count",
-							"Number of messages pending in the listener channel buffer",
-							map[string]string{"listener": "workflow"},
-						)
-					}
+					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1,
+						metric.WithAttributes(attribute.String("status", statusResult.Status)))
+					wl.inst.MessageQueuedTotal.Add(ctx, 1,
+						metric.WithAttributes(attribute.String("listener", "workflow")))
+					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)),
+						metric.WithAttributes(attribute.String("listener", "workflow")))
 				case <-ctx.Done():
 					return
 				}
@@ -317,17 +248,8 @@ func (wl *WorkflowListener) watchPods(
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
-		// Record event_watch_connection_error_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"event_watch_connection_error_count",
-				1,
-				"count",
-				"Count of connection errors when watching Kubernetes resources",
-				map[string]string{"type": "workflow"},
-			)
-		}
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "workflow")))
 	})
 
 	// Start the informer
@@ -337,31 +259,13 @@ func (wl *WorkflowListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
-		// Record informer_cache_sync_failure metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"informer_cache_sync_failure",
-				1,
-				"count",
-				"Failed informer cache synchronizations",
-				map[string]string{"listener": "workflow"},
-			)
-		}
+		wl.inst.InformerCacheSyncFailure.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "workflow")))
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
-	// Record informer_cache_sync_success metric
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordCounter(
-			ctx,
-			"informer_cache_sync_success",
-			1,
-			"count",
-			"Successful informer cache synchronizations",
-			map[string]string{"listener": "workflow"},
-		)
-	}
+	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("listener", "workflow")))
 
 	// Keep the watcher running
 	<-ctx.Done()
@@ -456,6 +360,7 @@ func createPodUpdateMessage(
 	pod *corev1.Pod,
 	statusResult utils.TaskStatusResult,
 	backend string,
+	inst *utils.Instruments,
 ) *pb.ListenerMessage {
 	// Build pod update structure using proto-generated type
 	podUpdate := &pb.UpdatePodBody{
@@ -484,16 +389,7 @@ func createPodUpdateMessage(
 		// Record event_processing_times metric for significant condition changes
 		if cond.Status == corev1.ConditionTrue && !cond.LastTransitionTime.IsZero() {
 			processingDelay := time.Since(cond.LastTransitionTime.Time).Seconds()
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordHistogram(
-					context.Background(),
-					"event_processing_times",
-					processingDelay,
-					"seconds",
-					"Time elapsed between event occurrence and processing",
-					nil,
-				)
-			}
+			inst.EventProcessingTimes.Record(context.Background(), processingDelay)
 		}
 	}
 

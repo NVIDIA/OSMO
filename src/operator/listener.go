@@ -26,13 +26,14 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // Listener interface defines the common contract for all listener types
@@ -48,50 +49,56 @@ func main() {
 		cmdArgs.Backend, cmdArgs.Namespace,
 	)
 
-	// Initialize OpenTelemetry metrics from parsed arguments
-	if cmdArgs.Metrics.Enabled {
-		if err := metrics.InitMetricCreator(cmdArgs.Metrics); err != nil {
-			log.Printf("Failed to initialize metrics: %v", err)
-			// Continue without metrics - don't fail startup
-		} else {
-			log.Printf("OpenTelemetry metrics initialized: endpoint=%s", cmdArgs.Metrics.OTLPEndpoint)
-		}
-	}
-
 	// Set up context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Initialize OpenTelemetry metrics
+	var inst *utils.Instruments
+	var metricsShutdown func(context.Context) error
+	if cmdArgs.Metrics.Enabled {
+		var err error
+		inst, metricsShutdown, err = utils.InitOTEL(ctx, cmdArgs.Metrics)
+		if err != nil {
+			log.Printf("Failed to initialize metrics: %v", err)
+			inst = utils.NewNoopInstruments()
+		} else {
+			log.Printf("OpenTelemetry metrics initialized: endpoint=%s", cmdArgs.Metrics.OTLPEndpoint)
+		}
+	} else {
+		inst = utils.NewNoopInstruments()
+	}
 
 	// Add backend-name to metadata
 	md := metadata.Pairs("backend-name", cmdArgs.Backend)
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	if err := initializeBackend(ctx, cmdArgs); err != nil {
+	if err := initializeBackend(ctx, cmdArgs, inst); err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
 
 	// Create all listeners
-	workflowListener := NewWorkflowListener(cmdArgs)
-	nodeUsageListener := NewNodeUsageListener(cmdArgs)
-	nodeListener := NewNodeListener(cmdArgs)
-	eventListener := NewEventListener(cmdArgs)
+	workflowListener := NewWorkflowListener(cmdArgs, inst)
+	nodeUsageListener := NewNodeUsageListener(cmdArgs, inst)
+	nodeListener := NewNodeListener(cmdArgs, inst)
+	eventListener := NewEventListener(cmdArgs, inst)
 
 	var wg sync.WaitGroup
 
 	// Launch all listeners in parallel
 	wg.Add(4)
-	go runListenerWithRetry(ctx, workflowListener, "workflow", &wg)
-	go runListenerWithRetry(ctx, nodeUsageListener, "node_usage", &wg)
-	go runListenerWithRetry(ctx, nodeListener, "node", &wg)
-	go runListenerWithRetry(ctx, eventListener, "event", &wg)
+	go runListenerWithRetry(ctx, workflowListener, "workflow", inst, &wg)
+	go runListenerWithRetry(ctx, nodeUsageListener, "node_usage", inst, &wg)
+	go runListenerWithRetry(ctx, nodeListener, "node", inst, &wg)
+	go runListenerWithRetry(ctx, eventListener, "event", inst, &wg)
 
 	// Wait for all listeners to complete
 	wg.Wait()
 
-	// Shutdown metrics to flush pending metrics
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
+	// Flush pending metrics before exit
+	if metricsShutdown != nil {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := metricCreator.Shutdown(shutdownCtx); err != nil {
+		if err := metricsShutdown(shutdownCtx); err != nil {
 			log.Printf("Error shutting down metrics: %v", err)
 		} else {
 			log.Println("Metrics shut down successfully")
@@ -108,6 +115,7 @@ func runListenerWithRetry(
 	ctx context.Context,
 	listener Listener,
 	name string,
+	inst *utils.Instruments,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
@@ -123,34 +131,15 @@ func runListenerWithRetry(
 				return
 			}
 			retryCount++
-			// Record listener_retry_total metric
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"listener_retry_total",
-					1,
-					"count",
-					"Total number of listener retry attempts after connection failure",
-					map[string]string{"listener": name},
-				)
-			}
+			inst.ListenerRetryTotal.Add(ctx, 1,
+				metric.WithAttributes(attribute.String("listener", name)))
 
 			backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-			// Record listener_retry_backoff_seconds metric
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordHistogram(
-					ctx,
-					"listener_retry_backoff_seconds",
-					backoff.Seconds(),
-					"seconds",
-					"Backoff duration between listener retry attempts",
-					map[string]string{"listener": name},
-				)
-			}
+			inst.ListenerRetryBackoffSeconds.Record(ctx, backoff.Seconds(),
+				metric.WithAttributes(attribute.String("listener", name)))
 
 			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoff)
 
-			// Wait for backoff or context cancellation
 			select {
 			case <-ctx.Done():
 				log.Printf("[%s] Context cancelled during backoff, shutting down", name)
@@ -159,7 +148,6 @@ func runListenerWithRetry(
 				continue
 			}
 		}
-		// Clean exit
 		log.Printf("[%s] Listener exited cleanly", name)
 		return
 	}
@@ -167,7 +155,7 @@ func runListenerWithRetry(
 
 // initializeBackend sends the initial backend registration to the operator service
 // with automatic retry until successful or context cancelled
-func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
+func initializeBackend(ctx context.Context, args utils.ListenerArgs, inst *utils.Instruments) error {
 	version, err := libutils.LoadVersion()
 	if err != nil {
 		return fmt.Errorf("failed to load version from file: %w", err)
@@ -217,17 +205,7 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
 		}
 
 		retryCount++
-		// Record backend_init_retry_total metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"backend_init_retry_total",
-				1,
-				"count",
-				"Retry attempts during backend initialization",
-				nil,
-			)
-		}
+		inst.BackendInitRetryTotal.Add(ctx, 1)
 
 		if retryCount == 1 {
 			log.Printf("Failed to initialize backend: %v. Retrying...", err)

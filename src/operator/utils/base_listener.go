@@ -25,10 +25,11 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
 )
 
@@ -75,12 +76,12 @@ type BaseListener struct {
 
 	// Configuration
 	args ListenerArgs
+	inst *Instruments
 }
 
 // NewBaseListener creates a new base listener instance
 func NewBaseListener(
-	args ListenerArgs, progressFileName string, streamName StreamName) *BaseListener {
-	// Initialize progress writer
+	args ListenerArgs, progressFileName string, streamName StreamName, inst *Instruments) *BaseListener {
 	progressFile := filepath.Join(args.ProgressDir, progressFileName)
 	progressWriter, err := progress_check.NewProgressWriter(progressFile)
 	if err != nil {
@@ -95,6 +96,7 @@ func NewBaseListener(
 		unackedMessages: NewUnackMessages(args.MaxUnackedMessages),
 		progressWriter:  progressWriter,
 		streamName:      streamName,
+		inst:            inst,
 	}
 }
 
@@ -133,17 +135,7 @@ func (bl *BaseListener) receiveAcks(
 	for {
 		msg, err := bl.stream.Recv()
 		if err != nil {
-			// Record grpc_disconnect_count metric
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"grpc_disconnect_count",
-					1,
-					"count",
-					"Count of gRPC stream disconnections",
-					nil,
-				)
-			}
+			bl.inst.GRPCDisconnectCount.Add(ctx, 1)
 
 			// Check if context was cancelled
 			if ctx.Err() != nil {
@@ -162,27 +154,9 @@ func (bl *BaseListener) receiveAcks(
 		// Handle ACK messages by removing from unacked queue
 		bl.unackedMessages.RemoveMessage(msg.AckUuid)
 
-		// Record message_ack_received_total metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"message_ack_received_total",
-				1,
-				"count",
-				"Total ACK messages received from the server",
-				map[string]string{"stream": string(bl.streamName)},
-			)
-
-			// Record unacked_message_queue_depth after ACK processing
-			metricCreator.RecordHistogram(
-				ctx,
-				"unacked_message_queue_depth",
-				float64(bl.unackedMessages.Qsize()),
-				"count",
-				"Number of messages awaiting ACK from the server",
-				map[string]string{"stream": string(bl.streamName)},
-			)
-		}
+		streamAttr := metric.WithAttributes(attribute.String("stream", string(bl.streamName)))
+		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, streamAttr)
+		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), streamAttr)
 
 		log.Printf("Received ACK for %s message: uuid=%s", bl.streamName, msg.AckUuid)
 
@@ -320,20 +294,10 @@ func (bl *BaseListener) Run(
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Panic in receiveAcks goroutine: %v", r)
-				// Record goroutine_panic_total metric
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						context.Background(), // streamCtx may be cancelled
-						"goroutine_panic_total",
-						1,
-						"count",
-						"Panics caught in listener goroutines",
-						map[string]string{
-							"stream":    string(bl.streamName),
-							"goroutine": "receiver",
-						},
-					)
-				}
+				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, metric.WithAttributes(
+					attribute.String("stream", string(bl.streamName)),
+					attribute.String("goroutine", "receiver"),
+				))
 				streamCancel(fmt.Errorf("panic in receiver: %v", r))
 			}
 		}()
@@ -346,20 +310,10 @@ func (bl *BaseListener) Run(
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Panic in watch goroutine: %v", r)
-				// Record goroutine_panic_total metric
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						context.Background(), // streamCtx may be cancelled
-						"goroutine_panic_total",
-						1,
-						"count",
-						"Panics caught in listener goroutines",
-						map[string]string{
-							"stream":    string(bl.streamName),
-							"goroutine": "watcher",
-						},
-					)
-				}
+				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, metric.WithAttributes(
+					attribute.String("stream", string(bl.streamName)),
+					attribute.String("goroutine", "watcher"),
+				))
 				streamCancel(fmt.Errorf("panic in watcher: %v", r))
 			}
 		}()
@@ -371,20 +325,10 @@ func (bl *BaseListener) Run(
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Panic in sendMessages goroutine: %v", r)
-				// Record goroutine_panic_total metric
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						context.Background(), // streamCtx may be cancelled
-						"goroutine_panic_total",
-						1,
-						"count",
-						"Panics caught in listener goroutines",
-						map[string]string{
-							"stream":    string(bl.streamName),
-							"goroutine": "sender",
-						},
-					)
-				}
+				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, metric.WithAttributes(
+					attribute.String("stream", string(bl.streamName)),
+					attribute.String("goroutine", "sender"),
+				))
 				streamCancel(fmt.Errorf("panic in sender: %v", r))
 			}
 		}()
@@ -409,57 +353,20 @@ func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage
 		return nil
 	}
 
-	// Record unacked_message_queue_depth after adding to queue
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordHistogram(
-			ctx,
-			"unacked_message_queue_depth",
-			float64(bl.unackedMessages.Qsize()),
-			"count",
-			"Number of messages awaiting ACK from the server",
-			map[string]string{"stream": string(bl.streamName)},
-		)
-	}
+	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()),
+		metric.WithAttributes(attribute.String("stream", string(bl.streamName))))
 
 	// Record gRPC send duration
 	start := time.Now()
 	if err := bl.GetStream().Send(msg); err != nil {
-		// Record grpc_stream_send_error_total metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"grpc_stream_send_error_total",
-				1,
-				"count",
-				"Count of errors sending messages over gRPC stream",
-				map[string]string{"stream": string(bl.streamName)},
-			)
-		}
+		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("stream", string(bl.streamName))))
 		return err
 	}
 
-	// Record send duration and success metrics
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		// Record grpc_message_send_duration_seconds
-		metricCreator.RecordHistogram(
-			ctx,
-			"grpc_message_send_duration_seconds",
-			time.Since(start).Seconds(),
-			"seconds",
-			"Duration of gRPC stream Send call",
-			map[string]string{"stream": string(bl.streamName)},
-		)
-
-		// Record message_sent_total metric after successful send
-		metricCreator.RecordCounter(
-			ctx,
-			"message_sent_total",
-			1,
-			"count",
-			"Total messages successfully sent over gRPC stream",
-			map[string]string{"stream": string(bl.streamName)},
-		)
-	}
+	streamAttr := metric.WithAttributes(attribute.String("stream", string(bl.streamName)))
+	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), streamAttr)
+	bl.inst.MessageSentTotal.Add(ctx, 1, streamAttr)
 
 	return nil
 }

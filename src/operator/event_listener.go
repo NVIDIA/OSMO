@@ -29,23 +29,27 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // EventListener manages the bidirectional gRPC stream connection for Kubernetes events
 type EventListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
+	inst *utils.Instruments
 }
 
 // NewEventListener creates a new event listener instance
-func NewEventListener(args utils.ListenerArgs) *EventListener {
+func NewEventListener(args utils.ListenerArgs, inst *utils.Instruments) *EventListener {
 	return &EventListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_event_listener", utils.StreamNameEvent),
+			args, "last_progress_event_listener", utils.StreamNameEvent, inst),
 		args: args,
+		inst: inst,
 	}
 }
 
@@ -91,17 +95,8 @@ func (el *EventListener) sendMessages(
 					return
 				}
 				log.Println("Event watcher stopped unexpectedly")
-				// Record message_channel_closed_unexpectedly_total
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_channel_closed_unexpectedly_total",
-						1,
-						"count",
-						"Message channel closed without context cancellation",
-						map[string]string{"listener": "event"},
-					)
-				}
+				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "event")))
 				cancel(fmt.Errorf("event watcher stopped"))
 				return
 			}
@@ -137,16 +132,7 @@ func (el *EventListener) watchEvents(
 				tracker.mu.RLock()
 				size := len(tracker.sent)
 				tracker.mu.RUnlock()
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordHistogram(
-						ctx,
-						"event_tracker_size",
-						float64(size),
-						"count",
-						"Number of entries in event deduplication tracker after cleanup",
-						nil,
-					)
-				}
+				el.inst.EventTrackerSize.Record(ctx, float64(size))
 				log.Println("Event tracker cleanup completed")
 			}
 		}
@@ -155,17 +141,8 @@ func (el *EventListener) watchEvents(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		// Record kubernetes_client_creation_error_total
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kubernetes_client_creation_error_total",
-				1,
-				"count",
-				"Failures to create Kubernetes client",
-				map[string]string{"listener": "event"},
-			)
-		}
+		el.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "event")))
 		return
 	}
 
@@ -181,17 +158,8 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		// Record kb_event_watch_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kb_event_watch_count",
-				1,
-				"count",
-				"Number of Kubernetes events received from informer watches",
-				map[string]string{"type": "event"},
-			)
-		}
+		el.inst.KBEventWatchCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "event")))
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
@@ -200,43 +168,17 @@ func (el *EventListener) watchEvents(
 
 		// Check if we should process this event (deduplication)
 		if !tracker.shouldProcess(event.Type, event.Reason, event.InvolvedObject.Name) {
-			// Record event_deduplicated_total
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"event_deduplicated_total",
-					1,
-					"count",
-					"Events skipped due to deduplication",
-					nil,
-				)
-			}
+			el.inst.EventDeduplicatedTotal.Add(ctx, 1)
 			return
 		}
 
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
-			// Record metrics
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"message_queued_total",
-					1,
-					"count",
-					"Total messages added to listener channel buffer",
-					map[string]string{"listener": "event"},
-				)
-				// Record message_channel_pending
-				metricCreator.RecordHistogram(
-					ctx,
-					"message_channel_pending",
-					float64(len(ch)),
-					"count",
-					"Number of messages pending in the listener channel buffer",
-					map[string]string{"listener": "event"},
-				)
-			}
+			el.inst.MessageQueuedTotal.Add(ctx, 1,
+				metric.WithAttributes(attribute.String("listener", "event")))
+			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)),
+				metric.WithAttributes(attribute.String("listener", "event")))
 		case <-ctx.Done():
 			return
 		}
@@ -260,18 +202,8 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
-
-		// Record event_watch_connection_error_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"event_watch_connection_error_count",
-				1,
-				"count",
-				"Count of connection errors when watching Kubernetes resources",
-				map[string]string{"type": "event"},
-			)
-		}
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "event")))
 	})
 
 	// Start the informer
@@ -281,31 +213,13 @@ func (el *EventListener) watchEvents(
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		log.Println("Failed to sync event informer cache")
-		// Record informer_cache_sync_failure metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"informer_cache_sync_failure",
-				1,
-				"count",
-				"Failed informer cache synchronizations",
-				map[string]string{"listener": "event"},
-			)
-		}
+		el.inst.InformerCacheSyncFailure.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "event")))
 		return
 	}
 	log.Println("Event informer cache synced successfully")
-	// Record informer_cache_sync_success metric
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordCounter(
-			ctx,
-			"informer_cache_sync_success",
-			1,
-			"count",
-			"Successful informer cache synchronizations",
-			map[string]string{"listener": "event"},
-		)
-	}
+	el.inst.InformerCacheSyncSuccess.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("listener", "event")))
 
 	// Keep the watcher running
 	<-ctx.Done()

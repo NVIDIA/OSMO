@@ -22,7 +22,6 @@ import (
 	"flag"
 
 	sharedutils "go.corp.nvidia.com/osmo/utils"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // ListenerArgs holds configuration for all listeners
@@ -44,7 +43,7 @@ type ListenerArgs struct {
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (NodeUsageListener)
 
 	// OpenTelemetry metrics configuration
-	Metrics metrics.MetricsConfig
+	Metrics OTELConfig
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -96,7 +95,7 @@ func ListenerParse() ListenerArgs {
 		"Interval for flushing resource usage updates (ResourceListener)")
 
 	// OpenTelemetry metrics configuration
-	metricsFlagPtrs := metrics.RegisterMetricsFlags("osmo-operator")
+	buildMetricsConfig := RegisterOTELFlags("osmo-operator")
 
 	flag.Parse()
 
@@ -116,6 +115,6 @@ func ListenerParse() ListenerArgs {
 		ProgressDir:           *progressDir,
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
-		Metrics:               metricsFlagPtrs.ToMetricsConfig(),
+		Metrics:               buildMetricsConfig(),
 	}
 }

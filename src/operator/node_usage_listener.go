@@ -29,9 +29,11 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
-	"go.corp.nvidia.com/osmo/utils/metrics"
 )
 
 // NodeUsageListener manages the bidirectional gRPC stream for pod resource usage
@@ -39,15 +41,17 @@ type NodeUsageListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
 	aggregator *utils.NodeUsageAggregator
+	inst       *utils.Instruments
 }
 
 // NewNodeUsageListener creates a new node usage listener instance
-func NewNodeUsageListener(args utils.ListenerArgs) *NodeUsageListener {
+func NewNodeUsageListener(args utils.ListenerArgs, inst *utils.Instruments) *NodeUsageListener {
 	return &NodeUsageListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_node_usage_listener", utils.StreamNameNodeUsage),
+			args, "last_progress_node_usage_listener", utils.StreamNameNodeUsage, inst),
 		args:       args,
 		aggregator: utils.NewNodeUsageAggregator(args.Namespace),
+		inst:       inst,
 	}
 }
 
@@ -90,17 +94,8 @@ func (nul *NodeUsageListener) sendMessages(
 					return
 				}
 				log.Printf("usage watcher stopped unexpectedly...")
-				// Record message_channel_closed_unexpectedly_total
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_channel_closed_unexpectedly_total",
-						1,
-						"count",
-						"Message channel closed without context cancellation",
-						map[string]string{"listener": "node_usage"},
-					)
-				}
+				nul.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "node_usage")))
 				cancel(fmt.Errorf("usage watcher stopped"))
 				return
 			}
@@ -122,17 +117,8 @@ func (nul *NodeUsageListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		// Record kubernetes_client_creation_error_total
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"kubernetes_client_creation_error_total",
-				1,
-				"count",
-				"Failures to create Kubernetes client",
-				map[string]string{"listener": "node_usage"},
-			)
-		}
+		nul.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "node_usage")))
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}
@@ -161,33 +147,15 @@ func (nul *NodeUsageListener) watchPods(
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			// Record kb_event_watch_count metric
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"kb_event_watch_count",
-					1,
-					"count",
-					"Number of Kubernetes events received from informer watches",
-					map[string]string{"type": "node_usage"},
-				)
-			}
+			nul.inst.KBEventWatchCount.Add(ctx, 1,
+				metric.WithAttributes(attribute.String("type", "node_usage")))
 
 			pod := obj.(*corev1.Pod)
 			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			// Record kb_event_watch_count metric
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"kb_event_watch_count",
-					1,
-					"count",
-					"Number of Kubernetes events received from informer watches",
-					map[string]string{"type": "node_usage"},
-				)
-			}
+			nul.inst.KBEventWatchCount.Add(ctx, 1,
+				metric.WithAttributes(attribute.String("type", "node_usage")))
 
 			pod := newObj.(*corev1.Pod)
 
@@ -204,17 +172,8 @@ func (nul *NodeUsageListener) watchPods(
 
 		},
 		DeleteFunc: func(obj interface{}) {
-			// Record kb_event_watch_count metric
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordCounter(
-					ctx,
-					"kb_event_watch_count",
-					1,
-					"count",
-					"Number of Kubernetes events received from informer watches",
-					map[string]string{"type": "node_usage"},
-				)
-			}
+			nul.inst.KBEventWatchCount.Add(ctx, 1,
+				metric.WithAttributes(attribute.String("type", "node_usage")))
 
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {
@@ -241,17 +200,8 @@ func (nul *NodeUsageListener) watchPods(
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
-		// Record event_watch_connection_error_count metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"event_watch_connection_error_count",
-				1,
-				"count",
-				"Count of connection errors when watching Kubernetes resources",
-				map[string]string{"type": "node_usage"},
-			)
-		}
+		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("type", "node_usage")))
 		nul.rebuildPodsFromStore(podInformer)
 	})
 
@@ -262,31 +212,13 @@ func (nul *NodeUsageListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
-		// Record informer_cache_sync_failure metric
-		if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-			metricCreator.RecordCounter(
-				ctx,
-				"informer_cache_sync_failure",
-				1,
-				"count",
-				"Failed informer cache synchronizations",
-				map[string]string{"listener": "node_usage"},
-			)
-		}
+		nul.inst.InformerCacheSyncFailure.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("listener", "node_usage")))
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
-	// Record informer_cache_sync_success metric
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordCounter(
-			ctx,
-			"informer_cache_sync_success",
-			1,
-			"count",
-			"Successful informer cache synchronizations",
-			map[string]string{"listener": "node_usage"},
-		)
-	}
+	nul.inst.InformerCacheSyncSuccess.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("listener", "node_usage")))
 
 	// Initial rebuild from store after sync
 	nul.rebuildPodsFromStore(podInformer)
@@ -305,17 +237,7 @@ func (nul *NodeUsageListener) watchPods(
 			// Debounced flush of dirty nodes - send usage messages
 			start := time.Now()
 			nul.flushDirtyNodes(ctx, ch)
-			// Record flush duration
-			if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-				metricCreator.RecordHistogram(
-					ctx,
-					"node_usage_flush_duration_seconds",
-					time.Since(start).Seconds(),
-					"seconds",
-					"Duration of dirty node usage flush cycle",
-					nil,
-				)
-			}
+			nul.inst.NodeUsageFlushDuration.Record(ctx, time.Since(start).Seconds())
 		}
 	}
 }
@@ -324,17 +246,8 @@ func (nul *NodeUsageListener) watchPods(
 func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
 	log.Println("Rebuilding pod aggregator state from informer store...")
 
-	// Record informer_rebuild_total
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordCounter(
-			context.Background(),
-			"informer_rebuild_total",
-			1,
-			"count",
-			"Number of full state rebuilds from informer store",
-			map[string]string{"listener": "node_usage"},
-		)
-	}
+	nul.inst.InformerRebuildTotal.Add(context.Background(), 1,
+		metric.WithAttributes(attribute.String("listener", "node_usage")))
 
 	// Reset aggregator state
 	nul.aggregator.Reset()
@@ -363,17 +276,7 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 		return
 	}
 
-	// Record node_usage_flush_nodes_count
-	if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-		metricCreator.RecordHistogram(
-			ctx,
-			"node_usage_flush_nodes_count",
-			float64(len(dirtyNodes)),
-			"count",
-			"Number of dirty nodes flushed per usage update cycle",
-			nil,
-		)
-	}
+	nul.inst.NodeUsageFlushNodesCount.Record(ctx, float64(len(dirtyNodes)))
 
 	sent := 0
 	for _, hostname := range dirtyNodes {
@@ -382,26 +285,10 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 			select {
 			case usageChan <- msg:
 				sent++
-				// Record metrics
-				if metricCreator := metrics.GetMetricCreator(); metricCreator != nil {
-					metricCreator.RecordCounter(
-						ctx,
-						"message_queued_total",
-						1,
-						"count",
-						"Total messages added to listener channel buffer",
-						map[string]string{"listener": "node_usage"},
-					)
-					// Record message_channel_pending
-					metricCreator.RecordHistogram(
-						ctx,
-						"message_channel_pending",
-						float64(len(usageChan)),
-						"count",
-						"Number of messages pending in the listener channel buffer",
-						map[string]string{"listener": "node_usage"},
-					)
-				}
+				nul.inst.MessageQueuedTotal.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("listener", "node_usage")))
+				nul.inst.MessageChannelPending.Record(ctx, float64(len(usageChan)),
+					metric.WithAttributes(attribute.String("listener", "node_usage")))
 			case <-ctx.Done():
 				log.Printf("Flushed %d/%d resource usage messages before shutdown",
 					sent, len(dirtyNodes))
