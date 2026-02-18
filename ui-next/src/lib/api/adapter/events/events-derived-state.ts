@@ -51,7 +51,7 @@ import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
  * Lifecycle stages for UI filtering.
  * Derived from event data, not pod phase.
  */
-export type Lifecycle = "Pending" | "Init" | "Running" | "Failed" | "Done";
+export type Lifecycle = "Scheduling" | "Init" | "Running" | "Failed" | "Done";
 
 /**
  * Derived state computed once from events and cached on TaskGroup.
@@ -170,7 +170,7 @@ function deriveLifecycle(furthestProgressIndex: number, lastEventStage: Lifecycl
     case 1:
       return "Init";
     default:
-      return "Pending";
+      return "Scheduling";
   }
 }
 
@@ -224,7 +224,7 @@ export function computeDerivedState(events: K8sEvent[]): TaskDerivedState {
   if (events.length === 0) {
     return {
       podPhase: "Unknown",
-      lifecycle: "Pending",
+      lifecycle: "Scheduling",
       hasScheduledEvent: false,
       furthestProgressIndex: -1,
       observedStageIndices: new Set(),

@@ -42,7 +42,7 @@ export const LIFECYCLE_FIELD: SearchField<TaskGroup> = {
   hint: "Filter tasks currently at lifecycle stage",
   exhaustive: true,
   requiresValidValue: true,
-  getValues: () => ["Pending", "Init", "Running", "Failed", "Done"],
+  getValues: () => ["Scheduling", "Init", "Running", "Failed", "Done"],
   match: (task, value) => {
     // Use cached derived state (SSOT: computed once from events)
     return task.derived.lifecycle === value;
@@ -134,7 +134,7 @@ export const EVENT_SEARCH_FIELDS: readonly SearchField<TaskGroup>[] = Object.fre
  * Preset button colors for lifecycle stages.
  */
 const LIFECYCLE_PRESET_COLORS: Record<string, { dot: string; bg: string; text: string }> = {
-  Pending: {
+  Scheduling: {
     dot: "bg-purple-500",
     bg: "bg-purple-100 dark:bg-purple-900/50",
     text: "text-purple-700 dark:text-purple-300",
@@ -188,7 +188,7 @@ const SEVERITY_PRESET_COLORS: Record<EventSeverity, { dot: string; bg: string; t
 export const EVENT_PRESETS: { label: string; items: SearchPreset[] }[] = [
   {
     label: "Lifecycle",
-    items: (["Pending", "Init", "Running", "Failed", "Done"] as const).map((stage) => {
+    items: (["Scheduling", "Init", "Running", "Failed", "Done"] as const).map((stage) => {
       const colors = LIFECYCLE_PRESET_COLORS[stage];
       return {
         id: `lifecycle-${stage.toLowerCase()}`,

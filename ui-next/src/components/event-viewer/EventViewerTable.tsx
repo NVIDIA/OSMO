@@ -43,8 +43,6 @@ export interface EventViewerTableProps {
   expandedIds: Set<string>;
   onToggleExpand?: (taskId: string) => void;
   showHeader?: boolean;
-  /** Whether the parent entity (workflow/task) has reached a terminal state */
-  isParentTerminal?: boolean;
   className?: string;
 }
 
@@ -53,7 +51,6 @@ export function EventViewerTable({
   expandedIds,
   onToggleExpand,
   showHeader = true,
-  isParentTerminal,
   className,
 }: EventViewerTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -187,7 +184,6 @@ export function EventViewerTable({
                     onToggleExpand={onToggleExpand}
                     isLast={virtualRow.index === tasks.length - 1}
                     isOdd={virtualRow.index % 2 !== 0}
-                    isParentTerminal={isParentTerminal}
                   />
                 </div>
               );

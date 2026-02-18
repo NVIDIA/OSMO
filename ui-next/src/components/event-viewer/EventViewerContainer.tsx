@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { useEventStream } from "@/lib/api/adapter/events/use-event-stream";
 import { groupEventsByTask } from "@/lib/api/adapter/events/events-grouping";
 import { EventViewerTable } from "@/components/event-viewer/EventViewerTable";
+import { EventViewerProvider } from "@/components/event-viewer/EventViewerContext";
+import type { TaskGroupStatus } from "@/lib/api/generated";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/event-search-fields";
@@ -38,9 +40,28 @@ export interface EventViewerContainerProps {
    * Enables inference of missing terminal events in the lifecycle progress bar.
    */
   isTerminal?: boolean;
+  /**
+   * OSMO task status from Postgres. Only available in task scope (TaskDetails).
+   * K8s events arrive faster than Postgres state updates; this is used to
+   * correct the "Running" label when K8s events race ahead of OSMO state.
+   */
+  taskStatus?: TaskGroupStatus;
+  /**
+   * Per-task status map for workflow scope. Key: `${taskName}:${retryId}`.
+   * Built from workflow.groups[].tasks[] and allows each row to resolve its
+   * own OSMO status. Mutually exclusive with taskStatus (task scope vs workflow scope).
+   */
+  taskStatuses?: Map<string, TaskGroupStatus>;
 }
 
-export function EventViewerContainer({ url, className, scope = "workflow", isTerminal }: EventViewerContainerProps) {
+export function EventViewerContainer({
+  url,
+  className,
+  scope = "workflow",
+  isTerminal,
+  taskStatus,
+  taskStatuses,
+}: EventViewerContainerProps) {
   const isTaskScope = scope === "task";
 
   // URL-synced filter chips (only in workflow scope)
@@ -157,67 +178,72 @@ export function EventViewerContainer({ url, className, scope = "workflow", isTer
   }
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      {/* Filter bar - only in workflow scope */}
-      {!isTaskScope && (
-        <div className="bg-card border-border flex items-center gap-3 border-b px-4 py-3">
-          {/* FilterBar with search fields and presets */}
-          <div className="min-w-0 flex-1">
-            <FilterBar
-              data={groupedTasks}
-              fields={EVENT_SEARCH_FIELDS}
-              chips={searchChips}
-              onChipsChange={setSearchChips}
-              placeholder="Search tasks or events..."
-              presets={EVENT_PRESETS}
-            />
-          </div>
-
-          {/* Streaming status indicator */}
-          {isStreaming && (
-            <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400">
-              <Radio className="size-3 animate-pulse" />
-              <span>Live</span>
+    <EventViewerProvider
+      isParentTerminal={isTerminal ?? false}
+      taskStatus={taskStatus}
+      taskStatuses={taskStatuses}
+    >
+      <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+        {/* Filter bar - only in workflow scope */}
+        {!isTaskScope && (
+          <div className="bg-card border-border flex items-center gap-3 border-b px-4 py-3">
+            {/* FilterBar with search fields and presets */}
+            <div className="min-w-0 flex-1">
+              <FilterBar
+                data={groupedTasks}
+                fields={EVENT_SEARCH_FIELDS}
+                chips={searchChips}
+                onChipsChange={setSearchChips}
+                placeholder="Search tasks or events..."
+                presets={EVENT_PRESETS}
+              />
             </div>
-          )}
-          {isReconnecting && (
-            <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-600 dark:text-yellow-400">
-              <Loader2 className="size-3 animate-spin" />
-              <span>Reconnecting</span>
+
+            {/* Streaming status indicator */}
+            {isStreaming && (
+              <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400">
+                <Radio className="size-3 animate-pulse" />
+                <span>Live</span>
+              </div>
+            )}
+            {isReconnecting && (
+              <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-600 dark:text-yellow-400">
+                <Loader2 className="size-3 animate-spin" />
+                <span>Reconnecting</span>
+              </div>
+            )}
+
+            {/* Expand/Collapse All */}
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={expandAll}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                title="Expand all tasks"
+              >
+                <ChevronsUpDown className="size-3" />
+                <span>Expand All</span>
+              </button>
+              <button
+                onClick={collapseAll}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                title="Collapse all tasks"
+              >
+                <ChevronsDownUp className="size-3" />
+                <span>Collapse All</span>
+              </button>
             </div>
-          )}
-
-          {/* Expand/Collapse All */}
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              onClick={expandAll}
-              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-              title="Expand all tasks"
-            >
-              <ChevronsUpDown className="size-3" />
-              <span>Expand All</span>
-            </button>
-            <button
-              onClick={collapseAll}
-              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-              title="Collapse all tasks"
-            >
-              <ChevronsDownUp className="size-3" />
-              <span>Collapse All</span>
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Table */}
-      <EventViewerTable
-        tasks={filteredTasks}
-        expandedIds={effectiveExpandedIds}
-        onToggleExpand={isTaskScope ? undefined : toggleExpand}
-        showHeader={!isTaskScope}
-        isParentTerminal={isTerminal}
-        className="min-h-0 flex-1"
-      />
-    </div>
+        {/* Table */}
+        <EventViewerTable
+          tasks={filteredTasks}
+          expandedIds={effectiveExpandedIds}
+          onToggleExpand={isTaskScope ? undefined : toggleExpand}
+          showHeader={!isTaskScope}
+          className="min-h-0 flex-1"
+        />
+      </div>
+    </EventViewerProvider>
   );
 }

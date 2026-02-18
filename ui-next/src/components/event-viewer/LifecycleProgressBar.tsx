@@ -16,30 +16,32 @@
 
 import { cn } from "@/lib/utils";
 import { type TaskGroup } from "@/lib/api/adapter/events/events-grouping";
+import { TaskGroupStatus } from "@/lib/api/generated";
+import { useEventViewerContext } from "@/components/event-viewer/EventViewerContext";
 
 /**
  * Visual lifecycle stages for the progress bar.
  *
  * These split the K8s Pending phase into two visual sub-stages for clarity:
  *
- *   pending  -> K8s "Pending" phase, scheduling sub-phase
- *               (waiting for PodScheduled condition)
- *   init     -> K8s "Pending" phase, initialization sub-phase
- *               (PodReadyToStartContainers, image pull, init containers,
- *                container creation -- everything between scheduling and running)
- *   running  -> K8s "Running" phase
- *               (at least one container started)
- *   done     -> K8s "Succeeded" or "Failed" phase (terminal)
+ *   scheduling -> K8s "Pending" phase, scheduling sub-phase
+ *                 (waiting for PodScheduled condition)
+ *   init       -> K8s "Pending" phase, initialization sub-phase
+ *                 (PodReadyToStartContainers, image pull, init containers,
+ *                  container creation -- everything between scheduling and running)
+ *   running    -> K8s "Running" phase
+ *                 (at least one container started)
+ *   done       -> K8s "Succeeded" or "Failed" phase (terminal)
  *
  * Transition points:
- *   pending -> init:    When "Scheduled" event appears (PodScheduled=True)
- *   init -> running:    When "Started" event appears (phase transitions to Running)
- *   running -> done:    When all containers terminate (Succeeded or Failed)
+ *   scheduling -> init:    When "Scheduled" event appears (PodScheduled=True)
+ *   init -> running:       When "Started" event appears (phase transitions to Running)
+ *   running -> done:       When all containers terminate (Succeeded or Failed)
  *
  * Reference: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
  */
 const LIFECYCLE_STAGES = [
-  { key: "pending", label: "Pending" },
+  { key: "scheduling", label: "Scheduling" },
   { key: "init", label: "Init" },
   { key: "running", label: "Running" },
   { key: "done", label: "Done" },
@@ -51,16 +53,16 @@ type StageKey = (typeof LIFECYCLE_STAGES)[number]["key"];
  * Get progress index (0-3) from the derived furthest progress.
  *
  * Maps the K8s pod lifecycle to our 4 visual stages:
- *   0 = Pending (scheduling)  -- waiting for node assignment
+ *   0 = Scheduling         -- waiting for node assignment
  *   1 = Init (initialization) -- scheduled, pulling images, creating containers
  *   2 = Running               -- at least one container executing
  *   3 = Done                  -- terminal state (Succeeded or Failed)
  *
  * Uses `furthestProgressIndex` from the derived state, which scans ALL events
  * for the highest stage reached. This is robust to:
- * - Missing events: a "Running" event without "Pending"/"Init" events still
+ * - Missing events: a "Running" event without "Scheduling"/"Init" events still
  *   shows the task at the Running stage (and infers earlier stages).
- * - Out-of-order events: a late "Pending" event after "Running" does not
+ * - Out-of-order events: a late "Scheduling" event after "Running" does not
  *   regress the progress.
  */
 export function getProgressIndex(task: TaskGroup): number {
@@ -69,12 +71,38 @@ export function getProgressIndex(task: TaskGroup): number {
 }
 
 /**
+ * Derive the display label for the "Running" lifecycle stage slot.
+ *
+ * K8s events arrive faster than Postgres state updates. When K8s events
+ * indicate a container started (furthestProgressIndex = 2) but OSMO hasn't
+ * confirmed the task is running yet, show "Pending" to surface the
+ * authoritative OSMO state.
+ *
+ * Applied for "active", "terminal", and "failed" states:
+ * - active: task currently progressing through the running stage
+ * - terminal: parent stopped while the race condition was unresolved — must
+ *   preserve the "Pending" label rather than reverting to the static "Running"
+ * - failed: container started then failed — show "Failed" not "Running"
+ */
+export function getRunningStageLabel(
+  state: "active" | "terminal" | "failed",
+  taskStatus: TaskGroupStatus | undefined,
+): "Running" | "Pending" | "Failed" {
+  if (state === "failed") return "Failed";
+  // active or terminal: K8s events may have raced ahead of Postgres
+  if (taskStatus === undefined) return "Running";
+  if (taskStatus === TaskGroupStatus.RUNNING) return "Running";
+  // OSMO hasn't confirmed running yet — K8s events raced ahead of Postgres
+  return "Pending";
+}
+
+/**
  * Segment state for the lifecycle progress bar.
  *
  *   done      – Stage completed successfully (green + check icon)
  *   inferred  – Stage was passed through but no events were observed for it.
  *               Shown in darker gray to indicate implicit completion.
- *               Example: we received a "Running" event but no "Pending" or
+ *               Example: we received a "Running" event but no "Scheduling" or
  *               "Init" events — those stages are inferred as completed.
  *   active    – Stage currently in progress (stage-specific color, may pulse)
  *   failed    – Stage where failure occurred (red + X icon)
@@ -103,18 +131,13 @@ function TimelineDot({ stage, state, showPulse }: TimelineDotProps) {
 
 export interface LifecycleProgressBarProps {
   task: TaskGroup;
-  /**
-   * Whether the parent entity (workflow or task) has reached a terminal state.
-   *
-   * When true, enables inference for missing terminal events:
-   * - Last phase is Running → inferred as Done (completed successfully)
-   * - Last phase is Pending/Init → shown as "terminal" (settled, no pulse)
-   */
-  isParentTerminal?: boolean;
   className?: string;
 }
 
-export function LifecycleProgressBar({ task, isParentTerminal, className }: LifecycleProgressBarProps) {
+export function LifecycleProgressBar({ task, className }: LifecycleProgressBarProps) {
+  const { isParentTerminal, taskStatus, taskStatuses } = useEventViewerContext();
+  // Task scope: single taskStatus. Workflow scope: look up by name + retry.
+  const effectiveTaskStatus = taskStatus ?? taskStatuses?.get(`${task.name}:${task.retryId}`);
   const { podPhase } = task.derived;
   const isFailed = podPhase === "Failed";
   const isPodTerminal = podPhase === "Succeeded" || isFailed;
@@ -131,7 +154,7 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
 
   // Parent is terminal but pod never reached Running or a terminal phase.
   // The task stopped without progressing further (e.g., canceled while in
-  // Pending/Init). Show as "terminal" — same color as active but no pulse.
+  // Scheduling/Init). Show as "terminal" — same color as active but no pulse.
   const showTerminal = !isPodTerminal && !inferredDone && !!isParentTerminal;
 
   // Determine final timeline color, overriding for inferred completion
@@ -169,6 +192,14 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
 
         const isLastStage = idx === LIFECYCLE_STAGES.length - 1;
 
+        // K8s events race ahead of Postgres: when the running dot is active,
+        // terminal (parent stopped before OSMO confirmed), or failed — show the
+        // correct label rather than the static "Running" fallback.
+        const effectiveLabel =
+          stage.key === "running" && (state === "active" || state === "terminal" || state === "failed")
+            ? getRunningStageLabel(state, effectiveTaskStatus)
+            : stage.label;
+
         return (
           <div
             key={stage.key}
@@ -191,7 +222,7 @@ export function LifecycleProgressBar({ task, isParentTerminal, className }: Life
               className="timeline-label"
               data-state={state}
             >
-              {stage.label}
+              {effectiveLabel}
             </span>
           </div>
         );
