@@ -31,8 +31,8 @@ import (
 
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
-	backoff "go.corp.nvidia.com/osmo/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	backoff "go.corp.nvidia.com/osmo/utils"
 )
 
 // Listener interface defines the common contract for all listener types
@@ -60,19 +60,23 @@ func main() {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
 
+	nodeConditionRules := utils.NewNodeConditionRules()
+
 	// Create all listeners
 	workflowListener := NewWorkflowListener(cmdArgs)
 	nodeUsageListener := NewNodeUsageListener(cmdArgs)
-	nodeListener := NewNodeListener(cmdArgs)
+	nodeListener := NewNodeListener(cmdArgs, nodeConditionRules)
+	nodeConditionRuleListener := NewNodeConditionRuleListener(cmdArgs, nodeConditionRules)
 	eventListener := NewEventListener(cmdArgs)
 
 	var wg sync.WaitGroup
 
 	// Launch all listeners in parallel
-	wg.Add(4)
+	wg.Add(5)
 	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
 	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", &wg)
 	go runListenerWithRetry(ctx, nodeListener, "NodeListener", &wg)
+	go runListenerWithRetry(ctx, nodeConditionRuleListener, "NodeConditionRuleListener", &wg)
 	go runListenerWithRetry(ctx, eventListener, "EventListener", &wg)
 
 	// Wait for all listeners to complete
