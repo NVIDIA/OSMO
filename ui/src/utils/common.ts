@@ -61,7 +61,7 @@ export const OsmoApiFetch = async (
   const scheme = getRequestScheme();
   // x-osmo-auth is set by Envoy's Lua filter (copies from Authorization: Bearer <token>
   // set by OAuth2 Proxy). For legacy flow, it comes from the IdToken cookie.
-  const idToken = ctx.cookies.get("IdToken") as string | null ?? ctx.headers.get("x-osmo-auth");
+  const idToken = (ctx.cookies.get("IdToken") as string | null) || ctx.headers.get("x-osmo-auth");
   const fetchUrl = searchParams
     ? `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}${apiPath}?${searchParams.toString()}`
     : `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}${apiPath}`;
