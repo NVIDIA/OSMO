@@ -553,22 +553,25 @@ export function useUsers(enabled: boolean = true) {
 // =============================================================================
 
 /**
- * Generate a unique nonce for mutation keys.
+ * Generate a unique ID for mutation keys.
  * Ensures every API call gets a fresh token, preventing cache reuse.
  */
-// Global counter to ensure nonce uniqueness even across simultaneous calls
-let nonceCounter = 0;
+// Global counter to ensure uniqueness even across simultaneous calls
+let mutationIdCounter = 0;
 
 /**
- * Generate a unique nonce for single-use mutations.
+ * Generate a unique ID for single-use mutations.
  * Combines timestamp + counter + random to guarantee uniqueness even if:
  * - Multiple components mount simultaneously (same timestamp)
  * - Same component calls mutation multiple times (counter increments)
  * - Counter wraps (random provides additional entropy)
+ *
+ * Note: This is NOT a cryptographic nonce. For OIDC nonces, use generateNonce
+ * from @/lib/auth/pkce-utils.
  */
-function generateNonce(): string {
-  nonceCounter = (nonceCounter + 1) % 1000000; // Wrap at 1M to prevent overflow
-  return `${Date.now()}-${nonceCounter}-${Math.random().toString(36).slice(2, 11)}`;
+function generateMutationId(): string {
+  mutationIdCounter = (mutationIdCounter + 1) % 1000000; // Wrap at 1M to prevent overflow
+  return `${Date.now()}-${mutationIdCounter}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 /**
@@ -597,7 +600,7 @@ function generateNonce(): string {
  * ```
  */
 export function useExecIntoTask() {
-  const nonce = useMemo(() => generateNonce(), []);
+  const nonce = useMemo(() => generateMutationId(), []);
 
   return useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost({
     mutation: {
@@ -635,7 +638,7 @@ export function useExecIntoTask() {
  * ```
  */
 export function usePortForwardTask() {
-  const nonce = useMemo(() => generateNonce(), []);
+  const nonce = useMemo(() => generateMutationId(), []);
 
   return usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost({
     mutation: {
@@ -673,7 +676,7 @@ export function usePortForwardTask() {
  * ```
  */
 export function usePortForwardWebserver() {
-  const nonce = useMemo(() => generateNonce(), []);
+  const nonce = useMemo(() => generateMutationId(), []);
 
   return usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost({
     mutation: {

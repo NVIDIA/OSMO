@@ -15,8 +15,40 @@
 //SPDX-License-Identifier: Apache-2.0
 
 /**
- * ALB Sticky Session Cookie Management
+ * Cookie Utilities
  *
+ * Handles both reading cookies (for auth tokens) and writing cookies (for ALB sticky sessions).
+ */
+
+// =============================================================================
+// Reading Cookies
+// =============================================================================
+
+/**
+ * Get a cookie value by name. Handles values containing "=" (e.g., base64 JWTs).
+ */
+export function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+
+  const cookies = document.cookie.split("; ");
+  for (const cookie of cookies) {
+    const separatorIndex = cookie.indexOf("=");
+    if (separatorIndex === -1) continue;
+
+    const cookieName = cookie.slice(0, separatorIndex);
+    if (cookieName === name) {
+      return cookie.slice(separatorIndex + 1);
+    }
+  }
+
+  return null;
+}
+
+// =============================================================================
+// ALB Sticky Session Cookie Management
+// =============================================================================
+
+/**
  * AWS Application Load Balancer (ALB) uses sticky session cookies to ensure
  * WebSocket connections route to the same backend node that created the session.
  *

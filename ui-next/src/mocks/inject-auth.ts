@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Roles } from "@/lib/auth/roles";
+import { decodeJwtPayload } from "@/lib/auth/jwt-utils";
 
 /**
  * Mock Auth Injection
@@ -167,18 +168,8 @@ export function getAuthStatus(): {
     };
   }
 
-  try {
-    const [, payloadB64] = token.split(".");
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
-
-    return {
-      hasToken: true,
-      authSkipped,
-      username: payload.preferred_username || null,
-      roles: payload.roles || payload.realm_access?.roles || [],
-      expiresAt: payload.exp ? new Date(payload.exp * 1000) : null,
-    };
-  } catch {
+  const payload = decodeJwtPayload(token);
+  if (!payload) {
     return {
       hasToken: true,
       authSkipped,
@@ -187,6 +178,14 @@ export function getAuthStatus(): {
       expiresAt: null,
     };
   }
+
+  return {
+    hasToken: true,
+    authSkipped,
+    username: (payload.preferred_username as string) || null,
+    roles: (payload.roles as string[]) || (payload.realm_access as { roles?: string[] })?.roles || [],
+    expiresAt: typeof payload.exp === "number" ? new Date(payload.exp * 1000) : null,
+  };
 }
 
 /**

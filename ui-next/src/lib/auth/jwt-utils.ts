@@ -1,21 +1,47 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
 /**
- * JWT Helper - Development Version
+ * JWT Utilities - Development Version
  *
- * Extends the production JWT helper with cookie fallback for mock mode.
- * In production builds, this file is replaced with jwt-helper.production.ts.
+ * Extends the production JWT utilities with cookie fallback for mock mode.
+ * In production builds, this file is replaced with jwt-utils.ts via next.config.ts alias.
+ *
+ * DEVELOPMENT ONLY: Supports cookie fallback for local testing without Envoy.
  */
 
 import { jwtDecode } from "jwt-decode";
+import type { JwtClaims } from "@/lib/auth/jwt-utils.production";
 
-// Re-export types and utilities that don't depend on extractToken
-export type { JwtClaims } from "@/lib/auth/jwt-helper.production";
-export { getUserRoles, hasRole, isTokenExpired } from "@/lib/auth/jwt-helper.production";
+// Re-export types, constants, and utilities that don't depend on extractToken
+export type { JwtClaims };
+export {
+  getUserRoles,
+  hasRole,
+  isTokenExpired,
+  FALLBACK_TOKEN_LIFETIME_SECONDS,
+  decodeJwtPayload,
+  getJwtClaim,
+} from "@/lib/auth/jwt-utils.production";
 
 /**
  * Extract JWT token from Authorization header or cookies.
  *
  * DEVELOPMENT: Supports cookie fallback for mock mode
- * PRODUCTION: This entire file is replaced with jwt-helper.production.ts
+ * PRODUCTION: This entire file is replaced with jwt-utils.ts
  *
  * @param request - The request object with headers
  * @returns The JWT token string or null if not found
@@ -50,14 +76,14 @@ export function extractToken(request: Request): string | null {
 /**
  * Decode and parse JWT claims using dev extractToken (with cookie fallback).
  */
-export function getJwtClaims(request: Request): import("./jwt-helper.production").JwtClaims | null {
+export function getJwtClaims(request: Request): JwtClaims | null {
   const token = extractToken(request); // Uses dev version with cookie fallback
   if (!token) {
     return null;
   }
 
   try {
-    return jwtDecode<import("./jwt-helper.production").JwtClaims>(token);
+    return jwtDecode<JwtClaims>(token);
   } catch (error) {
     console.error("Failed to decode JWT:", error);
     return null;
