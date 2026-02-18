@@ -69,19 +69,7 @@ class RolePolicy(pydantic.BaseModel):
     @classmethod
     def validate_actions(cls, value) -> List[str]:
         """Parse and validate actions from various input formats."""
-        result = []
-        for action in value:
-            if isinstance(action, str):
-                raw = action
-            elif isinstance(action, dict):
-                raw = action.get('action')
-                if raw is None:
-                    raise osmo_errors.OSMOUserError(
-                        'Invalid action dict: missing "action" key')
-            else:
-                raise osmo_errors.OSMOUserError(f'Invalid action type: {type(action)}')
-            result.append(validate_semantic_action(raw))
-        return result
+        return [validate_semantic_action(action) for action in value]
 
     def to_dict(self) -> Dict[str, Any]:
         """
