@@ -64,6 +64,21 @@ listeners:
         {{- include "envoy.lua-filters" . | nindent 8 }}
         {{- if $.Values.sidecars.oauth2Proxy.enabled }}
         {{- include "envoy.ext-authz-filter" . | nindent 8 }}
+        - name: envoy.filters.http.lua.copy-auth-header
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            default_source_code:
+              inline_string: |
+                function envoy_on_request(request_handle)
+                  -- After ext_authz sets Authorization: Bearer <id_token>, copy it to
+                  -- x-osmo-auth so downstream services (via Next.js proxy) can authenticate
+                  -- without going through OAuth2 Proxy again.
+                  local auth = request_handle:headers():get("authorization")
+                  local osmo_auth = request_handle:headers():get("x-osmo-auth")
+                  if auth and not osmo_auth and auth:sub(1, 7) == "Bearer " then
+                    request_handle:headers():add("x-osmo-auth", auth:sub(8))
+                  end
+                end
         {{- end }}
         {{- if .Values.sidecars.envoy.jwtEnable }}
         {{- include "envoy.jwt-filter" . | nindent 8 }}

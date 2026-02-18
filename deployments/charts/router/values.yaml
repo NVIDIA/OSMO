@@ -474,7 +474,7 @@ sidecars:
 
     ## Cookie name for session management
     ##
-    cookieName: _oauth2_proxy
+    cookieName: _osmo_session
 
     ## Whether to set the secure flag on cookies
     ##
@@ -496,9 +496,9 @@ sidecars:
     ##
     scope: "openid email profile"
 
-    ## Pass the access token to upstream
+    ## Pass the access token to upstream (disabled to reduce cookie size)
     ##
-    passAccessToken: true
+    passAccessToken: false
 
     ## Use Kubernetes secrets for credentials
     ##
