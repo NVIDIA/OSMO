@@ -15,9 +15,9 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _cli_reference_login:
-
 :tocdepth: 3
+
+.. _cli_reference_login:
 
 ================================================
 osmo login

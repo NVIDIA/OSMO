@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import enum
 import re
 from enum import Enum
 from typing import Any, Dict, List
@@ -91,12 +92,18 @@ class Role(pydantic.BaseModel):
     description: str
     policies: List[RolePolicy]
     immutable: bool = False
+    sync_mode: SyncMode = SyncMode.IMPORT
+    external_roles: List[str] | None = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
-        return {
+        result = {
             'name': self.name,
             'description': self.description,
             'policies': [policy.to_dict() for policy in self.policies],
-            'immutable': self.immutable
+            'immutable': self.immutable,
+            'sync_mode': self.sync_mode.value,
         }
+        # Only include external_roles if explicitly set (not None)
+        if self.external_roles is not None:
+            result['external_roles'] = self.external_roles
+        return result

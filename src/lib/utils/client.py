@@ -228,8 +228,8 @@ class LoginManager():
         self._login_storage = login.dev_login(url, username)
         self._save_login_info(self._login_storage, welcome=True)
 
-    def token_login(self, url: str, refresh_url: str):
-        self._login_storage = login.token_login(url, refresh_url, self.user_agent)
+    def token_login(self, url: str, access_token: str):
+        self._login_storage = login.token_login(url, access_token, self.user_agent)
         self._save_login_info(self._login_storage, welcome=True)
 
     def logout(self):
