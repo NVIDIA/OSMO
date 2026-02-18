@@ -267,8 +267,18 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 			},
 		},
 		{
-			name:      "parse policy with semantic actions only",
+			name:      "parse policy with semantic actions only (object format)",
 			jsonInput: `{"actions": [{"action": "workflow:Create"}, {"action": "workflow:Read"}]}`,
+			expectedPolicy: RolePolicy{
+				Actions: []RoleAction{
+					{Action: "workflow:Create"},
+					{Action: "workflow:Read"},
+				},
+			},
+		},
+		{
+			name:      "parse policy with semantic actions as strings (new format)",
+			jsonInput: `{"actions": ["workflow:Create", "workflow:Read"]}`,
 			expectedPolicy: RolePolicy{
 				Actions: []RoleAction{
 					{Action: "workflow:Create"},
@@ -330,6 +340,17 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 				Resources: nil,
 			},
 		},
+		{
+			name:      "parse policy with effect Deny",
+			jsonInput: `{"effect": "Deny", "actions": [{"action": "workflow:Delete"}], "resources": ["workflow/prod-*"]}`,
+			expectedPolicy: RolePolicy{
+				Effect: EffectDeny,
+				Actions: []RoleAction{
+					{Action: "workflow:Delete"},
+				},
+				Resources: []string{"workflow/prod-*"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -368,6 +389,11 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 				if action.Method != expected.Method {
 					t.Errorf("Actions[%d].Method = %q, want %q", i, action.Method, expected.Method)
 				}
+			}
+
+			// Check effect
+			if policy.Effect != tt.expectedPolicy.Effect {
+				t.Errorf("Effect = %q, want %q", policy.Effect, tt.expectedPolicy.Effect)
 			}
 
 			// Check resources
@@ -436,7 +462,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: []string{"pool/production"},
 			},
-			expectedJSON: `{"actions":[{"action":"workflow:Create"}],"resources":["pool/production"]}`,
+			expectedJSON: `{"actions":["workflow:Create"],"resources":["pool/production"]}`,
 		},
 		{
 			name: "serialize policy with semantic actions and no resources (nil)",
@@ -446,7 +472,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: nil,
 			},
-			expectedJSON: `{"actions":[{"action":"workflow:Create"}]}`,
+			expectedJSON: `{"actions":["workflow:Create"]}`,
 		},
 		{
 			name: "serialize policy with semantic actions and empty resources",
@@ -456,7 +482,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: []string{},
 			},
-			expectedJSON: `{"actions":[{"action":"workflow:Create"}]}`,
+			expectedJSON: `{"actions":["workflow:Create"]}`,
 		},
 		{
 			name: "serialize policy with legacy actions",
@@ -467,6 +493,17 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				Resources: []string{},
 			},
 			expectedJSON: `{"actions":[{"base":"http","path":"/api/test","method":"GET"}]}`,
+		},
+		{
+			name: "serialize policy with effect Deny",
+			policy: RolePolicy{
+				Effect: EffectDeny,
+				Actions: []RoleAction{
+					{Action: "workflow:Delete"},
+				},
+				Resources: []string{"workflow/prod-*"},
+			},
+			expectedJSON: `{"effect":"Deny","actions":["workflow:Delete"],"resources":["workflow/prod-*"]}`,
 		},
 	}
 
@@ -899,4 +936,3 @@ func TestRolePolicy_MultipleActions(t *testing.T) {
 		}
 	}
 }
-

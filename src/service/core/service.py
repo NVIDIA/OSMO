@@ -389,8 +389,6 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
 
-    target_app.add_middleware(connectors.AccessControlMiddleware, method=config.method)
-
     service_configs_dict = postgres.get_service_configs()
 
     configs_dict = {}
