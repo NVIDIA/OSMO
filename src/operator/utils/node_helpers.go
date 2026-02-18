@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"math"
+	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -34,8 +35,9 @@ func GetNodeHostname(node *corev1.Node) string {
 	return "-"
 }
 
-// BuildUpdateNodeBody creates an UpdateNodeBody from a node
-func BuildUpdateNodeBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
+// BuildUpdateNodeBody creates an UpdateNodeBody from a node.
+func BuildUpdateNodeBody(
+	node *corev1.Node, isDelete bool, effectiveRules map[string]string) *pb.UpdateNodeBody {
 	hostname := GetNodeHostname(node)
 
 	// Build conditions list (types with status True)
@@ -46,8 +48,7 @@ func BuildUpdateNodeBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
 		}
 	}
 
-	// Calculate availability: Ready==True && !Unschedulable
-	available := IsNodeAvailable(node)
+	available := IsNodeAvailable(node, effectiveRules)
 
 	// Build allocatable fields
 	allocatableFields := make(map[string]string)
@@ -92,19 +93,44 @@ func BuildUpdateNodeBody(node *corev1.Node, isDelete bool) *pb.UpdateNodeBody {
 	}
 }
 
-// IsNodeAvailable checks if a node is available (Ready==True && !Unschedulable)
-func IsNodeAvailable(node *corev1.Node) bool {
-	if node.Spec.Unschedulable {
-		return false
-	}
+// IsNodeAvailable checks if a node is available based on effective node condition rules.
+func IsNodeAvailable(node *corev1.Node, effectiveRules map[string]string) bool {
+	for _, condition := range node.Status.Conditions {
+		matchedAnyRule := false
+		allowedByAnyRule := false
 
-	for _, cond := range node.Status.Conditions {
-		if cond.Type == corev1.NodeReady {
-			return cond.Status == corev1.ConditionTrue
+		for pattern, statusRegex := range effectiveRules {
+			matched, err := regexp.MatchString(pattern, string(condition.Type))
+			if err != nil {
+				// Invalid regex should be ignored
+				continue
+			}
+
+			if matched {
+				matchedAnyRule = true
+				// Anchor the status regex to full match
+				statusStr := string(condition.Status)
+				anchoredRegex := "^(?:" + statusRegex + ")$"
+				statusMatched, err := regexp.MatchString(anchoredRegex, statusStr)
+				if err != nil {
+					// Invalid regex should be ignored
+					continue
+				}
+				if statusMatched {
+					allowedByAnyRule = true
+					break
+				}
+			}
+		}
+
+		// If at least one rule matched this condition type but none allowed the status,
+		// the node is not available.
+		if matchedAnyRule && !allowedByAnyRule {
+			return false
 		}
 	}
 
-	return false
+	return !node.Spec.Unschedulable
 }
 
 // ToKi converts a resource.Quantity to Ki (kibibytes)
