@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -156,6 +156,28 @@ services:
     passwordSecretName: postgres-secret
 
     ## Key name in the secret that contains the PostgreSQL password
+    ##
+    passwordSecretKey: password
+
+  ## Default admin user configuration
+  ## When configured, the service will create an admin user on startup with the osmo-admin role
+  ## and an access_token set to the specified password
+  ##
+  defaultAdmin:
+    ## Enable default admin user creation
+    ## When enabled, username and password must be configured
+    ##
+    enabled: false
+
+    ## Username for the default admin user
+    ##
+    username: "admin"
+
+    ## Name of the Kubernetes secret containing the default admin password
+    ##
+    passwordSecretName: default-admin-secret
+
+    ## Key name in the secret that contains the default admin password
     ##
     passwordSecretKey: password
 
