@@ -29,7 +29,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
-import { refreshCoordinator } from "@/lib/auth/refresh-coordinator";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 
 // =============================================================================
@@ -70,11 +69,11 @@ const SPEC_GC_TIME = 30 * 60 * 1000;
 
 /**
  * Fetch spec from backend URL (provided by workflow.spec or workflow.template_spec)
+ *
+ * Note: Token refresh is handled automatically by silent refresh coordinator,
+ * no manual refresh needed before fetch.
  */
 async function fetchSpec(specUrl: string): Promise<string> {
-  // Ensure fresh token before direct fetch
-  await refreshCoordinator.ensureFreshToken();
-
   const response = await fetch(specUrl, {
     method: "GET",
     headers: {

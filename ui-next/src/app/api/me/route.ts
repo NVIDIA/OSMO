@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NextRequest, NextResponse } from "next/server";
-import { extractToken } from "@/lib/auth/jwt-helper";
+import { extractToken } from "@/lib/auth/jwt-utils";
 import { decodeUserFromToken } from "@/lib/auth/decode-user";
 
 /**

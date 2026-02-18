@@ -1,5 +1,21 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
 /**
- * JWT Helper - Production Version
+ * JWT Utilities - Production Version
  *
  * Production-safe JWT utilities that ONLY trust Envoy's Authorization header.
  * This version is swapped in for production builds via next.config.ts resolveAlias.
@@ -8,6 +24,21 @@
  */
 
 import { jwtDecode } from "jwt-decode";
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * FALLBACK token lifetime (5 minutes / 300 seconds).
+ * Only used if JWT exp/iat claims are malformed or missing.
+ * Primary path: Derive from JWT claims (exp - iat) to match provider configuration.
+ */
+export const FALLBACK_TOKEN_LIFETIME_SECONDS = 300;
+
+// =============================================================================
+// Types
+// =============================================================================
 
 /**
  * JWT claims structure from Keycloak/OAuth provider.
@@ -54,6 +85,51 @@ export interface JwtClaims {
   /** Resource access (Keycloak-specific) */
   resource_access?: Record<string, { roles?: string[] }>;
 }
+
+// =============================================================================
+// Client-Side JWT Decoding (No Signature Verification)
+// =============================================================================
+
+/**
+ * Decode JWT payload without signature verification.
+ * Signature validation is Envoy's responsibility.
+ *
+ * @param token - JWT token string
+ * @returns Decoded payload or null if invalid
+ */
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const payloadB64 = parts[1];
+    if (!payloadB64) return null;
+
+    const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract a single claim from a JWT token.
+ *
+ * @param token - JWT token string
+ * @param claim - Claim name to extract
+ * @returns Claim value or null if not found
+ */
+export function getJwtClaim<T = unknown>(token: string, claim: string): T | null {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+
+  const value = payload[claim];
+  return value !== undefined ? (value as T) : null;
+}
+
+// =============================================================================
+// Server-Side JWT Extraction (Request-Based)
+// =============================================================================
 
 /**
  * Extract JWT token from Authorization header.

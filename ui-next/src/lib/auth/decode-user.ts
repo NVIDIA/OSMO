@@ -15,9 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { jwtDecode } from "jwt-decode";
-import type { JwtClaims } from "@/lib/auth/jwt-helper.production";
+import type { JwtClaims } from "@/lib/auth/jwt-utils.production";
 import { hasAdminRole } from "@/lib/auth/roles";
 import type { User } from "@/lib/auth/user-context";
+import { getCookie } from "@/lib/auth/cookies";
 
 /**
  * Get JWT token from client-side storage (localStorage or cookies).
@@ -31,10 +32,7 @@ import type { User } from "@/lib/auth/user-context";
  * @returns JWT token string or null if not found
  */
 export function getClientToken(): string | null {
-  if (typeof window === "undefined") {
-    console.warn("getClientToken() called on server - this is client-side only");
-    return null;
-  }
+  if (typeof window === "undefined") return null;
 
   // Check localStorage first (dev mode)
   const localStorageToken = localStorage.getItem("IdToken") || localStorage.getItem("BearerToken");
@@ -43,16 +41,7 @@ export function getClientToken(): string | null {
   }
 
   // Check cookies (production with Envoy, or dev mode)
-  const cookies = document.cookie.split(";").reduce(
-    (acc, cookie) => {
-      const [key, value] = cookie.trim().split("=");
-      if (key) acc[key] = value;
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
-
-  return cookies["IdToken"] || cookies["BearerToken"] || null;
+  return getCookie("IdToken") || getCookie("BearerToken") || null;
 }
 
 /**
