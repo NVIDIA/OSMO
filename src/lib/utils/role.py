@@ -42,6 +42,19 @@ def validate_semantic_action(value: str) -> str:
     return value
 
 
+class SyncMode(str, enum.Enum):
+    """
+    Sync mode for role assignments.
+
+    - FORCE: Always apply this role to all users (e.g., for system roles)
+    - IMPORT: Role is imported from IDP claims or user_roles table (default)
+    - IGNORE: Ignore this role in IDP sync (role is managed manually)
+    """
+    FORCE = 'force'
+    IMPORT = 'import'
+    IGNORE = 'ignore'
+
+
 class PolicyEffect(str, Enum):
     """Effect of a policy statement: Allow or Deny. Deny takes precedence over Allow."""
 
@@ -87,7 +100,14 @@ class RolePolicy(pydantic.BaseModel):
 
 
 class Role(pydantic.BaseModel):
-    """Single Role Entry."""
+    """
+    Single Role Entry
+
+    external_roles semantics:
+    - None: Don't modify external role mappings (preserve existing)
+    - []: Explicitly clear all external role mappings
+    - ['role1', 'role2']: Set external role mappings to these values
+    """
     name: str
     description: str
     policies: List[RolePolicy]
