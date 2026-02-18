@@ -163,7 +163,6 @@ class LoginManager():
             'scope': 'openid offline_access profile'
         }, timeout=login.TIMEOUT, headers={'User-Agent': self.user_agent})
 
-        parsed_url = urlparse(url)
         result = handle_response(response)
 
         device_code  = result['device_code']
