@@ -58,4 +58,4 @@ File containing password if logging in with credentials.
 Token if logging in with credentials.
 * **--token-file**: 
 
-File containing the refresh token URL, with all parameters appended.
+File containing the refresh token.

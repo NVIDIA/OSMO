@@ -72,7 +72,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
-    <meta name="docbuild:last-update" content="Feb 13, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 18, 2026"/>
 
 
   </head>
@@ -510,6 +510,7 @@
 
 
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/service_accounts.html">Service Accounts</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/s3/index.html">AWS S3</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
@@ -1150,10 +1151,20 @@ $<span class="w"> </span>osmo<span class="w"> </span>login<span class="w"> </spa
 </pre></div>
 </div>
 </li>
-<li><p>Create the account token secret:</p>
-<p>Generate a token for the backend operator with OSMO CLI:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">BACKEND_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span>--service<span class="w"> </span>--roles<span class="w"> </span>osmo-backend<span class="w"> </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>
+<li><p>Create the service account and token:</p>
+<p>Create a service account user and generate a token for the backend operator with OSMO CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create the service account user</span>
+$<span class="w"> </span>osmo<span class="w"> </span>user<span class="w"> </span>create<span class="w"> </span>backend-operator<span class="w"> </span>--roles<span class="w"> </span>osmo-backend
 
+<span class="c1"># Generate a token for the service account with the osmo-backend role</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">BACKEND_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--user<span class="w"> </span>backend-operator<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--roles<span class="w"> </span>osmo-backend<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>
+
+<span class="c1"># Create the Kubernetes secret</span>
 $<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>osmo-operator-token<span class="w"> </span>--from-literal<span class="o">=</span><span class="nv">token</span><span class="o">=</span><span class="nv">$BACKEND_TOKEN</span><span class="w"> </span>--namespace<span class="w"> </span>osmo-operator
 </pre></div>
 </div>
@@ -1457,7 +1468,7 @@ $<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> <
 </div>
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on Feb 13, 2026.
+  Last updated on Feb 18, 2026.
   <br/>
 </p></div>
       

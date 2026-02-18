@@ -72,7 +72,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
-    <meta name="docbuild:last-update" content="Feb 13, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 18, 2026"/>
 
 
   </head>
@@ -510,6 +510,7 @@
 
 
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/deploy_service.html">Deploy Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/service_accounts.html">Service Accounts</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../getting_started/create_storage/index.html">Create Data Storage</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/s3/index.html">AWS S3</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../getting_started/create_storage/azure/index.html">Azure Blob Storage</a></li>
@@ -643,17 +644,37 @@
 <li><p>Replace <code class="docutils literal notranslate"><span class="pre">osmo.example.com</span></code> with your domain name in the commands below</p></li>
 </ul>
 </div>
-<section id="step-1-create-osmo-service-token">
-<span id="create-osmo-token"></span><h2>Step 1: Create OSMO Service Token<a class="headerlink" href="#step-1-create-osmo-service-token" title="Link to this heading">#</a></h2>
-<p>Create a service access token using OSMO CLI for backend operator authentication:</p>
+<section id="step-1-create-service-account-for-backend-operator">
+<span id="create-osmo-token"></span><h2>Step 1: Create Service Account for Backend Operator<a class="headerlink" href="#step-1-create-service-account-for-backend-operator" title="Link to this heading">#</a></h2>
+<p>Create a service account and access token using OSMO CLI for backend operator authentication.</p>
+<p>First, log in to OSMO:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>login<span class="w"> </span>https://osmo.example.com
-
-$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_SERVICE_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span>--service<span class="w"> </span>--roles<span class="w"> </span>osmo-backend<span class="w"> </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>
+</pre></div>
+</div>
+<p>Create a service account user for the backend operator:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>user<span class="w"> </span>create<span class="w"> </span>backend-operator<span class="w"> </span>--roles<span class="w"> </span>osmo-backend
+</pre></div>
+</div>
+<p>Create a Access Token for the service account with the <code class="docutils literal notranslate"><span class="pre">osmo-backend</span></code> role:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OSMO_SERVICE_TOKEN</span><span class="o">=</span><span class="k">$(</span>osmo<span class="w"> </span>token<span class="w"> </span><span class="nb">set</span><span class="w"> </span>backend-token<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--user<span class="w"> </span>backend-operator<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--expires-at<span class="w"> </span>&lt;insert-date&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--description<span class="w"> </span><span class="s2">&quot;Backend Operator Token&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--roles<span class="w"> </span>osmo-backend<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-t<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.token&#39;</span><span class="k">)</span>
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;insert-date&gt;</span></code> with an expiration date in UTC format (YYYY-MM-DD). Save the token securely as it will not be shown again.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--roles</span> <span class="pre">osmo-backend</span></code> option limits the token to only the <code class="docutils literal notranslate"><span class="pre">osmo-backend</span></code> role. If omitted, the token inherits all roles from the user.</p>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>See <a class="reference internal" href="../getting_started/service_accounts.html#service-accounts"><span class="std std-ref">Service Accounts</span></a> for more details on creating and managing service accounts.</p>
 </div>
 </section>
 <section id="step-2-create-k8s-namespaces-and-secrets">
@@ -766,7 +787,17 @@ $<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </sp
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Connection<span class="w"> </span>failed<span class="w"> </span>with<span class="w"> </span>error:<span class="w"> </span><span class="o">{</span>OSMOUserError:<span class="w"> </span>Token<span class="w"> </span>is<span class="w"> </span>expired,<span class="w"> </span>but<span class="w"> </span>no<span class="w"> </span>refresh<span class="w"> </span>token<span class="w"> </span>is<span class="w"> </span>present<span class="o">}</span>
 </pre></div>
 </div>
-<p>Check the <code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">token</span> <span class="pre">list</span> <span class="pre">--service</span></code> command to see if the token is expired. Follow <a class="reference internal" href="#create-osmo-token"><span class="std std-ref">Step 1: Create OSMO Service Token</span></a> to create a new token.</p>
+<p>Check if the token is expired by listing the service account’s tokens:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>osmo<span class="w"> </span>token<span class="w"> </span>list<span class="w"> </span>--user<span class="w"> </span>backend-operator
+</pre></div>
+</div>
+<p>If the token is expired, create a new one following <a class="reference internal" href="#create-osmo-token"><span class="std std-ref">Step 1: Create Service Account for Backend Operator</span></a>. Remember to update
+the Kubernetes secret with the new token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>kubectl<span class="w"> </span>delete<span class="w"> </span>secret<span class="w"> </span>osmo-operator-token<span class="w"> </span>-n<span class="w"> </span>osmo-operator
+$<span class="w"> </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>osmo-operator-token<span class="w"> </span>-n<span class="w"> </span>osmo-operator<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--from-literal<span class="o">=</span><span class="nv">token</span><span class="o">=</span><span class="nv">$OSMO_SERVICE_TOKEN</span>
+</pre></div>
+</div>
 </section>
 </section>
 </section>
@@ -820,7 +851,7 @@ $<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </sp
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-create-osmo-service-token">Step 1: Create OSMO Service Token</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-create-service-account-for-backend-operator">Step 1: Create Service Account for Backend Operator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-create-k8s-namespaces-and-secrets">Step 2: Create K8s Namespaces and Secrets</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-deploy-backend-operator">Step 3: Deploy Backend Operator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-validate-deployment">Step 4: Validate Deployment</a></li>
@@ -920,7 +951,7 @@ $<span class="w"> </span>osmo<span class="w"> </span>config<span class="w"> </sp
 </div>
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on Feb 13, 2026.
+  Last updated on Feb 18, 2026.
   <br/>
 </p></div>
       

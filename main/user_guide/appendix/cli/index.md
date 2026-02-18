@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+<!-- SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,5 +30,6 @@ SPDX-License-Identifier: Apache-2.0 -->
 * [osmo resource](cli_resource.md)
 * [osmo task](cli_task.md)
 * [osmo token](cli_token.md)
+* [osmo user](cli_user.md)
 * [osmo version](cli_version.md)
 * [osmo workflow](cli_workflow.md)
