@@ -4250,13 +4250,13 @@ class AccessControlMiddleware:
             )
             return await response(scope, receive, send)
 
-        # response = await check_user_access(
-        #     scope['path'], request_method, request_headers, self.method, self.domain_access_check)
+        response = await check_user_access(
+            scope['path'], request_method, request_headers, self.method, self.domain_access_check)
 
-        # # Add user profile if it doesn't exist
-        # username = request_headers.get(login.OSMO_USER_HEADER)
-        # if username:
-        #     UserProfile.fetch_from_db(PostgresConnector.get_instance(), username)
-        # if response is not None:
-        #     return await response(scope, receive, send)
+        # Add user profile if it doesn't exist
+        username = request_headers.get(login.OSMO_USER_HEADER)
+        if username:
+            UserProfile.fetch_from_db(PostgresConnector.get_instance(), username)
+        if response is not None:
+            return await response(scope, receive, send)
         return await self.app(scope, receive, send)
