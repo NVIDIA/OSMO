@@ -54,7 +54,7 @@ const resourceColumnConfig = createColumnConfig<ResourceColumnId>({
     storage: "Storage",
   },
   mandatory: ["resource"],
-  defaultVisible: ["resource", "type", "platform", "backend", "gpu", "cpu", "memory", "storage"],
+  defaultVisible: ["resource", "type", "platform", "gpu", "cpu", "memory", "storage"],
   defaultOrder: ["resource", "type", "pools", "platform", "backend", "hostname", "gpu", "cpu", "memory", "storage"],
   sizeConfig: [
     {
