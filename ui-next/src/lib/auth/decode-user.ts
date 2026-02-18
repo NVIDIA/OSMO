@@ -25,6 +25,9 @@ import { getCookie } from "@/lib/auth/cookies";
  *
  * CLIENT-SIDE ONLY: This function requires window/localStorage.
  *
+ * IMPORTANT: Only returns IdToken (ID token), never BearerToken (access token).
+ * Access tokens don't have the "aud" (audience) claim required for JWT validation.
+ *
  * Checks:
  * 1. localStorage (dev mode with injected tokens)
  * 2. Cookies (set by Envoy in production, or dev helpers)
@@ -34,14 +37,8 @@ import { getCookie } from "@/lib/auth/cookies";
 export function getClientToken(): string | null {
   if (typeof window === "undefined") return null;
 
-  // Check localStorage first (dev mode)
-  const localStorageToken = localStorage.getItem("IdToken") || localStorage.getItem("BearerToken");
-  if (localStorageToken) {
-    return localStorageToken;
-  }
-
-  // Check cookies (production with Envoy, or dev mode)
-  return getCookie("IdToken") || getCookie("BearerToken") || null;
+  // Check cookies (production with Envoy, or dev mode) - ONLY IdToken
+  return getCookie("IdToken") || null;
 }
 
 /**

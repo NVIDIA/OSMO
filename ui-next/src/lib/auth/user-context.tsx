@@ -20,6 +20,9 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { getBasePathUrl } from "@/lib/config";
 import { getClientToken, decodeUserFromToken } from "@/lib/auth/decode-user";
 
+/** Event dispatched after successful token refresh for user state sync. */
+export const TOKEN_REFRESHED_EVENT = "osmo:token-refreshed";
+
 export interface User {
   id: string;
   /** Display name for UI (e.g., "Alice Smith") */
@@ -44,37 +47,39 @@ interface UserProviderProps {
   children: ReactNode;
 }
 
-/**
- * User Provider
- *
- * Decodes user information from JWT token stored in localStorage or cookies.
- * No network call required - synchronous and fast.
- *
- * In production: Token is set by Envoy in cookies
- * In local dev: Token is injected via localStorage or copied from staging
- */
+/** Decodes user from JWT token in localStorage or cookies. No network call needed. */
 export function UserProvider({ children }: UserProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Decode user from JWT token (synchronous, no network call)
+    const loadUser = () => {
+      try {
+        const token = getClientToken();
+        const decodedUser = decodeUserFromToken(token);
+        setUser(decodedUser);
+      } catch (error) {
+        console.error("Failed to decode user from token:", error);
+        setUser(null);
+      }
+    };
+
     try {
-      const token = getClientToken();
-      const decodedUser = decodeUserFromToken(token);
-      setUser(decodedUser);
-    } catch (error) {
-      console.error("Failed to decode user from token:", error);
-      setUser(null);
+      loadUser();
     } finally {
       setIsLoading(false);
     }
+
+    // Re-read user when server-side refresh gets a new token
+    window.addEventListener(TOKEN_REFRESHED_EVENT, loadUser);
+
+    return () => {
+      window.removeEventListener(TOKEN_REFRESHED_EVENT, loadUser);
+    };
   }, []);
 
   const logout = () => {
-    // Clear local state
     setUser(null);
-    // Redirect to Envoy logout (uses basePath from deployment config)
     window.location.href = getBasePathUrl("/logout");
   };
 
@@ -89,9 +94,6 @@ export function useUser() {
   return context;
 }
 
-/**
- * Check if current user is admin.
- */
 export function useIsAdmin(): boolean {
   const { user } = useUser();
   return user?.isAdmin ?? false;
