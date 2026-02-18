@@ -85,6 +85,7 @@ class ConfigHistoryType(enum.Enum):
     BACKEND = 'BACKEND'
     POOL = 'POOL'
     POD_TEMPLATE = 'POD_TEMPLATE'
+    GROUP_TEMPLATE = 'GROUP_TEMPLATE'
     RESOURCE_VALIDATION = 'RESOURCE_VALIDATION'
     BACKEND_TEST = 'BACKEND_TEST'
     ROLE = 'ROLE'
@@ -1216,6 +1217,7 @@ class PostgresConnector:
             ConfigHistoryType.BACKEND,
             ConfigHistoryType.POOL,
             ConfigHistoryType.POD_TEMPLATE,
+            ConfigHistoryType.GROUP_TEMPLATE,
             ConfigHistoryType.RESOURCE_VALIDATION,
             ConfigHistoryType.BACKEND_TEST,
             ConfigHistoryType.ROLE,
@@ -1250,6 +1252,8 @@ class PostgresConnector:
                 data = fetch_editable_pool_config(self)
             elif config_type == ConfigHistoryType.POD_TEMPLATE:
                 data = PodTemplate.list_from_db(self)
+            elif config_type == ConfigHistoryType.GROUP_TEMPLATE:
+                data = GroupTemplate.list_from_db(self)
             elif config_type == ConfigHistoryType.RESOURCE_VALIDATION:
                 data = ResourceValidation.list_from_db(self)
             elif config_type == ConfigHistoryType.BACKEND_TEST:
