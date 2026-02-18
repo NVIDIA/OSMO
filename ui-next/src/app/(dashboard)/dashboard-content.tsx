@@ -27,7 +27,7 @@ import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-rea
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Link } from "@/components/link";
 import { usePage } from "@/components/chrome/page-context";
-import { usePools, useVersion } from "@/lib/api/adapter/hooks";
+import { usePools, useVersion, useProfile } from "@/lib/api/adapter/hooks";
 import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
@@ -46,15 +46,23 @@ export function DashboardContent() {
 
   // Data from hydrated cache
   const { pools, isLoading: poolsLoading } = usePools();
+  const { profile, isLoading: profileLoading } = useProfile();
   const { workflows, isLoading: workflowsLoading } = useWorkflowsData({ searchChips: [] });
 
-  // Compute stats from pools
+  // Filter pools to only those accessible to the user
+  const accessiblePools = useMemo(() => {
+    if (!profile?.pool.accessible) return pools;
+    const accessibleSet = new Set(profile.pool.accessible);
+    return pools.filter((p) => accessibleSet.has(p.name));
+  }, [pools, profile]);
+
+  // Compute stats from accessible pools only
   const poolStats = useMemo(() => {
-    const online = pools.filter((p) => p.status === PoolStatus.ONLINE).length;
-    const offline = pools.filter((p) => p.status === PoolStatus.OFFLINE).length;
-    const maintenance = pools.filter((p) => p.status === PoolStatus.MAINTENANCE).length;
-    return { online, offline, maintenance, total: pools.length };
-  }, [pools]);
+    const online = accessiblePools.filter((p) => p.status === PoolStatus.ONLINE).length;
+    const offline = accessiblePools.filter((p) => p.status === PoolStatus.OFFLINE).length;
+    const maintenance = accessiblePools.filter((p) => p.status === PoolStatus.MAINTENANCE).length;
+    return { online, offline, maintenance, total: accessiblePools.length };
+  }, [accessiblePools]);
 
   // Capture mount time once for stable "last 24h" calculation
   // Initialize as null for SSR, then set on client after hydration
@@ -127,7 +135,7 @@ export function DashboardContent() {
         />
         <StatCard
           title="Pools Online"
-          value={poolsLoading ? undefined : `${poolStats.online}/${poolStats.total}`}
+          value={poolsLoading || profileLoading ? undefined : `${poolStats.online}/${poolStats.total}`}
           href="/pools?f=status:ONLINE"
           color="text-nvidia"
         />
