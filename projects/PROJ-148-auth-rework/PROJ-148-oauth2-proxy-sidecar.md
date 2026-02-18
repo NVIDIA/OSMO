@@ -141,29 +141,29 @@ The current Envoy OAuth2 filter implementation has several limitations:
 Each OSMO pod runs three containers that work together:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ POD                                                                         │
-│                                                                             │
-│  ┌─────────────────┐    ┌──────────────────┐    ┌───────────────────────┐   │
+┌────────────────────────────────────────────────────────────────────────────┐
+│ POD                                                                        │
+│                                                                            │
+│  ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────────┐   │
 │  │   Envoy Proxy   │    │  OAuth2 Proxy    │    │    OSMO Service      │   │
 │  │   (Port 8080)   │    │  (Port 4180)     │    │    (Port 8000)       │   │
-│  │                 │    │                  │    │                       │   │
+│  │                 │    │                  │    │                      │   │
 │  │  • Routes all   │◄──►│  • Validates     │    │  • Business logic    │   │
 │  │    traffic      │    │    session       │    │  • Reads x-osmo-user │   │
 │  │  • Runs filters │    │    cookies       │    │    header for user   │   │
 │  │    (ext_authz,  │    │  • Handles login/│    │    identity          │   │
-│  │    JWT, rate    │    │    callback/     │    │                       │   │
-│  │    limiting)    │    │    logout flows  │    │                       │   │
-│  │  • Sets         │    │  • Refreshes     │    │                       │   │
-│  │    x-osmo-user  │    │    tokens with   │    │                       │   │
-│  │    header       │    │    IDP           │    │                       │   │
-│  └────────┬────────┘    └──────────────────┘    └───────────────────────┘   │
-│           │                                                                 │
-│           │  Envoy talks to OAuth2 Proxy ONLY via localhost ext_authz       │
-│           │  Envoy talks to Service via localhost routing                    │
-│           │  OAuth2 Proxy NEVER talks to Service directly                   │
-│           │                                                                 │
-└───────────┼─────────────────────────────────────────────────────────────────┘
+│  │    JWT, rate    │    │    callback/     │    │                      │   │
+│  │    limiting)    │    │    logout flows  │    │                      │   │
+│  │  • Sets         │    │  • Refreshes     │    │                      │   │
+│  │    x-osmo-user  │    │    tokens with   │    │                      │   │
+│  │    header       │    │    IDP           │    │                      │   │
+│  └────────┬────────┘    └──────────────────┘    └──────────────────────┘   │
+│           │                                                                │
+│           │  Envoy talks to OAuth2 Proxy ONLY via localhost ext_authz      │
+│           │  Envoy talks to Service via localhost routing                  │
+│           │  OAuth2 Proxy NEVER talks to Service directly                  │
+│           │                                                                │
+└───────────┼────────────────────────────────────────────────────────────────┘
             │
             ▼
     External traffic (browser, CLI, other services)
