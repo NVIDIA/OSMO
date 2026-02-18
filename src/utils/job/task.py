@@ -1385,6 +1385,31 @@ def apply_pod_template(pod: Dict, pod_override: Dict):
     return common.recursive_dict_update(pod, pod_override, common.merge_lists_on_name)
 
 
+def render_group_templates(
+        templates: List[Dict],
+        variables: Dict[str, Any],
+        labels: Dict[str, str]) -> List[Dict]:
+    """Renders group templates by substituting variables and injecting OSMO labels.
+
+    Templates are deep-copied before modification. Any namespace field present in a
+    template is overridden at deployment time by BackendCreateGroup.
+    """
+    rendered = []
+    for template in templates:
+        rendered_template = copy.deepcopy(template)
+        if rendered_template.get('metadata', {}).get('namespace'):
+            logging.warning(
+                'Group template %s/%s has namespace set; it will be overridden to the '
+                'workflow namespace.',
+                rendered_template.get('kind', ''),
+                rendered_template.get('metadata', {}).get('name', ''),
+            )
+        substitute_pod_template_tokens(rendered_template, variables)
+        rendered_template.setdefault('metadata', {}).setdefault('labels', {}).update(labels)
+        rendered.append(rendered_template)
+    return rendered
+
+
 class TaskGroup(pydantic.BaseModel):
     """ Represents the group object . """
     # pylint: disable=pointless-string-statement
@@ -1989,6 +2014,28 @@ class TaskGroup(pydantic.BaseModel):
         # Create headless service
         if headless_service:
             kb_resources.append(headless_service)
+
+        # Prepend group template resources so they are created before pods
+        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+        if pool_obj.parsed_group_templates:
+            template_variables = {
+                'WF_GROUP_UUID': self.group_uuid,
+                'WF_GROUP_NAME': self.name,
+                'WF_WORKFLOW_ID': self.workflow_id,
+                'WF_WORKFLOW_UUID': workflow_uuid,
+                'WF_POOL': pool,
+                'WF_SUBMITTED_BY': user,
+            }
+            group_template_resources = render_group_templates(
+                pool_obj.parsed_group_templates,
+                template_variables,
+                labels,
+            )
+            logging.info(
+                'Prepending %d group template resources for group %s.',
+                len(group_template_resources), self.name,
+            )
+            kb_resources = group_template_resources + kb_resources
 
         return kb_resources, pod_specs
 
