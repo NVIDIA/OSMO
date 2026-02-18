@@ -82,3 +82,13 @@ py_test(
         "//src/utils/job",
     ]
 )
+
+py_test(
+    name = "test_topology",
+    srcs = [
+        "test_topology.py"
+    ],
+    deps = [
+        "//src/utils/job",
+    ]
+)
