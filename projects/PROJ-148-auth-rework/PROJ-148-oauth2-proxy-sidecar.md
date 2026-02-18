@@ -18,18 +18,14 @@ SPDX-License-Identifier: Apache-2.0
 
 # OAuth2 Proxy Sidecar for Authentication
 
-**Author**: @vpan<br>
-**PIC**: @vpan<br>
+**Author**: @vvnpn-nv<br>
+**PIC**: @vvnpn-nv<br>
 **Proposal Issue**: [#148](https://github.com/NVIDIA/OSMO/issues/148)
 
 ## Overview
 
-This document proposes replacing Envoy's built-in OAuth2 filter with [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/)
-as a dedicated authentication sidecar running in **auth-request mode**. Envoy makes a subrequest to
-OAuth2 Proxy for session validation while retaining full control of routing, rate limiting, and
-traffic flow. This addresses limitations in Envoy's OAuth2 filter — particularly around token refresh
-with OIDC providers — while maintaining compatibility with the planned authz_sidecar
-(PROJ-148-auth-sidecar) for authorization.
+This document proposes replacing Envoy's built-in OAuth2 filter with [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) as a dedicated authentication sidecar. OAuth2 Proxy runs as a session validator consulted via
+Envoy's [`ext_authz` filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter) — it validates browser session cookies and returns auth headers, but never sits in the data path for API or service traffic. Envoy retains full control of routing, rate limiting, and traffic flow. This addresses limitations in Envoy's OAuth2 filter — particularly around token refresh with OIDC providers — while maintaining compatibility with the planned authz_sidecar (PROJ-148-auth-sidecar) for authorization.
 
 ### Motivation
 
@@ -108,53 +104,366 @@ The current Envoy OAuth2 filter implementation has several limitations:
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Proposed Architecture (Auth-Request Mode)
+### Proposed Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                              POD                                           │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│   Browser ──► Envoy (Port 80) ──────────────────────────► OSMO Service     │
-│                   │                                        (Port 8000)     │
-│                   │                                                        │
-│                   ├── ext_authz (HTTP) ──► OAuth2 Proxy (Port 4180)        │
-│                   │                              │                         │
-│                   │                              └──► IDP (MS/Google/OIDC) │
-│                   │                                                        │
-│                   ├── JWT Filter (validate id_token / API tokens)          │
-│                   ├── ext_authz (gRPC) ──► authz_sidecar (future)          │
-│                   ├── Lua: strip-unauthorized-headers                      │
-│                   ├── Lua: add-forwarded-host                              │
-│                   └── Rate Limiting                                        │
-│                                                                            │
-│   /oauth2/* routes ──► OAuth2 Proxy (login, callback, logout only)         │
-│                                                                            │
-│   Removed:                                                                 │
-│   ✗ OAuth2 Filter          ✗ Lua: validate_idtoken                         │
-│   ✗ Lua: pre_oauth2        ✗ Lua: cookie-management                        │
-│   ✗ token/hmac secrets      ✗ forceReauthOnMissingIdToken flag             │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              POD                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   Browser ──► Envoy (Port 80) ──────────────────────────► OSMO Service      │
+│                   │                                        (Port 8000)      │
+│                   │                                                         │
+│                   ├── ext_authz (HTTP) ──► OAuth2 Proxy (Port 4180)         │
+│                   │    (browser only,       │    validates session cookie,  │
+│                   │     SKIPPED for         │    returns auth headers,      │
+│                   │     API/CLI requests)   │    never touches request body │
+│                   │                         └──► IDP (MS/Google/OIDC)       │
+│                   │                                                         │
+│                   ├── JWT Filter (validates id_token or API JWT)            │
+│                   ├── ext_authz (gRPC) ──► authz_sidecar (future RBAC)      │
+│                   └── Rate Limiting                                         │
+│                                                                             │
+│   /oauth2/* routes ──► OAuth2 Proxy (login, callback, logout only)          │
+│                                                                             │
+│   Removed:                                                                  │
+│   ✗ OAuth2 Filter          ✗ Lua: validate_idtoken                          │
+│   ✗ Lua: pre_oauth2        ✗ Lua: cookie-management                         │
+│   ✗ token/hmac secrets     ✗ forceReauthOnMissingIdToken flag               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key design**: Envoy stays in control of all traffic routing. OAuth2 Proxy is only consulted
-via subrequest for authentication decisions and serves the login/callback/logout endpoints directly.
-It is never in the data path for normal requests.
+**Key design principle**: Envoy stays in control of all traffic routing. OAuth2 Proxy is **never in the data path** for normal requests — it is only consulted as a session validator and serves the login/callback/logout endpoints directly.
 
-### Why Auth-Request Mode Over Proxy Mode
+### How the Sidecars Interact
 
-OAuth2 Proxy supports two integration modes. **Auth-request mode** is the right choice for OSMO:
+Each OSMO pod runs three containers that work together:
 
-| Concern | Auth-Request Mode | Proxy Mode |
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ POD                                                                         │
+│                                                                             │
+│  ┌─────────────────┐    ┌──────────────────┐    ┌───────────────────────┐   │
+│  │   Envoy Proxy   │    │  OAuth2 Proxy    │    │    OSMO Service      │   │
+│  │   (Port 8080)   │    │  (Port 4180)     │    │    (Port 8000)       │   │
+│  │                 │    │                  │    │                       │   │
+│  │  • Routes all   │◄──►│  • Validates     │    │  • Business logic    │   │
+│  │    traffic      │    │    session       │    │  • Reads x-osmo-user │   │
+│  │  • Runs filters │    │    cookies       │    │    header for user   │   │
+│  │    (ext_authz,  │    │  • Handles login/│    │    identity          │   │
+│  │    JWT, rate    │    │    callback/     │    │                       │   │
+│  │    limiting)    │    │    logout flows  │    │                       │   │
+│  │  • Sets         │    │  • Refreshes     │    │                       │   │
+│  │    x-osmo-user  │    │    tokens with   │    │                       │   │
+│  │    header       │    │    IDP           │    │                       │   │
+│  └────────┬────────┘    └──────────────────┘    └───────────────────────┘   │
+│           │                                                                 │
+│           │  Envoy talks to OAuth2 Proxy ONLY via localhost ext_authz       │
+│           │  Envoy talks to Service via localhost routing                    │
+│           │  OAuth2 Proxy NEVER talks to Service directly                   │
+│           │                                                                 │
+└───────────┼─────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+    External traffic (browser, CLI, other services)
+```
+
+**Envoy** is the only container that receives external traffic. It decides what to do based on the
+request:
+
+- **Browser request with session cookie** → asks OAuth2 Proxy "is this session valid?" → if yes,
+  extracts the JWT from OAuth2 Proxy's response → validates it → sets `x-osmo-user` → forwards to
+  Service
+- **API/CLI request with JWT in `x-osmo-auth`** → skips OAuth2 Proxy entirely → validates the JWT
+  directly → sets `x-osmo-user` → forwards to Service
+- **Unauthenticated request** → asks OAuth2 Proxy → OAuth2 Proxy says "not authenticated" →
+  Envoy redirects the browser to the IDP login page (via OAuth2 Proxy's `/oauth2/start` endpoint)
+- **Login/callback/logout paths** → routes directly to OAuth2 Proxy (these are the only paths where
+  OAuth2 Proxy acts as an HTTP server, not just a validator)
+
+**OAuth2 Proxy** never talks to the OSMO Service directly. It only:
+1. Answers Envoy's "is this session valid?" questions (ext_authz check)
+2. Handles the OAuth2 login flow (`/oauth2/start` → IDP → `/oauth2/callback`)
+3. Handles logout (`/oauth2/sign_out`)
+
+**OSMO Service** never knows OAuth2 Proxy exists. It receives requests from Envoy with `x-osmo-user`
+already set and uses that header for user identity. The same header is set whether the request came
+from a browser (via OAuth2 Proxy session) or from the CLI (via direct JWT).
+
+### Session Lifecycle: What Happens At Each Stage
+
+**Stage 1: First visit (no session)**
+
+```
+Browser visits dev.osmo.nvidia.com/workflows
+    │
+    ▼
+Envoy receives request (no _oauth2_proxy cookie, no x-osmo-auth header)
+    │
+    ├── Lua: strips dangerous headers (x-osmo-user, x-osmo-auth-skip)
+    │
+    ├── ext_authz: sends request to OAuth2 Proxy
+    │       │
+    │       └── OAuth2 Proxy: no valid cookie → returns redirect response
+    │
+    ├── Envoy returns the redirect to the browser
+    │
+    ▼
+Browser follows redirect to /oauth2/start
+    │
+    ▼
+OAuth2 Proxy redirects to IDP (e.g., login.microsoftonline.com)
+with --skip-provider-button=true, user goes directly to IDP login
+    │
+    ▼
+User enters credentials at IDP
+    │
+    ▼
+IDP redirects to /oauth2/callback?code=<authorization_code>
+    │
+    ▼
+OAuth2 Proxy exchanges code for tokens:
+  - Sends scope=openid email profile (ensures id_token is returned)
+  - Receives: access_token, id_token, refresh_token
+  - Creates encrypted session cookie (_oauth2_proxy)
+  - Redirects browser back to /workflows with Set-Cookie header
+```
+
+**Stage 2: Normal browsing (valid session)**
+
+```
+Browser visits dev.osmo.nvidia.com/workflows
+with _oauth2_proxy cookie attached
+    │
+    ▼
+Envoy receives request
+    │
+    ├── Lua: strips dangerous headers
+    │
+    ├── ext_authz: sends request to OAuth2 Proxy (forwards cookie header)
+    │       │
+    │       └── OAuth2 Proxy:
+    │           1. Decrypts _oauth2_proxy cookie
+    │           2. Checks session expiry → still valid
+    │           3. Returns 200 with headers:
+    │              Authorization: Bearer <id_token>
+    │              X-Auth-Request-User: vivianp@nvidia.com
+    │              X-Auth-Request-Email: vivianp@nvidia.com
+    │
+    ├── Envoy adds Authorization header to the request
+    │
+    ├── JWT Filter:
+    │   1. Extracts JWT from Authorization: Bearer <id_token>
+    │   2. Fetches IDP's public keys (JWKS) from idp cluster
+    │   3. Validates JWT signature, expiry, issuer, audience
+    │   4. Extracts preferred_username claim → sets x-osmo-user header
+    │
+    ├── Lua roles: extracts roles from JWT claims → sets x-osmo-roles
+    │
+    ├── Rate limiting: checks per-user rate limits
+    │
+    ▼
+Request reaches OSMO Service with:
+  x-osmo-user: vivianp@nvidia.com
+  x-osmo-roles: osmo-user,osmo-admin
+```
+
+**Stage 3: Token refresh (session expiring)**
+
+```
+Browser makes a request, _oauth2_proxy cookie is near expiry
+(controlled by --cookie-refresh=1h)
+    │
+    ▼
+Envoy ext_authz → OAuth2 Proxy
+    │
+    └── OAuth2 Proxy:
+        1. Decrypts cookie → session needs refresh
+        2. Calls IDP token endpoint with refresh_token
+           POST https://login.microsoftonline.com/.../token
+           grant_type=refresh_token
+           scope=openid email profile    ← this was not available via envoy's oauth2 filter
+           refresh_token=<stored_token>
+        3. IDP returns NEW tokens:
+           - access_token (new)
+           - id_token (new) ← returned because scope includes openid
+           - refresh_token (new)
+        4. Updates session with new tokens
+        5. Returns 200 + new Authorization header
+        6. Includes Set-Cookie with updated session
+    │
+    ▼
+Browser receives updated _oauth2_proxy cookie (transparent)
+User sees no interruption — the page loads normally
+```
+
+**Stage 4: Session expired (refresh token also expired)**
+
+```
+Browser makes a request after a long idle period
+(e.g., --cookie-expire=168h / 7 days)
+    │
+    ▼
+Envoy ext_authz → OAuth2 Proxy
+    │
+    └── OAuth2 Proxy:
+        1. Decrypts cookie → session expired
+        2. Attempts refresh → IDP rejects (refresh token expired)
+        3. Clears session cookie
+        4. Returns redirect to /oauth2/start
+    │
+    ▼
+Browser redirected to IDP login (same as Stage 1)
+User must re-authenticate — this is expected behavior for expired sessions
+```
+
+**Stage 5: CLI/API request (no session involved)**
+
+```
+osmo workflow list
+    │
+    ▼
+CLI sends request with header: x-osmo-auth: <JWT from device flow>
+    │
+    ▼
+Envoy receives request
+    │
+    ├── Lua: strips dangerous headers (x-osmo-user, etc.)
+    │
+    ├── ext_authz: ExtensionWithMatcher sees x-osmo-auth header → SKIP
+    │   OAuth2 Proxy is NOT contacted at all
+    │
+    ├── JWT Filter:
+    │   1. Checks Authorization header → not present
+    │   2. Checks x-osmo-auth header → found JWT
+    │   3. Validates JWT signature against IDP's JWKS keys
+    │   4. Sets x-osmo-user from JWT claims
+    │
+    ├── Lua roles: extracts roles → sets x-osmo-roles
+    │
+    ▼
+Request reaches OSMO Service with x-osmo-user set
+(identical outcome to browser path, but OAuth2 Proxy was never involved)
+```
+
+### Integration Pattern: Proxy Mode with Static Upstream
+
+Envoy's `ext_authz` HTTP filter consults OAuth2 Proxy before allowing browser requests to proceed.
+OAuth2 Proxy runs with `--upstream=static://200`, meaning it validates the session cookie and immediately returns a 200 response with auth headers — it never processes request or response bodies.
+Envoy then uses the auth headers (specifically `Authorization: Bearer <id_token>`) for JWT validation and routes the request to the service.
+
+For API/CLI requests, Envoy's [`ExtensionWithMatcher`](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/common/matching/v3/extension_matcher.proto) detects the `x-osmo-auth` header and **skips the OAuth2 Proxy check entirely**. The JWT filter validates the token directly from the header.
+This means the majority of programmatic API traffic — workflow submissions, status polling, agent heartbeats, router connections — has zero OAuth2 Proxy involvement.
+
+**Version requirement**: OAuth2 Proxy **v7.14.2 or later** is required. Earlier versions (including v7.6.0) have a bug where `--set-authorization-header` sets the `Authorization` header on the proxied request instead of the response back to Envoy, making the JWT invisible to the JWT filter.
+
+### Data Path: What Goes Through OAuth2 Proxy vs Envoy
+
+```
+API/CLI requests (majority of traffic):
+  Client ──► Envoy ──► [ext_authz SKIPPED] ──► JWT Filter ──► Service
+  OAuth2 Proxy: NOT INVOLVED — zero overhead
+
+Browser requests (interactive users):
+  Browser ──► Envoy ──► ext_authz ──► OAuth2 Proxy ──► Envoy ──► JWT Filter ──► Service
+                                       │
+                                       └── cookie validation only (~1ms)
+                                           no request/response body processing
+                                           returns Authorization header with id_token
+
+Internal service-to-service:
+  Service ──► Envoy in-cluster listener ──► [ext_authz SKIPPED] ──► Service
+  OAuth2 Proxy: NOT INVOLVED
+
+Login/logout flow only:
+  Browser ──► Envoy ──► /oauth2/* route ──► OAuth2 Proxy ──► IDP
+  These are the ONLY requests where OAuth2 Proxy acts as an HTTP endpoint
+```
+
+**Scaling characteristics:**
+- OAuth2 Proxy handles only browser session checks (small fraction of total API traffic)
+- Each check is a localhost HTTP round-trip with no external calls (unless token refresh is needed)
+- One OAuth2 Proxy per pod (sidecar pattern) — scales horizontally with the service
+- If OAuth2 Proxy restarts, only new browser auth checks pause; in-flight API/CLI requests are unaffected
+
+### Security Model
+
+Authentication is enforced by two layers working together:
+
+| Layer | What it does | Can it be bypassed? |
+|-------|-------------|---------------------|
+| **Lua: strip-unauthorized-headers** | Strips `x-osmo-auth-skip`, `x-osmo-user`, `x-osmo-roles` from ALL incoming requests | No — runs first in the filter chain, external clients cannot inject trusted headers |
+| **ext_authz (OAuth2 Proxy)** | Validates browser session cookies. Skipped when `x-osmo-auth` header is present | Skipping is safe — the JWT filter still validates the token cryptographically |
+| **JWT filter** | Validates JWT signature against IDP's public JWKS keys. Sets `x-osmo-user` from claims | No — forged/expired/invalid tokens are rejected with 401 |
+| **`failure_mode_allow: false`** | If OAuth2 Proxy is unreachable, Envoy denies the request | No — fail-closed by default |
+
+A malicious client sending `x-osmo-auth: fake-token` would skip OAuth2 Proxy but still fail JWT
+cryptographic validation. The only way to authenticate is with a valid JWT signed by the configured
+IDP — the same security boundary as any JWT-based system.
+
+### JWT Filter Header Configuration
+
+The JWT filter's `from_headers` configuration differs per chart to handle the interaction between
+browser auth (via `Authorization` header from OAuth2 Proxy) and CLI/API auth (via `x-osmo-auth`):
+
+| Chart | `from_headers` order | Reason |
+|-------|---------------------|--------|
+| **Web-UI** | `[authorization]` only | Web-UI only serves browser requests. Prevents the UI's empty `x-osmo-auth: ""` header from breaking JWT validation. |
+| **Service** | `[authorization, x-osmo-auth]` | `authorization` checked first (from OAuth2 Proxy for browser). Falls back to `x-osmo-auth` for CLI/API. |
+| **Router** | `[authorization, x-osmo-auth]` | Same as service. |
+
+### Secret Management
+
+OAuth2 Proxy secrets are provided via `--config=<path>` with inline values:
+
+```
+client_secret = "<value>"
+cookie_secret = "<value>"
+```
+
+> **Important**: `--client-secret-file` and `--cookie-secret-file` CLI flags do NOT exist.
+> `client_secret_file` and `cookie_secret_file` config file options also do NOT exist.
+> The `cookie_secret` must be exactly 16, 24, or 32 bytes — base64-encoded values are NOT
+> auto-decoded. For Vault-agent deployments, add oauth2_proxy templates to `config-init.hcl`
+> (not just `config.hcl`) to ensure secrets are rendered before the container starts.
+
+### UI Integration
+
+The web-UI requires code changes to work with OAuth2 Proxy:
+
+1. **New `/auth/session` endpoint** — Server-side route that reads `x-osmo-user` from Envoy headers to detect OAuth2 Proxy sessions
+2. **AuthProvider session detection** — Try `/auth/session` first; if authenticated, skip the legacy `IdToken` cookie flow
+3. **Server-to-service auth forwarding** — Extract Bearer token from `Authorization` header and forward via `x-osmo-auth` so the service's ext_authz is skipped
+4. **Logout** — Redirect to `/oauth2/sign_out` when OAuth2 Proxy is active
+5. **Skip provider button** — `--skip-provider-button=true` redirects directly to IDP, no intermediate sign-in page
+
+### Future: CLI Migration to `Authorization: Bearer`
+
+The CLI (`login.py`) and Go agent (`ctrl_args.go`) currently use `x-osmo-auth` for JWT transport.
+There is an existing TODO to migrate to `Authorization: Bearer`. Once complete:
+
+1. Remove `x-osmo-auth` from JWT filter `from_headers` in all charts
+2. Update ext_authz skip condition to match `Authorization` header with Bearer prefix
+3. Remove `x-osmo-auth` header stripping from Lua filters
+4. Update UI server-to-service calls to forward `Authorization` directly
+5. Simplify to a single auth header (`Authorization`) for all paths
+
+### Why Session Validator (ext_authz) Over Inline Proxy
+
+OAuth2 Proxy can be deployed as an inline proxy (all traffic flows through it) or as a session
+validator consulted via Envoy's ext_authz with `--upstream=static://200` (our approach). The
+ext_authz pattern is the right choice for OSMO:
+
+| Concern | ext_authz with static upstream (our approach) | Inline proxy mode |
 |---|---|---|
 | **Routing** | Envoy keeps its existing 11+ regex route patterns, per-route rate limits, and WebSocket support unchanged | OAuth2 Proxy would sit in the data path; Envoy loses visibility into request paths for rate limiting |
 | **Streaming** | WebSocket/streaming connections (`exec`, `portforward`, `rsync`) flow directly from Envoy to service | Every byte of streaming data passes through OAuth2 Proxy unnecessarily |
-| **API/CLI tokens** | Requests with JWT tokens in `x-osmo-auth` skip the OAuth2 Proxy subrequest entirely via matcher | All requests flow through OAuth2 Proxy even when it has nothing to do |
+| **API/CLI tokens** | Requests with JWT tokens in `x-osmo-auth` skip the OAuth2 Proxy check entirely via matcher | All requests flow through OAuth2 Proxy even when it has nothing to do |
 | **Consistency** | Same ext_authz pattern as authz_sidecar — both are "check" sidecars that Envoy consults | OAuth2 Proxy has a different role (inline proxy) than authz_sidecar (ext_authz) |
 | **Chart reuse** | OAuth2 Proxy config is identical across service, router, and web-ui charts — it only answers "is this session valid?" | Each chart's OAuth2 Proxy would need to know about upstream routing |
-| **Blast radius** | If OAuth2 Proxy restarts, only new auth checks pause; in-flight data connections are unaffected | If OAuth2 Proxy restarts, all in-flight connections drop |
-| **Scale** | OAuth2 Proxy handles only small auth-check subrequests (<1ms each) | OAuth2 Proxy processes every request/response body |
+| **Blast radius** | If OAuth2 Proxy restarts, only new browser auth checks pause; in-flight data connections are unaffected | If OAuth2 Proxy restarts, all in-flight connections drop |
+| **Scale** | OAuth2 Proxy handles only small session validation checks (<1ms each, no body processing) | OAuth2 Proxy processes every request/response body |
 
 ### Request Flow
 
@@ -163,11 +472,11 @@ OAuth2 Proxy supports two integration modes. **Auth-request mode** is the right 
 ```
 Browser ──► Envoy
                │
-               ├── ext_authz subrequest ──► OAuth2 Proxy /oauth2/auth
+               ├── ext_authz ──► OAuth2 Proxy (session check)
                │                                  │
-               │                                  └── No session cookie → 401
+               │                                  └── No session cookie → redirect
                │
-               └── Envoy sees 401, returns 302 redirect to /oauth2/start
+               └── Envoy returns redirect to /oauth2/start
                         │
                         ▼
                OAuth2 Proxy redirects to IDP
@@ -191,7 +500,7 @@ Browser ──► Envoy
 ```
 Browser ──► Envoy
                │
-               ├── ext_authz subrequest ──► OAuth2 Proxy /oauth2/auth
+               ├── ext_authz ──► OAuth2 Proxy (session check)
                │                                  │
                │                                  └── Valid session cookie → 200
                │                                       + X-Auth-Request-User header
@@ -221,7 +530,7 @@ Client ──► Envoy
 **4. Token Refresh (Seamless)**
 
 Token refresh is transparent. When OAuth2 Proxy detects an expiring session during
-the `/oauth2/auth` subrequest, it refreshes tokens with the IDP (sending the full scope
+the ext_authz check, it refreshes tokens with the IDP (sending the full scope
 including `openid`, so the IDP returns a new `id_token`), updates the session cookie,
 and returns 200 with fresh headers. The browser receives a `Set-Cookie` header with
 the refreshed session.
@@ -230,9 +539,11 @@ the refreshed session.
 
 ### 1. Envoy ext_authz Configuration (OAuth2 Proxy)
 
-This is the core integration point. Envoy sends a subrequest to OAuth2 Proxy's `/oauth2/auth`
-endpoint for every browser request. OAuth2 Proxy validates the session cookie and returns
-user identity headers on success.
+This is the core integration point. Envoy's ext_authz filter consults OAuth2 Proxy for every
+browser request. OAuth2 Proxy validates the session cookie and returns user identity headers
+on success. Note: the `server_uri` path is used for cluster routing only — Envoy sends the
+original request path to OAuth2 Proxy, which validates the session via its proxy handler with
+`--upstream=static://200`.
 
 ```yaml
 - name: envoy.filters.http.ext_authz
@@ -250,9 +561,13 @@ user identity headers on success.
       authorization_response:
         allowed_upstream_headers:
           patterns:
+            - exact: authorization
             - exact: x-auth-request-user
             - exact: x-auth-request-email
-            - exact: authorization
+            - exact: x-auth-request-preferred-username
+        allowed_client_headers_on_success:
+          patterns:
+            - exact: set-cookie
     failure_mode_allow: false
 ```
 
@@ -342,8 +657,8 @@ http_filters:
 **Note**: The `add-auth-skip` Lua filter is kept. It sets `x-osmo-auth-skip: true` for
 skip-auth paths (e.g., `/health`, `/api/version`). The ext_authz filter for OAuth2 Proxy
 uses `ExtensionWithMatcher` to skip when this header is present — same pattern as the current
-OAuth2 filter. OAuth2 Proxy's `--skip-auth-route` flag does not work in auth-request mode
-because Envoy controls which requests trigger the subrequest, not OAuth2 Proxy.
+OAuth2 filter. OAuth2 Proxy's `--skip-auth-route` flag does not apply here because Envoy
+controls which requests trigger the ext_authz check, not OAuth2 Proxy.
 
 **Note**: The `oauth` cluster is **renamed to `idp`**, not removed. The OAuth2 filter used this
 cluster for token exchange (that use goes away), but the JWT filter also uses it to fetch JWKS
@@ -376,7 +691,7 @@ entries in `values.yaml` update from `cluster: oauth` to `cluster: idp`.
 sidecars:
   oauth2Proxy:
     enabled: true
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.2
     imagePullPolicy: IfNotPresent
 
     # Port configuration
@@ -408,7 +723,7 @@ sidecars:
     # Session storage
     sessionStoreType: cookie  # or redis for HA
 
-    # Header configuration (auth-request mode)
+    # Header configuration
     setXAuthRequest: true
     setAuthorizationHeader: true
     passAccessToken: true
@@ -649,39 +964,6 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
 | **Direct IDP Integration** | Aligned on goals (remove Keycloak, connect to IDPs directly). The Direct IDP Integration doc currently assumes Envoy's OAuth2 filter — it needs updating to reference OAuth2 Proxy as the authn mechanism. IDP registration steps (app registration, redirect URIs, secrets) remain the same. |
 | **Resource-Action Model** | No impact — authorization layer is unchanged. |
 
-## Implementation Plan
-
-### Phase 1: Proof of Concept
-- [ ] Deploy OAuth2 Proxy in development environment
-- [ ] Configure for a target IDP (e.g., Microsoft Entra ID, Google)
-- [ ] Verify token refresh returns `id_token` (the core thesis)
-- [ ] Test ext_authz integration with Envoy
-
-### Phase 2: Helm Chart Development
-- [ ] Add `oauth2Proxy` sidecar to `_sidecar-helpers.tpl` (shared template for all 3 charts)
-- [ ] Add ext_authz filter config and `oauth2-proxy` cluster to Envoy templates
-- [ ] Add `/oauth2/*` routes to Envoy route config
-- [ ] Add `oauth2Proxy` values block to `values.yaml`
-- [ ] Add Kubernetes secret template for OAuth2 Proxy
-
-### Phase 3: Rollout
-- [ ] Deploy to staging with feature flag (`oauth2Proxy.enabled`)
-- [ ] Validate token refresh with each configured IDP
-- [ ] Monitor metrics and logs
-- [ ] Full production rollout
-
-### Phase 4: Cleanup
-- [ ] Remove Envoy OAuth2 filter configuration from all 3 templates
-- [ ] Remove all Lua workaround code (`validate_idtoken`, `pre_oauth2`, `cookie-management-lua`)
-- [ ] Rename `oauth` cluster to `idp` in all 3 templates; update address source from `oauth2Filter.authProvider` to new `sidecars.envoy.idp.host`
-- [ ] Update JWT provider entries to use `cluster: idp` instead of `cluster: oauth`
-- [ ] Remove `token`/`hmac` secret configuration
-- [ ] Remove `forceReauthOnMissingIdToken` flag from all values files
-- [ ] Remove `oauth2Filter.*` values block (except auth provider host, which moves to `sidecars.envoy.idp.host`)
-- [ ] Remove `IdToken` cookie extraction from JWT filter config
-- [ ] Update Direct IDP Integration doc (PROJ-148) to reference OAuth2 Proxy
-- [ ] Update service deployment documentation
-
 ## Open Questions
 
 - [ ] Should we use Redis for session storage in production for HA?
@@ -699,7 +981,7 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
 
 ```yaml
 - name: oauth2-proxy
-  image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.2
   args:
     - --http-address=0.0.0.0:4180
     - --metrics-address=0.0.0.0:44180
@@ -707,9 +989,9 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
     - --provider=$(OAUTH2_PROVIDER)          # oidc, azure, google, keycloak-oidc
     - --oidc-issuer-url=$(OIDC_ISSUER_URL)
     - --client-id=$(CLIENT_ID)
-    - --client-secret-file=/etc/oauth2-proxy/client-secret
-    - --cookie-secret-file=/etc/oauth2-proxy/cookie-secret
+    - --config=/etc/oauth2-proxy/config.cfg  # contains client_secret and cookie_secret inline
     - --cookie-secure=true
+    - --skip-provider-button=true
     - --cookie-name=_oauth2_proxy
     - --cookie-domain=.osmo.nvidia.com
     - --cookie-expire=168h
@@ -757,8 +1039,10 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
       readOnly: true
 ```
 
-Note: `--upstream=static://200` is used in auth-request mode. OAuth2 Proxy doesn't proxy traffic
-to the upstream service — it only validates sessions and returns headers. Envoy handles all routing.
+Note: `--upstream=static://200` means OAuth2 Proxy validates sessions and returns a 200 response
+with auth headers. It never proxies actual traffic — Envoy handles all routing.
+`--config` points to a file with `client_secret = "..."` and `cookie_secret = "..."` inline
+(NOT `_file` references, which don't exist in any OAuth2 Proxy version).
 
 ### Files to Modify
 
@@ -772,3 +1056,7 @@ to the upstream service — it only validates sessions and returns headers. Envo
 | `external/deployments/charts/web-ui/templates/_envoy-config-helpers.tpl` | Modify | Same as service |
 | `external/deployments/charts/web-ui/values.yaml` | Modify | Add `oauth2Proxy` config, remove `oauth2Filter` |
 | `charts_value/*/stg/*.yaml` | Modify | Update to use `oauth2Proxy`, remove `forceReauthOnMissingIdToken` |
+| `external/ui/src/components/AuthProvider.tsx` | Modify | Add OAuth2 Proxy session detection, logout via `/oauth2/sign_out` |
+| `external/ui/src/app/auth/session/route.ts` | Add | New endpoint that reads `x-osmo-user` from Envoy headers |
+| `external/ui/src/utils/common.ts` | Modify | Forward `Authorization` → `x-osmo-auth` for server-to-service calls |
+| `external/ui/src/app/auth/check_token/route.ts` | Modify | Forward auth headers from OAuth2 Proxy to service |
