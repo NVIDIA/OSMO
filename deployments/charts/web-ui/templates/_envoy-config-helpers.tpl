@@ -279,6 +279,9 @@ Generate ext_authz filter for OAuth2 Proxy
             allowed_client_headers_on_success:
               patterns:
               - exact: set-cookie
+              - exact: x-auth-request-user
+              - exact: x-auth-request-email
+              - exact: x-auth-request-preferred-username
         failure_mode_allow: false
 {{- end }}
 

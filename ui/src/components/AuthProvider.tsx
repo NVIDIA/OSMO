@@ -95,6 +95,7 @@ class Auth {
   id_token = "";
   refresh_token = "";
   authEnabled = false;
+  isOAuth2ProxySession = false;
   routerPush: ReturnType<typeof useRouter>["push"] = () => {
     // no-op
   };
@@ -112,43 +113,35 @@ class Auth {
   }
 
   async login() {
+    let loginInfoResponse: Response;
     try {
-      const res = await fetch("/auth/login_info", { cache: "no-store" });
-      const data = await res.json();
+      loginInfoResponse = await fetch("/auth/login_info", { cache: "no-store" });
+      const data = await loginInfoResponse.json();
       this.authEnabled = data.auth_enabled;
     } catch (error) {
       throw new Error(`Failed to fetch login info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 
     if (!this.authEnabled) {
-      // Nothing to do when auth is disabled
       return;
     }
 
     if (window.location.pathname.startsWith("/auth/success")) {
-      // Nothing to do for auth success - we're already in the auth flow
-      // and about to redirect to the original page
       return;
     }
 
-    // Try OAuth2 Proxy session first. The /oauth2/userinfo endpoint is
-    // built into OAuth2 Proxy and returns user info from the session cookie.
-    // If this succeeds, skip the cookie-based token flow entirely.
-    try {
-      const sessionRes = await fetch("/oauth2/userinfo", { cache: "no-store" });
-      if (sessionRes.ok) {
-        const sessionData = await sessionRes.json();
-        if (sessionData.preferredUsername || sessionData.email) {
-          this.claims = {
-            email: sessionData.email ?? sessionData.preferredUsername,
-            preferred_username: sessionData.preferredUsername ?? sessionData.email,
-          } as AuthClaims;
-          return;
-        }
-      }
-    } catch {
-      // OAuth2 Proxy not configured or /oauth2/userinfo not available.
-      // Fall through to legacy cookie-based flow.
+    // Check for OAuth2 Proxy user info in response headers.
+    // Envoy's ext_authz forwards these from OAuth2 Proxy via
+    // allowed_client_headers_on_success.
+    const authEmail = loginInfoResponse.headers.get("x-auth-request-email");
+    const authPreferredUsername = loginInfoResponse.headers.get("x-auth-request-preferred-username");
+    if (authEmail || authPreferredUsername) {
+      this.isOAuth2ProxySession = true;
+      this.claims = {
+        email: authEmail ?? authPreferredUsername ?? "",
+        preferred_username: authPreferredUsername ?? authEmail ?? "",
+      } as AuthClaims;
+      return;
     }
 
     if (env.NEXT_PUBLIC_OSMO_ENV === "local-against-production") {
@@ -256,16 +249,9 @@ class Auth {
     this.id_token = "";
     this.refresh_token = "";
 
-    // Try OAuth2 Proxy logout first
-    try {
-      const sessionRes = await fetch("/oauth2/userinfo", { cache: "no-store" });
-      if (sessionRes.ok) {
-        // OAuth2 Proxy is handling auth — redirect to its sign-out endpoint
-        window.location.href = "/oauth2/sign_out";
-        return;
-      }
-    } catch {
-      // OAuth2 Proxy not available, fall through to legacy logout
+    if (this.isOAuth2ProxySession) {
+      window.location.href = "/oauth2/sign_out";
+      return;
     }
 
     // Legacy cookie-based logout
