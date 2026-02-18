@@ -124,11 +124,11 @@ func TestExtractResourceFromPath(t *testing.T) {
 			action:       ActionWorkflowRead,
 			wantResource: "pool/*",
 		},
-		// Self-scoped resources (bucket, config)
+		// Self-scoped resources (dataset, config)
 		{
-			name:         "bucket with name returns bucket scope",
+			name:         "dataset with name returns dataset scope",
 			path:         "/api/bucket/my-bucket",
-			action:       ActionBucketRead,
+			action:       ActionDatasetRead,
 			wantResource: "bucket/my-bucket",
 		},
 		{
@@ -678,5 +678,46 @@ func TestContainsMethod(t *testing.T) {
 					tt.methods, tt.method, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestCheckPolicyAccessDenyPrecedence verifies that a Deny policy takes precedence over Allow.
+func TestCheckPolicyAccessDenyPrecedence(t *testing.T) {
+	// Role with Allow workflow:* and Deny workflow:Delete on same resources
+	role := &Role{
+		Name: "test-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "workflow:*"}},
+				Resources: []string{"*"},
+			},
+			{
+				Effect:    EffectDeny,
+				Actions:   []RoleAction{{Action: "workflow:Delete"}},
+				Resources: []string{"*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// DELETE /api/workflow/abc should be denied (Deny policy matches)
+	result := CheckPolicyAccess(ctx, converted, "/api/workflow/abc", "DELETE", nil)
+	if result.Allowed {
+		t.Errorf("CheckPolicyAccess(DELETE /api/workflow/abc): want denied, got allowed")
+	}
+	if !result.Denied {
+		t.Errorf("CheckPolicyAccess(DELETE /api/workflow/abc): want Denied=true, got false")
+	}
+
+	// GET /api/workflow/abc should still be allowed
+	resultAllow := CheckPolicyAccess(ctx, converted, "/api/workflow/abc", "GET", nil)
+	if !resultAllow.Allowed {
+		t.Errorf("CheckPolicyAccess(GET /api/workflow/abc): want allowed, got denied")
 	}
 }
