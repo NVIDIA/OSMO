@@ -42,16 +42,25 @@ type WorkflowListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
 	inst *utils.Instruments
+
+	// Pre-computed attribute sets (constant label values)
+	attrListener     metric.MeasurementOption // {listener: "workflow"}
+	attrTypePod      metric.MeasurementOption // {type: "pod"}
+	attrTypeWorkflow metric.MeasurementOption // {type: "workflow"}
 }
 
 // NewWorkflowListener creates a new workflow listener instance
 func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *WorkflowListener {
-	return &WorkflowListener{
+	wl := &WorkflowListener{
 		BaseListener: utils.NewBaseListener(
 			args, "last_progress_workflow_listener", utils.StreamNameWorkflow, inst),
 		args: args,
 		inst: inst,
 	}
+	wl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "workflow")))
+	wl.attrTypePod = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "pod")))
+	wl.attrTypeWorkflow = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "workflow")))
+	return wl
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -98,8 +107,7 @@ func (wl *WorkflowListener) sendMessages(
 					return
 				}
 				log.Println("Pod watcher stopped unexpectedly, draining channel...")
-				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
-					metric.WithAttributes(attribute.String("listener", "workflow")))
+				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.attrListener)
 				wl.drainMessageChannel(ch)
 				cancel(fmt.Errorf("pod watcher stopped"))
 				return
@@ -141,8 +149,7 @@ func (wl *WorkflowListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		wl.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("listener", "workflow")))
+		wl.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, wl.attrListener)
 		return
 	}
 
@@ -166,8 +173,7 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		wl.inst.KBEventWatchCount.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("type", "pod")))
+		wl.inst.KBEventWatchCount.Add(ctx, 1, wl.attrTypePod)
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
@@ -181,10 +187,8 @@ func (wl *WorkflowListener) watchPods(
 			case ch <- msg:
 				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1,
 					metric.WithAttributes(attribute.String("status", statusResult.Status)))
-				wl.inst.MessageQueuedTotal.Add(ctx, 1,
-					metric.WithAttributes(attribute.String("listener", "workflow")))
-				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)),
-					metric.WithAttributes(attribute.String("listener", "workflow")))
+				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.attrListener)
+				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.attrListener)
 			case <-ctx.Done():
 				return
 			}
@@ -227,10 +231,8 @@ func (wl *WorkflowListener) watchPods(
 				case ch <- msg:
 					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1,
 						metric.WithAttributes(attribute.String("status", statusResult.Status)))
-					wl.inst.MessageQueuedTotal.Add(ctx, 1,
-						metric.WithAttributes(attribute.String("listener", "workflow")))
-					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)),
-						metric.WithAttributes(attribute.String("listener", "workflow")))
+					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.attrListener)
+					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.attrListener)
 				case <-ctx.Done():
 					return
 				}
@@ -248,8 +250,7 @@ func (wl *WorkflowListener) watchPods(
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
-		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("type", "workflow")))
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.attrTypeWorkflow)
 	})
 
 	// Start the informer
@@ -259,13 +260,11 @@ func (wl *WorkflowListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
-		wl.inst.InformerCacheSyncFailure.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("listener", "workflow")))
+		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.attrListener)
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
-	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1,
-		metric.WithAttributes(attribute.String("listener", "workflow")))
+	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.attrListener)
 
 	// Keep the watcher running
 	<-ctx.Done()

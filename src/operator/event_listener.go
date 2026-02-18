@@ -41,16 +41,23 @@ type EventListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
 	inst *utils.Instruments
+
+	// Pre-computed attribute sets (constant label values)
+	attrListener  metric.MeasurementOption // {listener: "event"}
+	attrTypeEvent metric.MeasurementOption // {type: "event"}
 }
 
 // NewEventListener creates a new event listener instance
 func NewEventListener(args utils.ListenerArgs, inst *utils.Instruments) *EventListener {
-	return &EventListener{
+	el := &EventListener{
 		BaseListener: utils.NewBaseListener(
 			args, "last_progress_event_listener", utils.StreamNameEvent, inst),
 		args: args,
 		inst: inst,
 	}
+	el.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "event")))
+	el.attrTypeEvent = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "event")))
+	return el
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -95,8 +102,7 @@ func (el *EventListener) sendMessages(
 					return
 				}
 				log.Println("Event watcher stopped unexpectedly")
-				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
-					metric.WithAttributes(attribute.String("listener", "event")))
+				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.attrListener)
 				cancel(fmt.Errorf("event watcher stopped"))
 				return
 			}
@@ -141,8 +147,7 @@ func (el *EventListener) watchEvents(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		el.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("listener", "event")))
+		el.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, el.attrListener)
 		return
 	}
 
@@ -158,8 +163,7 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		el.inst.KBEventWatchCount.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("type", "event")))
+		el.inst.KBEventWatchCount.Add(ctx, 1, el.attrTypeEvent)
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
@@ -175,10 +179,8 @@ func (el *EventListener) watchEvents(
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
-			el.inst.MessageQueuedTotal.Add(ctx, 1,
-				metric.WithAttributes(attribute.String("listener", "event")))
-			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)),
-				metric.WithAttributes(attribute.String("listener", "event")))
+			el.inst.MessageQueuedTotal.Add(ctx, 1, el.attrListener)
+			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.attrListener)
 		case <-ctx.Done():
 			return
 		}
@@ -202,8 +204,7 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
-		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("type", "event")))
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.attrTypeEvent)
 	})
 
 	// Start the informer
@@ -213,13 +214,11 @@ func (el *EventListener) watchEvents(
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		log.Println("Failed to sync event informer cache")
-		el.inst.InformerCacheSyncFailure.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("listener", "event")))
+		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.attrListener)
 		return
 	}
 	log.Println("Event informer cache synced successfully")
-	el.inst.InformerCacheSyncSuccess.Add(ctx, 1,
-		metric.WithAttributes(attribute.String("listener", "event")))
+	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.attrListener)
 
 	// Keep the watcher running
 	<-ctx.Done()

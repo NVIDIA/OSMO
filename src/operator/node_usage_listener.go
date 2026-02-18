@@ -42,17 +42,24 @@ type NodeUsageListener struct {
 	args       utils.ListenerArgs
 	aggregator *utils.NodeUsageAggregator
 	inst       *utils.Instruments
+
+	// Pre-computed attribute sets (constant label values)
+	attrListener      metric.MeasurementOption // {listener: "node_usage"}
+	attrTypeNodeUsage metric.MeasurementOption // {type: "node_usage"}
 }
 
 // NewNodeUsageListener creates a new node usage listener instance
 func NewNodeUsageListener(args utils.ListenerArgs, inst *utils.Instruments) *NodeUsageListener {
-	return &NodeUsageListener{
+	nul := &NodeUsageListener{
 		BaseListener: utils.NewBaseListener(
 			args, "last_progress_node_usage_listener", utils.StreamNameNodeUsage, inst),
 		args:       args,
 		aggregator: utils.NewNodeUsageAggregator(args.Namespace),
 		inst:       inst,
 	}
+	nul.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "node_usage")))
+	nul.attrTypeNodeUsage = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "node_usage")))
+	return nul
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -94,8 +101,7 @@ func (nul *NodeUsageListener) sendMessages(
 					return
 				}
 				log.Printf("usage watcher stopped unexpectedly...")
-				nul.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1,
-					metric.WithAttributes(attribute.String("listener", "node_usage")))
+				nul.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nul.attrListener)
 				cancel(fmt.Errorf("usage watcher stopped"))
 				return
 			}
@@ -117,8 +123,7 @@ func (nul *NodeUsageListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		nul.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("listener", "node_usage")))
+		nul.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, nul.attrListener)
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}
@@ -147,15 +152,13 @@ func (nul *NodeUsageListener) watchPods(
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1,
-				metric.WithAttributes(attribute.String("type", "node_usage")))
+			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrTypeNodeUsage)
 
 			pod := obj.(*corev1.Pod)
 			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1,
-				metric.WithAttributes(attribute.String("type", "node_usage")))
+			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrTypeNodeUsage)
 
 			pod := newObj.(*corev1.Pod)
 
@@ -172,8 +175,7 @@ func (nul *NodeUsageListener) watchPods(
 
 		},
 		DeleteFunc: func(obj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1,
-				metric.WithAttributes(attribute.String("type", "node_usage")))
+			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrTypeNodeUsage)
 
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {
@@ -200,8 +202,7 @@ func (nul *NodeUsageListener) watchPods(
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
-		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("type", "node_usage")))
+		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nul.attrTypeNodeUsage)
 		nul.rebuildPodsFromStore(podInformer)
 	})
 
@@ -212,13 +213,11 @@ func (nul *NodeUsageListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
-		nul.inst.InformerCacheSyncFailure.Add(ctx, 1,
-			metric.WithAttributes(attribute.String("listener", "node_usage")))
+		nul.inst.InformerCacheSyncFailure.Add(ctx, 1, nul.attrListener)
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
-	nul.inst.InformerCacheSyncSuccess.Add(ctx, 1,
-		metric.WithAttributes(attribute.String("listener", "node_usage")))
+	nul.inst.InformerCacheSyncSuccess.Add(ctx, 1, nul.attrListener)
 
 	// Initial rebuild from store after sync
 	nul.rebuildPodsFromStore(podInformer)
@@ -246,8 +245,7 @@ func (nul *NodeUsageListener) watchPods(
 func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
 	log.Println("Rebuilding pod aggregator state from informer store...")
 
-	nul.inst.InformerRebuildTotal.Add(context.Background(), 1,
-		metric.WithAttributes(attribute.String("listener", "node_usage")))
+	nul.inst.InformerRebuildTotal.Add(context.Background(), 1, nul.attrListener)
 
 	// Reset aggregator state
 	nul.aggregator.Reset()
@@ -285,10 +283,8 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 			select {
 			case usageChan <- msg:
 				sent++
-				nul.inst.MessageQueuedTotal.Add(ctx, 1,
-					metric.WithAttributes(attribute.String("listener", "node_usage")))
-				nul.inst.MessageChannelPending.Record(ctx, float64(len(usageChan)),
-					metric.WithAttributes(attribute.String("listener", "node_usage")))
+				nul.inst.MessageQueuedTotal.Add(ctx, 1, nul.attrListener)
+				nul.inst.MessageChannelPending.Record(ctx, float64(len(usageChan)), nul.attrListener)
 			case <-ctx.Done():
 				log.Printf("Flushed %d/%d resource usage messages before shutdown",
 					sent, len(dirtyNodes))

@@ -122,6 +122,7 @@ func runListenerWithRetry(
 
 	log.Printf("[%s] Starting listener", name)
 
+	listenerAttr := metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", name)))
 	retryCount := 0
 	for {
 		err := listener.Run(ctx)
@@ -131,12 +132,10 @@ func runListenerWithRetry(
 				return
 			}
 			retryCount++
-			inst.ListenerRetryTotal.Add(ctx, 1,
-				metric.WithAttributes(attribute.String("listener", name)))
+			inst.ListenerRetryTotal.Add(ctx, 1, listenerAttr)
 
 			backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-			inst.ListenerRetryBackoffSeconds.Record(ctx, backoff.Seconds(),
-				metric.WithAttributes(attribute.String("listener", name)))
+			inst.ListenerRetryBackoffSeconds.Record(ctx, backoff.Seconds(), listenerAttr)
 
 			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoff)
 
