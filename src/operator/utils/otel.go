@@ -78,7 +78,10 @@ func InitOTEL(ctx context.Context, config OTELConfig) (*Instruments, func(contex
 	otel.SetMeterProvider(provider)
 
 	meter := provider.Meter(config.ServiceName)
-	inst := NewInstruments(meter)
+	inst, err := NewInstruments(meter)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create instruments: %w", err)
+	}
 
 	return inst, provider.Shutdown, nil
 }
