@@ -46,10 +46,12 @@ go_library(
         "base_listener.go",
         "container_status.go",
         "helpers.go",
+        "instruments.go",
         "k8s_helpers.go",
         "listener_args.go",
         "node_helpers.go",
         "node_usage_aggregator.go",
+        "otel.go",
         "task_status.go",
         "unack_messages.go",
     ],
@@ -58,7 +60,6 @@ go_library(
     deps = [
         "//src/proto/operator:operator_go_proto",
         "//src/utils:utils",
-        "//src/utils/metrics-go",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
@@ -68,6 +69,14 @@ go_library(
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//rest",
         "@io_k8s_client_go//tools/clientcmd",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.21.0:v1_21_0",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetricgrpc//:otlpmetricgrpc",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_metric//noop",
+        "@io_opentelemetry_go_otel_sdk//resource:resource",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
@@ -84,6 +93,8 @@ go_test(
     deps = [
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 
@@ -95,6 +106,8 @@ go_test(
         "//src/proto/operator:operator_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 

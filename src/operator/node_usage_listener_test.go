@@ -614,7 +614,7 @@ func TestNewNodeUsageListener(t *testing.T) {
 		UsageFlushIntervalSec: 5,
 	}
 
-	listener := NewNodeUsageListener(args)
+	listener := NewNodeUsageListener(args, utils.NewNoopInstruments())
 
 	if listener == nil {
 		t.Fatal("Expected non-nil listener")

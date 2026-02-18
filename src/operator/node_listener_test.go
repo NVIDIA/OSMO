@@ -585,7 +585,7 @@ func TestNewNodeListener(t *testing.T) {
 		ProgressFrequencySec: 15,
 	}
 
-	listener := NewNodeListener(args)
+	listener := NewNodeListener(args, utils.NewNoopInstruments())
 
 	if listener == nil {
 		t.Fatal("Expected non-nil listener")

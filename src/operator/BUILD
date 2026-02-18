@@ -314,7 +314,6 @@ go_library(
         "//src/lib/utils:utils",
         "//src/operator/utils:utils",
         "//src/proto/operator:operator_go_proto",
-        "//src/utils/metrics-go",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
@@ -323,6 +322,8 @@ go_library(
         "@io_k8s_apimachinery//pkg/types:types",
         "@io_k8s_client_go//informers",
         "@io_k8s_client_go//tools/cache",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_protobuf//encoding/protojson",
@@ -338,6 +339,8 @@ go_test(
         "//src/proto/operator:operator_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 
@@ -352,6 +355,8 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/api/resource:resource",
         "@io_k8s_apimachinery//pkg/types:types",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 
@@ -365,6 +370,8 @@ go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource:resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 
@@ -376,6 +383,8 @@ go_test(
         "//src/proto/operator:operator_go_proto",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_opentelemetry_go_otel//attribute:attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 
