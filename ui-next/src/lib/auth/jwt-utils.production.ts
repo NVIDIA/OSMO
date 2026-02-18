@@ -24,6 +24,7 @@
  */
 
 import { jwtDecode } from "jwt-decode";
+import { extractRolesFromClaims } from "@/lib/auth/roles";
 
 // =============================================================================
 // Constants
@@ -180,7 +181,6 @@ export function getUsername(request: Request): string | null {
 
 /**
  * Get user roles from the JWT token.
- * Checks both the top-level roles array and Keycloak's realm_access.roles.
  *
  * @param request - The request object with headers
  * @returns Array of role names
@@ -191,20 +191,7 @@ export function getUserRoles(request: Request): string[] {
     return [];
   }
 
-  // Combine roles from multiple sources
-  const roles = new Set<string>();
-
-  // Top-level roles array
-  if (Array.isArray(claims.roles)) {
-    claims.roles.forEach((role) => roles.add(role));
-  }
-
-  // Keycloak realm_access.roles
-  if (Array.isArray(claims.realm_access?.roles)) {
-    claims.realm_access.roles.forEach((role) => roles.add(role));
-  }
-
-  return Array.from(roles);
+  return extractRolesFromClaims(claims);
 }
 
 /**

@@ -28,14 +28,7 @@ import type { JwtClaims } from "@/lib/auth/jwt-utils.production";
 
 // Re-export types, constants, and utilities that don't depend on extractToken
 export type { JwtClaims };
-export {
-  getUserRoles,
-  hasRole,
-  isTokenExpired,
-  FALLBACK_TOKEN_LIFETIME_SECONDS,
-  decodeJwtPayload,
-  getJwtClaim,
-} from "@/lib/auth/jwt-utils.production";
+export { FALLBACK_TOKEN_LIFETIME_SECONDS, decodeJwtPayload } from "@/lib/auth/jwt-utils.production";
 
 /**
  * Extract JWT token from Authorization header or cookies.
