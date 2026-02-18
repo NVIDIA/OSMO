@@ -44,9 +44,10 @@ type WorkflowListener struct {
 	inst *utils.Instruments
 
 	// Pre-computed attribute sets (constant label values)
-	attrListener     metric.MeasurementOption // {listener: "workflow"}
-	attrTypePod      metric.MeasurementOption // {type: "pod"}
-	attrTypeWorkflow metric.MeasurementOption // {type: "workflow"}
+	attrListener     metric.MeasurementOption            // {listener: "workflow"}
+	attrTypePod      metric.MeasurementOption            // {type: "pod"}
+	attrTypeWorkflow metric.MeasurementOption            // {type: "workflow"}
+	attrByStatus     map[string]metric.MeasurementOption // {status: <value>} keyed by each possible status
 }
 
 // NewWorkflowListener creates a new workflow listener instance
@@ -60,7 +61,37 @@ func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *Work
 	wl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "workflow")))
 	wl.attrTypePod = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "pod")))
 	wl.attrTypeWorkflow = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "workflow")))
+
+	// Pre-compute one attribute set per possible task status (all values known at compile time)
+	allStatuses := []string{
+		utils.StatusScheduling,
+		utils.StatusInitializing,
+		utils.StatusRunning,
+		utils.StatusCompleted,
+		utils.StatusFailed,
+		utils.StatusFailedPreempted,
+		utils.StatusFailedEvicted,
+		utils.StatusFailedStartError,
+		utils.StatusFailedBackendError,
+		utils.StatusFailedImagePull,
+		utils.StatusUnknown,
+	}
+	wl.attrByStatus = make(map[string]metric.MeasurementOption, len(allStatuses))
+	for _, s := range allStatuses {
+		wl.attrByStatus[s] = metric.WithAttributeSet(attribute.NewSet(attribute.String("status", s)))
+	}
 	return wl
+}
+
+// statusAttr returns the pre-computed MeasurementOption for the given task status.
+// If status is not in the pre-computed map (unexpected value), it logs a warning
+// and falls back to constructing the attribute set on the fly.
+func (wl *WorkflowListener) statusAttr(status string) metric.MeasurementOption {
+	if attr, ok := wl.attrByStatus[status]; ok {
+		return attr
+	}
+	log.Printf("Warning: unexpected task status %q, not in pre-computed attribute map", status)
+	return metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status)))
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -149,7 +180,6 @@ func (wl *WorkflowListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		wl.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, wl.attrListener)
 		return
 	}
 
@@ -185,8 +215,7 @@ func (wl *WorkflowListener) watchPods(
 			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 			select {
 			case ch <- msg:
-				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1,
-					metric.WithAttributes(attribute.String("status", statusResult.Status)))
+				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttr(statusResult.Status))
 				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.attrListener)
 				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.attrListener)
 			case <-ctx.Done():
@@ -229,8 +258,7 @@ func (wl *WorkflowListener) watchPods(
 				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 				select {
 				case ch <- msg:
-					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1,
-						metric.WithAttributes(attribute.String("status", statusResult.Status)))
+					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttr(statusResult.Status))
 					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.attrListener)
 					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.attrListener)
 				case <-ctx.Done():

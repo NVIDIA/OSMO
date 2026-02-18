@@ -122,7 +122,6 @@ func (nl *NodeListener) watchNodes(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		nl.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, nl.attrListener)
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}

@@ -39,15 +39,14 @@ type Instruments struct {
 	MessageSentTotal         metric.Int64Counter
 
 	// Cross-listener informer / channel metrics
-	KBEventWatchCount                  metric.Int64Counter
-	MessageQueuedTotal                 metric.Int64Counter
-	MessageChannelPending              metric.Float64Histogram
-	MessageChannelClosedUnexpectedly   metric.Int64Counter
-	KubernetesClientCreationErrorTotal metric.Int64Counter
-	EventWatchConnectionErrorCount     metric.Int64Counter
-	InformerCacheSyncFailure           metric.Int64Counter
-	InformerCacheSyncSuccess           metric.Int64Counter
-	InformerRebuildTotal               metric.Int64Counter
+	KBEventWatchCount                metric.Int64Counter
+	MessageQueuedTotal               metric.Int64Counter
+	MessageChannelPending            metric.Float64Histogram
+	MessageChannelClosedUnexpectedly metric.Int64Counter
+	EventWatchConnectionErrorCount   metric.Int64Counter
+	InformerCacheSyncFailure         metric.Int64Counter
+	InformerCacheSyncSuccess         metric.Int64Counter
+	InformerRebuildTotal             metric.Int64Counter
 
 	// listener.go retry metrics
 	ListenerRetryTotal          metric.Int64Counter
@@ -153,13 +152,6 @@ func NewInstruments(meter metric.Meter) *Instruments {
 		metric.WithUnit("1"),
 	)
 	panicOnInstrumentError("message_channel_closed_unexpectedly_total", err)
-
-	inst.KubernetesClientCreationErrorTotal, err = meter.Int64Counter(
-		"kubernetes_client_creation_error_total",
-		metric.WithDescription("Failures to create Kubernetes client"),
-		metric.WithUnit("1"),
-	)
-	panicOnInstrumentError("kubernetes_client_creation_error_total", err)
 
 	inst.EventWatchConnectionErrorCount, err = meter.Int64Counter(
 		"event_watch_connection_error_count",

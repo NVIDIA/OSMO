@@ -147,7 +147,6 @@ func (el *EventListener) watchEvents(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		el.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, el.attrListener)
 		return
 	}
 

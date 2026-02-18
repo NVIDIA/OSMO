@@ -123,7 +123,6 @@ func (nul *NodeUsageListener) watchPods(
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
 		log.Printf("Failed to create kubernetes client: %v", err)
-		nul.inst.KubernetesClientCreationErrorTotal.Add(ctx, 1, nul.attrListener)
 		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
 		return
 	}
