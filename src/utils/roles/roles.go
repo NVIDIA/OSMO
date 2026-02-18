@@ -62,11 +62,84 @@ func (ra *RoleAction) IsLegacyAction() bool {
 	return ra.Action == "" && (ra.Base != "" || ra.Path != "" || ra.Method != "")
 }
 
+// PolicyEffect is the effect of a policy statement: Allow or Deny.
+type PolicyEffect string
+
+const (
+	// EffectAllow grants access when the policy matches.
+	EffectAllow PolicyEffect = "Allow"
+	// EffectDeny denies access when the policy matches. Deny takes precedence over Allow.
+	EffectDeny PolicyEffect = "Deny"
+)
+
+// RoleActions is the list of actions in a policy. JSON format: semantic actions are
+// strings (e.g. "workflow:Create"), legacy path-based actions are objects
+// (e.g. {"base": "http", "path": "/api/...", "method": "GET"}).
+type RoleActions []RoleAction
+
+// UnmarshalJSON accepts a string (semantic action) or an object
+// (legacy or old semantic format).
+func (ra *RoleActions) UnmarshalJSON(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*ra = make(RoleActions, 0, len(raw))
+	for _, elem := range raw {
+		if len(elem) == 0 {
+			*ra = append(*ra, RoleAction{})
+			continue
+		}
+		switch elem[0] {
+		case '"':
+			var s string
+			if err := json.Unmarshal(elem, &s); err != nil {
+				return err
+			}
+			*ra = append(*ra, RoleAction{Action: s})
+		case '{':
+			var action RoleAction
+			if err := json.Unmarshal(elem, &action); err != nil {
+				return err
+			}
+			*ra = append(*ra, action)
+		default:
+			return fmt.Errorf("invalid action element: expected string or object, got %s", elem)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON emits semantic actions as JSON strings, legacy actions as objects.
+func (ra RoleActions) MarshalJSON() ([]byte, error) {
+	out := make([]json.RawMessage, 0, len(ra))
+	for _, action := range ra {
+		if action.IsSemanticAction() {
+			b, err := json.Marshal(action.Action)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, b)
+		} else {
+			b, err := json.Marshal(action)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, b)
+		}
+	}
+	return json.Marshal(out)
+}
+
 // RolePolicy represents a role policy with multiple actions.
 // Policies can optionally specify resources to scope the actions.
+// If Effect is Deny and the policy matches, access is denied even if another policy allows it.
 type RolePolicy struct {
+	// Effect is whether this policy allows or denies access. Default is Allow.
+	Effect PolicyEffect `json:"effect,omitempty"`
+
 	// Actions is the list of actions this policy allows or denies.
-	Actions []RoleAction `json:"actions"`
+	Actions RoleActions `json:"actions"`
 
 	// Resources is the list of resource patterns this policy applies to.
 	// Examples: ["*"], ["workflow/*"], ["pool/production"], ["bucket/data-generation"]
@@ -151,6 +224,10 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 					slog.String("policy_raw", string(policyRaw)),
 				)
 				return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
+			}
+			// Default effect to Allow when not specified (backward compatibility)
+			if policy.Effect == "" {
+				policy.Effect = EffectAllow
 			}
 			// Ensure Resources is never nil (always an empty list if not specified)
 			if policy.Resources == nil {
