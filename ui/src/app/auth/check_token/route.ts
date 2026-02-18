@@ -20,10 +20,12 @@ export async function GET(request: Request) {
   const authorizationHeader = request.headers.get("authorization");
   const id_token = request.headers.get("x-osmo-auth") ?? "";
 
-  // Forward Authorization header (from OAuth2 Proxy) or x-osmo-auth (legacy)
+  // Forward auth to service. Extract Bearer token from Authorization header
+  // (set by OAuth2 Proxy) and send via x-osmo-auth so the service's ext_authz
+  // skips OAuth2 Proxy and the JWT filter validates the token directly.
   const headers: Record<string, string> = {};
-  if (authorizationHeader) {
-    headers["authorization"] = authorizationHeader;
+  if (authorizationHeader && authorizationHeader.startsWith("Bearer ")) {
+    headers["x-osmo-auth"] = authorizationHeader.slice(7);
   } else {
     headers["x-osmo-auth"] = id_token;
   }

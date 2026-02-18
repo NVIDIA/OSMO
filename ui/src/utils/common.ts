@@ -29,9 +29,12 @@ export const getRequestHeaders = async (id_token: string | null, authorizationHe
   const headers: Record<string, string> = {};
 
   // When OAuth2 Proxy handles browser auth, the Authorization header (with ID token)
-  // is set by Envoy on the incoming request. Forward it directly to the service.
-  if (authorizationHeader) {
-    headers["authorization"] = authorizationHeader;
+  // is set by Envoy on the incoming request. Extract the Bearer token and send it
+  // via x-osmo-auth so the service's ext_authz skips OAuth2 Proxy and the JWT
+  // filter validates the token directly.
+  if (authorizationHeader && authorizationHeader.startsWith("Bearer ")) {
+    const token = authorizationHeader.slice(7);
+    headers["x-osmo-auth"] = token;
   } else {
     headers["x-osmo-auth"] = !loginInfo.auth_enabled ? "x-osmo-user" : (id_token ?? "");
   }
