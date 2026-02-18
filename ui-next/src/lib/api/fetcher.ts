@@ -1,18 +1,18 @@
 /**
  * Custom fetcher for orval-generated API client.
- * Handles error responses and request formatting.
+ * Handles error responses, request formatting, and reactive token refresh.
  *
- * In production, Envoy sidecar handles authentication:
- * - Envoy intercepts all requests and validates session
- * - Envoy adds Authorization header with valid JWT
- * - Envoy refreshes tokens automatically (transparent to app)
- * - App never manages tokens directly
- *
- * In local dev, tokens can be injected via cookies/localStorage (see lib/dev/inject-auth.ts)
+ * Authentication Architecture:
+ * - Production: Envoy sidecar validates session and adds JWT headers
+ * - Local dev: Tokens injected via cookies/localStorage (see lib/dev/inject-auth.ts)
+ * - Reactive refresh: On 401 response, triggers server-side token refresh via
+ *   /api/auth/refresh, then transparently retries the failed request with fresh token
  */
 
 import { getBasePathUrl } from "@/lib/config";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
+import { getClientToken } from "@/lib/auth/decode-user";
+import { TOKEN_REFRESHED_EVENT } from "@/lib/auth/user-context";
 
 interface RequestConfig {
   url: string;
@@ -62,28 +62,43 @@ export function isApiError(error: unknown): error is ApiError {
   );
 }
 
+// =============================================================================
+// Server-Side Token Refresh
+// =============================================================================
+
+let refreshPromise: Promise<void> | null = null;
+
 /**
- * In production with Envoy, we don't manage tokens at all.
- * In local dev, check if a token is available in localStorage/cookies for testing.
+ * Performs server-side token refresh using RefreshToken cookie.
+ * Multiple concurrent calls share the same refresh Promise to avoid race conditions.
  */
-function getDevAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
+async function performTokenRefresh(): Promise<void> {
+  // If already refreshing, wait for that refresh to complete
+  if (refreshPromise) {
+    return refreshPromise;
+  }
 
-  // Check localStorage (dev mode with injected tokens)
-  const localStorageToken = localStorage.getItem("IdToken") || localStorage.getItem("BearerToken");
-  if (localStorageToken) return localStorageToken;
+  // Start new refresh
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(getBasePathUrl("/api/auth/refresh"), {
+        method: "POST",
+        credentials: "include", // Send cookies (RefreshToken)
+      });
 
-  // Check cookies (might be set by dev helpers or copied from staging)
-  const cookies = document.cookie.split(";").reduce(
-    (acc, cookie) => {
-      const [key, value] = cookie.trim().split("=");
-      if (key) acc[key] = value;
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Token refresh failed" }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
 
-  return cookies["IdToken"] || cookies["BearerToken"] || null;
+      // Notify UserProvider to re-read user from refreshed token
+      window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT));
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 export const customFetch = async <T>(config: RequestConfig, options?: RequestInit): Promise<T> => {
@@ -126,10 +141,10 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     }
   }
 
-  // In production, Envoy adds auth headers automatically (client-side)
-  // In local dev, check if we have a token to forward (client-side)
-  // In server-side renders, auth is handled via serverAuthHeaders above
-  const devToken = getDevAuthToken();
+  // In production, Envoy adds auth headers automatically (client-side).
+  // In local dev, getClientToken reads from localStorage/cookies.
+  // In server-side renders, auth is handled via serverAuthHeaders above.
+  const devToken = getClientToken();
 
   let response: Response;
 
@@ -160,11 +175,44 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     throw createApiError(`Network error: ${message}`, 0, false);
   }
 
-  // Handle auth errors
-  // In production with Envoy: Should rarely happen (Envoy blocks unauthenticated requests)
-  // In local dev: Means the token is invalid or missing
+  // Handle 401/403 with reactive server-side refresh
+  // 403 can be transient during JWT provider fallback ("Audiences in Jwt are not allowed")
   if (response.status === 401 || response.status === 403) {
-    throw createApiError(`Authentication required (${response.status})`, response.status, false);
+    // Check if this is a retry attempt (prevent infinite loop)
+    // Note: We check config.headers because that's where we set the retry marker
+    const isRetry = headers && typeof headers === "object" && "x-retry-after-refresh" in headers;
+
+    if (!isRetry && typeof window !== "undefined") {
+      try {
+        // Trigger server-side refresh (transparent to user)
+        await performTokenRefresh();
+
+        // Get fresh token after refresh
+        const freshToken = getClientToken();
+
+        // Retry the original request with new token
+        return customFetch<T>(
+          {
+            ...config,
+            headers: {
+              ...headers,
+              ...(freshToken ? { "x-osmo-auth": freshToken } : {}),
+              "x-retry-after-refresh": "true", // Prevent infinite loop
+            },
+          },
+          options,
+        );
+      } catch (refreshError) {
+        console.error("Token refresh failed:", refreshError);
+        // Token refresh failed - redirect to login
+        window.location.href = getBasePathUrl("/");
+        throw createApiError("Session expired. Redirecting to login...", response.status, false);
+      }
+    }
+
+    // If retry failed or server-side, throw error
+    const errorMessage = response.status === 401 ? "Authentication required" : "Access forbidden";
+    throw createApiError(errorMessage, response.status, false);
   }
 
   // Handle redirect responses (3xx) - API endpoints should not redirect
@@ -177,22 +225,14 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
   }
 
   // Helper to safely parse error response (may be HTML for 404s, etc.)
-  const parseErrorResponse = async (response: Response): Promise<{ message?: string; detail?: string }> => {
+  const parseErrorResponse = async (res: Response): Promise<{ message?: string; detail?: string }> => {
+    const fallback = { message: `HTTP ${res.status}: ${res.statusText}` };
     try {
-      const text = await response.text();
-      if (!text) {
-        return { message: `HTTP ${response.status}: ${response.statusText}` };
-      }
-
-      // Try to parse as JSON, fallback to text if it's not valid JSON
-      try {
-        return JSON.parse(text);
-      } catch {
-        // Not JSON (likely HTML error page), return generic error
-        return { message: `HTTP ${response.status}: ${response.statusText}` };
-      }
+      const text = await res.text();
+      if (!text) return fallback;
+      return JSON.parse(text);
     } catch {
-      return { message: `HTTP ${response.status}: ${response.statusText}` };
+      return fallback;
     }
   };
 
