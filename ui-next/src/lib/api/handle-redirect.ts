@@ -65,10 +65,3 @@ export function handleRedirectResponse(response: Response, context?: string): vo
     throw err;
   }
 }
-
-/**
- * Checks if a response is a redirect (3xx status code).
- */
-export function isRedirect(response: Response): boolean {
-  return response.status >= 300 && response.status < 400;
-}

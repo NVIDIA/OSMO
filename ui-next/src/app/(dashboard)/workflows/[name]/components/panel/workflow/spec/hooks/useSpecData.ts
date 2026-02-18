@@ -70,7 +70,7 @@ const SPEC_GC_TIME = 30 * 60 * 1000;
 /**
  * Fetch spec from backend URL (provided by workflow.spec or workflow.template_spec)
  *
- * Note: Token refresh is handled automatically by silent refresh coordinator,
+ * Note: Token refresh is handled automatically by the fetcher's 401 handler,
  * no manual refresh needed before fetch.
  */
 async function fetchSpec(specUrl: string): Promise<string> {

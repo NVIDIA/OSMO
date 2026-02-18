@@ -26,6 +26,37 @@ export const Roles = {
 export type Role = (typeof Roles)[keyof typeof Roles];
 
 /**
+ * Extract roles from JWT claims structure.
+ *
+ * Checks multiple sources (union of all providers):
+ * - claims.roles (top-level)
+ * - claims.realm_access.roles (Keycloak realm)
+ * - claims.resource_access.osmo.roles (Keycloak resource)
+ */
+export function extractRolesFromClaims(claims: {
+  roles?: string[];
+  realm_access?: { roles?: string[] };
+  resource_access?: Record<string, { roles?: string[] }>;
+}): string[] {
+  const roles = new Set<string>();
+
+  if (Array.isArray(claims.roles)) {
+    claims.roles.forEach((role) => roles.add(role));
+  }
+
+  if (Array.isArray(claims.realm_access?.roles)) {
+    claims.realm_access.roles.forEach((role) => roles.add(role));
+  }
+
+  const osmoRoles = claims.resource_access?.osmo?.roles;
+  if (Array.isArray(osmoRoles)) {
+    osmoRoles.forEach((role) => roles.add(role));
+  }
+
+  return Array.from(roles);
+}
+
+/**
  * Check if roles array contains any admin role.
  */
 export function hasAdminRole(roles: string[]): boolean {

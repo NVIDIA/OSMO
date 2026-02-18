@@ -16,7 +16,7 @@
 
 import { jwtDecode } from "jwt-decode";
 import type { JwtClaims } from "@/lib/auth/jwt-utils.production";
-import { hasAdminRole } from "@/lib/auth/roles";
+import { extractRolesFromClaims, hasAdminRole } from "@/lib/auth/roles";
 import type { User } from "@/lib/auth/user-context";
 import { getCookie } from "@/lib/auth/cookies";
 
@@ -59,39 +59,6 @@ function getInitials(name: string): string {
 }
 
 /**
- * Extract user roles from JWT claims.
- *
- * Checks multiple sources:
- * - claims.roles (top-level)
- * - claims.realm_access.roles (Keycloak)
- * - claims.resource_access.osmo.roles (Keycloak resource)
- *
- * @param claims - Decoded JWT claims
- * @returns Array of role strings
- */
-function extractRoles(claims: JwtClaims): string[] {
-  const roles = new Set<string>();
-
-  // Top-level roles array
-  if (Array.isArray(claims.roles)) {
-    claims.roles.forEach((role) => roles.add(role));
-  }
-
-  // Keycloak realm_access.roles
-  if (Array.isArray(claims.realm_access?.roles)) {
-    claims.realm_access.roles.forEach((role) => roles.add(role));
-  }
-
-  // Keycloak resource_access (check "osmo" resource)
-  const osmoRoles = claims.resource_access?.osmo?.roles;
-  if (Array.isArray(osmoRoles)) {
-    osmoRoles.forEach((role) => roles.add(role));
-  }
-
-  return Array.from(roles);
-}
-
-/**
  * Decode user information from JWT token.
  *
  * SHARED LOGIC: Used by both client (UserProvider) and server (/api/me).
@@ -115,8 +82,7 @@ export function decodeUserFromToken(token: string | null): User | null {
   try {
     const claims = jwtDecode<JwtClaims>(token);
 
-    // Extract roles from multiple possible locations
-    const roles = extractRoles(claims);
+    const roles = extractRolesFromClaims(claims);
 
     // Extract email from multiple possible sources
     // Some auth providers use 'email', others use 'preferred_username'
