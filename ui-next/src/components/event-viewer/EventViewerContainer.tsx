@@ -45,7 +45,8 @@ export function EventViewerContainer({ url, className, scope = "workflow", isTer
 
   // URL-synced filter chips (only in workflow scope)
   const { searchChips, setSearchChips } = useUrlChips({ paramName: "ef" });
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  // null = not yet initialized (default to all expanded), Set = user-controlled state
+  const [expandedIds, setExpandedIds] = useState<Set<string> | null>(null);
 
   const { events, phase, error, isStreaming, isReconnecting, restart } = useEventStream({ url });
 
@@ -65,32 +66,42 @@ export function EventViewerContainer({ url, className, scope = "workflow", isTer
   }, [groupedTasks, deferredSearchChips, isTaskScope]);
 
   // In task scope, always expand all tasks
+  // In workflow scope, default to all expanded until user interacts (expandedIds === null)
   const effectiveExpandedIds = useMemo(() => {
     if (isTaskScope) {
+      return new Set(filteredTasks.map((t) => t.id));
+    }
+    // Default to all expanded if not yet initialized
+    if (expandedIds === null) {
       return new Set(filteredTasks.map((t) => t.id));
     }
     return expandedIds;
   }, [isTaskScope, filteredTasks, expandedIds]);
 
   // Expand/collapse handlers
-  const toggleExpand = useCallback((taskId: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
-    });
-  }, []);
+  const toggleExpand = useCallback(
+    (taskId: string) => {
+      setExpandedIds((prev) => {
+        // Initialize from current effective state on first interaction
+        const current = prev === null ? new Set(filteredTasks.map((t) => t.id)) : prev;
+        const next = new Set(current);
+        if (next.has(taskId)) {
+          next.delete(taskId);
+        } else {
+          next.add(taskId);
+        }
+        return next;
+      });
+    },
+    [filteredTasks],
+  );
 
   const expandAll = useCallback(() => {
     startTransition(() => {
       setExpandedIds((prev) => {
         const allIds = filteredTasks.map((t) => t.id);
         // Idempotent: if every filtered task is already expanded, return same reference
-        if (prev.size === allIds.length && allIds.every((id) => prev.has(id))) {
+        if (prev !== null && prev.size === allIds.length && allIds.every((id) => prev.has(id))) {
           return prev;
         }
         return new Set(allIds);
@@ -102,7 +113,7 @@ export function EventViewerContainer({ url, className, scope = "workflow", isTer
     startTransition(() => {
       setExpandedIds((prev) => {
         // Idempotent: if already empty, return same reference to skip re-render
-        if (prev.size === 0) return prev;
+        if (prev !== null && prev.size === 0) return prev;
         return new Set<string>();
       });
     });
