@@ -269,13 +269,13 @@ describe("computeDerivedState", () => {
   // ---------------------------------------------------------------------------
 
   describe("lifecycle", () => {
-    it("returns Pending for empty events", () => {
-      expect(computeDerivedState([]).lifecycle).toBe("Pending");
+    it("returns Scheduling for empty events", () => {
+      expect(computeDerivedState([]).lifecycle).toBe("Scheduling");
     });
 
-    it("returns Pending for scheduling events without Scheduled", () => {
+    it("returns Scheduling for scheduling events without Scheduled", () => {
       const state = computeDerivedState([makeEvent("FailedScheduling", "scheduling", "error", 0)]);
-      expect(state.lifecycle).toBe("Pending");
+      expect(state.lifecycle).toBe("Scheduling");
     });
 
     it("returns Init when Scheduled (scheduling complete)", () => {

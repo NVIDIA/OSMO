@@ -614,6 +614,7 @@ export const TaskDetails = memo(function TaskDetails({
                 url={task.events}
                 scope="task"
                 isTerminal={isTaskTerminal(task.status)}
+                taskStatus={task.status}
                 className="h-full"
               />
             </div>

@@ -15,10 +15,11 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { getProgressIndex } from "@/components/event-viewer/LifecycleProgressBar";
+import { getProgressIndex, getRunningStageLabel } from "@/components/event-viewer/LifecycleProgressBar";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import type { K8sEvent, PodPhase, LifecycleStage, EventSeverity } from "@/lib/api/adapter/events/events-types";
 import { computeDerivedState, type TaskDerivedState } from "@/lib/api/adapter/events/events-derived-state";
+import { TaskGroupStatus } from "@/lib/api/generated";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -66,19 +67,64 @@ function makeTask(podPhase: PodPhase, events: K8sEvent[]): TaskGroup {
 // Tests
 // ---------------------------------------------------------------------------
 
+describe("getRunningStageLabel", () => {
+  it("returns 'Running' when taskStatus is undefined (workflow scope, no OSMO status available)", () => {
+    expect(getRunningStageLabel("active", undefined)).toBe("Running");
+  });
+
+  it("returns 'Running' when OSMO confirms RUNNING", () => {
+    expect(getRunningStageLabel("active", TaskGroupStatus.RUNNING)).toBe("Running");
+  });
+
+  it("returns 'Pending' when OSMO shows PROCESSING (K8s events raced ahead of Postgres)", () => {
+    expect(getRunningStageLabel("active", TaskGroupStatus.PROCESSING)).toBe("Pending");
+  });
+
+  it("returns 'Pending' when OSMO shows SCHEDULING", () => {
+    expect(getRunningStageLabel("active", TaskGroupStatus.SCHEDULING)).toBe("Pending");
+  });
+
+  it("returns 'Pending' when OSMO shows INITIALIZING", () => {
+    expect(getRunningStageLabel("active", TaskGroupStatus.INITIALIZING)).toBe("Pending");
+  });
+
+  it("returns 'Pending' when OSMO shows WAITING", () => {
+    expect(getRunningStageLabel("active", TaskGroupStatus.WAITING)).toBe("Pending");
+  });
+
+  it("returns 'Failed' when state is 'failed' (container ran and failed)", () => {
+    expect(getRunningStageLabel("failed", undefined)).toBe("Failed");
+    expect(getRunningStageLabel("failed", TaskGroupStatus.RUNNING)).toBe("Failed");
+    expect(getRunningStageLabel("failed", TaskGroupStatus.SCHEDULING)).toBe("Failed");
+  });
+
+  it("returns 'Running' when state is 'terminal' and OSMO confirms RUNNING", () => {
+    expect(getRunningStageLabel("terminal", TaskGroupStatus.RUNNING)).toBe("Running");
+  });
+
+  it("returns 'Pending' when state is 'terminal' and OSMO hasn't confirmed running", () => {
+    expect(getRunningStageLabel("terminal", TaskGroupStatus.SCHEDULING)).toBe("Pending");
+    expect(getRunningStageLabel("terminal", TaskGroupStatus.INITIALIZING)).toBe("Pending");
+  });
+
+  it("returns 'Running' when state is 'terminal' and taskStatus is undefined (workflow scope)", () => {
+    expect(getRunningStageLabel("terminal", undefined)).toBe("Running");
+  });
+});
+
 describe("getProgressIndex", () => {
-  describe("Pending phase", () => {
-    it("returns 0 (Pending) when no events exist", () => {
+  describe("Scheduling phase", () => {
+    it("returns 0 (Scheduling) when no events exist", () => {
       const task = makeTask("Pending", []);
       expect(getProgressIndex(task)).toBe(0);
     });
 
-    it("returns 0 (Pending) when only FailedScheduling event exists", () => {
+    it("returns 0 (Scheduling) when only FailedScheduling event exists", () => {
       const task = makeTask("Pending", [makeEvent("FailedScheduling", "scheduling", "error", 0)]);
       expect(getProgressIndex(task)).toBe(0);
     });
 
-    it("returns 0 (Pending) when only Preempting event exists", () => {
+    it("returns 0 (Scheduling) when only Preempting event exists", () => {
       const task = makeTask("Pending", [makeEvent("Preempting", "scheduling", "warn", 0)]);
       expect(getProgressIndex(task)).toBe(0);
     });
@@ -145,12 +191,12 @@ describe("getProgressIndex", () => {
   });
 
   describe("Failed phase", () => {
-    it("returns 0 (Pending) when failed with no non-failure events", () => {
+    it("returns 0 (Scheduling) when failed with no non-failure events", () => {
       const task = makeTask("Failed", [makeEvent("Failed", "failure", "error", 0)]);
       expect(getProgressIndex(task)).toBe(0);
     });
 
-    it("returns 0 (Pending) when failed during scheduling (only FailedScheduling)", () => {
+    it("returns 0 (Scheduling) when failed during scheduling (only FailedScheduling)", () => {
       const task = makeTask("Failed", [
         makeEvent("FailedScheduling", "scheduling", "error", 0),
         makeEvent("Failed", "failure", "error", 1),
@@ -209,7 +255,7 @@ describe("getProgressIndex", () => {
   });
 
   describe("Unknown phase", () => {
-    it("returns 0 (Pending) for Unknown phase with no events", () => {
+    it("returns 0 (Scheduling) for Unknown phase with no events", () => {
       const task = makeTask("Unknown", []);
       expect(getProgressIndex(task)).toBe(0);
     });
@@ -223,7 +269,7 @@ describe("getProgressIndex", () => {
   });
 
   describe("Missing events (gaps in lifecycle)", () => {
-    it("returns 2 (Running) when only Started event exists (no Pending/Init events)", () => {
+    it("returns 2 (Running) when only Started event exists (no Scheduling/Init events)", () => {
       // Missing Scheduled, Pulling, Created events — Started proves task reached Running
       const task = makeTask("Running", [makeEvent("Started", "container", "info", 0)]);
       expect(getProgressIndex(task)).toBe(2);
