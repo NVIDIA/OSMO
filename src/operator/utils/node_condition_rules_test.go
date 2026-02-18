@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"regexp"
 	"sync"
 	"testing"
 )
@@ -67,17 +68,32 @@ func TestNodeConditionRules_SetRules_WithCustomRules(t *testing.T) {
 
 	rules := nc.GetRules()
 
-	// Check custom rules are present
-	if status, ok := rules["^MemoryPressure$"]; !ok {
-		t.Error("Expected MemoryPressure rule to be present")
-	} else if status != "False" {
-		t.Errorf("Expected MemoryPressure rule status to be 'False', got %s", status)
+	// Verify that MemoryPressure rule matches correctly
+	matched := false
+	for pattern, status := range rules {
+		if matched, _ = regexp.MatchString(pattern, "MemoryPressure"); matched {
+			if status != "False" {
+				t.Errorf("Expected MemoryPressure rule status to be 'False', got %s", status)
+			}
+			break
+		}
+	}
+	if !matched {
+		t.Error("Expected MemoryPressure rule to match 'MemoryPressure'")
 	}
 
-	if status, ok := rules["^DiskPressure$"]; !ok {
-		t.Error("Expected DiskPressure rule to be present")
-	} else if status != "False" {
-		t.Errorf("Expected DiskPressure rule status to be 'False', got %s", status)
+	// Verify that DiskPressure rule matches correctly
+	matched = false
+	for pattern, status := range rules {
+		if matched, _ = regexp.MatchString(pattern, "DiskPressure"); matched {
+			if status != "False" {
+				t.Errorf("Expected DiskPressure rule status to be 'False', got %s", status)
+			}
+			break
+		}
+	}
+	if !matched {
+		t.Error("Expected DiskPressure rule to match 'DiskPressure'")
 	}
 
 	// Check default Ready rule is still present (not overridden)
@@ -98,38 +114,38 @@ func TestNodeConditionRules_SetRules_OverrideDefault(t *testing.T) {
 
 	rules := nc.GetRules()
 
-	// Check that the override is present
-	if status, ok := rules["^Ready$"]; !ok {
-		t.Error("Expected Ready rule to be present")
-	} else if status != "True|False" {
-		t.Errorf("Expected Ready rule status to be 'True|False', got %s", status)
-	}
-
-	// Should only have one Ready rule (the override)
-	count := 0
-	for pattern := range rules {
-		if pattern == "^Ready$" {
-			count++
+	// Verify that Ready rule matches and has the correct status
+	matched := false
+	matchCount := 0
+	for pattern, status := range rules {
+		if matched, _ = regexp.MatchString(pattern, "Ready"); matched {
+			matchCount++
+			if status != "True|False" {
+				t.Errorf("Expected Ready rule status to be 'True|False', got %s", status)
+			}
 		}
 	}
-	if count != 1 {
-		t.Errorf("Expected exactly one Ready rule, found %d", count)
+	if !matched {
+		t.Error("Expected Ready rule to match 'Ready'")
+	}
+	if matchCount != 1 {
+		t.Errorf("Expected exactly one Ready rule to match, found %d", matchCount)
 	}
 }
 
 func TestNodeConditionRules_SetRules_PatternMatching(t *testing.T) {
 	nc := NewNodeConditionRules()
 
-	// Use a pattern that matches Ready
+	// Use a pattern that matches Ready (will be normalized to start with '^')
 	nc.SetRules(map[string]string{
-		"Ready": "True", // Pattern without anchors
+		"Ready": "True", // Pattern without anchors - will be normalized to "^Ready"
 	})
 
 	rules := nc.GetRules()
 
-	// Check that the pattern is present
-	if status, ok := rules["Ready"]; !ok {
-		t.Error("Expected Ready pattern to be present")
+	// Check that the normalized pattern is present
+	if status, ok := rules["^Ready"]; !ok {
+		t.Error("Expected normalized Ready pattern (^Ready) to be present")
 	} else if status != "True" {
 		t.Errorf("Expected Ready pattern status to be 'True', got %s", status)
 	}
@@ -221,7 +237,7 @@ func TestNodeConditionRules_MultipleDefaults(t *testing.T) {
 
 	// Set multiple defaults
 	DefaultAvailableCondition = map[string]string{
-		"Ready":        "True",
+		"Ready":          "True",
 		"MemoryPressure": "False",
 	}
 
@@ -246,9 +262,9 @@ func TestNodeConditionRules_MultipleDefaults(t *testing.T) {
 
 func TestHasMatchingPattern(t *testing.T) {
 	tests := []struct {
-		name      string
-		rules     map[string]string
-		condType  string
+		name        string
+		rules       map[string]string
+		condType    string
 		shouldMatch bool
 	}{
 		{
@@ -260,9 +276,9 @@ func TestHasMatchingPattern(t *testing.T) {
 			shouldMatch: true,
 		},
 		{
-			name: "Pattern match without anchor",
+			name: "Pattern match with normalized anchor",
 			rules: map[string]string{
-				"Ready": "True",
+				"^Ready": "True",
 			},
 			condType:    "Ready",
 			shouldMatch: true,
@@ -284,8 +300,8 @@ func TestHasMatchingPattern(t *testing.T) {
 			shouldMatch: true,
 		},
 		{
-			name: "Empty rules",
-			rules: map[string]string{},
+			name:        "Empty rules",
+			rules:       map[string]string{},
 			condType:    "Ready",
 			shouldMatch: false,
 		},
@@ -301,67 +317,75 @@ func TestHasMatchingPattern(t *testing.T) {
 	}
 }
 
-func TestMatchFromStart(t *testing.T) {
+func TestNormalizePattern(t *testing.T) {
 	tests := []struct {
-		name    string
-		pattern string
-		text    string
-		want    bool
-		wantErr bool
+		name        string
+		pattern     string
+		text        string
+		shouldMatch bool
 	}{
 		{
-			name:    "Exact match with anchor",
-			pattern: "^Ready$",
-			text:    "Ready",
-			want:    true,
-			wantErr: false,
+			name:        "Pattern with anchor matches exact",
+			pattern:     "^Ready$",
+			text:        "Ready",
+			shouldMatch: true,
 		},
 		{
-			name:    "Match without anchor",
-			pattern: "Ready",
-			text:    "Ready",
-			want:    true,
-			wantErr: false,
+			name:        "Pattern with anchor doesn't match prefix",
+			pattern:     "^Ready$",
+			text:        "ReadyState",
+			shouldMatch: false,
 		},
 		{
-			name:    "No match",
-			pattern: "^Ready$",
-			text:    "NotReady",
-			want:    false,
-			wantErr: false,
+			name:        "Pattern without anchor matches from start",
+			pattern:     "Ready",
+			text:        "Ready",
+			shouldMatch: true,
 		},
 		{
-			name:    "Prefix match",
-			pattern: "^Ready",
-			text:    "ReadyState",
-			want:    true,
-			wantErr: false,
+			name:        "Pattern without anchor matches prefix",
+			pattern:     "Ready",
+			text:        "ReadyState",
+			shouldMatch: true,
 		},
 		{
-			name:    "Invalid regex",
-			pattern: "[",
-			text:    "Ready",
-			want:    false,
-			wantErr: true,
+			name:        "Empty pattern matches everything",
+			pattern:     "",
+			text:        "Ready",
+			shouldMatch: true,
 		},
 		{
-			name:    "Empty pattern",
-			pattern: "",
-			text:    "Ready",
-			want:    true, // Empty pattern matches everything
-			wantErr: false,
+			name:        "Pattern with prefix anchor matches prefix",
+			pattern:     "^Ready",
+			text:        "ReadyState",
+			shouldMatch: true,
+		},
+		{
+			name:        "Complex pattern matches from start",
+			pattern:     "Ready.*",
+			text:        "ReadyState",
+			shouldMatch: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := matchFromStart(tt.pattern, tt.text)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("matchFromStart() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			// Test normalizePattern indirectly through SetRules
+			nc := NewNodeConditionRules()
+			nc.SetRules(map[string]string{tt.pattern: "True"})
+			rules := nc.GetRules()
+
+			// Find the pattern that matches our text
+			matched := false
+			for pattern := range rules {
+				if match, err := regexp.MatchString(pattern, tt.text); err == nil && match {
+					matched = true
+					break
+				}
 			}
-			if got != tt.want {
-				t.Errorf("matchFromStart() = %v, want %v", got, tt.want)
+			if matched != tt.shouldMatch {
+				t.Errorf("Pattern %q normalized and matched against %q = %v, want %v",
+					tt.pattern, tt.text, matched, tt.shouldMatch)
 			}
 		})
 	}

@@ -56,7 +56,7 @@ func (nc *NodeConditionRules) SetRules(rules map[string]string) {
 
 	// First, include all user-provided rules
 	for pattern, statusRegex := range rules {
-		effective[pattern] = statusRegex
+		effective["^"+pattern] = statusRegex
 	}
 
 	// Then, add defaults for any default condition type not matched by provided patterns
@@ -69,28 +69,16 @@ func (nc *NodeConditionRules) SetRules(rules map[string]string) {
 	}
 
 	nc.mu.Lock()
+	defer nc.mu.Unlock()
 	nc.rules = effective
-	nc.mu.Unlock()
 }
 
 // hasMatchingPattern checks if any pattern in the rules matches the condition type.
 func hasMatchingPattern(rules map[string]string, condType string) bool {
 	for pattern := range rules {
-		if matched, err := matchFromStart(pattern, condType); err == nil && matched {
+		if matched, err := regexp.MatchString(pattern, condType); err == nil && matched {
 			return true
 		}
 	}
 	return false
-}
-
-// matchFromStart matches a pattern from the start of the string, similar to Python's re.match().
-// re.match() always matches from the beginning, regardless of whether the pattern has '^'.
-func matchFromStart(pattern, text string) (bool, error) {
-	// If pattern already starts with '^', use it as-is
-	// Otherwise, ensure it matches from the start
-	anchoredPattern := pattern
-	if len(pattern) == 0 || pattern[0] != '^' {
-		anchoredPattern = "^" + pattern
-	}
-	return regexp.MatchString(anchoredPattern, text)
 }

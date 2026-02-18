@@ -100,7 +100,7 @@ func IsNodeAvailable(node *corev1.Node, effectiveRules map[string]string) bool {
 		allowedByAnyRule := false
 
 		for pattern, statusRegex := range effectiveRules {
-			matched, err := matchFromStart(pattern, string(condition.Type))
+			matched, err := regexp.MatchString(pattern, string(condition.Type))
 			if err != nil {
 				// Invalid regex should be ignored
 				continue
