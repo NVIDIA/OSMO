@@ -237,10 +237,10 @@ def _update_backend_helper(
                         continue
             except json.JSONDecodeError as e:
                 raise osmo_errors.OSMOUserError(
-                    f"Invalid JSON in node_conditions: {e}") from e
+                    f'Invalid JSON in node_conditions: {e}') from e
             except (KeyError, TypeError) as e:
                 raise osmo_errors.OSMOUserError(
-                    f"Invalid node_conditions format: {e}") from e
+                    f'Invalid node_conditions format: {e}') from e
             send_update = True
         if key == 'tests' and value:
             # Check for duplicates in the original list
