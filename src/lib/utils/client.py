@@ -60,7 +60,7 @@ class ResponseMode(enum.Enum):
     STREAMING = 'STREAMING'
 
 
-def handle_response(response, service_base_url: str, mode: ResponseMode = ResponseMode.JSON):
+def handle_response(response, mode: ResponseMode = ResponseMode.JSON):
     if response.headers.get(version.VERSION_WARNING_HEADER) is not None:
         warning = base64.b64decode(
             response.headers.get(version.VERSION_WARNING_HEADER)).decode()
@@ -164,7 +164,7 @@ class LoginManager():
         }, timeout=login.TIMEOUT, headers={'User-Agent': self.user_agent})
 
         parsed_url = urlparse(url)
-        result = handle_response(response, parsed_url.netloc)
+        result = handle_response(response)
 
         device_code  = result['device_code']
         user_code  = result['user_code']
@@ -390,7 +390,7 @@ class ServiceClient():
             case _ as unreachable:
                 assert_never(unreachable)
 
-        resp = handle_response(response, self._login_manager.url, mode)
+        resp = handle_response(response, mode)
         return resp
 
     async def create_websocket(
