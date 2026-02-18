@@ -129,7 +129,8 @@ def get_jwt_token_from_access_token(access_token: str):
 
     end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
     jwt_token = service_config.service_auth.create_idtoken_jwt(end_timeout, token.user_name,
-                                                               roles=roles)
+                                                               roles=roles,
+                                                               token_name=token.token_name)
     return {'token': jwt_token,
             'expires_at': end_timeout,
             'error': None}
