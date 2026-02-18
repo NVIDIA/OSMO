@@ -1,0 +1,747 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0 -->
+
+<a id="deploy-service"></a>
+
+# Deploy Service
+
+This guide provides step-by-step instructions for deploying OSMO service components on a Kubernetes cluster.
+
+## Components Overview
+
+OSMO deployment consists of several main components:
+
+| Component           | Description                                     |
+|---------------------|-------------------------------------------------|
+| API Service         | Workflow operations and API endpoints           |
+| Router Service      | Routing traffic to the API Service              |
+| Web UI Service      | Web interface for users                         |
+| Worker Service      | Background job processing                       |
+| Logger Service      | Log collection and streaming                    |
+| Agent Service       | Client communication and status updates         |
+| Delayed Job Monitor | Monitoring and managing delayed background jobs |
+![image](deployment_guide/getting_started/service_components.svg)
+
+## Step 1: Configure PostgreSQL
+
+Create a database for OSMO using the following command. Omit `export OSMO_PGPASSWORD=...`
+and `PGPASSWORD=$OSMO_PGPASSWORD` if PostgreSQL was configured without a password.
+
+```bash
+$ export OSMO_DB_HOST=<your-db-host>
+$ export OSMO_PGPASSWORD=<your-postgres-password>
+$ kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: osmo-db-ops
+spec:
+  containers:
+    - name: osmo-db-ops
+      image: alpine/psql:17.5
+      command: ["/bin/sh", "-c"]
+      args:
+        - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo;'"
+  restartPolicy: Never
+EOF
+```
+
+Check that the process `Completed` with `kubectl get pod osmo-db-ops`. Then delete the pod with:
+
+```bash
+$ kubectl delete pod osmo-db-ops
+```
+
+## Step 2: Choose authentication mode
+
+OSMO can run **without** an identity provider (IdP) or **with** one. Choose one of the following.
+
+### Without an identity provider (default admin)
+
+Best for development, testing, or environments where you do not use corporate SSO. The OSMO service creates a single admin user at startup; you log in with that user’s password (used as a access token) and then create more users and access tokens via the API or CLI.
+
+1. In **Step 3** below, create a Kubernetes secret with the default admin password (see [Step 3: Create namespace and secrets](#deploy-service-default-admin-secret)).
+2. In your Helm values (**Step 4**), enable the default admin and point to that secret (see [Step 4: Prepare values](#deploy-service-osmo-values)). Do **not** enable the Envoy OAuth2 filter for an IdP; you can still use Envoy for TLS or other routing.
+
+See [Default admin (no IdP)](../appendix/authentication/index.md#default-admin-setup) in the authentication appendix for full details.
+
+### With an identity provider (IdP)
+
+Best for production when users should log in with your organization’s IdP (e.g. Microsoft Entra ID, Google, AWS IAM Identity Center).
+
+1. Register OSMO as an OAuth2/OIDC application in your IdP and obtain the client ID, client secret, and endpoints (token, authorize, JWKS, issuer). See [Identity Provider (IdP) Setup](../appendix/authentication/identity_provider_setup.md).
+2. In **Step 3** below, create the `oidc-secrets` secret with the client secret and an HMAC secret for session cookies.
+3. In your Helm values (**Step 4**), configure the Envoy sidecar with `oauth2Filter` and `jwt` providers for your IdP, and set `services.service.auth` for device/browser endpoints if you use the CLI login flow.
+
+See [Identity Provider (IdP) Setup](../appendix/authentication/identity_provider_setup.md) for provider-specific steps and [Authentication Flow](../appendix/authentication/authentication_flow.md) for the request flow.
+
+<a id="deploy-service-default-admin-secret"></a>
+
+## Step 3: Create namespace and secrets
+
+Create a namespace to deploy OSMO:
+
+```bash
+$ kubectl create namespace osmo
+```
+
+Create secrets for the database and Redis:
+
+```bash
+$ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo
+$ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo
+```
+
+**If using the default admin (no IdP):** create a secret with the default admin password. The service will create an admin user and an access token with this value at startup:
+
+```bash
+$ kubectl create secret generic default-admin-secret \
+  --from-literal=password='<your-secure-admin-password>' \
+  --namespace osmo
+```
+
+**If using an identity provider:** create the secret used by Envoy for the OAuth2 client secret and session signing (HMAC). Use the client secret from your IdP application registration:
+
+```bash
+$ kubectl create secret generic oidc-secrets \
+  --from-literal=client_secret=<your-idp-client-secret> \
+  --from-literal=hmac_secret=$(openssl rand -base64 32) \
+  --namespace osmo
+```
+
+Create the master encryption key (MEK) for database encryption:
+
+1. **Generate a new master encryption key**:
+
+   The MEK should be a JSON Web Key (JWK) with the following format:
+   ```json
+   {"k":"<base64-encoded-32-byte-key>","kid":"key1","kty":"oct"}
+   ```
+2. **Generate the key using OpenSSL**:
+   ```bash
+   # Generate a 32-byte (256-bit) random key and base64 encode it
+   $ export RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
+
+   # Create the JWK format
+   $ export JWK_JSON="{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
+   ```
+3. **Base64 encode the entire JWK**:
+   ```bash
+   $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
+   $ echo $ENCODED_JWK
+   ```
+4. **Create the ConfigMap with your generated MEK**:
+   ```bash
+   $ kubectl apply -f - <<EOF
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: mek-config
+     namespace: osmo
+   data:
+     mek.yaml: |
+       currentMek: key1
+       meks:
+         key1: $ENCODED_JWK
+   EOF
+   ```
+
+> **Warning**
+>
+> **Security Considerations**:
+
+> - Store the original JWK securely as you’ll need it for backups and recovery
+> - Never commit the MEK to version control
+> - Use a secure key management system, such as Vault or secrets manager in production
+> - The MEK is used to encrypt sensitive data in the database
+
+**Example MEK generation script**:
+
+```bash
+#!/bin/bash
+# Generate MEK for OSMO
+
+# Generate random 32-byte key
+$ export RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
+
+# Create JWK
+$ export JWK_JSON="{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
+
+# Base64 encode the JWK
+$ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
+$ echo "Encoded JWK: $ENCODED_JWK"
+
+# Create ConfigMap
+$ kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mek-config
+  namespace: osmo
+data:
+  mek.yaml: |
+    currentMek: key1
+    meks:
+      key1: $ENCODED_JWK
+EOF
+```
+
+<a id="deploy-service-osmo-values"></a>
+
+## Step 4: Prepare values
+
+Create a values file for each OSMO component.
+
+Create `osmo_values.yaml` for the OSMO service with the following sample (adjust authentication for default admin or IdP as in Step 2):
+
+### `osmo_values.yaml`
+
+```yaml
+# Global configuration shared across all OSMO services
+global:
+  osmoImageLocation: nvcr.io/nvidia/osmo
+  osmoImageTag: <version>
+  serviceAccountName: osmo
+
+  logs:
+    enabled: true
+    logLevel: DEBUG
+    k8sLogLevel: WARNING
+
+# Individual service configurations
+services:
+  # Configuration file service settings
+  configFile:
+    enabled: true
+
+  # PostgreSQL database configuration
+  postgres:
+    enabled: false
+    serviceName: <your-postgres-host>
+    port: 5432
+    db: <your-database-name>
+    user: postgres
+
+  # Redis cache configuration
+  redis:
+    enabled: false  # Set to false when using external Redis
+    serviceName: <your-redis-host>
+    port: 6379
+    tlsEnabled: true  # Set to false if your Redis does not require TLS
+
+  # Main API service configuration
+  service:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 3
+    hostname: <your-domain>
+    # Optional: set auth when using IdP (CLI/device flow). Omit when using only default admin.
+    # auth:
+    #   enabled: true
+    #   device_endpoint: <idp-device-auth-url>
+    #   device_client_id: <client-id>
+    #   browser_endpoint: <idp-authorize-url>
+    #   browser_client_id: <client-id>
+    #   token_endpoint: <idp-token-url>
+    #   logout_endpoint: <idp-logout-url>
+
+  # Default admin (no IdP): enable to create an admin user and access token at startup
+  defaultAdmin:
+    enabled: false  # Set true when not using an IdP
+    username: "admin"
+    passwordSecretName: default-admin-secret
+    passwordSecretKey: password
+
+    # Ingress configuration
+    ingress:
+      ingressClass: <your-ingress-class>  # e.g. alb, nginx
+      albAnnotations:
+        enabled: false  # Set to true if using AWS ALB
+        # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+      sslEnabled: false  # Set to true if managing SSL at the ingress level
+      annotations:
+        ## when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+        # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+        # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+        # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+        # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+        ## when using AWS ALB in addtional to the default alb annotations,
+        ## add the following annotations to specify the scheme of the ingress rules
+        # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
+        # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+        # alb.ingress.kubernetes.io/ssl-redirect: '443'
+    # Resource allocation
+    resources:
+      requests:
+        cpu: "1"
+        memory: "1Gi"
+      limits:
+        memory: "1Gi"
+
+  # Worker service configuration
+  worker:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 3
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "400Mi"
+      limits:
+        memory: "800Mi"
+
+  # Logger service configuration
+  logger:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 3
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        memory: "512Mi"
+
+  # Agent service configuration
+  agent:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        memory: "256Mi"
+
+  # Delayed job monitor configuration
+  delayedJobMonitor:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        memory: "512Mi"
+
+# Sidecar container configurations
+sidecars:
+  # Global Envoy proxy configuration
+  envoy:
+    enabled: true
+    # Use Kubernetes secrets as reference for the OIDC secrets
+    useKubernetesSecrets: true
+
+    # Paths that don't require authentication
+    skipAuthPaths:
+    - /api/version
+    - /api/auth/login
+    - /api/auth/keys
+    - /api/auth/refresh_token
+    - /api/auth/jwt/refresh_token
+    - /api/auth/jwt/access_token
+    - /client/version
+
+    # Service configuration
+    service:
+      port: 8000
+      hostname: <your-domain>
+      address: 127.0.0.1
+
+    # OAuth2 filter configuration
+    # When using an IdP: set endpoints and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
+    oauth2Filter:
+      enabled: false  # Set true when using an IdP for browser login
+      tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token  # IdP-specific
+      authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
+      clientId: <client-id>
+      redirectPath: api/auth/getAToken
+      logoutPath: logout
+      forwardBearerToken: true
+      secretName: oidc-secrets
+      clientSecretKey: client_secret
+      hmacSecretKey: hmac_secret
+
+    # JWT validation: configure providers for your IdP and (if using access tokens) for OSMO-issued tokens
+    jwt:
+      user_header: x-osmo-user
+      providers:
+      # Example: Microsoft Entra ID. Add or replace with your IdP (see identity_provider_setup).
+      - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+        audience: <client-id>
+        jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+        user_claim: preferred_username
+        cluster: oauth
+      # OSMO-issued JWTs (e.g. for access-token-based access)
+      - issuer: osmo
+        audience: osmo
+        jwks_uri: http://localhost:8000/api/auth/keys
+        user_claim: unique_name
+        cluster: service
+
+
+  # Log agent configuration (optional)
+  logAgent:
+    enabled: false
+    # Uncomment and configure if using AWS CloudWatch
+    # cloudwatch:
+    #   enabled: true
+    #   clusterName: <your-cluster-name>
+    #   role: <your-aws-cloudwatch-role>
+
+  # OpenTelemetry configuration (optional)
+  otel:
+    enabled: false
+
+  # Rate limiting configuration (optional)
+  rateLimit:
+    enabled: false
+    # Uncomment and configure if using rate limiting
+    # redis:
+    #   serviceName: <your-redis-host>
+    #   port: 6379
+```
+
+Create `router_values.yaml` for router with the following sample configurations:
+
+<!-- TODO: Update this link to point to the public registry when we switch to GitHub. -->
+
+### `router_values.yaml`
+
+```yaml
+# Global configuration shared across router services
+global:
+  osmoImageLocation: nvcr.io/nvidia/osmo
+  osmoImageTag: <version>
+
+  logs:
+    enabled: true
+    logLevel: DEBUG
+    k8sLogLevel: WARNING
+
+# Router service configurations
+services:
+  # Configuration file service settings
+  configFile:
+    enabled: true
+
+  # Router service configuration
+  service:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 2
+    hostname: <your-domain>
+    # webserverEnabled: true  # (Optional): Enable for UI port forwarding
+    serviceAccountName: router
+
+    # Ingress configuration
+    ingress:
+      prefix: /
+      ingressClass: <your-ingress-class>  # e.g. alb, nginx
+      albAnnotations:
+        enabled: false  # Set to true if using AWS ALB
+        # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+      sslEnabled: false  # Set to true if managing SSL at the ingress level
+      sslSecret: osmo-tls
+      annotations:
+        # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+        # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+        # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+        # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+        # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+        ## when using AWS ALB in addtional to the default alb annotations,
+        ## add the following annotations to specify the scheme of the ingress rules
+        # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
+        # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+        # alb.ingress.kubernetes.io/ssl-redirect: '443'
+
+    # Resource allocation
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        memory: "512Mi"
+
+  # PostgreSQL database configuration
+  postgres:
+    serviceName: <your-postgres-hostname>
+    port: 5432
+    db: osmo
+    user: postgres
+
+# Sidecar container configurations
+sidecars:
+  # Envoy proxy configuration
+  envoy:
+    enabled: true
+    useKubernetesSecrets: true
+
+    skipAuthPaths:
+    - /api/router/version
+
+    image: envoyproxy/envoy:v1.29.0
+    imagePullPolicy: IfNotPresent
+
+    # Service configuration
+    service:
+      hostname: <your-domain>
+
+    # OAuth2 filter (when using an IdP for browser login). Set endpoints from your IdP; see identity_provider_setup.
+    oauth2Filter:
+      enabled: false
+      forwardBearerToken: true
+      tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token
+      authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
+      clientId: <client-id>
+      redirectPath: api/auth/getAToken
+      logoutPath: logout
+      secretName: oidc-secrets
+      clientSecretKey: client_secret
+      hmacSecretKey: hmac_secret
+
+    # JWT validation: IdP provider(s) and OSMO-issued tokens
+    jwt:
+      enabled: true
+      user_header: x-osmo-user
+      providers:
+      - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+        audience: <client-id>
+        jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+        user_claim: preferred_username
+        cluster: oauth
+      - issuer: osmo
+        audience: osmo
+        jwks_uri: http://osmo-service/api/auth/keys
+        user_claim: unique_name
+        cluster: osmoauth
+
+    # OSMO auth service configuration
+    osmoauth:
+      enabled: true
+      port: 80
+      hostname: <your-domain>
+      address: osmo-service
+
+    # (Optional): Enable for UI port forwarding
+    # routes:
+    # - match:
+    #     prefix: "/"
+    #   route:
+    #     cluster: service
+    #     timeout: 0s
+
+  # Log agent configuration (optional)
+  logAgent:
+    enabled: false
+    # Uncomment and configure if using AWS CloudWatch
+    # cloudwatch:
+    #   region: us-west-2
+    #   clusterName: <your-cluster-name>
+    #   role: <your-aws-cloudwatch-role>
+```
+
+Create `ui_values.yaml` for ui with the following sample configurations:
+
+<!-- TODO: Update this link to point to the public registry when we switch to GitHub. -->
+
+### `ui_values.yaml`
+
+```yaml
+# Global configuration shared across UI services
+global:
+  osmoImageLocation: nvcr.io/nvidia/osmo
+  osmoImageTag: <version>
+
+# UI service configurations
+services:
+  # UI service configuration
+  ui:
+    hostname: <your-domain>
+
+    # Ingress configuration
+    ingress:
+      prefix: /
+      ingressClass: <your-ingress-class>  # e.g. alb, nginx
+      albAnnotations:
+        enabled: false  # Set to true if using AWS ALB
+        # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+      sslEnabled: false  # Set to true if managing SSL at the ingress level
+      sslSecret: osmo-tls
+      annotations:
+        # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+        # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+        # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+        # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+        # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+        ## when using AWS ALB in addtional to the default alb annotations,
+        ## add the following annotations to specify the scheme of the ingress rules
+        # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
+        # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+        # alb.ingress.kubernetes.io/ssl-redirect: '443'
+
+    # Resource allocation
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        memory: "512Mi"
+
+sidecars:
+  # Envoy proxy configuration
+  envoy:
+    enabled: true
+    useKubernetesSecrets: true
+
+    # Service configuration
+    service:
+      hostname: <your-domain>
+      address: 127.0.0.1
+      port: 8000
+
+    # OAuth2 filter configuration
+    oauth2Filter:
+      enabled: true
+      tokenEndpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/token
+      authEndpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/auth
+      redirectPath: getAToken
+      clientId: osmo-browser-flow
+      authProvider: auth-<your-domain>
+      logoutPath: logout
+      secretName: oidc-secrets
+      clientSecretKey: client_secret
+      hmacSecretKey: hmac_secret
+
+    # JWT configuration
+    jwt:
+      user_header: x-osmo-user
+      providers:
+      - issuer: https://auth-<your-domain>/realms/osmo
+        audience: osmo-device
+        jwks_uri: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/certs
+        user_claim: unique_name
+        cluster: oauth
+      - issuer: https://auth-<your-domain>/realms/osmo
+        audience: osmo-browser-flow
+        jwks_uri: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/certs
+        user_claim: preferred_username
+        cluster: oauth
+
+  # Log agent configuration (optional only used for AWS CloudWatch)
+  logAgent:
+    enabled: false
+    # Uncomment and configure if using AWS CloudWatch
+    # aws:
+    #   region: us-west-2
+    #   clusterName: <your-cluster-name>
+```
+
+> **Important**
+>
+> Replace all `<your-*>` placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.
+
+> **Note**
+>
+> Refer to the [README](https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md) page for detailed configuration options.
+
+Similar values files should be created for other components (Router, UI) with their specific configurations.
+
+## Step 5: Deploy Components
+
+Deploy the components in the following order:
+
+1. Deploy **API Service**:
+
+```bash
+# add the helm repository
+$ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+$ helm repo update
+
+# deploy the service
+$ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
+```
+
+1. Deploy **Router**:
+
+```bash
+$ helm upgrade --install router osmo/router -f ./router_values.yaml -n osmo
+```
+
+1. Deploy **UI**:
+
+```bash
+$ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
+```
+
+## Step 6: Verify Deployment
+
+1. Verify all pods are running:
+   ```bash
+   $ kubectl get pods -n osmo
+   NAME                            READY   STATUS    RESTARTS       AGE
+   osmo-agent-xxx                  2/2     Running   0              <age>
+   osmo-delayed-job-monitor-xxx    1/1     Running   0              <age>
+   osmo-logger-xxx                 2/2     Running   0              <age>
+   osmo-router-xxx                 2/2     Running   0              <age>
+   osmo-service-xxx                2/2     Running   0              <age>
+   osmo-ui-xxx                     2/2     Running   0              <age>
+   osmo-worker-xxx                 1/1     Running   0              <age>
+   ```
+2. Verify all services are running:
+   ```bash
+   $ kubectl get services -n osmo
+     NAME           TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)   AGE
+     osmo-agent     ClusterIP   xxx               <none>        80/TCP    <age>
+     osmo-logger    ClusterIP   xxx               <none>        80/TCP    <age>
+     osmo-router    ClusterIP   xxx               <none>        80/TCP    <age>
+     osmo-service   ClusterIP   xxx               <none>        80/TCP    <age>
+     osmo-ui        ClusterIP   xxx               <none>        80/TCP    <age>
+   ```
+3. Verify ingress configuration:
+   ```bash
+   $ kubectl get ingress -n osmo
+   NAME           CLASS   HOSTS                          ADDRESS         PORTS     AGE
+   osmo-agent     nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+   osmo-logger    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+   osmo-router    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+   osmo-service   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+   osmo-ui        nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+   osmo-ui-trpc   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+   ```
+
+## Step 7: Post-deployment Configuration
+
+1. Configure DNS records to point to your load balancer. For example, create a record for `osmo.example.com` to point to the load balancer IP.
+2. Test authentication flow
+3. Verify access to the UI at [https://osmo.example.com](https://osmo.example.com) through your domain
+4. Create and configure data storage to store service data: [Configure Data Storage](configure_data.md#configure-data)
+
+## Troubleshooting
+
+1. Check pod status and logs:
+   ```bash
+   kubectl get pods -n <namespace>
+
+   # check if all pods are running, if not, check the logs for more details
+   kubectl logs -f <pod-name> -n <namespace>
+   ```
+2. Common issues and their resolutions:
+   * **Database connection failures**: Verify the database is running and accessible
+   * **Authentication configuration issues**: Verify the authentication configuration is correct
+   * **Ingress routing problems**: Verify the ingress is configured correctly
+   * **Resource constraints**: Verify the resource limits are set correctly
+   * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
