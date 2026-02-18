@@ -120,14 +120,12 @@ spec:
         - '{{ .Values.services.backendListener.eventCacheTTLMin }}'
         - --metricsOtelEnable
         - '{{ .Values.services.backendListener.metrics.enabled }}'
-        - --metricsOtelCollectorComponent
-        - '{{ .Values.services.backendListener.metrics.component }}'
         - --serviceVersion
         - '{{ .Values.services.backendListener.metrics.version | default .Values.global.osmoImageTag }}'
         - --metricsOtelCollectorHost
-        - '127.0.0.1'
+        - '{{ .Values.sidecars.OTEL.host }}'
         - --metricsOtelCollectorPort
-        - '4317'
+        - '{{ .Values.sidecars.OTEL.port | quote}}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}
