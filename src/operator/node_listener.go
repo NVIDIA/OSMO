@@ -35,15 +35,18 @@ import (
 // NodeListener manages the bidirectional gRPC stream for node events
 type NodeListener struct {
 	*utils.BaseListener
-	args utils.ListenerArgs
+	args               utils.ListenerArgs
+	nodeConditionRules *utils.NodeConditionRules
 }
 
 // NewNodeListener creates a new node listener instance
-func NewNodeListener(args utils.ListenerArgs) *NodeListener {
+func NewNodeListener(
+	args utils.ListenerArgs, nodeConditionRules *utils.NodeConditionRules) *NodeListener {
 	return &NodeListener{
 		BaseListener: utils.NewBaseListener(
 			args, "last_progress_node_listener", utils.StreamNameNode),
-		args: args,
+		args:               args,
+		nodeConditionRules: nodeConditionRules,
 	}
 }
 
@@ -119,7 +122,7 @@ func (nl *NodeListener) watchNodes(
 
 	nodeInformerFactory := informers.NewSharedInformerFactory(
 		clientset,
-		0, // No automatic resync
+		time.Duration(nl.args.ResyncPeriodSec)*time.Second,
 	)
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
@@ -235,7 +238,8 @@ func (nl *NodeListener) buildResourceMessage(
 	isDelete bool,
 ) *pb.ListenerMessage {
 	hostname := utils.GetNodeHostname(node)
-	body := utils.BuildUpdateNodeBody(node, isDelete)
+	body := utils.BuildUpdateNodeBody(
+		node, isDelete, nl.nodeConditionRules.GetRules())
 
 	if !isDelete && !tracker.HasChanged(hostname, body) {
 		return nil
