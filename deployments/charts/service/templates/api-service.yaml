@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,6 +124,10 @@ spec:
         {{- if .Values.services.service.hostname }}
         - --service_hostname
         - {{ .Values.services.service.hostname }}
+        {{- end }}
+        {{- if .Values.services.service.clientInstallUrl }}
+        - --client_install_url
+        - {{ .Values.services.service.clientInstallUrl }}
         {{- end }}
         {{- if .Values.global.osmoImageLocation }}
         - --osmo_image_location

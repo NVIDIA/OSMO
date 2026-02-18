@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,6 +65,10 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         command_line='logout_endpoint',
         default=None,
         description='The url to bind to when authenticating with the logout endpoint.')
+    client_install_url: str | None = pydantic.Field(
+        command_line='client_install_url',
+        default=None,
+        description='The URL for the client install script shown in version update messages.')
     progress_file: str = pydantic.Field(
         command_line='progress_file',
         env='OSMO_PROGRESS_FILE',

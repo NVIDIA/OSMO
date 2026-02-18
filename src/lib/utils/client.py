@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -60,13 +60,10 @@ class ResponseMode(enum.Enum):
 
 
 def handle_response(response, service_base_url: str, mode: ResponseMode = ResponseMode.JSON):
-    if response.headers.get(version.SERVICE_VERSION_HEADER) is not None:
-        client_version = version.VERSION
-        print(f'WARNING: New client {response.headers.get(version.SERVICE_VERSION_HEADER)} '
-              f'available.\nCurrent version: {client_version}.\n'
-              'Please update by running:\n'
-              f'curl -fsSL {service_base_url}/client/install.sh | bash',
-              file=sys.stderr)
+    if response.headers.get(version.VERSION_WARNING_HEADER) is not None:
+        warning = response.headers.get(version.VERSION_WARNING_HEADER)
+        warning = warning.replace('\\n', '\n').replace('\\\\', '\\')
+        print(warning, file=sys.stderr)
     if response.status_code != 200:
         logging.error('Server responded with status code %s', response.status_code)
 
