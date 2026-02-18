@@ -30,6 +30,8 @@ class TopologyTestBase(unittest.TestCase):
     Provides utility methods for creating mock configurations and comparing PodGroup specs.
     """
 
+    TOPOLOGY_NAME = 'osmo-pool-test-namespace-test-pool-topology'
+
     def create_mock_backend(self, namespace: str = 'test-namespace') -> connectors.Backend:
         """Create a mock Backend object with KAI scheduler."""
         return connectors.Backend(
@@ -70,6 +72,26 @@ class TopologyTestBase(unittest.TestCase):
             }
         }
 
+    def create_k8s_resources(
+        self,
+        task_infos: List[topology.TaskTopology],
+        topology_keys: List[topology.TopologyKey] | None = None
+    ) -> List[Dict[str, Any]]:
+        """Creates k8s resources using standard test boilerplate."""
+        topology_keys = topology_keys if topology_keys is not None else []
+        backend = self.create_mock_backend()
+        factory = kb_objects.KaiK8sObjectFactory(backend)
+        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
+        return factory.create_group_k8s_resources(
+            'test-group-uuid',
+            pods,
+            {'test-label': 'test-value'},
+            'test-pool',
+            wf_priority.WorkflowPriority.NORMAL,
+            topology_keys,
+            task_infos
+        )
+
     def as_golden(self, podgroup: Dict) -> Dict:
         """Extract topology-relevant fields from a PodGroup for golden comparison.
 
@@ -92,21 +114,9 @@ class BasicTopologyTests(TopologyTestBase):
         A simple workflow without any topology configuration should generate
         a standard PodGroup without topology constraints.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
-        group_uuid = 'test-group-uuid'
-        topology_keys_list: List[topology.TopologyKey] = []
         task_infos = [topology.TaskTopology(name=f'task{i}', topology_requirements=[])
                       for i in range(1, 5)]
-        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys_list, task_infos
-        )
+        k8s_resources = self.create_k8s_resources(task_infos)
 
         self.assertEqual(self.as_golden(k8s_resources[0]), {'minMember': 4})
 
@@ -120,9 +130,6 @@ class BasicTopologyTests(TopologyTestBase):
         a PodGroup with a top-level topology constraint and no subgroups when all
         tasks share the same group.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
             topology.TopologyKey(key='zone', label='topology.kubernetes.io/zone'),
@@ -136,26 +143,12 @@ class BasicTopologyTests(TopologyTestBase):
             )
             for i in range(1, 5)
         ]
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
-        group_uuid = 'test-group-uuid'
-        pods = []
-        for task_info in task_infos:
-            pod = self.create_mock_pod_spec(task_info.name)
-            pods.append(pod)
-
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
-
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'minMember': 4,
             'topologyConstraint': {
-                'topology': topology_name,
+                'topology': self.TOPOLOGY_NAME,
                 'requiredTopologyLevel': 'nvidia.com/gpu-clique',
             },
         })
@@ -172,9 +165,6 @@ class MultipleSubgroupTests(TopologyTestBase):
         A workflow with tasks grouped into multiple topology groups at the same level
         should generate a PodGroup with multiple subgroups.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
             topology.TopologyKey(key='zone', label='topology.kubernetes.io/zone'),
@@ -195,28 +185,15 @@ class MultipleSubgroupTests(TopologyTestBase):
                 ]
             ))
 
-        group_uuid = 'test-group-uuid'
-        pods = []
-        for task_info in task_infos:
-            pod = self.create_mock_pod_spec(task_info.name)
-            pods.append(pod)
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
-
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'subGroups': [
                 {
                     'name': 'model-1-group',
                     'minMember': 4,
                     'topologyConstraint': {
-                        'topology': topology_name,
+                        'topology': self.TOPOLOGY_NAME,
                         'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
                 },
@@ -224,7 +201,7 @@ class MultipleSubgroupTests(TopologyTestBase):
                     'name': 'model-2-group',
                     'minMember': 4,
                     'topologyConstraint': {
-                        'topology': topology_name,
+                        'topology': self.TOPOLOGY_NAME,
                         'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
                 },
@@ -249,9 +226,6 @@ class HierarchicalTopologyTests(TopologyTestBase):
         generate a PodGroup with a top-level zone constraint and per-model subgroups
         constrained to gpu-clique.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='zone', label='topology.kubernetes.io/zone'),
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
@@ -274,24 +248,11 @@ class HierarchicalTopologyTests(TopologyTestBase):
                 ]
             ))
 
-        group_uuid = 'test-group-uuid'
-        pods = []
-        for task_info in task_infos:
-            pod = self.create_mock_pod_spec(task_info.name)
-            pods.append(pod)
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
-
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'topologyConstraint': {
-                'topology': topology_name,
+                'topology': self.TOPOLOGY_NAME,
                 'requiredTopologyLevel': 'topology.kubernetes.io/zone',
             },
             'subGroups': [
@@ -299,7 +260,7 @@ class HierarchicalTopologyTests(TopologyTestBase):
                     'name': 'workflow-group-model-1-group',
                     'minMember': 4,
                     'topologyConstraint': {
-                        'topology': topology_name,
+                        'topology': self.TOPOLOGY_NAME,
                         'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
                 },
@@ -307,7 +268,7 @@ class HierarchicalTopologyTests(TopologyTestBase):
                     'name': 'workflow-group-model-2-group',
                     'minMember': 4,
                     'topologyConstraint': {
-                        'topology': topology_name,
+                        'topology': self.TOPOLOGY_NAME,
                         'requiredTopologyLevel': 'nvidia.com/gpu-clique',
                     },
                 },
@@ -328,9 +289,6 @@ class HierarchicalTopologyTests(TopologyTestBase):
         A workflow with preferred (not required) topology requirements should use
         preferredTopologyLevel instead of requiredTopologyLevel.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='spine', label='topology.kubernetes.io/spine'),
             topology.TopologyKey(key='rack', label='topology.kubernetes.io/rack'),
@@ -353,24 +311,11 @@ class HierarchicalTopologyTests(TopologyTestBase):
                 ]
             ))
 
-        group_uuid = 'test-group-uuid'
-        pods = []
-        for task_info in task_infos:
-            pod = self.create_mock_pod_spec(task_info.name)
-            pods.append(pod)
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
-
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'topologyConstraint': {
-                'topology': topology_name,
+                'topology': self.TOPOLOGY_NAME,
                 'preferredTopologyLevel': 'topology.kubernetes.io/spine',
             },
             'subGroups': [
@@ -378,7 +323,7 @@ class HierarchicalTopologyTests(TopologyTestBase):
                     'name': 'workflow-group-model-1-group',
                     'minMember': 4,
                     'topologyConstraint': {
-                        'topology': topology_name,
+                        'topology': self.TOPOLOGY_NAME,
                         'preferredTopologyLevel': 'topology.kubernetes.io/rack',
                     },
                 },
@@ -386,7 +331,7 @@ class HierarchicalTopologyTests(TopologyTestBase):
                     'name': 'workflow-group-model-2-group',
                     'minMember': 4,
                     'topologyConstraint': {
-                        'topology': topology_name,
+                        'topology': self.TOPOLOGY_NAME,
                         'preferredTopologyLevel': 'topology.kubernetes.io/rack',
                     },
                 },
@@ -401,9 +346,6 @@ class EdgeCaseTests(TopologyTestBase):
         """
         A workflow with topology=[] should behave the same as no topology.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
         ]
@@ -411,20 +353,7 @@ class EdgeCaseTests(TopologyTestBase):
             topology.TaskTopology(name=f'task{i}', topology_requirements=[])
             for i in range(1, 5)
         ]
-
-        group_uuid = 'test-group-uuid'
-        pods = []
-        for task_info in task_infos:
-            pod = self.create_mock_pod_spec(task_info.name)
-            pods.append(pod)
-
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
         self.assertEqual(self.as_golden(k8s_resources[0]), {'minMember': 4})
 
@@ -435,9 +364,6 @@ class EdgeCaseTests(TopologyTestBase):
         """
         A single task with topology requirement should create topology constraint.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
         ]
@@ -449,23 +375,12 @@ class EdgeCaseTests(TopologyTestBase):
                 ]
             )
         ]
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
-        group_uuid = 'test-group-uuid'
-        pod = self.create_mock_pod_spec('single-task')
-
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, [pod], labels, pool_name, priority, topology_keys, task_infos
-        )
-
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'minMember': 1,
             'topologyConstraint': {
-                'topology': topology_name,
+                'topology': self.TOPOLOGY_NAME,
                 'requiredTopologyLevel': 'nvidia.com/gpu-clique',
             },
         })
@@ -475,9 +390,6 @@ class EdgeCaseTests(TopologyTestBase):
         When all tasks use the same topology group and key, the constraint should
         be at the top level with no subgroups (optimization).
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='zone', label='topology.kubernetes.io/zone'),
             topology.TopologyKey(key='rack', label='topology.kubernetes.io/rack'),
@@ -492,29 +404,15 @@ class EdgeCaseTests(TopologyTestBase):
             )
             for i in range(1, 5)
         ]
-
-        group_uuid = 'test-group-uuid'
-        pods = []
-        for task_info in task_infos:
-            pod = self.create_mock_pod_spec(task_info.name)
-            pods.append(pod)
-
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
         # When all tasks share the same groups at all topology levels, the entire
         # path is a single-child chain. The algorithm walks down this chain and
         # promotes the constraint to the top level, using the finest shared level (rack).
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'minMember': 4,
             'topologyConstraint': {
-                'topology': topology_name,
+                'topology': self.TOPOLOGY_NAME,
                 'requiredTopologyLevel': 'topology.kubernetes.io/rack',
             },
         })
@@ -536,9 +434,6 @@ class ValidationTests(TopologyTestBase):
         All tasks in a group must have the same topology keys.
         This validation should raise an error.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
             topology.TopologyKey(key='zone', label='topology.kubernetes.io/zone'),
@@ -558,17 +453,8 @@ class ValidationTests(TopologyTestBase):
             ),
         ]
 
-        group_uuid = 'test-group-uuid'
-        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
-
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
         with self.assertRaises(osmo_errors.OSMOResourceError) as context:
-            factory.create_group_k8s_resources(
-                group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-            )
+            self.create_k8s_resources(task_infos, topology_keys)
 
         self.assertIn('same topology keys', str(context.exception))
 
@@ -579,9 +465,6 @@ class ValidationTests(TopologyTestBase):
         Based on the validation code in topology.py, this is treated as having
         different key sets and should raise an error.
         """
-        backend = self.create_mock_backend()
-        factory = kb_objects.KaiK8sObjectFactory(backend)
-
         topology_keys = [
             topology.TopologyKey(key='gpu-clique', label='nvidia.com/gpu-clique'),
         ]
@@ -595,24 +478,14 @@ class ValidationTests(TopologyTestBase):
             topology.TaskTopology(name='task2', topology_requirements=[]),
         ]
 
-        group_uuid = 'test-group-uuid'
-        pods = [self.create_mock_pod_spec(task_info.name) for task_info in task_infos]
-
-        labels = {'test-label': 'test-value'}
-        pool_name = 'test-pool'
-        priority = wf_priority.WorkflowPriority.NORMAL
-
         # Empty topology is NOT added to key_sets (see topology.py: "if task.topology_requirements:")
         # so only one key set exists: ('gpu-clique',). Validation passes.
-        k8s_resources = factory.create_group_k8s_resources(
-            group_uuid, pods, labels, pool_name, priority, topology_keys, task_infos
-        )
+        k8s_resources = self.create_k8s_resources(task_infos, topology_keys)
 
-        topology_name = f'osmo-pool-test-namespace-{pool_name}-topology'
         self.assertEqual(self.as_golden(k8s_resources[0]), {
             'minMember': 2,
             'topologyConstraint': {
-                'topology': topology_name,
+                'topology': self.TOPOLOGY_NAME,
                 'requiredTopologyLevel': 'nvidia.com/gpu-clique',
             },
         })
