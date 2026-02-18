@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import enum
 import json
 import logging
@@ -61,8 +62,8 @@ class ResponseMode(enum.Enum):
 
 def handle_response(response, service_base_url: str, mode: ResponseMode = ResponseMode.JSON):
     if response.headers.get(version.VERSION_WARNING_HEADER) is not None:
-        warning = response.headers.get(version.VERSION_WARNING_HEADER)
-        warning = warning.replace('\\n', '\n').replace('\\\\', '\\')
+        warning = base64.b64decode(
+            response.headers.get(version.VERSION_WARNING_HEADER)).decode()
         print(warning, file=sys.stderr)
     if response.status_code != 200:
         logging.error('Server responded with status code %s', response.status_code)

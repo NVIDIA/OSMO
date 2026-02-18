@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import logging
 from pathlib import Path
 import sys
@@ -91,7 +92,7 @@ async def check_client_version(request: fastapi.Request, call_next):
             f'Current version: {client_version_str}.\n'
             f'{install_command}')
         response.headers[version.VERSION_WARNING_HEADER] = (
-            warning_msg.replace('\\', '\\\\').replace('\n', '\\n'))
+            base64.b64encode(warning_msg.encode()).decode())
     return response
 
 
