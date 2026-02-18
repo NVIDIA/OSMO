@@ -1175,6 +1175,25 @@ def rollback_config(
             ),
             username
         )
+    elif request.config_type == connectors.ConfigHistoryType.GROUP_TEMPLATE:
+        # Delete all existing group templates
+        existing_group_templates = connectors.GroupTemplate.list_from_db(postgres)
+        group_templates_to_remove = [
+            group_template for group_template in existing_group_templates
+            if group_template not in history_entry['data'].keys()
+        ]
+        for group_template in group_templates_to_remove:
+            connectors.GroupTemplate.delete_from_db(postgres, group_template)
+
+        # Replace with group template configs from history
+        put_group_templates(
+            objects.PutGroupTemplatesRequest(
+                configs=history_entry['data'],
+                description=description,
+                tags=request.tags
+            ),
+            username
+        )
     elif request.config_type == connectors.ConfigHistoryType.RESOURCE_VALIDATION:
         # Delete all existing resource validations
         existing_resource_validations = connectors.ResourceValidation.list_from_db(postgres)
