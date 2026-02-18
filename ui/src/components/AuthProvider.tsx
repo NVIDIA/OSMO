@@ -131,24 +131,23 @@ class Auth {
       return;
     }
 
-    // Try OAuth2 Proxy session first. When OAuth2 Proxy handles browser
-    // authentication, Envoy sets x-osmo-user on the server-side request.
-    // The /auth/session endpoint reads this header and returns the user.
+    // Try OAuth2 Proxy session first. The /oauth2/userinfo endpoint is
+    // built into OAuth2 Proxy and returns user info from the session cookie.
     // If this succeeds, skip the cookie-based token flow entirely.
     try {
-      const sessionRes = await fetch("/auth/session", { cache: "no-store" });
+      const sessionRes = await fetch("/oauth2/userinfo", { cache: "no-store" });
       if (sessionRes.ok) {
         const sessionData = await sessionRes.json();
-        if (sessionData.authenticated && sessionData.user) {
+        if (sessionData.preferredUsername || sessionData.email) {
           this.claims = {
-            email: sessionData.user,
-            preferred_username: sessionData.user,
+            email: sessionData.email ?? sessionData.preferredUsername,
+            preferred_username: sessionData.preferredUsername ?? sessionData.email,
           } as AuthClaims;
           return;
         }
       }
     } catch {
-      // Session endpoint not available or OAuth2 Proxy not configured.
+      // OAuth2 Proxy not configured or /oauth2/userinfo not available.
       // Fall through to legacy cookie-based flow.
     }
 
@@ -259,7 +258,7 @@ class Auth {
 
     // Try OAuth2 Proxy logout first
     try {
-      const sessionRes = await fetch("/auth/session", { cache: "no-store" });
+      const sessionRes = await fetch("/oauth2/userinfo", { cache: "no-store" });
       if (sessionRes.ok) {
         // OAuth2 Proxy is handling auth — redirect to its sign-out endpoint
         window.location.href = "/oauth2/sign_out";

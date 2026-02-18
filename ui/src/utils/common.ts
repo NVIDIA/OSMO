@@ -23,22 +23,12 @@ export const getRequestScheme = () => {
 };
 
 // Generates request headers, including CORS for authentication
-export const getRequestHeaders = async (id_token: string | null, authorizationHeader: string | null = null, includeContentType?: boolean) => {
+export const getRequestHeaders = async (id_token: string | null, includeContentType?: boolean) => {
   const loginInfo = await getLoginInfo();
 
-  const headers: Record<string, string> = {};
-
-  // When OAuth2 Proxy handles browser auth, the Authorization header (with ID token)
-  // is set by Envoy on the incoming request. Extract the Bearer token and send it
-  // via x-osmo-auth so the service's ext_authz skips OAuth2 Proxy and the JWT
-  // filter validates the token directly.
-  if (authorizationHeader && authorizationHeader.startsWith("Bearer ")) {
-    const token = authorizationHeader.slice(7);
-    headers["x-osmo-auth"] = token;
-  } else {
-    headers["x-osmo-auth"] = !loginInfo.auth_enabled ? "x-osmo-user" : (id_token ?? "");
-  }
-
+  const headers: Record<string, string> = {
+    "x-osmo-auth": !loginInfo.auth_enabled ? "x-osmo-user" : (id_token ?? ""),
+  };
   if (includeContentType) {
     headers["Content-Type"] = "application/json";
   }
@@ -69,15 +59,16 @@ export const OsmoApiFetch = async (
   includeContentType = false,
 ) => {
   const scheme = getRequestScheme();
+  // x-osmo-auth is set by Envoy's Lua filter (copies from Authorization: Bearer <token>
+  // set by OAuth2 Proxy). For legacy flow, it comes from the IdToken cookie.
   const idToken = ctx.cookies.get("IdToken") as string | null ?? ctx.headers.get("x-osmo-auth");
-  const authorizationHeader = ctx.headers.get("authorization");
   const fetchUrl = searchParams
     ? `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}${apiPath}?${searchParams.toString()}`
     : `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}${apiPath}`;
 
   const fetchOptions: RequestInit = {
     method: method,
-    headers: await getRequestHeaders(idToken, authorizationHeader, includeContentType),
+    headers: await getRequestHeaders(idToken, includeContentType),
   };
 
   if (requestBody) {

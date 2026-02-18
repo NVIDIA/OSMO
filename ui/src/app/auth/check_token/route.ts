@@ -17,19 +17,10 @@ import { env } from "~/env.mjs";
 import { getRequestScheme } from "~/utils/common";
 
 export async function GET(request: Request) {
-  const authorizationHeader = request.headers.get("authorization");
+  // x-osmo-auth is set by Envoy's Lua filter (copies from Authorization: Bearer
+  // set by OAuth2 Proxy). For legacy flow, it comes from the browser request.
   const id_token = request.headers.get("x-osmo-auth") ?? "";
-
-  // Forward auth to service. Extract Bearer token from Authorization header
-  // (set by OAuth2 Proxy) and send via x-osmo-auth so the service's ext_authz
-  // skips OAuth2 Proxy and the JWT filter validates the token directly.
-  const headers: Record<string, string> = {};
-  if (authorizationHeader && authorizationHeader.startsWith("Bearer ")) {
-    headers["x-osmo-auth"] = authorizationHeader.slice(7);
-  } else {
-    headers["x-osmo-auth"] = id_token;
-  }
-  const osmoHeaders = { headers };
+  const osmoHeaders = { headers: { "x-osmo-auth": id_token } };
 
   // Check if the token is valid by fetching workflows. This is the same as the kubernetes readiness
   // probe. all_pools=true is important for users that don't have a default pool
