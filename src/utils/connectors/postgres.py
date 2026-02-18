@@ -1293,8 +1293,8 @@ class PostgresConnector:
                         existing_role.policies = default_role_object.policies
                     else:
                         for action_str in missing_actions:
-                            new_action = role.RoleAction(action=action_str)
-                            existing_role.policies[0].actions.append(new_action)
+                            role.validate_semantic_action(action_str)
+                            existing_role.policies[0].actions.append(action_str)
                     existing_role.insert_into_db(self, force=True)
                     updated_roles = True
 
@@ -4045,9 +4045,7 @@ DEFAULT_ROLES: Dict[str, Role] = {
         description='Administrator with full access except internal endpoints',
         policies=[
             role.RolePolicy(
-                actions=[
-                    role.RoleAction(action='*:*'),
-                ],
+                actions=['*:*'],
                 resources=['*']
             ),
             role.RolePolicy(
@@ -4066,20 +4064,13 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    # Workflow actions
-                    role.RoleAction(action='workflow:*'),
-                    # Dataset actions
-                    role.RoleAction(action='dataset:*'),
-                    # Credentials actions
-                    role.RoleAction(action='credentials:*'),
-                    # Pool actions
-                    role.RoleAction(action='pool:List'),
-                    # Profile actions
-                    role.RoleAction(action='profile:*'),
-                    # App actions
-                    role.RoleAction(action='app:*'),
-                    # Resources actions
-                    role.RoleAction(action='resources:Read'),
+                    'workflow:*',
+                    'dataset:*',
+                    'credentials:*',
+                    'pool:List',
+                    'profile:*',
+                    'app:*',
+                    'resources:Read',
                 ],
                 resources=['*']
             )
@@ -4091,9 +4082,9 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(action='internal:Operator'),
-                    role.RoleAction(action='pool:List'),
-                    role.RoleAction(action='config:Read'),
+                    'internal:Operator',
+                    'pool:List',
+                    'config:Read',
                 ],
                 resources=['backend/*', 'pool/*', 'config/backend']
             )
@@ -4106,8 +4097,8 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(action='internal:Logger'),
-                    role.RoleAction(action='internal:Router'),
+                    'internal:Logger',
+                    'internal:Router',
                 ],
                 resources=['*']
             )
@@ -4120,9 +4111,9 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(action='system:Health'),
-                    role.RoleAction(action='system:Version'),
-                    role.RoleAction(action='auth:Login'),
+                    'system:Health',
+                    'system:Version',
+                    'auth:Login',
                 ],
                 resources=['*']
             )

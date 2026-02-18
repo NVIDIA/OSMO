@@ -267,8 +267,18 @@ func TestRolePolicy_JSONParsing(t *testing.T) {
 			},
 		},
 		{
-			name:      "parse policy with semantic actions only",
+			name:      "parse policy with semantic actions only (object format)",
 			jsonInput: `{"actions": [{"action": "workflow:Create"}, {"action": "workflow:Read"}]}`,
+			expectedPolicy: RolePolicy{
+				Actions: []RoleAction{
+					{Action: "workflow:Create"},
+					{Action: "workflow:Read"},
+				},
+			},
+		},
+		{
+			name:      "parse policy with semantic actions as strings (new format)",
+			jsonInput: `{"actions": ["workflow:Create", "workflow:Read"]}`,
 			expectedPolicy: RolePolicy{
 				Actions: []RoleAction{
 					{Action: "workflow:Create"},
@@ -452,7 +462,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: []string{"pool/production"},
 			},
-			expectedJSON: `{"actions":[{"action":"workflow:Create"}],"resources":["pool/production"]}`,
+			expectedJSON: `{"actions":["workflow:Create"],"resources":["pool/production"]}`,
 		},
 		{
 			name: "serialize policy with semantic actions and no resources (nil)",
@@ -462,7 +472,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: nil,
 			},
-			expectedJSON: `{"actions":[{"action":"workflow:Create"}]}`,
+			expectedJSON: `{"actions":["workflow:Create"]}`,
 		},
 		{
 			name: "serialize policy with semantic actions and empty resources",
@@ -472,7 +482,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: []string{},
 			},
-			expectedJSON: `{"actions":[{"action":"workflow:Create"}]}`,
+			expectedJSON: `{"actions":["workflow:Create"]}`,
 		},
 		{
 			name: "serialize policy with legacy actions",
@@ -493,7 +503,7 @@ func TestRolePolicy_JSONSerialization(t *testing.T) {
 				},
 				Resources: []string{"workflow/prod-*"},
 			},
-			expectedJSON: `{"effect":"Deny","actions":[{"action":"workflow:Delete"}],"resources":["workflow/prod-*"]}`,
+			expectedJSON: `{"effect":"Deny","actions":["workflow:Delete"],"resources":["workflow/prod-*"]}`,
 		},
 	}
 

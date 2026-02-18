@@ -1048,7 +1048,7 @@ func ConvertRoleToSemantic(role *Role) *Role {
 			}
 			newRole.Policies = append(newRole.Policies, RolePolicy{
 				Effect:    effect,
-				Actions:   semanticActions,
+				Actions:   RoleActions(semanticActions),
 				Resources: resources,
 			})
 		}
@@ -1311,23 +1311,19 @@ func CheckPolicyAccess(
 func CheckRolesAccess(
 	ctx context.Context, roles []*Role, path, method string, pgClient *postgres.PostgresClient,
 ) AccessResult {
-	// First pass: if any role has a matching Deny, deny access
+	var firstAllow *AccessResult
 	for _, role := range roles {
 		result := CheckPolicyAccess(ctx, role, path, method, pgClient)
 		if result.Denied {
 			return result
 		}
-	}
-
-	// Second pass: first Allow wins
-	for _, role := range roles {
-		result := CheckPolicyAccess(ctx, role, path, method, pgClient)
-		if result.Allowed {
-			return result
+		if result.Allowed && firstAllow == nil {
+			firstAllow = &result
 		}
 	}
-
-	// No match at all
+	if firstAllow != nil {
+		return *firstAllow
+	}
 	return AccessResult{
 		Allowed:    false,
 		Matched:    false,

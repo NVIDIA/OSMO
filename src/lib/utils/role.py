@@ -26,7 +26,19 @@ from . import osmo_errors
 
 
 # Semantic action pattern: resource:Action (e.g., "workflow:Create", "*:*")
-SEMANTIC_ACTION_PATTERN = r'^(\*|[a-z]+):(\*|[A-Z][a-zA-Z]*)$'
+SEMANTIC_ACTION_PATTERN = re.compile(r'^(\*|[a-z]+):(\*|[A-Z][a-zA-Z]*)$')
+
+
+def validate_semantic_action(value: str) -> str:
+    """
+    Validate a single semantic action string. Raises OSMOUserError if invalid.
+    Use when constructing or appending actions outside RolePolicy (e.g. in migrations).
+    """
+    if not SEMANTIC_ACTION_PATTERN.match(value):
+        raise osmo_errors.OSMOUserError(
+            f'Invalid action format: {value}. '
+            'Expected format: "resource:Action" (e.g., "workflow:Create", "*:*")')
+    return value
 
 
 class PolicyEffect(str, Enum):
@@ -36,83 +48,49 @@ class PolicyEffect(str, Enum):
     DENY = 'Deny'
 
 
-class RoleAction(pydantic.BaseModel):
-    """
-    Single Role Action Entry using semantic action format.
-
-    Format: {"action": "resource:Action"}
-
-    Examples:
-        - {"action": "workflow:Create"}
-        - {"action": "bucket:Read"}
-        - {"action": "*:*"} (all actions)
-        - {"action": "workflow:*"} (all workflow actions)
-
-    Authorization is handled by the authz_sidecar (Go service).
-    """
-    action: str
-
-    class Config:
-        extra = 'forbid'
-
-    @pydantic.validator('action')
-    @classmethod
-    def validate_action(cls, value: str) -> str:
-        """Validate the semantic action format."""
-        if not re.match(SEMANTIC_ACTION_PATTERN, value):
-            raise osmo_errors.OSMOUserError(
-                f'Invalid action format: {value}. '
-                'Expected format: "resource:Action" (e.g., "workflow:Create", "*:*")')
-        return value
-
-    def __lt__(self, other: 'RoleAction') -> bool:
-        """Compare RoleActions by their action string for sorting."""
-        return self.action < other.action
-
-    def __str__(self) -> str:
-        """Return string representation of the action."""
-        return self.action
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
-        return {'action': self.action}
-
-
 class RolePolicy(pydantic.BaseModel):
     """
     Single Role Policy Entry.
 
-    Contains a list of actions and optional resources the policy applies to.
-    If effect is Deny and the policy matches, access is denied even if another
-    policy allows it.
+    Contains a list of actions (semantic format "resource:Action") and optional
+    resources the policy applies to. If effect is Deny and the policy matches,
+    access is denied even if another policy allows it.
+
+    Actions are validated via regex; API/DB still use [{"action": "..."}] for
+    compatibility with the Go authz_sidecar.
     """
     effect: PolicyEffect = PolicyEffect.ALLOW
-    actions: List[RoleAction]
+    actions: List[str]
     # Resources this policy applies to (e.g., ["*"], ["pool/production"], ["bucket/*"])
     # If empty or not specified, the policy applies to all resources ("*")
     resources: List[str] = pydantic.Field(default_factory=list)
 
     @pydantic.validator('actions', pre=True)
     @classmethod
-    def validate_actions(cls, value) -> List[RoleAction]:
-        """Parse actions from various input formats."""
-        actions = []
+    def validate_actions(cls, value) -> List[str]:
+        """Parse and validate actions from various input formats."""
+        result = []
         for action in value:
             if isinstance(action, str):
-                actions.append(RoleAction(action=action))
+                raw = action
             elif isinstance(action, dict):
-                actions.append(RoleAction(**action))
-            elif isinstance(action, RoleAction):
-                actions.append(action)
+                raw = action.get('action')
+                if raw is None:
+                    raise osmo_errors.OSMOUserError(
+                        'Invalid action dict: missing "action" key')
             else:
                 raise osmo_errors.OSMOUserError(f'Invalid action type: {type(action)}')
-        return actions
+            result.append(validate_semantic_action(raw))
+        return result
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
+        """
+        Convert to dict. Actions emitted as list of strings (Go accepts
+        strings or legacy objects).
+        """
         result: Dict[str, Any] = {
             'effect': self.effect.value,
-            'actions': [action.to_dict() for action in sorted(self.actions)]
+            'actions': sorted(self.actions)
         }
         if self.resources:
             result['resources'] = self.resources
@@ -125,27 +103,6 @@ class Role(pydantic.BaseModel):
     description: str
     policies: List[RolePolicy]
     immutable: bool = False
-
-    @classmethod
-    def parse_actions_as_strings(cls, data: List[Dict]) -> List[Dict]:
-        """Parse the actions as strings for display purposes."""
-        data_list = []
-        for role in data:
-            role_copy = role.copy()
-            role_copy['policies'] = []
-            for policy in role['policies']:
-                effect = policy.get('effect', PolicyEffect.ALLOW)
-                if isinstance(effect, PolicyEffect):
-                    effect = effect.value
-                policy_dict = {
-                    'effect': effect,
-                    'actions': [action['action'] for action in policy['actions']]
-                }
-                if 'resources' in policy and policy['resources']:
-                    policy_dict['resources'] = policy['resources']
-                role_copy['policies'].append(policy_dict)
-            data_list.append(role_copy)
-        return data_list
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
