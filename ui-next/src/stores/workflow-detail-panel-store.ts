@@ -63,13 +63,11 @@ import { persist, devtools, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { createHydratedSelector } from "@/hooks/use-hydrated-store";
 import { isCollapsedWidth } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-state-machine";
+import { PANEL_CONSTRAINTS } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 // =============================================================================
 // Constants
 // =============================================================================
-
-/** Default panel width percentage when DAG is visible */
-const DEFAULT_PANEL_WIDTH_PCT = 50;
 
 /** Full width percentage (DAG hidden) */
 const FULL_WIDTH_PCT = 100;
@@ -109,7 +107,7 @@ export type WorkflowDetailPanelStore = WorkflowDetailPanelState & WorkflowDetail
  * @see https://zustand.docs.pmnd.rs/guides/testing
  */
 export const initialState: WorkflowDetailPanelState = {
-  panelWidthPct: DEFAULT_PANEL_WIDTH_PCT,
+  panelWidthPct: PANEL_CONSTRAINTS.DEFAULT_PCT,
   detailsExpanded: false,
 };
 
@@ -189,7 +187,7 @@ export const useWorkflowDetailPanel = create<WorkflowDetailPanelStore>()(
 
 /**
  * Hydration-safe panel width percentage selector.
- * Returns default (50%) during SSR, then actual value after hydration.
+ * Returns default (60%) during SSR, then actual value after hydration.
  */
 export const usePanelWidthPct = createHydratedSelector<WorkflowDetailPanelStore, number>(
   useWorkflowDetailPanel,
@@ -221,10 +219,10 @@ export const useDetailsExpanded = createHydratedSelector<WorkflowDetailPanelStor
 /**
  * Hydration-safe DAG visibility selector.
  * DAG is visible when panel width is less than 100%.
- * Returns true during SSR (matches initialState.panelWidthPct = 50 < 100).
+ * Returns true during SSR (matches initialState.panelWidthPct = 60 < 100).
  */
 export const useDagVisible = createHydratedSelector<WorkflowDetailPanelStore, boolean>(
   useWorkflowDetailPanel,
   (s) => s.panelWidthPct < FULL_WIDTH_PCT,
-  initialState.panelWidthPct < FULL_WIDTH_PCT, // true (50 < 100)
+  initialState.panelWidthPct < FULL_WIDTH_PCT, // true (60 < 100)
 );

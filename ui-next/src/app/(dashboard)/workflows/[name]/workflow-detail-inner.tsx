@@ -38,6 +38,7 @@ import {
   usePersistedPanelWidth,
   usePanelWidth,
 } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
+import { PANEL_CONSTRAINTS } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
@@ -95,7 +96,7 @@ export function WorkflowDetailInner({ name, initialView }: WorkflowDetailInnerPr
   // SSR-safe defaults; real localStorage values restored post-hydration via restorePersistedState()
   return (
     <PanelResizeProvider
-      initialPersistedPct={50}
+      initialPersistedPct={PANEL_CONSTRAINTS.DEFAULT_PCT}
       initialCollapsed={false}
       onPersist={setPanelPct}
     >
