@@ -39,7 +39,11 @@
  *       └───────────────────────┴──────────────────────────────────────────────────────────┘
  */
 
-import { calculateStripSnapTargetPct, SNAP_ZONES } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
+import {
+  calculateStripSnapTargetPct,
+  SNAP_ZONES,
+  PANEL_CONSTRAINTS,
+} from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 
 // =============================================================================
 // Types
@@ -112,9 +116,6 @@ const VALID_TRANSITIONS: Record<ResizePhase, ResizePhase[]> = {
 
 const WIDTH_EPSILON = 0.01;
 
-/** Default width when expanding and no valid persisted width exists */
-const DEFAULT_EXPAND_WIDTH = 50;
-
 /**
  * Safety timeout for snap animations (ms).
  * If CSS transitionend doesn't fire within this window (e.g., element not painted,
@@ -147,10 +148,10 @@ export function isCollapsedWidth(widthPct: number): boolean {
  */
 function normalizePersistedPct(pct: number): number {
   if (pct < SNAP_ZONES.STRIP_SNAP_THRESHOLD) {
-    return DEFAULT_EXPAND_WIDTH;
+    return PANEL_CONSTRAINTS.DEFAULT_PCT;
   }
   if (pct >= SNAP_ZONES.FULL_SNAP_START) {
-    return DEFAULT_EXPAND_WIDTH;
+    return PANEL_CONSTRAINTS.DEFAULT_PCT;
   }
   return pct;
 }

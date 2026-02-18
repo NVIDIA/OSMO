@@ -58,6 +58,8 @@ export const SNAP_ZONES = {
 // =============================================================================
 
 export const PANEL_CONSTRAINTS = {
+  /** Default panel width when no user preference exists (60% panel, 40% DAG) */
+  DEFAULT_PCT: 60,
   /** Minimum percentage (effectively disabled for workflow, use minWidthPx instead) */
   MIN_PCT: 0,
   /** Maximum percentage (full width, hides DAG) */
