@@ -22,11 +22,12 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestRoleCache_SetAndGet(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	cache := NewRoleCache(100, logger)
+	cache := NewRoleCache(100, 5*time.Minute, logger)
 
 	testRoles := []*Role{
 		{Name: "osmo-user"},
@@ -73,7 +74,7 @@ func TestRoleCache_SetAndGet(t *testing.T) {
 
 func TestRoleCache_GetWithMissing(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	cache := NewRoleCache(100, logger)
+	cache := NewRoleCache(100, 5*time.Minute, logger)
 
 	testRoles := []*Role{
 		{Name: "osmo-user"},
@@ -109,7 +110,7 @@ func TestRoleCache_GetWithMissing(t *testing.T) {
 
 func TestRoleCache_EmptyGet(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	cache := NewRoleCache(100, logger)
+	cache := NewRoleCache(100, 5*time.Minute, logger)
 
 	testRoles := []*Role{
 		{Name: "osmo-user"},
@@ -131,7 +132,7 @@ func TestRoleCache_EmptyGet(t *testing.T) {
 
 func TestRoleCache_EmptyCache(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	cache := NewRoleCache(100, logger)
+	cache := NewRoleCache(100, 5*time.Minute, logger)
 
 	// Don't set any roles
 
@@ -153,7 +154,7 @@ func TestRoleCache_EmptyCache(t *testing.T) {
 
 func TestRoleCache_SetOverwrite(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	cache := NewRoleCache(100, logger)
+	cache := NewRoleCache(100, 5*time.Minute, logger)
 
 	// Set initial roles
 	cache.Set([]*Role{

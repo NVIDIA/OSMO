@@ -39,9 +39,8 @@ import (
 )
 
 const (
-	defaultGRPCPort  = 50052
-	defaultCacheSize = 1000
-	maxGRPCMsgSize   = 4 * 1024 * 1024 // 4MB
+	defaultGRPCPort = 50052
+	maxGRPCMsgSize  = 4 * 1024 * 1024 // 4MB
 )
 
 var (
@@ -49,6 +48,9 @@ var (
 
 	// PostgreSQL flags - registered via postgres package
 	postgresFlagPtrs = postgres.RegisterPostgresFlags()
+
+	// Cache flags - registered via roles package
+	cacheFlagPtrs = roles.RegisterCacheFlags()
 
 	// Logging flags
 	logLevel = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
@@ -89,7 +91,8 @@ func main() {
 	defer pgClient.Close()
 
 	// Create role cache
-	roleCache := roles.NewRoleCache(defaultCacheSize, logger)
+	cacheConfig := cacheFlagPtrs.ToCacheConfig()
+	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
 
 	// Create authorization server
 	authzServer := server.NewAuthzServer(pgClient, roleCache, logger)

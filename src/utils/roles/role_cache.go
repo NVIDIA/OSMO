@@ -19,21 +19,65 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"flag"
 	"log/slog"
+	"time"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/expirable"
+
+	"go.corp.nvidia.com/osmo/utils"
 )
 
-// RoleCache provides thread-safe caching for roles using LRU eviction.
+const (
+	defaultCacheMaxSize = 1000
+	defaultCacheTTLSec  = 300
+)
+
+// CacheConfig holds role cache configuration
+type CacheConfig struct {
+	MaxSize int
+	TTL     time.Duration
+}
+
+// CacheFlagPointers holds pointers to flag values for role cache configuration
+type CacheFlagPointers struct {
+	maxSize *int
+	ttlSec  *int
+}
+
+// RegisterCacheFlags registers role-cache-related command-line flags.
+// Returns a CacheFlagPointers that should be converted to CacheConfig
+// after flag.Parse() is called.
+func RegisterCacheFlags() *CacheFlagPointers {
+	return &CacheFlagPointers{
+		ttlSec: flag.Int("cache-ttl",
+			utils.GetEnvInt("OSMO_CACHE_TTL", defaultCacheTTLSec),
+			"Role cache TTL in seconds"),
+		maxSize: flag.Int("cache-max-size",
+			utils.GetEnvInt("OSMO_CACHE_MAX_SIZE", defaultCacheMaxSize),
+			"Role cache max number of entries"),
+	}
+}
+
+// ToCacheConfig converts flag pointers to CacheConfig.
+// This should be called after flag.Parse().
+func (p *CacheFlagPointers) ToCacheConfig() CacheConfig {
+	return CacheConfig{
+		MaxSize: *p.maxSize,
+		TTL:     time.Duration(*p.ttlSec) * time.Second,
+	}
+}
+
+// RoleCache provides thread-safe caching for roles using LRU eviction with TTL expiration.
 // Acts as a cache with DB fallback - caller should fetch missing roles from DB.
 type RoleCache struct {
-	cache  *lru.Cache[string, *Role]
+	cache  *expirable.LRU[string, *Role]
 	logger *slog.Logger
 }
 
-// NewRoleCache creates a new role cache with the specified max size
-func NewRoleCache(maxSize int, logger *slog.Logger) *RoleCache {
-	cache, _ := lru.New[string, *Role](maxSize)
+// NewRoleCache creates a new role cache with the specified max size and TTL.
+func NewRoleCache(maxSize int, ttl time.Duration, logger *slog.Logger) *RoleCache {
+	cache := expirable.NewLRU[string, *Role](maxSize, nil, ttl)
 	return &RoleCache{
 		cache:  cache,
 		logger: logger,

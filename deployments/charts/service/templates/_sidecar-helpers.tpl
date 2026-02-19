@@ -417,7 +417,6 @@ Authorization sidecar container
     - "--postgres-max-conns={{ .Values.sidecars.authz.postgres.maxConns }}"
     - "--postgres-min-conns={{ .Values.sidecars.authz.postgres.minConns }}"
     - "--postgres-max-conn-lifetime={{ .Values.sidecars.authz.postgres.maxConnLifetimeMin }}"
-    - "--cache-enabled={{ .Values.sidecars.authz.cache.enabled }}"
     - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
     - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
   env:
