@@ -396,6 +396,15 @@ export const TaskDetails = memo(function TaskDetails({
 
   // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
+
+  // OSMO timing data for the event viewer duration override
+  const taskTimings = useMemo(
+    () =>
+      new Map([
+        [`${task.name}:${task.retry_id}`, { processingStartTime: task.processing_start_time, endTime: task.end_time }],
+      ]),
+    [task.name, task.retry_id, task.processing_start_time, task.end_time],
+  );
   const isStandaloneTask = tasks.length <= 1; // Single-task group
   const isFromGroup = tasks.length > 1;
 
@@ -615,6 +624,7 @@ export const TaskDetails = memo(function TaskDetails({
                 scope="task"
                 isTerminal={isTaskTerminal(task.status)}
                 taskStatus={task.status}
+                taskTimings={taskTimings}
                 className="h-full"
               />
             </div>

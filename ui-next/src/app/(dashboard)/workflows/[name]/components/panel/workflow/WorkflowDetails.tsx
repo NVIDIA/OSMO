@@ -47,7 +47,7 @@ import { TabPanel } from "@/components/panel/tab-panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { getStatusIcon } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { EventViewerContainer } from "@/components/event-viewer/EventViewerContainer";
+import { EventViewerContainer, type TaskTiming } from "@/components/event-viewer/EventViewerContainer";
 import { isWorkflowTerminal } from "@/lib/api/status-metadata.generated";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
@@ -351,16 +351,20 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const canCancel = statusCategory === "running" || statusCategory === "waiting";
 
-  // Build per-task status lookup for the event viewer. Key: `${taskName}:${retryId}`.
-  // Allows the lifecycle progress bar to show "Pending" when K8s events race ahead of Postgres.
-  const taskStatuses = useMemo(() => {
-    const map = new Map<string, TaskGroupStatus>();
+  // Build per-task status and timing lookups for the event viewer. Key: `${taskName}:${retryId}`.
+  // taskStatuses: corrects the "Running" label when K8s events race ahead of Postgres.
+  // taskTimings: replaces event-based duration with processing_start_time → end_time (or NOW).
+  const { taskStatuses, taskTimings } = useMemo(() => {
+    const statuses = new Map<string, TaskGroupStatus>();
+    const timings = new Map<string, TaskTiming>();
     for (const group of workflow.groups) {
       for (const task of group.tasks ?? []) {
-        map.set(`${task.name}:${task.retry_id}`, task.status);
+        const key = `${task.name}:${task.retry_id}`;
+        statuses.set(key, task.status);
+        timings.set(key, { processingStartTime: task.processing_start_time, endTime: task.end_time });
       }
     }
-    return map;
+    return { taskStatuses: statuses, taskTimings: timings };
   }, [workflow.groups]);
 
   // Tab state - use URL-synced state if provided, otherwise default to "overview"
@@ -477,6 +481,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
                 url={workflow.events}
                 isTerminal={isWorkflowTerminal(workflow.status)}
                 taskStatuses={taskStatuses}
+                taskTimings={taskTimings}
                 className="h-full"
               />
             </div>
