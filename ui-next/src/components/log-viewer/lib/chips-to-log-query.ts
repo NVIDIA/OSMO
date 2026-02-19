@@ -14,8 +14,8 @@
  */
 
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import type { LogLevel, LogSourceType } from "@/lib/api/log-adapter/types";
-import { LOG_LEVELS, LOG_SOURCE_TYPES } from "@/lib/api/log-adapter/constants";
+import type { LogSourceType } from "@/lib/api/log-adapter/types";
+import { LOG_SOURCE_TYPES } from "@/lib/api/log-adapter/constants";
 
 // =============================================================================
 // Types
@@ -26,8 +26,6 @@ import { LOG_LEVELS, LOG_SOURCE_TYPES } from "@/lib/api/log-adapter/constants";
  * Maps to UseLogQueryParams filter fields.
  */
 export interface LogQueryFilters {
-  /** Filter by log levels (multiple allowed, OR'd together) */
-  levels?: LogLevel[];
   /** Filter by task names (multiple allowed, OR'd together) */
   tasks?: string[];
   /** Filter by source types (multiple allowed, OR'd together) */
@@ -42,7 +40,6 @@ export interface LogQueryFilters {
 // Pre-computed Sets for O(1) validation
 // =============================================================================
 
-const VALID_LEVELS = new Set<string>(LOG_LEVELS);
 const VALID_SOURCES = new Set<string>(LOG_SOURCE_TYPES);
 
 // =============================================================================
@@ -53,11 +50,10 @@ const VALID_SOURCES = new Set<string>(LOG_SOURCE_TYPES);
  * Converts SearchChip[] to LogQuery filter parameters.
  *
  * Chip field mapping:
- * - `level` → `levels[]` (multiple allowed, validated against LOG_LEVELS)
  * - `task` → `tasks[]` (multiple allowed, OR'd together)
  * - `retry` → `retries[]` (multiple allowed, OR'd together)
  * - `source` → `sources[]` (multiple allowed, validated against LOG_SOURCE_TYPES)
- * - `text` → `search` (first value only)
+ * - `text` → `search[]` (multiple allowed, OR'd together)
  *
  * Same-field chips are OR'd (collected into arrays).
  * Different-field chips are AND'd (separate filter params).
@@ -68,13 +64,12 @@ const VALID_SOURCES = new Set<string>(LOG_SOURCE_TYPES);
  * @example
  * ```ts
  * const chips = [
- *   { field: "level", value: "error", label: "Level: error" },
- *   { field: "level", value: "warn", label: "Level: warn" },
  *   { field: "task", value: "train", label: "Task: train" },
  *   { field: "task", value: "eval", label: "Task: eval" },
+ *   { field: "source", value: "user", label: "Source: user" },
  * ];
  * const filters = chipsToLogQuery(chips);
- * // { levels: ["error", "warn"], tasks: ["train", "eval"] }
+ * // { tasks: ["train", "eval"], sources: ["user"] }
  * ```
  */
 export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
@@ -82,7 +77,6 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
     return {};
   }
 
-  const levels: LogLevel[] = [];
   const tasks: string[] = [];
   const sources: LogSourceType[] = [];
   const retries: string[] = [];
@@ -90,32 +84,21 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
 
   for (const chip of chips) {
     switch (chip.field) {
-      case "level":
-        // Validate against known log levels
-        if (VALID_LEVELS.has(chip.value)) {
-          levels.push(chip.value as LogLevel);
-        }
-        break;
-
       case "task":
-        // Collect task values (multiple allowed, OR'd together)
         tasks.push(chip.value);
         break;
 
       case "source":
-        // Validate against known source types
         if (VALID_SOURCES.has(chip.value)) {
           sources.push(chip.value as LogSourceType);
         }
         break;
 
       case "retry":
-        // Collect retry values (multiple allowed, OR'd together)
         retries.push(chip.value);
         break;
 
       case "text":
-        // Collect all text search values (AND'd together)
         searches.push(chip.value);
         break;
     }
@@ -123,9 +106,6 @@ export function chipsToLogQuery(chips: SearchChip[]): LogQueryFilters {
 
   const filters: LogQueryFilters = {};
 
-  if (levels.length > 0) {
-    filters.levels = levels;
-  }
   if (tasks.length > 0) {
     filters.tasks = tasks;
   }

@@ -30,32 +30,6 @@ describe("chipsToLogQuery", () => {
     });
   });
 
-  describe("level filtering", () => {
-    it("extracts single level chip", () => {
-      const chips = [chip("level", "error")];
-      const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ levels: ["error"] });
-    });
-
-    it("extracts multiple level chips (OR logic)", () => {
-      const chips = [chip("level", "error"), chip("level", "warn")];
-      const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ levels: ["error", "warn"] });
-    });
-
-    it("ignores invalid level values", () => {
-      const chips = [chip("level", "error"), chip("level", "invalid")];
-      const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ levels: ["error"] });
-    });
-
-    it("returns empty when all level values invalid", () => {
-      const chips = [chip("level", "invalid"), chip("level", "unknown")];
-      const result = chipsToLogQuery(chips);
-      expect(result).toEqual({});
-    });
-  });
-
   describe("task filtering", () => {
     it("extracts single task chip", () => {
       const chips = [chip("task", "train")];
@@ -119,26 +93,10 @@ describe("chipsToLogQuery", () => {
   });
 
   describe("combined filters (AND logic)", () => {
-    it("combines level and task filters", () => {
-      const chips = [chip("level", "error"), chip("task", "train")];
-      const result = chipsToLogQuery(chips);
-      expect(result).toEqual({
-        levels: ["error"],
-        tasks: ["train"],
-      });
-    });
-
     it("combines all filter types", () => {
-      const chips = [
-        chip("level", "error"),
-        chip("level", "warn"),
-        chip("task", "train"),
-        chip("source", "user"),
-        chip("text", "timeout"),
-      ];
+      const chips = [chip("task", "train"), chip("source", "user"), chip("text", "timeout")];
       const result = chipsToLogQuery(chips);
       expect(result).toEqual({
-        levels: ["error", "warn"],
         tasks: ["train"],
         sources: ["user"],
         search: ["timeout"],
@@ -148,9 +106,9 @@ describe("chipsToLogQuery", () => {
 
   describe("unknown fields", () => {
     it("ignores unknown field types", () => {
-      const chips = [chip("unknown", "value"), chip("level", "error")];
+      const chips = [chip("unknown", "value"), chip("task", "train")];
       const result = chipsToLogQuery(chips);
-      expect(result).toEqual({ levels: ["error"] });
+      expect(result).toEqual({ tasks: ["train"] });
     });
   });
 });

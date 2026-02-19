@@ -118,8 +118,6 @@ export interface LogQuery {
   taskName?: string;
   /** Filter by retry attempt ID */
   retryId?: number;
-  /** Filter by log levels (multiple allowed) */
-  levels?: LogLevel[];
   /** Filter by source types (user vs system) */
   sources?: LogSourceType[];
 

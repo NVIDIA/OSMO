@@ -12,7 +12,6 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { formatTime24UTC } from "@/lib/format-date";
-import { getLevelBadgeClasses, getLevelLabel, getLogRowClasses } from "@/components/log-viewer/lib/level-utils";
 
 // =============================================================================
 // Types
@@ -36,7 +35,6 @@ export interface LogEntryRowProps {
 // =============================================================================
 
 function LogEntryRowInner({ entry, wrapLines, showTask, isSelected = false, style }: LogEntryRowProps) {
-  const level = entry.labels.level;
   const timestamp = formatTime24UTC(entry.timestamp);
 
   return (
@@ -44,7 +42,9 @@ function LogEntryRowInner({ entry, wrapLines, showTask, isSelected = false, styl
       role="row"
       data-entry-id={entry.id}
       className={cn(
-        getLogRowClasses(level, { isSelected }),
+        "group relative px-3 py-1",
+        isSelected ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-muted/50",
+        "transition-colors duration-75",
         "select-none",
         "focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-inset",
       )}
@@ -53,9 +53,6 @@ function LogEntryRowInner({ entry, wrapLines, showTask, isSelected = false, styl
       <div className="flex items-center gap-3">
         {/* Timestamp */}
         <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{timestamp}</span>
-
-        {/* Level badge - fixed width for alignment */}
-        <span className={cn("w-[52px] shrink-0 text-center", getLevelBadgeClasses(level))}>{getLevelLabel(level)}</span>
 
         {/* Log message - flexible, truncates to make room for task */}
         <code

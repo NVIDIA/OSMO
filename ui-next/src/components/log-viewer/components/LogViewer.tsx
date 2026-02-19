@@ -14,8 +14,6 @@ import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
 import { cn, formatHotkey } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
 import { formatLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
-import { LOG_LEVEL_STYLES } from "@/lib/api/log-adapter/constants";
-import type { LogLevel } from "@/lib/api/log-adapter/types";
 import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { useServices } from "@/contexts/service-context";
 import { withViewTransition } from "@/hooks/use-view-transition";
@@ -39,25 +37,8 @@ import { DEFAULT_HEIGHT } from "@/components/log-viewer/components/timeline/lib/
 // Helpers
 // =============================================================================
 
-/**
- * Get combined Tailwind classes for level preset styling.
- * Uses LOG_LEVEL_STYLES from log-adapter as single source of truth.
- */
-function getLevelPresetClasses(level: LogLevel): string {
-  const style = LOG_LEVEL_STYLES[level];
-  return cn(style.text, style.bg);
-}
-
 // Field definitions for SearchBar/FilterBar
 const LOG_FILTER_FIELDS: readonly SearchField<LogEntry>[] = [
-  {
-    id: "level",
-    label: "Level",
-    prefix: "level:",
-    getValues: () => ["error", "warn", "info", "debug", "fatal"],
-    match: (item, value) => item.labels.level === value,
-    exhaustive: true,
-  },
   {
     id: "source",
     label: "Source",
@@ -106,79 +87,6 @@ const LOG_FILTER_PRESETS: {
   label: string;
   items: SearchPreset[];
 }[] = [
-  {
-    label: "Level",
-    items: [
-      {
-        id: "level-error",
-        chips: [{ field: "level", value: "error", label: "level:error" }],
-        render: ({ active }: { active: boolean }) => (
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active
-                ? "bg-red-600 text-white dark:bg-red-500"
-                : cn(getLevelPresetClasses("error"), "opacity-80 hover:opacity-90"),
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
-            )}
-          >
-            ERROR
-          </span>
-        ),
-      },
-      {
-        id: "level-warn",
-        chips: [{ field: "level", value: "warn", label: "level:warn" }],
-        render: ({ active }: { active: boolean }) => (
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active
-                ? "bg-yellow-600 text-white dark:bg-yellow-500"
-                : cn(getLevelPresetClasses("warn"), "opacity-80 hover:opacity-90"),
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
-            )}
-          >
-            WARN
-          </span>
-        ),
-      },
-      {
-        id: "level-info",
-        chips: [{ field: "level", value: "info", label: "level:info" }],
-        render: ({ active }: { active: boolean }) => (
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active
-                ? "bg-blue-600 text-white dark:bg-blue-500"
-                : cn(getLevelPresetClasses("info"), "opacity-80 hover:opacity-90"),
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
-            )}
-          >
-            INFO
-          </span>
-        ),
-      },
-      {
-        id: "level-debug",
-        chips: [{ field: "level", value: "debug", label: "level:debug" }],
-        render: ({ active }: { active: boolean }) => (
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
-              active
-                ? "bg-gray-600 text-white dark:bg-gray-500"
-                : cn(getLevelPresetClasses("debug"), "opacity-80 hover:opacity-90"),
-              "group-data-[selected=true]:scale-110 group-data-[selected=true]:shadow-md",
-            )}
-          >
-            DEBUG
-          </span>
-        ),
-      },
-    ],
-  },
   {
     label: "Source",
     items: [

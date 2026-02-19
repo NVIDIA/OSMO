@@ -134,7 +134,6 @@ export function useLogPresentation(params: UseLogPresentationParams): UseLogPres
 
   const filterParams = useMemo(
     () => ({
-      levels: queryFilters.levels,
       tasks: queryFilters.tasks,
       retries: queryFilters.retries,
       sources: queryFilters.sources,

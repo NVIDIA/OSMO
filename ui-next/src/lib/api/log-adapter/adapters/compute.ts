@@ -49,8 +49,6 @@ import { LOG_LEVELS } from "@/lib/api/log-adapter/constants";
  * Filter parameters for log entries.
  */
 export interface FilterParams {
-  /** Filter by log levels (OR - entry matches if level is in list) */
-  levels?: LogLevel[];
   /** Filter by task names (OR - entry matches if task is in list) */
   tasks?: string[];
   /** Filter by retry attempts (OR - entry matches if retry is in list) */
@@ -75,7 +73,7 @@ export interface FilterParams {
  * Filters log entries based on provided parameters.
  *
  * All filters are AND-ed together (entry must match all criteria).
- * Within multi-value filters (levels, tasks, sources), values are OR-ed.
+ * Within multi-value filters (tasks, sources), values are OR-ed.
  *
  * @param entries - Array of log entries to filter
  * @param params - Filter parameters
@@ -84,7 +82,6 @@ export interface FilterParams {
 export function filterEntries(entries: LogEntry[], params: FilterParams): LogEntry[] {
   // Fast path: no filters
   if (
-    !params.levels?.length &&
     !params.tasks?.length &&
     !params.retries?.length &&
     !params.sources?.length &&
@@ -105,18 +102,11 @@ export function filterEntries(entries: LogEntry[], params: FilterParams): LogEnt
   }
 
   // Convert arrays to Sets for O(1) lookup
-  const levelSet = params.levels?.length ? new Set(params.levels) : null;
   const taskSet = params.tasks?.length ? new Set(params.tasks) : null;
   const retrySet = params.retries?.length ? new Set(params.retries) : null;
   const sourceSet = params.sources?.length ? new Set(params.sources) : null;
 
   return entries.filter((entry) => {
-    // Level filter
-    if (levelSet) {
-      const level = entry.labels.level ?? "info";
-      if (!levelSet.has(level)) return false;
-    }
-
     // Task filter
     if (taskSet) {
       if (!entry.labels.task || !taskSet.has(entry.labels.task)) return false;

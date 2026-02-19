@@ -16,7 +16,17 @@
 
 "use client";
 
-import { useRef, useCallback, memo, useLayoutEffect, useEffect, useState, useMemo, forwardRef, useImperativeHandle } from "react";
+import {
+  useRef,
+  useCallback,
+  memo,
+  useLayoutEffect,
+  useEffect,
+  useState,
+  useMemo,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
@@ -263,27 +273,27 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
     return map;
   }, [entries]);
 
-  // { anchorIdx, focusIdx } are indices into `entries`. null = nothing selected.
-  const [selection, setSelection] = useState<{ anchorIdx: number; focusIdx: number } | null>(null);
-  // anchorIdx is stored in a ref so pointermove closures always see the current value
-  const anchorIdxRef = useRef<number>(-1);
+  // Selection includes its epoch (resetCount when it was set) so it self-invalidates
+  // when entries are fully replaced — no effect needed to clear it.
+  const [selection, setSelection] = useState<{
+    anchorIdx: number;
+    focusIdx: number;
+    epoch: number;
+  } | null>(null);
+  // anchorIdxRef stores epoch too so shift+click and drag can detect stale anchors
+  const anchorIdxRef = useRef<{ idx: number; epoch: number }>({ idx: -1, epoch: -1 });
 
-  // Clear selection when entries are fully replaced (e.g. filter change)
-  useEffect(() => {
-    if (resetCount > 0) {
-      setSelection(null);
-      anchorIdxRef.current = -1;
-    }
-  }, [resetCount]);
+  // Derived: selection is valid only if it was set in the current epoch
+  const effectiveSelection = selection?.epoch === resetCount ? selection : null;
 
   // Sorted bounds for O(1) isSelected check per rendered row
   const selectionBounds = useMemo(() => {
-    if (!selection) return null;
+    if (!effectiveSelection) return null;
     return {
-      start: Math.min(selection.anchorIdx, selection.focusIdx),
-      end: Math.max(selection.anchorIdx, selection.focusIdx),
+      start: Math.min(effectiveSelection.anchorIdx, effectiveSelection.focusIdx),
+      end: Math.max(effectiveSelection.anchorIdx, effectiveSelection.focusIdx),
     };
-  }, [selection]);
+  }, [effectiveSelection]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -292,36 +302,36 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
       const id = findEntryId(document.elementFromPoint(e.clientX, e.clientY));
       if (!id) {
         setSelection(null);
-        anchorIdxRef.current = -1;
+        anchorIdxRef.current = { idx: -1, epoch: resetCount };
         return;
       }
       const idx = entryIdToIndex.get(id) ?? -1;
       if (idx === -1) return;
 
-      if (e.shiftKey && anchorIdxRef.current !== -1) {
+      if (e.shiftKey && anchorIdxRef.current.epoch === resetCount && anchorIdxRef.current.idx !== -1) {
         // Extend from existing anchor — don't change the anchor
-        setSelection({ anchorIdx: anchorIdxRef.current, focusIdx: idx });
+        setSelection({ anchorIdx: anchorIdxRef.current.idx, focusIdx: idx, epoch: resetCount });
         return;
       }
 
       // New selection: capture pointer so drag events keep coming even if
       // the cursor leaves the scroll container or the browser window.
-      anchorIdxRef.current = idx;
-      setSelection({ anchorIdx: idx, focusIdx: idx });
+      anchorIdxRef.current = { idx, epoch: resetCount };
+      setSelection({ anchorIdx: idx, focusIdx: idx, epoch: resetCount });
       (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
     },
-    [entryIdToIndex],
+    [entryIdToIndex, resetCount],
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!(e.buttons & 1) || anchorIdxRef.current === -1) return;
+      if (!(e.buttons & 1) || anchorIdxRef.current.epoch !== resetCount || anchorIdxRef.current.idx === -1) return;
       const id = findEntryId(document.elementFromPoint(e.clientX, e.clientY));
       if (!id) return;
       const idx = entryIdToIndex.get(id) ?? -1;
-      if (idx !== -1) setSelection({ anchorIdx: anchorIdxRef.current, focusIdx: idx });
+      if (idx !== -1) setSelection({ anchorIdx: anchorIdxRef.current.idx, focusIdx: idx, epoch: resetCount });
     },
-    [entryIdToIndex],
+    [entryIdToIndex, resetCount],
   );
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -331,10 +341,14 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 
   // Refs so the global keydown handler always reads fresh values without
   // being recreated on every selection/entries change (avoids add/remove churn).
-  const selectionRef = useRef(selection);
+  const selectionRef = useRef(effectiveSelection);
   const entriesRef = useRef(entries);
-  useLayoutEffect(() => { selectionRef.current = selection; }, [selection]);
-  useLayoutEffect(() => { entriesRef.current = entries; }, [entries]);
+  useLayoutEffect(() => {
+    selectionRef.current = effectiveSelection;
+  }, [effectiveSelection]);
+  useLayoutEffect(() => {
+    entriesRef.current = entries;
+  }, [entries]);
 
   // Single shared copy function — called by both the global keydown handler
   // and the right-click context menu, reads from refs to avoid stale closures.
@@ -362,7 +376,8 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
         active instanceof HTMLInputElement ||
         active instanceof HTMLTextAreaElement ||
         (active instanceof HTMLElement && active.isContentEditable)
-      ) return;
+      )
+        return;
       copySelection();
       e.preventDefault();
     };
@@ -463,71 +478,74 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
             }}
           >
             {virtualItems.map((virtualRow) => {
-          const item = flatItems[virtualRow.index];
-          if (!item) return null;
+              const item = flatItems[virtualRow.index];
+              if (!item) return null;
 
-          if (item.type === "separator") {
-            // Hide inline separator when sticky header is showing the same date
-            // and the separator is at or above the sticky header position
-            const isCurrentSticky = currentSeparatorIndex === item.index;
-            const isUnderStickyHeader = virtualRow.start < scrollOffset + DATE_SEPARATOR_HEIGHT;
-            const shouldHide = showStickyHeader && isCurrentSticky && isUnderStickyHeader;
+              if (item.type === "separator") {
+                // Hide inline separator when sticky header is showing the same date
+                // and the separator is at or above the sticky header position
+                const isCurrentSticky = currentSeparatorIndex === item.index;
+                const isUnderStickyHeader = virtualRow.start < scrollOffset + DATE_SEPARATOR_HEIGHT;
+                const shouldHide = showStickyHeader && isCurrentSticky && isUnderStickyHeader;
 
-            return (
-              <div
-                // Use dateKey + index to ensure unique keys across filter changes.
-                // Without the index, React may reuse DOM elements when the same date
-                // appears in different positions, causing phantom separator artifacts.
-                key={`${item.dateKey}-${item.index}`}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                className="bg-card absolute top-0 left-0 w-full"
-                style={{
-                  // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
-                  // translate3d forces GPU compositing layer for stable transforms.
-                  transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
-                  // Use opacity instead of visibility for GPU-accelerated hiding
-                  // This prevents artifacts during fast scrolling
-                  opacity: shouldHide ? 0 : 1,
-                }}
-              >
-                <DateSeparator date={item.date} />
-              </div>
-            );
-          }
+                return (
+                  <div
+                    // Use dateKey + index to ensure unique keys across filter changes.
+                    // Without the index, React may reuse DOM elements when the same date
+                    // appears in different positions, causing phantom separator artifacts.
+                    key={`${item.dateKey}-${item.index}`}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    className="bg-card absolute top-0 left-0 w-full"
+                    style={{
+                      // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
+                      // translate3d forces GPU compositing layer for stable transforms.
+                      transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
+                      // Use opacity instead of visibility for GPU-accelerated hiding
+                      // This prevents artifacts during fast scrolling
+                      opacity: shouldHide ? 0 : 1,
+                    }}
+                  >
+                    <DateSeparator date={item.date} />
+                  </div>
+                );
+              }
 
-          // Log entry row
-          const entryIdx = entryIdToIndex.get(item.entry.id) ?? -1;
-          const isSelected =
-            selectionBounds !== null && entryIdx >= selectionBounds.start && entryIdx <= selectionBounds.end;
+              // Log entry row
+              const entryIdx = entryIdToIndex.get(item.entry.id) ?? -1;
+              const isSelected =
+                selectionBounds !== null && entryIdx >= selectionBounds.start && entryIdx <= selectionBounds.end;
 
-          return (
-            <div
-              key={item.entry.id}
-              data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
-              className="absolute top-0 left-0 w-full"
-              style={{
-                // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
-                // translate3d forces GPU compositing layer for stable transforms.
-                transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
-              }}
-            >
-              <LogEntryRow
-                entry={item.entry}
-                wrapLines={wrapLines}
-                showTask={showTask}
-                isSelected={isSelected}
-              />
-            </div>
-          );
+              return (
+                <div
+                  key={item.entry.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full"
+                  style={{
+                    // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
+                    // translate3d forces GPU compositing layer for stable transforms.
+                    transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
+                  }}
+                >
+                  <LogEntryRow
+                    entry={item.entry}
+                    wrapLines={wrapLines}
+                    showTask={showTask}
+                    isSelected={isSelected}
+                  />
+                </div>
+              );
             })}
           </div>
         </div>
       </ContextMenuTrigger>
 
       <ContextMenuContent>
-        <ContextMenuItem onClick={copySelection} disabled={!selection}>
+        <ContextMenuItem
+          onClick={copySelection}
+          disabled={!effectiveSelection}
+        >
           Copy
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
