@@ -15,14 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * SpecSection - Collapsible YAML spec viewer/editor.
- * Shows sophisticated CodeMirror-based viewer with syntax highlighting.
- * Switches to editable mode when "Edit" is clicked.
+ * SpecSection - Collapsible YAML spec editor.
+ * Always editable when expanded. Shows "Modified" + "Revert" when changed.
  */
 
 "use client";
 
-import { memo, useState, useCallback, type MouseEvent } from "react";
+import { memo, useState, useCallback } from "react";
 import { FileCode } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
@@ -40,9 +39,9 @@ export interface SpecSectionProps {
   /** Whether the spec has been modified from the original */
   isModified?: boolean;
   /**
-   * Callback when spec content changes (for edit mode)
-   * - Pass the edited spec if user made changes from original
-   * - Pass undefined if user edited but content matches original (signals to use workflow_id)
+   * Callback when spec content changes.
+   * - Pass the edited spec if it differs from original
+   * - Pass undefined if content matches original (signals to use workflow_id)
    */
   onSpecChange?: (spec: string | undefined) => void;
 }
@@ -70,26 +69,75 @@ const SpecEmpty = memo(function SpecEmpty() {
   );
 });
 
-interface SpecContentProps {
-  spec: string | null;
-  isLoading: boolean;
-  isEditing: boolean;
-  editedSpec: string;
-  onEditedSpecChange: (value: string) => void;
-}
+export const SpecSection = memo(function SpecSection({
+  spec,
+  originalSpec,
+  isLoading,
+  isModified = false,
+  onSpecChange,
+}: SpecSectionProps) {
+  const [open, setOpen] = useState(false);
+  // Tracks user edits. When undefined, falls through to the spec prop (original or parent-managed).
+  const [overrideSpec, setOverrideSpec] = useState<string | undefined>(undefined);
+  const editorValue = overrideSpec ?? spec ?? "";
 
-function SpecContent({ spec, isLoading, isEditing, editedSpec, onEditedSpecChange }: SpecContentProps) {
-  if (isLoading) return <SpecSkeleton />;
+  const handleChange = useCallback(
+    (value: string) => {
+      setOverrideSpec(value);
+      const hasChanged = value !== originalSpec;
+      onSpecChange?.(hasChanged ? value : undefined);
+    },
+    [originalSpec, onSpecChange],
+  );
 
-  if (!spec) return <SpecEmpty />;
+  const handleRevert = useCallback(() => {
+    setOverrideSpec(undefined);
+    onSpecChange?.(undefined);
+  }, [onSpecChange]);
 
-  // Split into edit vs view mode for type safety
-  if (isEditing) {
-    return (
-      <div className="duration-moderate h-[calc(100vh-22rem)] overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 transition-[height] ease-out">
+  const action = isModified ? (
+    <div className="flex items-center gap-2">
+      <span
+        className="text-muted-foreground text-xs italic"
+        aria-label="Specification has been modified"
+      >
+        Modified
+      </span>
+      <Button
+        asChild
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs"
+        aria-label="Revert to original specification"
+      >
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={handleRevert}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleRevert();
+            }
+          }}
+        >
+          Revert
+        </span>
+      </Button>
+    </div>
+  ) : undefined;
+
+  let content: React.ReactNode;
+  if (isLoading) {
+    content = <SpecSkeleton />;
+  } else if (!spec) {
+    content = <SpecEmpty />;
+  } else {
+    content = (
+      <div className="h-[calc(100vh-22rem)] overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
         <CodeMirror
-          value={editedSpec}
-          onChange={onEditedSpecChange}
+          value={editorValue}
+          onChange={handleChange}
           language={YAML_LANGUAGE}
           aria-label="YAML specification editor"
           className="h-full"
@@ -99,146 +147,14 @@ function SpecContent({ spec, isLoading, isEditing, editedSpec, onEditedSpecChang
   }
 
   return (
-    <div className="duration-moderate h-72 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 transition-[height] ease-out">
-      <CodeMirror
-        value={spec}
-        language={YAML_LANGUAGE}
-        aria-label="YAML specification"
-        className="h-full"
-        readOnly
-      />
-    </div>
-  );
-}
-
-export const SpecSection = memo(function SpecSection({
-  spec,
-  originalSpec,
-  isLoading,
-  isModified = false,
-  onSpecChange,
-}: SpecSectionProps) {
-  const [open, setOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedSpec, setEditedSpec] = useState(spec ?? "");
-
-  /** Stops propagation to prevent CollapsibleTrigger from toggling, then runs the action */
-  const stopAndRun = useCallback(
-    (action: () => void) => (e: MouseEvent) => {
-      e.stopPropagation();
-      action();
-    },
-    [],
-  );
-
-  const handleEdit = useCallback(() => {
-    setEditedSpec(spec ?? "");
-    setIsEditing(true);
-    setOpen(true);
-  }, [spec]);
-
-  const handleSave = useCallback(() => {
-    // Only set spec if it actually changed from the original
-    // If unchanged, pass undefined to signal we should use workflow_id instead
-    const hasChanged = editedSpec !== originalSpec;
-    onSpecChange?.(hasChanged ? editedSpec : undefined);
-    setIsEditing(false);
-  }, [editedSpec, originalSpec, onSpecChange]);
-
-  const handleCancel = useCallback(() => {
-    setEditedSpec(spec ?? "");
-    setIsEditing(false);
-  }, [spec]);
-
-  const handleKeyDown = useCallback(
-    (action: () => void) => (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        e.stopPropagation();
-        action();
-      }
-    },
-    [],
-  );
-
-  const actionButton = isEditing ? (
-    <div className="flex gap-2">
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="h-7 px-2 text-xs"
-        aria-label="Cancel editing"
-      >
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={stopAndRun(handleCancel)}
-          onKeyDown={handleKeyDown(handleCancel)}
-        >
-          Cancel
-        </span>
-      </Button>
-      <Button
-        asChild
-        size="sm"
-        className="h-7 px-2 text-xs"
-        aria-label="Save changes"
-      >
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={stopAndRun(handleSave)}
-          onKeyDown={handleKeyDown(handleSave)}
-        >
-          Save
-        </span>
-      </Button>
-    </div>
-  ) : (
-    <div className="flex items-center gap-2">
-      {isModified && (
-        <span
-          className="text-muted-foreground text-xs italic"
-          aria-label="Specification has been modified"
-        >
-          Modified
-        </span>
-      )}
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="text-primary h-7 px-2 text-xs"
-        aria-label="Edit workflow specification"
-      >
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={stopAndRun(handleEdit)}
-          onKeyDown={handleKeyDown(handleEdit)}
-        >
-          Edit
-        </span>
-      </Button>
-    </div>
-  );
-
-  return (
     <CollapsibleSection
       step={1}
       title="Workflow Specification"
       open={open}
       onOpenChange={setOpen}
-      action={actionButton}
+      action={action}
     >
-      <SpecContent
-        spec={spec}
-        isLoading={isLoading}
-        isEditing={isEditing}
-        editedSpec={editedSpec}
-        onEditedSpecChange={setEditedSpec}
-      />
+      {content}
     </CollapsibleSection>
   );
 });
