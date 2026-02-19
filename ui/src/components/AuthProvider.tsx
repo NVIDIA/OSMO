@@ -130,16 +130,19 @@ class Auth {
       return;
     }
 
-    // Check for OAuth2 Proxy user info in response headers.
-    // Envoy's ext_authz forwards these from OAuth2 Proxy via
-    // allowed_client_headers_on_success.
+    // Check for OAuth2 Proxy session via response headers.
+    // Envoy's ext_authz forwards user info from OAuth2 Proxy via
+    // allowed_client_headers_on_success. The display name comes from
+    // the JWT metadata via Envoy's Lua envoy_on_response filter.
     const authEmail = loginInfoResponse.headers.get("x-auth-request-email");
     const authPreferredUsername = loginInfoResponse.headers.get("x-auth-request-preferred-username");
     if (authEmail || authPreferredUsername) {
       this.isOAuth2ProxySession = true;
+      const displayName = loginInfoResponse.headers.get("x-osmo-name");
       this.claims = {
         email: authEmail ?? authPreferredUsername ?? "",
         preferred_username: authPreferredUsername ?? authEmail ?? "",
+        name: displayName ?? authPreferredUsername ?? authEmail ?? "",
       } as AuthClaims;
       return;
     }

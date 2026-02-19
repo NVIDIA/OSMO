@@ -87,21 +87,23 @@ listeners:
             "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
             default_source_code:
               inline_string: |
-                -- Read in the tokens from the k8s roles and build the roles headers
                 function envoy_on_request(request_handle)
-                  -- Fetch the jwt info
                   local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
-
-                  -- If jwt verification failed, do nothing
                   if (meta == nil or meta.verified_jwt == nil) then
                     return
                   end
-
-                  -- Create the roles list
                   local roles_list = table.concat(meta.verified_jwt.roles, ',')
-
-                  -- Add the header
                   request_handle:headers():replace('x-osmo-roles', roles_list)
+                end
+
+                function envoy_on_response(response_handle)
+                  local meta = response_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
+                  if (meta == nil or meta.verified_jwt == nil) then
+                    return
+                  end
+                  if meta.verified_jwt.name then
+                    response_handle:headers():add('x-osmo-name', meta.verified_jwt.name)
+                  end
                 end
         {{- end }}
         - name: envoy.filters.http.router
