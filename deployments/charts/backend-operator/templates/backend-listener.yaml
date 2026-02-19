@@ -118,6 +118,10 @@ spec:
         - '{{ .Values.services.backendListener.eventChanSize }}'
         - --eventCacheTTLMin
         - '{{ .Values.services.backendListener.eventCacheTTLMin }}'
+        - --enableNodeLabelUpdate
+        - '{{ .Values.services.backendListener.enableNodeLabelUpdate }}'
+        - --labelUpdateChanSize
+        - '{{ .Values.services.backendListener.labelUpdateChanSize }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}
