@@ -199,7 +199,7 @@ from a browser (via OAuth2 Proxy session) or from the CLI (via direct JWT).
 Browser visits dev.osmo.nvidia.com/workflows
     │
     ▼
-Envoy receives request (no _oauth2_proxy cookie, no x-osmo-auth header)
+Envoy receives request (no _osmo_session cookie, no x-osmo-auth header)
     │
     ├── Lua: strips dangerous headers (x-osmo-user, x-osmo-auth-skip)
     │
@@ -226,7 +226,7 @@ IDP redirects to /oauth2/callback?code=<authorization_code>
 OAuth2 Proxy exchanges code for tokens:
   - Sends scope=openid email profile (ensures id_token is returned)
   - Receives: access_token, id_token, refresh_token
-  - Creates encrypted session cookie (_oauth2_proxy)
+  - Creates encrypted session cookie (_osmo_session)
   - Redirects browser back to /workflows with Set-Cookie header
 ```
 
@@ -234,7 +234,7 @@ OAuth2 Proxy exchanges code for tokens:
 
 ```
 Browser visits dev.osmo.nvidia.com/workflows
-with _oauth2_proxy cookie attached
+with _osmo_session cookie attached
     │
     ▼
 Envoy receives request
@@ -244,7 +244,7 @@ Envoy receives request
     ├── ext_authz: sends request to OAuth2 Proxy (forwards cookie header)
     │       │
     │       └── OAuth2 Proxy:
-    │           1. Decrypts _oauth2_proxy cookie
+    │           1. Decrypts _osmo_session cookie
     │           2. Checks session expiry → still valid
     │           3. Returns 200 with headers:
     │              Authorization: Bearer <id_token>
@@ -272,7 +272,7 @@ Request reaches OSMO Service with:
 **Stage 3: Token refresh (session expiring)**
 
 ```
-Browser makes a request, _oauth2_proxy cookie is near expiry
+Browser makes a request, _osmo_session cookie is near expiry
 (controlled by --cookie-refresh=1h)
     │
     ▼
@@ -294,7 +294,7 @@ Envoy ext_authz → OAuth2 Proxy
         6. Includes Set-Cookie with updated session
     │
     ▼
-Browser receives updated _oauth2_proxy cookie (transparent)
+Browser receives updated _osmo_session cookie (transparent)
 User sees no interruption — the page loads normally
 ```
 
@@ -432,10 +432,10 @@ cookie_secret = "<value>"
 
 The web-UI requires code changes to work with OAuth2 Proxy:
 
-1. **New `/auth/session` endpoint** — Server-side route that reads `x-osmo-user` from Envoy headers to detect OAuth2 Proxy sessions
-2. **AuthProvider session detection** — Try `/auth/session` first; if authenticated, skip the legacy `IdToken` cookie flow
-3. **Server-to-service auth forwarding** — Extract Bearer token from `Authorization` header and forward via `x-osmo-auth` so the service's ext_authz is skipped
-4. **Logout** — Redirect to `/oauth2/sign_out` when OAuth2 Proxy is active
+1. **Session detection via response headers** — The AuthProvider reads `x-auth-request-email` and `x-auth-request-preferred-username` from the `/auth/login_info` response headers. These are forwarded by Envoy's ext_authz `allowed_client_headers_on_success`. No separate session endpoint is needed.
+2. **Display name via `x-osmo-name`** — The user's display name is extracted from JWT metadata by a Lua `envoy_on_response` filter in the web-UI chart and added as the `x-osmo-name` response header. This avoids exposing the full JWT to the browser.
+3. **Server-to-service auth forwarding** — Envoy's `copy-auth-header` Lua filter copies `Authorization: Bearer <id_token>` (set by ext_authz) to `x-osmo-auth` on the request to Next.js. The tRPC handler in `OsmoApiFetch` reads `x-osmo-auth` from the incoming request and forwards it to the OSMO service API. **Important**: The `||` operator (not `??`) must be used when falling back from the `IdToken` cookie to the `x-osmo-auth` header, because `cookies.get()` returns `""` (not `null`) for missing cookies, and `??` doesn't trigger on empty strings.
+4. **Logout** — `isOAuth2ProxySession` flag is set during login. On logout, redirects to `/oauth2/sign_out` when this flag is true.
 5. **Skip provider button** — `--skip-provider-button=true` redirects directly to IDP, no intermediate sign-in page
 
 ### Future: CLI Migration to `Authorization: Bearer`
@@ -568,6 +568,9 @@ original request path to OAuth2 Proxy, which validates the session via its proxy
         allowed_client_headers_on_success:
           patterns:
             - exact: set-cookie
+            - exact: x-auth-request-user
+            - exact: x-auth-request-email
+            - exact: x-auth-request-preferred-username
     failure_mode_allow: false
 ```
 
@@ -623,7 +626,7 @@ http_filters:
   - name: envoy.filters.http.router                        # KEEP
 ```
 
-**After (with OAuth2 Proxy — 9 filters)**:
+**After (with OAuth2 Proxy — 11 filters)**:
 
 ```yaml
 http_filters:
@@ -632,8 +635,9 @@ http_filters:
   - name: envoy.filters.http.lua.add-auth-skip            # KEEP (skip-auth paths)
   - name: envoy.filters.http.lua.add-forwarded-host       # KEEP
   - name: envoy.filters.http.ext_authz                    # NEW - OAuth2 Proxy (authn, skipped via ExtensionWithMatcher)
+  - name: envoy.filters.http.lua.copy-auth-header         # NEW - copies Authorization → x-osmo-auth for server-to-service calls
   - name: envoy.filters.http.jwt_authn                    # KEEP (simplified)
-  - name: envoy.filters.http.lua.roles                    # KEEP
+  - name: envoy.filters.http.lua.roles                    # KEEP (web-UI adds envoy_on_response for x-osmo-name)
   - name: envoy.filters.http.ext_authz                    # FUTURE - authz_sidecar (authz)
   - name: envoy.filters.http.ratelimit                    # KEEP
   - name: envoy.filters.http.router                       # KEEP
@@ -653,6 +657,13 @@ http_filters:
 | `IdToken` cookie extraction in JWT filter | JWT filter config | JWT filter only validates from `Authorization` header now |
 
 **Estimated removal**: ~420-500 lines across the three charts.
+
+**New filters added**:
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `copy-auth-header` Lua | All 3 charts (after ext_authz) | Copies `Authorization: Bearer <token>` → `x-osmo-auth: <token>` so Next.js server-to-service calls can forward auth to the OSMO service without going through ext_authz again |
+| `envoy_on_response` in roles Lua | Web-UI chart only | Extracts `name` claim from JWT metadata and adds `x-osmo-name` response header for the browser AuthProvider |
 
 **Note**: The `add-auth-skip` Lua filter is kept. It sets `x-osmo-auth-skip: true` for
 skip-auth paths (e.g., `/health`, `/api/version`). The ext_authz filter for OAuth2 Proxy
@@ -674,9 +685,10 @@ entries in `values.yaml` update from `cluster: oauth` to `cluster: idp`.
 | `add-auth-skip` Lua | Sets `x-osmo-auth-skip` for skip-auth paths; ext_authz and JWT filters skip via `ExtensionWithMatcher` |
 | `add-forwarded-host` Lua | Downstream services need `x-forwarded-host` |
 | `block-spam-ips` Lua (service only) | IP blocking |
+| `copy-auth-header` Lua filter (new) | After ext_authz sets `Authorization: Bearer <id_token>`, copies the token to `x-osmo-auth` so Next.js server-to-service calls can forward it. Runs only when `x-osmo-auth` is not already present. |
 | `idp` cluster (renamed from `oauth`) | JWT filter uses this cluster to fetch JWKS keys from the IDP. Address sourced from new `sidecars.envoy.idp.host` value instead of removed `oauth2Filter.authProvider`. |
 | JWT Filter (simplified) | Validates tokens from `Authorization` header for both browser (via OAuth2 Proxy) and API/CLI requests |
-| `roles` Lua filter | Extracts roles from JWT claims to `x-osmo-roles` header |
+| `roles` Lua filter | Extracts roles from JWT claims to `x-osmo-roles` header. In the web-UI chart, also includes `envoy_on_response` to extract `name` from JWT metadata and add `x-osmo-name` response header for the browser. |
 | Rate Limiting | Per-route rate limits |
 | Routing rules | 11+ regex patterns in service chart, catch-all in router/web-ui |
 | Access logging | Observability |
@@ -711,7 +723,7 @@ sidecars:
     cookieSecretKey: cookie-secret
 
     # Cookie settings
-    cookieName: _oauth2_proxy
+    cookieName: _osmo_session  # renamed from _oauth2_proxy to avoid collisions
     cookieSecure: true
     cookieDomain: ""  # Auto-detect from hostname
     cookieExpire: 168h  # 7 days
@@ -720,13 +732,16 @@ sidecars:
     # Scope - must include openid for proper id_token refresh across all IDPs
     scope: "openid email profile"
 
-    # Session storage
+    # Session storage — cookie by default. NOTE: Microsoft Entra ID tokens are large
+    # (~1.5-2KB each for id_token + access_token), causing the session cookie to exceed
+    # the 4KB browser cookie limit. OAuth2 Proxy splits across multiple cookies
+    # (_osmo_session_0, _osmo_session_1). Use Redis for production to avoid this.
     sessionStoreType: cookie  # or redis for HA
 
     # Header configuration
     setXAuthRequest: true
     setAuthorizationHeader: true
-    passAccessToken: true
+    passAccessToken: false  # reduces cookie size; access token not needed by OSMO
 
     # Resources
     resources:
@@ -895,8 +910,9 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
 
 **Troubleshooting**:
 - Debug logging: `--logging-level=debug`
-- Session inspection: `GET /oauth2/userinfo`
+- Session inspection: `GET /oauth2/userinfo` (available on the OAuth2 Proxy port, not exposed externally)
 - Config validation: `oauth2-proxy --validate`
+- Check browser response headers: `/auth/login_info` should include `x-auth-request-email`, `x-auth-request-preferred-username`, and `x-osmo-name`
 
 **Security**:
 - Session cookies: `Secure`, `HttpOnly`, `SameSite=Lax`, encrypted
@@ -966,14 +982,12 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
 
 ## Open Questions
 
-- [ ] Should we use Redis for session storage in production for HA?
-  - **Cookie storage**: Simpler, no additional infrastructure, works for single-pod deployments
-  - **Redis storage**: Better for horizontal scaling, session sharing across pods
-  - **Recommendation**: Start with cookie storage. Migrate to Redis if we need multi-pod session sharing.
+- [ ] Should we use Redis for session storage in production?
+  - **Cookie storage**: Simpler, no additional infrastructure. However, Microsoft Entra ID tokens are large enough that the encrypted session exceeds the 4KB browser cookie limit. OAuth2 Proxy splits the session across multiple cookies (`_osmo_session_0`, `_osmo_session_1`), which works but adds overhead to every request. `--pass-access-token=false` does NOT reduce cookie size — the access token is always stored in the session for refresh purposes.
+  - **Redis storage**: Cookies only store a session ID (~50 bytes). Token data lives server-side. Better for horizontal scaling and eliminates the multi-cookie split. Since OSMO already integrates with redis should we have an option for users to connect to redis for their cookie storage?
 
-- [ ] How do we handle the transition period where users have old Envoy OAuth2 cookies?
-  - **Decision**: Invalidate all sessions on deployment. Users re-login once. This is simpler than
-    supporting dual cookie formats and is a one-time event during the migration.
+- [x] How do we handle the transition period where users have old Envoy OAuth2 cookies?
+  - **Resolved**: Cookie name changed from `_oauth2_proxy` to `_osmo_session`. Old cookies are ignored by OAuth2 Proxy (different name) and expire naturally. Users authenticate fresh with the new cookie name. Old cookies can be manually cleared from the browser.
 
 ## Appendix
 
@@ -992,7 +1006,7 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
     - --config=/etc/oauth2-proxy/config.cfg  # contains client_secret and cookie_secret inline
     - --cookie-secure=true
     - --skip-provider-button=true
-    - --cookie-name=_oauth2_proxy
+    - --cookie-name=_osmo_session   # renamed from default to avoid collisions
     - --cookie-domain=.osmo.nvidia.com
     - --cookie-expire=168h
     - --cookie-refresh=1h
@@ -1000,7 +1014,7 @@ ext_authz (same pattern as the proposed OAuth2 Proxy approach).
     - --email-domain=*
     - --set-xauthrequest=true
     - --set-authorization-header=true
-    - --pass-access-token=true
+    - --pass-access-token=false     # access token not needed, reduces cookie size
     - --upstream=static://200
   env:
     - name: OAUTH2_PROVIDER
@@ -1044,19 +1058,4 @@ with auth headers. It never proxies actual traffic — Envoy handles all routing
 `--config` points to a file with `client_secret = "..."` and `cookie_secret = "..."` inline
 (NOT `_file` references, which don't exist in any OAuth2 Proxy version).
 
-### Files to Modify
 
-| File | Action | Description |
-|------|--------|-------------|
-| `external/deployments/charts/service/templates/_sidecar-helpers.tpl` | Add | OAuth2 Proxy container template |
-| `external/deployments/charts/service/templates/_envoy-config.tpl` | Modify | Remove OAuth2 filter + Lua, add ext_authz + oauth2-proxy cluster + /oauth2/ route, rename `oauth` cluster to `idp` |
-| `external/deployments/charts/service/values.yaml` | Modify | Add `oauth2Proxy` config, add `idp.host`, remove `oauth2Filter`, update JWT `cluster: oauth` → `cluster: idp` |
-| `external/deployments/charts/router/templates/_envoy-config-helpers.tpl` | Modify | Same as service |
-| `external/deployments/charts/router/values.yaml` | Modify | Add `oauth2Proxy` config, remove `oauth2Filter` |
-| `external/deployments/charts/web-ui/templates/_envoy-config-helpers.tpl` | Modify | Same as service |
-| `external/deployments/charts/web-ui/values.yaml` | Modify | Add `oauth2Proxy` config, remove `oauth2Filter` |
-| `charts_value/*/stg/*.yaml` | Modify | Update to use `oauth2Proxy`, remove `forceReauthOnMissingIdToken` |
-| `external/ui/src/components/AuthProvider.tsx` | Modify | Add OAuth2 Proxy session detection, logout via `/oauth2/sign_out` |
-| `external/ui/src/app/auth/session/route.ts` | Add | New endpoint that reads `x-osmo-user` from Envoy headers |
-| `external/ui/src/utils/common.ts` | Modify | Forward `Authorization` → `x-osmo-auth` for server-to-service calls |
-| `external/ui/src/app/auth/check_token/route.ts` | Modify | Forward auth headers from OAuth2 Proxy to service |
