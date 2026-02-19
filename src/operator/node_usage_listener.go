@@ -68,16 +68,15 @@ func (nul *NodeUsageListener) Run(ctx context.Context) error {
 // sendMessages reads from the channel and sends messages to the server.
 func (nul *NodeUsageListener) sendMessages(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-) {
+) error {
 	progressTicker := time.NewTicker(time.Duration(nul.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-progressTicker.C:
 			progressWriter := nul.GetProgressWriter()
 			if progressWriter != nil {
@@ -87,18 +86,11 @@ func (nul *NodeUsageListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				if ctx.Err() != nil {
-					log.Printf("usage watcher stopped due to context cancellation")
-					return
-				}
-				log.Printf("usage watcher stopped unexpectedly...")
 				nul.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nul.Attrs.Stream)
-				cancel(fmt.Errorf("usage watcher stopped"))
-				return
+				return fmt.Errorf("usage watcher stopped")
 			}
 			if err := nul.BaseListener.SendMessage(ctx, msg); err != nil {
-				cancel(fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err))
-				return
+				return fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err)
 			}
 		}
 	}
@@ -108,14 +100,11 @@ func (nul *NodeUsageListener) sendMessages(
 // This function focuses on pod events and resource usage messages
 func (nul *NodeUsageListener) watchPods(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
-	ch chan<- *pb.ListenerMessage) {
+	ch chan<- *pb.ListenerMessage) error {
 
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
-		return
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	log.Printf("Starting pod watcher for namespace: %s", nul.args.Namespace)
@@ -185,8 +174,7 @@ func (nul *NodeUsageListener) watchPods(
 		},
 	})
 	if err != nil {
-		log.Printf("Failed to add pod event handler: %v", err)
-		return
+		return fmt.Errorf("failed to add pod event handler: %w", err)
 	}
 
 	// Set watch error handler for rebuild on watch gaps
@@ -202,9 +190,8 @@ func (nul *NodeUsageListener) watchPods(
 	// Wait for cache sync
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
-		log.Println("Failed to sync pod informer cache")
 		nul.inst.InformerCacheSyncFailure.Add(ctx, 1, nul.Attrs.Stream)
-		return
+		return fmt.Errorf("failed to sync pod informer cache")
 	}
 	log.Println("Pod informer cache synced successfully")
 	nul.inst.InformerCacheSyncSuccess.Add(ctx, 1, nul.Attrs.Stream)
@@ -221,7 +208,7 @@ func (nul *NodeUsageListener) watchPods(
 		select {
 		case <-ctx.Done():
 			log.Println("Pod watcher stopped")
-			return
+			return nil
 		case <-flushTicker.C:
 			// Debounced flush of dirty nodes - send usage messages
 			start := time.Now()

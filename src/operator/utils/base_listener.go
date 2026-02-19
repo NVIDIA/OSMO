@@ -36,16 +36,14 @@ import (
 // WatchFunc writes listener messages to a channel.
 type WatchFunc func(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch chan<- *pb.ListenerMessage,
-)
+) error
 
 // SendMessagesFunc reads from the channel and sends messages to the stream.
 type SendMessagesFunc func(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-)
+) error
 
 // StreamName identifies the listener stream type.
 type StreamName string
@@ -158,10 +156,7 @@ func (bl *BaseListener) initConnection(serviceURL string) error {
 }
 
 // receiveAcks handles receiving ACK messages from the server
-func (bl *BaseListener) receiveAcks(
-	ctx context.Context,
-	cancel context.CancelCauseFunc,
-) {
+func (bl *BaseListener) receiveAcks(ctx context.Context) error {
 	// Rate limit progress reporting
 	lastProgressReport := time.Now()
 	progressInterval := time.Duration(bl.args.ProgressFrequencySec) * time.Second
@@ -170,19 +165,7 @@ func (bl *BaseListener) receiveAcks(
 		msg, err := bl.stream.Recv()
 		if err != nil {
 			bl.inst.GRPCDisconnectCount.Add(ctx, 1)
-
-			// Check if context was cancelled
-			if ctx.Err() != nil {
-				log.Printf("Stopping %s message receiver (context cancelled)...", bl.streamName)
-				return
-			}
-			if err == io.EOF {
-				log.Printf("Server closed the %s stream", bl.streamName)
-				cancel(io.EOF)
-				return
-			}
-			cancel(fmt.Errorf("failed to receive message: %w", err))
-			return
+			return fmt.Errorf("failed to receive ACKs: %w", err)
 		}
 
 		// Handle ACK messages by removing from unacked queue
@@ -324,39 +307,30 @@ func (bl *BaseListener) Run(
 	bl.wg.Add(3)
 	go func() {
 		defer bl.wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in receiveAcks goroutine: %v", r)
-				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, bl.Attrs.PanicReceiver)
-				streamCancel(fmt.Errorf("panic in receiver: %v", r))
-			}
-		}()
-		bl.receiveAcks(streamCtx, streamCancel)
+		err = bl.receiveAcks(streamCtx)
+		if err != nil {
+			log.Printf("Error in receiveAcks goroutine: %v", err)
+			streamCancel(err)
+		}
 	}()
 
 	go func() {
 		defer bl.wg.Done()
 		defer close(msgChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watch goroutine: %v", r)
-				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, bl.Attrs.PanicWatcher)
-				streamCancel(fmt.Errorf("panic in watcher: %v", r))
-			}
-		}()
-		watch(streamCtx, streamCancel, msgChan)
+		err = watch(streamCtx, msgChan)
+		if err != nil {
+			log.Printf("Error in watch goroutine: %v", err)
+			streamCancel(err)
+		}
 	}()
 
 	go func() {
 		defer bl.wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in sendMessages goroutine: %v", r)
-				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, bl.Attrs.PanicSender)
-				streamCancel(fmt.Errorf("panic in sender: %v", r))
-			}
-		}()
-		sendMessages(streamCtx, streamCancel, msgChan)
+		err = sendMessages(streamCtx, msgChan)
+		if err != nil {
+			log.Printf("Error in sendMessages goroutine: %v", err)
+			streamCancel(err)
+		}
 	}()
 
 	// Wait for completion
