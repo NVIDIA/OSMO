@@ -199,7 +199,7 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		wl.inst.KBEventWatchCount.Add(ctx, 1, wl.attrListener)
+		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.attrListener)
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {

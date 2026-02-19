@@ -41,7 +41,7 @@ type Instruments struct {
 	MessageSentTotal         metric.Int64Counter
 
 	// Cross-listener informer / channel metrics
-	KBEventWatchCount                metric.Int64Counter
+	KubeEventWatchCount              metric.Int64Counter
 	MessageQueuedTotal               metric.Int64Counter
 	MessageChannelPending            metric.Float64Histogram
 	MessageChannelClosedUnexpectedly metric.Int64Counter
@@ -144,13 +144,13 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("failed to create instrument message_sent_total: %w", err)
 	}
 
-	inst.KBEventWatchCount, err = meter.Int64Counter(
-		"kb_event_watch_count",
+	inst.KubeEventWatchCount, err = meter.Int64Counter(
+		"kube_event_watch_count",
 		metric.WithDescription("Number of Kubernetes events received from informer watches"),
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create instrument kb_event_watch_count: %w", err)
+		return nil, fmt.Errorf("failed to create instrument kube_event_watch_count: %w", err)
 	}
 
 	inst.MessageQueuedTotal, err = meter.Int64Counter(

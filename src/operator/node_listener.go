@@ -135,7 +135,7 @@ func (nl *NodeListener) watchNodes(
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
-		nl.inst.KBEventWatchCount.Add(ctx, 1, nl.attrListener)
+		nl.inst.KubeEventWatchCount.Add(ctx, 1, nl.attrListener)
 
 		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {

@@ -149,13 +149,13 @@ func (nul *NodeUsageListener) watchPods(
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrListener)
+			nul.inst.KubeEventWatchCount.Add(ctx, 1, nul.attrListener)
 
 			pod := obj.(*corev1.Pod)
 			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrListener)
+			nul.inst.KubeEventWatchCount.Add(ctx, 1, nul.attrListener)
 
 			pod := newObj.(*corev1.Pod)
 
@@ -172,7 +172,7 @@ func (nul *NodeUsageListener) watchPods(
 
 		},
 		DeleteFunc: func(obj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrListener)
+			nul.inst.KubeEventWatchCount.Add(ctx, 1, nul.attrListener)
 
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {

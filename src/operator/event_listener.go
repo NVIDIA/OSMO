@@ -160,7 +160,7 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		el.inst.KBEventWatchCount.Add(ctx, 1, el.attrListener)
+		el.inst.KubeEventWatchCount.Add(ctx, 1, el.attrListener)
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
