@@ -152,9 +152,9 @@ To access your data storage within workflows, you'll need to set the appropriate
 
     .. auto-include:: data_credentials_examples.in.rst
 
-    .. tab-item:: AWS S3
+    .. tab-item:: AWS S3 / S3-Compatible
 
-        To set a credential for S3, run the following command:
+        To set a credential for S3 or S3-compatible storage, run the following command:
 
         .. code-block:: bash
 
@@ -162,9 +162,16 @@ To access your data storage within workflows, you'll need to set the appropriate
                 --type DATA \
                 --payload \
                 endpoint=s3://<bucket> \
-                region=us-east-1 \
+                region=<region> \
                 access_key_id=<access_key_id> \
                 access_key=<access_key> \
+                override_url=<http_endpoint>  # Optional: required for non-AWS S3
+
+        .. note::
+
+            ``override_url`` is only required for non-AWS S3-compatible services such as MinIO, Ceph,
+            and LocalStack. It specifies the HTTP endpoint of the service (e.g., ``http://minio:9000``).
+            Omit it for standard AWS S3.
 
         .. seealso::
 
