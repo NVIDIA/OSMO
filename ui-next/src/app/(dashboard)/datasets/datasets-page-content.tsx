@@ -34,7 +34,7 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback, useTransition } from "react";
+import { useCallback, useMemo, useTransition } from "react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
@@ -83,6 +83,9 @@ export function DatasetsPageContent() {
     });
   }, [setShowAllUsers]);
 
+  // Disable ShowAll toggle when a user: chip is active (user chip overrides the toggle)
+  const hasUserFilter = useMemo(() => searchChips.some((c) => c.field === "user"), [searchChips]);
+
   // ==========================================================================
   // Data Fetching with FilterBar filtering and pagination
   // Data is hydrated from server prefetch - no loading spinner on initial load!
@@ -128,6 +131,7 @@ export function DatasetsPageContent() {
             showAllUsers={showAllUsers}
             showAllUsersPending={showAllUsersPending}
             onToggleShowAllUsers={handleToggleShowAllUsers}
+            showAllUsersDisabled={hasUserFilter}
             onRefresh={refetch}
             isRefreshing={isLoading}
           />
