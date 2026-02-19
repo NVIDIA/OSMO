@@ -33,29 +33,29 @@ const (
 	defaultCacheTTLSec  = 300
 )
 
-// CacheConfig holds role cache configuration
+// CacheConfig holds cache configuration
 type CacheConfig struct {
 	MaxSize int
 	TTL     time.Duration
 }
 
-// CacheFlagPointers holds pointers to flag values for role cache configuration
+// CacheFlagPointers holds pointers to flag values for cache configuration
 type CacheFlagPointers struct {
 	maxSize *int
 	ttlSec  *int
 }
 
-// RegisterCacheFlags registers role-cache-related command-line flags.
+// RegisterCacheFlags registers cache-related command-line flags.
 // Returns a CacheFlagPointers that should be converted to CacheConfig
 // after flag.Parse() is called.
 func RegisterCacheFlags() *CacheFlagPointers {
 	return &CacheFlagPointers{
 		ttlSec: flag.Int("cache-ttl",
 			utils.GetEnvInt("OSMO_CACHE_TTL", defaultCacheTTLSec),
-			"Role cache TTL in seconds"),
+			"Cache TTL in seconds"),
 		maxSize: flag.Int("cache-max-size",
 			utils.GetEnvInt("OSMO_CACHE_MAX_SIZE", defaultCacheMaxSize),
-			"Role cache max number of entries"),
+			"Cache max number of entries"),
 	}
 }
 
@@ -68,19 +68,49 @@ func (p *CacheFlagPointers) ToCacheConfig() CacheConfig {
 	}
 }
 
-// RoleCache provides thread-safe caching for roles using LRU eviction with TTL expiration.
-// Acts as a cache with DB fallback - caller should fetch missing roles from DB.
-type RoleCache struct {
-	cache  *expirable.LRU[string, *Role]
+// KeyedCache is a generic thread-safe LRU cache with per-entry TTL expiration.
+// It serves as the base caching primitive for all domain-specific caches.
+type KeyedCache[V any] struct {
+	cache  *expirable.LRU[string, V]
 	logger *slog.Logger
+}
+
+// NewKeyedCache creates a new keyed cache with the specified max size and TTL.
+func NewKeyedCache[V any](maxSize int, ttl time.Duration, logger *slog.Logger) *KeyedCache[V] {
+	return &KeyedCache[V]{
+		cache:  expirable.NewLRU[string, V](maxSize, nil, ttl),
+		logger: logger,
+	}
+}
+
+// Get retrieves a single value by key. Returns the value and true on hit.
+func (c *KeyedCache[V]) Get(key string) (V, bool) {
+	return c.cache.Get(key)
+}
+
+// Set stores a value under the given key.
+func (c *KeyedCache[V]) Set(key string, value V) {
+	c.cache.Add(key, value)
+}
+
+// Size returns the number of entries in the cache.
+func (c *KeyedCache[V]) Size() int {
+	return c.cache.Len()
+}
+
+// ---------------------------------------------------------------------------
+// RoleCache -- keyed cache for Role objects, looked up by role name.
+// ---------------------------------------------------------------------------
+
+// RoleCache provides batch Get/Set on top of KeyedCache for Role objects.
+type RoleCache struct {
+	cache *KeyedCache[*Role]
 }
 
 // NewRoleCache creates a new role cache with the specified max size and TTL.
 func NewRoleCache(maxSize int, ttl time.Duration, logger *slog.Logger) *RoleCache {
-	cache := expirable.NewLRU[string, *Role](maxSize, nil, ttl)
 	return &RoleCache{
-		cache:  cache,
-		logger: logger,
+		cache: NewKeyedCache[*Role](maxSize, ttl, logger),
 	}
 }
 
@@ -90,7 +120,7 @@ func NewRoleCache(maxSize int, ttl time.Duration, logger *slog.Logger) *RoleCach
 //   - missing: role names that were not found in the cache
 func (c *RoleCache) Get(roleNames []string) (found []*Role, missing []string) {
 	for _, name := range roleNames {
-		if role, exists := c.cache.Get(name); exists {
+		if role, ok := c.cache.Get(name); ok {
 			found = append(found, role)
 		} else {
 			missing = append(missing, name)
@@ -99,18 +129,55 @@ func (c *RoleCache) Get(roleNames []string) (found []*Role, missing []string) {
 	return found, missing
 }
 
-// Set adds or updates roles in the cache
+// Set adds or updates roles in the cache.
 func (c *RoleCache) Set(roles []*Role) {
 	for _, role := range roles {
-		c.cache.Add(role.Name, role)
+		c.cache.Set(role.Name, role)
 	}
 
-	c.logger.Debug("roles cached",
+	c.cache.logger.Debug("roles cached",
 		slog.Int("count", len(roles)),
 	)
 }
 
-// Size returns the number of roles in the cache
+// Size returns the number of roles in the cache.
 func (c *RoleCache) Size() int {
-	return c.cache.Len()
+	return c.cache.Size()
+}
+
+// ---------------------------------------------------------------------------
+// PoolNameCache -- single-value cache for the list of all pool names.
+// Uses a KeyedCache with a single sentinel key so both caches share the
+// same underlying implementation.
+// ---------------------------------------------------------------------------
+
+const poolNameCacheKey = "_all_pool_names"
+
+// PoolNameCache caches the full list of pool names with TTL expiration.
+// Pool names change infrequently, so caching avoids a DB query on every
+// authorization check.
+type PoolNameCache struct {
+	cache *KeyedCache[[]string]
+}
+
+// NewPoolNameCache creates a new pool name cache with the specified TTL.
+func NewPoolNameCache(ttl time.Duration, logger *slog.Logger) *PoolNameCache {
+	return &PoolNameCache{
+		cache: NewKeyedCache[[]string](1, ttl, logger),
+	}
+}
+
+// Get returns the cached pool names if the cache is still valid.
+// Returns the names and true on hit, or nil and false on miss/expiry.
+func (c *PoolNameCache) Get() ([]string, bool) {
+	return c.cache.Get(poolNameCacheKey)
+}
+
+// Set stores pool names in the cache with the configured TTL.
+func (c *PoolNameCache) Set(names []string) {
+	c.cache.Set(poolNameCacheKey, names)
+
+	c.cache.logger.Debug("pool names cached",
+		slog.Int("count", len(names)),
+	)
 }

@@ -858,14 +858,14 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
                   platforms: List[str] | None = fastapi.Query(default = None),
                   all_pools: bool = False,
                   concise: bool = False,
-                  roles_header: Optional[str] =
-                    fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+                  allowed_pools_header: Optional[str] =
+                    fastapi.Header(alias=login.OSMO_ALLOWED_POOLS, default=None)) -> \
     objects.ResourcesResponse | objects.PoolResourcesResponse:
     """ Returns the information of resources available in different pools. """
     pools_arg = pools if pools else []
     if not pools or all_pools:
-        pools_arg = connectors.Pool.get_pools(login.construct_roles_list(roles_header),
-                                              all_pools=all_pools)
+        pools_arg = login.parse_allowed_pools(allowed_pools_header) if not all_pools \
+            else connectors.Pool.get_all_pool_names()
 
     if not concise:
         return objects.get_resources(

@@ -90,12 +90,13 @@ func main() {
 	}
 	defer pgClient.Close()
 
-	// Create role cache
+	// Create caches
 	cacheConfig := cacheFlagPtrs.ToCacheConfig()
 	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
+	poolNameCache := roles.NewPoolNameCache(cacheConfig.TTL, logger)
 
 	// Create authorization server
-	authzServer := server.NewAuthzServer(pgClient, roleCache, logger)
+	authzServer := server.NewAuthzServer(pgClient, roleCache, poolNameCache, logger)
 
 	// Migrate all roles to semantic format in the database
 	if err := authzServer.MigrateRoles(ctx); err != nil {

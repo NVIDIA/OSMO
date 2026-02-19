@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -102,6 +102,7 @@ data:
                 - x-osmo-user
                 - x-osmo-token-name
                 - x-osmo-workflow-id
+                - x-osmo-allowed-pools
 
                 virtual_hosts:
                 - name: service
@@ -154,6 +155,7 @@ data:
                         request_handle:headers():remove("x-osmo-roles")
                         request_handle:headers():remove("x-osmo-token-name")
                         request_handle:headers():remove("x-osmo-workflow-id")
+                        request_handle:headers():remove("x-osmo-allowed-pools")
                         request_handle:headers():remove("x-envoy-internal")
                       end
               - name: add-auth-skip
@@ -597,6 +599,7 @@ data:
                 - x-osmo-user
                 - x-osmo-token-name
                 - x-osmo-workflow-id
+                - x-osmo-allowed-pools
 
                 virtual_hosts:
                 - name: service

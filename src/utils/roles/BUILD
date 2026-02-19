@@ -20,6 +20,7 @@ go_library(
     name = "roles",
     srcs = [
         "action_registry.go",
+        "pool_access.go",
         "role_cache.go",
         "roles.go",
     ],
@@ -36,6 +37,7 @@ go_test(
     name = "roles_test",
     srcs = [
         "action_registry_test.go",
+        "pool_access_test.go",
         "role_cache_test.go",
         "roles_test.go",
     ],
