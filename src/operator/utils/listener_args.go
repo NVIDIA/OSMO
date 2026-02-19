@@ -84,10 +84,10 @@ func ListenerParse() ListenerArgs {
 		getEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
 		"Prefix for node conditions")
 	enableNodeLabelUpdate := flag.Bool("enableNodeLabelUpdate",
-		getEnvBool("ENABLE_NODE_LABEL_UPDATE", false),
+		false,
 		"Enable updating the node_condition_prefix/verified node label based on node availability")
 	labelUpdateChanSize := flag.Int("labelUpdateChanSize",
-		getEnvInt("LABEL_UPDATE_CHAN_SIZE", 200),
+		200,
 		"Buffer size for label update channel")
 	progressDir := flag.String("progressDir",
 		getEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/operator/"),
@@ -133,15 +133,6 @@ func getEnvInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
-		}
-	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
 		}
 	}
 	return defaultValue
