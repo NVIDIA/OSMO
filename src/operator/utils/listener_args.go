@@ -38,6 +38,8 @@ type ListenerArgs struct {
 	EventCacheTTLMin      int // TTL in minutes for event deduplication
 	MaxUnackedMessages    int
 	NodeConditionPrefix   string
+	EnableNodeLabelUpdate bool // Enable updating node verified label based on availability
+	LabelUpdateChanSize   int  // Buffer size for label update channel
 	ProgressDir           string
 	ProgressFrequencySec  int
 	UsageFlushIntervalSec int // Interval for flushing resource usage updates (NodeUsageListener)
@@ -81,6 +83,12 @@ func ListenerParse() ListenerArgs {
 	nodeConditionPrefix := flag.String("nodeConditionPrefix",
 		getEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
 		"Prefix for node conditions")
+	enableNodeLabelUpdate := flag.Bool("enableNodeLabelUpdate",
+		false,
+		"Enable updating the node_condition_prefix/verified node label based on node availability")
+	labelUpdateChanSize := flag.Int("labelUpdateChanSize",
+		200,
+		"Buffer size for label update channel")
 	progressDir := flag.String("progressDir",
 		getEnv("OSMO_PROGRESS_DIR", "/tmp/osmo/operator/"),
 		"The directory to write progress timestamps to (For liveness/startup probes)")
@@ -106,6 +114,8 @@ func ListenerParse() ListenerArgs {
 		EventCacheTTLMin:      *eventCacheTTLMin,
 		MaxUnackedMessages:    *maxUnackedMessages,
 		NodeConditionPrefix:   *nodeConditionPrefix,
+		EnableNodeLabelUpdate: *enableNodeLabelUpdate,
+		LabelUpdateChanSize:   *labelUpdateChanSize,
 		ProgressDir:           *progressDir,
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
