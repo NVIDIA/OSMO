@@ -475,6 +475,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             )
 
             self.k8s_resources = resources
+            group_obj.update_group_template_resource_types()
 
             upload_task = UploadWorkflowFiles(
                 workflow_id=workflow_obj.workflow_id,
@@ -781,36 +782,18 @@ class UpdateGroup(WorkflowJob):
                 backend_job_defs.BackendCleanupSpec(resource_type='Service', labels=labels),
             ] + factory.get_group_cleanup_specs(labels)
 
-            if workflow_obj.pool:
-                pool_obj = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                seen_resource_types = set()
-                for template in pool_obj.parsed_group_templates:
-                    api_version = template.get('apiVersion', '')
-                    kind = template.get('kind', '')
-                    resource_type_key = (api_version, kind)
-                    if resource_type_key in seen_resource_types:
-                        continue
-                    seen_resource_types.add(resource_type_key)
-                    if '/' not in api_version:
-                        logging.warning(
-                            'Group template %s/%s is not a custom resource; '
-                            'automatic cleanup is not supported for this resource type.',
-                            kind,
-                            template.get('metadata', {}).get('name', ''),
-                        )
-                        continue
-                    api_major, api_minor = api_version.split('/', 1)
-                    cleanup_specs.append(
-                        backend_job_defs.BackendCleanupSpec(
-                            resource_type=kind,
-                            labels=labels,
-                            custom_api=backend_job_defs.BackendCustomApi(
-                                api_major=api_major,
-                                api_minor=api_minor,
-                                path=kind.lower() + 's',
-                            )
-                        )
+            for resource_type in group_obj.group_template_resource_types:
+                cleanup_specs.append(
+                    backend_job_defs.BackendCleanupSpec(
+                        resource_type=resource_type['kind'],
+                        labels=labels,
+                        custom_api=None,
+                        generic_api=backend_job_defs.BackendGenericApi(
+                            api_version=resource_type['apiVersion'],
+                            kind=resource_type['kind'],
+                        ),
                     )
+                )
 
             force_job_id = f'{self.workflow_uuid}-{self.group_name}-'\
                         f'{common.generate_unique_id(6)}-force-backend-cleanup'

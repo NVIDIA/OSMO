@@ -39,10 +39,17 @@ class BackendCustomApi(pydantic.BaseModel):
     path: str
 
 
+class BackendGenericApi(pydantic.BaseModel):
+    """Identifies a Kubernetes resource type by apiVersion and kind for generic cleanup."""
+    api_version: str
+    kind: str
+
+
 class BackendCleanupSpec(pydantic.BaseModel):
     resource_type: str
     labels: Dict[str, str]
     custom_api: Optional[BackendCustomApi]
+    generic_api: Optional[BackendGenericApi] = None
 
     @property
     def k8s_selector(self) -> str:
