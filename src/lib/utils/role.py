@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import enum
 import re
 from enum import Enum
 from typing import Any, Dict, List
@@ -39,6 +40,19 @@ def validate_semantic_action(value: str) -> str:
             f'Invalid action format: {value}. '
             'Expected format: "resource:Action" (e.g., "workflow:Create", "*:*")')
     return value
+
+
+class SyncMode(str, enum.Enum):
+    """
+    Sync mode for role assignments.
+
+    - FORCE: Always apply this role to all users (e.g., for system roles)
+    - IMPORT: Role is imported from IDP claims or user_roles table (default)
+    - IGNORE: Ignore this role in IDP sync (role is managed manually)
+    """
+    FORCE = 'force'
+    IMPORT = 'import'
+    IGNORE = 'ignore'
 
 
 class PolicyEffect(str, Enum):
@@ -86,17 +100,30 @@ class RolePolicy(pydantic.BaseModel):
 
 
 class Role(pydantic.BaseModel):
-    """Single Role Entry."""
+    """
+    Single Role Entry
+
+    external_roles semantics:
+    - None: Don't modify external role mappings (preserve existing)
+    - []: Explicitly clear all external role mappings
+    - ['role1', 'role2']: Set external role mappings to these values
+    """
     name: str
     description: str
     policies: List[RolePolicy]
     immutable: bool = False
+    sync_mode: SyncMode = SyncMode.IMPORT
+    external_roles: List[str] | None = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
-        return {
+        result = {
             'name': self.name,
             'description': self.description,
             'policies': [policy.to_dict() for policy in self.policies],
-            'immutable': self.immutable
+            'immutable': self.immutable,
+            'sync_mode': self.sync_mode.value,
         }
+        # Only include external_roles if explicitly set (not None)
+        if self.external_roles is not None:
+            result['external_roles'] = self.external_roles
+        return result
