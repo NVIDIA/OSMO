@@ -152,6 +152,7 @@ export const TaskRow = memo(
       prev.task.events.length === next.task.events.length &&
       prev.task.derived.podPhase === next.task.derived.podPhase &&
       prev.task.derived.lifecycle === next.task.derived.lifecycle &&
+      prev.task.duration === next.task.duration &&
       prev.isExpanded === next.isExpanded &&
       prev.onToggleExpand === next.onToggleExpand &&
       prev.isLast === next.isLast &&

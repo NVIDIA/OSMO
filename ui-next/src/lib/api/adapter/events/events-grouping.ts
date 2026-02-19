@@ -47,7 +47,7 @@ export interface TaskGroup {
 // Internal Helpers
 // ============================================================================
 
-function calculateDuration(startTime: Date | null, endTime: Date | undefined, terminal: boolean): string {
+export function calculateDuration(startTime: Date | null, endTime: Date | undefined, terminal: boolean): string {
   if (!startTime) return "\u2014"; // em dash
 
   const end = terminal && endTime ? endTime : new Date();

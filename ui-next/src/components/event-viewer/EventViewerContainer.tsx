@@ -20,15 +20,24 @@ import { useState, useMemo, useCallback, startTransition, useDeferredValue } fro
 import { ChevronsDownUp, ChevronsUpDown, Loader2, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEventStream } from "@/lib/api/adapter/events/use-event-stream";
-import { groupEventsByTask } from "@/lib/api/adapter/events/events-grouping";
+import { groupEventsByTask, calculateDuration } from "@/lib/api/adapter/events/events-grouping";
 import { EventViewerTable } from "@/components/event-viewer/EventViewerTable";
 import { EventViewerProvider } from "@/components/event-viewer/EventViewerContext";
 import type { TaskGroupStatus } from "@/lib/api/generated";
+import { useTick } from "@/hooks/use-tick";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/event-search-fields";
 import { filterTaskGroups } from "@/app/(dashboard)/workflows/[name]/lib/event-filtering";
 import "@/components/event-viewer/event-viewer.css";
+
+/** OSMO Postgres timestamps for a single task attempt. */
+export interface TaskTiming {
+  /** ISO string from TaskQueryResponse.processing_start_time */
+  processingStartTime?: string;
+  /** ISO string from TaskQueryResponse.end_time — absent for live tasks */
+  endTime?: string;
+}
 
 export interface EventViewerContainerProps {
   url: string;
@@ -52,6 +61,12 @@ export interface EventViewerContainerProps {
    * own OSMO status. Mutually exclusive with taskStatus (task scope vs workflow scope).
    */
   taskStatuses?: Map<string, TaskGroupStatus>;
+  /**
+   * Per-task OSMO timing data. Key: `${taskName}:${retryId}`.
+   * When present, overrides the K8s-event-based duration with
+   * processing_start_time → end_time (or NOW for live tasks).
+   */
+  taskTimings?: Map<string, TaskTiming>;
 }
 
 export function EventViewerContainer({
@@ -61,6 +76,7 @@ export function EventViewerContainer({
   isTerminal,
   taskStatus,
   taskStatuses,
+  taskTimings,
 }: EventViewerContainerProps) {
   const isTaskScope = scope === "task";
 
@@ -71,7 +87,21 @@ export function EventViewerContainer({
 
   const { events, phase, error, isStreaming, isReconnecting, restart } = useEventStream({ url });
 
-  const groupedTasks = useMemo(() => groupEventsByTask(events), [events]);
+  // Synchronized clock for live duration display (updates every second)
+  const now = useTick();
+
+  const groupedTasks = useMemo(() => {
+    const groups = groupEventsByTask(events);
+    if (!taskTimings || taskTimings.size === 0) return groups;
+    return groups.map((task) => {
+      const timing = taskTimings.get(`${task.name}:${task.retryId}`);
+      if (!timing?.processingStartTime) return task;
+      const startDate = new Date(timing.processingStartTime);
+      // Terminal tasks use OSMO end_time; live tasks tick with the clock
+      const endDate = timing.endTime ? new Date(timing.endTime) : new Date(now);
+      return { ...task, duration: calculateDuration(startDate, endDate, true) };
+    });
+  }, [events, taskTimings, now]);
 
   // Defer search chips to keep FilterBar input responsive (P0 performance requirement)
   const deferredSearchChips = useDeferredValue(searchChips);
