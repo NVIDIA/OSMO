@@ -149,6 +149,7 @@ class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkfl
                     logging.warning(message, extra={'workflow_uuid': self.workflow_uuid})
                 else:
                     raise
+            # Handle connection errors and retry
             except urllib3.exceptions.ProtocolError as error:
                 error_message = f'Connection error when creating {resource["kind"]} named '\
                     f'{resource["metadata"]["name"]}: {error}'
