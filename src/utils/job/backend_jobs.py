@@ -463,25 +463,11 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
         return value
 
     def _queue_resource_api(self, api_client):
-        """Returns a dynamic resource API for the queue type.
-
-        Supports new-style specs (generic_api set) and deprecated legacy specs (custom_api or
-        resource_type only) for backwards compatibility with jobs serialized before this change.
-        """
-        if self.cleanup_spec.generic_api is not None:
-            api_version = self.cleanup_spec.generic_api.api_version
-            kind = self.cleanup_spec.generic_api.kind
-        elif self.cleanup_spec.custom_api is not None:
-            # Deprecated path: reconstruct from legacy BackendCustomApi fields
-            api_version = (f'{self.cleanup_spec.custom_api.api_major}'
-                           f'/{self.cleanup_spec.custom_api.api_minor}')
-            kind = self.cleanup_spec.resource_type
-        else:
-            # Deprecated path: core v1 resource identified only by resource_type string
-            api_version = 'v1'
-            kind = self.cleanup_spec.resource_type
+        """Returns a dynamic resource API for the queue type."""
         dyn_client = kb_dynamic.DynamicClient(api_client)
-        return dyn_client.resources.get(api_version=api_version, kind=kind)
+        return dyn_client.resources.get(
+            api_version=self.cleanup_spec.effective_api_version,
+            kind=self.cleanup_spec.effective_kind)
 
     def _get_queues(self, context: BackendJobExecutionContext) -> List[Dict]:
         """Gets the queues from the backend"""

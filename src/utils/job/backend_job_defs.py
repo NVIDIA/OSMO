@@ -54,6 +54,16 @@ class BackendCleanupSpec(pydantic.BaseModel):
     generic_api: Optional[BackendGenericApi] = None
 
     @property
+    def effective_api_version(self) -> str:
+        """Returns the API version, preferring generic_api for new jobs."""
+        if self.generic_api:
+            return self.generic_api.api_version
+        if self.custom_api:
+            # Deprecated path: reconstruct from legacy BackendCustomApi fields
+            return f'{self.custom_api.api_major}/{self.custom_api.api_minor}'
+        return 'v1'
+
+    @property
     def effective_kind(self) -> str | None:
         """Returns the resource kind, preferring generic_api for new jobs."""
         if self.generic_api:

@@ -86,20 +86,8 @@ class KubernetesGenericMethods(KubernetesResourceMethods):
 
 def kb_methods_factory(api_client,
                        resource: backend_job_defs.BackendCleanupSpec) -> KubernetesGenericMethods:
-    """Returns a KubernetesGenericMethods for the resource type described by cleanup spec.
-
-    Supports new-style specs (generic_api set) and deprecated legacy specs (custom_api or
-    resource_type only) for backwards compatibility with jobs serialized before this change.
-    """
-    if resource.generic_api is not None:
-        api_version = resource.generic_api.api_version
-        kind = resource.generic_api.kind
-    elif resource.custom_api is not None:
-        # Deprecated path: reconstruct from legacy BackendCustomApi fields
-        api_version = f'{resource.custom_api.api_major}/{resource.custom_api.api_minor}'
-        kind = resource.resource_type
-    else:
-        # Deprecated path: core v1 resource identified only by resource_type string
-        api_version = 'v1'
-        kind = resource.resource_type
-    return KubernetesGenericMethods(api_client, api_version, kind)
+    """Returns a KubernetesGenericMethods for the resource type described by cleanup spec."""
+    kind = resource.effective_kind
+    if kind is None:
+        raise ValueError(f'BackendCleanupSpec has no resource kind: {resource}')
+    return KubernetesGenericMethods(api_client, resource.effective_api_version, kind)
