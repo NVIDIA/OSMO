@@ -21,7 +21,6 @@
  * Used by log viewer components and adapters.
  */
 
-import { AlertCircle, Monitor, ListTree, RotateCcw, type LucideIcon } from "lucide-react";
 import type { LogLevel, LogIOType, LogSourceType } from "@/lib/api/log-adapter/types";
 
 // =============================================================================
@@ -33,18 +32,6 @@ import type { LogLevel, LogIOType, LogSourceType } from "@/lib/api/log-adapter/t
  * Order matters for filtering (e.g., "warn and above").
  */
 export const LOG_LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error", "fatal"] as const;
-
-/**
- * Log level severity index for comparison.
- * Higher number = more severe.
- */
-export const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {
-  debug: 0,
-  info: 1,
-  warn: 2,
-  error: 3,
-  fatal: 4,
-} as const;
 
 /**
  * Human-readable labels for log levels.
@@ -134,13 +121,6 @@ export const LOG_LEVEL_STYLES: Record<LogLevel, LogLevelStyle> = {
   },
 } as const;
 
-/**
- * Get styles for a log level with fallback to debug styles.
- */
-export function getLogLevelStyle(level: LogLevel | undefined): LogLevelStyle {
-  return level ? LOG_LEVEL_STYLES[level] : LOG_LEVEL_STYLES.debug;
-}
-
 // =============================================================================
 // IO Types
 // =============================================================================
@@ -206,84 +186,6 @@ export function getSourceType(ioType: LogIOType | undefined): LogSourceType {
   if (!ioType) return "user";
   return OSMO_IO_TYPES.has(ioType) ? "osmo" : "user";
 }
-
-// =============================================================================
-// Field Definitions
-// =============================================================================
-
-/**
- * Field definition for filtering and faceting.
- */
-export interface LogFieldDefinition {
-  /** Field key in LogLabels */
-  key: string;
-  /** Human-readable label */
-  label: string;
-  /** Short label for compact display */
-  shortLabel: string;
-  /** Whether this field supports faceting */
-  facetable: boolean;
-  /** Whether this field is a label filter (fast in Loki) */
-  isLabelFilter: boolean;
-  /** Optional icon component for UI display */
-  icon?: LucideIcon;
-}
-
-/**
- * Standard fields available for filtering and faceting.
- */
-export const LOG_FIELDS: readonly LogFieldDefinition[] = [
-  {
-    key: "level",
-    label: "Log Level",
-    shortLabel: "Level",
-    facetable: true,
-    isLabelFilter: true,
-    icon: AlertCircle,
-  },
-  {
-    key: "source",
-    label: "Source",
-    shortLabel: "Source",
-    facetable: true,
-    isLabelFilter: true,
-    icon: Monitor,
-  },
-  {
-    key: "task",
-    label: "Task Name",
-    shortLabel: "Task",
-    facetable: true,
-    isLabelFilter: true,
-    icon: ListTree,
-  },
-  {
-    key: "retry",
-    label: "Retry Attempt",
-    shortLabel: "Retry",
-    facetable: true,
-    isLabelFilter: true,
-    icon: RotateCcw,
-  },
-];
-
-/**
- * Field keys that are label filters (fast filtering in Loki).
- */
-export const LABEL_FILTER_FIELDS = LOG_FIELDS.filter((f) => f.isLabelFilter).map((f) => f.key);
-
-/**
- * Field keys that are facetable.
- */
-export const FACETABLE_FIELDS = LOG_FIELDS.filter((f) => f.facetable).map((f) => f.key);
-
-/**
- * Lookup map for facetable field configurations.
- * Provides O(1) access to field config by key.
- */
-export const FACET_FIELD_CONFIG: ReadonlyMap<string, LogFieldDefinition> = new Map(
-  LOG_FIELDS.filter((f) => f.facetable).map((f) => [f.key, f]),
-);
 
 // =============================================================================
 // Default Values
