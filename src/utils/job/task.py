@@ -2089,14 +2089,8 @@ class TaskGroup(pydantic.BaseModel):
         # Prepend group template resources so they are created before pods
         pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
         if pool_obj.parsed_group_templates:
-            template_variables = {
-                'WF_GROUP_UUID': self.group_uuid,
-                'WF_GROUP_NAME': self.name,
-                'WF_WORKFLOW_ID': self.workflow_id,
-                'WF_WORKFLOW_UUID': workflow_uuid,
-                'WF_POOL': pool,
-                'WF_SUBMITTED_BY': user,
-            }
+            template_variables = self._convert_labels_to_variables(labels)
+            template_variables['WF_POOL'] = pool
             group_template_resources = render_group_templates(
                 pool_obj.parsed_group_templates,
                 template_variables,
