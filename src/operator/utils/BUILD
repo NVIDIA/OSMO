@@ -49,6 +49,7 @@ go_library(
         "instruments.go",
         "k8s_helpers.go",
         "listener_args.go",
+        "metric_attrs.go",
         "node_condition_rules.go",
         "node_helpers.go",
         "node_usage_aggregator.go",
