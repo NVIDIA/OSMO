@@ -250,7 +250,9 @@ export const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
                 )}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left">{isCollapsed ? `Show Details (${isMac ? "⌘I" : "Ctrl+I"})` : `Hide Details (${isMac ? "⌘I" : "Ctrl+I"})`}</TooltipContent>
+            <TooltipContent side="left">
+              {isCollapsed ? `Show Details (${isMac ? "⌘I" : "Ctrl+I"})` : `Hide Details (${isMac ? "⌘I" : "Ctrl+I"})`}
+            </TooltipContent>
           </Tooltip>
         </div>
       </div>
