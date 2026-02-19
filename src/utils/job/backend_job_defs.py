@@ -48,7 +48,7 @@ class BackendGenericApi(pydantic.BaseModel):
 class BackendCleanupSpec(pydantic.BaseModel):
     resource_type: str
     labels: Dict[str, str]
-    custom_api: Optional[BackendCustomApi]
+    custom_api: Optional[BackendCustomApi] = None
     generic_api: Optional[BackendGenericApi] = None
 
     @property

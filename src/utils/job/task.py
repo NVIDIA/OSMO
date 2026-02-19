@@ -1386,13 +1386,14 @@ def apply_pod_template(pod: Dict, pod_override: Dict):
 
 
 def render_group_templates(
-        templates: List[Dict],
+        templates: List[Dict[str, Any]],
         variables: Dict[str, Any],
-        labels: Dict[str, str]) -> List[Dict]:
+        labels: Dict[str, str]) -> List[Dict[str, Any]]:
     """Renders group templates by substituting variables and injecting OSMO labels.
 
-    Templates are deep-copied before modification. Any namespace field present in a
-    template is overridden at deployment time by BackendCreateGroup.
+    Templates are deep-copied before modification. If a namespace field is present
+    in a template, a warning is logged; the namespace will be overridden to the
+    workflow namespace when the resource is created by the backend.
     """
     rendered = []
     for template in templates:
@@ -1432,7 +1433,7 @@ class TaskGroup(pydantic.BaseModel):
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
     # Persisted record of group template resource types actually created for this group.
     # Used by cleanup to avoid dependency on the current pool config.
-    group_template_resource_types: List[Dict] = []
+    group_template_resource_types: List[Dict[str, Any]] = []
 
     class Config:
         arbitrary_types_allowed = True
@@ -1456,7 +1457,7 @@ class TaskGroup(pydantic.BaseModel):
              _encode_hstore(self.downstream_groups),
              self.scheduler_settings.json() if self.scheduler_settings else None))
 
-    def update_group_template_resource_types(self):
+    def update_group_template_resource_types(self) -> None:
         """ Persists group_template_resource_types to the database. """
         update_cmd = '''
             UPDATE groups SET group_template_resource_types = %s WHERE group_uuid = %s;
@@ -2107,7 +2108,7 @@ class TaskGroup(pydantic.BaseModel):
             )
             kb_resources = group_template_resources + kb_resources
 
-            seen_resource_types: set = set()
+            seen_resource_types: Set[Tuple[str, str]] = set()
             for resource in group_template_resources:
                 resource_type_key = (resource.get('apiVersion', ''), resource.get('kind', ''))
                 if resource_type_key not in seen_resource_types:

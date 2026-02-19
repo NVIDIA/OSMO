@@ -787,7 +787,6 @@ class UpdateGroup(WorkflowJob):
                     backend_job_defs.BackendCleanupSpec(
                         resource_type=resource_type['kind'],
                         labels=labels,
-                        custom_api=None,
                         generic_api=backend_job_defs.BackendGenericApi(
                             api_version=resource_type['apiVersion'],
                             kind=resource_type['kind'],

@@ -25,6 +25,7 @@ import kubernetes.dynamic as kb_dynamic  # type: ignore
 
 from src.utils.job import backend_job_defs
 
+
 @dataclasses.dataclass
 class CustomObjectMetadataStub:
     name: str
@@ -134,6 +135,9 @@ class KubernetesCustomObjectMethods(KubernetesResourceMethods):
             self.path, name, **kwargs)
 
 
+CoreV1MethodsCreator = Callable[[kb_client.CoreV1Api], KubernetesResourceMethods]
+
+
 def kb_methods_factory(api_client,
                        resource: backend_job_defs.BackendCleanupSpec) -> KubernetesResourceMethods:
     if resource.generic_api is not None:
@@ -149,7 +153,6 @@ def kb_methods_factory(api_client,
             resource.custom_api.api_minor,
             resource.custom_api.path)
 
-    CoreV1MethodsCreator = Callable[[kb_client.CoreV1Api], KubernetesResourceMethods]
     methods_by_resource_type: Dict[str, CoreV1MethodsCreator] = {
         'Pod': KubernetesPodMethods,
         'Service': KubernetesServiceMethods,
