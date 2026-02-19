@@ -104,20 +104,40 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   measureElement,
   compact = false,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
-  // Event delegation for row interactions (prevents inline closures per row)
+  /**
+   * Resolve row data from a delegated event target.
+   * Walks up the DOM to find the row element, parses its index,
+   * and returns the row item if it's a data row (not a section header).
+   */
+  const resolveRowItem = useCallback(
+    (target: HTMLElement): { item: TData; index: number } | null => {
+      const row = target.closest<HTMLTableRowElement>('[role="row"][data-index]');
+      if (!row) return null;
+      const index = parseInt(row.dataset.index!, 10);
+      const entry = getItem(index);
+      if (!entry || entry.type !== VirtualItemTypes.ROW) return null;
+      return { item: entry.item, index };
+    },
+    [getItem],
+  );
+
   const handleTbodyClick = useCallback(
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
-      if (!onRowClick) return;
-      const target = e.target as HTMLElement;
-      const row = target.closest<HTMLTableRowElement>('[role="row"][data-index]');
-      if (!row) return;
-      const index = parseInt(row.dataset.index!, 10);
-      const item = getItem(index);
-      if (item && item.type === VirtualItemTypes.ROW) {
-        onRowClick(item.item, index);
+      if (!onRowClick && !getRowHref) return;
+      const resolved = resolveRowItem(e.target as HTMLElement);
+      if (!resolved) return;
+
+      if (e.metaKey || e.ctrlKey) {
+        const href = getRowHref?.(resolved.item);
+        if (href) {
+          window.open(href, "_blank", "noopener,noreferrer");
+          return;
+        }
       }
+
+      onRowClick?.(resolved.item, resolved.index);
     },
-    [onRowClick, getItem],
+    [onRowClick, getRowHref, resolveRowItem],
   );
 
   const handleTbodyFocus = useCallback(
@@ -144,33 +164,21 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
     [onRowKeyDown],
   );
 
-  // Middle-click handler via event delegation (same pattern as handleTbodyClick):
-  // - If row has an href (navigates to page) → open in new tab
-  // - If no href (shows overlay) → call onRowClick
   const handleTbodyAuxClick = useCallback(
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
-      // Only handle middle-click (button === 1)
       if (e.button !== 1) return;
       if (!onRowClick && !getRowHref) return;
+      const resolved = resolveRowItem(e.target as HTMLElement);
+      if (!resolved) return;
 
-      const target = e.target as HTMLElement;
-      const row = target.closest<HTMLTableRowElement>('[role="row"][data-index]');
-      if (!row) return;
-
-      const index = parseInt(row.dataset.index!, 10);
-      const item = getItem(index);
-      if (!item || item.type !== VirtualItemTypes.ROW) return;
-
-      const href = getRowHref?.(item.item);
+      const href = getRowHref?.(resolved.item);
       if (href) {
-        // Row navigates to a page → open in new tab
         window.open(href, "_blank", "noopener,noreferrer");
-      } else if (onRowClick) {
-        // Row shows overlay → trigger normal click behavior
-        onRowClick(item.item, index);
+      } else {
+        onRowClick?.(resolved.item, resolved.index);
       }
     },
-    [onRowClick, getRowHref, getItem],
+    [onRowClick, getRowHref, resolveRowItem],
   );
 
   return (
