@@ -43,8 +43,7 @@ type EventListener struct {
 	inst *utils.Instruments
 
 	// Pre-computed attribute sets (constant label values)
-	attrListener  metric.MeasurementOption // {listener: "event"}
-	attrTypeEvent metric.MeasurementOption // {type: "event"}
+	attrListener metric.MeasurementOption // {listener: "event"}
 }
 
 // NewEventListener creates a new event listener instance
@@ -56,7 +55,6 @@ func NewEventListener(args utils.ListenerArgs, inst *utils.Instruments) *EventLi
 		inst: inst,
 	}
 	el.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "event")))
-	el.attrTypeEvent = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "event")))
 	return el
 }
 
@@ -162,7 +160,7 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		el.inst.KBEventWatchCount.Add(ctx, 1, el.attrTypeEvent)
+		el.inst.KBEventWatchCount.Add(ctx, 1, el.attrListener)
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
@@ -203,7 +201,7 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
-		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.attrTypeEvent)
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.attrListener)
 	})
 
 	// Start the informer

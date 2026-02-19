@@ -44,10 +44,8 @@ type WorkflowListener struct {
 	inst *utils.Instruments
 
 	// Pre-computed attribute sets (constant label values)
-	attrListener     metric.MeasurementOption            // {listener: "workflow"}
-	attrTypePod      metric.MeasurementOption            // {type: "pod"}
-	attrTypeWorkflow metric.MeasurementOption            // {type: "workflow"}
-	attrByStatus     map[string]metric.MeasurementOption // {status: <value>} keyed by each possible status
+	attrListener metric.MeasurementOption            // {listener: "workflow"}
+	attrByStatus map[string]metric.MeasurementOption // {status: <value>} keyed by each possible status
 }
 
 // NewWorkflowListener creates a new workflow listener instance
@@ -59,8 +57,6 @@ func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *Work
 		inst: inst,
 	}
 	wl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "workflow")))
-	wl.attrTypePod = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "pod")))
-	wl.attrTypeWorkflow = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "workflow")))
 
 	// Pre-compute one attribute set per possible task status (all values known at compile time)
 	allStatuses := []string{
@@ -203,7 +199,7 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		wl.inst.KBEventWatchCount.Add(ctx, 1, wl.attrTypePod)
+		wl.inst.KBEventWatchCount.Add(ctx, 1, wl.attrListener)
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
@@ -278,7 +274,7 @@ func (wl *WorkflowListener) watchPods(
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
-		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.attrTypeWorkflow)
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.attrListener)
 	})
 
 	// Start the informer

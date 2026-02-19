@@ -43,7 +43,6 @@ type NodeListener struct {
 
 	// Pre-computed attribute sets (constant label values)
 	attrListener metric.MeasurementOption // {listener: "node"}
-	attrTypeNode metric.MeasurementOption // {type: "node"}
 }
 
 // NewNodeListener creates a new node listener instance
@@ -55,7 +54,6 @@ func NewNodeListener(args utils.ListenerArgs, inst *utils.Instruments) *NodeList
 		inst: inst,
 	}
 	nl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "node")))
-	nl.attrTypeNode = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "node")))
 	return nl
 }
 
@@ -137,7 +135,7 @@ func (nl *NodeListener) watchNodes(
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
-		nl.inst.KBEventWatchCount.Add(ctx, 1, nl.attrTypeNode)
+		nl.inst.KBEventWatchCount.Add(ctx, 1, nl.attrListener)
 
 		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {
@@ -188,7 +186,7 @@ func (nl *NodeListener) watchNodes(
 
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
-		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nl.attrTypeNode)
+		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nl.attrListener)
 		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 		log.Println("Sending NODE_INVENTORY after watch gap recovery")
 		nl.sendNodeInventory(ctx, nodeInformer, nodeChan)

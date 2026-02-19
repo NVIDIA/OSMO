@@ -44,8 +44,7 @@ type NodeUsageListener struct {
 	inst       *utils.Instruments
 
 	// Pre-computed attribute sets (constant label values)
-	attrListener      metric.MeasurementOption // {listener: "node_usage"}
-	attrTypeNodeUsage metric.MeasurementOption // {type: "node_usage"}
+	attrListener metric.MeasurementOption // {listener: "node_usage"}
 }
 
 // NewNodeUsageListener creates a new node usage listener instance
@@ -58,7 +57,6 @@ func NewNodeUsageListener(args utils.ListenerArgs, inst *utils.Instruments) *Nod
 		inst:       inst,
 	}
 	nul.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "node_usage")))
-	nul.attrTypeNodeUsage = metric.WithAttributeSet(attribute.NewSet(attribute.String("type", "node_usage")))
 	return nul
 }
 
@@ -151,13 +149,13 @@ func (nul *NodeUsageListener) watchPods(
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrTypeNodeUsage)
+			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrListener)
 
 			pod := obj.(*corev1.Pod)
 			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrTypeNodeUsage)
+			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrListener)
 
 			pod := newObj.(*corev1.Pod)
 
@@ -174,7 +172,7 @@ func (nul *NodeUsageListener) watchPods(
 
 		},
 		DeleteFunc: func(obj interface{}) {
-			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrTypeNodeUsage)
+			nul.inst.KBEventWatchCount.Add(ctx, 1, nul.attrListener)
 
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {
@@ -201,7 +199,7 @@ func (nul *NodeUsageListener) watchPods(
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
-		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nul.attrTypeNodeUsage)
+		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nul.attrListener)
 		nul.rebuildPodsFromStore(podInformer)
 	})
 
