@@ -131,6 +131,18 @@ class PostgresTestIsolationFixture(unittest.TestCase):
             postgres_instance.execute_commit_command(
                 cmd, (extensions.AsIs(table),) * 4)
 
+        # Backup FK constraints (LIKE ... INCLUDING ALL doesn't copy FK constraints)
+        cmd = """
+            SELECT
+                conname AS constraint_name,
+                conrelid::regclass::text AS table_name,
+                pg_get_constraintdef(oid) AS constraint_def
+            FROM pg_constraint
+            WHERE contype = 'f'
+              AND connamespace = 'public'::regnamespace;
+        """
+        self.fk_constraints = postgres_instance.execute_fetch_command(cmd, (), True)
+
         # Run database isolation step first before other setups
         super().setUp()
 
@@ -173,6 +185,19 @@ class PostgresTestIsolationFixture(unittest.TestCase):
                 COMMIT;
             """
             postgres_instance.execute_commit_command(cmd, ())
+
+            # Restore FK constraints (LIKE ... INCLUDING ALL doesn't copy FK constraints)
+            for fk in self.fk_constraints:
+                cmd = """
+                    ALTER TABLE %s
+                    ADD CONSTRAINT %s %s;
+                """
+                postgres_instance.execute_commit_command(
+                    cmd, (
+                        extensions.AsIs(fk['table_name']),
+                        extensions.AsIs(fk['constraint_name']),
+                        extensions.AsIs(fk['constraint_def'])
+                    ))
 
             # Clean up backup schema
             cmd = 'DROP SCHEMA backup CASCADE;'

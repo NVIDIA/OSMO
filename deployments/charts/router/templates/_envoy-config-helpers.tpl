@@ -104,6 +104,8 @@ listeners:
           internal_only_headers:
           - x-osmo-auth-skip
           - x-osmo-user
+          - x-osmo-token-name
+          - x-osmo-workflow-id
           virtual_hosts:
           - name: service
             domains: ["*"]
@@ -124,6 +126,8 @@ listeners:
                    request_handle:headers():remove("x-osmo-auth-skip")
                    request_handle:headers():remove("x-osmo-user")
                    request_handle:headers():remove("x-osmo-roles")
+                   request_handle:headers():remove("x-osmo-token-name")
+                   request_handle:headers():remove("x-osmo-workflow-id")
                    request_handle:headers():remove("x-envoy-internal")
                  end
         - name: add-auth-skip
@@ -439,8 +443,14 @@ listeners:
                         -- Create the roles list
                         local roles_list = table.concat(meta.verified_jwt.roles, ',')
 
-                        -- Add the header
+                        -- Add the headers
                         request_handle:headers():replace('x-osmo-roles', roles_list)
+                        if (meta.verified_jwt.osmo_token_name ~= nil) then
+                          request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
+                        end
+                        if (meta.verified_jwt.osmo_workflow_id ~= nil) then
+                          request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
+                        end
                       end
         {{- end }}
         - name: envoy.filters.http.router

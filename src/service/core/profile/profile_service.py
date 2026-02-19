@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,8 @@ from typing import Optional
 
 import fastapi
 
-from src.lib.utils import login
+from src.lib.utils import login, osmo_errors
+from src.service.core.auth import objects as auth_objects
 from src.service.core.profile import objects
 from src.utils import connectors
 
@@ -34,14 +35,29 @@ def get_notification_settings(
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
     roles_header: Optional[str] =
-        fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)
-    ) -> objects.ProfileResponse:
+        fastapi.Header(alias=login.OSMO_USER_ROLES, default=None),
+    token_name_header: Optional[str] =
+        fastapi.Header(alias=login.OSMO_TOKEN_NAME_HEADER, default=None),
+) -> objects.ProfileResponse:
     user_name = connectors.parse_username(user_header)
     postgres = connectors.PostgresConnector.get_instance()
+    roles = login.construct_roles_list(roles_header)
+    token_identity = None
+    if token_name_header:
+        expires_at = None
+        try:
+            expires_at = auth_objects.AccessToken.fetch_from_db(
+                postgres, token_name_header, user_name).expires_at
+        except osmo_errors.OSMOUserError:
+            pass
+        token_identity = objects.TokenIdentity(
+            name=token_name_header, expires_at=expires_at)
     return objects.ProfileResponse(
         profile=connectors.UserProfile.fetch_from_db(postgres, user_name),
-        pools=connectors.Pool.get_pools(login.construct_roles_list(roles_header))
-        )
+        roles=roles,
+        pools=connectors.Pool.get_pools(roles),
+        token=token_identity,
+    )
 
 
 @router.post('/api/profile/settings')
