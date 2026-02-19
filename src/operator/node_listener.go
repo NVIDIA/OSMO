@@ -72,9 +72,8 @@ func (nl *NodeListener) Run(ctx context.Context) error {
 // sendMessages reads from the channel and sends messages to the server.
 func (nl *NodeListener) sendMessages(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-) {
+) error {
 	progressTicker := time.NewTicker(
 		time.Duration(nl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
@@ -82,7 +81,7 @@ func (nl *NodeListener) sendMessages(
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-progressTicker.C:
 			progressWriter := nl.GetProgressWriter()
 			if progressWriter != nil {
@@ -92,17 +91,10 @@ func (nl *NodeListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				if ctx.Err() != nil {
-					log.Printf("node watcher stopped due to context cancellation")
-					return
-				}
-				log.Printf("node watcher stopped unexpectedly...")
-				cancel(fmt.Errorf("node watcher stopped"))
-				return
+				return fmt.Errorf("node watcher stopped")
 			}
 			if err := nl.BaseListener.SendMessage(ctx, msg); err != nil {
-				cancel(fmt.Errorf("failed to send node message: %w", err))
-				return
+				return fmt.Errorf("failed to send node message: %w", err)
 			}
 		}
 	}
@@ -111,16 +103,13 @@ func (nl *NodeListener) sendMessages(
 // watchNodes starts node informer and processes node events
 func (nl *NodeListener) watchNodes(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	nodeChan chan<- *pb.ListenerMessage,
-) {
+) error {
 	done := ctx.Done()
 
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		cancel(fmt.Errorf("failed to create kubernetes client: %w", err))
-		return
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	log.Println("Starting node watcher")
@@ -183,8 +172,7 @@ func (nl *NodeListener) watchNodes(
 		},
 	})
 	if err != nil {
-		log.Printf("Failed to add node event handler: %v", err)
-		return
+		return fmt.Errorf("failed to add node event handler: %w", err)
 	}
 
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
@@ -198,8 +186,7 @@ func (nl *NodeListener) watchNodes(
 
 	log.Println("Waiting for node informer cache to sync...")
 	if !cache.WaitForCacheSync(done, nodeInformer.HasSynced) {
-		log.Println("Failed to sync node informer cache")
-		return
+		return fmt.Errorf("failed to sync node informer cache")
 	}
 	log.Println("Node informer cache synced successfully")
 
@@ -209,6 +196,7 @@ func (nl *NodeListener) watchNodes(
 
 	<-done
 	log.Println("Node resource watcher stopped")
+	return nil
 }
 
 // runLabelUpdateWorker processes label update requests asynchronously

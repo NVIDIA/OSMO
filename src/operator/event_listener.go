@@ -63,9 +63,8 @@ func (el *EventListener) Run(ctx context.Context) error {
 // sendMessages reads from the channel and sends messages to the server.
 func (el *EventListener) sendMessages(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-) {
+) error {
 	log.Printf("Starting message sender for event channel")
 	defer log.Printf("Stopping event message sender")
 
@@ -75,7 +74,7 @@ func (el *EventListener) sendMessages(
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-progressTicker.C:
 			progressWriter := el.GetProgressWriter()
 			if progressWriter != nil {
@@ -85,17 +84,10 @@ func (el *EventListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				if ctx.Err() != nil {
-					log.Println("Event watcher stopped due to context cancellation")
-					return
-				}
-				log.Println("Event watcher stopped unexpectedly")
-				cancel(fmt.Errorf("event watcher stopped"))
-				return
+				return fmt.Errorf("event watcher stopped")
 			}
 			if err := el.BaseListener.SendMessage(ctx, msg); err != nil {
-				cancel(fmt.Errorf("failed to send message: %w", err))
-				return
+				return fmt.Errorf("failed to send message: %w", err)
 			}
 		}
 	}
@@ -104,9 +96,8 @@ func (el *EventListener) sendMessages(
 // watchEvents watches for Kubernetes events and sends them to a channel
 func (el *EventListener) watchEvents(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch chan<- *pb.ListenerMessage,
-) {
+) error {
 	// Event sent tracker to avoid sending duplicate events
 	tracker := newEventSentTracker(time.Duration(el.args.EventCacheTTLMin) * time.Minute)
 
@@ -128,8 +119,7 @@ func (el *EventListener) watchEvents(
 
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		return
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	// Create informer factory for the specific namespace
@@ -173,8 +163,7 @@ func (el *EventListener) watchEvents(
 		},
 	})
 	if err != nil {
-		log.Printf("Failed to add event handler: %v", err)
-		return
+		return fmt.Errorf("failed to add event handler: %w", err)
 	}
 
 	// Set watch error handler
@@ -188,14 +177,14 @@ func (el *EventListener) watchEvents(
 
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
-		log.Println("Failed to sync event informer cache")
-		return
+		return fmt.Errorf("failed to sync event informer cache")
 	}
 	log.Println("Event informer cache synced successfully")
 
 	// Keep the watcher running
 	<-ctx.Done()
 	log.Println("Event watcher stopped")
+	return nil
 }
 
 // eventKey represents semantic event identity (not object identity)
