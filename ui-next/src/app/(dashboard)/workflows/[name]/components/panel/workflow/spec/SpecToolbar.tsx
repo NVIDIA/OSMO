@@ -118,6 +118,9 @@ export const SpecToolbar = memo(function SpecToolbar({
 
   const hasContent = Boolean(content);
 
+  const rawUrl = activeView === "yaml" ? specUrl : templateSpecUrl;
+  const openUrl = rawUrl.startsWith("http://") || rawUrl.startsWith("https://") ? rawUrl : getBasePathUrl(rawUrl);
+
   return (
     <div
       className="border-border contain-layout-style flex h-11 shrink-0 items-center justify-between border-b bg-white px-3 dark:bg-zinc-900"
@@ -202,7 +205,7 @@ export const SpecToolbar = memo(function SpecToolbar({
               aria-label={`Open raw ${activeView === "yaml" ? "spec" : "template"} in new tab`}
             >
               <a
-                href={getBasePathUrl(activeView === "yaml" ? specUrl : templateSpecUrl)}
+                href={openUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
