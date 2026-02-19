@@ -304,6 +304,7 @@ go_library(
     srcs = [
         "listener.go",
         "event_listener.go",
+        "node_condition_rule_listener.go",
         "node_listener.go",
         "node_usage_listener.go",
         "workflow_listener.go",
@@ -314,6 +315,7 @@ go_library(
         "//src/lib/utils:utils",
         "//src/operator/utils:utils",
         "//src/proto/operator:operator_go_proto",
+        "//src/utils:utils",
         "//src/utils/progress_check:progress_writer",
         "@com_github_google_uuid//:uuid",
         "@io_k8s_api//core/v1:core",
@@ -385,6 +387,16 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_opentelemetry_go_otel//attribute:attribute",
         "@io_opentelemetry_go_otel_metric//:metric",
+    ],
+)
+
+go_test(
+    name = "node_condition_rule_listener_test",
+    srcs = ["node_condition_rule_listener_test.go"],
+    embed = [":listener_lib"],
+    deps = [
+        "//src/operator/utils:utils",
+        "//src/proto/operator:operator_go_proto",
     ],
 )
 

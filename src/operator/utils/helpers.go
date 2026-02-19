@@ -22,7 +22,6 @@ import (
 	"log"
 	"net/url"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -56,15 +55,3 @@ func GetTransportCredentials(serviceURL string) credentials.TransportCredentials
 	return insecure.NewCredentials()
 }
 
-// CalculateBackoff calculates exponential backoff duration with a maximum cap
-// Backoff sequence: 1s, 2s, 4s, 8s, 16s, max 30s
-func CalculateBackoff(retryCount int, maxBackoff time.Duration) time.Duration {
-	if retryCount <= 0 {
-		return 0
-	}
-	backoff := time.Duration(1<<uint(retryCount-1)) * time.Second
-	if backoff > maxBackoff {
-		backoff = maxBackoff
-	}
-	return backoff
-}

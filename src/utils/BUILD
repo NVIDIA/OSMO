@@ -25,6 +25,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "utils",
     srcs = [
+        "backoff.go",
         "env.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/utils",

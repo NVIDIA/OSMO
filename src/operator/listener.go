@@ -34,6 +34,7 @@ import (
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
+	backoff "go.corp.nvidia.com/osmo/utils"
 )
 
 // Listener interface defines the common contract for all listener types
@@ -77,20 +78,24 @@ func main() {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
 
+	nodeConditionRules := utils.NewNodeConditionRules()
+
 	// Create all listeners
 	workflowListener := NewWorkflowListener(cmdArgs, inst)
 	nodeUsageListener := NewNodeUsageListener(cmdArgs, inst)
-	nodeListener := NewNodeListener(cmdArgs, inst)
+	nodeListener := NewNodeListener(cmdArgs, nodeConditionRules, inst)
+	nodeConditionRuleListener := NewNodeConditionRuleListener(cmdArgs, nodeConditionRules, inst)
 	eventListener := NewEventListener(cmdArgs, inst)
 
 	var wg sync.WaitGroup
 
 	// Launch all listeners in parallel
-	wg.Add(4)
-	go runListenerWithRetry(ctx, workflowListener, "workflow", inst, &wg)
-	go runListenerWithRetry(ctx, nodeUsageListener, "node_usage", inst, &wg)
-	go runListenerWithRetry(ctx, nodeListener, "node", inst, &wg)
-	go runListenerWithRetry(ctx, eventListener, "event", inst, &wg)
+	wg.Add(5)
+	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", inst, &wg)
+	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", inst, &wg)
+	go runListenerWithRetry(ctx, nodeListener, "NodeListener", inst, &wg)
+	go runListenerWithRetry(ctx, nodeConditionRuleListener, "NodeConditionRuleListener", inst, &wg)
+	go runListenerWithRetry(ctx, eventListener, "EventListener", inst, &wg)
 
 	// Wait for all listeners to complete
 	wg.Wait()
@@ -134,16 +139,16 @@ func runListenerWithRetry(
 			retryCount++
 			inst.ListenerRetryTotal.Add(ctx, 1, listenerAttr)
 
-			backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-			inst.ListenerRetryBackoffSeconds.Record(ctx, backoff.Seconds(), listenerAttr)
+			backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
+			inst.ListenerRetryBackoffSeconds.Record(ctx, backoffDur.Seconds(), listenerAttr)
 
-			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoff)
+			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoffDur)
 
 			select {
 			case <-ctx.Done():
 				log.Printf("[%s] Context cancelled during backoff, shutting down", name)
 				return
-			case <-time.After(backoff):
+			case <-time.After(backoffDur):
 				continue
 			}
 		}
@@ -210,7 +215,7 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs, inst *utils
 			log.Printf("Failed to initialize backend: %v. Retrying...", err)
 		}
 
-		backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-		time.Sleep(backoff)
+		backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
+		time.Sleep(backoffDur)
 	}
 }

@@ -49,6 +49,7 @@ go_library(
         "instruments.go",
         "k8s_helpers.go",
         "listener_args.go",
+        "node_condition_rules.go",
         "node_helpers.go",
         "node_usage_aggregator.go",
         "otel.go",
@@ -111,3 +112,9 @@ go_test(
     ],
 )
 
+go_test(
+    name = "node_condition_rules_test",
+    srcs = ["node_condition_rules_test.go"],
+    embed = [":utils"],
+    deps = [],
+)

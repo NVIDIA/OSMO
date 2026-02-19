@@ -38,20 +38,23 @@ import (
 // NodeListener manages the bidirectional gRPC stream for node events
 type NodeListener struct {
 	*utils.BaseListener
-	args utils.ListenerArgs
-	inst *utils.Instruments
+	args               utils.ListenerArgs
+	nodeConditionRules *utils.NodeConditionRules
+	inst               *utils.Instruments
 
 	// Pre-computed attribute sets (constant label values)
 	attrListener metric.MeasurementOption // {listener: "node"}
 }
 
 // NewNodeListener creates a new node listener instance
-func NewNodeListener(args utils.ListenerArgs, inst *utils.Instruments) *NodeListener {
+func NewNodeListener(
+	args utils.ListenerArgs, nodeConditionRules *utils.NodeConditionRules, inst *utils.Instruments) *NodeListener {
 	nl := &NodeListener{
 		BaseListener: utils.NewBaseListener(
 			args, "last_progress_node_listener", utils.StreamNameNode, inst),
-		args: args,
-		inst: inst,
+		args:               args,
+		nodeConditionRules: nodeConditionRules,
+		inst:               inst,
 	}
 	nl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "node")))
 	return nl
@@ -130,7 +133,7 @@ func (nl *NodeListener) watchNodes(
 
 	nodeInformerFactory := informers.NewSharedInformerFactory(
 		clientset,
-		0, // No automatic resync
+		time.Duration(nl.args.ResyncPeriodSec)*time.Second,
 	)
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
@@ -257,7 +260,8 @@ func (nl *NodeListener) buildResourceMessage(
 	isDelete bool,
 ) *pb.ListenerMessage {
 	hostname := utils.GetNodeHostname(node)
-	body := utils.BuildUpdateNodeBody(node, isDelete)
+	body := utils.BuildUpdateNodeBody(
+		node, isDelete, nl.nodeConditionRules.GetRules())
 
 	if !isDelete && !tracker.HasChanged(hostname, body) {
 		return nil
