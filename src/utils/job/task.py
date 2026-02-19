@@ -1430,6 +1430,9 @@ class TaskGroup(pydantic.BaseModel):
     status: TaskGroupStatus = TaskGroupStatus.SUBMITTING
     # This is set when the task group is queued into the backends
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
+    # Persisted record of group template resource types actually created for this group.
+    # Used by cleanup to avoid dependency on the current pool config.
+    group_template_resource_types: List[Dict] = []
 
     class Config:
         arbitrary_types_allowed = True
@@ -1452,6 +1455,15 @@ class TaskGroup(pydantic.BaseModel):
              _encode_hstore(self.remaining_upstream_groups),
              _encode_hstore(self.downstream_groups),
              self.scheduler_settings.json() if self.scheduler_settings else None))
+
+    def update_group_template_resource_types(self):
+        """ Persists group_template_resource_types to the database. """
+        update_cmd = '''
+            UPDATE groups SET group_template_resource_types = %s WHERE group_uuid = %s;
+        '''
+        self.database.execute_commit_command(
+            update_cmd,
+            (json.dumps(self.group_template_resource_types), self.group_uuid))
 
     @property
     def workflow_id(self) -> str:
@@ -1492,6 +1504,10 @@ class TaskGroup(pydantic.BaseModel):
             scheduler_settings = connectors.BackendSchedulerSettings(
                 **json.loads(group_row.scheduler_settings))
 
+        group_template_resource_types = []
+        if group_row.group_template_resource_types:
+            group_template_resource_types = group_row.group_template_resource_types
+
         return TaskGroup(workflow_id_internal=group_row.workflow_id,
                          name=group_row.name, group_uuid=group_row.group_uuid,
                          spec=TaskGroupSpec(**group_row.spec), tasks=tasks,
@@ -1502,7 +1518,8 @@ class TaskGroup(pydantic.BaseModel):
                          scheduling_start_time=group_row.scheduling_start_time,
                          initializing_start_time=group_row.initializing_start_time,
                          status=group_row.status, database=database,
-                         scheduler_settings=scheduler_settings)
+                         scheduler_settings=scheduler_settings,
+                         group_template_resource_types=group_template_resource_types)
 
     @classmethod
     def fetch_from_db(cls, database: connectors.PostgresConnector,
@@ -2089,6 +2106,15 @@ class TaskGroup(pydantic.BaseModel):
                 len(group_template_resources), self.name,
             )
             kb_resources = group_template_resources + kb_resources
+
+            seen_resource_types: set = set()
+            for resource in group_template_resources:
+                resource_type_key = (resource.get('apiVersion', ''), resource.get('kind', ''))
+                if resource_type_key not in seen_resource_types:
+                    seen_resource_types.add(resource_type_key)
+                    self.group_template_resource_types.append(
+                        {'apiVersion': resource_type_key[0], 'kind': resource_type_key[1]}
+                    )
 
         return kb_resources, pod_specs
 

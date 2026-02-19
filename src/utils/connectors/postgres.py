@@ -775,6 +775,11 @@ class PostgresConnector:
         '''
         self.execute_commit_command(alter_cmd, ())
 
+        alter_cmd = '''
+            ALTER TABLE groups ADD COLUMN IF NOT EXISTS group_template_resource_types JSONB DEFAULT '[]'::jsonb;
+        '''
+        self.execute_commit_command(alter_cmd, ())
+
         # Creates table for workflows.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS workflows (

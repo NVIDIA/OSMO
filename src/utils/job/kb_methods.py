@@ -18,9 +18,10 @@ SPDX-License-Identifier: Apache-2.0
 
 import abc
 import dataclasses
-from typing import List
+from typing import Callable, Dict, List
 
 import kubernetes.client as kb_client  # type: ignore
+import kubernetes.dynamic as kb_dynamic  # type: ignore
 
 from src.utils.job import backend_job_defs
 
@@ -91,6 +92,28 @@ class KubernetesSecretMethods(KubernetesResourceMethods):
         return self.api.delete_namespaced_secret(name, namespace, **kwargs)
 
 
+class KubernetesGenericMethods(KubernetesResourceMethods):
+    """Lists and deletes any namespaced Kubernetes resource using the dynamic client.
+
+    Works for both core resources (apiVersion: v1) and any API group, without
+    requiring explicit enumeration of resource types.
+    """
+    def __init__(self, api_client, api_version: str, kind: str):
+        dyn_client = kb_dynamic.DynamicClient(api_client)
+        self.resource_api = dyn_client.resources.get(api_version=api_version, kind=kind)
+
+    def list_resource(self, namespace: str, **kwargs):
+        label_selector = kwargs.get('label_selector', '')
+        result = self.resource_api.get(namespace=namespace, label_selector=label_selector)
+        return CustomObjectListStub(items=[
+            CustomObjectStub(metadata=CustomObjectMetadataStub(name=item.metadata.name))
+            for item in result.items
+        ])
+
+    def delete_resource(self, name: str, namespace: str, **kwargs):
+        return self.resource_api.delete(name=name, namespace=namespace, body=kwargs.get('body'))
+
+
 class KubernetesCustomObjectMethods(KubernetesResourceMethods):
     """Lists and deletes custom objects"""
     def __init__(self, api: kb_client.CustomObjectsApi, api_major: str, api_minor: str, path: str):
@@ -113,19 +136,24 @@ class KubernetesCustomObjectMethods(KubernetesResourceMethods):
 
 def kb_methods_factory(api_client,
                        resource: backend_job_defs.BackendCleanupSpec) -> KubernetesResourceMethods:
-    # Return custom methods if this is a custom method
-    custom_resource_api: backend_job_defs.BackendCustomApi = resource.custom_api  # type: ignore
-    if custom_resource_api is not None:
+    if resource.generic_api is not None:
+        return KubernetesGenericMethods(
+            api_client,
+            resource.generic_api.api_version,
+            resource.generic_api.kind)
+
+    if resource.custom_api is not None:
         return KubernetesCustomObjectMethods(
             kb_client.CustomObjectsApi(api_client),
-            custom_resource_api.api_major,
-            custom_resource_api.api_minor,
-            custom_resource_api.path)
+            resource.custom_api.api_major,
+            resource.custom_api.api_minor,
+            resource.custom_api.path)
 
-    methods_by_resource_type = {
+    CoreV1MethodsCreator = Callable[[kb_client.CoreV1Api], KubernetesResourceMethods]
+    methods_by_resource_type: Dict[str, CoreV1MethodsCreator] = {
         'Pod': KubernetesPodMethods,
         'Service': KubernetesServiceMethods,
-        'Secret': KubernetesSecretMethods
+        'Secret': KubernetesSecretMethods,
     }
     resource_type = resource.resource_type
 
