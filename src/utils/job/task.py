@@ -1391,20 +1391,13 @@ def render_group_templates(
         labels: Dict[str, str]) -> List[Dict[str, Any]]:
     """Renders group templates by substituting variables and injecting OSMO labels.
 
-    Templates are deep-copied before modification. If a namespace field is present
-    in a template, a warning is logged; the namespace will be overridden to the
-    workflow namespace when the resource is created by the backend.
+    Templates are deep-copied before modification. The namespace field is stripped
+    if present; the backend sets namespace at runtime.
     """
     rendered = []
     for template in templates:
         rendered_template = copy.deepcopy(template)
-        if rendered_template.get('metadata', {}).get('namespace'):
-            logging.warning(
-                'Group template %s/%s has namespace set; it will be overridden to the '
-                'workflow namespace.',
-                rendered_template.get('kind', ''),
-                rendered_template.get('metadata', {}).get('name', ''),
-            )
+        rendered_template.get('metadata', {}).pop('namespace', None)
         substitute_pod_template_tokens(rendered_template, variables)
         rendered_template.setdefault('metadata', {}).setdefault('labels', {}).update(labels)
         rendered.append(rendered_template)
@@ -1446,8 +1439,9 @@ class TaskGroup(pydantic.BaseModel):
         insert_cmd = '''
             INSERT INTO groups
             (workflow_id, name, group_uuid, spec, status, failure_message,
-             remaining_upstream_groups, downstream_groups, cleaned_up, scheduler_settings)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s) ON CONFLICT DO NOTHING;
+             remaining_upstream_groups, downstream_groups, cleaned_up, scheduler_settings,
+             group_template_resource_types)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, %s) ON CONFLICT DO NOTHING;
         '''
         self.database.execute_commit_command(
             insert_cmd,
@@ -1455,7 +1449,8 @@ class TaskGroup(pydantic.BaseModel):
              failure_message,
              _encode_hstore(self.remaining_upstream_groups),
              _encode_hstore(self.downstream_groups),
-             self.scheduler_settings.json() if self.scheduler_settings else None))
+             self.scheduler_settings.json() if self.scheduler_settings else None,
+             json.dumps(self.group_template_resource_types)))
 
     def update_group_template_resource_types(self) -> None:
         """ Persists group_template_resource_types to the database. """

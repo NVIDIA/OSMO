@@ -3062,6 +3062,10 @@ class GroupTemplate(pydantic.BaseModel):
             raise osmo_errors.OSMOUserError('Group template must have "kind" field.')
         if 'metadata' not in self.group_template or 'name' not in self.group_template['metadata']:
             raise osmo_errors.OSMOUserError('Group template must have "metadata.name" field.')
+        if self.group_template.get('metadata', {}).get('namespace'):
+            raise osmo_errors.OSMOUserError(
+                'Group template must not have "metadata.namespace" set. '
+                'The namespace is assigned by OSMO at runtime.')
 
         insert_cmd = '''
             INSERT INTO group_templates
