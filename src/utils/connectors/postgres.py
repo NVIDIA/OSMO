@@ -3520,10 +3520,10 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
 
     def calculate_group_templates(self, database: PostgresConnector) -> None:
         ''' Merges common_group_templates into parsed_group_templates,
-        combining entries with matching (kind, metadata.name) keys. '''
+        combining entries with matching (apiVersion, kind, metadata.name) keys. '''
         group_template_specs = GroupTemplate.list_from_db(database, self.common_group_templates)
 
-        merged_templates: Dict[Tuple[str | None, str | None], Dict[str, Any]] = {}
+        merged_templates: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
 
         for template_name in self.common_group_templates:
             if template_name not in group_template_specs:
@@ -3531,16 +3531,28 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                     f'Group template {template_name} does not exist!')
 
             template = group_template_specs[template_name]
-            key = (template.get('kind'), template.get('metadata', {}).get('name'))
+            api_version = template.get('apiVersion')
+            kind = template.get('kind')
+            resource_name = template.get('metadata', {}).get('name')
+
+            if not api_version:
+                raise osmo_errors.OSMOUsageError(
+                    f'Group template {template_name} is missing required field "apiVersion".')
+            if not kind:
+                raise osmo_errors.OSMOUsageError(
+                    f'Group template {template_name} is missing required field "kind".')
+            if not resource_name:
+                raise osmo_errors.OSMOUsageError(
+                    f'Group template {template_name} is missing required field "metadata.name".')
+
+            key = (api_version, kind, resource_name)
 
             if key in merged_templates:
-                # Merge with existing template
                 merged_templates[key] = common.recursive_dict_update(
                     merged_templates[key],
                     template,
                     common.merge_lists_on_name)
             else:
-                # First template with this key
                 merged_templates[key] = copy.deepcopy(template)
 
         self.parsed_group_templates = list(merged_templates.values())
