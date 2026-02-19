@@ -474,7 +474,7 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
         """Gets the queues from the backend"""
         resource_api = self._queue_resource_api(context.get_kb_client())
         result = resource_api.get(label_selector=self.cleanup_spec.k8s_selector)
-        return [item.to_dict() for item in result.items]
+        return result.to_dict().get('items', [])
 
     def _apply_queue(self, context: BackendJobExecutionContext, queue: Dict,
             resource_version: str | None = None):
