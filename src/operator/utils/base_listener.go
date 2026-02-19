@@ -79,10 +79,10 @@ type BaseListener struct {
 	inst *Instruments
 
 	// Pre-computed attribute sets (initialized in NewBaseListener, shared across goroutines safely)
-	streamAttr       metric.MeasurementOption // {stream: <streamName>}
-	panicReceiverAttr metric.MeasurementOption // {stream: <streamName>, goroutine: "receiver"}
-	panicWatcherAttr  metric.MeasurementOption // {stream: <streamName>, goroutine: "watcher"}
-	panicSenderAttr   metric.MeasurementOption // {stream: <streamName>, goroutine: "sender"}
+	streamAttr       metric.MeasurementOption // {listener: <streamName>}
+	panicReceiverAttr metric.MeasurementOption // {listener: <streamName>, goroutine: "receiver"}
+	panicWatcherAttr  metric.MeasurementOption // {listener: <streamName>, goroutine: "watcher"}
+	panicSenderAttr   metric.MeasurementOption // {listener: <streamName>, goroutine: "sender"}
 }
 
 // NewBaseListener creates a new base listener instance
@@ -104,17 +104,17 @@ func NewBaseListener(
 		streamName:      streamName,
 		inst:            inst,
 	}
-	bl.streamAttr = metric.WithAttributeSet(attribute.NewSet(attribute.String("stream", string(streamName))))
+	bl.streamAttr = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", string(streamName))))
 	bl.panicReceiverAttr = metric.WithAttributeSet(attribute.NewSet(
-		attribute.String("stream", string(streamName)),
+		attribute.String("listener", string(streamName)),
 		attribute.String("goroutine", "receiver"),
 	))
 	bl.panicWatcherAttr = metric.WithAttributeSet(attribute.NewSet(
-		attribute.String("stream", string(streamName)),
+		attribute.String("listener", string(streamName)),
 		attribute.String("goroutine", "watcher"),
 	))
 	bl.panicSenderAttr = metric.WithAttributeSet(attribute.NewSet(
-		attribute.String("stream", string(streamName)),
+		attribute.String("listener", string(streamName)),
 		attribute.String("goroutine", "sender"),
 	))
 	return bl
