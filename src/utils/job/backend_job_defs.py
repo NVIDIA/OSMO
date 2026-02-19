@@ -34,6 +34,7 @@ class BackendCreateGroupMixin(pydantic.BaseModel):
 
 
 class BackendCustomApi(pydantic.BaseModel):
+    """Deprecated: identifies a CRD by API group, version, and plural path."""
     api_major: str
     api_minor: str
     path: str
@@ -46,10 +47,18 @@ class BackendGenericApi(pydantic.BaseModel):
 
 
 class BackendCleanupSpec(pydantic.BaseModel):
-    resource_type: str
+    """Specifies a set of namespaced Kubernetes resources to list and delete during cleanup."""
+    resource_type: Optional[str] = None  # Deprecated, to be removed next release
     labels: Dict[str, str]
-    custom_api: Optional[BackendCustomApi] = None
+    custom_api: Optional[BackendCustomApi] = None  # Deprecated, to be removed next release
     generic_api: Optional[BackendGenericApi] = None
+
+    @property
+    def effective_kind(self) -> str | None:
+        """Returns the resource kind, preferring generic_api for new jobs."""
+        if self.generic_api:
+            return self.generic_api.kind
+        return self.resource_type
 
     @property
     def k8s_selector(self) -> str:

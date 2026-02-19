@@ -778,19 +778,24 @@ class UpdateGroup(WorkflowJob):
         else:
             factory = group_obj.get_k8s_object_factory(backend)
             cleanup_specs = [
-                backend_job_defs.BackendCleanupSpec(resource_type='Secret', labels=labels),
-                backend_job_defs.BackendCleanupSpec(resource_type='Service', labels=labels),
+                backend_job_defs.BackendCleanupSpec(
+                    generic_api=backend_job_defs.BackendGenericApi(
+                        api_version='v1', kind='Secret'),
+                    labels=labels),
+                backend_job_defs.BackendCleanupSpec(
+                    generic_api=backend_job_defs.BackendGenericApi(
+                        api_version='v1', kind='Service'),
+                    labels=labels),
             ] + factory.get_group_cleanup_specs(labels)
 
             for resource_type in group_obj.group_template_resource_types:
                 cleanup_specs.append(
                     backend_job_defs.BackendCleanupSpec(
-                        resource_type=resource_type['kind'],
-                        labels=labels,
                         generic_api=backend_job_defs.BackendGenericApi(
                             api_version=resource_type['apiVersion'],
                             kind=resource_type['kind'],
                         ),
+                        labels=labels,
                     )
                 )
 
