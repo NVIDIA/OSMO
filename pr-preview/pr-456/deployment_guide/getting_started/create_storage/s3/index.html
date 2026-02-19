@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>S3 / S3-Compatible Storage &#8212; OSMO Documentation</title>
+    <title>AWS S3 &#8212; OSMO Documentation</title>
   
   
   
@@ -368,7 +368,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../deploy_service.html">Deploy Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../service_accounts.html">Service Accounts</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">Create Data Storage</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">S3 / S3-Compatible Storage</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">AWS S3</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../azure/index.html">Azure Blob Storage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../gcp/index.html">Google Cloud Storage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tos/index.html">Torch Object Storage</a></li>
@@ -476,7 +476,7 @@
     
     <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Create Data Storage</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">S3 / S3-Compatible Storage</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">AWS S3</span></li>
   </ul>
 </nav>
 </div>
@@ -493,10 +493,8 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="s3-s3-compatible-storage">
-<span id="s3-compatible-storage"></span><span id="aws-s3-permissions"></span><h1>S3 / S3-Compatible Storage<a class="headerlink" href="#s3-s3-compatible-storage" title="Link to this heading">#</a></h1>
-<p>OSMO supports AWS S3 and S3-compatible object storage services (MinIO, Ceph, LocalStack, etc.).
-The following setup steps apply to AWS S3. For non-AWS services, see the notes in each section.</p>
+  <section id="aws-s3">
+<span id="aws-s3-permissions"></span><h1>AWS S3<a class="headerlink" href="#aws-s3" title="Link to this heading">#</a></h1>
 <p>To handle who can access Datasets, the necessary AWS resources/policies must be created. This includes</p>
 <ul class="simple">
 <li><p>A S3 Bucket</p></li>
@@ -518,13 +516,6 @@ Note: The bucket name is globally unique meaning that the name is unique across 
 <p>Click on the <code class="docutils literal notranslate"><span class="pre">Create</span> <span class="pre">Policy</span></code> button and then the <code class="docutils literal notranslate"><span class="pre">json</span></code> button to edit the policy.
 Put the json below into the policy text box.
 Replace <code class="docutils literal notranslate"><span class="pre">bucket-name</span></code> with your bucket.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>IAM policy configuration is specific to AWS.</p>
-<p>S3-compatible services (MinIO, Ceph, LocalStack) do not use IAM — configure access control using
-your service’s native mechanisms. The <code class="docutils literal notranslate"><span class="pre">iam:SimulatePrincipalPolicy</span></code> action is AWS-specific and
-not needed for non-AWS services.</p>
-</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span>
 <span class="w">  </span><span class="s2">&quot;Version&quot;</span>:<span class="w"> </span><span class="s2">&quot;2012-10-17&quot;</span>,
 <span class="w">  </span><span class="s2">&quot;Statement&quot;</span>:<span class="w"> </span><span class="o">[</span>
@@ -563,7 +554,7 @@ Download Access requires <code class="docutils literal notranslate"><span class=
 Delete Access requires <code class="docutils literal notranslate"><span class="pre">s3:DeleteObject</span></code>.</p>
 <p>To specify a specific path for permissions in the bucket, replace <code class="docutils literal notranslate"><span class="pre">arn:aws:s3:::bucket-name/*</span></code> with the arn for the path.
 For example, to reference any objects within a path called <code class="docutils literal notranslate"><span class="pre">folder1/folder2</span></code>, the arn would be <code class="docutils literal notranslate"><span class="pre">arn:aws:s3:::bucket-name/folder1/folder2/*</span></code></p>
-<p>The <code class="docutils literal notranslate"><span class="pre">IAM_Policy</span></code> is used for OSMO data authentication and validation and is required for AWS S3.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">IAM_Policy</span></code> is used for OSMO data authentication and validation and is required.</p>
 <p>Click on the <code class="docutils literal notranslate"><span class="pre">Next</span></code> button and enter the name for this policy.</p>
 <p>Lastly, click on the <code class="docutils literal notranslate"><span class="pre">Create</span> <span class="pre">policy</span></code> button.</p>
 </section>
@@ -588,15 +579,10 @@ s3://my_bucket
 </section>
 <section id="s3-compatible-services">
 <h2>S3-Compatible Services<a class="headerlink" href="#s3-compatible-services" title="Link to this heading">#</a></h2>
-<p>MinIO, Ceph, LocalStack, and similar services use the same S3 URI format (<code class="docutils literal notranslate"><span class="pre">s3://&lt;bucket&gt;</span></code>).
-To connect OSMO to a non-AWS S3-compatible service, set the <code class="docutils literal notranslate"><span class="pre">override_url</span></code> credential field
-to the service’s HTTP endpoint (e.g., <code class="docutils literal notranslate"><span class="pre">http://minio:9000</span></code>).</p>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">OSMO_SKIP_DATA_AUTH</span></code> workaround is no longer needed. OSMO automatically detects
-non-AWS endpoints and performs a direct bucket access check.</p>
-</div>
-<p>For the full credential setup command including <code class="docutils literal notranslate"><span class="pre">override_url</span></code>, see <a class="reference internal" href="../../../../user_guide/getting_started/credentials.html#credentials-data"><span class="std std-ref">Data</span></a>.</p>
+<p>OSMO supports MinIO, Ceph, LocalStack, and S3 API-compatible services. Storage URIs will still use
+the same S3 URI format (<code class="docutils literal notranslate"><span class="pre">s3://&lt;bucket&gt;</span></code>). To connect OSMO to an S3-compatible service,
+set the <code class="docutils literal notranslate"><span class="pre">override_url</span></code> credential field to the service’s HTTP endpoint (e.g., <code class="docutils literal notranslate"><span class="pre">http://minio:9000</span></code>).</p>
+<p>Follow <a class="reference internal" href="../../configure_data.html#configure-data"><span class="std std-ref">Configure Data Storage</span></a> for full credential setup instructions.</p>
 </section>
 </section>
 

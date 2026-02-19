@@ -139,7 +139,7 @@ To access your data storage within workflows, you’ll need to set the appropria
 > For assistance with **creating credentials** for your data storage provider, please
 > contact your OSMO administrator.
 
-### S3 / S3-Compatible
+### AWS S3 / S3-Compatible
 
 To set a credential for S3 or S3-compatible storage, run the following command:
 
@@ -162,8 +162,7 @@ $ osmo credential set my-s3-cred \
 
 #### SEE ALSO
 Please refer to [AWS Access Key Documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html)
-for additional information on managing AWS access keys. For storage setup instructions,
-see [S3 / S3-Compatible Storage](../../deployment_guide/getting_started/create_storage/s3/index.md#aws-s3-permissions).
+for additional information on managing AWS access keys.
 
 ### GCP Cloud Storage
 

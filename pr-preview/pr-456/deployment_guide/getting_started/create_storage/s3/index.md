@@ -16,12 +16,7 @@ SPDX-License-Identifier: Apache-2.0 -->
 
 <a id="aws-s3-permissions"></a>
 
-<a id="s3-compatible-storage"></a>
-
-# S3 / S3-Compatible Storage
-
-OSMO supports AWS S3 and S3-compatible object storage services (MinIO, Ceph, LocalStack, etc.).
-The following setup steps apply to AWS S3. For non-AWS services, see the notes in each section.
+# AWS S3
 
 To handle who can access Datasets, the necessary AWS resources/policies must be created. This includes
 
@@ -49,14 +44,6 @@ To enforce users to write, delete, or get access on objects, navigate to the [AW
 Click on the `Create Policy` button and then the `json` button to edit the policy.
 Put the json below into the policy text box.
 Replace `bucket-name` with your bucket.
-
-> **Note**
->
-> IAM policy configuration is specific to AWS.
-
-> S3-compatible services (MinIO, Ceph, LocalStack) do not use IAM — configure access control using
-> your service’s native mechanisms. The `iam:SimulatePrincipalPolicy` action is AWS-specific and
-> not needed for non-AWS services.
 
 ```bash
 {
@@ -99,7 +86,7 @@ Delete Access requires `s3:DeleteObject`.
 To specify a specific path for permissions in the bucket, replace `arn:aws:s3:::bucket-name/*` with the arn for the path.
 For example, to reference any objects within a path called `folder1/folder2`, the arn would be `arn:aws:s3:::bucket-name/folder1/folder2/*`
 
-The `IAM_Policy` is used for OSMO data authentication and validation and is required for AWS S3.
+The `IAM_Policy` is used for OSMO data authentication and validation and is required.
 
 Click on the `Next` button and enter the name for this policy.
 
@@ -132,13 +119,8 @@ Follow [Configure Data Storage](../../configure_data.md#configure-data) to add t
 
 ## S3-Compatible Services
 
-MinIO, Ceph, LocalStack, and similar services use the same S3 URI format (`s3://<bucket>`).
-To connect OSMO to a non-AWS S3-compatible service, set the `override_url` credential field
-to the service’s HTTP endpoint (e.g., `http://minio:9000`).
+OSMO supports MinIO, Ceph, LocalStack, and S3 API-compatible services. Storage URIs will still use
+the same S3 URI format (`s3://<bucket>`). To connect OSMO to an S3-compatible service,
+set the `override_url` credential field to the service’s HTTP endpoint (e.g., `http://minio:9000`).
 
-> **Important**
->
-> The `OSMO_SKIP_DATA_AUTH` workaround is no longer needed. OSMO automatically detects
-> non-AWS endpoints and performs a direct bucket access check.
-
-For the full credential setup command including `override_url`, see [Data](../../../../user_guide/getting_started/credentials.md#credentials-data).
+Follow [Configure Data Storage](../../configure_data.md#configure-data) for full credential setup instructions.
