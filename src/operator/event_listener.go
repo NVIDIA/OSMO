@@ -29,9 +29,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
@@ -41,9 +38,6 @@ type EventListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
 	inst *utils.Instruments
-
-	// Pre-computed attribute sets (constant label values)
-	attrListener metric.MeasurementOption // {listener: "event"}
 }
 
 // NewEventListener creates a new event listener instance
@@ -54,7 +48,6 @@ func NewEventListener(args utils.ListenerArgs, inst *utils.Instruments) *EventLi
 		args: args,
 		inst: inst,
 	}
-	el.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "event")))
 	return el
 }
 
@@ -100,7 +93,7 @@ func (el *EventListener) sendMessages(
 					return
 				}
 				log.Println("Event watcher stopped unexpectedly")
-				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.attrListener)
+				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.Attrs.Stream)
 				cancel(fmt.Errorf("event watcher stopped"))
 				return
 			}
@@ -160,7 +153,7 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		el.inst.KubeEventWatchCount.Add(ctx, 1, el.attrListener)
+		el.inst.KubeEventWatchCount.Add(ctx, 1, el.Attrs.Stream)
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
@@ -176,8 +169,8 @@ func (el *EventListener) watchEvents(
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
-			el.inst.MessageQueuedTotal.Add(ctx, 1, el.attrListener)
-			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.attrListener)
+			el.inst.MessageQueuedTotal.Add(ctx, 1, el.Attrs.Stream)
+			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.Attrs.Stream)
 		case <-ctx.Done():
 			return
 		}
@@ -201,7 +194,7 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
-		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.attrListener)
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.Attrs.Stream)
 	})
 
 	// Start the informer
@@ -211,11 +204,11 @@ func (el *EventListener) watchEvents(
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		log.Println("Failed to sync event informer cache")
-		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.attrListener)
+		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.Attrs.Stream)
 		return
 	}
 	log.Println("Event informer cache synced successfully")
-	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.attrListener)
+	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.Attrs.Stream)
 
 	// Keep the watcher running
 	<-ctx.Done()

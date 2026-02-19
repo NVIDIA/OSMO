@@ -28,9 +28,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
@@ -41,9 +38,6 @@ type NodeListener struct {
 	args               utils.ListenerArgs
 	nodeConditionRules *utils.NodeConditionRules
 	inst               *utils.Instruments
-
-	// Pre-computed attribute sets (constant label values)
-	attrListener metric.MeasurementOption // {listener: "node"}
 }
 
 // NewNodeListener creates a new node listener instance
@@ -56,7 +50,6 @@ func NewNodeListener(
 		nodeConditionRules: nodeConditionRules,
 		inst:               inst,
 	}
-	nl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "node")))
 	return nl
 }
 
@@ -100,7 +93,7 @@ func (nl *NodeListener) sendMessages(
 					return
 				}
 				log.Printf("node watcher stopped unexpectedly...")
-				nl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nl.attrListener)
+				nl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nl.Attrs.Stream)
 				cancel(fmt.Errorf("node watcher stopped"))
 				return
 			}
@@ -138,14 +131,14 @@ func (nl *NodeListener) watchNodes(
 	nodeInformer := nodeInformerFactory.Core().V1().Nodes().Informer()
 
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
-		nl.inst.KubeEventWatchCount.Add(ctx, 1, nl.attrListener)
+		nl.inst.KubeEventWatchCount.Add(ctx, 1, nl.Attrs.Stream)
 
 		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete)
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
-				nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.attrListener)
-				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.attrListener)
+				nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.Attrs.Stream)
+				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.Attrs.Stream)
 			case <-done:
 				return
 			}
@@ -189,7 +182,7 @@ func (nl *NodeListener) watchNodes(
 
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
-		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nl.attrListener)
+		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nl.Attrs.Stream)
 		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 		log.Println("Sending NODE_INVENTORY after watch gap recovery")
 		nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
@@ -200,11 +193,11 @@ func (nl *NodeListener) watchNodes(
 	log.Println("Waiting for node informer cache to sync...")
 	if !cache.WaitForCacheSync(done, nodeInformer.HasSynced) {
 		log.Println("Failed to sync node informer cache")
-		nl.inst.InformerCacheSyncFailure.Add(ctx, 1, nl.attrListener)
+		nl.inst.InformerCacheSyncFailure.Add(ctx, 1, nl.Attrs.Stream)
 		return
 	}
 	log.Println("Node informer cache synced successfully")
-	nl.inst.InformerCacheSyncSuccess.Add(ctx, 1, nl.attrListener)
+	nl.inst.InformerCacheSyncSuccess.Add(ctx, 1, nl.Attrs.Stream)
 
 	nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
 	log.Println("Sending initial NODE_INVENTORY after cache sync")
@@ -223,7 +216,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
 
-	nl.inst.InformerRebuildTotal.Add(ctx, 1, nl.attrListener)
+	nl.inst.InformerRebuildTotal.Add(ctx, 1, nl.Attrs.Stream)
 
 	sent := 0
 	skipped := 0
@@ -239,8 +232,8 @@ func (nl *NodeListener) rebuildNodesFromStore(
 			select {
 			case nodeChan <- msg:
 				sent++
-				nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.attrListener)
-				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.attrListener)
+				nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.Attrs.Stream)
+				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.Attrs.Stream)
 			case <-ctx.Done():
 				log.Printf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
 				return
@@ -327,8 +320,8 @@ func (nl *NodeListener) sendNodeInventory(
 
 	select {
 	case nodeChan <- msg:
-		nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.attrListener)
-		nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.attrListener)
+		nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.Attrs.Stream)
+		nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.Attrs.Stream)
 		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
 	case <-ctx.Done():
 		log.Println("sendNodeInventory: context cancelled while sending")

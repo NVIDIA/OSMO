@@ -113,6 +113,9 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.progressFrequencySec` | Progress frequency in seconds (for periodic progress reporting when idle) | `15` |
 | `services.backendListener.eventChanSize` | Buffer size for event channel (EventListener) | `500` |
 | `services.backendListener.eventCacheTTLMin` | Event deduplication cache TTL in minutes | `15` |
+| `services.backendListener.metrics.enabled` | Enable OpenTelemetry metrics collection | `true` |
+| `services.backendListener.metrics.component` | Service component name for metrics | `osmo-backend-listener` |
+| `services.backendListener.metrics.version` | Service version for metrics (defaults to image tag if empty) | `""` |
 | `services.backendListener.extraArgs` | Additional command line arguments | `[]` |
 | `services.backendListener.extraEnvs` | Additional environment variables | `[]` |
 | `services.backendListener.extraPodAnnotations` | Additional pod annotations | `{}` |
@@ -156,10 +159,13 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.OTEL.enabled` | Enable OpenTelemetry | `true` |
-| `sidecars.OTEL.image` | OpenTelemetry collector image | `otel/opentelemetry-collector-contrib:0.68.0` |
-| `sidecars.OTEL.configName` | OpenTelemetry config name | `otel-config` |
-| `sidecars.OTEL.ports` | OpenTelemetry container ports | `[{containerPort: 4000, name: metrics}]` |
+| `sidecars.OTEL.enabled` | Enable OpenTelemetry collector sidecar | `false` |
+| `sidecars.OTEL.image` | OpenTelemetry collector image | `otel/opentelemetry-collector-contrib:0.142.0` |
+| `sidecars.OTEL.configName` | OpenTelemetry collector ConfigMap name | `otel-config` |
+| `sidecars.OTEL.host` | Host address for the OTEL collector (used by the listener to push metrics) | `127.0.0.1` |
+| `sidecars.OTEL.ports` | OpenTelemetry container ports (includes otlp-grpc:4317 for OTLP receiver and metrics:4000 for Prometheus scrape endpoint) | `[{containerPort: 4317, name: otlp-grpc, protocol: TCP}, {containerPort: 4000, name: metrics}]` |
+| `sidecars.OTEL.enableOpenMetrics` | Enable OpenMetrics format for the Prometheus exporter | `true` |
+| `sidecars.OTEL.resourceToTelemetryConversion` | Copy resource attributes as labels on every metric series | `true` |
 | `sidecars.OTEL.resources` | OpenTelemetry resource limits | See values.yaml |
 
 #### Extra ConfigMaps

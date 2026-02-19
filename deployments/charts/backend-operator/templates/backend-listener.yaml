@@ -125,7 +125,7 @@ spec:
         - --metricsOtelCollectorHost
         - '{{ .Values.sidecars.OTEL.host }}'
         - --metricsOtelCollectorPort
-        - '{{ .Values.sidecars.OTEL.port | quote }}'
+        - '{{ include "backend-operator.otel.getPort" (dict "root" . "portName" "otlp-grpc") }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}

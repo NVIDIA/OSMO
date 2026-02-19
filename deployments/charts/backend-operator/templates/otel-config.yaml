@@ -26,21 +26,21 @@ data:
       otlp/spanmetrics:
         protocols:
           grpc:
-            endpoint: "127.0.0.1:4317"
+            endpoint: "{{ .Values.sidecars.OTEL.host }}:{{ include "backend-operator.otel.getPort" (dict "root" . "portName" "otlp-grpc") }}"
 
     processors:
       memory_limiter:
         check_interval: 5s
-        limit_mib: 30
+        limit_mib: 100
       batch:
         send_batch_size: 100
 
     exporters:
       prometheus:
-        enable_open_metrics: true
-        endpoint: "0.0.0.0:4000"
+        enable_open_metrics: {{ .Values.sidecars.OTEL.enableOpenMetrics }}
+        endpoint: "0.0.0.0:{{ include "backend-operator.otel.getPort" (dict "root" . "portName" "metrics") }}"
         resource_to_telemetry_conversion:
-          enabled: true
+          enabled: {{ .Values.sidecars.OTEL.resourceToTelemetryConversion }}
 
     service:
       pipelines:

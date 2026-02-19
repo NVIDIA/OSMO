@@ -30,9 +30,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
@@ -43,9 +40,8 @@ type WorkflowListener struct {
 	args utils.ListenerArgs
 	inst *utils.Instruments
 
-	// Pre-computed attribute sets (constant label values)
-	attrListener metric.MeasurementOption            // {listener: "workflow"}
-	attrByStatus map[string]metric.MeasurementOption // {status: <value>} keyed by each possible status
+	// Pre-computed attribute sets for task status values
+	statusAttrs utils.StatusAttrs
 }
 
 // NewWorkflowListener creates a new workflow listener instance
@@ -55,39 +51,21 @@ func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *Work
 			args, "last_progress_workflow_listener", utils.StreamNameWorkflow, inst),
 		args: args,
 		inst: inst,
-	}
-	wl.attrListener = metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", "workflow")))
-
-	// Pre-compute one attribute set per possible task status (all values known at compile time)
-	allStatuses := []string{
-		utils.StatusScheduling,
-		utils.StatusInitializing,
-		utils.StatusRunning,
-		utils.StatusCompleted,
-		utils.StatusFailed,
-		utils.StatusFailedPreempted,
-		utils.StatusFailedEvicted,
-		utils.StatusFailedStartError,
-		utils.StatusFailedBackendError,
-		utils.StatusFailedImagePull,
-		utils.StatusUnknown,
-	}
-	wl.attrByStatus = make(map[string]metric.MeasurementOption, len(allStatuses))
-	for _, s := range allStatuses {
-		wl.attrByStatus[s] = metric.WithAttributeSet(attribute.NewSet(attribute.String("status", s)))
+		statusAttrs: utils.NewStatusAttrs([]string{
+			utils.StatusScheduling,
+			utils.StatusInitializing,
+			utils.StatusRunning,
+			utils.StatusCompleted,
+			utils.StatusFailed,
+			utils.StatusFailedPreempted,
+			utils.StatusFailedEvicted,
+			utils.StatusFailedStartError,
+			utils.StatusFailedBackendError,
+			utils.StatusFailedImagePull,
+			utils.StatusUnknown,
+		}),
 	}
 	return wl
-}
-
-// statusAttr returns the pre-computed MeasurementOption for the given task status.
-// If status is not in the pre-computed map (unexpected value), it logs a warning
-// and falls back to constructing the attribute set on the fly.
-func (wl *WorkflowListener) statusAttr(status string) metric.MeasurementOption {
-	if attr, ok := wl.attrByStatus[status]; ok {
-		return attr
-	}
-	log.Printf("Warning: unexpected task status %q, not in pre-computed attribute map", status)
-	return metric.WithAttributeSet(attribute.NewSet(attribute.String("status", status)))
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -134,7 +112,7 @@ func (wl *WorkflowListener) sendMessages(
 					return
 				}
 				log.Println("Pod watcher stopped unexpectedly, draining channel...")
-				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.attrListener)
+				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.Attrs.Stream)
 				wl.drainMessageChannel(ch)
 				cancel(fmt.Errorf("pod watcher stopped"))
 				return
@@ -199,7 +177,7 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.attrListener)
+		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.Attrs.Stream)
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
@@ -211,9 +189,9 @@ func (wl *WorkflowListener) watchPods(
 			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 			select {
 			case ch <- msg:
-				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttr(statusResult.Status))
-				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.attrListener)
-				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.attrListener)
+				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
+				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
+				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
 			case <-ctx.Done():
 				return
 			}
@@ -254,9 +232,9 @@ func (wl *WorkflowListener) watchPods(
 				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 				select {
 				case ch <- msg:
-					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttr(statusResult.Status))
-					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.attrListener)
-					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.attrListener)
+					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
+					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
+					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
 				case <-ctx.Done():
 					return
 				}
@@ -274,7 +252,7 @@ func (wl *WorkflowListener) watchPods(
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
-		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.attrListener)
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.Attrs.Stream)
 	})
 
 	// Start the informer
@@ -284,11 +262,11 @@ func (wl *WorkflowListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
-		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.attrListener)
+		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.Attrs.Stream)
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
-	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.attrListener)
+	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.Attrs.Stream)
 
 	// Keep the watcher running
 	<-ctx.Done()
