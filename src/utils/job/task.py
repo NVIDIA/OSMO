@@ -2038,10 +2038,6 @@ class TaskGroup(pydantic.BaseModel):
                 template_variables,
                 labels,
             )
-            logging.info(
-                'Prepending %d group template resources for group %s.',
-                len(group_template_resources), self.name,
-            )
             kb_resources = group_template_resources + kb_resources
 
             seen_resource_types: Set[Tuple[str, str]] = set()
