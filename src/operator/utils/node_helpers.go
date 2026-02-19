@@ -17,12 +17,17 @@
 package utils
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
@@ -138,4 +143,43 @@ func ToKi(q resource.Quantity) int64 {
 	// Get value in bytes and convert to Ki
 	bytes := q.Value()
 	return int64(math.Ceil(float64(bytes) / 1024))
+}
+
+// UpdateNodeVerifiedLabel updates the {node_condition_prefix}verified label on a node.
+func UpdateNodeVerifiedLabel(
+	ctx context.Context,
+	clientset *kubernetes.Clientset,
+	nodeName string,
+	nodeAvailable bool,
+	labelName string,
+) error {
+	newLabelValue := "False"
+	if nodeAvailable {
+		newLabelValue = "True"
+	}
+	patchBody := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": map[string]string{
+				labelName: newLabelValue,
+			},
+		},
+	}
+
+	patchBytes, err := json.Marshal(patchBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch body: %w", err)
+	}
+
+	_, err = clientset.CoreV1().Nodes().Patch(
+		ctx,
+		nodeName,
+		types.MergePatchType,
+		patchBytes,
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to patch node %s: %w", nodeName, err)
+	}
+
+	return nil
 }
