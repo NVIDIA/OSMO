@@ -125,7 +125,7 @@ spec:
         - --metricsOtelCollectorHost
         - '{{ .Values.sidecars.OTEL.host }}'
         - --metricsOtelCollectorPort
-        - '{{ .Values.sidecars.OTEL.port | quote}}'
+        - '{{ .Values.sidecars.OTEL.port | quote }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}

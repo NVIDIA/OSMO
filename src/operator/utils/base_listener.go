@@ -79,7 +79,7 @@ type BaseListener struct {
 	inst *Instruments
 
 	// Pre-computed attribute sets (initialized in NewBaseListener, shared across goroutines safely)
-	streamAttr       metric.MeasurementOption // {listener: <streamName>}
+	streamAttr        metric.MeasurementOption // {listener: <streamName>}
 	panicReceiverAttr metric.MeasurementOption // {listener: <streamName>, goroutine: "receiver"}
 	panicWatcherAttr  metric.MeasurementOption // {listener: <streamName>, goroutine: "watcher"}
 	panicSenderAttr   metric.MeasurementOption // {listener: <streamName>, goroutine: "sender"}
