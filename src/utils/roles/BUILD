@@ -26,8 +26,9 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/utils/roles",
     visibility = ["//visibility:public"],
     deps = [
+        "//src/utils",
         "//src/utils/postgres",
-        "@com_github_hashicorp_golang_lru_v2//:go_default_library",
+        "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
     ],
 )
 
