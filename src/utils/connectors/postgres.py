@@ -764,22 +764,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Add group template columns to pools table if they don't exist (migration)
-        alter_cmd = '''
-            ALTER TABLE pools ADD COLUMN IF NOT EXISTS common_group_templates TEXT[] DEFAULT ARRAY[]::text[];
-        '''
-        self.execute_commit_command(alter_cmd, ())
-
-        alter_cmd = '''
-            ALTER TABLE pools ADD COLUMN IF NOT EXISTS parsed_group_templates JSONB DEFAULT '[]'::jsonb;
-        '''
-        self.execute_commit_command(alter_cmd, ())
-
-        alter_cmd = '''
-            ALTER TABLE groups ADD COLUMN IF NOT EXISTS group_template_resource_types JSONB DEFAULT '[]'::jsonb;
-        '''
-        self.execute_commit_command(alter_cmd, ())
-
         # Creates table for workflows.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS workflows (
@@ -860,6 +844,7 @@ class PostgresConnector:
                 outputs TEXT,
                 cleaned_up BOOLEAN,
                 scheduler_settings TEXT,
+                group_template_resource_types JSONB DEFAULT '[]'::jsonb,
                 PRIMARY KEY (group_uuid),
                 CONSTRAINT groups_id_name UNIQUE(workflow_id, name)
             );
