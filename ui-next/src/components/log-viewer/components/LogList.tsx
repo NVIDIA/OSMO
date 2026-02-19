@@ -55,6 +55,8 @@ import {
 
 export interface LogListHandle {
   scrollToBottom: () => void;
+  /** Focus the scroll container so arrow/page keys navigate the log list. */
+  focus: () => void;
 }
 
 export interface LogListProps {
@@ -208,17 +210,20 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
     overscan: OVERSCAN_COUNT,
   });
 
-  // Clear virtualizer measurements cache when data is reset (filter/replace).
+  // Scroll to top when data is fully replaced (filter change).
   // resetCount increments only on full resets, not streaming appends.
-  // This prevents phantom separators caused by stale cached positions.
+  // We do NOT call virtualizer.measure() here: clearing the cache causes items to
+  // re-render at estimated heights (32px) instead of measured heights (~29px),
+  // creating temporary extra space between rows. The sticky header logic below
+  // uses index-based detection (not measurementsCache) so stale cached sizes
+  // don't cause separator-hiding issues.
   useLayoutEffect(() => {
-    if (resetCount > 0) {
-      // Force virtualizer to recalculate all measurements
-      virtualizer.measure();
+    if (resetCount > 0 && parentRef.current) {
+      parentRef.current.scrollTop = 0;
     }
-  }, [resetCount, virtualizer]);
+  }, [resetCount]);
 
-  // Expose scrollToBottom method via ref
+  // Expose scrollToBottom and focus methods via ref
   useImperativeHandle(
     ref,
     () => ({
@@ -231,6 +236,9 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
         setTimeout(() => {
           isAutoScrollingRef.current = false;
         }, 150);
+      },
+      focus: () => {
+        parentRef.current?.focus();
       },
     }),
     [virtualizer, flatItems.length],
@@ -417,23 +425,25 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   const scrollOffset = virtualizer.scrollOffset ?? 0;
 
   // Find the current date based on scroll position.
-  // Simple approach: find the last separator that's been scrolled past.
+  // Uses virtual item indices (not measurementsCache) to determine which separator
+  // has been scrolled past — immune to stale cached sizes after filter resets.
   let currentDate: Date | null = null;
   let currentSeparatorIndex: number | null = null;
 
-  for (const sep of separators) {
-    // Access virtualizer.measurementsCache for accurate separator positions.
-    // NOTE: measurementsCache is an internal API of @tanstack/react-virtual.
-    // If this breaks in a future version, fall back to pure estimation:
-    // const sepStart = sep.index * ROW_HEIGHT_ESTIMATE;
-    const measured = virtualizer.measurementsCache[sep.index];
-    const sepStart = measured?.start ?? sep.index * ROW_HEIGHT_ESTIMATE;
-
-    if (sepStart <= scrollOffset) {
-      currentDate = sep.date;
-      currentSeparatorIndex = sep.index;
-    } else {
-      break;
+  if (scrollOffset > 0 && virtualItems.length > 0) {
+    // Find the first virtual item whose bottom edge is past the scroll position.
+    // This is the topmost partially-visible item. All separators with a lower
+    // virtual index have been scrolled above the viewport.
+    const firstVisibleVR = virtualItems.find((vr) => vr.start + vr.size > scrollOffset);
+    if (firstVisibleVR) {
+      for (const sep of separators) {
+        if (sep.index < firstVisibleVR.index) {
+          currentDate = sep.date;
+          currentSeparatorIndex = sep.index;
+        } else {
+          break;
+        }
+      }
     }
   }
 
@@ -451,10 +461,16 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
           aria-busy={isStale}
           data-log-scroll-container
           data-stale={isStale || undefined}
+          // tabIndex={-1}: focusable by code but not reachable via Tab.
+          // When focused, the browser natively handles Arrow/PageUp/PageDown scrolling.
+          // Focus is managed by LogViewer's onPointerDown redirect.
+          tabIndex={-1}
           className={cn(
             "@container",
             "relative h-full overflow-auto",
             "overscroll-contain",
+            // Suppress the browser focus ring — focus is set programmatically, never by Tab.
+            "focus:outline-none",
             // Smooth opacity transition for stale state (GPU-accelerated)
             "transition-opacity duration-150 ease-out",
             isStale && "opacity-70",
@@ -498,9 +514,8 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
                     ref={virtualizer.measureElement}
                     className="bg-card absolute top-0 left-0 w-full"
                     style={{
-                      // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
                       // translate3d forces GPU compositing layer for stable transforms.
-                      transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
+                      transform: `translate3d(0, ${virtualRow.start}px, 0)`,
                       // Use opacity instead of visibility for GPU-accelerated hiding
                       // This prevents artifacts during fast scrolling
                       opacity: shouldHide ? 0 : 1,
@@ -523,9 +538,8 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
                   ref={virtualizer.measureElement}
                   className="absolute top-0 left-0 w-full"
                   style={{
-                    // Use floor for consistent anchoring - round() can oscillate causing 1px jitter.
                     // translate3d forces GPU compositing layer for stable transforms.
-                    transform: `translate3d(0, ${Math.floor(virtualRow.start)}px, 0)`,
+                    transform: `translate3d(0, ${virtualRow.start}px, 0)`,
                   }}
                 >
                   <LogEntryRow

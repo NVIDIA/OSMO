@@ -26,7 +26,7 @@ import {
   type TimeRangePreset,
   type TimelineContainerHandle,
 } from "@/components/log-viewer/components/timeline/components/TimelineContainer";
-import { LogList } from "@/components/log-viewer/components/LogList";
+import { LogList, type LogListHandle } from "@/components/log-viewer/components/LogList";
 import { Footer } from "@/components/log-viewer/components/Footer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
@@ -341,8 +341,8 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Ref to timeline container for imperative zoom controls
   const timelineRef = useRef<TimelineContainerHandle>(null);
 
-  // Ref to log list for imperative scroll control
-  const logListRef = useRef<{ scrollToBottom: () => void }>(null);
+  // Ref to log list for imperative scroll control and focus management
+  const logListRef = useRef<LogListHandle>(null);
 
   // Local pin state (ephemeral UI state, not persisted)
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(false);
@@ -484,6 +484,45 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
     announcer.announce("Jumped to latest logs", "polite");
   }, [announcer]);
 
+  // Redirect focus to the scroll container for any click on non-input elements.
+  // This keeps arrow/page keys working after clicking rows, buttons, etc.
+  // e.preventDefault() stops the browser from moving focus to the clicked element;
+  // click events still fire normally so buttons and row selection are unaffected.
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Only intercept primary (left) button — right-click and middle-click pass through.
+    if (e.button !== 0) return;
+
+    const target = e.target as HTMLElement;
+
+    // Text inputs need focus for typing — let them receive it normally.
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    )
+      return;
+
+    // Sections that manage their own focus (filter bar dropdown items, timeline draggers).
+    // These must not have their pointer events intercepted or their dropdowns will close.
+    if (target.closest("[data-no-focus-redirect]")) return;
+
+    // All other elements (rows, buttons, generic divs): keep focus on the scroll container.
+    e.preventDefault();
+    logListRef.current?.focus();
+  }, []);
+
+  // When the final Escape in the filter bar blurs the input (the one that doesn't
+  // call stopPropagation), the keydown bubbles here. Redirect focus to the scroll
+  // container so arrow/page keys continue to work immediately.
+  const handleContainerKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Escape") return;
+    const target = e.target as HTMLElement;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      logListRef.current?.focus();
+    }
+  }, []);
+
   // Loading state
   if (isLoading && filteredEntries.length === 0) {
     return <LogViewerSkeleton />;
@@ -493,6 +532,8 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
     <div
       ref={containerRef}
       className={cn("flex h-full flex-col", className)}
+      onPointerDown={handlePointerDown}
+      onKeyDown={handleContainerKeyDown}
       {...containerProps}
     >
       {/* Error state (shown above content, doesn't replace it) */}
@@ -503,8 +544,11 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         />
       )}
 
-      {/* Section 1: Filter bar */}
-      <div className="shrink-0 border-b p-2">
+      {/* Section 1: Filter bar — excluded from focus redirect so dropdown items work */}
+      <div
+        className="shrink-0 border-b p-2"
+        data-no-focus-redirect
+      >
         <FilterBar
           ref={filterBarRef}
           data={rawEntries}
@@ -516,9 +560,12 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         />
       </div>
 
-      {/* Section 2: Timeline Histogram - Conditionally visible */}
+      {/* Section 2: Timeline Histogram — excluded from focus redirect so draggers work */}
       {showTimeline && (
-        <div className="shrink-0 border-b px-3 py-2">
+        <div
+          className="shrink-0 border-b px-3 py-2"
+          data-no-focus-redirect
+        >
           <TimelineContainer
             ref={timelineRef}
             buckets={histogram?.buckets ?? []}
