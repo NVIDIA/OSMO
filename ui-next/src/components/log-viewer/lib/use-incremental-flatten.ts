@@ -111,18 +111,6 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   let resetCount = prevState.resetCount;
   let newState = prevState;
 
-  const isAppend = entriesLength > prevState.length && firstEntryId === prevState.firstEntryId && prevState.length > 0;
-  const isReset =
-    (firstEntryId !== prevState.firstEntryId && prevState.length > 0 && entriesLength > 0) ||
-    (entriesLength === 0 && prevState.length > 0);
-
-  if (isReset) {
-    resetCount = prevState.resetCount + 1;
-  }
-
-  // Compute the flattened result
-  let flattenedResult: FlattenResultInternal;
-
   // No-change path: same entries, reuse cached result (O(1))
   // This prevents creating new object references that would trigger
   // an infinite render-phase setState loop (fullFlatten always returns new arrays).
@@ -130,6 +118,19 @@ export function useIncrementalFlatten(entries: LogEntry[]): FlattenResult {
   // fullFlatten([]) creates a new object every render, the reference check on line 154
   // always triggers setPrevState, and React hits "Too many re-renders."
   const isNoChange = entriesLength === prevState.length && firstEntryId === prevState.firstEntryId;
+  const isAppend = entriesLength > prevState.length && firstEntryId === prevState.firstEntryId && prevState.length > 0;
+  // A reset is anything that's not an append or no-change (filter applied, entries replaced, etc.).
+  // The old condition only checked firstEntryId changes, missing the case where a filter keeps
+  // the same first entry but reduces the count — leaving measurementsCache stale and causing
+  // incorrect separator positions (hidden separators creating visual gaps).
+  const isReset = !isNoChange && !isAppend && prevState.length > 0;
+
+  if (isReset) {
+    resetCount = prevState.resetCount + 1;
+  }
+
+  // Compute the flattened result
+  let flattenedResult: FlattenResultInternal;
 
   if (isNoChange) {
     flattenedResult = prevState.lastFlattenedResult;
