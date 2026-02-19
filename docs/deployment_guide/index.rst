@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -125,6 +125,7 @@ An OSMO deployment consists of two main components:
 
   getting_started/infrastructure_setup
   getting_started/deploy_service
+  getting_started/service_accounts
   getting_started/create_storage/index
   getting_started/configure_data
 

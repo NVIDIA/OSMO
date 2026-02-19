@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import base64
+import datetime
 import logging
 from pathlib import Path
 import sys
@@ -34,7 +35,7 @@ import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
-from src.service.core.auth import auth_service
+from src.service.core.auth import auth_service, objects as auth_objects
 from src.service.core.config import (
     config_service, helpers as config_helpers, objects as config_objects
 )
@@ -306,6 +307,79 @@ def set_client_install_url(postgres: connectors.PostgresConnector,
         logging.info('Updated client_install_url to: %s', config.client_install_url)
 
 
+def setup_default_admin(postgres: connectors.PostgresConnector,
+                        config: objects.WorkflowServiceConfig):
+    """
+    Set up the default admin user if configured.
+
+    Creates a user with the osmo-admin role and an access_token with the
+    configured password. The access_token is stored hashed like other access_token keys.
+
+    This is idempotent - if the user already exists, it will update the access_token.
+    """
+    if not config.default_admin_username or not config.default_admin_password:
+        return
+
+    admin_username = config.default_admin_username
+    admin_password = config.default_admin_password
+    token_name = 'default-admin-token'
+
+    logging.info('Setting up default admin user: %s', admin_username)
+
+    # Create or update the user
+    connectors.upsert_user(postgres, admin_username)
+
+    # Assign the osmo-admin role if not already assigned
+    now = common.current_time()
+    assign_role_cmd = '''
+        INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (user_id, role_name) DO NOTHING;
+    '''
+    postgres.execute_commit_command(
+        assign_role_cmd, (admin_username, 'osmo-admin', 'System', now))
+
+    # Check if token already exists and compare hashed values
+    check_token_cmd = '''
+        SELECT access_token FROM access_token
+        WHERE user_name = %s AND token_name = %s;
+    '''
+    existing_token = postgres.execute_fetch_command(
+        check_token_cmd, (admin_username, token_name), True)
+
+    new_hashed_token = auth.hash_access_token(admin_password)
+
+    if existing_token:
+        # Compare the hashed values - only update if different
+        existing_hashed_token = bytes(existing_token[0]['access_token'])
+        if existing_hashed_token == new_hashed_token:
+            logging.info(
+                'Default admin user %s already configured with matching access_token',
+                admin_username)
+            return
+
+        # Password has changed, delete the old token
+        logging.info('Default admin access_token password changed, updating token')
+        auth_objects.AccessToken.delete_from_db(postgres, token_name, admin_username)
+
+    # Create the access_token with far future expiration (10 years)
+    # Use 10 years from now as the expiration date
+    expires_at = (datetime.datetime.now() + datetime.timedelta(days=3650)).strftime('%Y-%m-%d')
+
+    auth_objects.AccessToken.insert_into_db(
+        database=postgres,
+        user_name=admin_username,
+        token_name=token_name,
+        access_token=admin_password,  # This gets hashed inside insert_into_db
+        expires_at=expires_at,
+        description='Default admin access_token created during service initialization',
+        roles=['osmo-admin'],
+        assigned_by='System'
+    )
+
+    logging.info('Default admin user %s configured successfully with access_token', admin_username)
+
+
 def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceConfig):
     src.lib.utils.logging.init_logger('service', config)
 
@@ -347,6 +421,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     set_default_backend_images(postgres)
     set_default_service_url(postgres)
     set_client_install_url(postgres, config)
+    setup_default_admin(postgres, config)
 
     # Instantiate QueryParser
     query.QueryParser()

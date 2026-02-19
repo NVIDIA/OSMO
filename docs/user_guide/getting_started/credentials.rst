@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ Registry
         .. seealso::
 
             Please refer to `Docker Documentation <https://docs.docker.com/>`__ for more information
-            on username/password and Personal Access Token (PAT) authentication.
+            on username/password and Access Token authentication.
 
         To setup a registry credential for Docker Hub, run the following command:
 
@@ -274,6 +274,138 @@ Another example is to access Weights and Biases (W&B) for logging and tracking y
   Your registry and data credentials are picked up automatically when you submit a workflow.
   To specify a generic credential in the workflow, refer to :ref:`workflow_spec_secrets`.
 
+.. _access_tokens:
+
+Access Tokens
+======================
+
+Access Tokens (PATs) provide a way to authenticate with OSMO programmatically,
+enabling integration with CI/CD pipelines, scripts, and automation tools.
+
+Overview
+--------
+
+PATs are tied to your user account and inherit your roles at creation time. When you create
+a PAT, it receives either all of your current roles or a subset that you specify.
+
+.. important::
+
+   - PAT roles are immutable after creation. To change a token's roles, delete the token and create a new one.
+   - When a role is removed from your user account, it is automatically removed from all your PATs.
+   - Store your PAT securely—it is only displayed once at creation time.
+
+Creating a Access Token
+--------------------------------
+
+Using the CLI
+^^^^^^^^^^^^^
+
+1. First, log in to OSMO:
+
+   .. code-block:: bash
+
+      $ osmo login https://osmo.example.com
+
+2. Create a new token with an expiration date:
+
+   .. code-block:: bash
+
+      $ osmo token set my-token --expires-at 2027-01-01 --description "My automation token"
+
+   The token will be displayed once. Save it securely.
+
+   **Example output:**
+
+   .. code-block:: text
+
+      Note: Save the token in a secure location as it will not be shown again
+      Access token: osmo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+   **Specifying Roles:**
+
+   By default, a PAT inherits all of your current roles. You can limit the token to specific
+   roles using the ``--roles`` (or ``-r``) option:
+
+   .. code-block:: bash
+
+      $ osmo token set my-token --expires-at 2027-01-01 -r osmo-user -r osmo-ml-team
+
+   This creates a token with only the ``osmo-user`` and ``osmo-ml-team`` roles, even if you
+   have additional roles assigned. You can only assign roles that you currently have.
+
+3. (Optional) Verify the token was created and check its roles:
+
+   .. code-block:: bash
+
+      $ osmo token list
+
+Using a Access Token
+-----------------------------
+
+Once you have a PAT, you can use it to authenticate with OSMO.
+
+CLI Authentication
+^^^^^^^^^^^^^^^^^^
+
+Log in using the token method:
+
+.. code-block:: bash
+
+   $ osmo login https://osmo.example.com --method=token --token=osmo_xxxxxxxxxx
+
+After logging in, all subsequent CLI commands will use this authentication:
+
+.. code-block:: bash
+
+   $ osmo workflow list
+   $ osmo workflow submit my-workflow.yaml
+
+Alternatively, you can store the token in a file and reference it:
+
+.. code-block:: bash
+
+   # Store token in a file (ensure proper file permissions)
+   $ echo "osmo_xxxxxxxxxx" > ~/.osmo-token
+   $ chmod 600 ~/.osmo-token
+
+   # Login using the token file
+   $ osmo login https://osmo.example.com --method=token --token-file=~/.osmo-token
+
+.. note::
+
+   The ``--method=token`` login exchanges your PAT for a short-lived JWT that is used
+   for subsequent API calls. This JWT is automatically refreshed as needed.
+
+Best Practices
+--------------
+
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: Set Appropriate Expiration
+      :class-card: sd-border-1
+
+      Always set an expiration date appropriate for your use case. For CI/CD pipelines,
+      consider shorter expiration periods and rotate tokens regularly.
+
+   .. grid-item-card:: Use Descriptive Names
+      :class-card: sd-border-1
+
+      Use descriptive token names and descriptions to help identify their purpose
+      (e.g., ``ci-github-actions``, ``jenkins-prod-pipeline``).
+
+   .. grid-item-card:: Secure Storage
+      :class-card: sd-border-1
+
+      Store tokens in secure secret management systems like HashiCorp Vault,
+      AWS Secrets Manager, or Kubernetes Secrets.
+
+   .. grid-item-card:: Rotate Regularly
+      :class-card: sd-border-1
+
+      Periodically rotate tokens by creating a new token and deleting the old one.
+      This limits the impact of potential token compromise.
+
 .. _credentials_cli:
 
 CLI Reference
@@ -281,4 +413,5 @@ CLI Reference
 
 .. seealso::
 
-   See :ref:`here <cli_reference_credential>` for the full CLI reference for ``osmo credential``.
+   - See :ref:`cli_reference_credential` for the full CLI reference for ``osmo credential``.
+   - See :ref:`cli_reference_token` for the full CLI reference for ``osmo token``.
