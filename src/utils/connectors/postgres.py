@@ -197,6 +197,12 @@ class PostgresConfig(pydantic.BaseModel):
         env='OSMO_POSTGRES_POOL_MAXCONN',
         default=10,
         description='Maximum number of connections allowed in the connection pool')
+    schema_version: str = pydantic.Field(
+        command_line='schema_version',
+        env='OSMO_SCHEMA_VERSION',
+        default='public',
+        description='pgroll schema version to use (e.g., public_003_v6_2_0_schema). '
+                    'Set to "public" to use the default schema without pgroll versioning.')
 
 
 def retry(func=None, *, reconnect: bool = True):
@@ -328,6 +334,11 @@ class PostgresConnector:
                 except Exception:  # pylint: disable=broad-except
                     pass
                 conn = pool.getconn()
+
+            if self.config.schema_version != 'public':
+                with conn.cursor() as cur:
+                    cur.execute('SET search_path TO %s', (self.config.schema_version,))
+                conn.commit()
 
             if autocommit:
                 # Rollback any pending transaction before setting autocommit
