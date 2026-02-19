@@ -3017,24 +3017,24 @@ class PodTemplate(pydantic.BaseModel):
 
 class GroupTemplate(pydantic.BaseModel):
     """ Group Template Entry """
-    group_template: Dict
+    group_template: Dict[str, Any]
 
     @classmethod
     def list_from_db(cls, database: PostgresConnector, names: List[str] | None = None) \
-        -> Dict[str, Dict]:
+        -> Dict[str, Dict[str, Any]]:
         """ Fetches the list of group templates from the group template table """
-        list_of_names = ''
+        name_filter_clause = ''
         fetch_input: Tuple = ()
         if names:
-            list_of_names = 'WHERE name in %s'
+            name_filter_clause = 'WHERE name in %s'
             fetch_input = (tuple(names),)
-        fetch_cmd = f'SELECT * FROM group_templates {list_of_names} ORDER BY name;'
+        fetch_cmd = f'SELECT * FROM group_templates {name_filter_clause} ORDER BY name;'
         spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
 
         return {spec_row['name']: spec_row['group_template'] for spec_row in spec_rows}
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict:
+    def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict[str, Any]:
         """ Fetches the group template from the group template table """
         fetch_cmd = 'SELECT * FROM group_templates WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
@@ -3046,7 +3046,8 @@ class GroupTemplate(pydantic.BaseModel):
         return spec_row['group_template']
 
     @classmethod
-    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
+    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict[str, Any]]:
+        """ Fetches pools that reference this group template by name. """
         fetch_cmd = '''
             SELECT name
             FROM pools
@@ -3055,18 +3056,19 @@ class GroupTemplate(pydantic.BaseModel):
         return database.execute_fetch_command(fetch_cmd, (name,), True)
 
     @classmethod
-    def delete_from_db(cls, database: PostgresConnector, name: str):
+    def delete_from_db(cls, database: PostgresConnector, name: str) -> None:
         pools = cls.get_pools(database, name)
         if pools:
-            raise osmo_errors.OSMOUserError(f'Group template {name} is used in pools ' +\
-                                            f'{", ".join([pool["name"] for pool in pools])}')
+            pool_names = ', '.join(pool['name'] for pool in pools)
+            raise osmo_errors.OSMOUserError(
+                f'Group template {name} is used in pools {pool_names}')
 
         delete_cmd = '''
             DELETE FROM group_templates WHERE name = %s;
             '''
         database.execute_commit_command(delete_cmd, (name,))
 
-    def insert_into_db(self, database: PostgresConnector, name: str):
+    def insert_into_db(self, database: PostgresConnector, name: str) -> None:
         """ Create/update an entry in the group templates table """
         # Basic validation
         if 'apiVersion' not in self.group_template:
@@ -3262,7 +3264,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              name))
 
     @classmethod
-    def update_group_templates(cls, database: PostgresConnector, name: str):
+    def update_group_templates(cls, database: PostgresConnector, name: str) -> None:
         """ Updates group_templates """
         pool_info = cls.fetch_from_db(database, name)
         pool_info.calculate_group_templates(database)
@@ -3494,14 +3496,12 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         for _, platform_info in self.platforms.items():
             self.set_resource_validations(platform_info, resource_validations)
 
-    def calculate_group_templates(self, database: PostgresConnector):
-        ''' Construct Pool group_templates '''
-        # Fetch all group templates by name
+    def calculate_group_templates(self, database: PostgresConnector) -> None:
+        ''' Merges common_group_templates into parsed_group_templates,
+        combining entries with matching (kind, metadata.name) keys. '''
         group_template_specs = GroupTemplate.list_from_db(database, self.common_group_templates)
 
-        # Build parsed_group_templates by merging templates with same (kind, metadata.name)
-        # Key: (kind, metadata.name), Value: merged template
-        merged_templates: Dict[tuple, Dict] = {}
+        merged_templates: Dict[Tuple[str | None, str | None], Dict[str, Any]] = {}
 
         for template_name in self.common_group_templates:
             if template_name not in group_template_specs:
@@ -3521,7 +3521,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 # First template with this key
                 merged_templates[key] = copy.deepcopy(template)
 
-        # Convert to list
         self.parsed_group_templates = list(merged_templates.values())
 
     def insert_into_db(self, database: PostgresConnector, name: str):
