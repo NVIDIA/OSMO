@@ -25,6 +25,8 @@ export interface LogEntryRowProps {
   wrapLines: boolean;
   /** Whether to show task suffix */
   showTask: boolean;
+  /** Whether this row is part of the active selection */
+  isSelected?: boolean;
   /** Style for virtual list positioning */
   style?: React.CSSProperties;
 }
@@ -33,7 +35,7 @@ export interface LogEntryRowProps {
 // Component
 // =============================================================================
 
-function LogEntryRowInner({ entry, wrapLines, showTask, style }: LogEntryRowProps) {
+function LogEntryRowInner({ entry, wrapLines, showTask, isSelected = false, style }: LogEntryRowProps) {
   const level = entry.labels.level;
   const timestamp = formatTime24UTC(entry.timestamp);
 
@@ -42,7 +44,7 @@ function LogEntryRowInner({ entry, wrapLines, showTask, style }: LogEntryRowProp
       role="row"
       data-entry-id={entry.id}
       className={cn(
-        getLogRowClasses(level),
+        getLogRowClasses(level, { isSelected }),
         "select-none",
         "focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-inset",
       )}
