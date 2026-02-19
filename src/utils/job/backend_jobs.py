@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Set, Type
 import kubernetes.client as kb_client  # type: ignore
 import kubernetes.client.exceptions as kb_exceptions  # type: ignore
 import kubernetes.dynamic as kb_dynamic  # type: ignore
+import pydantic
 import urllib3  # type: ignore
 import yaml
 
@@ -467,25 +468,11 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
 
     def _resource_api_for_spec(self, api_client,
                                cleanup_spec: backend_job_defs.BackendCleanupSpec):
-        """Returns a DynamicClient resource API for the given cleanup spec.
-
-        Supports new-style specs (generic_api set) and deprecated legacy specs (custom_api or
-        resource_type only) for backwards compatibility with jobs serialized before this change.
-        """
+        """Returns a DynamicClient resource API for the given cleanup spec."""
         dyn_client = kb_dynamic.DynamicClient(api_client)
-        if cleanup_spec.generic_api is not None:
-            api_version = cleanup_spec.generic_api.api_version
-            kind = cleanup_spec.generic_api.kind
-        elif cleanup_spec.custom_api is not None:
-            # Deprecated path: reconstruct from legacy BackendCustomApi fields
-            api_version = (f'{cleanup_spec.custom_api.api_major}'
-                           f'/{cleanup_spec.custom_api.api_minor}')
-            kind = cleanup_spec.resource_type
-        else:
-            # Deprecated path: core v1 resource identified only by resource_type string
-            api_version = 'v1'
-            kind = cleanup_spec.resource_type
-        return dyn_client.resources.get(api_version=api_version, kind=kind)
+        return dyn_client.resources.get(
+            api_version=cleanup_spec.effective_api_version,
+            kind=cleanup_spec.effective_kind)
 
     def _get_objects(self, context: BackendJobExecutionContext,
                      cleanup_spec: backend_job_defs.BackendCleanupSpec) -> List[Dict]:
