@@ -1449,6 +1449,7 @@ class PostgresConnector:
                             access_key_id=bucket.default_credential.access_key_id,
                             access_key=bucket.default_credential.access_key,
                             endpoint=bucket_info.profile,
+                            override_url=bucket.default_credential.override_url,
                         )
                     break
 
@@ -1478,7 +1479,8 @@ class PostgresConnector:
                     region=bucket.region,
                     access_key_id=bucket.default_credential.access_key_id,
                     access_key=bucket.default_credential.access_key,
-                    endpoint=bucket_info.profile
+                    endpoint=bucket_info.profile,
+                    override_url=bucket.default_credential.override_url,
                 )
         return user_creds
 
