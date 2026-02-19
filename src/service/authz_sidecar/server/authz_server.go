@@ -131,11 +131,6 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	method := httpAttrs.GetMethod()
 	headers := httpAttrs.GetHeaders()
 
-	s.logger.Debug("authorization check request",
-		slog.String("path", path),
-		slog.String("method", method),
-	)
-
 	// Extract user and roles from headers
 	user := headers[headerOsmoUser]
 	rolesHeader := headers[headerOsmoRoles]
@@ -152,8 +147,10 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	// Add default role
 	roleNames = append(roleNames, defaultRole)
 
-	s.logger.Debug("extracted authorization info",
+	s.logger.Debug("authorization check request",
 		slog.String("user", user),
+		slog.String("path", path),
+		slog.String("method", method),
 		slog.Any("roles", roleNames),
 	)
 
@@ -161,6 +158,7 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	userRoles, err := s.resolveRoles(ctx, roleNames)
 	if err != nil {
 		s.logger.Error("error resolving roles",
+			slog.String("user", user),
 			slog.String("error", err.Error()),
 			slog.Any("roles", roleNames),
 		)
@@ -168,7 +166,7 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	}
 
 	// Check access
-	result := s.checkAccess(ctx, path, method, userRoles)
+	result := s.checkAccess(ctx, user, path, method, userRoles)
 
 	if !result.Allowed {
 		s.logger.Info("access denied",
@@ -180,7 +178,7 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		return s.denyResponse(codes.PermissionDenied, "access denied"), nil
 	}
 
-	s.logger.Debug("access allowed",
+	s.logger.Info("access allowed",
 		slog.String("user", user),
 		slog.String("path", path),
 		slog.String("method", method),
@@ -190,7 +188,7 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	switch result.MatchedAction {
 	case roles.ActionProfileRead, roles.ActionResourcesRead:
 		responseHeaders[headerOsmoAllowedPools] = strings.Join(
-			s.computeAllowedPools(ctx, userRoles), ",")
+			s.computeAllowedPools(ctx, user, userRoles), ",")
 	}
 
 	return s.allowResponse(responseHeaders), nil
@@ -215,22 +213,23 @@ func (s *AuthzServer) resolveRoles(ctx context.Context, roleNames []string) ([]*
 }
 
 // checkAccess verifies if the given roles have access to the path and method.
-func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, userRoles []*roles.Role) roles.AccessResult {
+func (s *AuthzServer) checkAccess(ctx context.Context, user, path, method string, userRoles []*roles.Role) roles.AccessResult {
 	result := roles.CheckRolesAccess(ctx, userRoles, path, method, s.pgClient)
-	s.logAccessResult(result, path, method)
+	s.logAccessResult(result, user, path, method)
 	return result
 }
 
 // computeAllowedPools evaluates role policies to determine which pools the
 // user can access, respecting deny rules. Uses the pool name cache to avoid
 // hitting the database on every request.
-func (s *AuthzServer) computeAllowedPools(ctx context.Context, userRoles []*roles.Role) []string {
+func (s *AuthzServer) computeAllowedPools(ctx context.Context, user string, userRoles []*roles.Role) []string {
 	allPoolNames, ok := s.poolNameCache.Get()
 	if !ok {
 		var err error
 		allPoolNames, err = roles.GetAllPoolNames(ctx, s.pgClient)
 		if err != nil {
 			s.logger.Error("failed to get pool names for allowed pools computation",
+				slog.String("user", user),
 				slog.String("error", err.Error()))
 			return []string{}
 		}
@@ -240,9 +239,10 @@ func (s *AuthzServer) computeAllowedPools(ctx context.Context, userRoles []*role
 }
 
 // logAccessResult logs the result of an access check with appropriate details
-func (s *AuthzServer) logAccessResult(result roles.AccessResult, path, method string) {
+func (s *AuthzServer) logAccessResult(result roles.AccessResult, user, path, method string) {
 	if result.ActionType == roles.ActionTypeSemantic && result.Allowed {
 		s.logger.Debug("access granted by semantic action",
+			slog.String("user", user),
 			slog.String("role", result.RoleName),
 			slog.String("action", result.MatchedAction),
 			slog.String("resource", result.MatchedResource),
@@ -250,7 +250,6 @@ func (s *AuthzServer) logAccessResult(result roles.AccessResult, path, method st
 			slog.String("method", method),
 		)
 	}
-	// ActionTypeNone means no match, nothing to log at debug level
 }
 
 // allowResponse creates a successful authorization response with optional

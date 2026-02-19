@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -34,6 +33,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"go.corp.nvidia.com/osmo/service/authz_sidecar/server"
+	"go.corp.nvidia.com/osmo/utils/logging"
 	"go.corp.nvidia.com/osmo/utils/postgres"
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
@@ -52,33 +52,16 @@ var (
 	// Cache flags - registered via roles package
 	cacheFlagPtrs = roles.RegisterCacheFlags()
 
-	// Logging flags
-	logLevel = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+	// Logging flags - registered via logging package
+	loggingFlagPtrs = logging.RegisterFlags()
 )
-
-func parseLogLevel(level string) slog.Level {
-	switch strings.ToLower(level) {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn", "warning":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
 
 func main() {
 	flag.Parse()
 
-	// Setup structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: parseLogLevel(*logLevel),
-	}))
-	slog.SetDefault(logger)
+	// Setup structured logging using the OSMO service log format
+	loggingConfig := loggingFlagPtrs.ToConfig()
+	logger := logging.InitLogger("authz-sidecar", loggingConfig)
 
 	// Create PostgreSQL client
 	ctx := context.Background()

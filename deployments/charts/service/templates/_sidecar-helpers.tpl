@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -419,6 +419,10 @@ Authorization sidecar container
     - "--postgres-max-conn-lifetime={{ .Values.sidecars.authz.postgres.maxConnLifetimeMin }}"
     - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
     - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
+    {{- if .Values.global.logs.enabled }}
+    - "--log-dir=/logs"
+    - "--log-name=authz_sidecar"
+    {{- end }}
   env:
     {{- include "osmo.extra-env" .Values.sidecars.authz | nindent 4 }}
     {{- if .Values.services.postgres.password }}
@@ -440,6 +444,11 @@ Authorization sidecar container
     - containerPort: {{ .Values.sidecars.authz.grpcPort }}
       name: authz-grpc
       protocol: TCP
+  {{- if .Values.global.logs.enabled }}
+  volumeMounts:
+    - name: logs
+      mountPath: /logs
+  {{- end }}
   {{- with .Values.sidecars.authz.livenessProbe }}
   livenessProbe:
     {{- toYaml . | nindent 4 }}
