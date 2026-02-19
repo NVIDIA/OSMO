@@ -106,11 +106,11 @@ export function getLevelsAtLeast(minLevel: LogLevel): LogLevel[] {
  * Get CSS classes for a log entry row based on level.
  * Provides subtle background tinting for errors/warnings.
  */
-export function getLogRowClasses(level: LogLevel | undefined, options?: { expanded?: boolean }): string {
+export function getLogRowClasses(level: LogLevel | undefined, options?: { expanded?: boolean; isSelected?: boolean }): string {
   return cn(
     "group relative",
     "px-3 py-1",
-    "hover:bg-muted/50",
+    options?.isSelected ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-muted/50",
     "transition-colors duration-75",
     options?.expanded && "bg-muted/30",
   );

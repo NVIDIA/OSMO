@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useRef, useCallback, memo, useLayoutEffect, forwardRef, useImperativeHandle } from "react";
+import { useRef, useCallback, memo, useLayoutEffect, useEffect, useState, useMemo, forwardRef, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
@@ -30,6 +30,14 @@ import {
   SCROLL_BOTTOM_THRESHOLD,
 } from "@/components/log-viewer/lib/constants";
 import { useIncrementalFlatten } from "@/components/log-viewer/lib/use-incremental-flatten";
+import { useServices } from "@/contexts/service-context";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/shadcn/context-menu";
 
 // =============================================================================
 // Types
@@ -129,6 +137,21 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
 });
 
 // =============================================================================
+// Selection helper
+// =============================================================================
+
+/** Walk up the DOM to find the nearest data-entry-id attribute. */
+function findEntryId(element: Element | null): string | null {
+  let current: Element | null = element;
+  while (current) {
+    const id = current.getAttribute("data-entry-id");
+    if (id) return id;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+// =============================================================================
 // Main Component
 // =============================================================================
 
@@ -137,6 +160,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const { clipboard } = useServices();
 
   // Track programmatic scrolls to avoid unpinning during auto-scroll
   const isAutoScrollingRef = useRef(false);
@@ -223,6 +247,129 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
     return () => clearTimeout(timer);
   }, [isPinnedToBottom, flatItems.length, virtualizer]);
 
+  // ── Row range selection ──────────────────────────────────────────────────
+  // Virtual list rows are position:absolute, so native browser text selection
+  // can't cross between them. We implement a terminal-style row selection:
+  //   • click          → set anchor (single row selected)
+  //   • shift+click    → extend selection from existing anchor
+  //   • pointerdown+move → drag to highlight a range (pointer capture used
+  //                        so events keep firing even outside the container)
+  //   • Ctrl/Cmd+C     → copies only the .message of selected rows
+
+  // O(1) entry lookup: id → index in `entries` array
+  const entryIdToIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    entries.forEach((entry, i) => map.set(entry.id, i));
+    return map;
+  }, [entries]);
+
+  // { anchorIdx, focusIdx } are indices into `entries`. null = nothing selected.
+  const [selection, setSelection] = useState<{ anchorIdx: number; focusIdx: number } | null>(null);
+  // anchorIdx is stored in a ref so pointermove closures always see the current value
+  const anchorIdxRef = useRef<number>(-1);
+
+  // Clear selection when entries are fully replaced (e.g. filter change)
+  useEffect(() => {
+    if (resetCount > 0) {
+      setSelection(null);
+      anchorIdxRef.current = -1;
+    }
+  }, [resetCount]);
+
+  // Sorted bounds for O(1) isSelected check per rendered row
+  const selectionBounds = useMemo(() => {
+    if (!selection) return null;
+    return {
+      start: Math.min(selection.anchorIdx, selection.focusIdx),
+      end: Math.max(selection.anchorIdx, selection.focusIdx),
+    };
+  }, [selection]);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      // elementFromPoint resolves the actual element even after pointer capture
+      const id = findEntryId(document.elementFromPoint(e.clientX, e.clientY));
+      if (!id) {
+        setSelection(null);
+        anchorIdxRef.current = -1;
+        return;
+      }
+      const idx = entryIdToIndex.get(id) ?? -1;
+      if (idx === -1) return;
+
+      if (e.shiftKey && anchorIdxRef.current !== -1) {
+        // Extend from existing anchor — don't change the anchor
+        setSelection({ anchorIdx: anchorIdxRef.current, focusIdx: idx });
+        return;
+      }
+
+      // New selection: capture pointer so drag events keep coming even if
+      // the cursor leaves the scroll container or the browser window.
+      anchorIdxRef.current = idx;
+      setSelection({ anchorIdx: idx, focusIdx: idx });
+      (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    },
+    [entryIdToIndex],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!(e.buttons & 1) || anchorIdxRef.current === -1) return;
+      const id = findEntryId(document.elementFromPoint(e.clientX, e.clientY));
+      if (!id) return;
+      const idx = entryIdToIndex.get(id) ?? -1;
+      if (idx !== -1) setSelection({ anchorIdx: anchorIdxRef.current, focusIdx: idx });
+    },
+    [entryIdToIndex],
+  );
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+  }, []);
+
+  // Refs so the global keydown handler always reads fresh values without
+  // being recreated on every selection/entries change (avoids add/remove churn).
+  const selectionRef = useRef(selection);
+  const entriesRef = useRef(entries);
+  useLayoutEffect(() => { selectionRef.current = selection; }, [selection]);
+  useLayoutEffect(() => { entriesRef.current = entries; }, [entries]);
+
+  // Single shared copy function — called by both the global keydown handler
+  // and the right-click context menu, reads from refs to avoid stale closures.
+  const copySelection = useCallback(() => {
+    const sel = selectionRef.current;
+    if (!sel) return;
+    const startIdx = Math.min(sel.anchorIdx, sel.focusIdx);
+    const endIdx = Math.max(sel.anchorIdx, sel.focusIdx);
+    const text = entriesRef.current
+      .slice(startIdx, endIdx + 1)
+      .map((entry) => entry.message)
+      .join("\n");
+    void clipboard.copy(text);
+  }, [clipboard]);
+
+  // Global keydown — fires regardless of which element has focus, so Cmd/Ctrl+C
+  // works even after the user clicks a button elsewhere on the page.
+  // Guard: skip when a text field has focus so we don't steal normal copy actions.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "c") return;
+      if (!selectionRef.current) return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable)
+      ) return;
+      copySelection();
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [copySelection]);
+
   // Detect scroll away from bottom - unpins when user scrolls up
   const handleScroll = useCallback(() => {
     if (!parentRef.current || !onScrollAwayFromBottom) return;
@@ -279,38 +426,43 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   const showStickyHeader = scrollOffset > 0 && currentDate !== null;
 
   return (
-    <div
-      ref={parentRef}
-      role="log"
-      aria-live="polite"
-      aria-label="Log entries"
-      aria-busy={isStale}
-      data-log-scroll-container
-      data-stale={isStale || undefined}
-      className={cn(
-        "@container",
-        "relative h-full overflow-auto",
-        "overscroll-contain",
-        // Smooth opacity transition for stale state (GPU-accelerated)
-        "transition-opacity duration-150 ease-out",
-        isStale && "opacity-70",
-        "contain-size-layout-style gpu-layer",
-        className,
-      )}
-      onScroll={handleScroll}
-    >
-      {/* CSS sticky header - simple date display, swaps instantly */}
-      {showStickyHeader && <StickyHeader date={currentDate} />}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={parentRef}
+          role="log"
+          aria-live="polite"
+          aria-label="Log entries"
+          aria-busy={isStale}
+          data-log-scroll-container
+          data-stale={isStale || undefined}
+          className={cn(
+            "@container",
+            "relative h-full overflow-auto",
+            "overscroll-contain",
+            // Smooth opacity transition for stale state (GPU-accelerated)
+            "transition-opacity duration-150 ease-out",
+            isStale && "opacity-70",
+            "contain-size-layout-style gpu-layer",
+            className,
+          )}
+          onScroll={handleScroll}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
+          {/* CSS sticky header - simple date display, swaps instantly */}
+          {showStickyHeader && <StickyHeader date={currentDate} />}
 
-      {/* Virtual list container */}
-      <div
-        className="gpu-layer relative z-10 w-full contain-layout"
-        style={{
-          // Use ceil to ensure container fits all content - floor could clip the last row
-          height: `${Math.ceil(virtualizer.getTotalSize())}px`,
-        }}
-      >
-        {virtualItems.map((virtualRow) => {
+          {/* Virtual list container */}
+          <div
+            className="gpu-layer relative z-10 w-full contain-layout"
+            style={{
+              // Use ceil to ensure container fits all content - floor could clip the last row
+              height: `${Math.ceil(virtualizer.getTotalSize())}px`,
+            }}
+          >
+            {virtualItems.map((virtualRow) => {
           const item = flatItems[virtualRow.index];
           if (!item) return null;
 
@@ -345,6 +497,10 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
           }
 
           // Log entry row
+          const entryIdx = entryIdToIndex.get(item.entry.id) ?? -1;
+          const isSelected =
+            selectionBounds !== null && entryIdx >= selectionBounds.start && entryIdx <= selectionBounds.end;
+
           return (
             <div
               key={item.entry.id}
@@ -361,12 +517,22 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
                 entry={item.entry}
                 wrapLines={wrapLines}
                 showTask={showTask}
+                isSelected={isSelected}
               />
             </div>
           );
-        })}
-      </div>
-    </div>
+            })}
+          </div>
+        </div>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent>
+        <ContextMenuItem onClick={copySelection} disabled={!selection}>
+          Copy
+          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 
