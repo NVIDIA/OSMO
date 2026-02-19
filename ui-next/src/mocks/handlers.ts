@@ -1135,8 +1135,18 @@ export const handlers = [
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const count = parseInt(url.searchParams.get("count") || "50", 10);
+    // Cap count at total to prevent generating 10,000 entries for the "fetch all" path
+    const requestedCount = parseInt(url.searchParams.get("count") || "50", 10);
+    const count = Math.min(requestedCount, datasetGenerator.totalDatasets);
     const allUsers = url.searchParams.get("all_users") !== "false";
+    // dataset_type filter: mock always returns DATASET entries, so this is a no-op pass-through
+    // (included for parity with backend behavior)
+    // dataset_type filter: all mock entries are "DATASET", so DATASET filter is a no-op.
+    // If COLLECTION is requested, return empty (mock has no collections).
+    const datasetType = url.searchParams.get("dataset_type");
+    if (datasetType === "COLLECTION") {
+      return HttpResponse.json({ datasets: [] });
+    }
 
     // Generate requested number of datasets
     const { entries } = datasetGenerator.generatePage(0, count);

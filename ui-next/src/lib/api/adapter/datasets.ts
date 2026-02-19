@@ -105,13 +105,8 @@ export interface DatasetFilesResponse {
 // =============================================================================
 
 // Import actual types from generated client
-import type {
-  DataListEntry,
-  DataListResponse,
-  DataInfoResponse,
-  DataInfoDatasetEntry,
-  DatasetType,
-} from "@/lib/api/generated";
+import type { DataListEntry, DataListResponse, DataInfoResponse, DataInfoDatasetEntry } from "@/lib/api/generated";
+import { DatasetType } from "@/lib/api/generated";
 
 // =============================================================================
 // Helpers
@@ -274,8 +269,7 @@ function buildApiParams(
     count: limit,
     name: searchTerm,
     buckets: bucketChips.length > 0 ? bucketChips : undefined,
-    // dataset_type is DATASET or COLLECTION, not file format - omit for now
-    dataset_type: undefined,
+    dataset_type: DatasetType.DATASET,
     user: userChips.length > 0 ? userChips : undefined,
     all_users: showAllUsers,
   };
