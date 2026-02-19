@@ -52,6 +52,7 @@ import { isWorkflowTerminal } from "@/lib/api/status-metadata.generated";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
+import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
 import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTimeline";
 import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
 import { useTick } from "@/hooks/use-tick";
@@ -130,7 +131,13 @@ export interface WorkflowDetailsProps {
 // =============================================================================
 
 /** Status and duration display */
-const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: WorkflowQueryResponse }) {
+const StatusDisplay = memo(function StatusDisplay({
+  workflow,
+  onNavigateToEvents,
+}: {
+  workflow: WorkflowQueryResponse;
+  onNavigateToEvents?: () => void;
+}) {
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const statusStyles = STATUS_STYLES[statusCategory];
@@ -161,7 +168,11 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
     <SeparatedParts className="gap-2 text-xs">
       <span className={cn("flex items-center gap-1 font-medium", statusStyles.text)}>
         {getStatusIcon(workflow.status, "size-3.5")}
-        {workflow.status}
+        <StatusHoverCard
+          status={workflow.status}
+          label={workflow.status}
+          onNavigateToEvents={onNavigateToEvents}
+        />
       </span>
       <span
         className={cn(
@@ -378,8 +389,17 @@ export const WorkflowDetails = memo(function WorkflowDetails({
     [setSelectedTabProp],
   );
 
+  const handleNavigateToEvents = useCallback(() => {
+    setSelectedTabProp?.("events");
+  }, [setSelectedTabProp]);
+
   // Status content for header Row 2
-  const statusContent = <StatusDisplay workflow={workflow} />;
+  const statusContent = (
+    <StatusDisplay
+      workflow={workflow}
+      onNavigateToEvents={handleNavigateToEvents}
+    />
+  );
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">

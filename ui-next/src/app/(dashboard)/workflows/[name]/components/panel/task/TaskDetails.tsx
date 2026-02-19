@@ -54,6 +54,7 @@ import {
   getStatusLabel,
 } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
+import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
 import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskTimeline";
 import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DependencyPills";
 import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
@@ -458,12 +459,21 @@ export const TaskDetails = memo(function TaskDetails({
     return allGroups.filter((g) => group.downstream_groups?.includes(g.name));
   }, [allGroups, group.downstream_groups, isStandaloneTask]);
 
+  const handleNavigateToEvents = useCallback(() => {
+    setSelectedTabProp?.("events");
+  }, [setSelectedTabProp]);
+
   // Status content for header (Row 2 - clean, consistent with GroupDetails)
   const statusContent = (
     <SeparatedParts className={cn("text-xs", style.text)}>
       <span className="flex items-center gap-1.5">
         {getStatusIcon(task.status, "size-3")}
-        <span className="font-medium">{getStatusLabel(task.status)}</span>
+        <StatusHoverCard
+          status={task.status}
+          label={getStatusLabel(task.status)}
+          triggerClassName="font-medium"
+          onNavigateToEvents={handleNavigateToEvents}
+        />
       </span>
       {duration !== null && <span className="text-gray-500 dark:text-zinc-400">{formatDuration(duration)}</span>}
       {task.retry_id > 0 && <span className="text-gray-500 dark:text-zinc-400">Retry #{task.retry_id}</span>}

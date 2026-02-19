@@ -16,7 +16,7 @@
 
 // Pure status functions. Metadata generated from backend via `pnpm generate-api`.
 
-import { TaskGroupStatus } from "@/lib/api/generated";
+import { TaskGroupStatus, WorkflowStatus } from "@/lib/api/generated";
 import {
   TASK_STATUS_METADATA,
   WORKFLOW_STATUS_METADATA,
@@ -62,6 +62,40 @@ export const STATUS_SORT_ORDER: Record<string, number> = {
   WAITING: 17,
   RESCHEDULED: 18,
   COMPLETED: 19,
+} as const;
+
+/** One-line description of each status, shown in hover cards. */
+export const STATUS_DESCRIPTIONS: Record<TaskGroupStatus | WorkflowStatus, string> = {
+  // Workflow-only
+  PENDING: "Waiting for the first task group to start running.",
+  // Shared — waiting
+  WAITING: "Waiting for an upstream task to complete.",
+  // Shared — pending (pre-run stages)
+  SUBMITTING: "Being submitted to the service.",
+  PROCESSING: "Being processed by the service before being sent to the backend.",
+  SCHEDULING: "Queued in the backend, waiting to run.",
+  INITIALIZING: "Pulling container image and running preflight checks.",
+  // Shared — active
+  RUNNING: "Currently executing.",
+  // Shared — completed
+  COMPLETED: "Finished successfully.",
+  RESCHEDULED: "Finished and a new run has been automatically created.",
+  // Shared — failed
+  FAILED: "Terminated with an error.",
+  FAILED_SERVER_ERROR: "Terminated due to an internal server error.",
+  FAILED_EXEC_TIMEOUT: "Execution time limit exceeded.",
+  FAILED_QUEUE_TIMEOUT: "Waited too long in the queue.",
+  FAILED_CANCELED: "Canceled before it could complete.",
+  FAILED_BACKEND_ERROR: "Terminated due to a backend error.",
+  FAILED_IMAGE_PULL: "Failed to pull the container image.",
+  FAILED_EVICTED: "Evicted due to memory or storage usage exceeding node limits.",
+  FAILED_START_ERROR: "Container failed to start.",
+  FAILED_START_TIMEOUT: "Timed out while initializing (image pull or preflight).",
+  FAILED_PREEMPTED: "Preempted by a higher-priority workload.",
+  // Task-specific
+  FAILED_UPSTREAM: "Failed because an upstream dependency failed.",
+  // Workflow-specific
+  FAILED_SUBMISSION: "Failed to submit due to resource or credential validation failure.",
 } as const;
 
 export const STATUS_LABELS: Record<string, string> = {
