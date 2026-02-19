@@ -38,6 +38,8 @@ export interface DatasetsToolbarProps {
   showAllUsersPending: boolean;
   /** Callback when show all users toggle is clicked */
   onToggleShowAllUsers: () => void;
+  /** Whether the show all users toggle is disabled (e.g., when user: chip is active) */
+  showAllUsersDisabled?: boolean;
   /** Manual refresh callback */
   onRefresh: () => void;
   /** Loading state for refresh button */
@@ -48,9 +50,10 @@ interface UserToggleProps {
   showAllUsers: boolean;
   isTransitioning: boolean;
   onToggle: () => void;
+  disabled?: boolean;
 }
 
-const UserToggle = memo(function UserToggle({ showAllUsers, isTransitioning, onToggle }: UserToggleProps) {
+const UserToggle = memo(function UserToggle({ showAllUsers, isTransitioning, onToggle, disabled }: UserToggleProps) {
   return (
     <SemiStatefulButton
       onClick={onToggle}
@@ -60,6 +63,7 @@ const UserToggle = memo(function UserToggle({ showAllUsers, isTransitioning, onT
       aria-label={showAllUsers ? "Currently showing all users' datasets" : "Currently showing my datasets"}
       tooltipSide="top"
       isTransitioning={isTransitioning}
+      disabled={disabled}
     />
   );
 });
@@ -72,6 +76,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
   showAllUsers,
   showAllUsersPending,
   onToggleShowAllUsers,
+  showAllUsersDisabled,
   onRefresh,
   isRefreshing,
 }: DatasetsToolbarProps) {
@@ -107,6 +112,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
         showAllUsers={showAllUsers}
         isTransitioning={showAllUsersPending}
         onToggle={onToggleShowAllUsers}
+        disabled={showAllUsersDisabled}
       />
     </TableToolbar>
   );
