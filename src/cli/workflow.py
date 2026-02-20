@@ -877,7 +877,12 @@ def _get_tasks_from_workflow(workflow: Any) -> list:
 
 def _workflow_table_generator(workflow: Any, table: texttable.Texttable | None = None)\
                               -> texttable.Texttable:
-    """ Generates the table for a given workflow"""
+    """Generates a table row for a given workflow.
+
+    Appends a row to the provided table (or creates a new one) using the
+    workflow data as-is. The caller is responsible for passing workflows in
+    the correct display order before invoking this function.
+    """
     key_mapping = {'User': 'user',
                   'Workflow ID': 'name',
                   'Submit Time': 'submit_time',
@@ -945,7 +950,9 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
     if args.name:
         params['name'] = args.name
     if args.order:
-        params['order'] = args.order.upper()
+        # Even if order is ASC, we fetch the last x workflows, and then reverse
+        # to show ascending order.
+        params['order'] = 'DESC'
     if args.all_users:
         params['all_users'] = True
     if args.tags:
@@ -984,10 +991,13 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
             client.RequestMethod.GET,
             'api/workflow',
             params=params)
-        workflow_list = workflow_result['workflows'] + workflow_list
+        workflow_list += workflow_result['workflows']
         current_count += count
         if args.count <= current_count or not workflow_result['more_entries']:
             break
+
+    if args.order.lower() == 'asc':
+        workflow_list.reverse()
 
     if args.format_type == 'json':
         print(json.dumps({'workflows': workflow_list}, indent=2))
