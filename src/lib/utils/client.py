@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import enum
 import json
 import logging
@@ -59,14 +60,11 @@ class ResponseMode(enum.Enum):
     STREAMING = 'STREAMING'
 
 
-def handle_response(response, service_base_url: str, mode: ResponseMode = ResponseMode.JSON):
-    if response.headers.get(version.SERVICE_VERSION_HEADER) is not None:
-        client_version = version.VERSION
-        print(f'WARNING: New client {response.headers.get(version.SERVICE_VERSION_HEADER)} '
-              f'available.\nCurrent version: {client_version}.\n'
-              'Please update by running:\n'
-              f'curl -fsSL {service_base_url}/client/install.sh | bash',
-              file=sys.stderr)
+def handle_response(response, mode: ResponseMode = ResponseMode.JSON):
+    if response.headers.get(version.VERSION_WARNING_HEADER) is not None:
+        warning = base64.b64decode(
+            response.headers.get(version.VERSION_WARNING_HEADER)).decode()
+        print(warning, file=sys.stderr)
     if response.status_code != 200:
         logging.error('Server responded with status code %s', response.status_code)
 
@@ -165,8 +163,7 @@ class LoginManager():
             'scope': 'openid offline_access profile'
         }, timeout=login.TIMEOUT, headers={'User-Agent': self.user_agent})
 
-        parsed_url = urlparse(url)
-        result = handle_response(response, parsed_url.netloc)
+        result = handle_response(response)
 
         device_code  = result['device_code']
         user_code  = result['user_code']
@@ -392,7 +389,7 @@ class ServiceClient():
             case _ as unreachable:
                 assert_never(unreachable)
 
-        resp = handle_response(response, self._login_manager.url, mode)
+        resp = handle_response(response, mode)
         return resp
 
     async def create_websocket(
