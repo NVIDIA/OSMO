@@ -107,10 +107,7 @@ def get_workflows(users: List[str] | None = None,
     fetch_input.extend([limit, offset])
 
     fetch_cmd = f'SELECT * FROM ({fetch_cmd}) as wf'
-    if order == connectors.ListOrder.ASC:
-        fetch_cmd += ' ORDER BY submit_time ASC'
-    else:
-        fetch_cmd += ' ORDER BY submit_time DESC'
+    fetch_cmd += f' ORDER BY submit_time {order_direction}'
     fetch_cmd += ';'
     return context.database.execute_fetch_command(fetch_cmd, tuple(fetch_input), return_raw)
 
