@@ -499,27 +499,16 @@
 <section id="workflow-logs">
 <h2>Workflow Logs<a class="headerlink" href="#workflow-logs" title="Link to this heading">#</a></h2>
 <p>Run the following commands to configure the workflow spec and log storage location in OSMO. Make sure to replace the placeholders with the actual values.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># OSMO storage URI (e.g. s3://my_bucket for AWS S3 or S3-compatible storage)</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">BACKEND_URI</span><span class="o">=</span>...
-</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ACCESS_KEY_ID</span><span class="o">=</span>...
-</span><span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ACCESS_KEY</span><span class="o">=</span>...
-</span>
-<span class="c1"># Bucket Region</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">REGION</span><span class="o">=</span>...
-</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OVERRIDE_URL</span><span class="o">=</span><span class="w">  </span><span class="c1"># Optional: HTTP endpoint for non-AWS S3 (e.g. http://minio:9000)</span>
-</span>
-$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; /tmp/workflow_log_config.json</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; /tmp/workflow_log_config.json</span>
 <span class="s">{</span>
 <span class="s">  &quot;workflow_log&quot;: {</span>
 <span class="s">      &quot;credential&quot;: {</span>
-<span class="s">          &quot;endpoint&quot;: &quot;&#39;$BACKEND_URI&#39;&quot;,</span>
-<span class="s">          &quot;access_key_id&quot;: &quot;&#39;$ACCESS_KEY_ID&#39;&quot;,</span>
-<span class="s">          &quot;access_key&quot;: &quot;&#39;$ACCESS_KEY&#39;&quot;,</span>
-<span class="s">          &quot;region&quot;: &quot;&#39;$REGION&#39;&quot;,</span>
-<span class="hll"><span class="s">          &quot;override_url&quot;: &quot;&#39;$OVERRIDE_URL&#39;&quot;</span>
-</span><span class="s">      }</span>
+<span class="s">          &quot;endpoint&quot;: &quot;s3://my_bucket/workflows&quot;,</span>
+<span class="s">          &quot;access_key_id&quot;: &quot;EXAMPLE_ACCESS_KEY_ID&quot;,</span>
+<span class="s">          &quot;access_key&quot;: &quot;EXAMPLE_ACCESS_KEY&quot;,</span>
+<span class="s">          &quot;region&quot;: &quot;us-east-1&quot;,</span>
+<span class="s">          &quot;override_url&quot;: &quot;http://minio:9000&quot; # Optional: HTTP endpoint for non-AWS S3</span>
+<span class="s">      }</span>
 <span class="s">  }</span>
 <span class="s">}</span>
 <span class="s">EOF</span>
@@ -538,27 +527,16 @@ $<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF
 <section id="workflow-data">
 <h2>Workflow Data<a class="headerlink" href="#workflow-data" title="Link to this heading">#</a></h2>
 <p>Configure the storage location for intermediate data that OSMO uses to pass outputs between workflow tasks. Replace the placeholders with your actual values.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># OSMO storage URI (e.g. s3://my_bucket for AWS S3 or S3-compatible storage)</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">BACKEND_URI</span><span class="o">=</span>...
-</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ACCESS_KEY_ID</span><span class="o">=</span>...
-</span><span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ACCESS_KEY</span><span class="o">=</span>...
-</span>
-<span class="c1"># Bucket Region</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">REGION</span><span class="o">=</span>...
-</span>
-<span class="hll">$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">OVERRIDE_URL</span><span class="o">=</span><span class="w">  </span><span class="c1"># Optional: HTTP endpoint for non-AWS S3 (e.g. http://minio:9000)</span>
-</span>
-$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; /tmp/workflow_data_config.json</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span><span class="s">&lt;&lt; EOF &gt; /tmp/workflow_data_config.json</span>
 <span class="s">{</span>
 <span class="s">  &quot;workflow_data&quot;: {</span>
 <span class="s">      &quot;credential&quot;: {</span>
-<span class="s">          &quot;endpoint&quot;: &quot;&#39;$BACKEND_URI&#39;&quot;,</span>
-<span class="s">          &quot;access_key_id&quot;: &quot;&#39;$ACCESS_KEY_ID&#39;&quot;,</span>
-<span class="s">          &quot;access_key&quot;: &quot;&#39;$ACCESS_KEY&#39;&quot;,</span>
-<span class="s">          &quot;region&quot;: &quot;&#39;$REGION&#39;&quot;,</span>
-<span class="hll"><span class="s">          &quot;override_url&quot;: &quot;&#39;$OVERRIDE_URL&#39;&quot;</span>
-</span><span class="s">      }</span>
+<span class="s">          &quot;endpoint&quot;: &quot;s3://my_bucket/workflows&quot;,</span>
+<span class="s">          &quot;access_key_id&quot;: &quot;EXAMPLE_ACCESS_KEY_ID&quot;,</span>
+<span class="s">          &quot;access_key&quot;: &quot;EXAMPLE_ACCESS_KEY&quot;,</span>
+<span class="s">          &quot;region&quot;: &quot;us-east-1&quot;,</span>
+<span class="s">          &quot;override_url&quot;: &quot;http://minio:9000&quot; # Optional: HTTP endpoint for non-AWS S3</span>
+<span class="s">      }</span>
 <span class="s">  }</span>
 <span class="s">}</span>
 <span class="s">EOF</span>
