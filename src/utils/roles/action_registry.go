@@ -1258,9 +1258,13 @@ func matchResource(pattern, resource string) bool {
 func CheckPolicyAccess(
 	ctx context.Context, role *Role, path, method string, pgClient *postgres.PostgresClient,
 ) AccessResult {
-	// First pass: check for any Deny that matches
+	// Single pass: Deny takes precedence, so return immediately on a Deny match.
+	// Track the first Allow match and return it at the end if no Deny was found.
+	var allowResult *AccessResult
 	for _, policy := range role.Policies {
-		if policy.Effect != EffectDeny {
+		isDeny := policy.Effect == EffectDeny
+		isAllow := policy.Effect == EffectAllow || policy.Effect == ""
+		if !isDeny && !isAllow {
 			continue
 		}
 		for _, action := range policy.Actions {
@@ -1268,30 +1272,22 @@ func CheckPolicyAccess(
 				continue
 			}
 			result := CheckSemanticAction(ctx, &action, policy.Resources, path, method, pgClient)
-			if result.Matched {
-				result.RoleName = role.Name
+			if !result.Matched {
+				continue
+			}
+			result.RoleName = role.Name
+			if isDeny {
 				result.Allowed = false
 				result.Denied = true
 				return result
 			}
+			if allowResult == nil {
+				allowResult = &result
+			}
 		}
 	}
-
-	// Second pass: check for Allow that matches (empty effect defaults to Allow)
-	for _, policy := range role.Policies {
-		if policy.Effect != EffectAllow && policy.Effect != "" {
-			continue
-		}
-		for _, action := range policy.Actions {
-			if !action.IsSemanticAction() {
-				continue
-			}
-			result := CheckSemanticAction(ctx, &action, policy.Resources, path, method, pgClient)
-			if result.Matched {
-				result.RoleName = role.Name
-				return result
-			}
-		}
+	if allowResult != nil {
+		return *allowResult
 	}
 
 	// No match found
@@ -1329,4 +1325,85 @@ func CheckRolesAccess(
 		Matched:    false,
 		ActionType: ActionTypeNone,
 	}
+}
+
+// CheckActionOnResource checks if a role allows a specific action on a specific
+// resource. Unlike CheckPolicyAccess which resolves path+method to an action,
+// this operates directly on a known action and resource pair.
+//
+// Within a role, Deny takes precedence over Allow. A policy with empty resources
+// does not match non-empty resource targets (unscoped policies don't grant
+// scoped resource access).
+func CheckActionOnResource(role *Role, action string, resource string) AccessResult {
+	// Single pass: Deny takes precedence, so return immediately on a Deny match.
+	// Track the first Allow match and return it at the end if no Deny was found.
+	var allowed bool
+	for _, policy := range role.Policies {
+		isDeny := policy.Effect == EffectDeny
+		isAllow := policy.Effect == EffectAllow || policy.Effect == ""
+		if !isDeny && !isAllow {
+			continue
+		}
+		if !policyMatchesActionOnResource(policy, action, resource) {
+			continue
+		}
+		if isDeny {
+			return AccessResult{
+				Allowed:         false,
+				Denied:          true,
+				Matched:         true,
+				MatchedAction:   action,
+				MatchedResource: resource,
+				ActionType:      ActionTypeSemantic,
+				RoleName:        role.Name,
+			}
+		}
+		allowed = true
+	}
+	if allowed {
+		return AccessResult{
+			Allowed:         true,
+			Matched:         true,
+			MatchedAction:   action,
+			MatchedResource: resource,
+			ActionType:      ActionTypeSemantic,
+			RoleName:        role.Name,
+		}
+	}
+
+	return AccessResult{
+		Allowed:    false,
+		Matched:    false,
+		ActionType: ActionTypeNone,
+		RoleName:   role.Name,
+	}
+}
+
+// policyMatchesActionOnResource returns true if any semantic action in the
+// policy matches the target action and any resource pattern matches the target
+// resource. A policy with no resources does not match non-empty resources.
+func policyMatchesActionOnResource(policy RolePolicy, action string, resource string) bool {
+	actionMatches := false
+	for _, policyAction := range policy.Actions {
+		if !policyAction.IsSemanticAction() {
+			continue
+		}
+		if matchSemanticAction(policyAction.Action, action) {
+			actionMatches = true
+			break
+		}
+	}
+	if !actionMatches {
+		return false
+	}
+
+	if len(policy.Resources) == 0 {
+		return resource == ""
+	}
+	for _, pattern := range policy.Resources {
+		if matchResource(pattern, resource) {
+			return true
+		}
+	}
+	return false
 }
