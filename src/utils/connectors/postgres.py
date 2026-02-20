@@ -3540,8 +3540,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              max_exec_timeout, max_queue_timeout, default_exit_actions,
              common_default_variables, common_resource_validations, parsed_resource_validations,
              common_pod_template, parsed_pod_template, enable_maintenance,
-             action_permissions, resources)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             resources)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
