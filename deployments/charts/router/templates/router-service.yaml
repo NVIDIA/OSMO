@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -188,6 +188,7 @@ spec:
 
       {{- include "router.envoy-sidecar-container" . | nindent 6}}
       {{- include "router.oauth2-proxy-sidecar-container" . | nindent 6}}
+      {{- include "router.authz-sidecar-container" . | nindent 6}}
       {{- include "router.log-agent-sidecar-container" . | nindent 6}}
       {{- with .Values.extraContainers }}
       {{- toYaml . | nindent 6 }}

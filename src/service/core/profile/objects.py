@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import datetime
 from typing import List
 
 import pydantic
@@ -23,7 +24,18 @@ import pydantic
 from src.utils import connectors
 
 
+class TokenIdentity(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    """ Identity when the request is authenticated with an access token. """
+    name: str
+    expires_at: datetime.datetime | None = None  # YYYY-MM-DD when token is found in DB
+
+
 class ProfileResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
-    """ Object storing workflow name. """
+    """
+    Profile and identity info. When token header is set, roles/pools are the
+    token's; otherwise they are the user's. JSON is self-explanatory for CLI.
+    """
     profile: connectors.UserProfile
+    roles: List[str]
     pools: List[str]
+    token: TokenIdentity | None = None

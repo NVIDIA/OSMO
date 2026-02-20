@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -156,6 +156,28 @@ services:
     passwordSecretName: postgres-secret
 
     ## Key name in the secret that contains the PostgreSQL password
+    ##
+    passwordSecretKey: password
+
+  ## Default admin user configuration
+  ## When configured, the service will create an admin user on startup with the osmo-admin role
+  ## and an access_token set to the specified password
+  ##
+  defaultAdmin:
+    ## Enable default admin user creation
+    ## When enabled, username and password must be configured
+    ##
+    enabled: false
+
+    ## Username for the default admin user
+    ##
+    username: "admin"
+
+    ## Name of the Kubernetes secret containing the default admin password
+    ##
+    passwordSecretName: default-admin-secret
+
+    ## Key name in the secret that contains the default admin password
     ##
     passwordSecretKey: password
 
@@ -540,6 +562,10 @@ services:
     # - ip: "192.168.1.100"
     #   hostnames:
     #   - "example.local"
+
+    ## URL for the client install script shown in version update messages
+    ##
+    clientInstallUrl: "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"
 
     ## Disable task metrics collection (set to true to disable)
     ##
@@ -1662,6 +1688,104 @@ sidecars:
     ## Debug port for rate limiting service
     ##
     debugPort: 6070
+
+  ## Authorization sidecar configuration (role-based access control)
+  ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
+  ##
+  authz:
+    ## Enable authorization sidecar
+    ##
+    enabled: true
+
+    ## Authorization sidecar Docker image
+    ##
+    imageName: "authz-sidecar"
+
+    ## Image pull policy for authorization sidecar
+    ##
+    imagePullPolicy: Always
+
+    ## gRPC port for authorization service
+    ##
+    grpcPort: 50052
+
+    ## Extra environment variables for the API service container
+    ##
+    extraEnv: []
+
+    ## PostgreSQL connection pool configuration
+    ## Note: Host, port, database, user, and password are inherited from services.postgres
+    ##
+    postgres:
+      ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
+      ##
+      sslMode: prefer
+
+      ## Maximum number of connections in the pool
+      ##
+      maxConns: 10
+
+      ## Minimum number of connections in the pool
+      ##
+      minConns: 2
+
+      ## Maximum lifetime of a connection in minutes
+      ##
+      maxConnLifetimeMin: 5
+
+    ## Role cache configuration
+    ##
+    cache:
+      ## Cache time-to-live (how long to cache role policies in seconds)
+      ##
+      ttl: 300
+
+      ## Maximum number of role combinations to cache
+      ##
+      maxSize: 1000
+
+    ## Resource limits and requests for authorization sidecar
+    ##
+    resources:
+      ## Resource requests (guaranteed allocation)
+      ##
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      ## Resource limits (maximum allocation)
+      ##
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    ## Liveness probe configuration
+    ##
+    livenessProbe:
+      grpc:
+        port: 50052
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+    ## Readiness probe configuration
+    ##
+    readinessProbe:
+      grpc:
+        port: 50052
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+
+    ## Security context for authorization sidecar
+    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 10001
 
 ## Global configuration for extra ConfigMaps
 ## These ConfigMaps can be used for custom configurations

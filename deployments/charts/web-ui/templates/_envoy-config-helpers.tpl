@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,7 +93,14 @@ listeners:
                     return
                   end
                   local roles_list = table.concat(meta.verified_jwt.roles, ',')
+                  -- Add the headers
                   request_handle:headers():replace('x-osmo-roles', roles_list)
+                  if (meta.verified_jwt.osmo_token_name ~= nil) then
+                    request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
+                  end
+                  if (meta.verified_jwt.osmo_workflow_id ~= nil) then
+                    request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
+                  end
                 end
 
                 function envoy_on_response(response_handle)
@@ -147,6 +154,9 @@ name: service_routes
 internal_only_headers:
 - x-osmo-auth-skip
 - x-osmo-user
+- x-osmo-token-name
+- x-osmo-workflow-id
+- x-osmo-allowed-pools
 virtual_hosts:
 - name: service
   domains: ["*"]
@@ -188,6 +198,9 @@ Generate simplified Lua filters for UI chart
           -- Strip dangerous headers that should never come from external clients
           request_handle:headers():remove("x-osmo-auth-skip")
           request_handle:headers():remove("x-osmo-user")
+          request_handle:headers():remove("x-osmo-token-name")
+          request_handle:headers():remove("x-osmo-workflow-id")
+          request_handle:headers():remove("x-osmo-allowed-pools")
         end
 - name: add-auth-skip
   typed_config:

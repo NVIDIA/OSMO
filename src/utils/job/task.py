@@ -2290,7 +2290,7 @@ class TaskGroup(pydantic.BaseModel):
             service_config.service_auth.ctrl_roles,
             workflow_id=self.workflow_id)
 
-        refresh_token = secrets.token_hex(REFRESH_TOKEN_LENGTH)
+        refresh_token = secrets.token_urlsafe(REFRESH_TOKEN_LENGTH)
 
         # Workaround for validation
         token_file = File(path='/token', contents=refresh_token)

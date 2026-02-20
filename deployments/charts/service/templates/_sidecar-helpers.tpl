@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -449,5 +449,62 @@ OAuth2 Proxy volumes
     - key: {{ .Values.sidecars.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
       path: cookie-secret
 {{- end }}
+Authorization sidecar container
+*/}}
+{{- define "osmo.authz-sidecar-container" -}}
+{{- if .Values.sidecars.authz.enabled }}
+- name: authz-sidecar
+  securityContext:
+    {{- toYaml .Values.sidecars.authz.securityContext | nindent 4 }}
+  image: "{{ .Values.global.osmoImageLocation }}/{{ .Values.sidecars.authz.imageName }}:{{ .Values.global.osmoImageTag }}"
+  imagePullPolicy: {{ .Values.sidecars.authz.imagePullPolicy }}
+  args:
+    - "--grpc-port={{ .Values.sidecars.authz.grpcPort }}"
+    - "--postgres-host={{ .Values.services.postgres.serviceName }}"
+    - "--postgres-port={{ .Values.services.postgres.port }}"
+    - "--postgres-database={{ .Values.services.postgres.db }}"
+    - "--postgres-user={{ .Values.services.postgres.user }}"
+    - "--postgres-ssl-mode={{ .Values.sidecars.authz.postgres.sslMode }}"
+    - "--postgres-max-conns={{ .Values.sidecars.authz.postgres.maxConns }}"
+    - "--postgres-min-conns={{ .Values.sidecars.authz.postgres.minConns }}"
+    - "--postgres-max-conn-lifetime={{ .Values.sidecars.authz.postgres.maxConnLifetimeMin }}"
+    - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
+    - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
+    {{- if .Values.global.logs.enabled }}
+    - "--log-dir=/logs"
+    - "--log-name=authz_sidecar"
+    {{- end }}
+  env:
+    {{- include "osmo.extra-env" .Values.sidecars.authz | nindent 4 }}
+    {{- if .Values.services.postgres.password }}
+    - name: OSMO_POSTGRES_PASSWORD
+      value: {{ .Values.services.postgres.password }}
+    {{- else if .Values.services.configFile.enabled }}
+    - name: OSMO_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: db-secret
+          key: db-password
+    - name: OSMO_REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: redis-secret
+          key: redis-password
+    {{- end }}
+  {{- if .Values.global.logs.enabled }}
+  volumeMounts:
+    - name: logs
+      mountPath: /logs
+  {{- end }}
+  {{- with .Values.sidecars.authz.livenessProbe }}
+  livenessProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.sidecars.authz.readinessProbe }}
+  readinessProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  resources:
+    {{- toYaml .Values.sidecars.authz.resources | nindent 4 }}
 {{- end }}
 {{- end }}
