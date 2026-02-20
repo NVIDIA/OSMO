@@ -415,7 +415,7 @@ function SuggestionItemInner<T>({ suggestion, onSelect }: SuggestionItemProps<T>
     <CommandItem
       value={suggestion.value}
       onSelect={onSelect}
-      className="flex items-center justify-between"
+      className="flex items-center gap-1"
     >
       <span className="flex items-center gap-2">
         {suggestion.type === "field" ? (
