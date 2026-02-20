@@ -39,7 +39,6 @@ router = fastapi.APIRouter(
 class ConfigNameType(enum.Enum):
     """ Represents the config type for checking name. """
     POD_TEMPLATE = 'Pod template'
-    GROUP_TEMPLATE = 'Group template'
     POOL = 'Pool'
     RESOURCE_VALIDATON = 'Resource validation'
     PLATFORM = 'Platform'
@@ -701,76 +700,6 @@ def delete_pod_template(
     )
 
 
-@router.get('/api/configs/group_template', response_class=common.PrettyJSONResponse)
-def list_group_templates() -> Dict[str, Dict]:
-    """ List all Group Template configurations """
-    postgres = connectors.PostgresConnector.get_instance()
-    return connectors.GroupTemplate.list_from_db(postgres)
-
-
-@router.get('/api/configs/group_template/{name}', response_class=common.PrettyJSONResponse)
-def read_group_template(name: str) -> Dict:
-    """ Read Group Template configurations """
-    postgres = connectors.PostgresConnector.get_instance()
-    return connectors.GroupTemplate.fetch_from_db(postgres, name)
-
-
-@router.put('/api/configs/group_template')
-def put_group_templates(request: objects.PutGroupTemplatesRequest,
-                        username: str = fastapi.Depends(connectors.parse_username)):
-    """ Set Dict of Group Templates configurations """
-    for name in request.configs.keys():
-        _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
-
-    postgres = connectors.PostgresConnector.get_instance()
-    for name, group_template_dict in request.configs.items():
-        group_template = connectors.GroupTemplate(group_template=group_template_dict)
-        group_template.insert_into_db(postgres, name)
-
-    helpers.create_group_template_config_history_entry(
-        '',
-        username,
-        request.description or 'Put complete group template',
-        tags=request.tags,
-    )
-
-
-@router.put('/api/configs/group_template/{name}')
-def put_group_template(name: str,
-                       request: objects.PutGroupTemplateRequest,
-                       username: str = fastapi.Depends(connectors.parse_username)):
-    """ Put Group Template configurations """
-    _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
-    postgres = connectors.PostgresConnector.get_instance()
-    group_template = connectors.GroupTemplate(group_template=request.configs)
-    group_template.insert_into_db(postgres, name)
-
-    helpers.create_group_template_config_history_entry(
-        name,
-        username,
-        request.description or f'Put complete group template {name}',
-        tags=request.tags,
-    )
-
-
-@router.delete('/api/configs/group_template/{name}')
-def delete_group_template(
-    name: str,
-    request: objects.ConfigsRequest,
-    username: str = fastapi.Depends(connectors.parse_username),
-):
-    """ Delete Group Template configurations """
-    postgres = connectors.PostgresConnector.get_instance()
-    connectors.GroupTemplate.delete_from_db(postgres, name)
-
-    helpers.create_group_template_config_history_entry(
-        name,
-        username,
-        request.description or f'Delete group template {name}',
-        tags=request.tags,
-    )
-
-
 @router.get('/api/configs/resource_validation', response_class=common.PrettyJSONResponse)
 def list_resource_validations() -> Dict[str, List[connectors.ResourceAssertion]]:
     """ List all Resource Validation configurations """
@@ -1169,25 +1098,6 @@ def rollback_config(
         # Replace with pod template configs from history
         put_pod_templates(
             objects.PutPodTemplatesRequest(
-                configs=history_entry['data'],
-                description=description,
-                tags=request.tags
-            ),
-            username
-        )
-    elif request.config_type == connectors.ConfigHistoryType.GROUP_TEMPLATE:
-        # Delete all existing group templates
-        existing_group_templates = connectors.GroupTemplate.list_from_db(postgres)
-        group_templates_to_remove = [
-            group_template for group_template in existing_group_templates
-            if group_template not in history_entry['data'].keys()
-        ]
-        for group_template in group_templates_to_remove:
-            connectors.GroupTemplate.delete_from_db(postgres, group_template)
-
-        # Replace with group template configs from history
-        put_group_templates(
-            objects.PutGroupTemplatesRequest(
                 configs=history_entry['data'],
                 description=description,
                 tags=request.tags

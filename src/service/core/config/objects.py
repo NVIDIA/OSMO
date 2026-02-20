@@ -280,18 +280,6 @@ class PutPodTemplateRequest(ConfigsRequest):
     configs: Dict
 
 
-class PutGroupTemplatesRequest(ConfigsRequest):
-    """Request body for updating group templates with history tracking metadata."""
-
-    configs: Dict[str, Dict[str, Any]]
-
-
-class PutGroupTemplateRequest(ConfigsRequest):
-    """Request body for updating a group template with history tracking metadata."""
-
-    configs: Dict[str, Any]
-
-
 class PutResourceValidationsRequest(ConfigsRequest):
     """Request body for updating resource validations with history tracking metadata."""
 
