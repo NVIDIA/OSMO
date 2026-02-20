@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -543,21 +543,99 @@ sidecars:
     ##
     extraVolumeMounts: []
 
-    ## Health check probes for log agent container
+  ## Authorization sidecar configuration (role-based access control)
+  ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
+  ##
+  authz:
+    ## Enable authorization sidecar
+    ##
+    enabled: false
+
+    ## Authorization sidecar Docker image
+    ##
+    imageName: "authz-sidecar"
+
+    ## Image pull policy for authorization sidecar
+    ##
+    imagePullPolicy: Always
+
+    ## gRPC port for authorization service
+    ##
+    grpcPort: 50052
+
+    ## Extra environment variables for the authz sidecar container
+    ##
+    extraEnv: []
+
+    ## PostgreSQL connection pool configuration
+    ## Note: Host, port, database, user, and password are inherited from services.postgres
+    ##
+    postgres:
+      ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
+      ##
+      sslMode: prefer
+
+      ## Maximum number of connections in the pool
+      ##
+      maxConns: 10
+
+      ## Minimum number of connections in the pool
+      ##
+      minConns: 2
+
+      ## Maximum lifetime of a connection in minutes
+      ##
+      maxConnLifetimeMin: 5
+
+    ## Role cache configuration
+    ##
+    cache:
+      ## Cache time-to-live (how long to cache role policies in seconds)
+      ##
+      ttl: 300
+
+      ## Maximum number of role combinations to cache
+      ##
+      maxSize: 1000
+
+    ## Resource limits and requests for authorization sidecar
+    ##
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    ## Liveness probe configuration
     ##
     livenessProbe:
-      httpGet:
-        path: /api/v1/health
-        port: 2020
+      grpc:
+        port: 50052
       initialDelaySeconds: 10
       periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
 
+    ## Readiness probe configuration
+    ##
     readinessProbe:
-      httpGet:
-        path: /api/v1/health
-        port: 2020
+      grpc:
+        port: 50052
       initialDelaySeconds: 5
       periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+
+    ## Security context for authorization sidecar
+    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 10001
 
 ## Additional configurations for extensibility
 ##
