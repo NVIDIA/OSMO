@@ -19,9 +19,8 @@
  * Parses plain text event stream from backend into structured K8s events.
  */
 
-import { classifyEvent } from "@/lib/api/adapter/events/events-utils";
+import { classifyEvent, WARNING_REASONS } from "@/lib/api/adapter/events/events-utils";
 import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
-import { K8S_EVENT_REASONS } from "@/lib/api/adapter/events/events-types";
 
 // ============================================================================
 // Regex Patterns (Pre-compiled for Performance)
@@ -79,24 +78,10 @@ function extractContainerName(message: string): string | undefined {
 /**
  * Infer event type from reason.
  * Canonical K8s uses "Normal" vs "Warning" event types.
+ * Derived from the registry: reasons with severity "warn" or "error" map to "Warning".
  */
 function inferEventType(reason: string): "Normal" | "Warning" {
-  const warningReasons = [
-    K8S_EVENT_REASONS.FAILED,
-    K8S_EVENT_REASONS.FAILED_SCHEDULING,
-    K8S_EVENT_REASONS.ERR_IMAGE_PULL,
-    K8S_EVENT_REASONS.IMAGE_PULL_BACK_OFF,
-    K8S_EVENT_REASONS.BACK_OFF,
-    K8S_EVENT_REASONS.CRASH_LOOP_BACK_OFF,
-    K8S_EVENT_REASONS.OOM_KILLED,
-    K8S_EVENT_REASONS.EVICTED,
-    K8S_EVENT_REASONS.UNHEALTHY,
-    K8S_EVENT_REASONS.FAILED_MOUNT,
-    K8S_EVENT_REASONS.NODE_NOT_READY,
-    K8S_EVENT_REASONS.ERROR,
-  ];
-
-  return warningReasons.some((w) => reason.includes(w)) ? "Warning" : "Normal";
+  return WARNING_REASONS.has(reason) ? "Warning" : "Normal";
 }
 
 // ============================================================================
@@ -201,26 +186,6 @@ export function parseEventChunk(text: string): K8sEvent[] {
       if (event) events.push(event);
     }
   }
-
-  return events;
-}
-
-// ============================================================================
-// Response Parsing
-// ============================================================================
-
-/**
- * Parse plain text event stream into structured K8s events.
- * Returns events sorted by timestamp DESC (newest first).
- *
- * @deprecated Prefer {@link parseEventChunk} for streaming use cases.
- * This function is retained for backward compatibility with non-streaming callers.
- */
-export function parseEventsResponse(rawResponse: string): K8sEvent[] {
-  if (typeof rawResponse !== "string") return [];
-
-  const events = parseEventChunk(rawResponse);
-  events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   return events;
 }
