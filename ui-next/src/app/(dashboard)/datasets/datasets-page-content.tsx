@@ -34,12 +34,14 @@ import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useDefaultFilter } from "@/hooks/use-default-filter";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
 import { useDatasetsData } from "@/app/(dashboard)/datasets/hooks/use-datasets-data";
+import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
 import { useUser } from "@/lib/auth/user-context";
 import type { SearchChip } from "@/stores/types";
+import type { SortState } from "@/components/data-table/types";
 
 // =============================================================================
 // Types
@@ -59,6 +61,30 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
   const { user } = useUser();
 
   const currentUsername = initialUsername ?? user?.username ?? null;
+
+  // ==========================================================================
+  // Sort state from store (persisted, client-side via shim)
+  // ==========================================================================
+
+  const storeSort = useDatasetsTableStore((s) => s.sort);
+  const setSort = useDatasetsTableStore((s) => s.setSort);
+  const clearSort = useDatasetsTableStore((s) => s.clearSort);
+
+  const sortState = useMemo((): SortState<string> | undefined => {
+    if (!storeSort) return undefined;
+    return { column: storeSort.column, direction: storeSort.direction };
+  }, [storeSort]);
+
+  const handleSortingChange = useCallback(
+    (newSort: SortState<string>) => {
+      if (newSort.column) {
+        setSort(newSort.column);
+      } else {
+        clearSort();
+      }
+    },
+    [setSort, clearSort],
+  );
 
   // ==========================================================================
   // Default user filter — "My Datasets" by default, opt-out via ?all=true
@@ -84,6 +110,7 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
   const { datasets, allDatasets, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } = useDatasetsData({
     searchChips: effectiveChips,
     showAllUsers: optOut,
+    sort: storeSort ?? null,
   });
 
   // Results count for FilterBar display (consolidated hook)
@@ -126,6 +153,8 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
             isLoading={isLoading}
             error={error ?? undefined}
             onRetry={refetch}
+            sorting={sortState}
+            onSortingChange={handleSortingChange}
           />
         </InlineErrorBoundary>
       </div>
