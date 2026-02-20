@@ -18,6 +18,9 @@
 
 import { naturalCompare } from "@/lib/utils";
 
+/** Stable query key for the pools list — shared by server prefetch and client hooks. */
+export const POOLS_QUERY_KEY = ["pools", "all"] as const;
+
 /**
  * Pools Filtering Shim - Client-side filtering for pools.
  *

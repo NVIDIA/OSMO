@@ -27,7 +27,7 @@
  */
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { fetchWorkflowByName } from "@/lib/api/server/workflows";
+import { prefetchWorkflowByName } from "@/lib/api/server/workflows";
 import { LogViewerPageContent } from "@/app/(dashboard)/log-viewer/components/log-viewer-page-content";
 import { createServerQueryClient } from "@/lib/query-client";
 
@@ -49,11 +49,10 @@ export async function LogViewerWithData({ searchParams }: LogViewerWithDataProps
 
   // Why prefetch: Avoid client waterfall (page load → fetch metadata → render).
   // Why ignore errors: Client will retry after hydration if needed.
+  // verbose=false: log viewer only needs logs URL + status, not full task details.
+  // Key must match useGetWorkflowApiWorkflowNameGet(workflowId, { verbose: false }).
   try {
-    const workflow = await fetchWorkflowByName(workflowId, false);
-    if (workflow) {
-      queryClient.setQueryData(["workflow", workflowId], workflow);
-    }
+    await prefetchWorkflowByName(queryClient, workflowId, false);
   } catch (error) {
     console.warn("Server-side workflow prefetch failed:", error);
   }

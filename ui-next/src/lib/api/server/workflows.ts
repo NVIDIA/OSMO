@@ -30,6 +30,8 @@ import type {
   WorkflowPriority,
   WorkflowStatus,
 } from "@/lib/api/generated";
+import type { SearchChip } from "@/stores/types";
+import { buildWorkflowsQueryKey } from "@/lib/api/adapter/workflows-shim";
 
 /** Type alias for better readability */
 type WorkflowsListResponse = SrcServiceCoreWorkflowObjectsListResponse;
@@ -150,14 +152,14 @@ const fetchWorkflowByNameRaw = cache(async (name: string, verbose = true): Promi
  * @param name - Workflow name
  * @param options - Fetch options
  */
-export async function prefetchWorkflowByName(queryClient: QueryClient, name: string): Promise<void> {
+export async function prefetchWorkflowByName(queryClient: QueryClient, name: string, verbose = true): Promise<void> {
   // Use the generated query key helper to ensure perfect consistency with client hooks
   // This ensures a cache hit during hydration.
-  const queryKey = getGetWorkflowApiWorkflowNameGetQueryKey(name, { verbose: true });
+  const queryKey = getGetWorkflowApiWorkflowNameGetQueryKey(name, { verbose });
 
   await queryClient.prefetchQuery({
     queryKey,
-    queryFn: () => fetchWorkflowByNameRaw(name, true),
+    queryFn: () => fetchWorkflowByNameRaw(name, verbose),
   });
 }
 
@@ -180,35 +182,6 @@ export async function prefetchWorkflows(queryClient: QueryClient, params: Workfl
 }
 
 /**
- * Build query key for workflows list (matches client-side buildWorkflowsQueryKey).
- *
- * This must match the key format in workflows-shim.ts to enable hydration.
- *
- * @param chipsString - Sorted, comma-joined chip string (from chipsToKeyString)
- * @param showAllUsers - Whether showing all users' workflows
- * @param sortDirection - Sort direction
- */
-export function buildServerWorkflowsQueryKey(
-  chipsString = "",
-  showAllUsers = false,
-  sortDirection = "DESC",
-): readonly unknown[] {
-  return [
-    "workflows",
-    "paginated",
-    {
-      chips: chipsString,
-      showAllUsers,
-      sortDirection,
-    },
-  ] as const;
-}
-
-// Re-export SearchChip type for server use
-import type { SearchChip } from "@/stores/types";
-import { chipsToKeyString } from "@/lib/url-utils";
-
-/**
  * Prefetch the first page of workflows for infinite query hydration.
  *
  * Uses prefetchInfiniteQuery to match the client's useInfiniteQuery.
@@ -224,9 +197,8 @@ import { chipsToKeyString } from "@/lib/url-utils";
  * @param options - Fetch options
  */
 export async function prefetchWorkflowsList(queryClient: QueryClient, filterChips: SearchChip[] = []): Promise<void> {
-  // Build query key with chips string matching client format
-  const chipsString = chipsToKeyString(filterChips);
-  const queryKey = buildServerWorkflowsQueryKey(chipsString, false, "DESC");
+  // Build query key matching client format exactly
+  const queryKey = buildWorkflowsQueryKey(filterChips, false, "DESC");
 
   // Extract filter values from chips for API call
   const statusFilters = filterChips.filter((c) => c.field === "status").map((c) => c.value as WorkflowStatus);

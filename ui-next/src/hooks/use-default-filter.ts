@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import type { SearchChip } from "@/stores/types";
 import { useUrlChips } from "@/hooks/use-url-chips";
@@ -26,7 +26,9 @@ import { useUrlChips } from "@/hooks/use-url-chips";
  * unless the user has explicitly opted out via `?{optOutParam}=true`.
  *
  * - effectiveChips is computed synchronously so the first render uses correct params (no double-fetch).
- * - The chip is written to the URL with history: "replace" so pressing Back doesn't re-trigger pre-population.
+ * - The chip is NOT written to the URL on mount — only when the user interacts with the filter bar.
+ *   Writing it on mount caused a race with nuqs: the effect fired before nuqs had fully parsed all
+ *   repeated `f=` URL params, so it overwrote the URL with a partial chip set (losing all but the first).
  * - Removing all chips for `field` sets ?{optOutParam}=true; adding one clears it.
  */
 export function useDefaultFilter({
@@ -64,12 +66,6 @@ export function useDefaultFilter({
     const chipLabel = label ?? `${field}: ${defaultValue}`;
     return [...searchChips, { field, value: defaultValue!, label: chipLabel }];
   }, [searchChips, shouldPrePopulate, field, defaultValue, label]);
-
-  useEffect(() => {
-    if (shouldPrePopulate) {
-      void setSearchChips(effectiveChips, { history: "replace" });
-    }
-  }, [shouldPrePopulate, effectiveChips, setSearchChips]);
 
   const handleChipsChange = useCallback(
     (newChips: SearchChip[]) => {
