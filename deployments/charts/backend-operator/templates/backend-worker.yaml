@@ -104,6 +104,10 @@ spec:
         - {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
         - --metrics_otel_enable
         - {{ .Values.sidecars.OTEL.enabled | quote }}
+        - --metrics_otel_collector_host
+        - '{{ .Values.sidecars.OTEL.host }}'
+        - --metrics_otel_collector_port
+        - '{{ include "backend-operator.otel.getPort" (dict "root" . "portName" "otlp-grpc") }}'
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
         {{- if .Values.global.backendTestNamespace }}

@@ -36,7 +36,7 @@
   livenessProbe:
     httpGet:
       path: /metrics
-      port: 4000
+      port: {{ include "backend-operator.otel.getPort" (dict "root" . "portName" "metrics") }}
       scheme: HTTP
     periodSeconds: 30
     timeoutSeconds: 1
