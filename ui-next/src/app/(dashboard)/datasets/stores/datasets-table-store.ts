@@ -35,7 +35,7 @@ export const useDatasetsTableStore = createTableStore({
   storageKey: "datasets-table",
   defaultVisibleColumns: DEFAULT_VISIBLE_COLUMNS,
   defaultColumnOrder: DEFAULT_COLUMN_ORDER,
-  // No default sort - datasets list doesn't have server-side sorting yet
+  defaultPanelWidth: 35,
 });
 
 export type { TableState, TableActions, TableStore, SearchChip } from "@/stores/types";
