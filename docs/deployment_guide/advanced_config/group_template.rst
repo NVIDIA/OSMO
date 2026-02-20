@@ -62,7 +62,7 @@ Resource Creation Flow
 
         +++
 
-        Full apiVersion, kind, and metadata
+        Full :code:`apiVersion`, :code:`kind`, and :code:`metadata`
 
     .. grid-item-card::
         :class-header: sd-bg-primary sd-text-white
