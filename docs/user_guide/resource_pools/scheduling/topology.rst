@@ -24,79 +24,90 @@ Topology-Aware Scheduling
 Overview
 --------
 
-Topology-aware scheduling ensures that tasks requiring high-bandwidth communication are
-placed on nodes that are physically co-located—such as the same NVLink rack, spine switch,
-or availability zone.
+Topology-aware scheduling ensures that tasks requiring high-bandwidth or low-latency
+communication are placed on nodes that are physically co-located—such as the same NVLink
+rack, spine switch, or availability zone.
 
 This is critical for performance-sensitive workloads like multi-node NVLink training, where
 all shards of a model must communicate with each other at full NVLink bandwidth. Without
 topology-aware scheduling, the scheduler may place tasks on nodes in different racks, causing
-a severe drop in cross-node communication performance.
-
-Topology Keys
--------------
-
-Topology keys are configured by pool administrators and represent the levels of physical
-hierarchy in the cluster. Each key has:
-
-- A **user-friendly name** (e.g., ``rack``, ``zone``, ``gpu-clique``) that you reference in
-  your workflow spec
-- A **Kubernetes node label** (e.g., ``nvidia.com/gpu-clique``,
-  ``topology.kubernetes.io/rack``) that identifies nodes at that level
-
-Keys are ordered from coarsest to finest granularity. For example:
-
-  ``zone`` → ``spine`` → ``rack`` → ``gpu-clique``
+a drop in cross-node communication performance as NCCL reverts to a slower protocol.
 
 .. note::
 
-  Topology-aware scheduling is only available on pools backed by the KAI scheduler with
-  topology keys configured. Contact your OSMO administrator to confirm which topology keys
-  are available for your pool.
+  Topology-aware scheduling is only available on pools with topology keys configured.
+  Contact your OSMO administrator to confirm which topology keys are available for your pool.
 
-Required vs. Preferred
-----------------------
+Topology Requirements
+---------------------
 
-Each topology requirement has a ``requirementType`` that controls scheduling behavior:
+Each entry in the ``topology`` list of a resource spec has three fields:
 
 .. list-table::
   :header-rows: 1
-  :widths: 25 75
+  :widths: 35 15 150
 
+  * - **Field**
+    - **Default**
+    - **Description**
+  * - ``key``
+    - *(required)*
+    - The topology level to constrain. Must match one of the keys configured in the pool
+      (e.g., ``rack``, ``zone``, ``gpu-clique``). Keys represent levels of physical hierarchy
+      in the cluster, ordered from coarsest to finest
+      (e.g., ``zone`` → ``spine`` → ``rack`` → ``gpu-clique``).
+  * - ``group``
+    - ``default``
+    - A name that groups tasks which must share the same physical location at the given
+      topology level. Tasks sharing the same ``key`` and ``group`` will be co-located.
+      Tasks with different ``group`` values for the same ``key`` may land on separate
+      physical units (e.g., separate racks).
   * - ``requirementType``
-    - Behavior
-  * - ``required`` (default)
-    - The workflow will **not** be scheduled unless the constraint can be satisfied. Use this
-      for NVLink workloads where co-location is mandatory for correctness or performance.
-  * - ``preferred``
-    - OSMO will try to satisfy the constraint but will schedule the workflow even if it
-      cannot. Use this when co-location improves performance but is not strictly required.
+    - ``required``
+    - Controls whether the constraint is hard or soft. ``required`` means the workflow will
+      not be scheduled unless the constraint can be satisfied. ``preferred`` means OSMO will
+      attempt to satisfy the constraint but will still schedule the workflow if it cannot.
 
-Topology Groups
----------------
+.. important::
 
-The ``group`` field in a topology requirement controls which tasks must share the same value
-for a given topology key.
+  All tasks in a workflow that specify topology requirements must use the **same set of
+  keys**. Mixing different key sets across tasks (e.g., one task with ``zone`` + ``rack``
+  and another with only ``zone``) is not allowed and will be rejected at submission time.
 
-- Tasks with the **same** topology key and group will be co-located together (e.g., placed
-  on the same rack).
-- Tasks with **different** group names for the same key can land on separate instances of
-  that topology level (e.g., different racks).
+How They Work Together
+~~~~~~~~~~~~~~~~~~~~~~
 
-This enables patterns like 2× data parallel + 4× tensor parallel, where each model
-instance's shards are grouped together but the two model instances can run on separate racks.
+The three fields combine to form a constraint tree. Each task is a leaf node. Middle nodes
+represent co-location constraints at a given topology level—tasks in the same subtree must
+land on the same physical unit at that level. Coarser constraints sit higher in the tree;
+finer constraints are lower.
 
-If ``group`` is not specified it defaults to ``default``, meaning all tasks using that
-resource spec will be required to share the same topology value.
+The following example uses two topology levels (``zone`` and ``gpu-clique``). The two model
+instances each have their own ``gpu-clique`` group, but both share a single ``zone`` group,
+so the whole workflow lands in one zone while the two model instances can sit on separate
+racks.
 
-Uniform Topology Keys
----------------------
+.. code-block:: yaml
 
-All tasks in a workflow that use topology requirements must specify the **same set of
-topology keys**. Tasks cannot use different topology levels from one another (for example,
-one task with ``zone`` + ``rack`` and another with only ``zone`` is not allowed).
+  resources:
+    model-1:
+      topology:
+      - key: zone
+        group: workflow-group
+      - key: gpu-clique
+        group: model-1-group
+    model-2:
+      topology:
+      - key: zone
+        group: workflow-group
+      - key: gpu-clique
+        group: model-2-group
 
-This is validated at workflow submission time; a clear error is returned if violated.
+.. figure:: topology_tree.svg
+  :align: center
+  :width: 90%
+  :class: transparent-bg no-scaled-link
+  :alt: Topology constraint tree showing zone and gpu-clique levels with task leaf nodes
 
 .. seealso::
 
@@ -105,19 +116,8 @@ This is validated at workflow submission time; a clear error is returned if viol
 Examples
 --------
 
-The following examples assume a pool with these topology keys configured:
-
-.. code-block:: yaml
-
-  topology_keys:
-  - key: zone
-    label: topology.kubernetes.io/zone
-  - key: spine
-    label: topology.kubernetes.io/spine
-  - key: rack
-    label: topology.kubernetes.io/rack
-  - key: gpu-clique
-    label: nvidia.com/gpu-clique
+The following examples assume a pool with ``zone``, ``spine``, ``rack``, and ``gpu-clique``
+topology keys configured by the administrator.
 
 Single NVL72 Rack
 ~~~~~~~~~~~~~~~~~
@@ -155,6 +155,12 @@ must therefore be scheduled on the same ``gpu-clique``.
       gpu: 8
       topology:
       - key: gpu-clique
+
+.. figure:: topology_tree_uc1.svg
+  :align: center
+  :width: 75%
+  :class: transparent-bg no-scaled-link
+  :alt: Topology constraint tree for single NVL72 rack use case
 
 Because all tasks share the same resource spec and ``group`` defaults to ``default``, they
 will all be required to land on the same ``gpu-clique``.
@@ -216,6 +222,12 @@ must share a ``gpu-clique``, but the two model instances can be placed on separa
       topology:
       - key: gpu-clique
         group: model-2-group
+
+.. figure:: topology_tree_uc2.svg
+  :align: center
+  :width: 95%
+  :class: transparent-bg no-scaled-link
+  :alt: Topology constraint tree for multiple NVL72 racks use case
 
 By assigning different ``group`` names (``model-1-group`` and ``model-2-group``), the
 scheduler co-locates each model instance's shards on one ``gpu-clique`` while allowing the
@@ -283,6 +295,12 @@ communication between model instances.
         group: model-2-group
       - key: zone
         group: workflow-group
+
+.. figure:: topology_tree_uc3.svg
+  :align: center
+  :width: 95%
+  :class: transparent-bg no-scaled-link
+  :alt: Topology constraint tree for multiple NVL72 racks in same zone use case
 
 The ``gpu-clique`` requirements keep each model instance's shards on the same rack. The
 shared ``zone`` requirement with ``group: workflow-group`` ensures both model instances are
@@ -355,5 +373,86 @@ constraints cannot be met.
         group: workflow-group
         requirementType: preferred
 
+.. figure:: topology_tree_uc4.svg
+  :align: center
+  :width: 95%
+  :class: transparent-bg no-scaled-link
+  :alt: Topology constraint tree for best-effort topology use case
+
 Using ``requirementType: preferred`` tells the scheduler to attempt co-location but not
 block scheduling if the constraints cannot be satisfied.
+
+Reused Group Names Do Not Imply Co-location
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This example demonstrates that sharing a ``group`` name at a finer topology level does not
+guarantee co-location when the tasks belong to different groups at a coarser level.
+
+Four tasks are split across two zones. Within ``zone-a``, both ``task-1`` and ``task-2``
+must share the same rack (``rack-group-1``). Within ``zone-b``, ``task-3`` is placed on a
+rack also named ``rack-group-1``, while ``task-4`` is placed on ``rack-group-2``.
+
+.. code-block:: yaml
+
+  workflow:
+    name: scoped-group-example
+    groups:
+    - name: group1
+      tasks:
+      - name: task-1
+        resource: rack-a
+        lead: true
+        image: nvcr.io/nvidia/pytorch:24.03-py3
+        ...
+      - name: task-2
+        resource: rack-a
+        image: nvcr.io/nvidia/pytorch:24.03-py3
+        ...
+      - name: task-3
+        resource: rack-b1
+        image: nvcr.io/nvidia/pytorch:24.03-py3
+        ...
+      - name: task-4
+        resource: rack-b2
+        image: nvcr.io/nvidia/pytorch:24.03-py3
+        ...
+  resources:
+    rack-a:
+      gpu: 8
+      topology:
+      - key: zone
+        group: zone-a
+      - key: rack
+        group: rack-group-1
+    rack-b1:
+      gpu: 8
+      topology:
+      - key: zone
+        group: zone-b
+      - key: rack
+        group: rack-group-1
+    rack-b2:
+      gpu: 8
+      topology:
+      - key: zone
+        group: zone-b
+      - key: rack
+        group: rack-group-2
+
+.. figure:: topology_tree_uc5.svg
+  :align: center
+  :width: 95%
+  :class: transparent-bg no-scaled-link
+  :alt: Topology constraint tree showing that rack-group-1 resolves independently under each zone
+
+Although task-1, task-2, and task-3 all specify ``group: rack-group-1`` for their ``rack``
+constraint, task-3 will **not** be placed on the same physical rack as task-1 and task-2.
+Because their ``zone`` groups differ (``zone-a`` vs. ``zone-b``), the two ``rack-group-1``
+nodes sit in separate branches of the constraint tree and are resolved independently by the
+scheduler.
+
+.. important::
+
+  Group names are scoped by their position in the constraint tree. Tasks sharing the same
+  ``group`` name at a given ``key`` level are only guaranteed to be co-located if they also
+  share all ancestor group memberships at every coarser constraint level above them.
