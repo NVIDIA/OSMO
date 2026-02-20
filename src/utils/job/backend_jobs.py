@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Set, Type
 
 import kubernetes.client as kb_client  # type: ignore
 import kubernetes.client.exceptions as kb_exceptions  # type: ignore
-import kubernetes.dynamic as kb_dynamic  # type: ignore
+import kubernetes.utils as kb_utils  # type: ignore
 import urllib3  # type: ignore
 
 from src.lib.utils import common, osmo_errors, jinja_sandbox
@@ -120,9 +120,11 @@ class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkfl
         be removed from the message queue, or false if the job failed.
         """
         last_timestamp = datetime.datetime.now()
+        # Create all resources in k8s
+        # If something fails, then schedule an UpdateGroup-FAILED job
         api = context.get_kb_client()
         namespace = context.get_kb_namespace()
-        dyn_client = kb_dynamic.DynamicClient(api)
+        custom_api = kb_client.CustomObjectsApi(api)
 
         api.configuration.timeout = self.backend_k8s_timeout
 
@@ -135,12 +137,41 @@ class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkfl
             logging.info(message, extra={'workflow_uuid': self.workflow_uuid})
 
             try:
-                resource_api = dyn_client.resources.get(
-                    api_version=resource['apiVersion'], kind=resource['kind'])
-                resource_api.create(namespace=namespace, body=resource)
-            except kb_exceptions.ApiException as api_exception:
+                # Is this a custom resource type?
+                if '/' in resource['apiVersion']:
+                    api_major, api_minor = resource['apiVersion'].split('/')
+                    # Convert a string like like PodGroup to podgroups
+                    path = resource['kind'].lower() + 's'
+                    custom_api.create_namespaced_custom_object(
+                        api_major, api_minor, namespace, path, resource)
+                else:
+                    kb_utils.create_from_dict(api, resource)
+            # If create_from_dict fails because the resource already exists,
+            # omit a warning and continue
+            except kb_utils.FailToCreateError as error:
+                api_exception = error.api_exceptions[0]
                 body = json.loads(api_exception.body)
-                reason = body.get('reason', body.get('message', str(api_exception.body)))
+                if 'reason' in body:
+                    reason = body['reason']
+                elif 'message' in body:
+                    reason = body['message']
+                else:
+                    reason = api_exception.body
+                # Ignore failures to create due to an already existing resource
+                if reason == 'AlreadyExists':
+                    result.message = reason
+                    message = f'Skipping creation of {resource["kind"]} named '\
+                              f'{resource["metadata"]["name"]} '\
+                              f'in namespace {resource["metadata"]["namespace"]} '\
+                              'because it already exists'
+                    logging.warning(message, extra={'workflow_uuid': self.workflow_uuid})
+                else:
+                    raise
+            # If create_namespaced_custom_object fails because the resource already exists,
+            # omit a warning and continue
+            except kb_exceptions.ApiException as api_exception:
+                reason = json.loads(api_exception.body)['reason']
+                # Ignore failures to create due to an already existing resource
                 if reason == 'AlreadyExists':
                     result.message = reason
                     message = f'Skipping creation of {resource["kind"]} named '\
@@ -271,21 +302,21 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
                 resources = methods.list_resource(namespace, label_selector=cleanup.k8s_selector,
                     watch=False)
             except urllib3.exceptions.MaxRetryError as error:
-                err_message = f'Listing resource type {cleanup.effective_kind} failed during ' + \
+                err_message = f'Listing resource type {cleanup.resource_type} failed during ' + \
                           f'cleanup. Error: {error}'
                 logging.error(err_message, extra={'workflow_uuid': self.workflow_uuid})
                 need_retry = True
                 # Skip deleting for this resource type because list failed
                 continue
             except kb_exceptions.ApiException as api_exception:
-                err_message = f'Listing resource type {cleanup.effective_kind} ApiException: ' + \
+                err_message = f'Listing resource type {cleanup.resource_type} ApiException: ' + \
                               f'{api_exception}'
                 logging.error(err_message, extra={'workflow_uuid': self.workflow_uuid})
                 need_retry = True
                 # Skip deleting for this resource type because list failed
                 continue
 
-            if cleanup.effective_kind == 'Pod':
+            if cleanup.resource_type == 'Pod':
                 context.send_message(backend_messages.MessageBody(
                     type=backend_messages.MessageType.LOGGING,
                     body=backend_messages.LoggingBody(
@@ -296,26 +327,26 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
                 ))
 
             for resource in resources.items:
-                message = f'Deleting {cleanup.effective_kind} named {resource.metadata.name}'
+                message = f'Deleting {cleanup.resource_type} named {resource.metadata.name}'
                 logging.info(message, extra={'workflow_uuid': self.workflow_uuid})
                 try:
                     methods.delete_resource(resource.metadata.name, namespace, body=delete_options)
                 except kb_exceptions.ApiException as api_exception:
                     code = json.loads(api_exception.body)['code']
                     if code == 404:
-                        message = f'Skipping deletion of {cleanup.effective_kind} named '\
+                        message = f'Skipping deletion of {cleanup.resource_type} named '\
                                   f'{resource.metadata.name} '\
                                   f'in namespace {namespace} '\
                                   'because it has already been deleted'
                         logging.warning(message, extra={'workflow_uuid': self.workflow_uuid})
                     elif code >= 500:
-                        err_message = f'Deletion of {cleanup.effective_kind} named '\
+                        err_message = f'Deletion of {cleanup.resource_type} named '\
                                       f'{resource.metadata.name} error: {api_exception}'
                         logging.warning(err_message, extra={'workflow_uuid': self.workflow_uuid})
                         need_retry = True
                     else:
                         raise
-            if cleanup.effective_kind == 'Pod':
+            if cleanup.resource_type == 'Pod':
                 resources = None
                 list_error = None
                 try:
@@ -462,33 +493,51 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
                 f'SynchronizeQueues job_id should contain \"modify-queues\": {value}.')
         return value
 
-    def _queue_resource_api(self, api_client):
-        """Returns a dynamic resource API for the queue type."""
-        dyn_client = kb_dynamic.DynamicClient(api_client)
-        return dyn_client.resources.get(
-            api_version=self.cleanup_spec.effective_api_version,
-            kind=self.cleanup_spec.effective_kind)
-
     def _get_queues(self, context: BackendJobExecutionContext) -> List[Dict]:
         """Gets the queues from the backend"""
-        resource_api = self._queue_resource_api(context.get_kb_client())
-        result = resource_api.get(label_selector=self.cleanup_spec.k8s_selector)
-        return result.to_dict().get('items', [])
+        api = context.get_kb_client()
+        custom_api = kb_client.CustomObjectsApi(api)
+        if self.cleanup_spec.custom_api is None:
+            raise osmo_errors.OSMOError('Custom API not provided for queue')
+        return custom_api.list_cluster_custom_object(
+            self.cleanup_spec.custom_api.api_major,
+            self.cleanup_spec.custom_api.api_minor,
+            self.cleanup_spec.custom_api.path,
+            label_selector=self.cleanup_spec.k8s_selector)['items']
 
     def _apply_queue(self, context: BackendJobExecutionContext, queue: Dict,
             resource_version: str | None = None):
         """Creates or updates a queue in the backend"""
-        resource_api = self._queue_resource_api(context.get_kb_client())
+        client = context.get_kb_client()
+        custom_api = kb_client.CustomObjectsApi(client)
+        if self.cleanup_spec.custom_api is None:
+            raise osmo_errors.OSMOError('Custom API not provided for queue')
         if resource_version is None:
-            resource_api.create(body=queue)
+            custom_api.create_cluster_custom_object(
+                self.cleanup_spec.custom_api.api_major,
+                self.cleanup_spec.custom_api.api_minor,
+                self.cleanup_spec.custom_api.path,
+                queue)
         else:
             queue['metadata']['resourceVersion'] = resource_version
-            resource_api.replace(name=queue['metadata']['name'], body=queue)
+            custom_api.replace_cluster_custom_object(
+                self.cleanup_spec.custom_api.api_major,
+                self.cleanup_spec.custom_api.api_minor,
+                self.cleanup_spec.custom_api.path,
+                queue['metadata']['name'],
+                queue)
 
     def _delete_queue(self, context: BackendJobExecutionContext, name: str):
         """Deletes a queue in the backend"""
-        resource_api = self._queue_resource_api(context.get_kb_client())
-        resource_api.delete(name=name)
+        client = context.get_kb_client()
+        custom_api = kb_client.CustomObjectsApi(client)
+        if self.cleanup_spec.custom_api is None:
+            raise osmo_errors.OSMOError('Custom API not provided for queue')
+        custom_api.delete_cluster_custom_object(
+            self.cleanup_spec.custom_api.api_major,
+            self.cleanup_spec.custom_api.api_minor,
+            self.cleanup_spec.custom_api.path,
+            name)
 
     def execute(self, context: BackendJobExecutionContext,
                 progress_writer: progress.ProgressWriter,
@@ -518,13 +567,13 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
                     self._delete_queue(context, queue_name)
 
         except urllib3.exceptions.MaxRetryError as error:
-            err_message = f'Listing resource type {self.cleanup_spec.effective_kind} failed ' + \
+            err_message = f'Listing resource type {self.cleanup_spec.resource_type} failed ' + \
                         f'during cleanup. Error: {error}'
             logging.error(err_message)
             return JobResult(status=JobStatus.FAILED_RETRY, message=err_message)
 
         except kb_exceptions.ApiException as api_exception:
-            err_message = f'Listing resource type {self.cleanup_spec.effective_kind} ' + \
+            err_message = f'Listing resource type {self.cleanup_spec.resource_type} ' + \
                             f'ApiException: {api_exception}'
             logging.error(err_message)
             return JobResult(status=JobStatus.FAILED_RETRY, message=err_message)
