@@ -1361,7 +1361,7 @@ class PostgresConnector:
                 # Flatten actions for comparison
                 def flatten_actions(policies):
                     return set(
-                        action.action
+                        action
                         for policy in policies
                         for action in getattr(policy, 'actions', [])
                     )
@@ -3377,32 +3377,22 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
     @classmethod
     def fetch_rows_from_db(cls, database: PostgresConnector,
                            backend: str | None = None,
-                           access_names: List[str] | None = None,
                            pools: List[str] | None = None,
                            all_pools: bool = True) -> Any:
         """ Fetches the list of pools from the pools table """
         params : List[str | Tuple] = []
         conditions = []
 
-        if not access_names:
-            access_names = []
+        if not pools:
+            pools = []
 
         if backend:
             conditions.append('pools.backend = %s')
             params.append(backend)
 
-        if pools:
+        if pools or not all_pools:
             conditions.append('pools.name IN %s')
             params.append(tuple(pools))
-        elif not all_pools:
-            # TODO: Derive the pool access based on resource and not the name of the role
-            pool_list = [
-                f'{access_name[len("osmo-"):]}%' for access_name in access_names
-                if access_name.startswith('osmo-')]
-            similar_str = f'({"|".join(pool_list)})'
-            conditions.append(
-                '(pools.name SIMILAR TO %s OR pools.name = %s)')
-            params.extend((similar_str, 'default'))
 
         conditions_clause = '' if not params \
             else f'WHERE {" AND ".join(conditions)}'
@@ -3424,15 +3414,10 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         return pool_rows
 
     @classmethod
-    def get_pools(cls, access_names: List[str], all_pools: bool = False) -> List[str]:
-        """
-        Fetch pool names of pools that are available to the user's given access_names.
-        If access_names has a string called groot, return all pool names that start with
-        'groot'.
-        """
+    def get_all_pool_names(cls) -> List[str]:
+        """Fetch all pool names from the database."""
         database = PostgresConnector.get_instance()
-        return [pool['name'] for pool in cls.fetch_rows_from_db(
-            database, access_names=access_names, all_pools=all_pools)]
+        return [pool['name'] for pool in cls.fetch_rows_from_db(database)]
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
@@ -3616,12 +3601,10 @@ class MinimalPoolConfig(pydantic.BaseModel):
 
 def fetch_verbose_pool_config(database: PostgresConnector,
                               backend: str | None = None,
-                              access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> VerbosePoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
-                                        access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
     return VerbosePoolConfig(
@@ -3630,12 +3613,10 @@ def fetch_verbose_pool_config(database: PostgresConnector,
 
 def fetch_minimal_pool_config(database: PostgresConnector,
                               backend: str | None = None,
-                              access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> MinimalPoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
-                                        access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
     return MinimalPoolConfig(
@@ -3644,12 +3625,10 @@ def fetch_minimal_pool_config(database: PostgresConnector,
 
 def fetch_editable_pool_config(database: PostgresConnector,
                               backend: str | None = None,
-                              access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> EditablePoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
-                                        access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
     return EditablePoolConfig(

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ data:
         Tag               <service_name>
         Tag_Regex         \/var\/log\/(?<service_name>[^ ]+).txt*
         Path              /var/log/*.txt
-        Exclude_Path      /var/log/backend_event.txt* , /var/log/envoy_access_log.txt*, /var/log/envoy_api_access_log.txt*
+        Exclude_Path      /var/log/backend_event.txt* , /var/log/envoy_access_log.txt*, /var/log/envoy_api_access_log.txt*, /var/log/*authz_sidecar*.txt*
         Multiline         On
         Parser_Firstline  osmo-log
         Key               log
@@ -89,6 +89,21 @@ data:
         Parser            envoy-access-unified
         Key               log
         DB                /var/log/fluent_bit_envoy_checkpoints.db
+        Read_from_Head    True
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   Off
+        Refresh_Interval  1
+        Buffer_Chunk_Size 64k
+        Buffer_Max_Size   64k
+
+    [INPUT]
+        Name              tail
+        Tag               authz_sidecar
+        Path              /var/log/*authz_sidecar*.txt
+        Multiline         On
+        Parser_Firstline  authz-log
+        Key               log
+        DB                /var/log/fluent_bit_authz_checkpoints.db
         Read_from_Head    True
         Mem_Buf_Limit     5MB
         Skip_Long_Lines   Off
@@ -183,7 +198,7 @@ data:
     [PARSER]
         Name        osmo-log
         Format      regex
-        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?: wf_uuid=(?<workflow_uuid>[\w-]+))?(?<log>.*)$
+        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?: wf_uuid=(?<workflow_uuid>[\w-]+))?[ ]?(?<log>.*)$
 
     [PARSER]
         Name        event-log
@@ -194,6 +209,11 @@ data:
         Name        event-log-parser
         Format      regex
         Regex       [^ ]* [^ ]* (?<task>[^ ]*) .*$
+
+    [PARSER]
+        Name        authz-log
+        Format      regex
+        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?:[ ]user=(?<user>[^ ]+))?[ ]?(?<log>.*)$
 
     [PARSER]
         Name        envoy-access-unified
