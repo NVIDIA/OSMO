@@ -17,24 +17,24 @@
 /**
  * Dataset Detail Content (Client Component)
  *
- * Main client component for dataset detail page with tabs.
- * Manages tab state in URL for shareable deep links.
+ * Google Drive-style file browser for a dataset version.
+ * URL state: ?path= (current directory), ?version= (version tag), ?file= (selected file)
  */
 
 "use client";
 
+import { useState, useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome/page-context";
-import { useQueryState } from "nuqs";
-import { Info, History, FolderTree } from "lucide-react";
-import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
-import { TabPanel } from "@/components/panel/tab-panel";
 import { Button } from "@/components/shadcn/button";
-import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
-import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
-import { DatasetVersionsDataTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/DatasetVersionsDataTable";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
+import { PANEL } from "@/components/panel/panel-header-controls";
+import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
+import { FileBrowserHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserHeader";
+import { FileBrowserTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserTable";
+import { FilePreviewPanel } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FilePreviewPanel";
 import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
-import { useMemo, useCallback } from "react";
+import { useFileBrowserState } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-file-browser-state";
+import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 
 interface Props {
   bucket: string;
@@ -42,50 +42,85 @@ interface Props {
 }
 
 export function DatasetDetailContent({ bucket, name }: Props) {
-  const { dataset, versions, isLoading, error, refetch } = useDatasetDetail(bucket, name);
+  // ==========================================================================
+  // Dataset metadata + versions
+  // ==========================================================================
 
-  // Tab state in URL (deep-linkable)
-  const [activeTab, setActiveTab] = useQueryState("tab", {
-    defaultValue: "overview",
-    shallow: true,
-    history: "replace",
+  const { dataset, versions, error: datasetError, refetch: refetchDataset } = useDatasetDetail(bucket, name);
+
+  // ==========================================================================
+  // URL state: path, version, selected file
+  // ==========================================================================
+
+  const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
+
+  // ==========================================================================
+  // File listing — updates when path or version changes
+  // ==========================================================================
+
+  const {
+    data: filesData,
+    isLoading: isFilesLoading,
+    error: filesError,
+    refetch: refetchFiles,
+  } = useDatasetFiles(bucket, name, path, version ?? undefined);
+
+  const files = useMemo(() => filesData?.files ?? [], [filesData]);
+
+  // ==========================================================================
+  // Panel state — ResizablePanel lifecycle + width
+  // ==========================================================================
+
+  const [panelWidth, setPanelWidth] = useState(35);
+
+  const {
+    isPanelOpen,
+    handleClose: handleClosePanel,
+    handleClosed: handlePanelClosed,
+  } = usePanelLifecycle({
+    hasSelection: !!selectedFile,
+    onClosed: clearSelection,
   });
 
-  // Tab configuration matching workflows pattern
-  const tabs = useMemo<PanelTab[]>(
-    () => [
-      { id: "overview", label: "Overview", icon: Info },
-      { id: "versions", label: "Versions", icon: History },
-      { id: "files", label: "File Browser", icon: FolderTree },
-    ],
-    [],
-  );
+  // Resolve the DatasetFile object for the selected file path.
+  // The selected file's name is the last path segment; it must exist in the
+  // current files array (same directory) to render preview content.
+  const selectedFileData = useMemo(() => {
+    if (!selectedFile) return null;
+    const fileName = selectedFile.split("/").pop() ?? "";
+    return files.find((f) => f.name === fileName && f.type === "file") ?? null;
+  }, [selectedFile, files]);
 
-  // Handle tab change
-  const handleTabChange = useCallback(
-    (value: string) => {
-      setActiveTab(value);
-    },
-    [setActiveTab],
-  );
+  // Stable callback wrappers to avoid stale closures in memo deps
+  const handleRefetchFiles = useCallback(() => {
+    void refetchFiles();
+  }, [refetchFiles]);
 
-  // Set page title and breadcrumbs with bucket filter link
+  // ==========================================================================
+  // Chrome: page title + breadcrumbs
+  // ==========================================================================
+
   usePage({
-    title: dataset ? dataset.name : name,
+    title: "Files",
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
+      { label: name, href: `/datasets/${encodeURIComponent(bucket)}/${encodeURIComponent(name)}` },
     ],
   });
 
-  if (error) {
+  // ==========================================================================
+  // Error state — dataset failed to load
+  // ==========================================================================
+
+  if (datasetError) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
           <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Dataset</h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{error.message}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{datasetError.message}</p>
           <Button
-            onClick={() => refetch()}
+            onClick={() => void refetchDataset()}
             variant="outline"
           >
             Try again
@@ -99,70 +134,69 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     return null; // Loading state handled by skeleton
   }
 
+  // ==========================================================================
+  // File listing content — handles query error inline
+  // ==========================================================================
+
+  const fileTableContent = filesError ? (
+    <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">Failed to load files.</p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleRefetchFiles}
+      >
+        Retry
+      </Button>
+    </div>
+  ) : (
+    <FileBrowserTable
+      files={files}
+      path={path}
+      selectedFile={selectedFile}
+      onNavigate={navigateTo}
+      onSelectFile={selectFile}
+      isLoading={isFilesLoading}
+    />
+  );
+
+  // ==========================================================================
+  // Render
+  // ==========================================================================
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 p-6">
-        <InlineErrorBoundary
-          title="Header error"
-          compact
-        >
-          <DatasetDetailHeader dataset={dataset} />
-        </InlineErrorBoundary>
-      </div>
-
-      {/* Tab Navigation - Chrome-style tabs matching workflows */}
-      <PanelTabs
-        tabs={tabs}
-        value={activeTab}
-        onValueChange={handleTabChange}
+      {/* Sticky header: breadcrumb + version switcher */}
+      <FileBrowserHeader
+        datasetName={name}
+        path={path}
+        versions={versions}
+        selectedVersion={version}
+        onNavigate={navigateTo}
+        onVersionChange={setVersion}
       />
 
-      {/* Tab Content */}
-      <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
-        <TabPanel
-          tab="overview"
-          activeTab={activeTab}
-          padding="with-bottom"
+      {/* File browser + file preview panel */}
+      <div className="min-h-0 flex-1">
+        <ResizablePanel
+          open={isPanelOpen}
+          onClose={handleClosePanel}
+          onClosed={handlePanelClosed}
+          width={panelWidth}
+          onWidthChange={setPanelWidth}
+          minWidth={PANEL.MIN_WIDTH_PCT}
+          maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
+          mainContent={fileTableContent}
+          aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
         >
-          <InlineErrorBoundary
-            title="Unable to display overview"
-            onReset={refetch}
-          >
-            <OverviewTab dataset={dataset} />
-          </InlineErrorBoundary>
-        </TabPanel>
-
-        <TabPanel
-          tab="versions"
-          activeTab={activeTab}
-          padding="with-bottom"
-        >
-          <InlineErrorBoundary
-            title="Unable to display versions table"
-            resetKeys={[versions.length]}
-            onReset={refetch}
-          >
-            <DatasetVersionsDataTable
-              versions={versions}
-              currentVersion={dataset.version}
-              isLoading={isLoading}
-              error={error ?? undefined}
-              onRetry={refetch}
+          {selectedFileData && (
+            <FilePreviewPanel
+              file={selectedFileData}
+              path={path}
+              onClose={handleClosePanel}
             />
-          </InlineErrorBoundary>
-        </TabPanel>
-
-        <TabPanel
-          tab="files"
-          activeTab={activeTab}
-          centered
-          className="p-4"
-        >
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Coming Soon</p>
-            <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">File browser for exploring dataset contents</p>
-          </div>
-        </TabPanel>
+          )}
+        </ResizablePanel>
       </div>
     </div>
   );
