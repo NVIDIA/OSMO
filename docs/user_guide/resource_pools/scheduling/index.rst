@@ -256,3 +256,8 @@ OSMO will automatically **borrow GPUs** from other pools that are sharing the sa
       :align: center
       :class: transparent-bg no-scaled-link
       :width: 75%
+
+.. seealso::
+
+  For workloads that require specific network locality (e.g., NVLink multi-node training),
+  see :ref:`concepts_topology` for topology-aware scheduling.
