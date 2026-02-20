@@ -22,6 +22,7 @@
  *
  * Features:
  * - Smart search with filter chips (name, bucket, user, created_at, updated_at)
+ * - "My Datasets" amber pill preset (like "My Workflows")
  * - Column visibility and reordering
  * - Navigation to dataset detail page on row click
  */
@@ -31,59 +32,48 @@
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
-import { useUrlChips } from "@/hooks/use-url-chips";
+import { useDefaultFilter } from "@/hooks/use-default-filter";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback, useMemo, useTransition } from "react";
-import { useQueryState, parseAsBoolean } from "nuqs";
+import { useCallback } from "react";
 import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
 import { useDatasetsData } from "@/app/(dashboard)/datasets/hooks/use-datasets-data";
+import { useUser } from "@/lib/auth/user-context";
+import type { SearchChip } from "@/stores/types";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface DatasetsPageContentProps {
+  initialUsername?: string | null;
+}
 
 // =============================================================================
 // Client Component
 // =============================================================================
 
-export function DatasetsPageContent() {
+export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProps) {
   usePage({ title: "Datasets" });
   const { startTransition: startViewTransition } = useViewTransition();
+  const { user } = useUser();
 
-  // Track pending state for show all users toggle
-  const [showAllUsersPending, startShowAllUsersTransition] = useTransition();
+  const currentUsername = initialUsername ?? user?.username ?? null;
 
   // ==========================================================================
-  // URL State - All state is URL-synced for shareable deep links
-  // URL: /datasets?f=bucket:training&f=user:alice&all=true
+  // Default user filter — "My Datasets" by default, opt-out via ?all=true
   // ==========================================================================
 
-  // Filter chips - URL-synced via shared hook
-  const { searchChips, setSearchChips } = useUrlChips();
+  const { effectiveChips, handleChipsChange, optOut } = useDefaultFilter({
+    field: "user",
+    defaultValue: currentUsername,
+    label: `user: ${currentUsername}`,
+  });
 
   const handleSearchChipsChange = useCallback(
-    (chips: Parameters<typeof setSearchChips>[0]) => {
-      startViewTransition(() => setSearchChips(chips));
-    },
-    [setSearchChips, startViewTransition],
+    (chips: SearchChip[]) => startViewTransition(() => handleChipsChange(chips)),
+    [handleChipsChange, startViewTransition],
   );
-
-  // Show all users toggle - URL-synced (default: false = my datasets only)
-  // URL param: ?all=true (shows all users), omitted/false (shows my datasets)
-  const [showAllUsers, setShowAllUsers] = useQueryState(
-    "all",
-    parseAsBoolean.withDefault(false).withOptions({
-      shallow: true,
-      history: "replace", // Don't pollute history with toggle changes
-      clearOnDefault: true, // Remove param when false (cleaner URLs)
-    }),
-  );
-
-  const handleToggleShowAllUsers = useCallback(() => {
-    startShowAllUsersTransition(() => {
-      void setShowAllUsers((prev) => !prev);
-    });
-  }, [setShowAllUsers]);
-
-  // Disable ShowAll toggle when a user: chip is active (user chip overrides the toggle)
-  const hasUserFilter = useMemo(() => searchChips.some((c) => c.field === "user"), [searchChips]);
 
   // ==========================================================================
   // Data Fetching — fetch-all + shim approach
@@ -92,8 +82,8 @@ export function DatasetsPageContent() {
   // ==========================================================================
 
   const { datasets, allDatasets, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } = useDatasetsData({
-    searchChips,
-    showAllUsers,
+    searchChips: effectiveChips,
+    showAllUsers: optOut,
   });
 
   // Results count for FilterBar display (consolidated hook)
@@ -113,13 +103,10 @@ export function DatasetsPageContent() {
         >
           <DatasetsToolbar
             datasets={allDatasets}
-            searchChips={searchChips}
+            searchChips={effectiveChips}
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
-            showAllUsers={showAllUsers}
-            showAllUsersPending={showAllUsersPending}
-            onToggleShowAllUsers={handleToggleShowAllUsers}
-            showAllUsersDisabled={hasUserFilter}
+            currentUsername={currentUsername}
             onRefresh={refetch}
             isRefreshing={isLoading}
           />
