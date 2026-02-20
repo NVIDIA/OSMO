@@ -25,7 +25,7 @@
 
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef } from "react";
 import { flexRender, type Row } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import type { VirtualizedRow } from "@/components/data-table/hooks/use-virtualized-table";
@@ -52,6 +52,8 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   columnCount: number;
   /** Row click handler */
   onRowClick?: (item: TData, index: number) => void;
+  /** Row double-click handler */
+  onRowDoubleClick?: (item: TData, index: number) => void;
   /**
    * Get the href for a row (if clicking navigates to a page).
    * Used for middle-click behavior:
@@ -92,6 +94,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   getItem,
   columnCount,
   onRowClick,
+  onRowDoubleClick,
   getRowHref,
   selectedRowId,
   getRowId,
@@ -104,6 +107,14 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   measureElement,
   compact = false,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
+  /**
+   * Stores the row item resolved at mousedown time (first click of a potential
+   * double-click). Used as a fallback in handleTbodyDoubleClick when the
+   * virtualizer has remounted rows between the first click and the dblclick
+   * event (e.g. because opening a slideout panel narrowed the table).
+   */
+  const lastMouseDownItemRef = useRef<{ item: TData; index: number } | null>(null);
+
   /**
    * Resolve row data from a delegated event target.
    * Walks up the DOM to find the row element, parses its index,
@@ -124,6 +135,16 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   const handleTbodyClick = useCallback(
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
       if (!onRowClick && !getRowHref) return;
+
+      // When a double-click handler is registered, skip the second click
+      // (detail >= 2) of a multi-click sequence. Without this guard the second
+      // click fires onRowClick → startViewTransition a second time, and the
+      // resulting document.startViewTransition competes with the one triggered
+      // by the immediately-following dblclick event. The browser cannot
+      // reliably run two overlapping view-transition update callbacks, so the
+      // dblclick's router.push never executes.
+      if (onRowDoubleClick && e.detail >= 2) return;
+
       const resolved = resolveRowItem(e.target as HTMLElement);
       if (!resolved) return;
 
@@ -137,7 +158,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
 
       onRowClick?.(resolved.item, resolved.index);
     },
-    [onRowClick, getRowHref, resolveRowItem],
+    [onRowClick, onRowDoubleClick, getRowHref, resolveRowItem],
   );
 
   const handleTbodyFocus = useCallback(
@@ -181,12 +202,38 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
     [onRowClick, getRowHref, resolveRowItem],
   );
 
+  const handleTbodyMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLTableSectionElement>) => {
+      if (!onRowDoubleClick) return;
+      // Only capture on the first press of a potential double-click (detail=1).
+      // This is used as a fallback in handleTbodyDoubleClick in case the
+      // virtualizer remounts rows between the first click and the dblclick event.
+      if (e.detail !== 1) return;
+      lastMouseDownItemRef.current = resolveRowItem(e.target as HTMLElement);
+    },
+    [onRowDoubleClick, resolveRowItem],
+  );
+
+  const handleTbodyDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLTableSectionElement>) => {
+      if (!onRowDoubleClick) return;
+      // Fall back to the item captured at mousedown if the target element is no
+      // longer in the DOM (e.g. virtualizer remounted rows while panel opened).
+      const resolved = resolveRowItem(e.target as HTMLElement) ?? lastMouseDownItemRef.current;
+      if (!resolved) return;
+      onRowDoubleClick(resolved.item, resolved.index);
+    },
+    [onRowDoubleClick, resolveRowItem],
+  );
+
   return (
     <tbody
       role="rowgroup"
       className="data-table-body"
       style={{ height: totalHeight }}
+      onMouseDown={onRowDoubleClick ? handleTbodyMouseDown : undefined}
       onClick={handleTbodyClick}
+      onDoubleClick={onRowDoubleClick ? handleTbodyDoubleClick : undefined}
       onAuxClick={onRowClick || getRowHref ? handleTbodyAuxClick : undefined}
       onFocus={handleTbodyFocus}
       onKeyDown={handleTbodyKeyDown}
