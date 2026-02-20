@@ -47,7 +47,6 @@ export interface Dataset {
   size_bytes: number;
   /** Number of files (backend may return string, we ensure number) */
   num_files: number;
-  format: string;
   labels?: Record<string, string>;
   retention_policy?: string;
   description?: string;
@@ -161,7 +160,6 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
     updated_at: raw.last_created || raw.create_time,
     size_bytes: ensureNumber(raw.hash_location_size),
     num_files: 0, // Not available in list view (backend doesn't provide)
-    format: raw.type, // Using type as format for now
     labels: {}, // Not available in list view
   };
 }
@@ -220,7 +218,6 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
       updated_at: latestVersion?.created_date || raw.created_date || "",
       size_bytes: ensureNumber(raw.hash_location_size),
       num_files: 0, // Not in DataInfoResponse
-      format: raw.type,
       labels,
     },
     // Return filtered versions array (only dataset entries)
@@ -259,8 +256,6 @@ function buildApiParams(
   all_users?: boolean;
   count: number;
 } {
-  // Note: "format" in UI (parquet, arrow, etc.) is different from backend's dataset_type (DATASET, COLLECTION)
-  // For now, we don't pass format to backend - will need client-side filtering for format
   const bucketChips = getChipValues(chips, "bucket");
   const userChips = getChipValues(chips, "user");
   const searchTerm = getFirstChipValue(chips, "name");
@@ -378,7 +373,6 @@ export async function fetchDatasetFiles(
  */
 export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
   // Extract filter values by field
-  const formats = getChipValues(searchChips, "format").sort();
   const buckets = getChipValues(searchChips, "bucket").sort();
   const users = getChipValues(searchChips, "user").sort();
   const search = getFirstChipValue(searchChips, "name");
@@ -386,7 +380,6 @@ export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: b
   // Build query key - only include filters that have values
   const filters: Record<string, string | string[] | boolean> = {};
   if (search) filters.search = search;
-  if (formats.length > 0) filters.formats = formats;
   if (buckets.length > 0) filters.buckets = buckets;
   if (users.length > 0) filters.users = users;
   filters.showAllUsers = showAllUsers;

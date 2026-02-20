@@ -39,7 +39,6 @@ export interface GeneratedDataset {
   updated_at: string;
   size_bytes: number;
   num_files: number;
-  format: string;
   labels: Record<string, string>;
   retention_policy?: string;
   description?: string;
@@ -89,7 +88,6 @@ const DATASET_PATTERNS = {
     "c4",
   ],
   variants: ["train", "val", "test", "full", "mini", "sample"],
-  formats: ["parquet", "arrow", "tfrecord", "jsonl", "csv", "hdf5"],
   buckets: ["osmo-datasets", "ml-data", "training-data"],
   modalities: ["text", "image", "audio", "video", "multimodal"],
   retentionPolicies: ["30d", "90d", "1y", "forever"],
@@ -146,7 +144,6 @@ export class DatasetGenerator {
     const name = `${baseName}-${variant}${uniqueSuffix}`;
 
     const bucket = faker.helpers.arrayElement(DATASET_PATTERNS.buckets);
-    const format = faker.helpers.arrayElement(DATASET_PATTERNS.formats);
     const user = faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
 
     return {
@@ -158,7 +155,6 @@ export class DatasetGenerator {
       updated_at: faker.date.recent({ days: 90 }).toISOString(),
       size_bytes: faker.number.int({ min: 1e9, max: 1e12 }),
       num_files: faker.number.int({ min: 10, max: 10000 }),
-      format,
       labels: {
         modality: faker.helpers.arrayElement(DATASET_PATTERNS.modalities),
         project: faker.helpers.arrayElement(["training", "research", "evaluation"]),

@@ -42,16 +42,6 @@ export const DATASET_STATIC_FIELDS: readonly SearchField<Dataset>[] = [
     },
   },
   {
-    id: "format",
-    label: "Format",
-    prefix: "format:",
-    getValues: (datasets: Dataset[]) => {
-      const formats = datasets.map((d) => d.format).filter(Boolean);
-      return [...new Set(formats)].sort();
-    },
-    exhaustive: false,
-  },
-  {
     id: "bucket",
     label: "Bucket",
     prefix: "bucket:",
