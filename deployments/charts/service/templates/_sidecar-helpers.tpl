@@ -449,6 +449,10 @@ OAuth2 Proxy volumes
     - key: {{ .Values.sidecars.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
       path: cookie-secret
 {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Authorization sidecar container
 */}}
 {{- define "osmo.authz-sidecar-container" -}}

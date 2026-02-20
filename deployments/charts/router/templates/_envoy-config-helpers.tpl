@@ -316,8 +316,6 @@ listeners:
                           request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
                         end
                       end
-<<<<<<< HEAD
-=======
 
         {{- if .Values.sidecars.authz.enabled }}
         - name: envoy.filters.http.ext_authz
@@ -335,8 +333,6 @@ listeners:
             metadata_context_namespaces:
               - envoy.filters.http.jwt_authn
         {{- end }}
-        {{- end }}
->>>>>>> main
         - name: envoy.filters.http.router
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
