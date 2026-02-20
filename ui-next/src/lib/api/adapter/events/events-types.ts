@@ -16,7 +16,12 @@
 
 /**
  * Kubernetes Event Domain Types
- * Based on: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+ *
+ * References:
+ * - Pod lifecycle & conditions:  https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+ * - Pod disruption conditions:   https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-conditions
+ * - Pod condition types (source): https://github.com/kubernetes/api/blob/master/core/v1/types.go
+ * - Kubelet event reasons (source): https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
  */
 
 // ============================================================================
@@ -127,6 +132,13 @@ export const K8S_EVENT_REASONS = {
   SCHEDULED: "Scheduled",
   FAILED_SCHEDULING: "FailedScheduling",
   PREEMPTING: "Preempting",
+  UNSCHEDULABLE: "Unschedulable",
+  SCHEDULER_ERROR: "SchedulerError",
+
+  // Pod Conditions (condition.type used as event reason when condition.reason is absent)
+  POD_SCHEDULED: "PodScheduled",
+  INITIALIZED: "Initialized",
+  DISRUPTION_TARGET: "DisruptionTarget",
 
   // Image Operations
   PULLING: "Pulling",
@@ -135,12 +147,20 @@ export const K8S_EVENT_REASONS = {
   IMAGE_PULL_BACK_OFF: "ImagePullBackOff",
   ERR_IMAGE_NEVER_PULL: "ErrImageNeverPull",
   INVALID_IMAGE_NAME: "InvalidImageName",
+  INSPECT_FAILED: "InspectFailed",
+
+  // Pod Sandbox & Container Creation
+  FAILED_CREATE_POD_SANDBOX: "FailedCreatePodSandBox",
+  FAILED_POD_SANDBOX_STATUS: "FailedPodSandBoxStatus",
+  FAILED_CREATE_POD_CONTAINER: "FailedCreatePodContainer",
+  SANDBOX_CHANGED: "SandboxChanged",
 
   // Container Lifecycle
   CREATED: "Created",
   STARTED: "Started",
   KILLING: "Killing",
   PREEMPTING_CONTAINER: "Preempting",
+  EXCEEDED_GRACE_PERIOD: "ExceededGracePeriod",
 
   // Container Readiness
   READY: "Ready",
@@ -156,6 +176,10 @@ export const K8S_EVENT_REASONS = {
   CONTAINER_DIED: "ContainerDied",
   ERROR: "Error",
 
+  // Lifecycle Hooks
+  FAILED_POST_START_HOOK: "FailedPostStartHook",
+  FAILED_PRE_STOP_HOOK: "FailedPreStopHook",
+
   // Pod Eviction
   EVICTED: "Evicted",
   FAILED_EVICTION: "FailedEviction",
@@ -165,16 +189,30 @@ export const K8S_EVENT_REASONS = {
   NODE_MEMORY_PRESSURE: "NodeMemoryPressure",
   NODE_DISK_PRESSURE: "NodeDiskPressure",
   NODE_PID_PRESSURE: "NodePIDPressure",
+  NETWORK_NOT_READY: "NetworkNotReady",
 
   // Probe Failures
   UNHEALTHY: "Unhealthy",
   PROBE_WARNING: "ProbeWarning",
 
+  // Runtime
+  FAILED_KILL_POD: "FailedKillPod",
+  FAILED_SYNC: "FailedSync",
+
   // Volume Operations
   FAILED_MOUNT: "FailedMount",
   FAILED_ATTACH_VOLUME: "FailedAttachVolume",
   FAILED_MAP_VOLUME: "FailedMapVolume",
+  FAILED_MOUNT_ON_FILESYSTEM_MISMATCH: "FailedMountOnFilesystemMismatch",
+  VOLUME_RESIZE_FAILED: "VolumeResizeFailed",
   WARNING_VOLUME_RESIZE: "WarningVolumeResize",
+
+  // In-Place Pod Resize (K8s 1.27+)
+  RESIZE_STARTED: "ResizeStarted",
+  RESIZE_COMPLETED: "ResizeCompleted",
+  RESIZE_DEFERRED: "ResizeDeferred",
+  RESIZE_INFEASIBLE: "ResizeInfeasible",
+  RESIZE_ERROR: "ResizeError",
 
   // Completion
   COMPLETED: "Completed",
