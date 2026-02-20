@@ -72,25 +72,19 @@ export function useDataset(bucket: string, name: string, options?: { enabled?: b
 }
 
 /**
- * Hook to fetch dataset files at a specific path and version.
+ * Hook to fetch all files for a dataset version from its location manifest.
  *
- * @param bucket - Bucket name
- * @param name - Dataset name
- * @param path - Path within dataset
- * @param version - Version tag to browse (optional, defaults to latest)
+ * Fetches the full flat file list once per version (keyed by location URL).
+ * Use buildDirectoryListing() from datasets.ts to get a per-path directory view.
+ *
+ * @param location - The version's location URL (DatasetVersion.location), or null to disable
  * @param options - Query options
  */
-export function useDatasetFiles(
-  bucket: string,
-  name: string,
-  path: string = "",
-  version?: string,
-  options?: { enabled?: boolean },
-) {
+export function useDatasetFiles(location: string | null, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: buildDatasetFilesQueryKey(bucket, name, path, version),
-    queryFn: () => fetchDatasetFiles(bucket, name, path, version),
-    enabled: options?.enabled ?? true,
+    queryKey: buildDatasetFilesQueryKey(location),
+    queryFn: () => fetchDatasetFiles(location),
+    enabled: (options?.enabled ?? true) && !!location,
     staleTime: 60_000, // 1 minute
   });
 }

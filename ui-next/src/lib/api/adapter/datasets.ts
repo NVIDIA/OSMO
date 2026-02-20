@@ -71,7 +71,7 @@ export interface DatasetVersion {
 }
 
 /**
- * Dataset file entry for file browser.
+ * Dataset file entry for file browser (used for directory listings).
  */
 export interface DatasetFile {
   name: string;
@@ -84,19 +84,25 @@ export interface DatasetFile {
 }
 
 /**
+ * Raw file item from the dataset version's location manifest.
+ * The location URL returns a flat list of all files with relative_path fields.
+ */
+export interface RawFileItem {
+  /** Path relative to dataset root, e.g. "train/n00000001/img1.jpg" */
+  relative_path: string;
+  size?: number;
+  etag?: string;
+  storage_path?: string;
+  /** Direct URL to access/download the file */
+  url?: string;
+}
+
+/**
  * Response from dataset detail endpoint (includes versions).
  */
 export interface DatasetDetailResponse {
   dataset: Dataset;
   versions: DatasetVersion[];
-}
-
-/**
- * Response from file listing endpoint.
- */
-export interface DatasetFilesResponse {
-  files: DatasetFile[];
-  path: string;
 }
 
 // =============================================================================
@@ -356,48 +362,76 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
 }
 
 /**
- * Fetch files for a dataset at a specific path.
+ * Fetch all files for a dataset version from the version's location URL.
  *
- * Calls the info endpoint with ?path= and optional ?version= query params.
- * The backend returns a `files` array in the response when path is provided.
+ * The `location` field on a DatasetVersion points to a manifest URL that returns
+ * a flat list of all files (with relative_path) for that version. We proxy this
+ * through our API route to avoid CORS issues with the storage URL.
  *
- * @param bucket - Bucket name
- * @param name - Dataset name
- * @param path - Path within dataset (optional, defaults to root "")
- * @param version - Version tag to browse (optional, defaults to latest)
+ * Returns null if no location URL is provided (dataset has no versions).
+ *
+ * @param location - The version's location URL (DatasetVersion.location)
  */
-export async function fetchDatasetFiles(
-  bucket: string,
-  name: string,
-  path: string = "",
-  version?: string,
-): Promise<DatasetFilesResponse> {
-  // Build the URL with path and optional version query params
-  // We use a direct fetch here since the generated client doesn't expose query params for the info endpoint
-  const url = new URL(
-    `/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/info`,
-    "relative:///",
-  );
-  url.searchParams.set("path", path);
-  if (version) {
-    url.searchParams.set("version", version);
+export async function fetchDatasetFiles(location: string | null): Promise<RawFileItem[]> {
+  if (!location) return [];
+
+  const { customFetch } = await import("@/lib/api/fetcher");
+
+  return customFetch<RawFileItem[]>({
+    url: "/api/datasets/location-files",
+    method: "GET",
+    params: { url: location },
+  });
+}
+
+/**
+ * Build a directory listing for a specific path from the flat file list.
+ *
+ * Given a flat array of files with relative_path (e.g. "train/n00000001/img.jpg"),
+ * returns the entries visible at the given path depth:
+ * - Folders: unique next-level path segments (de-duplicated)
+ * - Files: entries where the path is fully consumed at this depth
+ *
+ * Folders are sorted before files; both groups are sorted alphabetically.
+ *
+ * @param items - Flat file list from the location manifest
+ * @param path - Current directory path (empty string = root)
+ */
+export function buildDirectoryListing(items: RawFileItem[], path: string): DatasetFile[] {
+  const prefix = path ? `${path}/` : "";
+  const seenFolders = new Set<string>();
+  const result: DatasetFile[] = [];
+
+  for (const item of items) {
+    if (!item.relative_path.startsWith(prefix)) continue;
+
+    const rest = item.relative_path.slice(prefix.length);
+    const slashIndex = rest.indexOf("/");
+
+    if (slashIndex === -1) {
+      // File at this level
+      result.push({
+        name: rest,
+        type: "file",
+        size: item.size,
+        checksum: item.etag,
+        url: item.url,
+      });
+    } else {
+      // Folder — show the next path segment once
+      const folderName = rest.slice(0, slashIndex);
+      if (!seenFolders.has(folderName)) {
+        seenFolders.add(folderName);
+        result.push({ name: folderName, type: "folder" });
+      }
+    }
   }
 
-  // redirect: "manual" prevents the browser from following 302 auth redirects
-  // to an external Keycloak host, which would violate the page's CSP.
-  const response = await fetch(url.pathname + url.search, { redirect: "manual" });
-  if (response.type === "opaqueredirect") {
-    throw new Error("Authentication required. Use the dev auth helpers or log in before browsing files.");
-  }
-  if (!response.ok) {
-    throw new Error(`Failed to fetch files: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as { files?: DatasetFile[] };
-  return {
-    files: data.files ?? [],
-    path,
-  };
+  // Folders first, then files; each group sorted alphabetically
+  return result.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 // =============================================================================
@@ -454,15 +488,11 @@ export function buildDatasetDetailQueryKey(bucket: string, name: string): readon
 }
 
 /**
- * Build query key for dataset files at a path and version.
+ * Build query key for the dataset version's full file manifest.
+ * Keyed by location URL only — path filtering is done client-side via buildDirectoryListing.
  */
-export function buildDatasetFilesQueryKey(
-  bucket: string,
-  name: string,
-  path: string,
-  version?: string,
-): readonly unknown[] {
-  return ["datasets", "files", bucket, name, path, version ?? null] as const;
+export function buildDatasetFilesQueryKey(location: string | null): readonly unknown[] {
+  return ["datasets", "files", location] as const;
 }
 
 /**
