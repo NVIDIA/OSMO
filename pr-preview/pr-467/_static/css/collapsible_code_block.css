@@ -1,0 +1,89 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Collapsible Code Block Styles */
+
+.collapsible-code-block {
+    position: relative;
+}
+
+.collapsible-wrapper {
+    position: relative;
+}
+
+.collapsible-line {
+    display: inline-block;
+    position: relative;
+    width: 100%;
+}
+
+.collapsible-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: 0.5em;
+    margin-right: 2px;
+    width: 16px;
+    height: 16px;
+    background: var(--nv-green);
+    border: none;
+    border-radius: 50%;
+    vertical-align: middle;
+    position: relative;
+    top: 0;
+    color: var(--annotation-code-bg);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.collapsible-toggle svg {
+    width: 10px;
+    height: 10px;
+    transition: transform 0.2s;
+}
+
+.collapsible-toggle svg path {
+    stroke: currentColor;
+    fill: none;
+}
+
+.collapsible-toggle:hover {
+    transform: scale(1.1);
+}
+
+.collapsible-toggle:focus-visible {
+    outline: 2px solid var(--nv-green);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+.collapsible-content {
+    /* Allow horizontal scroll for long lines, but hide vertically when collapsed */
+    overflow-x: visible;
+    overflow-y: visible;
+}
+
+.collapsible-wrapper:not(.open) .collapsible-content {
+    /* When collapsed, hide the content */
+    display: none;
+}
