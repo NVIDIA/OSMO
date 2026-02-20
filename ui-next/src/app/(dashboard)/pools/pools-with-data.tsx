@@ -33,6 +33,7 @@
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPools } from "@/lib/api/server/pools";
+import { prefetchProfile } from "@/lib/api/server/profile";
 import { PoolsPageContent } from "@/app/(dashboard)/pools/pools-page-content";
 import { createServerQueryClient } from "@/lib/query-client";
 
@@ -43,7 +44,10 @@ export async function PoolsWithData() {
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
   try {
-    await prefetchPools(queryClient);
+    // Prefetch pools and profile in parallel — profile is needed immediately for
+    // the "My Pools" scope filter (accessiblePoolNames). Without this, the client
+    // would fetch profile after hydration and show 0 pools briefly.
+    await Promise.all([prefetchPools(queryClient), prefetchProfile(queryClient)]);
   } catch (error) {
     // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
     // Page will still render - client will fetch on hydration if cache is empty
