@@ -42,7 +42,7 @@ Description of the deletion (only used when deleting a named config)
 
 Tags for the deletion (only used when deleting a named config)
 
-Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, GROUP_TEMPLATE, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE
+Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE
 
 ## Examples
 
