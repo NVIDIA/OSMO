@@ -755,7 +755,7 @@ def send_stream_event_count(event_type: str = 'backend'):
     """
     backend_metrics = metrics.MetricCreator.get_meter_instance()
     namespace = objects.BackendListenerConfig.load().namespace
-    name = 'kb_event_watch_count'
+    name = 'kube_event_watch_count'
     backend_metrics.send_counter(
         name=name, value=1, unit='count',
         description=f'Count of events for {event_type}.',

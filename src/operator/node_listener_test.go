@@ -79,7 +79,7 @@ func TestNewNodeListener(t *testing.T) {
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
-	listener := NewNodeListener(args, nodeConditionRules)
+	listener := NewNodeListener(args, nodeConditionRules, utils.NewNoopInstruments())
 
 	if listener == nil {
 		t.Fatal("Expected non-nil listener")

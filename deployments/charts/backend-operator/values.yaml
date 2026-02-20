@@ -288,6 +288,21 @@ services:
     ##
     eventCacheTTLMin: 15
 
+    ## OpenTelemetry metrics configuration
+    ##
+    metrics:
+      ## Enable OpenTelemetry metrics collection
+      ##
+      enabled: true
+
+      ## Service component name for metrics
+      ##
+      component: "osmo-backend-listener"
+
+      ## Service version (defaults to image tag if not specified)
+      ##
+      version: ""
+
     ## Enable updating node verified label based on availability
     ##
     enableNodeLabelUpdate: false
@@ -825,17 +840,36 @@ sidecars:
 
     ## Docker image for OTEL collector
     ##
-    image: otel/opentelemetry-collector-contrib:0.68.0
+    image: otel/opentelemetry-collector-contrib:0.142.0
 
     ## ConfigMap name for OTEL collector configuration
     ##
     configName: otel-config
 
+    ## Host for OTEL collector
+    ##
+    host: 127.0.0.1
+
     ## Container ports configuration
+    ## - otlp-grpc: gRPC port for the OTEL collector OTLP receiver
+    ## - metrics: Port on which the Prometheus metrics scrape endpoint is exposed
     ##
     ports:
+    - containerPort: 4317
+      name: otlp-grpc
+      protocol: TCP
     - containerPort: 4000
       name: metrics
+
+    ## Enable OpenMetrics format for the Prometheus exporter.
+    ## Disable to use standard Prometheus text format (smaller payload, better scrape compatibility).
+    ##
+    enableOpenMetrics: false
+
+    ## Copy resource attributes (service.name, service.instance.id, etc.) as labels on every metric.
+    ## Disable to reduce metric payload size.
+    ##
+    resourceToTelemetryConversion: false
 
     ## Resource limits and requests for OTEL container
     ##

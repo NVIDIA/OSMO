@@ -38,15 +38,34 @@ import (
 type WorkflowListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
+	inst *utils.Instruments
+
+	// Pre-computed attribute sets for task status values
+	statusAttrs utils.StatusAttrs
 }
 
 // NewWorkflowListener creates a new workflow listener instance
-func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
-	return &WorkflowListener{
+func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *WorkflowListener {
+	wl := &WorkflowListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_workflow_listener", utils.StreamNameWorkflow),
+			args, "last_progress_workflow_listener", utils.StreamNameWorkflow, inst),
 		args: args,
+		inst: inst,
+		statusAttrs: utils.NewStatusAttrs([]string{
+			utils.StatusScheduling,
+			utils.StatusInitializing,
+			utils.StatusRunning,
+			utils.StatusCompleted,
+			utils.StatusFailed,
+			utils.StatusFailedPreempted,
+			utils.StatusFailedEvicted,
+			utils.StatusFailedStartError,
+			utils.StatusFailedBackendError,
+			utils.StatusFailedImagePull,
+			utils.StatusUnknown,
+		}),
 	}
+	return wl
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -93,6 +112,7 @@ func (wl *WorkflowListener) sendMessages(
 					return
 				}
 				log.Println("Pod watcher stopped unexpectedly, draining channel...")
+				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.Attrs.Stream)
 				wl.drainMessageChannel(ch)
 				cancel(fmt.Errorf("pod watcher stopped"))
 				return
@@ -157,6 +177,8 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
+		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.Attrs.Stream)
+
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
 			return
@@ -164,9 +186,12 @@ func (wl *WorkflowListener) watchPods(
 
 		// shouldProcess calculates status once and returns it to avoid duplicate calculation
 		if changed, statusResult := stateTracker.shouldProcess(pod); changed {
-			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
+			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 			select {
 			case ch <- msg:
+				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
+				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
+				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
 			case <-ctx.Done():
 				return
 			}
@@ -204,9 +229,12 @@ func (wl *WorkflowListener) watchPods(
 			}
 
 			if changed, statusResult := stateTracker.shouldProcess(pod); changed {
-				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend)
+				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
 				select {
 				case ch <- msg:
+					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
+					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
+					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
 				case <-ctx.Done():
 					return
 				}
@@ -224,6 +252,7 @@ func (wl *WorkflowListener) watchPods(
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.Attrs.Stream)
 	})
 
 	// Start the informer
@@ -233,9 +262,11 @@ func (wl *WorkflowListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
+		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.Attrs.Stream)
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
+	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.Attrs.Stream)
 
 	// Keep the watcher running
 	<-ctx.Done()
@@ -330,6 +361,7 @@ func createPodUpdateMessage(
 	pod *corev1.Pod,
 	statusResult utils.TaskStatusResult,
 	backend string,
+	inst *utils.Instruments,
 ) *pb.ListenerMessage {
 	// Build pod update structure using proto-generated type
 	podUpdate := &pb.UpdatePodBody{
@@ -345,7 +377,7 @@ func createPodUpdateMessage(
 		Backend:      backend,
 	}
 
-	// Add conditions
+	// Add conditions and calculate processing time metric
 	for _, cond := range pod.Status.Conditions {
 		podUpdate.Conditions = append(podUpdate.Conditions, &pb.ConditionMessage{
 			Reason:    cond.Reason,
@@ -354,6 +386,12 @@ func createPodUpdateMessage(
 			Status:    cond.Status == corev1.ConditionTrue,
 			Type:      string(cond.Type),
 		})
+
+		// Record event_processing_times metric for significant condition changes
+		if cond.Status == corev1.ConditionTrue && !cond.LastTransitionTime.IsZero() {
+			processingDelay := time.Since(cond.LastTransitionTime.Time).Seconds()
+			inst.EventProcessingTimes.Record(context.Background(), processingDelay)
+		}
 	}
 
 	// Generate random UUID (matching Python's uuid.uuid4().hex format)

@@ -37,15 +37,18 @@ import (
 type EventListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
+	inst *utils.Instruments
 }
 
 // NewEventListener creates a new event listener instance
-func NewEventListener(args utils.ListenerArgs) *EventListener {
-	return &EventListener{
+func NewEventListener(args utils.ListenerArgs, inst *utils.Instruments) *EventListener {
+	el := &EventListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_event_listener", utils.StreamNameEvent),
+			args, "last_progress_event_listener", utils.StreamNameEvent, inst),
 		args: args,
+		inst: inst,
 	}
+	return el
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -90,6 +93,7 @@ func (el *EventListener) sendMessages(
 					return
 				}
 				log.Println("Event watcher stopped unexpectedly")
+				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.Attrs.Stream)
 				cancel(fmt.Errorf("event watcher stopped"))
 				return
 			}
@@ -121,6 +125,11 @@ func (el *EventListener) watchEvents(
 				return
 			case <-cleanupTicker.C:
 				tracker.cleanup()
+				// Record event_tracker_size after cleanup
+				tracker.mu.RLock()
+				size := len(tracker.sent)
+				tracker.mu.RUnlock()
+				el.inst.EventTrackerSize.Record(ctx, float64(size))
 				log.Println("Event tracker cleanup completed")
 			}
 		}
@@ -144,6 +153,8 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
+		el.inst.KubeEventWatchCount.Add(ctx, 1, el.Attrs.Stream)
+
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
 			return
@@ -151,12 +162,15 @@ func (el *EventListener) watchEvents(
 
 		// Check if we should process this event (deduplication)
 		if !tracker.shouldProcess(event.Type, event.Reason, event.InvolvedObject.Name) {
+			el.inst.EventDeduplicatedTotal.Add(ctx, 1)
 			return
 		}
 
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
+			el.inst.MessageQueuedTotal.Add(ctx, 1, el.Attrs.Stream)
+			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.Attrs.Stream)
 		case <-ctx.Done():
 			return
 		}
@@ -180,18 +194,21 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.Attrs.Stream)
 	})
 
 	// Start the informer
 	eventInformerFactory.Start(ctx.Done())
-	log.Println("Starting event informer for namespace: %s", el.args.Namespace)
+	log.Printf("Starting event informer for namespace: %s", el.args.Namespace)
 
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		log.Println("Failed to sync event informer cache")
+		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.Attrs.Stream)
 		return
 	}
 	log.Println("Event informer cache synced successfully")
+	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.Attrs.Stream)
 
 	// Keep the watcher running
 	<-ctx.Done()

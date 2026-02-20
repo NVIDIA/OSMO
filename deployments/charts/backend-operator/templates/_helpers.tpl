@@ -97,3 +97,16 @@ Create the name of the service account to use for test-runner pods.
 {{- define "backend-operator.testRunner.serviceAccountName" -}}
 {{- include "backend-operator.serviceAccountName" (dict "root" . "serviceConfig" .Values.backendTestRunner "component" "test-runner") -}}
 {{- end }}
+
+{{/*
+Get OTEL port number by name from the ports array
+Usage: include "backend-operator.otel.getPort" (dict "root" . "portName" "otlp-grpc")
+*/}}
+{{- define "backend-operator.otel.getPort" -}}
+{{- $portName := .portName -}}
+{{- range .root.Values.sidecars.OTEL.ports -}}
+  {{- if eq .name $portName -}}
+    {{- .containerPort -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
