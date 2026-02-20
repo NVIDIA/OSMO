@@ -1,0 +1,312 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" width="700" height="500">
+  <defs>
+    <style>
+      /* Light mode (default) */
+      .task-box { fill: #76b900; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-box-lead { fill: #5a8c00; stroke: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); }
+      .task-text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 15px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .lead-label { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      .resource-label { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 400; text-anchor: middle; dominant-baseline: middle; opacity: 0.9; }
+      .section-title { fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; }
+      .section-subtitle { fill: #999999; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; text-anchor: middle; }
+      .data-flow-line { stroke: #0091da; stroke-width: 2.5; stroke-dasharray: 10,8; fill: none; }
+      .data-flow-line-solid { stroke: #0091da; stroke-width: 2.5; fill: none; }
+      .data-arrow-head { fill: #0091da; }
+      .data-flow-dot { fill: #76b900; }
+      .data-flow-dot-orange { fill: #ff5252; }
+      .data-flow-dot-yellow { fill: #ffc107; }
+      .policy-icon { fill: #0091da; }
+      .zip-icon { fill: #76b900; }
+      .zip-icon-outline { fill: none; stroke: #0091da; stroke-width: 0.5; }
+      .data-label { fill: #0091da; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 500; text-anchor: middle; }
+      .loop-arrow { stroke: #666666; stroke-width: 2; fill: none; }
+      .loop-arrow-head { fill: #666666; }
+      .hw-badge-bg { fill: #e8f4fd; stroke: #0091da; stroke-width: 2; }
+      .hw-small-badge { fill: #0091da; stroke: none; }
+      .hw-small-badge-red { fill: #d32f2f; stroke: none; }
+      .hw-badge-text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; letter-spacing: 0.5px; }
+      .hw-badge-label { fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 9px; font-weight: 500; text-anchor: middle; }
+      .robot-icon { fill: #ffffff; stroke: none; }
+      .robot-body { fill: #0091da; stroke: none; }
+
+      /* Dark mode */
+      @media (prefers-color-scheme: dark) {
+        .task-box { fill: #a0d468; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-box-lead { fill: #76b900; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); }
+        .task-text { fill: #1a1a1a; }
+        .lead-label { fill: #1a1a1a; }
+        .resource-label { fill: #1a1a1a; }
+        .section-title { fill: #e0e0e0; }
+        .section-subtitle { fill: #999999; }
+        .data-flow-line { stroke: #64b5f6; }
+        .data-flow-line-solid { stroke: #64b5f6; }
+        .data-arrow-head { fill: #64b5f6; }
+        .data-flow-dot { fill: #a0d468; }
+        .data-flow-dot-orange { fill: #ff6e6e; }
+        .data-flow-dot-yellow { fill: #ffd54f; }
+        .policy-icon { fill: #64b5f6; }
+        .zip-icon { fill: #a0d468; }
+        .zip-icon-outline { fill: none; stroke: #64b5f6; stroke-width: 0.5; }
+        .data-label { fill: #64b5f6; }
+        .loop-arrow { stroke: #bbbbbb; }
+        .loop-arrow-head { fill: #bbbbbb; }
+        .hw-badge-bg { fill: #1a3a4a; stroke: #64b5f6; }
+        .hw-small-badge { fill: #64b5f6; }
+        .hw-small-badge-red { fill: #ef5350; }
+        .hw-badge-text { fill: #1a1a1a; }
+        .hw-badge-label { fill: #999999; }
+        .robot-icon { fill: #1a1a1a; }
+        .robot-body { fill: #64b5f6; }
+      }
+    </style>
+
+    <!-- Data flow arrow marker -->
+    <marker id="data-arrow" markerWidth="6" markerHeight="6" refX="5.5" refY="3" orient="auto">
+      <polygon points="0,0 6,3 0,6" class="data-arrow-head"/>
+    </marker>
+
+    <!-- Data flow arrow marker (reverse direction) -->
+    <marker id="data-arrow-reverse" markerWidth="6" markerHeight="6" refX="0.5" refY="3" orient="auto">
+      <polygon points="0,3 6,0 6,6" class="data-arrow-head"/>
+    </marker>
+
+    <!-- Loop arrow marker -->
+    <marker id="loop-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0,0 8,4 0,8" class="loop-arrow-head"/>
+    </marker>
+    
+    <!-- Animated gradient for policy fill effect -->
+    <linearGradient id="policy-fill-gradient" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#ffc107" stop-opacity="1"/>
+      <stop offset="0%" stop-color="#ffc107" stop-opacity="1">
+        <animate attributeName="offset" 
+                 values="0%;100%;100%;100%;0%;0%" 
+                 keyTimes="0;0.43;0.5;0.93;0.97;1"
+                 dur="7s" 
+                 repeatCount="indefinite"/>
+      </stop>
+      <stop offset="0%" stop-color="transparent" stop-opacity="0">
+        <animate attributeName="offset" 
+                 values="0%;100%;100%;100%;0%;0%" 
+                 keyTimes="0;0.43;0.5;0.93;0.97;1"
+                 dur="7s" 
+                 repeatCount="indefinite"/>
+      </stop>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Top: Simulation Computer - Hardware badge background -->
+  <rect class="hw-badge-bg" x="215" y="45" width="270" height="110" rx="8"/>
+
+  <!-- Section titles inside badge -->
+  <text class="section-title" x="350" y="67">Simulation Computer</text>
+
+  <!-- physics-sim (task box drawn on badge) -->
+  <rect class="task-box" x="235" y="80" width="230" height="45" rx="4"/>
+  <text class="task-text" x="350" y="102">physics-sim</text>
+
+  <!-- GPU badge (red) -->
+  <rect class="hw-small-badge-red" x="370" y="132" width="35" height="16" rx="4"/>
+  <text class="hw-badge-text" x="387.5" y="140">GPU</text>
+
+  <!-- x86_64 badge -->
+  <rect class="hw-small-badge" x="410" y="132" width="55" height="16" rx="4"/>
+  <text class="hw-badge-text" x="437.5" y="140">x86_64</text>
+
+  <!-- Left: Training Computer - Hardware badge background -->
+  <rect class="hw-badge-bg" x="30" y="270" width="240" height="110" rx="8"/>
+
+  <!-- Section titles inside badge -->
+  <text class="section-title" x="150" y="292">Training Computer</text>
+
+  <!-- model-trainer -->
+  <rect class="task-box" x="50" y="305" width="200" height="45" rx="4"/>
+  <text class="task-text" x="150" y="330">model-trainer</text>
+
+  <!-- GPU badge (red) -->
+  <rect class="hw-small-badge-red" x="155" y="357" width="35" height="16" rx="4"/>
+  <text class="hw-badge-text" x="172.5" y="365">GPU</text>
+
+  <!-- x86_64 badge -->
+  <rect class="hw-small-badge" x="195" y="357" width="55" height="16" rx="4"/>
+  <text class="hw-badge-text" x="222.5" y="365">x86_64</text>
+
+  <!-- Right: Edge Computer - Hardware badge background -->
+  <rect class="hw-badge-bg" x="430" y="270" width="240" height="110" rx="8"/>
+
+  <!-- Section titles inside badge -->
+  <text class="section-title" x="550" y="292">Edge Computer</text>
+
+  <!-- robot-ctrl (task box drawn on badge) -->
+  <rect class="task-box" x="450" y="305" width="200" height="45" rx="4"/>
+  <text class="task-text" x="550" y="330">robot-ctrl</text>
+
+  <!-- Sensor icon -->
+  <g class="robot-body" transform="translate(559, 374.6) scale(0.020, 0.020)">
+    <path d="M197-197q-54-55-85.5-127.5T80-480q0-84 31.5-156.5T197-763l57 57q-44 44-69 102t-25 124q0 67 25 125t69 101l-57 57Zm113-113q-32-33-51-76.5T240-480q0-51 19-94.5t51-75.5l57 57q-22 22-34.5 51T320-480q0 33 12.5 62t34.5 51l-57 57Zm170-90q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm170 90-57-57q22-22 34.5-51t12.5-62q0-33-12.5-62T593-593l57-57q32 32 51 75.5t19 94.5q0 50-19 93.5T650-310Zm113 113-57-57q44-44 69-102t25-124q0-67-25-125t-69-101l57-57q54 54 85.5 126.5T880-480q0 83-31.5 155.5T763-197Z"/>
+  </g>
+
+  <!-- Material Symbols robot_2 icon -->
+  <g class="robot-body" transform="translate(582, 374.6) scale(0.020, 0.020)">
+    <path d="M160-120v-200q0-33 23.5-56.5T240-400h480q33 0 56.5 23.5T800-320v200H160Zm200-320q-83 0-141.5-58.5T160-640q0-83 58.5-141.5T360-840h240q83 0 141.5 58.5T800-640q0 83-58.5 141.5T600-440H360ZM240-200h480v-120H240v120Zm120-320h240q50 0 85-35t35-85q0-50-35-85t-85-35H360q-50 0-85 35t-35 85q0 50 35 85t85 35Zm0-80q17 0 28.5-11.5T400-640q0-17-11.5-28.5T360-680q-17 0-28.5 11.5T320-640q0 17 11.5 28.5T360-600Zm240 0q17 0 28.5-11.5T640-640q0-17-11.5-28.5T600-680q-17 0-28.5 11.5T560-640q0 17 11.5 28.5T600-600ZM480-200Zm0-440Z"/>
+  </g>
+
+  <!-- ARM64 badge (bottom right) -->
+  <rect class="hw-small-badge" x="605" y="357" width="45" height="16" rx="4"/>
+  <text class="hw-badge-text" x="627.5" y="365">ARM64</text>
+
+  <!-- Perfect continuous circle (center: 350,250, radius: 180) -->
+
+  <!-- model-trainer <-> physics-sim (left visible portion of circle) -->
+  <path class="data-flow-line-solid" d="M 215,131 A 180,180 0 0 0 171,270" marker-end="url(#data-arrow)"/>
+  <text class="data-label" x="110" y="199">Simulation</text>
+  <text class="data-label" x="110" y="213">Data</text>
+  
+  <!-- Animated data flow dots with variable speeds -->
+  <circle r="3.5" class="data-flow-dot">
+    <animateMotion dur="1.8s" repeatCount="indefinite" begin="0s">
+      <mpath href="#data-path-left"/>
+    </animateMotion>
+    <animate attributeName="opacity" 
+             values="0;1;1;0" 
+             keyTimes="0;0.15;0.85;1"
+             dur="1.8s" 
+             repeatCount="indefinite"
+             begin="0s"/>
+  </circle>
+  
+  <circle r="4" class="data-flow-dot">
+    <animateMotion dur="2.2s" repeatCount="indefinite" begin="0.9s">
+      <mpath href="#data-path-left"/>
+    </animateMotion>
+    <animate attributeName="opacity" 
+             values="0;1;1;0" 
+             keyTimes="0;0.15;0.85;1"
+             dur="2.2s" 
+             repeatCount="indefinite"
+             begin="0.9s"/>
+  </circle>
+  
+  <!-- Hidden path for animation reference -->
+  <path id="data-path-left" d="M 215,131 A 180,180 0 0 0 171,270" fill="none" stroke="none"/>
+
+  <!-- model-trainer -> robot-ctrl (bottom visible portion of circle) -->
+  <path class="data-flow-line" d="M 226,380 A 180,180 0 0 0 474,380" marker-end="url(#data-arrow)"/>
+  <text class="data-label" x="350" y="477">New Model</text>
+  
+  <!-- Animated zip icon with fill effect -->
+  <g id="policy-container" transform="translate(-12, 10)">
+    <!-- Green filled zip icon -->
+    <path class="zip-icon" d="M5 2.5a.5.5 0 0 0-.5.5v18a.5.5 0 0 0 .5.5h1.75a.75.75 0 0 1 0 1.5H5a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h9.982a2 2 0 0 1 1.414.586l4.018 4.018A2 2 0 0 1 21 7.018V21a2 2 0 0 1-2 2h-2.75a.75.75 0 0 1 0-1.5H19a.5.5 0 0 0 .5-.5V7.018a.5.5 0 0 0-.146-.354l-4.018-4.018a.5.5 0 0 0-.354-.146H5Z"/>
+    <path class="zip-icon" d="M11.5 15.75a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75Zm.75-3.75a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1Zm-.75-2.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75ZM12.25 6a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1Zm-.75-2.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75ZM9.75 13.5a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1ZM9 11.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75Zm.75-3.75a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1ZM9 5.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1A.75.75 0 0 1 9 5.25ZM11 17h1a2 2 0 0 1 2 2v4.25a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1-.75-.75V19a2 2 0 0 1 2-2Zm-.5 2v3.5h2V19a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5Z"/>
+    
+    <!-- Zip outline (blue) on top -->
+    <path class="zip-icon-outline" d="M5 2.5a.5.5 0 0 0-.5.5v18a.5.5 0 0 0 .5.5h1.75a.75.75 0 0 1 0 1.5H5a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h9.982a2 2 0 0 1 1.414.586l4.018 4.018A2 2 0 0 1 21 7.018V21a2 2 0 0 1-2 2h-2.75a.75.75 0 0 1 0-1.5H19a.5.5 0 0 0 .5-.5V7.018a.5.5 0 0 0-.146-.354l-4.018-4.018a.5.5 0 0 0-.354-.146H5Z"/>
+    <path class="zip-icon-outline" d="M11.5 15.75a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75Zm.75-3.75a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1Zm-.75-2.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75ZM12.25 6a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1Zm-.75-2.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75ZM9.75 13.5a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1ZM9 11.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75Zm.75-3.75a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5h-1ZM9 5.25a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1A.75.75 0 0 1 9 5.25ZM11 17h1a2 2 0 0 1 2 2v4.25a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1-.75-.75V19a2 2 0 0 1 2-2Zm-.5 2v3.5h2V19a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5Z"/>
+    
+    <!-- Fade in at start, stay visible while filling, fade out after moving -->
+    <animate attributeName="opacity" 
+             values="0;1;1;1;0;0" 
+             keyTimes="0;0.05;0.25;0.78;0.83;1"
+             dur="7s" 
+             repeatCount="indefinite"/>
+    
+    <!-- Follow the curved path below the arrow -->
+    <animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;0;1;1" keyTimes="0;0.15;0.25;0.75;1" calcMode="linear">
+      <mpath href="#data-path-bottom"/>
+    </animateMotion>
+  </g>
+  
+  <!-- Hidden paths for animation reference -->
+  <path id="data-path-bottom" d="M 226,380 A 180,180 0 0 0 474,380" fill="none" stroke="none"/>
+
+  <!-- physics-sim -> robot-ctrl (right downward arc - outer) -->
+  <path class="data-flow-line-solid" d="M 485,119.2 A 188,188 0 0 1 537,271" marker-end="url(#data-arrow)"/>
+  
+  <!-- robot-ctrl -> physics-sim (right upward arc - inner) -->
+  <path class="data-flow-line-solid" d="M 521,269 A 172,172 0 0 0 485,143.4" marker-end="url(#data-arrow)"/>
+  
+  <!-- Outer arc label -->
+  <text class="data-label" x="625" y="188">Simulated Environment</text>
+  <text class="data-label" x="625" y="206">Sensor Data</text>
+  
+  <!-- Inner arc label -->
+  <text class="data-label" x="455" y="206">Robot</text>
+  <text class="data-label" x="455" y="224">Actions</text>
+  
+  <!-- Request-Response Pattern: Simulation to Edge (yellow), then Edge to Simulation (red) -->
+  
+  <!-- Request 1: Yellow dot Simulation → Edge -->
+  <circle r="3.8" class="data-flow-dot-yellow">
+    <animateMotion dur="1.9s" repeatCount="indefinite" begin="0s;7.8s">
+      <mpath href="#data-path-right-down"/>
+    </animateMotion>
+    <animate attributeName="opacity" 
+             values="0;1;1;0" 
+             keyTimes="0;0.15;0.85;1"
+             dur="1.9s" 
+             repeatCount="indefinite"
+             begin="0s;7.8s"/>
+  </circle>
+  
+  <!-- Response 1: Red dot Edge → Simulation -->
+  <circle r="3.5" class="data-flow-dot-orange">
+    <animateMotion dur="1.8s" repeatCount="indefinite" begin="1.9s;9.7s">
+      <mpath href="#data-path-right-up"/>
+    </animateMotion>
+    <animate attributeName="opacity" 
+             values="0;1;1;0" 
+             keyTimes="0;0.15;0.85;1"
+             dur="1.8s" 
+             repeatCount="indefinite"
+             begin="1.9s;9.7s"/>
+  </circle>
+  
+  <!-- Request 2: Yellow dot Simulation → Edge -->
+  <circle r="3.3" class="data-flow-dot-yellow">
+    <animateMotion dur="2.2s" repeatCount="indefinite" begin="3.7s;11.5s">
+      <mpath href="#data-path-right-down"/>
+    </animateMotion>
+    <animate attributeName="opacity" 
+             values="0;1;1;0" 
+             keyTimes="0;0.15;0.85;1"
+             dur="2.2s" 
+             repeatCount="indefinite"
+             begin="3.7s;11.5s"/>
+  </circle>
+  
+  <!-- Response 2: Red dot Edge → Simulation -->
+  <circle r="3.2" class="data-flow-dot-orange">
+    <animateMotion dur="2.1s" repeatCount="indefinite" begin="5.9s;13.7s">
+      <mpath href="#data-path-right-up"/>
+    </animateMotion>
+    <animate attributeName="opacity" 
+             values="0;1;1;0" 
+             keyTimes="0;0.15;0.85;1"
+             dur="2.1s" 
+             repeatCount="indefinite"
+             begin="5.9s;13.7s"/>
+  </circle>
+  
+  <!-- Hidden paths for animation reference -->
+  <path id="data-path-right-up" d="M 521,269 A 172,172 0 0 0 485,143.4" fill="none" stroke="none"/>
+  <path id="data-path-right-down" d="M 485,119.2 A 188,188 0 0 1 537,271" fill="none" stroke="none"/>
+</svg>
