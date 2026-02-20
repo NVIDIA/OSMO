@@ -31,7 +31,7 @@ from . import common
 from .. import storage
 from ..storage import backends, downloading, mux
 from ..storage.core import executor
-from ...utils import cache, osmo_errors
+from ...utils import osmo_errors
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,6 @@ def _dataset_download_worker_input_generator(
     destination: str,
     regex: str | None,
     resume: bool,
-    cache_config: cache.CacheConfig | None,
 ) -> Generator[DatasetDownloadWorkerInput, None, None]:
     """
     Generates download worker inputs from a dataset manifest.
@@ -89,7 +88,6 @@ def _dataset_download_worker_input_generator(
 
                 storage_backend = backends.construct_storage_backend(
                     manifest_entry.storage_path,
-                    cache_config=cache_config,
                 )
 
                 returned_entries = True
@@ -118,7 +116,6 @@ def _download_dataset(
     destination: str,
     regex: str | None,
     resume: bool,
-    cache_config: cache.CacheConfig | None,
 ) -> storage.DownloadSummary:
     """
     Downloads a dataset to a destination directory.
@@ -139,7 +136,6 @@ def _download_dataset(
         destination,
         regex,
         resume,
-        cache_config,
     )
 
     try:
@@ -172,7 +168,6 @@ def download(
     resume: bool = False,
     enable_progress_tracker: bool = False,
     executor_params: executor.ExecutorParameters | None = None,
-    cache_config: cache.CacheConfig | None = None,
 ) -> storage.DownloadSummary:
     """
     Download a single dataset to a destination directory.
@@ -199,7 +194,6 @@ def download(
     resume: bool = False,
     enable_progress_tracker: bool = False,
     executor_params: executor.ExecutorParameters | None = None,
-    cache_config: cache.CacheConfig | None = None,
 ) -> Dict[str, storage.DownloadSummary]:
     """
     Download multiple datasets to a destination directory.
@@ -225,7 +219,6 @@ def download(
     resume: bool = False,
     enable_progress_tracker: bool = False,
     executor_params: executor.ExecutorParameters | None = None,
-    cache_config: cache.CacheConfig | None = None,
 ) -> storage.DownloadSummary | Dict[str, storage.DownloadSummary]:
     """
     Downloads one or more datasets to a destination directory.
@@ -245,7 +238,6 @@ def download(
                 destination,
                 regex,
                 resume,
-                cache_config,
             )
 
         case list():
@@ -257,7 +249,6 @@ def download(
                     destination,
                     regex,
                     resume,
-                    cache_config,
                 )
                 for dataset_info in source
             }

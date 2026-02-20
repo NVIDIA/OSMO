@@ -47,8 +47,6 @@ app = fastapi.FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(auth_service.router)
 
-app.add_middleware(connectors.AccessControlMiddleware)
-
 
 @app.get('/health')
 async def health():

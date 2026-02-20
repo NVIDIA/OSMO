@@ -33,6 +33,7 @@ from src.cli import (
     profile,
     resources,
     task,
+    user,
     workflow,
     version,
 )
@@ -53,6 +54,7 @@ PARSERS = (
     resources.setup_parser,
     profile.setup_parser,
     pool.setup_parser,
+    user.setup_parser,
     config.setup_parser
 )
 

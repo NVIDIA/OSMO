@@ -59,6 +59,10 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (!bucket || !pool) {
+      return;
+    }
+
     setError(undefined);
     setShowSuccess(false);
 
@@ -98,8 +102,9 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
             }}
             label="Bucket"
             slotLeft={<OutlinedIcon name="storage" />}
-            helperText="Enter your default bucket"
+            message="Enter your default bucket"
             className="w-full"
+            isError={Boolean(!bucket)}
           >
             <option value="">Select a bucket</option>
             {allBucketNames?.map((bucket) => (
@@ -121,8 +126,9 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
             }}
             label="Pool"
             slotLeft={<OutlinedIcon name="speaker_group" />}
-            helperText="Enter your default pool"
+            message="Enter your default pool"
             className="w-full"
+            isError={Boolean(!pool)}
           >
             <option value="">Select a pool</option>
             {profile.pools?.map((pool) => (
@@ -198,6 +204,7 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
           <button
             className="btn btn-primary h-8"
             type={showSuccess ? "button" : "submit"}
+            aria-disabled={!bucket || !pool}
             onClick={() => {
               if (showSuccess) {
                 toolParamUpdater({ tool: null });

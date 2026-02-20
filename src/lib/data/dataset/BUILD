@@ -24,7 +24,6 @@ osmo_py_library(
     srcs = glob(["*.py"]),
     deps = [
         "//src/lib/data/storage",
-        "//src/lib/utils:cache",
         "//src/lib/utils:client",
         "//src/lib/utils:logging",
         "//src/lib/utils:common",

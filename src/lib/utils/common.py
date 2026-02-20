@@ -1058,6 +1058,9 @@ async def gather_cancel(*aws, **kwargs):
         for awaitable_task in tasks:
             if not awaitable_task.done():
                 awaitable_task.cancel()
+        # Await all cancelled tasks to ensure they finish processing
+        # the CancelledError before we return
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def load_contents_from_file(path: str) -> str:

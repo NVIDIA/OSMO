@@ -1,4 +1,5 @@
-//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+//All rights reserved.
 
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -179,25 +180,6 @@ export const PoolDetails = ({
                 <dd>{pool.max_exec_timeout}</dd>
                 <dt>Max Queue Timeout</dt>
                 <dd>{pool.max_queue_timeout}</dd>
-              </dl>
-            </div>
-            <div className="card p-0">
-              <h3
-                className="body-header text-base p-global"
-                id="action-permissions"
-              >
-                Action Permissions
-              </h3>
-              <dl
-                aria-labelledby="action-permissions"
-                className="p-global"
-              >
-                {Object.entries(pool.action_permissions).map(([action, description]) => (
-                  <React.Fragment key={action}>
-                    <dt className="capitalize">{action}</dt>
-                    <dd>{description}</dd>
-                  </React.Fragment>
-                ))}
               </dl>
             </div>
             {Object.entries(pool.default_exit_actions).length > 0 && (

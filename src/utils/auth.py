@@ -30,16 +30,6 @@ from src.lib.utils import common, osmo_errors
 
 # The default length of time a token should be valid for. Defaults to 20 days
 DEFAULT_LENGTH = 20 * 24 * 60 * 60
-# The jinja template to use for adding additional claims to generated tokens
-DEFAULT_TEMPLATE = '''
-{
-    "unique_name": "{{username}}",
-    "osmo_workflow_push": "{{workflow_id}}",
-    "roles": [
-        "osmo-user"
-    ]
-}
-'''
 
 
 class AsymmetricKeyPair(pydantic.BaseModel):
@@ -140,6 +130,7 @@ class AuthenticationConfig(pydantic.BaseModel):
 
     def create_idtoken_jwt(self, expire_timestamp: int, username: str,
                            roles: List[str],
+                           token_name: str | None = None,
                            workflow_id: str | None = None) -> str:
         '''
         aud: Audience
@@ -161,9 +152,10 @@ class AuthenticationConfig(pydantic.BaseModel):
             'unique_name': username,
             'roles': roles
         }
-        # TODO: Remove this and create a new role per workflow_id
+        if token_name:
+            template_payload['osmo_token_name'] = token_name
         if workflow_id:
-            template_payload['osmo_workflow_push'] = workflow_id
+            template_payload['osmo_workflow_id'] = workflow_id
 
         # Substitute the template
         payload.update(template_payload)

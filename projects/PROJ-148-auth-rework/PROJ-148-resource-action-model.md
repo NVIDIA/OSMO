@@ -58,7 +58,7 @@ This approach has several limitations:
 | Define a read-only role | Admin creates a role that can view workflows and tasks but cannot create, modify, or delete them using `workflow:Read` action |
 | Grant workflow management | User role includes `workflow:*` to allow all workflow operations (create, read, update, delete, cancel, clone) |
 | Backend service access | Internal services use `internal:Operator` action to access agent APIs without exposing those endpoints to regular users |
-| Audit role permissions | Admin reviews a role's policy and immediately understands what it allows (e.g., `dataset:Read`, `dataset:Create`) without tracing API paths |
+| Audit role permissions | Admin reviews a role's policy and immediately understands what it allows (e.g., `dataset:Read`, `dataset:Write`) without tracing API paths |
 | Add new API endpoint | Developer adds `POST /api/workflow/{id}/archive` and corresponding `workflow:Archive` action in the same PR |
 
 ## Requirements
@@ -95,9 +95,9 @@ This approach has several limitations:
 │                                                                             │
 │  LAYER 2: Policy Engine (Dynamic, DB-stored)                                │
 │  ─────────────────────────────────────────────────────────────────────────  │
-│  AWS-style policies granting actions on resources                           │
+│  Role has policies[]; each policy has effect (Allow|Deny), actions, resources │
 │  Can be updated at runtime via API                                          │
-│  Format: { "effect": "Allow", "actions": [...], "resources": [...] }        │
+│  Deny takes precedence over Allow                                           │
 │                                                                             │
 │  LAYER 3: Role Assignments (Dynamic, DB-stored)                             │
 │  ─────────────────────────────────────────────────────────────────────────  │
@@ -133,19 +133,16 @@ The action registry is defined in code (not database) for several reasons:
 │  pool                List                       (global)                    │
 │                                                                             │
 │  workflow            Create, Read, Update,      pool / user                 │
-│                      Delete, Cancel, Clone,                                 │
-│                      List, Execute                                          │
-│                                                                             │
-│  task                Read, Update, Cancel,      pool / user                 │
+│                      Delete, Cancel,                                        │
 │                      Exec, PortForward, Rsync                               │
 │                                                                             │
-│  dataset             Create, Read, Write,       bucket                      │
-│                      Delete, List                                           │
+│  dataset             List, Read, Write,         bucket                      │
+│                      Delete                                                 │
 │                                                                             │
 │  credentials         Create, Read, Update,      (global)                    │
 │                      Delete, List                                           │
 │                                                                             │
-│  profile             Read, Update               user                        │
+│  profile             Read, Update               (global)                    │
 │                                                                             │
 │  user                List                       (global)                    │
 │                                                                             │
@@ -156,7 +153,7 @@ The action registry is defined in code (not database) for several reasons:
 │                                                                             │
 │  system              Health, Version            (public)                    │
 │                                                                             │
-│  internal            Operator, Logger, Router   backend / workflow          │
+│  internal            Operator, Logger, Router   backend                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -179,14 +176,14 @@ const (
     ActionWorkflowPortForward = "workflow:PortForward"
     ActionWorkflowRsync       = "workflow:Rsync"
 
-    // Dataset actions
-    ActionDatasetCreate = "dataset:Create"
-    ActionDatasetRead   = "dataset:Read"
-    ActionDatasetDelete = "dataset:Delete"
+    // Dataset actions (resource scope prefix is "bucket", e.g. bucket/my-bucket)
     ActionDatasetList   = "dataset:List"
+    ActionDatasetRead   = "dataset:Read"
+    ActionDatasetWrite  = "dataset:Write"
+    ActionDatasetDelete = "dataset:Delete"
 
     // Pool actions
-    ActionPoolRead   = "pool:Read"
+    ActionPoolList   = "pool:List"
 
     // Internal/Backend actions (restricted)
     ActionInternalOperator = "internal:Operator"
@@ -213,7 +210,7 @@ Examples:
   workflow/abc123        - Specific workflow
   pool/default           - Default pool
   pool/production/*      - Production pool and children
-  bucket/data-generation - Bucket for storing data generation datasets
+  bucket/data-generation - Dataset (scope prefix "bucket") for data generation
   backend/gb200-testing  - Backend called gb200-testing
   config/service         - Service Config
   *                      - All resources
@@ -223,11 +220,28 @@ Examples:
 
 ## Policy Format
 
-Policies use AWS IAM-style JSON format with Allow/Deny statements:
+Policies use AWS IAM-style format with **effect** (Allow or Deny), **actions**, and optional **resources**. Each role has a **policies** array; each element is one policy statement.
+
+### Policy structure
+
+| Field      | Type     | Required | Description |
+|-----------|----------|----------|-------------|
+| **effect** | `"Allow"` \| `"Deny"` | No (default: `"Allow"`) | Whether this policy grants or denies access. **Deny takes precedence**: if any policy with effect Deny matches the request, access is denied even if another policy Allows. |
+| **actions** | array of action strings | Yes | Semantic actions (e.g. `"workflow:Create"`, `"dataset:*"`). |
+| **resources** | array of resource patterns | No (default: `["*"]`) | Resource patterns (e.g. `["*"]`, `["bucket/*"]`, `["bucket/production"]`). If empty or omitted, treated as all resources. |
+
+**Implementation:**
+
+- **Go** (`external/src/utils/roles/roles.go`): `RolePolicy` has `Effect PolicyEffect` (`EffectAllow` / `EffectDeny`), `Actions []RoleAction`, `Resources []string`.
+- **Python** (`external/src/lib/utils/role.py`): `RolePolicy` has `effect: PolicyEffect` (enum `PolicyEffect.ALLOW` / `PolicyEffect.DENY`), `actions`, `resources`.
+
+### Example (role with policies array)
 
 ```json
 {
-  "statements": [
+  "name": "my-role",
+  "description": "Example role",
+  "policies": [
     {
       "effect": "Allow",
       "actions": [
@@ -242,14 +256,15 @@ Policies use AWS IAM-style JSON format with Allow/Deny statements:
     {
       "effect": "Allow",
       "actions": ["dataset:*"],
-      "resources": ["dataset/*"]
+      "resources": ["bucket/*"]
     },
     {
       "effect": "Deny",
       "actions": ["dataset:Delete"],
       "resources": ["bucket/production"]
     }
-  ]
+  ],
+  "immutable": false
 }
 ```
 
@@ -260,9 +275,13 @@ Policies use AWS IAM-style JSON format with Allow/Deny statements:
 - `*:*` — All actions on all resources
 - `*` in resources — All resources
 
-### Effect Precedence
+### Effect precedence and evaluation order
 
-**Deny always wins.** If any statement denies an action, access is denied regardless of Allow statements.
+1. **Deny first**: For the request’s resolved action and resource, evaluate all policies across all of the user’s roles. If **any** policy with **effect Deny** matches, access is **denied** and evaluation stops.
+2. **Allow**: If no Deny matched, check for **any** policy with **effect Allow** that matches. If one matches, access is **allowed**.
+3. **Implicit deny**: If no Allow matched, access is **denied**.
+
+**Deny always wins.** A matching Deny in any role denies access even if another role has a matching Allow.
 
 ---
 
@@ -276,12 +295,10 @@ Full access except internal backend endpoints:
 {
   "name": "osmo-admin",
   "description": "Administrator with full access except internal endpoints",
-  "policy": {
-    "statements": [
-      {"effect": "Allow", "actions": ["*:*"], "resources": ["*"]},
-      {"effect": "Deny", "actions": ["internal:*"], "resources": ["*"]}
-    ]
-  },
+  "policies": [
+    {"effect": "Allow", "actions": ["*:*"], "resources": ["*"]},
+    {"effect": "Deny", "actions": ["internal:*"], "resources": ["*"]}
+  ],
   "immutable": true
 }
 ```
@@ -294,28 +311,26 @@ Standard user role:
 {
   "name": "osmo-user",
   "description": "Standard user role",
-  "policy": {
-    "statements": [
-      {
-        "effect": "Allow",
-        "actions": [
-          "workflow:*",
-          "dataset:*",
-          "credentials:*",
-          "profile:Read", "profile:Update",
-          "pool:Read",
-          "user:List",
-          "app:*",
-          "resources:Read",
-          "config:Read",
-          "auth:Token",
-          "router:Client",
-          "system:*"
-        ],
-        "resources": ["*"]
-      }
-    ]
-  },
+  "policies": [
+    {
+      "effect": "Allow",
+      "actions": [
+        "workflow:*",
+        "dataset:*",
+        "credentials:*",
+        "profile:Read", "profile:Update",
+        "pool:List",
+        "user:List",
+        "app:*",
+        "resources:Read",
+        "config:Read",
+        "auth:Token",
+        "router:Client",
+        "system:*"
+      ],
+      "resources": ["*"]
+    }
+  ],
   "immutable": false
 }
 ```
@@ -328,19 +343,17 @@ Read-only access:
 {
   "name": "osmo-viewer",
   "description": "Read-only access to workflows",
-  "policy": {
-    "statements": [
-      {
-        "effect": "Allow",
-        "actions": [
-          "workflow:Read", "workflow:List",
-          "dataset:Read", "dataset:List",
-          "system:*"
-        ],
-        "resources": ["*"]
-      }
-    ]
-  },
+  "policies": [
+    {
+      "effect": "Allow",
+      "actions": [
+        "workflow:Read", "workflow:List",
+        "dataset:Read", "dataset:List",
+        "system:*"
+      ],
+      "resources": ["*"]
+    }
+  ],
   "immutable": false
 }
 ```
@@ -353,15 +366,13 @@ For backend agents:
 {
   "name": "osmo-backend",
   "description": "For backend agents",
-  "policy": {
-    "statements": [
-      {
-        "effect": "Allow",
-        "actions": ["internal:Operator", "pool:Read", "config:Read"],
-        "resources": ["backend/*", "pool/*", "config/backend"]
-      }
-    ]
-  },
+  "policies": [
+    {
+      "effect": "Allow",
+      "actions": ["internal:Operator", "pool:List", "config:Read"],
+      "resources": ["backend/*", "pool/*", "config/backend"]
+    }
+  ],
   "immutable": true
 }
 ```
@@ -374,15 +385,13 @@ For workflow pods:
 {
   "name": "osmo-ctrl",
   "description": "For workflow pods",
-  "policy": {
-    "statements": [
-      {
-        "effect": "Allow",
-        "actions": ["internal:Logger", "internal:Router"],
-        "resources": ["*"]
-      }
-    ]
-  },
+  "policies": [
+    {
+      "effect": "Allow",
+      "actions": ["internal:Logger", "internal:Router"],
+      "resources": ["*"]
+    }
+  ],
   "immutable": true
 }
 ```
@@ -395,15 +404,13 @@ Minimal access for unauthenticated users:
 {
   "name": "osmo-default",
   "description": "Default role for unauthenticated access",
-  "policy": {
-    "statements": [
-      {
-        "effect": "Allow",
-        "actions": ["system:Health", "system:Version", "auth:Login", "auth:Refresh", "auth:Token"],
-        "resources": ["*"]
-      }
-    ]
-  },
+  "policies": [
+    {
+      "effect": "Allow",
+      "actions": ["system:Health", "system:Version", "auth:Login", "auth:Refresh", "auth:Token"],
+      "resources": ["*"]
+    }
+  ],
   "immutable": true
 }
 ```
@@ -515,14 +522,16 @@ func (e *PolicyEvaluator) actionMatches(patterns []string, action string) bool {
 
 ## Implementation
 
-### New Files
+### Key implementation files
 
 | File | Description |
 |------|-------------|
-| `external/src/service/authz_sidecar/server/action_registry.go` | Action constants and path mappings |
-| `external/src/service/authz_sidecar/server/policy_evaluator.go` | Policy evaluation logic |
-| `external/src/service/authz_sidecar/server/action_registry_test.go` | Unit tests for registry |
-| `external/src/service/authz_sidecar/server/policy_evaluator_test.go` | Unit tests for evaluator |
+| `external/src/utils/roles/action_registry.go` | Action constants, path→action resolution, and policy evaluation (`CheckPolicyAccess`, `CheckRolesAccess`) |
+| `external/src/utils/roles/roles.go` | Role and policy types (`Role`, `RolePolicy`, `PolicyEffect`, `RoleAction`) |
+| `external/src/utils/roles/action_registry_test.go` | Unit tests for path resolution, conversion, and deny precedence |
+| `external/src/utils/roles/roles_test.go` | Unit tests for role/policy JSON and Effect |
+| `external/src/lib/utils/role.py` | Python types: `Role`, `RolePolicy`, `PolicyEffect` enum, `RoleAction` |
+| `external/src/service/authz_sidecar/server/authz_server.go` | Uses `roles.CheckRolesAccess` for request authorization |
 
 ### Database Schema Changes
 
@@ -540,12 +549,12 @@ ADD COLUMN policy_v2 JSONB;
 CREATE INDEX idx_roles_policy_v2 ON roles USING GIN (policy_v2);
 ```
 
-### Changes to authz_server.go
+### Authorization flow (authz_sidecar)
 
-1. Add path-to-action resolution using ActionRegistry
-2. Replace direct path matching with action-based policy evaluation
-3. Support wildcard matching for actions (`workflow:*`, `*:*`)
-4. Implement Deny precedence logic
+1. Resolve request path and method to a semantic action (and optional resource) via `ResolvePathToAction` (action_registry).
+2. Load user’s roles and convert to semantic-only form with `ConvertRoleToSemantic`.
+3. Evaluate access with `CheckRolesAccess`: first any matching Deny → deny; then first matching Allow → allow; else deny.
+4. Wildcard matching for actions (`workflow:*`, `*:*`) and resources is supported; Deny takes precedence over Allow.
 
 ---
 
@@ -572,7 +581,7 @@ CREATE INDEX idx_roles_policy_v2 ON roles USING GIN (policy_v2);
    {"actions": [{"base": "http", "path": "/api/workflow/*", "method": "*"}]}
 
    # To new format (using path-to-action reverse lookup)
-   {"statements": [{"effect": "Allow", "actions": ["workflow:*"], "resources": ["*"]}]}
+   {"policies": [{"effect": "Allow", "actions": ["workflow:*"], "resources": ["*"]}]}
    ```
 2. Run migration
 3. Validate all access patterns unchanged
@@ -636,10 +645,11 @@ The following documentation will need to be created or updated:
 
 ## Testing
 
-### Unit Tests [Not added yet]
+### Unit tests
 
-- `action_registry_test.go` — Test path-to-action resolution for all registered actions
-- `policy_evaluator_test.go` — Test Allow/Deny evaluation, wildcard matching, deny precedence
+- `external/src/utils/roles/action_registry_test.go` — Path-to-action resolution, resource extraction, `ConvertRoleToSemantic`, deny precedence (`TestCheckPolicyAccessDenyPrecedence`)
+- `external/src/utils/roles/roles_test.go` — RolePolicy JSON parse/serialize, Effect field, Resources
+- `external/src/service/authz_sidecar/server/authz_server_test.go` — `CheckPolicyAccess` and `CheckRolesAccess` with default and custom roles
 
 ### Integration Tests
 
@@ -692,16 +702,18 @@ var ActionRegistry = map[string][]EndpointPattern{
         {Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
     },
 
-    // ==================== BUCKET ====================
-    "dataset:Create": {
-        {Path: "/api/bucket/*/dataset/*", Methods: []string{"POST", "PUT"}},
+    // ==================== DATASET (scope prefix "bucket") ====================
+    "dataset:List": {
+        {Path: "/api/bucket", Methods: []string{"GET"}},
     },
     "dataset:Read": {
-        {Path: "/api/bucket/*/dataset/", Methods: []string{"GET"}},
-        {Path: "/api/bucket/*/dataset/*", Methods: []string{"GET"}},
+        {Path: "/api/bucket/*", Methods: []string{"GET"}},
+    },
+    "dataset:Write": {
+        {Path: "/api/bucket/*", Methods: []string{"POST", "PUT"}},
     },
     "dataset:Delete": {
-        {Path: "/api/bucket/*/dataset/*", Methods: []string{"DELETE"}},
+        {Path: "/api/bucket/*", Methods: []string{"DELETE"}},
     },
 
     // ==================== CREDENTIALS ====================
@@ -895,6 +907,8 @@ A diagram showing the role policy model and how roles are evaluated is shown bel
 │  [...]   │      │  [...]   │      │  [...]   │      │  [...]   │
 └──────────┘      └──────────┘      └──────────┘      └──────────┘
 
+In the stored schema: each Role has a `policies` array; each element is one statement
+(effect, actions, resources). Deny is evaluated first; if any matches, access is denied.
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        AUTHORIZATION EVALUATION                              │

@@ -145,7 +145,9 @@ export const PortForward = ({ workflow, selectedTask }: { workflow: WorkflowResp
               setPortError(undefined);
               setError(undefined);
             }}
-            errorText={portError}
+            message={portError}
+            isError={Boolean(portError)}
+            leaveSpaceForMessage={true}
           />
           <button
             className="btn btn-primary mt-5 mb-5"

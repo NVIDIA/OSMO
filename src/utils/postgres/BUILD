@@ -31,9 +31,41 @@ go_library(
 
 go_test(
     name = "postgres_test",
-    srcs = ["postgres_client_test.go"],
+    srcs = [
+        "postgres_client_test.go",
+    ],
     embed = [":postgres"],
     deps = [
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
+)
+
+# Integration test - requires running PostgreSQL instance
+#
+# To run this test:
+#   1. Start PostgreSQL:
+#      docker run --rm -d --name postgres -p 5432:5432 \
+#        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
+#
+#   2. Run the test:
+#      bazel test //src/utils/postgres:postgres_integration_test --test_output=streamed
+#
+# Custom PostgreSQL configuration:
+#   bazel test //src/utils/postgres:postgres_integration_test \
+#     --test_output=streamed \
+#     --test_arg=-postgres-host=localhost \
+#     --test_arg=-postgres-port=5432 \
+#     --test_arg=-postgres-db=osmo_db \
+#     --test_arg=-postgres-user=postgres \
+#     --test_arg=-postgres-password=osmo
+#
+go_test(
+    name = "postgres_integration_test",
+    srcs = [
+        "postgres_integration_test.go",
+    ],
+    embed = [":postgres"],
+    deps = [],
+    tags = ["manual", "service"],  # Requires running PostgreSQL instance
+    local = True,  # Run locally without sandboxing to access external database
 )

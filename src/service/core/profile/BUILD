@@ -28,6 +28,7 @@ osmo_py_library(
     deps = [
         requirement("fastapi"),
         "//src/utils/connectors",
+        "//src/service/core/auth",
         "//src/service/core/workflow",
     ],
     visibility = ["//visibility:public"],

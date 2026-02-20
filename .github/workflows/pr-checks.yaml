@@ -151,7 +151,7 @@ jobs:
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
-      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096
+      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
     services:
       docker:
         # docker:29.2.1-dind pinned to digest for security
@@ -247,62 +247,19 @@ jobs:
           echo "Disk usage summary:"
           df -h / || true
 
-  #######################
-  #   Runner Cleanup    #
-  #######################
-  cleanup-runner:
-    runs-on: self-hosted
-    needs: [ci-internal]
-    if: always()
-    timeout-minutes: 5
-    concurrency:
-      group: cleanup-host-${{ github.run_id }}
-      cancel-in-progress: false  # Critical: never cancel cleanup
-    steps:
-      - name: Host cleanup (concurrent-safe)
+      # Clean host Docker (same runner) so small VMs don't fill up — uses mounted socket
+      - name: Host cleanup
+        if: always()
+        env:
+          DOCKER_HOST: ""
         run: |
-          echo "=== Host Cleanup for Run ${{ github.run_id }} ==="
-
-          # Tag-based cleanup: remove containers from this run (if labeled)
-          RUN_ID="${{ github.run_id }}"
-          echo "Checking for containers from run $RUN_ID..."
-          docker ps -aq --filter "label=github.run_id=$RUN_ID" 2>/dev/null | xargs -r docker rm -f || true
-
-          # Fallback: remove old exited containers (>5 mins ago - clearly orphaned)
-          echo "Checking for old exited containers..."
-          OLD_CONTAINERS=$(docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null || echo "")
-          if [ -n "$OLD_CONTAINERS" ]; then
-            echo "Removing old exited containers:"
-            echo "$OLD_CONTAINERS"
-            docker rm -f $OLD_CONTAINERS 2>/dev/null || true
-          else
-            echo "No old exited containers found"
-          fi
-
-          # Prune dangling resources (safe - not in use)
-          echo "Pruning dangling volumes..."
+          echo "=== Host cleanup (runner node) ==="
+          docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null | xargs -r docker rm -f || true
           docker volume prune -f 2>/dev/null || true
-
-          echo "Pruning unused networks..."
           docker network prune -f 2>/dev/null || true
-
-          echo "Pruning dangling images..."
           docker image prune -f 2>/dev/null || true
-
-          # Show runner health
-          echo "Runner process status:"
-          if pgrep -f "Runner.Listener" > /dev/null; then
-            echo "✓ Runner.Listener is running"
-          else
-            echo "⚠️  Runner.Listener not running - may need recovery"
-          fi
-
-          # Show disk usage
-          echo "Disk usage after cleanup:"
+          echo "Host Docker disk:"
           docker system df 2>/dev/null || true
-          df -h / | grep -E '^Filesystem|/$' || true
-
-          echo "✓ Cleanup complete (safe for concurrent jobs)"
 
   #######################
   #    Docs Build       #

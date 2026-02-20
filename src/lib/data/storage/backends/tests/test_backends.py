@@ -294,6 +294,150 @@ class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
         self.assertIn('AccountKey not found', str(context.exception))
 
 
+class CredentialOverrideUrlTest(unittest.TestCase):
+    """Tests for credential override_url functionality."""
+
+    def test_s3_client_factory_uses_credential_override_url(self):
+        """Test that credential's override_url takes precedence in client_factory."""
+        # Arrange
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://test-bucket/test-key',
+        ))
+
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket',
+            access_key_id='test-access-key-id',
+            access_key='test-access-key',
+            region='us-east-1',
+            override_url='http://minio:9000',  # Override URL set
+        )
+
+        # Act
+        s3_client_factory = s3_backend.client_factory(data_cred=data_cred)
+
+        # Assert
+        self.assertEqual(s3_client_factory.endpoint_url, 'http://minio:9000')
+
+    def test_s3_client_factory_fallback_to_endpoint_when_no_override(self):
+        """Test that client_factory uses endpoint when no override_url."""
+        # Arrange
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://test-bucket/test-key',
+        ))
+
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket',
+            access_key_id='test-access-key-id',
+            access_key='test-access-key',
+            region='us-east-1',
+            # No override_url
+        )
+
+        # Act
+        s3_client_factory = s3_backend.client_factory(data_cred=data_cred)
+
+        # Assert - S3Backend.endpoint is empty string, so endpoint_url should be None
+        self.assertIsNone(s3_client_factory.endpoint_url)
+
+    def test_swift_client_factory_override_url_takes_precedence(self):
+        """Test that credential's override_url overrides Swift's endpoint."""
+        # Arrange
+        swift_backend = cast(backends.SwiftBackend, backends.construct_storage_backend(
+            uri='swift://swift.example.com/AUTH_namespace/container/path',
+        ))
+
+        data_cred = credentials.StaticDataCredential(
+            endpoint='swift://swift.example.com/AUTH_namespace',
+            access_key_id='test-key',
+            access_key='test-secret',
+            region='us-east-1',
+            override_url='http://custom-swift:8080',  # Override URL set
+        )
+
+        # Act
+        client_factory = swift_backend.client_factory(data_cred=data_cred)
+
+        # Assert
+        self.assertEqual(client_factory.endpoint_url, 'http://custom-swift:8080')
+
+    @mock.patch('src.lib.data.storage.backends.backends._skip_data_auth', return_value=False)
+    @mock.patch.object(backends.S3Backend, '_validate_bucket_access')
+    def test_s3_data_auth_with_override_url_skips_iam(
+        self,
+        mock_validate_bucket_access,
+        mock_skip_data_auth,
+    ):
+        """Test that data_auth uses bucket access check when override_url is set."""
+        # pylint: disable=unused-argument
+        # Arrange
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://test-bucket/test-key',
+        ))
+
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket',
+            access_key_id='test-access-key-id',
+            access_key='test-access-key',
+            region='us-east-1',
+            override_url='http://minio:9000',  # Override URL indicates S3-compatible
+        )
+
+        # Act
+        s3_backend.data_auth(data_cred=data_cred)
+
+        # Assert - should call _validate_bucket_access instead of IAM simulation
+        mock_validate_bucket_access.assert_called_once_with(data_cred=data_cred)
+
+    def test_credential_to_decrypted_dict_includes_override_url(self):
+        """Test that to_decrypted_dict includes override_url when set."""
+        # Arrange
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket',
+            access_key_id='test-key',
+            access_key='test-secret',
+            region='us-east-1',
+            override_url='http://minio:9000',
+        )
+
+        # Act
+        result = data_cred.to_decrypted_dict()
+
+        # Assert
+        self.assertEqual(result['override_url'], 'http://minio:9000')
+
+    def test_credential_to_decrypted_dict_excludes_override_url_when_none(self):
+        """Test that to_decrypted_dict excludes override_url when not set."""
+        # Arrange
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket',
+            access_key_id='test-key',
+            access_key='test-secret',
+            region='us-east-1',
+            # No override_url
+        )
+
+        # Act
+        result = data_cred.to_decrypted_dict()
+
+        # Assert
+        self.assertNotIn('override_url', result)
+
+    def test_default_data_credential_includes_override_url(self):
+        """Test that DefaultDataCredential includes override_url in to_decrypted_dict."""
+        # Arrange
+        data_cred = credentials.DefaultDataCredential(
+            endpoint='s3://test-bucket',
+            region='us-east-1',
+            override_url='http://minio:9000',
+        )
+
+        # Act
+        result = data_cred.to_decrypted_dict()
+
+        # Assert
+        self.assertEqual(result['override_url'], 'http://minio:9000')
+
+
 class IsNonAwsS3EndpointConfiguredTest(unittest.TestCase):
     """Tests for non-AWS S3-compatible endpoint detection."""
 

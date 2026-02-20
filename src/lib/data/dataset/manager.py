@@ -28,9 +28,7 @@ import pydantic
 from . import common, downloading, migrating, updating, uploading
 from .. import storage
 from ...utils import (
-    cache,
     client,
-    client_configs,
     logging as logging_utils,
     common as utils_common,
     osmo_errors,
@@ -88,16 +86,6 @@ class Manager(pydantic.BaseModel):
         default=logging.ERROR,
         description='The logging level for the dataset manager.',
     )
-
-    @functools.cached_property
-    def cache_config(self) -> cache.CacheConfig | None:
-        """
-        Resolves the cache configuration.
-
-        :return: The cache configuration.
-        :rtype: Optional[cache.CacheConfig]
-        """
-        return client_configs.get_cache_config()
 
     @property
     def dataset(self) -> utils_common.DatasetStructure:
@@ -192,7 +180,6 @@ class Manager(pydantic.BaseModel):
         for dataset_info in dataset_infos:
             storage_backend = storage.construct_storage_backend(
                 dataset_info.manifest_path,
-                cache_config=self.cache_config,
             )
             storage_backend.data_auth(access_type=storage.AccessType.READ)
 
@@ -204,7 +191,6 @@ class Manager(pydantic.BaseModel):
             resume=resume,
             enable_progress_tracker=self.enable_progress_tracker,
             executor_params=self.executor_params,
-            cache_config=self.cache_config,
         )
 
         logger.info(
@@ -271,7 +257,6 @@ class Manager(pydantic.BaseModel):
         )
         path_components = storage.construct_storage_backend(
             location_result['path'],
-            cache_config=self.cache_config,
         )
         path_components.data_auth(access_type=storage.AccessType.WRITE)
 
@@ -331,7 +316,6 @@ class Manager(pydantic.BaseModel):
             enable_progress_tracker=self.enable_progress_tracker,
             executor_params=self.executor_params,
             request_headers=request_headers,
-            cache_config=self.cache_config,
         )
 
         # Mark Upload as Done
@@ -404,7 +388,6 @@ class Manager(pydantic.BaseModel):
         )
         path_components = storage.construct_storage_backend(
             location_result['path'],
-            cache_config=self.cache_config,
         )
 
         if remove_regex:
@@ -546,7 +529,6 @@ class Manager(pydantic.BaseModel):
             enable_progress_tracker=self.enable_progress_tracker,
             executor_params=self.executor_params,
             request_headers=request_headers,
-            cache_config=self.cache_config,
         )
 
         # Marks Update as Done
@@ -637,7 +619,6 @@ class Manager(pydantic.BaseModel):
                 destination_manifest_uri=new_location,
                 enable_progress_tracker=self.enable_progress_tracker,
                 executor_params=self.executor_params,
-                cache_config=self.cache_config,
             )
 
             summaries[dataset_name] = migrate_operation_result.summary

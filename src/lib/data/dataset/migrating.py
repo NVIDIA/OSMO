@@ -30,7 +30,7 @@ from . import common
 from .. import storage
 from ..storage import common as storage_common, copying
 from ..storage.core import client, executor, progress, provider
-from ...utils import cache, osmo_errors
+from ...utils import osmo_errors
 
 
 MANIFEST_REGEX_PATTERN = re.compile(r'.*\/manifests\/[0-9]+\.json$')
@@ -195,7 +195,6 @@ def migrate(
     *,
     enable_progress_tracker: bool = False,
     executor_params: executor.ExecutorParameters | None = None,
-    cache_config: cache.CacheConfig | None = None,
 ) -> MigrateOperationResult:
     """
     Migrates a legacy dataset to a manifest-based dataset.
@@ -211,11 +210,9 @@ def migrate(
 
     source_backend = storage.construct_storage_backend(
         uri=source_uri,
-        cache_config=cache_config,
     )
     destination_backend = storage.construct_storage_backend(
         uri=destination_uri,
-        cache_config=cache_config,
     )
 
     # Resolve the region for the destination storage backend.

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from . import osmo_errors
 
 VERSION_HEADER = 'x-osmo-client-version'
 SERVICE_VERSION_HEADER = 'x-osmo-service-version'
+VERSION_WARNING_HEADER = 'x-osmo-version-warning'
 
 
 class Version(pydantic.BaseModel):
