@@ -1280,193 +1280,124 @@ This is how most modern terminal protocols work:
 
 ---
 
-### 23. Dataset List API Missing Offset Parameter - Client-Side Filtering Workaround
+### 23. Dataset List API Missing Offset Parameter — Fetch-All Workaround
 
 **Priority:** High
-**Status:** ✅ Workaround implemented in adapter (`datasets.ts`) - **works for both mock and real data**
+**Status:** ✅ Workaround implemented in `datasets.ts` (`fetchAllDatasets`) + `datasets-shim.ts`
 
-The dataset list API (`GET /api/bucket/list_dataset`) lacks an `offset` parameter, making it impossible to implement proper pagination when filters are active.
+The dataset list API (`GET /api/bucket/list_dataset`) lacks an `offset` parameter, making cursor/offset pagination impossible when filters are active.
 
-**API Parameters:**
+**API Parameters (current):**
 ```typescript
 {
   name?: string;           // Search filter
   buckets?: string[];      // Bucket filter
-  dataset_type?: DatasetType;  // Format filter
+  user?: string[];         // User filter
+  all_users?: boolean;     // Show all users' datasets
+  dataset_type?: DatasetType;
   count?: number;          // Limit (like "limit")
-  // ❌ Missing: offset parameter
+  // ❌ Missing: offset, created_after, created_before, updated_after, updated_before, sort_by, sort_dir
 }
 ```
 
-**The Problem:**
+**Current workaround: fetch-all + shim**
 
-Without `offset`, the API can only return the first N results. When filtering is active:
-1. Backend receives: `?buckets=ml-data&count=50`
-2. Backend returns: First 50 datasets matching filter
-3. UI cannot request "next 50 matching datasets" (no offset!)
+`fetchAllDatasets()` fetches with `count: 10_000` and passes all server-side params.
+React Query caches the result. `applyDatasetsFiltersSync()` in `datasets-shim.ts` applies
+date range filters client-side from the cache — zero API calls on filter changes.
 
-This breaks infinite scroll with filters - users only see the first page of filtered results.
-
-**Contrast with Workflows API:**
-
-Workflows has the same limitation, but it's documented in issue #11. The workflows mock works around it by:
-```typescript
-// workflows mock - disables pagination when filtering
-const moreEntries = hasActiveFilters(filters) ? false : offset + limit < total;
 ```
-
-This tells the UI "no more pages available" when filters are active, hiding the bug but limiting users to one page of results.
-
-**Our Implementation: Client-Side Filtering**
-
-We implement a **fetch-once, filter-client-side** pattern that works for both mock and real backend:
-
-```typescript
-// datasets.ts - Simplified client-side filtering
-const DATASET_FETCH_LIMIT = 1000;
-
-export async function fetchPaginatedDatasets(params) {
-  // 1. Fetch large pool upfront (once, TanStack Query caches it)
-  const response = await api({ count: DATASET_FETCH_LIMIT });
-  const allDatasets = transformDatasetList(response);
-
-  // 2. CLIENT-SIDE FILTERING (works for mock and real data)
-  let filtered = allDatasets;
-  if (searchTerm) {
-    filtered = filtered.filter(d => d.name.includes(searchTerm));
-  }
-  if (buckets.length > 0) {
-    filtered = filtered.filter(d => buckets.includes(d.bucket));
-  }
-
-  // 3. CLIENT-SIDE PAGINATION (slice filtered results)
-  const pageData = filtered.slice(offset, offset + limit);
-
-  return {
-    items: pageData,
-    total: allDatasets.length,
-    filteredTotal: filtered.length,
-    hasMore: offset + limit < filtered.length,
-  };
-}
-```
-
-**Mock Handler (Simplified):**
-
-```typescript
-// handlers.ts - No filtering, just return requested count
-http.get("*/api/bucket/list_dataset", async ({ request }) => {
-  const count = parseInt(url.searchParams.get("count") || "50");
-  const { entries } = datasetGenerator.generatePage(0, count);
-  return HttpResponse.json({ datasets: entries });
-});
-```
-
-**How This Works:**
-
-**Initial load:**
-```
-User opens /datasets
-→ Adapter fetches 1000 items (single API call)
-→ TanStack Query caches all 1000 items
-→ Display first 50 items
-```
-
-**User filters by bucket="ml-data":**
-```
-→ Filter 1000 cached items in memory (<10ms)
-→ Find 180 matches
-→ Display first 50 matching items
-→ hasMore = true (130 more available)
-```
-
-**User scrolls to load more:**
-```
-→ Slice cached filtered results [50:100]
-→ Display next 50 items (instant, no API call!)
+useAllDatasets(showAllUsers, searchChips)
+    → fetchAllDatasets()  →  API (count: 10_000, name, buckets, user, all_users)
+    → React Query cache: Dataset[]
+    → applyDatasetsFiltersSync(allDatasets, chips, sort)   ← useMemo, pure function
+    → { datasets, total, filteredTotal }
 ```
 
 **Tradeoffs:**
 
 | Aspect | Pro/Con | Details |
 |--------|---------|---------|
-| Compatibility | ✅ Pro | Works for both mock and real backend |
-| Code complexity | ✅ Pro | Single implementation, no special cases |
-| Filtering UX | ✅ Pro | Perfect - sees all matching items |
-| Filter speed | ✅ Pro | Instant (<10ms, in-memory) |
-| Initial load | ❌ Con | Slower (fetch 1000 vs 50 items) |
-| Memory | ❌ Con | ~500KB for 1000 datasets |
+| Filtering UX | ✅ Pro | All matching items available instantly |
+| Filter speed | ✅ Pro | <10ms in-memory filter |
+| Initial load | ❌ Con | Fetches up to 10,000 items at once |
 | Scalability | ⚠️ Limited | Works up to ~10,000 datasets |
-| Real-time updates | ❌ Con | Needs manual refresh |
 
-**For OSMO's use case:**
-- Total datasets: < 10,000 ✅
-- Enterprise network: Fast ✅
-- Internal tool: High memory OK ✅
-- **Verdict: This approach is appropriate**
+For OSMO's dataset counts this is appropriate. See issue #25 for the full backend fix needed.
 
-**Backend Fix Options:**
+**Migration path (when #25 is fixed):**
 
-**Option 1: Add offset parameter (RECOMMENDED)**
-```python
-@router.get("/api/bucket/list_dataset")
-def list_datasets(
-    count: int = 50,
-    offset: int = 0,  # ← Add this
-    buckets: Optional[List[str]] = None,
-    # ...
-):
-    # Apply filters first
-    filtered = apply_filters(all_datasets, buckets, ...)
+1. Remove `fetchAllDatasets` + `buildAllDatasetsQueryKey` from `datasets.ts`
+2. Delete `datasets-shim.ts` entirely
+3. Add date/sort params to `buildApiParams()` and include in query key
+4. `useDatasetsData` reads the query result directly (no shim `useMemo`)
 
-    # THEN paginate
-    return {
-        "datasets": filtered[offset:offset+count],
-        "total": len(filtered),  # ← Also add total count
-        "has_more": offset + count < len(filtered)
-    }
+---
+
+### 25. Dataset List API Missing Date Filtering and Sorting Parameters
+
+**Priority:** High
+**Status:** Active workaround in `datasets-shim.ts` (client-side filtering) and `datasets.ts` (fetch-all)
+
+The dataset list API does not support date range filtering or server-side sorting. The UI works around this by fetching all datasets at once and filtering/sorting client-side via `datasets-shim.ts`.
+
+**Desired API behavior:**
+
+```
+GET /api/bucket/list_dataset
+  ?name=foo
+  &buckets=ml-data
+  &user=alice
+  &all_users=false
+  &dataset_type=DATASET
+  &created_after=2024-01-01T00:00:00Z
+  &created_before=2024-12-31T23:59:59Z
+  &updated_after=2024-01-01T00:00:00Z
+  &updated_before=2024-12-31T23:59:59Z
+  &sort_by=name
+  &sort_dir=asc
+  &count=50
+  &offset=0
 ```
 
-**Option 2: Cursor-based pagination**
-```python
-def list_datasets(
-    count: int = 50,
-    cursor: Optional[str] = None,  # Opaque cursor from previous response
-    # ...
-):
-    # Decode cursor to resumption point
-    # Return next N items + new cursor
+**New parameters needed:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `created_after` | ISO 8601 datetime | Include only datasets created on or after this time |
+| `created_before` | ISO 8601 datetime | Include only datasets created on or before this time |
+| `updated_after` | ISO 8601 datetime | Include only datasets last updated on or after this time |
+| `updated_before` | ISO 8601 datetime | Include only datasets last updated on or before this time |
+| `sort_by` | string | Field to sort by: `name`, `bucket`, `created_at`, `updated_at`, `size_bytes`, `version` |
+| `sort_dir` | `asc` \| `desc` | Sort direction (default: `desc` for dates, `asc` for name) |
+| `offset` | number | Offset for pagination (enables proper paging with filters active) |
+
+**New response fields needed:**
+
+```json
+{
+  "datasets": [...],
+  "total": 1234,
+  "filtered_total": 87
+}
 ```
 
-**Option 3: Return all matching results**
-```python
-# Remove count limit entirely for filtered queries
-# Let client handle pagination of full result set
-# ⚠️ Only viable if result sets are reasonably sized (<10k items)
-```
+**Current client-side workarounds:**
 
-**UI Adapter Code:**
+| Filter | Workaround location | Remove when fixed |
+|--------|---------------------|-------------------|
+| `created_at` date range | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `created_after`/`created_before` to API |
+| `updated_at` date range | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `updated_after`/`updated_before` to API |
+| Sorting | `datasets-shim.ts` `applyDatasetsFiltersSync` (Phase 4) | Pass `sort_by`/`sort_dir` to API |
+| Fetch all instead of paginating | `datasets.ts` `fetchAllDatasets` (count: 10_000) | Use proper offset pagination |
 
-The adapter correctly passes filter parameters but documents the limitation:
+**Migration path (when backend adds these params):**
 
-```typescript
-// datasets.ts:209
-const response = await listDatasetFromBucketApiBucketListDatasetGet({
-  name: searchTerm,
-  buckets: bucketChips.length > 0 ? bucketChips : undefined,
-  dataset_type: formatChips.length > 0 ? formatChips[0] : undefined,
-  count: limit,
-  // NOTE: No offset parameter available - pagination broken with filters
-});
-```
-
-**Migration Path:**
-
-1. Backend adds `offset` parameter and `total` count to response
-2. Update adapter to pass `offset` in API call
-3. Remove mock's filter-then-paginate workaround
-4. Update `DataListResponse` type to include `total` and `has_more`
-5. Infinite scroll works correctly with filters ✅
+1. Delete `datasets-shim.ts` entirely
+2. In `datasets.ts`: update `buildApiParams()` to include date and sort params; switch back to paginated fetch
+3. In `datasets-hooks.ts`: include date/sort params in query key
+4. In `use-datasets-data.ts`: remove shim `useMemo`, read query result directly
+5. No changes needed in UI components
 
 ---
 
@@ -1590,8 +1521,9 @@ Option B: Include pod phase in plain text header
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
 | #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
-| #23 Dataset pagination with filters | **High** | datasets.ts (client-side filtering) | Add offset param to API |
+| #23 Dataset pagination missing offset | **High** | datasets.ts (fetch-all workaround) | Add offset param to API |
 | #24 Events API lacks pod status data | Medium | events-parser.ts, events-utils.ts, events-grouping.ts | Use actual pod status from API |
+| #25 Dataset API missing date/sort params | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |
 
 ### Priority Guide
 
