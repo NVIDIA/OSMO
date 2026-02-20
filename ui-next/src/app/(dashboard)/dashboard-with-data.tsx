@@ -35,6 +35,7 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPoolsForDashboard } from "@/lib/api/server/pools";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
 import { prefetchVersion } from "@/lib/api/server/version";
+import { prefetchProfile } from "@/lib/api/server/profile";
 import { DashboardContent } from "@/app/(dashboard)/dashboard-content";
 import { createServerQueryClient } from "@/lib/query-client";
 
@@ -50,6 +51,7 @@ export async function DashboardWithData() {
       prefetchPoolsForDashboard(queryClient),
       prefetchWorkflowsList(queryClient),
       prefetchVersion(queryClient),
+      prefetchProfile(queryClient),
     ]);
   } catch (error) {
     // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
