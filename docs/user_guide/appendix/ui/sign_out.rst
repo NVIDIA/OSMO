@@ -23,7 +23,7 @@
 Sign Out
 ================================================
 
-To logout from the UI, click the sign out button and logout from Keycloak:
+To logout from the UI, click the sign out button:
 
 .. image:: ui_sign_out.png
   :width: 400
