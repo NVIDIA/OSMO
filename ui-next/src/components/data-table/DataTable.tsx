@@ -76,6 +76,8 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   isLoading?: boolean;
   emptyContent?: React.ReactNode;
   onRowClick?: (row: TData) => void;
+  /** Double-click handler (e.g. navigate to detail page) */
+  onRowDoubleClick?: (row: TData) => void;
   /** For middle-click: returns URL for new tab, or undefined to call onRowClick */
   getRowHref?: (row: TData) => string | undefined;
   selectedRowId?: string;
@@ -129,6 +131,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   isLoading,
   emptyContent,
   onRowClick,
+  onRowDoubleClick,
   getRowHref,
   selectedRowId,
   rowClassName,
@@ -532,6 +535,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                 getItem={getItem}
                 columnCount={visibleColumnCount}
                 onRowClick={onRowClick}
+                onRowDoubleClick={onRowDoubleClick}
                 getRowHref={getRowHref}
                 selectedRowId={selectedRowId}
                 getRowId={getRowId}
