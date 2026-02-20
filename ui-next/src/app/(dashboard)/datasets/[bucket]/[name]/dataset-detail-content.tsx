@@ -23,18 +23,18 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { Button } from "@/components/shadcn/button";
-import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { PANEL } from "@/components/panel/panel-header-controls";
-import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
+import { cn } from "@/lib/utils";
+import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
 import { FileBrowserHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserHeader";
 import { FileBrowserTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserTable";
 import { FilePreviewPanel } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FilePreviewPanel";
 import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
 import { useFileBrowserState } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-file-browser-state";
 import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
+import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
 
 interface Props {
   bucket: string;
@@ -55,31 +55,42 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
 
   // ==========================================================================
-  // File listing — updates when path or version changes
+  // File listing — fetch full manifest for selected version, filter client-side
   // ==========================================================================
 
+  // Determine which version to show files for
+  const sortedVersions = useMemo(
+    () => [...versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10)),
+    [versions],
+  );
+  const latestVersion = sortedVersions.at(-1) ?? null;
+  const currentVersionData = (version ? sortedVersions.find((v) => v.version === version) : null) ?? latestVersion;
+  const location = currentVersionData?.location ?? null;
+
   const {
-    data: filesData,
+    data: rawFiles,
     isLoading: isFilesLoading,
     error: filesError,
     refetch: refetchFiles,
-  } = useDatasetFiles(bucket, name, path, version ?? undefined);
+  } = useDatasetFiles(location);
 
-  const files = useMemo(() => filesData?.files ?? [], [filesData]);
+  // Build directory listing for the current path from the flat file manifest
+  const files = useMemo(() => buildDirectoryListing(rawFiles ?? [], path), [rawFiles, path]);
 
   // ==========================================================================
-  // Panel state — ResizablePanel lifecycle + width
+  // Panel state — side-by-side split with drag-to-resize
   // ==========================================================================
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(35);
+  const panelOpen = !!selectedFile;
 
-  const {
-    isPanelOpen,
-    handleClose: handleClosePanel,
-    handleClosed: handlePanelClosed,
-  } = usePanelLifecycle({
-    hasSelection: !!selectedFile,
-    onClosed: clearSelection,
+  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
+    width: panelWidth,
+    onWidthChange: setPanelWidth,
+    minWidth: 20,
+    maxWidth: 70,
+    containerRef,
   });
 
   // Resolve the DatasetFile object for the selected file path.
@@ -176,27 +187,44 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         onVersionChange={setVersion}
       />
 
-      {/* File browser + file preview panel */}
-      <div className="min-h-0 flex-1">
-        <ResizablePanel
-          open={isPanelOpen}
-          onClose={handleClosePanel}
-          onClosed={handlePanelClosed}
-          width={panelWidth}
-          onWidthChange={setPanelWidth}
-          minWidth={PANEL.MIN_WIDTH_PCT}
-          maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
-          mainContent={fileTableContent}
-          aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
-        >
-          {selectedFileData && (
-            <FilePreviewPanel
-              file={selectedFileData}
-              path={path}
-              onClose={handleClosePanel}
+      {/* File browser + preview panel side-by-side */}
+      <div
+        ref={containerRef}
+        className="flex min-h-0 flex-1 overflow-hidden"
+      >
+        {/* File browser — shrinks to give space to preview panel */}
+        <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
+
+        {/* Drag handle + preview panel — only mounted when a file is selected */}
+        {panelOpen && (
+          <>
+            {/* Thin drag separator — 1px visual, full-height hit area */}
+            <div
+              {...bindResizeHandle()}
+              className={cn(
+                "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
+                isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
+              )}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize panel"
+              aria-valuenow={panelWidth}
             />
-          )}
-        </ResizablePanel>
+            <aside
+              className="flex shrink-0 flex-col overflow-hidden"
+              style={{ width: `${panelWidth}%`, ...dragStyles }}
+              aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
+            >
+              {selectedFileData && (
+                <FilePreviewPanel
+                  file={selectedFileData}
+                  path={path}
+                  onClose={clearSelection}
+                />
+              )}
+            </aside>
+          </>
+        )}
       </div>
     </div>
   );
