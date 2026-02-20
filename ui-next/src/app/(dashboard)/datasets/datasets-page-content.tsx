@@ -33,15 +33,23 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useDefaultFilter } from "@/hooks/use-default-filter";
+import { useSelectionState } from "@/hooks/use-url-state";
+import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
+import { usePanelWidth } from "@/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
+import { DatasetPanel } from "@/app/(dashboard)/datasets/components/panel/DatasetPanel";
 import { useDatasetsData } from "@/app/(dashboard)/datasets/hooks/use-datasets-data";
 import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
 import { useUser } from "@/lib/auth/user-context";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
+import { PANEL } from "@/components/panel/panel-header-controls";
 import type { SearchChip } from "@/stores/types";
 import type { SortState } from "@/components/data-table/types";
+import type { Dataset } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
 // Types
@@ -58,6 +66,7 @@ interface DatasetsPageContentProps {
 export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProps) {
   usePage({ title: "Datasets" });
   const { startTransition: startViewTransition } = useViewTransition();
+  const router = useRouter();
   const { user } = useUser();
 
   const currentUsername = initialUsername ?? user?.username ?? null;
@@ -85,6 +94,58 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
     },
     [setSort, clearSort],
   );
+
+  // ==========================================================================
+  // Panel state — URL-synced (?view=bucket/name), ResizablePanel slideout
+  // ==========================================================================
+
+  // URL state: format is "bucket/name" (nuqs encodes the slash)
+  const [selectedView, setSelectedView] = useSelectionState("view");
+
+  // Parse bucket and name from "bucket/name" (split on first "/" only)
+  const slashIndex = selectedView ? selectedView.indexOf("/") : -1;
+  const selectedBucket = selectedView ? (slashIndex === -1 ? selectedView : selectedView.slice(0, slashIndex)) : null;
+  const selectedName = selectedView && slashIndex !== -1 ? selectedView.slice(slashIndex + 1) : null;
+
+  const { panelWidth, setPanelWidth } = usePanelWidth({
+    storedWidth: useDatasetsTableStore((s) => s.panelWidth),
+    setStoredWidth: useDatasetsTableStore((s) => s.setPanelWidth),
+  });
+
+  const {
+    isPanelOpen,
+    handleClose: handleClosePanel,
+    handleClosed: handlePanelClosed,
+  } = usePanelLifecycle({
+    hasSelection: Boolean(selectedView),
+    onClosed: () =>
+      startViewTransition(() => {
+        void setSelectedView(null);
+      }),
+  });
+
+  const handleRowSelect = useCallback(
+    (dataset: Dataset) => {
+      startViewTransition(() => {
+        void setSelectedView(`${dataset.bucket}/${dataset.name}`);
+      });
+    },
+    [setSelectedView, startViewTransition],
+  );
+
+  const handleRowDoubleClick = useCallback(
+    (dataset: Dataset) => {
+      startViewTransition(() => {
+        router.push(`/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`);
+      });
+    },
+    [router, startViewTransition],
+  );
+
+  const selectedDatasetId = useMemo(() => {
+    if (!selectedBucket || !selectedName) return undefined;
+    return `${selectedBucket}-${selectedName}`;
+  }, [selectedBucket, selectedName]);
 
   // ==========================================================================
   // Default user filter — "My Datasets" by default, opt-out via ?all=true
@@ -120,7 +181,7 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
   // Render
   // ==========================================================================
 
-  return (
+  const pageContent = (
     <div className="flex h-full flex-col gap-4 p-6">
       {/* Toolbar with search and controls */}
       <div className="shrink-0">
@@ -155,9 +216,36 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
             onRetry={refetch}
             sorting={sortState}
             onSortingChange={handleSortingChange}
+            onRowSelect={handleRowSelect}
+            onRowDoubleClick={handleRowDoubleClick}
+            selectedDatasetId={selectedDatasetId}
           />
         </InlineErrorBoundary>
       </div>
     </div>
+  );
+
+  return (
+    <ResizablePanel
+      open={isPanelOpen}
+      onClose={handleClosePanel}
+      onClosed={handlePanelClosed}
+      width={panelWidth}
+      onWidthChange={setPanelWidth}
+      minWidth={PANEL.MIN_WIDTH_PCT}
+      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
+      mainContent={pageContent}
+      backdrop={false}
+      aria-label={selectedBucket && selectedName ? `Dataset details: ${selectedName}` : "Datasets"}
+      className="datasets-panel"
+    >
+      {selectedBucket && selectedName && (
+        <DatasetPanel
+          bucket={selectedBucket}
+          name={selectedName}
+          onClose={handleClosePanel}
+        />
+      )}
+    </ResizablePanel>
   );
 }
