@@ -38,10 +38,13 @@ def get_notification_settings(
         fastapi.Header(alias=login.OSMO_USER_ROLES, default=None),
     token_name_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_TOKEN_NAME_HEADER, default=None),
+    allowed_pools_header: Optional[str] =
+        fastapi.Header(alias=login.OSMO_ALLOWED_POOLS, default=None),
 ) -> objects.ProfileResponse:
     user_name = connectors.parse_username(user_header)
     postgres = connectors.PostgresConnector.get_instance()
     roles = login.construct_roles_list(roles_header)
+    pools = login.parse_allowed_pools(allowed_pools_header)
     token_identity = None
     if token_name_header:
         expires_at = None
@@ -55,7 +58,7 @@ def get_notification_settings(
     return objects.ProfileResponse(
         profile=connectors.UserProfile.fetch_from_db(postgres, user_name),
         roles=roles,
-        pools=connectors.Pool.get_pools(roles),
+        pools=pools,
         token=token_identity,
     )
 

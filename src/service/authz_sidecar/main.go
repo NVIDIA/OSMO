@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -34,14 +33,14 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"go.corp.nvidia.com/osmo/service/authz_sidecar/server"
+	"go.corp.nvidia.com/osmo/utils/logging"
 	"go.corp.nvidia.com/osmo/utils/postgres"
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
 const (
-	defaultGRPCPort  = 50052
-	defaultCacheSize = 1000
-	maxGRPCMsgSize   = 4 * 1024 * 1024 // 4MB
+	defaultGRPCPort = 50052
+	maxGRPCMsgSize  = 4 * 1024 * 1024 // 4MB
 )
 
 var (
@@ -50,33 +49,19 @@ var (
 	// PostgreSQL flags - registered via postgres package
 	postgresFlagPtrs = postgres.RegisterPostgresFlags()
 
-	// Logging flags
-	logLevel = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
-)
+	// Cache flags - registered via roles package
+	cacheFlagPtrs = roles.RegisterCacheFlags()
 
-func parseLogLevel(level string) slog.Level {
-	switch strings.ToLower(level) {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn", "warning":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
+	// Logging flags - registered via logging package
+	loggingFlagPtrs = logging.RegisterFlags()
+)
 
 func main() {
 	flag.Parse()
 
-	// Setup structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: parseLogLevel(*logLevel),
-	}))
-	slog.SetDefault(logger)
+	// Setup structured logging using the OSMO service log format
+	loggingConfig := loggingFlagPtrs.ToConfig()
+	logger := logging.InitLogger("authz-sidecar", loggingConfig)
 
 	// Create PostgreSQL client
 	ctx := context.Background()
@@ -88,11 +73,13 @@ func main() {
 	}
 	defer pgClient.Close()
 
-	// Create role cache
-	roleCache := roles.NewRoleCache(defaultCacheSize, logger)
+	// Create caches
+	cacheConfig := cacheFlagPtrs.ToCacheConfig()
+	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
+	poolNameCache := roles.NewPoolNameCache(cacheConfig.TTL, logger)
 
 	// Create authorization server
-	authzServer := server.NewAuthzServer(pgClient, roleCache, logger)
+	authzServer := server.NewAuthzServer(pgClient, roleCache, poolNameCache, logger)
 
 	// Migrate all roles to semantic format in the database
 	if err := authzServer.MigrateRoles(ctx); err != nil {
@@ -132,7 +119,7 @@ func main() {
 	)
 
 	// Start gRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *grpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *grpcPort))
 	if err != nil {
 		logger.Error("failed to listen", slog.String("error", err.Error()))
 		os.Exit(1)

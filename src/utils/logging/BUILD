@@ -17,30 +17,18 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "roles",
+    name = "logging",
     srcs = [
-        "action_registry.go",
-        "pool_access.go",
-        "role_cache.go",
-        "roles.go",
+        "logging.go",
     ],
-    importpath = "go.corp.nvidia.com/osmo/utils/roles",
+    importpath = "go.corp.nvidia.com/osmo/utils/logging",
     visibility = ["//visibility:public"],
-    deps = [
-        "//src/utils",
-        "//src/utils/postgres",
-        "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
-    ],
 )
 
 go_test(
-    name = "roles_test",
+    name = "logging_test",
     srcs = [
-        "action_registry_test.go",
-        "pool_access_test.go",
-        "role_cache_test.go",
-        "roles_test.go",
+        "logging_test.go",
     ],
-    embed = [":roles"],
-    deps = [],
+    embed = [":logging"],
 )
