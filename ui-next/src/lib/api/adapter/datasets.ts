@@ -266,13 +266,34 @@ function buildApiParams(
     buckets: bucketChips.length > 0 ? bucketChips : undefined,
     dataset_type: DatasetType.DATASET,
     user: userChips.length > 0 ? userChips : undefined,
-    all_users: showAllUsers,
+    // all_users overrides user filter on the backend — force false when user chips are active
+    all_users: userChips.length > 0 ? false : showAllUsers,
   };
 }
 
 // =============================================================================
 // API Fetch Functions
 // =============================================================================
+
+/**
+ * Fetch all datasets in a single request with server-side filtering.
+ *
+ * Uses count: 10_000 to retrieve all datasets at once, bypassing the broken
+ * offset-based pagination. Client-side shim (datasets-shim.ts) handles
+ * date range filtering and sorting after the fetch.
+ *
+ * @param showAllUsers - Whether to fetch all users' datasets or just the current user's
+ * @param searchChips - Active filter chips (server-side params extracted: name, bucket, user)
+ */
+export async function fetchAllDatasets(showAllUsers: boolean, searchChips: SearchChip[]): Promise<Dataset[]> {
+  const { listDatasetFromBucketApiBucketListDatasetGet } = await import("@/lib/api/generated");
+
+  const apiParams = buildApiParams(searchChips, showAllUsers, 10_000);
+  const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
+
+  const parsed: DataListResponse = typeof response === "string" ? JSON.parse(response) : (response as DataListResponse);
+  return transformDatasetList(parsed);
+}
 
 /**
  * Fetch paginated datasets with server-side filtering.
@@ -365,6 +386,27 @@ export async function fetchDatasetFiles(
 // =============================================================================
 // Query Key Builders
 // =============================================================================
+
+/**
+ * Build a stable query key for the all-datasets fetch.
+ *
+ * Only includes server-side filter params (name, bucket, user, showAllUsers).
+ * Client-side filters (created_at, updated_at) are intentionally excluded so
+ * they don't trigger new API calls — the shim handles them from the cache.
+ */
+export function buildAllDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
+  const buckets = getChipValues(searchChips, "bucket").sort();
+  const users = getChipValues(searchChips, "user").sort();
+  const search = getFirstChipValue(searchChips, "name");
+
+  const filters: Record<string, string | string[] | boolean> = {};
+  if (search) filters.search = search;
+  if (buckets.length > 0) filters.buckets = buckets;
+  if (users.length > 0) filters.users = users;
+  filters.showAllUsers = showAllUsers;
+
+  return ["datasets", "all", filters] as const;
+}
 
 /**
  * Build a stable query key for datasets list.
