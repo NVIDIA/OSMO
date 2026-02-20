@@ -16,15 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * URL-synced search chips hook.
- *
- * Manages SearchChip[] state synced to URL query parameters.
- * Format: ?f=field1:value1&f=field2:value2
- *
- * This enables shareable/bookmarkable filtered views.
- */
-
 "use client";
 
 import { useMemo, useCallback } from "react";
@@ -32,38 +23,15 @@ import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import type { SearchChip } from "@/stores/types";
 import { parseUrlChips } from "@/lib/url-utils";
 
-export interface UseUrlChipsOptions {
-  /** URL parameter name (default: "f") */
-  paramName?: string;
-}
-
-export interface UseUrlChipsResult {
-  /** Current search chips parsed from URL */
-  searchChips: SearchChip[];
-  /** Update search chips (syncs to URL) */
-  setSearchChips: (chips: SearchChip[]) => void;
+export interface SetSearchChipsOptions {
+  history?: "push" | "replace";
 }
 
 /**
- * Hook for URL-synced search chips.
- *
- * Parses "field:value" format from repeated URL params into SearchChip[].
- * Updates URL when chips change.
- *
- * @example
- * ```tsx
- * // URL: /pools?f=status:ONLINE&f=platform:dgx
- * const { searchChips, setSearchChips } = useUrlChips();
- * // searchChips = [
- * //   { field: "status", value: "ONLINE", label: "status: ONLINE" },
- * //   { field: "platform", value: "dgx", label: "platform: dgx" },
- * // ]
- * ```
+ * URL-synced search chips. Parses "field:value" from repeated URL params (?f=field:value)
+ * into SearchChip[] and writes changes back to the URL for shareable filtered views.
  */
-export function useUrlChips(options: UseUrlChipsOptions = {}): UseUrlChipsResult {
-  const { paramName = "f" } = options;
-
-  // URL state - repeated params: ?f=status:ONLINE&f=platform:dgx
+export function useUrlChips({ paramName = "f" }: { paramName?: string } = {}) {
   const [filterStrings, setFilterStrings] = useQueryState(
     paramName,
     parseAsArrayOf(parseAsString).withOptions({
@@ -73,17 +41,12 @@ export function useUrlChips(options: UseUrlChipsOptions = {}): UseUrlChipsResult
     }),
   );
 
-  // Parse filter strings to SearchChip format (reuse shared parsing logic)
   const searchChips = useMemo<SearchChip[]>(() => parseUrlChips(filterStrings ?? []), [filterStrings]);
 
-  // Convert chips back to filter strings for URL
   const setSearchChips = useCallback(
-    (chips: SearchChip[]) => {
-      if (chips.length === 0) {
-        setFilterStrings(null);
-      } else {
-        setFilterStrings(chips.map((c) => `${c.field}:${c.value}`));
-      }
+    (chips: SearchChip[], options?: SetSearchChipsOptions) => {
+      const value = chips.length === 0 ? null : chips.map((c) => `${c.field}:${c.value}`);
+      void setFilterStrings(value, options);
     },
     [setFilterStrings],
   );

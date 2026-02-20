@@ -220,6 +220,13 @@ export interface SearchPreset {
    * FilterBar only handles the button wrapper and click/keyboard interaction.
    */
   render: (props: PresetRenderProps) => React.ReactNode;
+  /**
+   * Optional custom selection handler.
+   * When provided, overrides the default additive toggle behavior.
+   * Receives the current chips and returns the new chips after selection.
+   * Use this for presets that need replace semantics (e.g., "My Workflows" replaces all user chips).
+   */
+  onSelect?: (currentChips: SearchChip[]) => SearchChip[];
 }
 
 /**

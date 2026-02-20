@@ -215,7 +215,7 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
                 <>
                   <span className="text-muted-foreground">Pool</span>
                   <Link
-                    href={`/workflows?f=pool:${encodeURIComponent(workflow.pool)}`}
+                    href={`/workflows?f=pool:${encodeURIComponent(workflow.pool)}&all=true`}
                     className="text-foreground focus-visible:ring-ring rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                   >
                     {workflow.pool}
