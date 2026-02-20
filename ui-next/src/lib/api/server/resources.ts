@@ -24,7 +24,11 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { AllResourcesResponse, PoolResourcesResponse } from "@/lib/api/adapter/types";
-import { buildResourcesQueryKey } from "@/lib/api/adapter/resources-shim";
+import {
+  buildResourcesQueryKey,
+  getResourcesCacheSnapshot,
+  RESOURCES_SHIM_SEED_KEY,
+} from "@/lib/api/adapter/resources-shim";
 
 // =============================================================================
 // Fetch Functions
@@ -137,4 +141,14 @@ export async function prefetchResourcesList(queryClient: QueryClient, filterChip
     },
     initialPageParam: { cursor: undefined, offset: 0 },
   });
+
+  // SHIM: Store the full resource list for client-side cache seeding.
+  // The prefetch above populated resourcesCache with all resources server-side.
+  // Dehydrating this snapshot lets the client warm its shim cache on mount,
+  // avoiding a redundant all_pools=true fetch on first scroll.
+  // Remove when migrating to server-side pagination (Option C).
+  const seed = getResourcesCacheSnapshot();
+  if (seed) {
+    queryClient.setQueryData(RESOURCES_SHIM_SEED_KEY, seed);
+  }
 }

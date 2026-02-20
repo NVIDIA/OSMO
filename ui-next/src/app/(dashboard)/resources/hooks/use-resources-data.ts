@@ -34,10 +34,15 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { fetchResources } from "@/lib/api/adapter/hooks";
-import type { PaginatedResourcesResult, ResourceFilterParams } from "@/lib/api/adapter/resources-shim";
-import { buildResourcesQueryKey } from "@/lib/api/adapter/resources-shim";
+import type {
+  PaginatedResourcesResult,
+  ResourceFilterParams,
+  ResourcesCacheSeed,
+} from "@/lib/api/adapter/resources-shim";
+import { buildResourcesQueryKey, seedResourcesCache, RESOURCES_SHIM_SEED_KEY } from "@/lib/api/adapter/resources-shim";
 import type { Resource } from "@/lib/api/adapter/types";
 import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
 import type { SearchChip } from "@/stores/types";
@@ -104,6 +109,17 @@ const RESOURCE_CHIP_MAPPING: ChipMappingConfig<ResourceFilterParams> = {
 // =============================================================================
 
 export function useResourcesData({ searchChips }: UseResourcesDataParams): UseResourcesDataReturn {
+  // SHIM: Warm client shim cache from server-hydrated seed data on mount.
+  // Prevents the redundant all_pools=true fetch on first scroll.
+  // Remove when migrating to server-side pagination (Option C).
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const seed = queryClient.getQueryData<ResourcesCacheSeed>(RESOURCES_SHIM_SEED_KEY);
+    if (seed) {
+      seedResourcesCache(seed);
+    }
+  }, [queryClient]);
+
   // Convert chips to filter params using shared utility
   const filterParams = useMemo(
     () => chipsToParams(searchChips, RESOURCE_CHIP_MAPPING) as ResourceFilterParams,
