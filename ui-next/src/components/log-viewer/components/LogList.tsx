@@ -27,7 +27,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatHotkey } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -561,7 +561,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
           disabled={!effectiveSelection}
         >
           Copy
-          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+          <ContextMenuShortcut>{formatHotkey("mod+c")}</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

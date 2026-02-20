@@ -535,6 +535,7 @@ grep -r "DropdownMenu\|Dialog\|Popover\|Sheet" src/ | grep -v "useMounted"
 | CSS variables | `globals.css` | Inline hex colors |
 | Clipboard operations | `useServices().clipboard` | `navigator.clipboard` |
 | URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
+| Modifier key label | `formatHotkey("mod+x")` or `modKey` from `@/lib/utils` | `isMac ? "⌘" : "Ctrl"` inline |
 
 ## Performance Requirements
 
@@ -761,6 +762,7 @@ Before submitting code:
 - [ ] Every interactive element keyboard accessible?
 - [ ] Using TanStack/Zustand/nuqs instead of manual state?
 - [ ] No magic numbers (use constants/config)?
+- [ ] Keyboard shortcut labels use `formatHotkey("mod+x")` or `modKey` — never inline `isMac ? "⌘" : "Ctrl"`?
 - [ ] All NEW files have NVIDIA copyright header?
 - [ ] Ran `pnpm format` after checks passed?
 

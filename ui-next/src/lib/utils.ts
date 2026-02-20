@@ -11,6 +11,9 @@ export const clamp = (value: number, min: number, max: number): number =>
 // SSR-safe platform detection
 export const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
 
+// The modifier key label for the current OS: "⌘" on Mac, "Ctrl" on Windows/Linux
+export const modKey = isMac ? "⌘" : "Ctrl";
+
 const NATURAL_SORT_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
 
 // Natural/alphanumeric sort: workflow_1, workflow_2, workflow_10 (not workflow_1, workflow_10, workflow_2)
