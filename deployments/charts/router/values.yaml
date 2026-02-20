@@ -22,7 +22,7 @@ global:
 
   ## Docker image tag for Osmo router service
   ##
-  osmoImageTag: latest
+  osmoImageTag: "6.1"
 
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
