@@ -9,6 +9,7 @@ amlfs
 ansible
 Ansible
 api
+apiVersion
 apis
 apriltag
 arg

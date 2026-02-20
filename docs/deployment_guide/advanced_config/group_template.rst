@@ -22,16 +22,13 @@
 Group Templates
 =======================================================
 
-Group templates define arbitrary Kubernetes resources that OSMO creates alongside each workflow task group. Unlike :ref:`pod templates <pod_template>`, which configure the pod spec for individual tasks, group templates deploy cluster-level or namespace-scoped resources—such as custom scheduler objects, topology CRDs, or ConfigMaps—that the group's pods depend on.
+Group templates define arbitrary Kubernetes resources that OSMO creates alongside each workflow task group. Unlike :ref:`pod templates <pod_template>`, which configure the pod spec for individual tasks, group templates deploy namespace-scoped resources—such as ComputeDomains or ConfigMaps—that the group's pods depend on. Resources are scoped to the namespace in which the workflow runs.
 
 
 Why Use Group Templates?
 ========================
 
 Group templates extend OSMO's scheduling capabilities by allowing you to provision supporting Kubernetes resources alongside workflow task groups:
-
-✓ **Deploy Custom Scheduler Resources**
-  Create scheduler-specific objects (for example, RunAI Queues, KAI Topology CRDs) that must exist before pods are scheduled.
 
 ✓ **Provision Shared Group Resources**
   Create ConfigMaps, Secrets, or other namespace-scoped resources that all tasks in a group share.
@@ -62,7 +59,7 @@ Resource Creation Flow
 
         +++
 
-        Full :code:`apiVersion`, :code:`kind`, and :code:`metadata`
+        ComputeDomains, ConfigMaps, and more
 
     .. grid-item-card::
         :class-header: sd-bg-primary sd-text-white
@@ -79,14 +76,14 @@ Resource Creation Flow
     .. grid-item-card::
         :class-header: sd-bg-warning sd-text-white
 
-        **3. Render Templates** 🔄
+        **3. Merge Templates** 🔄
         ^^^
 
-        Substitute variables and inject labels
+        Combine specifications
 
         +++
 
-        Templates with matching keys are merged
+        Same apiVersion/kind/name = merge
 
     .. grid-item-card::
         :class-header: sd-bg-success sd-text-white
@@ -109,32 +106,35 @@ Group templates are full Kubernetes manifests. They must include ``apiVersion``,
 
   {
     "template_name": {
-      "apiVersion": "example.io/v1",
-      "kind": "MyResource",
+      "apiVersion": "resource.nvidia.com/v1beta1",
+      "kind": "ComputeDomain",
       "metadata": {
-        "name": "{{WF_ID}}-my-resource"
+        "name": "compute-domain-{{WF_GROUP_UUID}}"
       },
       "spec": {
-        "workflowId": "{{WF_ID}}",
-        "pool": "{{WF_POOL}}"
+        "numNodes": 0,
+        "channel": {
+          "resourceClaimTemplate": {
+            "name": "compute-domain-{{WF_GROUP_UUID}}-rct"
+          }
+        }
       }
     }
   }
 
+.. note::
+
+   **Resource Name Uniqueness**
+
+   Because multiple workflows may run in the same pool and namespace at the same time, resource names must be unique per group. Include ``{{WF_GROUP_UUID}}`` in ``metadata.name`` to ensure each group gets its own resource instance, as shown in the example above.
+
 Key Features
 ------------
 
-- **Variable Substitution**: The same variables available in pod templates (``{{WF_ID}}``, ``{{WF_POOL}}``, ``{{USER_GPU}}``, etc.) are resolved at runtime.
+- **Variable Substitution**: The same variables available in pod templates are resolved at runtime, except task-specific variables (such as task name and task UUID) which are not available at the group level.
 - **Label Injection**: OSMO automatically adds its standard labels (``osmo.workflow_id``, ``osmo.submitted_by``, etc.) to each resource's ``metadata.labels`` for tracking and cleanup.
 - **Template Merging**: Multiple templates that define the same resource (same ``apiVersion``, ``kind``, and ``metadata.name``) are merged, with later templates overriding earlier ones.
 - **Creation Order**: Group template resources are created before the group's pods, ensuring dependencies are satisfied.
-
-.. warning::
-
-   **Namespace Behavior**
-
-   - Do not set ``metadata.namespace`` in group templates. OSMO assigns the namespace at runtime.
-   - OSMO will reject any template that includes ``metadata.namespace``.
 
 .. note::
 
@@ -144,26 +144,31 @@ Key Features
 Practical Guide
 ===============
 
-Configuring Group Templates
----------------------------
+Configuring Group Templates to Enable NvLINK
+--------------------------------------------
 
-**Step 1: Create a Template File**
+This example shows how to configure a ``ComputeDomain`` group template alongside a matching pod template to enable NvLINK communication across nodes for multi-node workloads.
 
-Create a JSON file with one or more group templates. Each key is the template name; each value is a Kubernetes manifest:
+**Step 1: Create the Group Template**
+
+Create a JSON file defining the ``ComputeDomain`` resource. The ``resourceClaimTemplate.name`` is used in the pod template in the next step:
 
 .. code-block:: bash
 
   $ cat << EOF > group_templates.json
   {
-    "my-queue": {
-      "apiVersion": "scheduling.run.ai/v2",
-      "kind": "Queue",
+    "compute-domain": {
+      "apiVersion": "resource.nvidia.com/v1beta1",
+      "kind": "ComputeDomain",
       "metadata": {
-        "name": "{{WF_ID}}-queue"
+        "name": "compute-domain-{{WF_GROUP_UUID}}"
       },
       "spec": {
-        "quota": {
-          "gpu": "{{USER_GPU}}"
+        "numNodes": 0,
+        "channel": {
+          "resourceClaimTemplate": {
+            "name": "compute-domain-{{WF_GROUP_UUID}}-rct"
+          }
         }
       }
     }
@@ -172,24 +177,59 @@ Create a JSON file with one or more group templates. Each key is the template na
 
   $ osmo config update GROUP_TEMPLATE --file group_templates.json
 
-**Step 2: Reference Templates in Pools**
+**Step 2: Create the Pod Template**
 
-Add template names to your pool's ``common_group_templates`` field:
+Create a pod template that claims the compute domain channel so that each task pod is connected to the NvLINK fabric:
+
+.. code-block:: bash
+
+  $ cat << EOF > pod_templates.json
+  {
+    "use-compute-domain": {
+      "spec": {
+        "containers": [
+          {
+            "name": "{{USER_CONTAINER_NAME}}",
+            "resources": {
+              "claims": [
+                {
+                  "name": "compute-domain-channel"
+                }
+              ]
+            }
+          }
+        ],
+        "resourceClaims": [
+          {
+            "name": "compute-domain-channel",
+            "resourceClaimTemplateName": "compute-domain-{{WF_GROUP_UUID}}-rct"
+          }
+        ]
+      }
+    }
+  }
+  EOF
+
+  $ osmo config update POD_TEMPLATE --file pod_templates.json
+
+**Step 3: Reference Both Templates in the Pool**
+
+Add both templates to your pool configuration:
 
 .. code-block:: json
-  :emphasize-lines: 5-7
+  :emphasize-lines: 4,5-7
 
   {
     "my-pool": {
       "backend": "default",
-      "common_pod_template": ["default_amd64", "default_user"],
+      "common_pod_template": ["default_amd64", "default_user", "use-compute-domain"],
       "common_group_templates": [
-        "my-queue"
+        "compute-domain"
       ]
     }
   }
 
-**Step 3: Verify the Configuration**
+**Step 4: Verify the Configuration**
 
 .. code-block:: bash
 
@@ -197,133 +237,5 @@ Add template names to your pool's ``common_group_templates`` field:
   $ osmo config get GROUP_TEMPLATE
 
   # Show a specific group template
-  $ osmo config get GROUP_TEMPLATE my-queue
+  $ osmo config get GROUP_TEMPLATE compute-domain
 
-
-Additional Examples
--------------------
-
-.. dropdown:: **Topology CRD** - KAI Scheduler Topology
-    :color: info
-    :icon: cpu
-
-    Create a KAI scheduler topology resource for topology-aware scheduling:
-
-    .. code-block:: json
-
-      {
-        "kai-topology": {
-          "apiVersion": "kai.scheduler/v1alpha1",
-          "kind": "Topology",
-          "metadata": {
-            "name": "{{WF_ID}}-topology"
-          },
-          "spec": {
-            "levels": [
-              {"leveltype": "node"}
-            ]
-          }
-        }
-      }
-
-.. dropdown:: **ConfigMap** - Shared Workflow Configuration
-    :color: info
-    :icon: file
-
-    Create a ConfigMap shared by all tasks in the group:
-
-    .. code-block:: json
-
-      {
-        "workflow-config": {
-          "apiVersion": "v1",
-          "kind": "ConfigMap",
-          "metadata": {
-            "name": "{{WF_ID}}-config"
-          },
-          "data": {
-            "workflow_id": "{{WF_ID}}",
-            "pool": "{{WF_POOL}}",
-            "submitted_by": "{{WF_SUBMITTED_BY}}"
-          }
-        }
-      }
-
-.. dropdown:: **Multiple Templates** - Combining Resources
-    :color: info
-    :icon: stack
-
-    Define multiple resources in one configuration and reference them together in a pool:
-
-    .. code-block:: json
-
-      {
-        "kai-topology": {
-          "apiVersion": "kai.scheduler/v1alpha1",
-          "kind": "Topology",
-          "metadata": {
-            "name": "{{WF_ID}}-topology"
-          },
-          "spec": {
-            "levels": [{"leveltype": "node"}]
-          }
-        },
-        "run-ai-queue": {
-          "apiVersion": "scheduling.run.ai/v2",
-          "kind": "Queue",
-          "metadata": {
-            "name": "{{WF_ID}}-queue"
-          },
-          "spec": {
-            "quota": {"gpu": "{{USER_GPU}}"}
-          }
-        }
-      }
-
-    Reference both in the pool:
-
-    .. code-block:: json
-
-      {
-        "my-pool": {
-          "backend": "default",
-          "common_group_templates": ["kai-topology", "run-ai-queue"]
-        }
-      }
-
-
-Troubleshooting
----------------
-
-**Template Rejected on Upload**
-  - Ensure ``apiVersion`` is present and non-empty.
-  - Ensure ``kind`` is present and non-empty.
-  - Ensure ``metadata.name`` is present.
-  - Remove ``metadata.namespace``—OSMO sets this at runtime.
-
-**Template Not Found**
-  - Verify the template name matches exactly in the pool's ``common_group_templates`` list.
-  - Check the template exists: ``osmo config get GROUP_TEMPLATE <template_name>``
-
-**Variable Substitution Errors**
-  - Ensure all variables used are valid OSMO variables.
-  - Check for typos in variable names (case-sensitive).
-  - Review service logs for detailed variable resolution errors.
-
-**Resource Not Created**
-  - Confirm the pool's ``common_group_templates`` references the correct template name.
-  - Verify the backend has sufficient permissions to create the resource type.
-  - Check OSMO service logs for Kubernetes API errors.
-
-.. tip::
-
-   **Best Practices**
-
-   - Use ``{{WF_ID}}`` or ``{{WF_UUID}}`` in ``metadata.name`` to ensure each group gets a unique resource instance.
-   - Keep templates focused on a single resource type for easier reuse across pools.
-   - Test templates with a non-production pool before rolling out to production.
-
-.. warning::
-
-   - Template changes only apply to new workflow groups, not groups that are already running.
-   - A group template cannot be deleted while it is referenced by an active pool. Remove it from all pools first.
