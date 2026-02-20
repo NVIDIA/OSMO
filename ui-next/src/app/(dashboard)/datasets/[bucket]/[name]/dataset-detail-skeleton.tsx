@@ -18,29 +18,33 @@
  * Dataset Detail Loading Skeleton
  *
  * Displays while dataset detail data is being fetched on the server.
+ * Matches the file browser layout: sticky header + table rows.
  */
 
 import { Skeleton } from "@/components/shadcn/skeleton";
 
 export function DatasetDetailSkeleton() {
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* Header skeleton */}
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10" />
-        <div className="flex-1">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="mt-2 h-4 w-96" />
-        </div>
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Header bar skeleton */}
+      <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+        <Skeleton className="h-7 w-64" />
+        <Skeleton className="h-7 w-20" />
       </div>
 
-      {/* Tabs skeleton */}
-      <div>
-        <Skeleton className="h-10 w-64" />
-        <div className="mt-6 grid gap-4">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
+      {/* Table row skeletons */}
+      <div className="flex-1">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800"
+          >
+            <Skeleton className="size-4 shrink-0" />
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="ml-auto h-4 w-16" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        ))}
       </div>
     </div>
   );

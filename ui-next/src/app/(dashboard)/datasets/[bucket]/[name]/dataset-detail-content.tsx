@@ -17,24 +17,24 @@
 /**
  * Dataset Detail Content (Client Component)
  *
- * Main client component for dataset detail page with tabs.
- * Manages tab state in URL for shareable deep links.
+ * Google Drive-style file browser for a dataset version.
+ * URL state: ?path= (current directory), ?version= (version tag), ?file= (selected file)
  */
 
 "use client";
 
+import { useState, useMemo, useCallback, useRef } from "react";
 import { usePage } from "@/components/chrome/page-context";
-import { useQueryState } from "nuqs";
-import { Info, History, FolderTree } from "lucide-react";
-import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
-import { TabPanel } from "@/components/panel/tab-panel";
 import { Button } from "@/components/shadcn/button";
-import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import { DatasetDetailHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/DatasetDetailHeader";
-import { OverviewTab } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/OverviewTab";
-import { DatasetVersionsDataTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/tabs/DatasetVersionsDataTable";
+import { cn } from "@/lib/utils";
+import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
+import { FileBrowserHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserHeader";
+import { FileBrowserTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserTable";
+import { FilePreviewPanel } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FilePreviewPanel";
 import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
-import { useMemo, useCallback } from "react";
+import { useFileBrowserState } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-file-browser-state";
+import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
+import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
 
 interface Props {
   bucket: string;
@@ -42,50 +42,96 @@ interface Props {
 }
 
 export function DatasetDetailContent({ bucket, name }: Props) {
-  const { dataset, versions, isLoading, error, refetch } = useDatasetDetail(bucket, name);
+  // ==========================================================================
+  // Dataset metadata + versions
+  // ==========================================================================
 
-  // Tab state in URL (deep-linkable)
-  const [activeTab, setActiveTab] = useQueryState("tab", {
-    defaultValue: "overview",
-    shallow: true,
-    history: "replace",
+  const { dataset, versions, error: datasetError, refetch: refetchDataset } = useDatasetDetail(bucket, name);
+
+  // ==========================================================================
+  // URL state: path, version, selected file
+  // ==========================================================================
+
+  const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
+
+  // ==========================================================================
+  // File listing — fetch full manifest for selected version, filter client-side
+  // ==========================================================================
+
+  // Determine which version to show files for
+  const sortedVersions = useMemo(
+    () => [...versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10)),
+    [versions],
+  );
+  const latestVersion = sortedVersions.at(-1) ?? null;
+  const currentVersionData = (version ? sortedVersions.find((v) => v.version === version) : null) ?? latestVersion;
+  const location = currentVersionData?.location ?? null;
+
+  const {
+    data: rawFiles,
+    isLoading: isFilesLoading,
+    error: filesError,
+    refetch: refetchFiles,
+  } = useDatasetFiles(location);
+
+  // Build directory listing for the current path from the flat file manifest
+  const files = useMemo(() => buildDirectoryListing(rawFiles ?? [], path), [rawFiles, path]);
+
+  // ==========================================================================
+  // Panel state — side-by-side split with drag-to-resize
+  // ==========================================================================
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState(35);
+  const panelOpen = !!selectedFile;
+
+  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
+    width: panelWidth,
+    onWidthChange: setPanelWidth,
+    minWidth: 20,
+    maxWidth: 70,
+    containerRef,
   });
 
-  // Tab configuration matching workflows pattern
-  const tabs = useMemo<PanelTab[]>(
-    () => [
-      { id: "overview", label: "Overview", icon: Info },
-      { id: "versions", label: "Versions", icon: History },
-      { id: "files", label: "File Browser", icon: FolderTree },
-    ],
-    [],
-  );
+  // Resolve the DatasetFile object for the selected file path.
+  // The selected file's name is the last path segment; it must exist in the
+  // current files array (same directory) to render preview content.
+  const selectedFileData = useMemo(() => {
+    if (!selectedFile) return null;
+    const fileName = selectedFile.split("/").pop() ?? "";
+    return files.find((f) => f.name === fileName && f.type === "file") ?? null;
+  }, [selectedFile, files]);
 
-  // Handle tab change
-  const handleTabChange = useCallback(
-    (value: string) => {
-      setActiveTab(value);
-    },
-    [setActiveTab],
-  );
+  // Stable callback wrappers to avoid stale closures in memo deps
+  const handleRefetchFiles = useCallback(() => {
+    void refetchFiles();
+  }, [refetchFiles]);
 
-  // Set page title and breadcrumbs with bucket filter link
+  // ==========================================================================
+  // Chrome: page title + breadcrumbs
+  // ==========================================================================
+
   usePage({
-    title: dataset ? dataset.name : name,
+    title: "Files",
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
+      { label: name, href: null },
     ],
   });
 
-  if (error) {
+  // ==========================================================================
+  // Error state — dataset failed to load
+  // ==========================================================================
+
+  if (datasetError) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
           <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Dataset</h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{error.message}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{datasetError.message}</p>
           <Button
-            onClick={() => refetch()}
+            onClick={() => void refetchDataset()}
             variant="outline"
           >
             Try again
@@ -99,70 +145,86 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     return null; // Loading state handled by skeleton
   }
 
+  // ==========================================================================
+  // File listing content — handles query error inline
+  // ==========================================================================
+
+  const fileTableContent = filesError ? (
+    <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">Failed to load files.</p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleRefetchFiles}
+      >
+        Retry
+      </Button>
+    </div>
+  ) : (
+    <FileBrowserTable
+      files={files}
+      path={path}
+      selectedFile={selectedFile}
+      onNavigate={navigateTo}
+      onSelectFile={selectFile}
+      isLoading={isFilesLoading}
+    />
+  );
+
+  // ==========================================================================
+  // Render
+  // ==========================================================================
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 p-6">
-        <InlineErrorBoundary
-          title="Header error"
-          compact
-        >
-          <DatasetDetailHeader dataset={dataset} />
-        </InlineErrorBoundary>
-      </div>
-
-      {/* Tab Navigation - Chrome-style tabs matching workflows */}
-      <PanelTabs
-        tabs={tabs}
-        value={activeTab}
-        onValueChange={handleTabChange}
+      {/* Sticky header: breadcrumb + version switcher */}
+      <FileBrowserHeader
+        datasetName={name}
+        path={path}
+        versions={versions}
+        selectedVersion={version}
+        onNavigate={navigateTo}
+        onVersionChange={setVersion}
       />
 
-      {/* Tab Content */}
-      <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
-        <TabPanel
-          tab="overview"
-          activeTab={activeTab}
-          padding="with-bottom"
-        >
-          <InlineErrorBoundary
-            title="Unable to display overview"
-            onReset={refetch}
-          >
-            <OverviewTab dataset={dataset} />
-          </InlineErrorBoundary>
-        </TabPanel>
+      {/* File browser + preview panel side-by-side */}
+      <div
+        ref={containerRef}
+        className="flex min-h-0 flex-1 overflow-hidden"
+      >
+        {/* File browser — shrinks to give space to preview panel */}
+        <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
 
-        <TabPanel
-          tab="versions"
-          activeTab={activeTab}
-          padding="with-bottom"
-        >
-          <InlineErrorBoundary
-            title="Unable to display versions table"
-            resetKeys={[versions.length]}
-            onReset={refetch}
-          >
-            <DatasetVersionsDataTable
-              versions={versions}
-              currentVersion={dataset.version}
-              isLoading={isLoading}
-              error={error ?? undefined}
-              onRetry={refetch}
+        {/* Drag handle + preview panel — only mounted when a file is selected */}
+        {panelOpen && (
+          <>
+            {/* Thin drag separator — 1px visual, full-height hit area */}
+            <div
+              {...bindResizeHandle()}
+              className={cn(
+                "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
+                isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
+              )}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize panel"
+              aria-valuenow={panelWidth}
             />
-          </InlineErrorBoundary>
-        </TabPanel>
-
-        <TabPanel
-          tab="files"
-          activeTab={activeTab}
-          centered
-          className="p-4"
-        >
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Coming Soon</p>
-            <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">File browser for exploring dataset contents</p>
-          </div>
-        </TabPanel>
+            <aside
+              className="flex shrink-0 flex-col overflow-hidden"
+              style={{ width: `${panelWidth}%`, ...dragStyles }}
+              aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
+            >
+              {selectedFileData && (
+                <FilePreviewPanel
+                  file={selectedFileData}
+                  path={path}
+                  onClose={clearSelection}
+                />
+              )}
+            </aside>
+          </>
+        )}
       </div>
     </div>
   );

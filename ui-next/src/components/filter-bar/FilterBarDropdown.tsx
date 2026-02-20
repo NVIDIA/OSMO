@@ -419,14 +419,12 @@ function SuggestionItemInner<T>({ suggestion, onSelect }: SuggestionItemProps<T>
     >
       <span className="flex items-center gap-2">
         {suggestion.type === "field" ? (
-          <>
-            <span className="fb-suggestion-field-prefix">{suggestion.label}</span>
-            {suggestion.hint && <span className="text-muted-foreground">{suggestion.hint}</span>}
-          </>
+          <span className="fb-suggestion-field-prefix">{suggestion.label}</span>
         ) : (
           <span>{suggestion.label}</span>
         )}
       </span>
+      {suggestion.hint && <span className="text-muted-foreground ml-2 shrink-0 text-xs">{suggestion.hint}</span>}
     </CommandItem>
   );
 }

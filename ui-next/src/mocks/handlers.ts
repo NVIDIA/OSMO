@@ -1135,8 +1135,18 @@ export const handlers = [
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const count = parseInt(url.searchParams.get("count") || "50", 10);
+    // Cap count at total to prevent generating 10,000 entries for the "fetch all" path
+    const requestedCount = parseInt(url.searchParams.get("count") || "50", 10);
+    const count = Math.min(requestedCount, datasetGenerator.totalDatasets);
     const allUsers = url.searchParams.get("all_users") !== "false";
+    // dataset_type filter: mock always returns DATASET entries, so this is a no-op pass-through
+    // (included for parity with backend behavior)
+    // dataset_type filter: all mock entries are "DATASET", so DATASET filter is a no-op.
+    // If COLLECTION is requested, return empty (mock has no collections).
+    const datasetType = url.searchParams.get("dataset_type");
+    if (datasetType === "COLLECTION") {
+      return HttpResponse.json({ datasets: [] });
+    }
 
     // Generate requested number of datasets
     const { entries } = datasetGenerator.generatePage(0, count);
@@ -1199,10 +1209,12 @@ export const handlers = [
     // Check if path parameter is provided for file listing
     const url = new URL(request.url);
     const path = url.searchParams.get("path");
+    // version param is accepted but ignored in mock — same file tree regardless of version
+    // (real backend would serve version-appropriate files)
 
     // If path is provided, include files array in response
     if (path !== null) {
-      const files = datasetGenerator.generateFileTree(name, path);
+      const files = datasetGenerator.generateFileTree(name, path, dataset.bucket);
       return HttpResponse.json({
         ...response,
         files,
@@ -1211,6 +1223,74 @@ export const handlers = [
 
     // Default response without files
     return HttpResponse.json(response);
+  }),
+
+  // HEAD and GET preview handler for dataset files
+  // Used by FilePreviewPanel to check content-type before rendering
+  // Returns 200 with Content-Type based on file extension for mock public buckets
+  http.head("*/api/bucket/:bucket/dataset/:name/preview", async ({ request }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+    const filePath = url.searchParams.get("path") ?? "";
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+    const contentTypeMap: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+      svg: "image/svg+xml",
+      mp4: "video/mp4",
+      webm: "video/webm",
+      pdf: "application/pdf",
+      json: "application/json",
+      md: "text/markdown",
+      txt: "text/plain",
+      parquet: "application/octet-stream",
+      tfrecord: "application/octet-stream",
+    };
+
+    const contentType = contentTypeMap[ext] ?? "application/octet-stream";
+
+    return new HttpResponse(null, {
+      status: 200,
+      headers: { "Content-Type": contentType },
+    });
+  }),
+
+  // GET preview - returns a simple placeholder for images/text in mock
+  http.get("*/api/bucket/:bucket/dataset/:name/preview", async ({ request }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+    const filePath = url.searchParams.get("path") ?? "";
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+    // For images: return a 1x1 placeholder pixel
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+      // 1x1 transparent PNG
+      const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      return new HttpResponse(bytes, {
+        status: 200,
+        headers: { "Content-Type": "image/png" },
+      });
+    }
+
+    // For text/json/markdown: return sample text
+    if (["txt", "md", "json"].includes(ext)) {
+      return HttpResponse.text(`Mock preview for: ${filePath}`, {
+        headers: { "Content-Type": ext === "json" ? "application/json" : "text/plain" },
+      });
+    }
+
+    // For everything else: 200 with binary placeholder
+    return new HttpResponse(new Uint8Array(8), {
+      status: 200,
+      headers: { "Content-Type": "application/octet-stream" },
+    });
   }),
 
   // NOTE: /api/bucket/collections was removed - not a real backend endpoint

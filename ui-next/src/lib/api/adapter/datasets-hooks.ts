@@ -24,12 +24,36 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { SearchChip } from "@/stores/types";
 import {
+  buildAllDatasetsQueryKey,
   buildDatasetDetailQueryKey,
   buildDatasetFilesQueryKey,
+  fetchAllDatasets,
   fetchDatasetDetail,
   fetchDatasetFiles,
 } from "@/lib/api/adapter/datasets";
+import { QUERY_STALE_TIME } from "@/lib/config";
+
+/**
+ * Hook to fetch all datasets with server-side filtering.
+ *
+ * Fetches once with count: 10_000 — the shim applies client-side filters
+ * (date ranges, sort) from the cache without triggering new API calls.
+ *
+ * Query key only includes server-side params (name, bucket, user, showAllUsers)
+ * so client-side filter changes (created_at, updated_at) use the cached response.
+ *
+ * @param showAllUsers - Whether to include all users' datasets
+ * @param searchChips - Active filter chips (server-side params extracted for query key)
+ */
+export function useAllDatasets(showAllUsers: boolean, searchChips: SearchChip[]) {
+  return useQuery({
+    queryKey: buildAllDatasetsQueryKey(searchChips, showAllUsers),
+    queryFn: () => fetchAllDatasets(showAllUsers, searchChips),
+    staleTime: QUERY_STALE_TIME.STATIC,
+  });
+}
 
 /**
  * Hook to fetch dataset detail by name.
@@ -48,18 +72,19 @@ export function useDataset(bucket: string, name: string, options?: { enabled?: b
 }
 
 /**
- * Hook to fetch dataset files at a specific path.
+ * Hook to fetch all files for a dataset version from its location manifest.
  *
- * @param bucket - Bucket name
- * @param name - Dataset name
- * @param path - Path within dataset
+ * Fetches the full flat file list once per version (keyed by location URL).
+ * Use buildDirectoryListing() from datasets.ts to get a per-path directory view.
+ *
+ * @param location - The version's location URL (DatasetVersion.location), or null to disable
  * @param options - Query options
  */
-export function useDatasetFiles(bucket: string, name: string, path: string = "/", options?: { enabled?: boolean }) {
+export function useDatasetFiles(location: string | null, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: buildDatasetFilesQueryKey(bucket, name, path),
-    queryFn: () => fetchDatasetFiles(bucket, name, path),
-    enabled: options?.enabled ?? true,
+    queryKey: buildDatasetFilesQueryKey(location),
+    queryFn: () => fetchDatasetFiles(location),
+    enabled: (options?.enabled ?? true) && !!location,
     staleTime: 60_000, // 1 minute
   });
 }

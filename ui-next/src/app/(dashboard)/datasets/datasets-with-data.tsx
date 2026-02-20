@@ -34,6 +34,7 @@ import { prefetchDatasetsList } from "@/lib/api/server/datasets";
 import { DatasetsPageContent } from "@/app/(dashboard)/datasets/datasets-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createServerQueryClient } from "@/lib/query-client";
+import { getServerUsername } from "@/lib/auth/server";
 
 interface DatasetsWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -47,10 +48,21 @@ export async function DatasetsWithData({ searchParams }: DatasetsWithDataProps) 
   const params = await searchParams;
   const filterChips = parseUrlChips(params.f);
 
+  // Mirror workflows-with-data.tsx: pre-populate default user chip on server
+  // so SSR cache key matches what the client will use after hydration.
+  const username = await getServerUsername();
+  const allParam = params.all === "true";
+  const hasUserChipInUrl = filterChips.some((c) => c.field === "user");
+  const shouldPrePopulate = !hasUserChipInUrl && !allParam && !!username;
+
+  const prefetchChips = shouldPrePopulate
+    ? [...filterChips, { field: "user", value: username!, label: `user: ${username}` }]
+    : filterChips;
+
   // This await causes the component to suspend
   // React streams the Suspense fallback, then streams this when ready
   try {
-    await prefetchDatasetsList(queryClient, filterChips);
+    await prefetchDatasetsList(queryClient, prefetchChips, !shouldPrePopulate);
   } catch (error) {
     // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
     // Page will still render - client will fetch on hydration if cache is empty
@@ -63,7 +75,7 @@ export async function DatasetsWithData({ searchParams }: DatasetsWithDataProps) 
   // Wrap in HydrationBoundary so client gets the cached data
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <DatasetsPageContent />
+      <DatasetsPageContent initialUsername={username} />
     </HydrationBoundary>
   );
 }

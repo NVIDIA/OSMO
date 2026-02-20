@@ -45,9 +45,6 @@ export interface Dataset {
   updated_at: string;
   /** Size in bytes (backend may return string, we ensure number) */
   size_bytes: number;
-  /** Number of files (backend may return string, we ensure number) */
-  num_files: number;
-  format: string;
   labels?: Record<string, string>;
   retention_policy?: string;
   description?: string;
@@ -74,7 +71,7 @@ export interface DatasetVersion {
 }
 
 /**
- * Dataset file entry for file browser.
+ * Dataset file entry for file browser (used for directory listings).
  */
 export interface DatasetFile {
   name: string;
@@ -82,6 +79,22 @@ export interface DatasetFile {
   size?: number;
   modified?: string;
   checksum?: string;
+  /** URL to access/preview the file (for public buckets) */
+  url?: string;
+}
+
+/**
+ * Raw file item from the dataset version's location manifest.
+ * The location URL returns a flat list of all files with relative_path fields.
+ */
+export interface RawFileItem {
+  /** Path relative to dataset root, e.g. "train/n00000001/img1.jpg" */
+  relative_path: string;
+  size?: number;
+  etag?: string;
+  storage_path?: string;
+  /** Direct URL to access/download the file */
+  url?: string;
 }
 
 /**
@@ -92,26 +105,13 @@ export interface DatasetDetailResponse {
   versions: DatasetVersion[];
 }
 
-/**
- * Response from file listing endpoint.
- */
-export interface DatasetFilesResponse {
-  files: DatasetFile[];
-  path: string;
-}
-
 // =============================================================================
 // Raw API Types (backend response shapes)
 // =============================================================================
 
 // Import actual types from generated client
-import type {
-  DataListEntry,
-  DataListResponse,
-  DataInfoResponse,
-  DataInfoDatasetEntry,
-  DatasetType,
-} from "@/lib/api/generated";
+import type { DataListEntry, DataListResponse, DataInfoResponse, DataInfoDatasetEntry } from "@/lib/api/generated";
+import { DatasetType } from "@/lib/api/generated";
 
 // =============================================================================
 // Helpers
@@ -165,8 +165,6 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
     created_by: undefined, // Not available in list view
     updated_at: raw.last_created || raw.create_time,
     size_bytes: ensureNumber(raw.hash_location_size),
-    num_files: 0, // Not available in list view (backend doesn't provide)
-    format: raw.type, // Using type as format for now
     labels: {}, // Not available in list view
   };
 }
@@ -224,8 +222,6 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
       created_by: raw.created_by,
       updated_at: latestVersion?.created_date || raw.created_date || "",
       size_bytes: ensureNumber(raw.hash_location_size),
-      num_files: 0, // Not in DataInfoResponse
-      format: raw.type,
       labels,
     },
     // Return filtered versions array (only dataset entries)
@@ -264,8 +260,6 @@ function buildApiParams(
   all_users?: boolean;
   count: number;
 } {
-  // Note: "format" in UI (parquet, arrow, etc.) is different from backend's dataset_type (DATASET, COLLECTION)
-  // For now, we don't pass format to backend - will need client-side filtering for format
   const bucketChips = getChipValues(chips, "bucket");
   const userChips = getChipValues(chips, "user");
   const searchTerm = getFirstChipValue(chips, "name");
@@ -274,16 +268,36 @@ function buildApiParams(
     count: limit,
     name: searchTerm,
     buckets: bucketChips.length > 0 ? bucketChips : undefined,
-    // dataset_type is DATASET or COLLECTION, not file format - omit for now
-    dataset_type: undefined,
+    dataset_type: DatasetType.DATASET,
     user: userChips.length > 0 ? userChips : undefined,
-    all_users: showAllUsers,
+    // all_users overrides user filter on the backend — force false when user chips are active
+    all_users: userChips.length > 0 ? false : showAllUsers,
   };
 }
 
 // =============================================================================
 // API Fetch Functions
 // =============================================================================
+
+/**
+ * Fetch all datasets in a single request with server-side filtering.
+ *
+ * Uses count: 10_000 to retrieve all datasets at once, bypassing the broken
+ * offset-based pagination. Client-side shim (datasets-shim.ts) handles
+ * date range filtering and sorting after the fetch.
+ *
+ * @param showAllUsers - Whether to fetch all users' datasets or just the current user's
+ * @param searchChips - Active filter chips (server-side params extracted: name, bucket, user)
+ */
+export async function fetchAllDatasets(showAllUsers: boolean, searchChips: SearchChip[]): Promise<Dataset[]> {
+  const { listDatasetFromBucketApiBucketListDatasetGet } = await import("@/lib/api/generated");
+
+  const apiParams = buildApiParams(searchChips, showAllUsers, 10_000);
+  const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
+
+  const parsed: DataListResponse = typeof response === "string" ? JSON.parse(response) : (response as DataListResponse);
+  return transformDatasetList(parsed);
+}
 
 /**
  * Fetch paginated datasets with server-side filtering.
@@ -348,34 +362,102 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
 }
 
 /**
- * Fetch files for a dataset at a specific path.
+ * Fetch all files for a dataset version from the version's location URL.
  *
- * @param bucket - Bucket name
- * @param name - Dataset name
- * @param path - Path within dataset (optional, defaults to root)
+ * The `location` field on a DatasetVersion points to a manifest URL that returns
+ * a flat list of all files (with relative_path) for that version. We proxy this
+ * through our API route to avoid CORS issues with the storage URL.
+ *
+ * Returns null if no location URL is provided (dataset has no versions).
+ *
+ * @param location - The version's location URL (DatasetVersion.location)
  */
-export async function fetchDatasetFiles(
-  bucket: string,
-  name: string,
-  path: string = "/",
-): Promise<DatasetFilesResponse> {
-  // Import generated client
-  const { getInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
+export async function fetchDatasetFiles(location: string | null): Promise<RawFileItem[]> {
+  if (!location) return [];
 
-  // Fetch from API
-  // Note: The API may not support file listing at specific paths yet
-  const _response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
+  const { customFetch } = await import("@/lib/api/fetcher");
 
-  // Parse response - for now, return empty files as API doesn't support this yet
-  return {
-    files: [],
-    path,
-  };
+  return customFetch<RawFileItem[]>({
+    url: "/api/datasets/location-files",
+    method: "GET",
+    params: { url: location },
+  });
+}
+
+/**
+ * Build a directory listing for a specific path from the flat file list.
+ *
+ * Given a flat array of files with relative_path (e.g. "train/n00000001/img.jpg"),
+ * returns the entries visible at the given path depth:
+ * - Folders: unique next-level path segments (de-duplicated)
+ * - Files: entries where the path is fully consumed at this depth
+ *
+ * Folders are sorted before files; both groups are sorted alphabetically.
+ *
+ * @param items - Flat file list from the location manifest
+ * @param path - Current directory path (empty string = root)
+ */
+export function buildDirectoryListing(items: RawFileItem[], path: string): DatasetFile[] {
+  const prefix = path ? `${path}/` : "";
+  const seenFolders = new Set<string>();
+  const result: DatasetFile[] = [];
+
+  for (const item of items) {
+    if (!item.relative_path.startsWith(prefix)) continue;
+
+    const rest = item.relative_path.slice(prefix.length);
+    const slashIndex = rest.indexOf("/");
+
+    if (slashIndex === -1) {
+      // File at this level
+      result.push({
+        name: rest,
+        type: "file",
+        size: item.size,
+        checksum: item.etag,
+        url: item.url,
+      });
+    } else {
+      // Folder — show the next path segment once
+      const folderName = rest.slice(0, slashIndex);
+      if (!seenFolders.has(folderName)) {
+        seenFolders.add(folderName);
+        result.push({ name: folderName, type: "folder" });
+      }
+    }
+  }
+
+  // Folders first, then files; each group sorted alphabetically
+  return result.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 // =============================================================================
 // Query Key Builders
 // =============================================================================
+
+/**
+ * Build a stable query key for the all-datasets fetch.
+ *
+ * Only includes server-side filter params (name, bucket, user, showAllUsers).
+ * Client-side filters (created_at, updated_at) are intentionally excluded so
+ * they don't trigger new API calls — the shim handles them from the cache.
+ */
+export function buildAllDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
+  const buckets = getChipValues(searchChips, "bucket").sort();
+  const users = getChipValues(searchChips, "user").sort();
+  const search = getFirstChipValue(searchChips, "name");
+
+  const filters: Record<string, string | string[] | boolean> = {};
+  if (search) filters.search = search;
+  if (buckets.length > 0) filters.buckets = buckets;
+  if (users.length > 0) filters.users = users;
+  filters.showAllUsers = showAllUsers;
+
+  return ["datasets", "all", filters] as const;
+}
 
 /**
  * Build a stable query key for datasets list.
@@ -384,7 +466,6 @@ export async function fetchDatasetFiles(
  */
 export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
   // Extract filter values by field
-  const formats = getChipValues(searchChips, "format").sort();
   const buckets = getChipValues(searchChips, "bucket").sort();
   const users = getChipValues(searchChips, "user").sort();
   const search = getFirstChipValue(searchChips, "name");
@@ -392,7 +473,6 @@ export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: b
   // Build query key - only include filters that have values
   const filters: Record<string, string | string[] | boolean> = {};
   if (search) filters.search = search;
-  if (formats.length > 0) filters.formats = formats;
   if (buckets.length > 0) filters.buckets = buckets;
   if (users.length > 0) filters.users = users;
   filters.showAllUsers = showAllUsers;
@@ -408,10 +488,11 @@ export function buildDatasetDetailQueryKey(bucket: string, name: string): readon
 }
 
 /**
- * Build query key for dataset files at a path.
+ * Build query key for the dataset version's full file manifest.
+ * Keyed by location URL only — path filtering is done client-side via buildDirectoryListing.
  */
-export function buildDatasetFilesQueryKey(bucket: string, name: string, path: string): readonly unknown[] {
-  return ["datasets", "files", bucket, name, path] as const;
+export function buildDatasetFilesQueryKey(location: string | null): readonly unknown[] {
+  return ["datasets", "files", location] as const;
 }
 
 /**
