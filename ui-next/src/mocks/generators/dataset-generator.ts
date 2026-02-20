@@ -68,6 +68,8 @@ export interface DatasetFile {
   size?: number;
   modified?: string;
   checksum?: string;
+  /** URL to access/preview the file (for public buckets) */
+  url?: string;
 }
 
 // ============================================================================
@@ -245,18 +247,27 @@ export class DatasetGenerator {
    * DETERMINISTIC: Same dataset + path always produces the same files.
    *
    * @param datasetName - Dataset name
-   * @param path - Path within dataset (e.g., "/", "/train", "/train/n01440764")
+   * @param path - Path within dataset (e.g., "", "train", "train/n01440764")
+   * @param bucket - Bucket name (for building preview URLs)
    * @returns Array of files and folders at that path
    */
-  generateFileTree(datasetName: string, path: string = "/"): DatasetFile[] {
-    // Normalize path
+  generateFileTree(datasetName: string, path: string = "", bucket?: string): DatasetFile[] {
+    // Normalize path (strip leading/trailing slashes)
     const normalizedPath = path === "/" ? "" : path.replace(/^\//, "").replace(/\/$/, "");
     const depth = normalizedPath === "" ? 0 : normalizedPath.split("/").length;
 
     // Seed based on dataset name + path for deterministic generation
     faker.seed(this.config.baseSeed + hashString(datasetName + path));
 
+    const effectiveBucket = bucket ?? "osmo-datasets";
     const files: DatasetFile[] = [];
+
+    /**
+     * Build preview URL for a file.
+     * MSW intercepts HEAD and GET for this pattern to simulate public bucket access.
+     */
+    const buildUrl = (filePath: string) =>
+      `/api/bucket/${effectiveBucket}/dataset/${datasetName}/preview?path=${encodeURIComponent(filePath)}`;
 
     // Root level: standard dataset structure
     if (depth === 0) {
@@ -270,6 +281,7 @@ export class DatasetGenerator {
           size: faker.number.int({ min: 1024, max: 10240 }),
           modified: faker.date.recent({ days: 30 }).toISOString(),
           checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+          url: buildUrl("metadata.json"),
         },
         {
           name: "README.md",
@@ -277,6 +289,7 @@ export class DatasetGenerator {
           size: faker.number.int({ min: 512, max: 5120 }),
           modified: faker.date.recent({ days: 60 }).toISOString(),
           checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+          url: buildUrl("README.md"),
         },
       );
     }
@@ -300,23 +313,27 @@ export class DatasetGenerator {
 
       for (let i = 0; i < numFiles; i++) {
         const fileName = `${String(i).padStart(6, "0")}${extension}`;
+        const filePath = normalizedPath ? `${normalizedPath}/${fileName}` : fileName;
         files.push({
           name: fileName,
           type: "file",
           size: faker.number.int({ min: 10240, max: 10485760 }), // 10KB - 10MB
           modified: faker.date.recent({ days: 90 }).toISOString(),
           checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+          url: buildUrl(filePath),
         });
       }
 
       // Add a few metadata files
       if (faker.datatype.boolean(0.3)) {
+        const filePath = normalizedPath ? `${normalizedPath}/_metadata.json` : "_metadata.json";
         files.push({
           name: "_metadata.json",
           type: "file",
           size: faker.number.int({ min: 512, max: 2048 }),
           modified: faker.date.recent({ days: 90 }).toISOString(),
           checksum: faker.string.hexadecimal({ length: 64, prefix: "" }),
+          url: buildUrl(filePath),
         });
       }
     }
