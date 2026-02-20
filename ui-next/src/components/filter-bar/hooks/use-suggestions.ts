@@ -140,10 +140,13 @@ function generateSuggestions<T>(
       return items;
     }
 
-    // Filter to matching values, excluding already-selected
-    const filtered = values.filter(
-      (v) => v.toLowerCase().includes(prefixQuery) && !isAlreadySelected(chips, field.id, v),
-    );
+    // Filter to matching values, excluding already-selected.
+    // Values may use "rawValue|hint" encoding — extract rawValue for matching/deduplication.
+    const filtered = values.filter((v) => {
+      const pipeIdx = v.indexOf("|");
+      const rawValue = pipeIdx >= 0 ? v.slice(0, pipeIdx) : v;
+      return rawValue.toLowerCase().includes(prefixQuery) && !isAlreadySelected(chips, field.id, rawValue);
+    });
 
     // For non-exhaustive fields: limit to 8 suggestions max
     // As user types, we show up to 8 matches; count only decreases when running out of matches
@@ -161,11 +164,16 @@ function generateSuggestions<T>(
     }
 
     for (const v of limited) {
+      // Support "rawValue|hint" encoding: split on first "|" to get value and secondary hint text
+      const pipeIdx = v.indexOf("|");
+      const rawValue = pipeIdx >= 0 ? v.slice(0, pipeIdx) : v;
+      const hint = pipeIdx >= 0 ? v.slice(pipeIdx + 1) : undefined;
       items.push({
         type: "value",
         field,
-        value: v,
-        label: `${field.prefix}${v}`,
+        value: rawValue,
+        label: `${field.prefix}${rawValue}`,
+        hint,
       });
     }
     return items;
