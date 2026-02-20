@@ -27,7 +27,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvidia/osmo` |
-| `global.osmoImageTag` | Tag of the OSMO images | `latest` |
+| `global.osmoImageTag` | Tag of the OSMO images | `6.1` |
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
 

@@ -60,7 +60,7 @@ This chart installs and configures:
 | Parameter                               | Description                                                             | Default                            |
 | --------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------- |
 | `global.osmoImageLocation`              | Base location for OSMO Docker images in the registry                    | `nvcr.io/nvidia/osmo`              |
-| `global.osmoImageTag`                   | Docker image tag for OSMO services                                      | `latest`                           |
+| `global.osmoImageTag`                   | Docker image tag for OSMO services                                      | `6.1`                              |
 | `global.nodeSelector.node_group`        | Node group for service pods                                             | `service`                          |
 | `global.imagePullSecret`                | Name of the Kubernetes secret containing Docker registry credentials    | `null`                             |
 | `global.containerRegistry.registry`     | Container registry URL                                                  | `nvcr.io`                          |

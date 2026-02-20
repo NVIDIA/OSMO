@@ -25,7 +25,7 @@ global:
 
   ## Docker image tag for Osmo server components
   ##
-  osmoImageTag: latest
+  osmoImageTag: "6.1"
 
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##

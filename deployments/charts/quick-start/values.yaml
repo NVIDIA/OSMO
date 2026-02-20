@@ -23,7 +23,7 @@ global:
 
   ## Docker image tag for OSMO services
   ##
-  osmoImageTag: latest
+  osmoImageTag: "6.1"
 
   ## Node selector constraints for pod scheduling
   ##
