@@ -158,6 +158,36 @@ func TestExtractResourceFromPath(t *testing.T) {
 			wantResource: "",
 		},
 		{
+			name:         "auth token returns empty (no scope needed)",
+			path:         "/api/auth/access_token",
+			action:       ActionAuthToken,
+			wantResource: "",
+		},
+		{
+			name:         "auth token with id returns empty (no scope needed)",
+			path:         "/api/auth/access_token/tok-123",
+			action:       ActionAuthToken,
+			wantResource: "",
+		},
+		{
+			name:         "auth user token returns user scope",
+			path:         "/api/auth/user/alice/access_token",
+			action:       ActionAuthToken,
+			wantResource: "user/alice",
+		},
+		{
+			name:         "auth user token with id returns user scope",
+			path:         "/api/auth/user/bob/access_token/tok-456",
+			action:       ActionAuthToken,
+			wantResource: "user/bob",
+		},
+		{
+			name:         "auth token named user returns empty (no scope needed)",
+			path:         "/api/auth/access_token/user",
+			action:       ActionAuthToken,
+			wantResource: "",
+		},
+		{
 			name:         "user list returns empty (no scope needed)",
 			path:         "/api/users",
 			action:       ActionUserList,
