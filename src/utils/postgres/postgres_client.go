@@ -142,6 +142,7 @@ type PostgresFlagPointers struct {
 	minConns           *int
 	maxConnLifetimeMin *int
 	sslMode            *string
+	schemaVersion      *string
 }
 
 // RegisterPostgresFlags registers PostgreSQL-related command-line flags
@@ -176,6 +177,9 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 		sslMode: flag.String("postgres-ssl-mode",
 			utils.GetEnv("OSMO_POSTGRES_SSL_MODE", "prefer"),
 			"PostgreSQL SSL mode (disable, prefer, require, verify-ca, verify-full)"),
+		schemaVersion: flag.String("postgres-schema-version",
+			utils.GetEnv("OSMO_SCHEMA_VERSION", "public"),
+			"pgroll schema version for search_path (e.g., public_003_v6_2_0_schema)"),
 	}
 }
 
@@ -192,5 +196,6 @@ func (p *PostgresFlagPointers) ToPostgresConfig() PostgresConfig {
 		MinConns:        int32(*p.minConns),
 		MaxConnLifetime: time.Duration(*p.maxConnLifetimeMin) * time.Minute,
 		SSLMode:         *p.sslMode,
+		SchemaVersion:   *p.schemaVersion,
 	}
 }
