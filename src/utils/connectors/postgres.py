@@ -3697,9 +3697,9 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              common_default_variables, common_resource_validations, parsed_resource_validations,
              common_pod_template, parsed_pod_template,
              common_group_templates, parsed_group_templates,
-             enable_maintenance, action_permissions, resources)
+             enable_maintenance, resources)
             VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
