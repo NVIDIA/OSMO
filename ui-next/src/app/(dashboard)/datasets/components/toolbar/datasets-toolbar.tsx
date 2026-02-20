@@ -25,6 +25,7 @@ import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/datasets/lib/dataset-columns";
 import { DATASET_STATIC_FIELDS, type Dataset } from "@/app/(dashboard)/datasets/lib/dataset-search-fields";
+import { useDatasetsAsyncFields } from "@/app/(dashboard)/datasets/hooks/use-datasets-async-fields";
 
 export interface DatasetsToolbarProps {
   datasets: Dataset[];
@@ -83,8 +84,18 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
   const visibleColumnIds = useDatasetsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useDatasetsTableStore((s) => s.toggleColumn);
 
-  // Use static search fields
-  const searchFields = useMemo((): readonly SearchField<Dataset>[] => DATASET_STATIC_FIELDS, []);
+  // Async fields: user list from /api/users with lazy loading
+  const { userField } = useDatasetsAsyncFields();
+
+  // Compose static + async fields
+  const searchFields = useMemo(
+    (): readonly SearchField<Dataset>[] => [
+      DATASET_STATIC_FIELDS[0], // name
+      DATASET_STATIC_FIELDS[1], // bucket
+      userField, // async - complete user list
+    ],
+    [userField],
+  );
 
   // Memoize autoRefreshProps to prevent unnecessary TableToolbar re-renders
   const autoRefreshProps = useMemo(
@@ -104,7 +115,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       onToggleColumn={toggleColumn}
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
-      placeholder="Search datasets... (try 'name:', 'bucket:')"
+      placeholder="Search datasets... (try 'name:', 'bucket:', 'user:')"
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
     >
