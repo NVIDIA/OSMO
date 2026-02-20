@@ -1674,9 +1674,9 @@ sidecars:
   ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
   ##
   authz:
-    ## Enable authorization sidecar (set to true to use authz_sidecar instead of middleware)
+    ## Enable authorization sidecar
     ##
-    enabled: false
+    enabled: true
 
     ## Authorization sidecar Docker image
     ##
