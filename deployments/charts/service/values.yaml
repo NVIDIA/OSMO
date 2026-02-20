@@ -563,6 +563,10 @@ services:
     #   hostnames:
     #   - "example.local"
 
+    ## URL for the client install script shown in version update messages
+    ##
+    clientInstallUrl: "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"
+
     ## Disable task metrics collection (set to true to disable)
     ##
     disableTaskMetrics: false

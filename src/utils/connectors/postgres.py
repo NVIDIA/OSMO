@@ -2860,6 +2860,7 @@ class CliConfig(ExtraArgBaseModel):
     """ Config for storing information regarding CLI storage. """
     latest_version: str | None = None
     min_supported_version: str | None = None
+    client_install_url: str | None = None
 
 
 class ServiceConfig(DynamicConfig):

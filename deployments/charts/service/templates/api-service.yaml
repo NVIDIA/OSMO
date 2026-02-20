@@ -125,6 +125,10 @@ spec:
         - --service_hostname
         - {{ .Values.services.service.hostname }}
         {{- end }}
+        {{- if .Values.services.service.clientInstallUrl }}
+        - --client_install_url
+        - {{ .Values.services.service.clientInstallUrl }}
+        {{- end }}
         {{- if .Values.global.osmoImageLocation }}
         - --osmo_image_location
         - {{ .Values.global.osmoImageLocation }}

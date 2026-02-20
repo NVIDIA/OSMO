@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import datetime
 import logging
 from pathlib import Path
@@ -63,10 +64,15 @@ async def check_client_version(request: fastapi.Request, call_next):
         return await call_next(request)
     suggest_version_update = False
     postgres = objects.WorkflowServiceContext.get().database
-    service_url = postgres.get_workflow_service_url()
     cli_info = postgres.get_service_configs().cli_config
     newest_client_version = version.Version.from_string(cli_info.latest_version) \
         if cli_info.latest_version else version.VERSION
+    if cli_info.client_install_url:
+        install_command = f'Please run the following command:\n' \
+                          f'curl -fsSL {cli_info.client_install_url} | bash'
+    else:
+        install_command = \
+            'Please update by running the install command in the documentation.'
     if client_version < newest_client_version:
         # If no min_supported_version specified, we allow all client versions
         if cli_info.min_supported_version and\
@@ -75,14 +81,19 @@ async def check_client_version(request: fastapi.Request, call_next):
                 status_code=400,
                 content={'message': 'Your client is out of date. Client version is ' + \
                         f'{client_version_str} but the newest client version is '
-                        f'{newest_client_version}. Please run the following command:\n'
-                        f'curl -fsSL {service_url}/client/install.sh | bash',
+                        f'{newest_client_version}.\n{install_command}',
                         'error_code': osmo_errors.OSMOError.error_code},
             )
         suggest_version_update = True
     response = await call_next(request)
     if suggest_version_update:
         response.headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
+        warning_msg = (
+            f'WARNING: New client {newest_client_version} available.\n'
+            f'Current version: {client_version_str}.\n'
+            f'{install_command}')
+        response.headers[version.VERSION_WARNING_HEADER] = (
+            base64.b64encode(warning_msg.encode()).decode())
     return response
 
 
@@ -281,6 +292,21 @@ def set_default_service_url(postgres: connectors.PostgresConnector):
             postgres.config.service_hostname)
 
 
+def set_client_install_url(postgres: connectors.PostgresConnector,
+                           config: objects.WorkflowServiceConfig):
+    curr_service_configs = postgres.get_service_configs()
+    if curr_service_configs.cli_config.client_install_url != config.client_install_url:
+        updated_cli_config = curr_service_configs.cli_config.dict()
+        updated_cli_config['client_install_url'] = config.client_install_url
+        config_service.patch_service_configs(
+            request=config_objects.PatchConfigRequest(
+                configs_dict={'cli_config': updated_cli_config}
+            ),
+            username='System',
+        )
+        logging.info('Updated client_install_url to: %s', config.client_install_url)
+
+
 def setup_default_admin(postgres: connectors.PostgresConnector,
                         config: objects.WorkflowServiceConfig):
     """
@@ -394,6 +420,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     create_default_pool(postgres)
     set_default_backend_images(postgres)
     set_default_service_url(postgres)
+    set_client_install_url(postgres, config)
     setup_default_admin(postgres, config)
 
     # Instantiate QueryParser
