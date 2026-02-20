@@ -14,38 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflow Search Fields Tests
- *
- * Tests the workflow list search functionality:
- * - Field structure and properties
- * - Value extraction (getValues)
- * - Status presets for multi-chip toggling
- *
- * NOTE: Filtering is done server-side. The `match` functions are stubs that
- * always return true. Chips are converted to API params in workflows-shim.ts.
- */
-
 import { describe, it, expect } from "vitest";
 import {
-  WORKFLOW_SEARCH_FIELDS,
+  WORKFLOW_STATIC_FIELDS,
   STATUS_PRESETS,
   createPresetChips,
-  isPresetActive,
-  togglePreset,
 } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
-import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter/types";
-import type { SearchChip } from "@/stores/types";
+import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 
-// =============================================================================
-// Test Helpers
-// =============================================================================
-
-type WorkflowListEntry = WorkflowListEntryType;
-
-/**
- * Create a minimal workflow entry for testing search.
- */
 function createWorkflow(overrides: Partial<WorkflowListEntry> = {}): WorkflowListEntry {
   return {
     name: "test-workflow",
@@ -58,41 +34,25 @@ function createWorkflow(overrides: Partial<WorkflowListEntry> = {}): WorkflowLis
   } as WorkflowListEntry;
 }
 
-/**
- * Get a search field by ID.
- */
 function getField(id: string) {
-  const field = WORKFLOW_SEARCH_FIELDS.find((f) => f.id === id);
+  const field = WORKFLOW_STATIC_FIELDS.find((f) => f.id === id);
   if (!field) throw new Error(`Field not found: ${id}`);
   return field;
 }
 
-/**
- * Create a status chip for testing.
- */
-function statusChip(value: string): SearchChip {
-  return { field: "status", value, label: `Status: ${value}` };
-}
-
-// =============================================================================
-// Field Structure Tests
-// =============================================================================
-
-describe("WORKFLOW_SEARCH_FIELDS structure", () => {
-  it("contains expected fields", () => {
-    const fieldIds = WORKFLOW_SEARCH_FIELDS.map((f) => f.id);
+describe("WORKFLOW_STATIC_FIELDS structure", () => {
+  it("contains expected static fields", () => {
+    const fieldIds = WORKFLOW_STATIC_FIELDS.map((f) => f.id);
 
     expect(fieldIds).toContain("name");
     expect(fieldIds).toContain("status");
-    expect(fieldIds).toContain("user");
-    expect(fieldIds).toContain("pool");
     expect(fieldIds).toContain("priority");
     expect(fieldIds).toContain("app");
     expect(fieldIds).toContain("tag");
   });
 
   it("all fields have required properties", () => {
-    for (const field of WORKFLOW_SEARCH_FIELDS) {
+    for (const field of WORKFLOW_STATIC_FIELDS) {
       expect(field).toHaveProperty("id");
       expect(field).toHaveProperty("label");
       expect(field).toHaveProperty("prefix");
@@ -102,8 +62,7 @@ describe("WORKFLOW_SEARCH_FIELDS structure", () => {
   });
 
   it("fields do not have match functions (server-side filtering)", () => {
-    // Filtering is done server-side, so no match functions are needed
-    for (const field of WORKFLOW_SEARCH_FIELDS) {
+    for (const field of WORKFLOW_STATIC_FIELDS) {
       expect(field.match).toBeUndefined();
     }
   });
@@ -111,17 +70,11 @@ describe("WORKFLOW_SEARCH_FIELDS structure", () => {
   it("fields have correct prefixes", () => {
     expect(getField("name").prefix).toBe("name:");
     expect(getField("status").prefix).toBe("status:");
-    expect(getField("user").prefix).toBe("user:");
-    expect(getField("pool").prefix).toBe("pool:");
     expect(getField("priority").prefix).toBe("priority:");
     expect(getField("app").prefix).toBe("app:");
     expect(getField("tag").prefix).toBe("tag:");
   });
 });
-
-// =============================================================================
-// Name Field Tests
-// =============================================================================
 
 describe("name field", () => {
   const nameField = getField("name");
@@ -149,10 +102,6 @@ describe("name field", () => {
   });
 });
 
-// =============================================================================
-// Status Field Tests
-// =============================================================================
-
 describe("status field", () => {
   const statusField = getField("status");
 
@@ -175,55 +124,6 @@ describe("status field", () => {
   });
 });
 
-// =============================================================================
-// User Field Tests
-// =============================================================================
-
-describe("user field", () => {
-  const userField = getField("user");
-
-  it("extracts unique users from workflows", () => {
-    const workflows = [
-      createWorkflow({ user: "alice" }),
-      createWorkflow({ user: "bob" }),
-      createWorkflow({ user: "alice" }), // Duplicate
-    ];
-
-    const values = userField.getValues(workflows);
-    const uniqueValues = [...new Set(values)];
-
-    expect(uniqueValues.length).toBe(values.length); // Should be deduplicated
-    expect(values).toContain("alice");
-    expect(values).toContain("bob");
-  });
-});
-
-// =============================================================================
-// Pool Field Tests
-// =============================================================================
-
-describe("pool field", () => {
-  const poolField = getField("pool");
-
-  it("extracts pools, filtering out undefined", () => {
-    const workflows = [
-      createWorkflow({ pool: "pool-a" }),
-      createWorkflow({ pool: undefined }),
-      createWorkflow({ pool: "pool-b" }),
-    ];
-
-    const values = poolField.getValues(workflows);
-
-    expect(values).toContain("pool-a");
-    expect(values).toContain("pool-b");
-    expect(values).not.toContain(undefined);
-  });
-});
-
-// =============================================================================
-// Priority Field Tests
-// =============================================================================
-
 describe("priority field", () => {
   const priorityField = getField("priority");
 
@@ -241,10 +141,6 @@ describe("priority field", () => {
     expect(values).toEqual(["HIGH", "NORMAL", "LOW"]);
   });
 });
-
-// =============================================================================
-// App Field Tests
-// =============================================================================
 
 describe("app field", () => {
   const appField = getField("app");
@@ -264,10 +160,6 @@ describe("app field", () => {
   });
 });
 
-// =============================================================================
-// Tag Field Tests
-// =============================================================================
-
 describe("tag field", () => {
   const tagField = getField("tag");
 
@@ -283,10 +175,6 @@ describe("tag field", () => {
     expect(tagField.freeFormHint).toBeDefined();
   });
 });
-
-// =============================================================================
-// Status Preset Tests
-// =============================================================================
 
 describe("STATUS_PRESETS", () => {
   it("contains expected preset categories", () => {
@@ -339,94 +227,5 @@ describe("createPresetChips", () => {
 
     expect(chips.length).toBe(STATUS_PRESETS.failed.length);
     expect(chips.every((c) => c.field === "status")).toBe(true);
-  });
-});
-
-describe("isPresetActive", () => {
-  it("returns false when no chips", () => {
-    expect(isPresetActive("running", [])).toBe(false);
-  });
-
-  it("returns true when all preset chips are present", () => {
-    const chips = [statusChip("RUNNING")];
-
-    expect(isPresetActive("running", chips)).toBe(true);
-  });
-
-  it("returns true when waiting preset chips are all present", () => {
-    const chips = [statusChip("PENDING"), statusChip("WAITING")];
-
-    expect(isPresetActive("waiting", chips)).toBe(true);
-  });
-
-  it("returns false when only some preset chips are present", () => {
-    const chips = [statusChip("PENDING")]; // Missing WAITING
-
-    expect(isPresetActive("waiting", chips)).toBe(false);
-  });
-
-  it("returns true when all failed preset chips are present", () => {
-    const chips = STATUS_PRESETS.failed.map((s) => statusChip(s));
-
-    expect(isPresetActive("failed", chips)).toBe(true);
-  });
-
-  it("returns false when one failed status is missing", () => {
-    const allButOne = STATUS_PRESETS.failed.slice(0, -1);
-    const chips = allButOne.map((s) => statusChip(s));
-
-    expect(isPresetActive("failed", chips)).toBe(false);
-  });
-
-  it("ignores chips from other fields", () => {
-    const chips = [statusChip("RUNNING"), { field: "user", value: "alice", label: "User: alice" }];
-
-    expect(isPresetActive("running", chips)).toBe(true);
-  });
-});
-
-describe("togglePreset", () => {
-  it("adds all preset chips when inactive", () => {
-    const result = togglePreset("running", []);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].value).toBe("RUNNING");
-  });
-
-  it("removes all preset chips when active", () => {
-    const chips = [statusChip("RUNNING")];
-    const result = togglePreset("running", chips);
-
-    expect(result).toHaveLength(0);
-  });
-
-  it("adds missing waiting chips", () => {
-    const chips = [statusChip("PENDING")]; // Has one, missing one
-    const result = togglePreset("waiting", chips);
-
-    // Should still add WAITING since preset wasn't fully active
-    expect(result.map((c) => c.value)).toContain("PENDING");
-    expect(result.map((c) => c.value)).toContain("WAITING");
-  });
-
-  it("removes all waiting chips when fully active", () => {
-    const chips = [statusChip("PENDING"), statusChip("WAITING")];
-    const result = togglePreset("waiting", chips);
-
-    expect(result).toHaveLength(0);
-  });
-
-  it("preserves chips from other fields", () => {
-    const chips = [statusChip("RUNNING"), { field: "user", value: "alice", label: "User: alice" }];
-    const result = togglePreset("running", chips);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].field).toBe("user");
-  });
-
-  it("adds all failed preset chips", () => {
-    const result = togglePreset("failed", []);
-
-    expect(result.length).toBe(STATUS_PRESETS.failed.length);
   });
 });

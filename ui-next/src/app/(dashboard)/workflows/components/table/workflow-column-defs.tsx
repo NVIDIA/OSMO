@@ -21,7 +21,7 @@ import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowUp, ArrowDow
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
-import type { WorkflowListEntry } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import {
   WORKFLOW_COLUMN_SIZE_CONFIG,
   COLUMN_LABELS,

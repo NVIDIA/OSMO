@@ -14,56 +14,43 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflows With Data (Async Server Component)
- *
- * This component suspends while prefetching data on the server.
- * When wrapped in Suspense, it enables streaming:
- * 1. Parent renders skeleton immediately
- * 2. This component awaits data fetch
- * 3. When ready, React streams the content to replace skeleton
- *
- * nuqs Compatibility:
- * - Receives searchParams and parses filter chips
- * - Uses same query key format as client hooks
- * - Result: cache hit when client hydrates!
- */
-
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
 import { WorkflowsPageContent } from "@/app/(dashboard)/workflows/workflows-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createServerQueryClient } from "@/lib/query-client";
+import { getServerUsername } from "@/lib/auth/server";
 
 interface WorkflowsWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function WorkflowsWithData({ searchParams }: WorkflowsWithDataProps) {
-  // Create server-optimized QueryClient (no retries -- fail fast for SSR)
   const queryClient = createServerQueryClient();
-
-  // Next.js 16: await searchParams in async Server Components
   const params = await searchParams;
   const filterChips = parseUrlChips(params.f);
 
-  // This await causes the component to suspend
-  // React streams the Suspense fallback, then streams this when ready
+  const username = await getServerUsername();
+  const allParam = params.all === "true";
+  const hasUserChipInUrl = filterChips.some((c) => c.field === "user");
+  const shouldPrePopulate = !hasUserChipInUrl && !allParam && !!username;
+
+  const prefetchChips = shouldPrePopulate
+    ? [...filterChips, { field: "user", value: username!, label: `User: ${username}` }]
+    : filterChips;
+
   try {
-    await prefetchWorkflowsList(queryClient, filterChips);
+    await prefetchWorkflowsList(queryClient, prefetchChips);
   } catch (error) {
-    // Prefetch failed (e.g., auth unavailable during HMR, network error, backend down)
-    // Page will still render - client will fetch on hydration if cache is empty
     console.debug(
       "[Server Prefetch] Could not prefetch workflows:",
       error instanceof Error ? error.message : "Unknown error",
     );
   }
 
-  // Wrap in HydrationBoundary so client gets the cached data
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <WorkflowsPageContent />
+      <WorkflowsPageContent initialUsername={username} />
     </HydrationBoundary>
   );
 }

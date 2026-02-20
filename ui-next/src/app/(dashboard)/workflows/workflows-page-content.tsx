@@ -14,91 +14,48 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflows Page Content (Client Component)
- *
- * The interactive content of the Workflows page.
- * Receives hydrated data from the server and handles all user interactions.
- *
- * Features:
- * - Smart search with filter chips (status, user, pool, priority)
- * - Column visibility and reordering
- * - Status-based row styling
- * - Infinite scroll pagination
- * - Navigation to workflow detail page on row click
- */
-
 "use client";
 
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
-import { useUrlChips } from "@/hooks/use-url-chips";
+import { useDefaultFilter } from "@/hooks/use-default-filter";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useCallback, useMemo, useTransition } from "react";
-import { useQueryState, parseAsBoolean } from "nuqs";
+import { useCallback, useMemo } from "react";
 import { WorkflowsDataTable } from "@/app/(dashboard)/workflows/components/table/workflows-data-table";
 import { WorkflowsToolbar } from "@/app/(dashboard)/workflows/components/workflows-toolbar";
 import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
 import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
-import { useUser } from "@/lib/auth/user-context";
 import { useWorkflowsAutoRefresh } from "@/app/(dashboard)/workflows/hooks/use-workflows-auto-refresh";
+import { useUser } from "@/lib/auth/user-context";
+import type { SearchChip } from "@/stores/types";
 
-// =============================================================================
-// Client Component
-// =============================================================================
+interface WorkflowsPageContentProps {
+  initialUsername?: string | null;
+}
 
-export function WorkflowsPageContent() {
+export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentProps) {
   usePage({ title: "Workflows" });
   const { startTransition: startViewTransition } = useViewTransition();
   const { user } = useUser();
 
-  // Track pending state for show all users toggle
-  const [showAllUsersPending, startShowAllUsersTransition] = useTransition();
+  const currentUsername = initialUsername ?? user?.username ?? null;
 
-  // ==========================================================================
-  // URL State - All state is URL-synced for shareable deep links
-  // URL: /workflows?f=status:running&f=user:alice&all=true
-  // ==========================================================================
-
-  // Filter chips - URL-synced via shared hook
-  const { searchChips, setSearchChips } = useUrlChips();
+  const { effectiveChips, handleChipsChange, optOut } = useDefaultFilter({
+    field: "user",
+    defaultValue: initialUsername,
+    label: `User: ${initialUsername}`,
+  });
 
   const handleSearchChipsChange = useCallback(
-    (chips: Parameters<typeof setSearchChips>[0]) => {
-      startViewTransition(() => setSearchChips(chips));
-    },
-    [setSearchChips, startViewTransition],
+    (chips: SearchChip[]) => startViewTransition(() => handleChipsChange(chips)),
+    [handleChipsChange, startViewTransition],
   );
 
-  // Show all users toggle - URL-synced (default: false = my workflows only)
-  // URL param: ?all=true (shows all users), omitted/false (shows my workflows)
-  const [showAllUsers, setShowAllUsers] = useQueryState(
-    "all",
-    parseAsBoolean.withDefault(false).withOptions({
-      shallow: true,
-      history: "replace", // Don't pollute history with toggle changes
-      clearOnDefault: true, // Remove param when false (cleaner URLs)
-    }),
-  );
-
-  const handleToggleShowAllUsers = useCallback(() => {
-    startShowAllUsersTransition(() => {
-      void setShowAllUsers((prev) => !prev);
-    });
-  }, [setShowAllUsers]);
-
-  // Sort direction from table store (only submit_time is sortable server-side)
   const sortState = useWorkflowsTableStore((s) => s.sort);
-  const sortDirection = (sortState?.direction === "asc" ? "ASC" : "DESC") as "ASC" | "DESC";
+  const sortDirection: "ASC" | "DESC" = sortState?.direction === "asc" ? "ASC" : "DESC";
 
-  // Auto-refresh settings
   const autoRefresh = useWorkflowsAutoRefresh();
-
-  // ==========================================================================
-  // Data Fetching with FilterBar filtering and pagination
-  // Data is hydrated from server prefetch - no loading spinner on initial load!
-  // ==========================================================================
 
   const {
     workflows,
@@ -113,16 +70,14 @@ export function WorkflowsPageContent() {
     filteredTotal,
     hasActiveFilters,
   } = useWorkflowsData({
-    searchChips,
-    showAllUsers,
+    searchChips: effectiveChips,
+    showAllUsers: optOut,
     sortDirection,
     refetchInterval: autoRefresh.effectiveInterval,
   });
 
-  // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
-  // Memoize autoRefreshProps to prevent unnecessary toolbar re-renders
   const autoRefreshProps = useMemo(
     () => ({
       interval: autoRefresh.interval,
@@ -133,13 +88,8 @@ export function WorkflowsPageContent() {
     [autoRefresh.interval, autoRefresh.setInterval, refetch, isLoading],
   );
 
-  // ==========================================================================
-  // Render
-  // ==========================================================================
-
   return (
     <div className="flex h-full flex-col gap-4 p-6">
-      {/* Toolbar with search and controls */}
       <div className="shrink-0">
         <InlineErrorBoundary
           title="Toolbar error"
@@ -147,19 +97,15 @@ export function WorkflowsPageContent() {
         >
           <WorkflowsToolbar
             workflows={allWorkflows}
-            searchChips={searchChips}
+            searchChips={effectiveChips}
             onSearchChipsChange={handleSearchChipsChange}
             resultsCount={resultsCount}
-            currentUsername={user?.username}
-            showAllUsers={showAllUsers}
-            showAllUsersPending={showAllUsersPending}
-            onToggleShowAllUsers={handleToggleShowAllUsers}
+            currentUsername={currentUsername}
             autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>
       </div>
 
-      {/* Main workflows table */}
       <div className="min-h-0 flex-1">
         <InlineErrorBoundary
           title="Unable to display workflows table"

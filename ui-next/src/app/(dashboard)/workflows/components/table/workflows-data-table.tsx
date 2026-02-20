@@ -39,7 +39,7 @@ import type { SortState, ColumnSizingPreference } from "@/components/data-table/
 import { useCompactMode } from "@/stores/shared-preferences-store";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import type { WorkflowListEntry } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import {
   MANDATORY_COLUMN_IDS,
   asWorkflowColumnIds,

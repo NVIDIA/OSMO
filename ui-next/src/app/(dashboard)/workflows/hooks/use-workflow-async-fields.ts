@@ -14,25 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Hook for async workflow filter fields (user, pool) with lazy loading.
- *
- * Creates AsyncSearchField definitions backed by dedicated API endpoints,
- * replacing the previous pattern of deriving suggestions from loaded workflows.
- *
- * Benefits:
- * - Complete suggestion lists (not limited to loaded page of workflows)
- * - Lazy loading (no API calls until field is accessed)
- * - Shared TanStack Query cache (pool names reused from pools page)
- * - Loading states shown in FilterBar dropdown
- *
- * Architecture:
- * - Uses lazy fetching: queries start disabled, enable when field accessed
- * - Properly memoizes field objects and getValues functions
- * - Prevents cascading re-renders through stable references
- * - Once fetched, data cached for 5 minutes
- */
-
 "use client";
 
 import { useMemo, useState, useCallback, useRef } from "react";
@@ -40,72 +21,53 @@ import type { AsyncSearchField } from "@/components/filter-bar/lib/types";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import { usePoolNames, useUsers } from "@/lib/api/adapter/hooks";
 
+/**
+ * Lazy-enable gate: starts disabled, flips to enabled on first call to `trigger()`.
+ * Uses queueMicrotask to defer the state update out of React's render phase.
+ */
+function useLazyEnable(): { enabled: boolean; trigger: () => void } {
+  const [enabled, setEnabled] = useState(false);
+  const accessedRef = useRef(false);
+
+  const trigger = useCallback(() => {
+    if (!accessedRef.current) {
+      accessedRef.current = true;
+      queueMicrotask(() => setEnabled(true));
+    }
+  }, []);
+
+  return { enabled, trigger };
+}
+
+/**
+ * Wraps values + a lazy trigger into a stable getValues callback.
+ * When called, triggers the lazy-enable gate then returns the current values.
+ */
+function useLazyGetValues(values: string[], trigger: () => void): () => string[] {
+  return useMemo(() => {
+    const snapshot = values;
+    return () => {
+      trigger();
+      return snapshot;
+    };
+  }, [values, trigger]);
+}
+
 interface UseWorkflowAsyncFieldsReturn {
-  /** Async field definition for "user:" filter */
   userField: AsyncSearchField<WorkflowListEntry>;
-  /** Async field definition for "pool:" filter */
   poolField: AsyncSearchField<WorkflowListEntry>;
 }
 
 export function useWorkflowAsyncFields(): UseWorkflowAsyncFieldsReturn {
-  // Lazy loading state: track which fields have been accessed by the user
-  const [poolEnabled, setPoolEnabled] = useState(false);
-  const [userEnabled, setUserEnabled] = useState(false);
+  const userGate = useLazyEnable();
+  const poolGate = useLazyEnable();
 
-  // Refs to track whether fields have been accessed (prevents duplicate enables)
-  const poolAccessedRef = useRef(false);
-  const userAccessedRef = useRef(false);
+  const { names: poolNames, isLoading: poolsLoading } = usePoolNames(poolGate.enabled);
+  const { users, isLoading: usersLoading } = useUsers(userGate.enabled);
 
-  // Enable pool query on first access (deferred via queueMicrotask)
-  const enablePoolQuery = useCallback(() => {
-    if (!poolAccessedRef.current) {
-      poolAccessedRef.current = true;
-      // Use queueMicrotask to defer state update until after render completes
-      // This schedules the update for the next microtask, avoiding "setState during render"
-      queueMicrotask(() => {
-        setPoolEnabled(true);
-      });
-    }
-  }, []);
+  const getUserValues = useLazyGetValues(users, userGate.trigger);
+  const getPoolValues = useLazyGetValues(poolNames, poolGate.trigger);
 
-  // Enable user query on first access (deferred via queueMicrotask)
-  const enableUserQuery = useCallback(() => {
-    if (!userAccessedRef.current) {
-      userAccessedRef.current = true;
-      // Use queueMicrotask to defer state update until after render completes
-      // This schedules the update for the next microtask, avoiding "setState during render"
-      queueMicrotask(() => {
-        setUserEnabled(true);
-      });
-    }
-  }, []);
-
-  // Fetch pool names and users with lazy loading
-  // Queries are disabled until user accesses the field (types prefix)
-  // Once enabled, data is cached for 5 minutes (shared across pages)
-  const { names: poolNames, isLoading: poolsLoading } = usePoolNames(poolEnabled);
-  const { users, isLoading: usersLoading } = useUsers(userEnabled);
-
-  // Stable getValues callbacks with lazy loading trigger
-  // When FilterBar calls getValues, enable the query (deferred via queueMicrotask)
-  // queueMicrotask schedules the state update for next tick, avoiding "setState during render"
-  const getPoolValues = useMemo(() => {
-    const values = poolNames;
-    return () => {
-      enablePoolQuery(); // Trigger lazy load (deferred via queueMicrotask)
-      return values;
-    };
-  }, [poolNames, enablePoolQuery]);
-
-  const getUserValues = useMemo(() => {
-    const values = users;
-    return () => {
-      enableUserQuery(); // Trigger lazy load (deferred via queueMicrotask)
-      return values;
-    };
-  }, [users, enableUserQuery]);
-
-  // Memoize field objects to prevent FilterBar re-renders
   const userField = useMemo(
     (): AsyncSearchField<WorkflowListEntry> => ({
       type: "async",
@@ -115,7 +77,6 @@ export function useWorkflowAsyncFields(): UseWorkflowAsyncFieldsReturn {
       prefix: "user:",
       getValues: getUserValues,
       isLoading: usersLoading,
-      // Complete list of users who submitted workflows
       exhaustive: true,
       requiresValidValue: true,
     }),
@@ -131,7 +92,6 @@ export function useWorkflowAsyncFields(): UseWorkflowAsyncFieldsReturn {
       prefix: "pool:",
       getValues: getPoolValues,
       isLoading: poolsLoading,
-      // Pool list is complete (all pools in system)
       exhaustive: true,
       requiresValidValue: true,
     }),

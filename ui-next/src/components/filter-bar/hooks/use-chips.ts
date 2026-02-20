@@ -170,6 +170,12 @@ export function useChips<T>({
    */
   const togglePreset = useCallback(
     (preset: SearchPreset) => {
+      // Custom onSelect handler overrides all default toggle behavior
+      if (preset.onSelect) {
+        onChipsChange(preset.onSelect(chips));
+        return;
+      }
+
       if (preset.chips.length === 0) return;
 
       if (isPresetActive(preset)) {
