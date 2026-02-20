@@ -29,6 +29,7 @@ import type {
   SrcServiceCoreWorkflowObjectsListResponse,
   WorkflowPriority,
   WorkflowStatus,
+  ListOrder,
 } from "@/lib/api/generated";
 import type { SearchChip } from "@/stores/types";
 import { buildWorkflowsQueryKey } from "@/lib/api/adapter/workflows-shim";
@@ -57,6 +58,8 @@ export interface WorkflowsQueryParams {
   limit?: number;
   /** Offset for pagination */
   offset?: number;
+  /** Sort order (default: DESC — newest first) */
+  order?: "ASC" | "DESC";
 }
 
 // =============================================================================
@@ -87,6 +90,7 @@ export const fetchWorkflows = cache(async (params: WorkflowsQueryParams = {}): P
     name: params.search,
     limit: params.limit,
     offset: params.offset,
+    order: (params.order ?? "DESC") as ListOrder,
   };
 
   const rawData = await listWorkflowApiWorkflowGet(apiParams);
@@ -211,6 +215,7 @@ export async function prefetchWorkflowsList(queryClient: QueryClient, filterChip
       const response = await fetchWorkflows({
         limit: 50,
         offset: 0,
+        order: "DESC",
         status: statusFilters.length > 0 ? statusFilters : undefined,
         pools: poolFilters.length > 0 ? poolFilters : undefined,
         users: userFilters.length > 0 ? userFilters : undefined,
