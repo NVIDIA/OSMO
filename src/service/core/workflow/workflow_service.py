@@ -569,12 +569,11 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
     rows = helpers.get_workflows(users, name, statuses, pools, offset, limit+1, order,
                                  submitted_after, submitted_before, tags, app_info,
                                  priority=priority, return_raw=True)
-    if order == connectors.ListOrder.DESC:
+    has_more_entries = len(rows) > limit
+    if has_more_entries:
         rows = rows[:limit]
-    elif len(rows) > limit:
-        rows = rows[1:]
     return objects.ListResponse.from_db_rows(rows, service_url,
-                                             more_entries=len(rows) > limit)
+                                             more_entries=has_more_entries)
 
 
 @router.get('/api/workflow/{name}/task/{task_name}', response_class=common.PrettyJSONResponse)

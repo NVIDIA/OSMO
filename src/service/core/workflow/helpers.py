@@ -102,7 +102,8 @@ def get_workflows(users: List[str] | None = None,
         conditions = ' AND '.join(commands)
         fetch_cmd = f'{fetch_cmd} WHERE {conditions}'
 
-    fetch_cmd += ' ORDER BY submit_time DESC LIMIT %s OFFSET %s'
+    order_direction = 'ASC' if order == connectors.ListOrder.ASC else 'DESC'
+    fetch_cmd += f' ORDER BY submit_time {order_direction} LIMIT %s OFFSET %s'
     fetch_input.extend([limit, offset])
 
     fetch_cmd = f'SELECT * FROM ({fetch_cmd}) as wf'
