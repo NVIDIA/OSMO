@@ -37,7 +37,7 @@ func TestNewNodeConditionRuleListener(t *testing.T) {
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
-	listener := NewNodeConditionRuleListener(args, nodeConditionRules)
+	listener := NewNodeConditionRuleListener(args, nodeConditionRules, utils.NewNoopInstruments())
 
 	if listener == nil {
 		t.Fatal("NewNodeConditionRuleListener() returned nil")
@@ -63,7 +63,7 @@ func TestNewNodeConditionRuleListener_WithNilRules(t *testing.T) {
 	}
 
 	// This should not panic
-	listener := NewNodeConditionRuleListener(args, nil)
+	listener := NewNodeConditionRuleListener(args, nil, utils.NewNoopInstruments())
 
 	if listener == nil {
 		t.Fatal("NewNodeConditionRuleListener() returned nil")
@@ -81,7 +81,7 @@ func TestNodeConditionRuleListener_Run_InvalidURL(t *testing.T) {
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
-	listener := NewNodeConditionRuleListener(args, nodeConditionRules)
+	listener := NewNodeConditionRuleListener(args, nodeConditionRules, utils.NewNoopInstruments())
 
 	ctx := context.Background()
 	err := listener.Run(ctx)
@@ -103,7 +103,7 @@ func TestNodeConditionRuleListener_Run_ContextCancellation(t *testing.T) {
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
-	listener := NewNodeConditionRuleListener(args, nodeConditionRules)
+	listener := NewNodeConditionRuleListener(args, nodeConditionRules, utils.NewNoopInstruments())
 
 	// Create a context that will be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -127,7 +127,7 @@ func TestNodeConditionRuleListener_Integration_WithRules(t *testing.T) {
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
-	listener := NewNodeConditionRuleListener(args, nodeConditionRules)
+	listener := NewNodeConditionRuleListener(args, nodeConditionRules, utils.NewNoopInstruments())
 
 	// Verify initial state
 	initialRules := nodeConditionRules.GetRules()

@@ -122,6 +122,14 @@ spec:
         - '{{ .Values.services.backendListener.enableNodeLabelUpdate }}'
         - --labelUpdateChanSize
         - '{{ .Values.services.backendListener.labelUpdateChanSize }}'
+        - --metricsOtelEnable
+        - '{{ .Values.services.backendListener.metrics.enabled }}'
+        - --serviceVersion
+        - '{{ .Values.services.backendListener.metrics.version | default .Values.global.osmoImageTag }}'
+        - --metricsOtelCollectorHost
+        - '{{ .Values.sidecars.OTEL.host }}'
+        - --metricsOtelCollectorPort
+        - '{{ include "backend-operator.otel.getPort" (dict "root" . "portName" "otlp-grpc") }}'
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}

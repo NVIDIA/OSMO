@@ -38,16 +38,19 @@ type NodeUsageListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
 	aggregator *utils.NodeUsageAggregator
+	inst       *utils.Instruments
 }
 
 // NewNodeUsageListener creates a new node usage listener instance
-func NewNodeUsageListener(args utils.ListenerArgs) *NodeUsageListener {
-	return &NodeUsageListener{
+func NewNodeUsageListener(args utils.ListenerArgs, inst *utils.Instruments) *NodeUsageListener {
+	nul := &NodeUsageListener{
 		BaseListener: utils.NewBaseListener(
-			args, "last_progress_node_usage_listener", utils.StreamNameResource),
+			args, "last_progress_node_usage_listener", utils.StreamNameNodeUsage, inst),
 		args:       args,
 		aggregator: utils.NewNodeUsageAggregator(args.Namespace),
+		inst:       inst,
 	}
+	return nul
 }
 
 // Run manages the bidirectional streaming lifecycle
@@ -89,6 +92,7 @@ func (nul *NodeUsageListener) sendMessages(
 					return
 				}
 				log.Printf("usage watcher stopped unexpectedly...")
+				nul.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nul.Attrs.Stream)
 				cancel(fmt.Errorf("usage watcher stopped"))
 				return
 			}
@@ -138,10 +142,14 @@ func (nul *NodeUsageListener) watchPods(
 	// pod resources and node assignment are immutable after creation.
 	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			nul.inst.KubeEventWatchCount.Add(ctx, 1, nul.Attrs.Stream)
+
 			pod := obj.(*corev1.Pod)
 			nul.aggregator.AddPod(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
+			nul.inst.KubeEventWatchCount.Add(ctx, 1, nul.Attrs.Stream)
+
 			pod := newObj.(*corev1.Pod)
 
 			// Handle two cases:
@@ -157,6 +165,8 @@ func (nul *NodeUsageListener) watchPods(
 
 		},
 		DeleteFunc: func(obj interface{}) {
+			nul.inst.KubeEventWatchCount.Add(ctx, 1, nul.Attrs.Stream)
+
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -182,6 +192,7 @@ func (nul *NodeUsageListener) watchPods(
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error, will rebuild from store: %v", err)
+		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nul.Attrs.Stream)
 		nul.rebuildPodsFromStore(podInformer)
 	})
 
@@ -192,9 +203,11 @@ func (nul *NodeUsageListener) watchPods(
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		log.Println("Failed to sync pod informer cache")
+		nul.inst.InformerCacheSyncFailure.Add(ctx, 1, nul.Attrs.Stream)
 		return
 	}
 	log.Println("Pod informer cache synced successfully")
+	nul.inst.InformerCacheSyncSuccess.Add(ctx, 1, nul.Attrs.Stream)
 
 	// Initial rebuild from store after sync
 	nul.rebuildPodsFromStore(podInformer)
@@ -211,7 +224,9 @@ func (nul *NodeUsageListener) watchPods(
 			return
 		case <-flushTicker.C:
 			// Debounced flush of dirty nodes - send usage messages
+			start := time.Now()
 			nul.flushDirtyNodes(ctx, ch)
+			nul.inst.NodeUsageFlushDuration.Record(ctx, time.Since(start).Seconds())
 		}
 	}
 }
@@ -219,6 +234,8 @@ func (nul *NodeUsageListener) watchPods(
 // rebuildPodsFromStore rebuilds aggregator state from pod informer cache
 func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
 	log.Println("Rebuilding pod aggregator state from informer store...")
+
+	nul.inst.InformerRebuildTotal.Add(context.Background(), 1, nul.Attrs.Stream)
 
 	// Reset aggregator state
 	nul.aggregator.Reset()
@@ -247,6 +264,8 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 		return
 	}
 
+	nul.inst.NodeUsageFlushNodesCount.Record(ctx, float64(len(dirtyNodes)))
+
 	sent := 0
 	for _, hostname := range dirtyNodes {
 		msg := nul.buildNodeUsageMessage(hostname)
@@ -254,6 +273,8 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 			select {
 			case usageChan <- msg:
 				sent++
+				nul.inst.MessageQueuedTotal.Add(ctx, 1, nul.Attrs.Stream)
+				nul.inst.MessageChannelPending.Record(ctx, float64(len(usageChan)), nul.Attrs.Stream)
 			case <-ctx.Done():
 				log.Printf("Flushed %d/%d resource usage messages before shutdown",
 					sent, len(dirtyNodes))

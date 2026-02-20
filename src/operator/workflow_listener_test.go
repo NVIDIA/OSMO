@@ -149,7 +149,7 @@ func TestCreatePodUpdateMessage(t *testing.T) {
 		ExitCode: utils.ExitCodeNotSet,
 		Message:  "",
 	}
-	msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+	msg := createPodUpdateMessage(pod, statusResult, "test-backend", utils.NewNoopInstruments())
 	if msg == nil {
 		t.Fatal("createPodUpdateMessage() returned nil message")
 	}
@@ -514,7 +514,7 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 
 		// Use predefined status for unit test
 		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
-		msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+		msg := createPodUpdateMessage(pod, statusResult, "test-backend", utils.NewNoopInstruments())
 		if msg == nil {
 			t.Fatal("createPodUpdateMessage() returned nil")
 		}
@@ -573,7 +573,7 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 
 		// Use predefined status for unit test
 		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
-		msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+		msg := createPodUpdateMessage(pod, statusResult, "test-backend", utils.NewNoopInstruments())
 		if msg == nil {
 			t.Fatal("createPodUpdateMessage() returned nil")
 		}
@@ -614,7 +614,7 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 				t.Error("Expected panic for pod with no containers")
 			}
 		}()
-		createPodUpdateMessage(pod, statusResult, "test-backend")
+		createPodUpdateMessage(pod, statusResult, "test-backend", utils.NewNoopInstruments())
 	})
 
 	t.Run("Pod with missing optional fields", func(t *testing.T) {
@@ -638,7 +638,7 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 
 		// Use predefined status for unit test
 		statusResult := utils.TaskStatusResult{Status: "RUNNING", ExitCode: utils.ExitCodeNotSet}
-		msg := createPodUpdateMessage(pod, statusResult, "test-backend")
+		msg := createPodUpdateMessage(pod, statusResult, "test-backend", utils.NewNoopInstruments())
 		if msg == nil {
 			t.Fatal("createPodUpdateMessage() returned nil")
 		}
@@ -733,8 +733,8 @@ func TestCreatePodUpdateMessage_UUIDFormat(t *testing.T) {
 	}
 
 	statusResult := utils.CalculateTaskStatus(pod)
-	msg1 := createPodUpdateMessage(pod, statusResult, "backend")
-	msg2 := createPodUpdateMessage(pod, statusResult, "backend")
+	msg1 := createPodUpdateMessage(pod, statusResult, "backend", utils.NewNoopInstruments())
+	msg2 := createPodUpdateMessage(pod, statusResult, "backend", utils.NewNoopInstruments())
 	if msg1 == nil || msg2 == nil {
 		t.Fatal("createPodUpdateMessage() returned nil")
 	}
@@ -773,7 +773,7 @@ func TestCreatePodUpdateMessage_TimestampFormat(t *testing.T) {
 	}
 
 	statusResult := utils.CalculateTaskStatus(pod)
-	msg := createPodUpdateMessage(pod, statusResult, "backend")
+	msg := createPodUpdateMessage(pod, statusResult, "backend", utils.NewNoopInstruments())
 	if msg == nil {
 		t.Fatal("createPodUpdateMessage() returned nil")
 	}
@@ -903,7 +903,7 @@ func BenchmarkCreatePodUpdateMessage(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		createPodUpdateMessage(pod, statusResult, "test-backend")
+		createPodUpdateMessage(pod, statusResult, "test-backend", utils.NewNoopInstruments())
 	}
 }
 
@@ -916,7 +916,7 @@ func TestNewWorkflowListener(t *testing.T) {
 		MaxUnackedMessages: 100,
 	}
 
-	listener := NewWorkflowListener(args)
+	listener := NewWorkflowListener(args, utils.NewNoopInstruments())
 
 	if listener == nil {
 		t.Fatal("NewWorkflowListener returned nil")
@@ -1087,7 +1087,7 @@ func TestCreatePodUpdateMessage_AllConditionTypes(t *testing.T) {
 		ExitCode: utils.ExitCodeNotSet,
 		Message:  "",
 	}
-	msg := createPodUpdateMessage(pod, statusResult, "backend")
+	msg := createPodUpdateMessage(pod, statusResult, "backend", utils.NewNoopInstruments())
 	if msg == nil {
 		t.Fatal("createPodUpdateMessage() returned nil")
 	}
@@ -1140,7 +1140,7 @@ func TestCreatePodUpdateMessage_ConditionTimestampFormat(t *testing.T) {
 	}
 
 	statusResult := utils.CalculateTaskStatus(pod)
-	msg := createPodUpdateMessage(pod, statusResult, "backend")
+	msg := createPodUpdateMessage(pod, statusResult, "backend", utils.NewNoopInstruments())
 	if msg == nil {
 		t.Fatal("createPodUpdateMessage() returned nil")
 	}
@@ -1197,7 +1197,7 @@ func TestCreatePodUpdateMessage_ConditionStatusConversion(t *testing.T) {
 			}
 
 			statusResult := utils.CalculateTaskStatus(pod)
-			msg := createPodUpdateMessage(pod, statusResult, "backend")
+			msg := createPodUpdateMessage(pod, statusResult, "backend", utils.NewNoopInstruments())
 			if msg == nil {
 				t.Fatal("createPodUpdateMessage() returned nil")
 			}

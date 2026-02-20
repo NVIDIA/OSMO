@@ -33,13 +33,15 @@ import (
 type NodeConditionRuleListener struct {
 	args               utils.ListenerArgs
 	nodeConditionRules *utils.NodeConditionRules
+	inst               *utils.Instruments
 }
 
 // NewNodeConditionRuleListener creates a new node condition rule listener instance.
-func NewNodeConditionRuleListener(args utils.ListenerArgs, nodeConditionRules *utils.NodeConditionRules) *NodeConditionRuleListener {
+func NewNodeConditionRuleListener(args utils.ListenerArgs, nodeConditionRules *utils.NodeConditionRules, inst *utils.Instruments) *NodeConditionRuleListener {
 	return &NodeConditionRuleListener{
 		args:               args,
 		nodeConditionRules: nodeConditionRules,
+		inst:               inst,
 	}
 }
 

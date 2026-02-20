@@ -26,6 +26,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -52,35 +54,62 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Initialize OpenTelemetry metrics
+	var inst *utils.Instruments
+	var metricsShutdown func(context.Context) error
+	if cmdArgs.Metrics.Enabled {
+		var err error
+		inst, metricsShutdown, err = utils.InitOTEL(ctx, cmdArgs.Metrics)
+		if err != nil {
+			log.Printf("Failed to initialize metrics: %v", err)
+			inst = utils.NewNoopInstruments()
+		} else {
+			log.Printf("OpenTelemetry metrics initialized: endpoint=%s", cmdArgs.Metrics.OTLPEndpoint)
+		}
+	} else {
+		inst = utils.NewNoopInstruments()
+	}
+
 	// Add backend-name to metadata
 	md := metadata.Pairs("backend-name", cmdArgs.Backend)
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	if err := initializeBackend(ctx, cmdArgs); err != nil {
+	if err := initializeBackend(ctx, cmdArgs, inst); err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
 
 	// Create all listeners
-	workflowListener := NewWorkflowListener(cmdArgs)
-	nodeUsageListener := NewNodeUsageListener(cmdArgs)
-	nodeListener := NewNodeListener(cmdArgs, nodeConditionRules)
-	nodeConditionRuleListener := NewNodeConditionRuleListener(cmdArgs, nodeConditionRules)
-	eventListener := NewEventListener(cmdArgs)
+	workflowListener := NewWorkflowListener(cmdArgs, inst)
+	nodeUsageListener := NewNodeUsageListener(cmdArgs, inst)
+	nodeListener := NewNodeListener(cmdArgs, nodeConditionRules, inst)
+	nodeConditionRuleListener := NewNodeConditionRuleListener(cmdArgs, nodeConditionRules, inst)
+	eventListener := NewEventListener(cmdArgs, inst)
 
 	var wg sync.WaitGroup
 
 	// Launch all listeners in parallel
 	wg.Add(5)
-	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", &wg)
-	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", &wg)
-	go runListenerWithRetry(ctx, nodeListener, "NodeListener", &wg)
-	go runListenerWithRetry(ctx, nodeConditionRuleListener, "NodeConditionRuleListener", &wg)
-	go runListenerWithRetry(ctx, eventListener, "EventListener", &wg)
+	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", inst, &wg)
+	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", inst, &wg)
+	go runListenerWithRetry(ctx, nodeListener, "NodeListener", inst, &wg)
+	go runListenerWithRetry(ctx, nodeConditionRuleListener, "NodeConditionRuleListener", inst, &wg)
+	go runListenerWithRetry(ctx, eventListener, "EventListener", inst, &wg)
 
 	// Wait for all listeners to complete
 	wg.Wait()
+
+	// Flush pending metrics before exit
+	if metricsShutdown != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := metricsShutdown(shutdownCtx); err != nil {
+			log.Printf("Error shutting down metrics: %v", err)
+		} else {
+			log.Println("Metrics shut down successfully")
+		}
+		shutdownCancel()
+	}
 
 	log.Println("Operator Listeners stopped gracefully")
 }
@@ -91,12 +120,14 @@ func runListenerWithRetry(
 	ctx context.Context,
 	listener Listener,
 	name string,
+	inst *utils.Instruments,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
 
 	log.Printf("[%s] Starting listener", name)
 
+	listenerAttr := metric.WithAttributeSet(attribute.NewSet(attribute.String("listener", name)))
 	retryCount := 0
 	for {
 		err := listener.Run(ctx)
@@ -106,10 +137,13 @@ func runListenerWithRetry(
 				return
 			}
 			retryCount++
+			inst.ListenerRetryTotal.Add(ctx, 1, listenerAttr)
+
 			backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
+			inst.ListenerRetryBackoffSeconds.Record(ctx, backoffDur.Seconds(), listenerAttr)
+
 			log.Printf("[%s] Connection lost: %v. Reconnecting in %v...", name, err, backoffDur)
 
-			// Wait for backoff or context cancellation
 			select {
 			case <-ctx.Done():
 				log.Printf("[%s] Context cancelled during backoff, shutting down", name)
@@ -118,7 +152,6 @@ func runListenerWithRetry(
 				continue
 			}
 		}
-		// Clean exit
 		log.Printf("[%s] Listener exited cleanly", name)
 		return
 	}
@@ -126,7 +159,7 @@ func runListenerWithRetry(
 
 // initializeBackend sends the initial backend registration to the operator service
 // with automatic retry until successful or context cancelled
-func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
+func initializeBackend(ctx context.Context, args utils.ListenerArgs, inst *utils.Instruments) error {
 	version, err := libutils.LoadVersion()
 	if err != nil {
 		return fmt.Errorf("failed to load version from file: %w", err)
@@ -176,6 +209,8 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
 		}
 
 		retryCount++
+		inst.BackendInitRetryTotal.Add(ctx, 1)
+
 		if retryCount == 1 {
 			log.Printf("Failed to initialize backend: %v. Retrying...", err)
 		}

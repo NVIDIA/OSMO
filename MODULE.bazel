@@ -231,6 +231,11 @@ use_repo(
     "io_k8s_api",
     "io_k8s_apimachinery",
     "io_k8s_client_go",
+    "io_opentelemetry_go_otel",
+    "io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetricgrpc",
+    "io_opentelemetry_go_otel_metric",
+    "io_opentelemetry_go_otel_sdk",
+    "io_opentelemetry_go_otel_sdk_metric",
 )
 
 ################
