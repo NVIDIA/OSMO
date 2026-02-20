@@ -105,7 +105,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
-      { label: name, href: `/datasets/${encodeURIComponent(bucket)}/${encodeURIComponent(name)}` },
+      { label: name, href: null },
     ],
   });
 
