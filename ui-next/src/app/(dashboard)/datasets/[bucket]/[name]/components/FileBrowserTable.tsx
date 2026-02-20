@@ -17,8 +17,8 @@
 /**
  * FileBrowserTable — Google Drive-style file listing for a dataset directory.
  *
- * Renders folders before files with columns for name, size, modified date,
- * extension, and a per-row copy-path button.
+ * Renders folders before files with columns for name, size, type,
+ * and a per-row copy-path button.
  */
 
 "use client";
@@ -30,11 +30,13 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton } from "@/components/data-table/TableStates";
 import { Button } from "@/components/shadcn/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";
-import { formatDateTimeSuccinct } from "@/lib/format-date";
-import { useServices } from "@/contexts/service-context";
+import { useCopy } from "@/hooks/use-copy";
 import { useCompactMode } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
+import { remToPx } from "@/components/data-table/utils/column-sizing";
+import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
@@ -105,31 +107,35 @@ function FileIcon({ name, type }: { name: string; type: "file" | "folder" }) {
 // Copy path cell (needs hook so defined as component)
 // =============================================================================
 
-function CopyPathButton({ filePath }: { filePath: string }) {
-  const { clipboard } = useServices();
+function CopyPathButton({ url }: { url: string }) {
+  const { copied, copy } = useCopy();
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      void clipboard.copy(filePath);
+      void copy(url);
     },
-    [clipboard, filePath],
+    [copy, url],
   );
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-6 w-6 p-0 opacity-0 group-hover/row:opacity-100 focus:opacity-100"
-      onClick={handleCopy}
-      aria-label={`Copy path: ${filePath}`}
-      title="Copy path"
-    >
-      <Copy
-        className="size-3.5"
-        aria-hidden="true"
-      />
-    </Button>
+    <Tooltip open={copied}>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          onClick={handleCopy}
+          aria-label={`Copy path: ${url}`}
+        >
+          <Copy
+            className="size-3.5"
+            aria-hidden="true"
+          />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Copied!</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -137,7 +143,7 @@ function CopyPathButton({ filePath }: { filePath: string }) {
 // Column definitions
 // =============================================================================
 
-function createColumns(currentPath: string): ColumnDef<DatasetFile>[] {
+function createColumns(): ColumnDef<DatasetFile>[] {
   return [
     {
       id: "name",
@@ -171,18 +177,6 @@ function createColumns(currentPath: string): ColumnDef<DatasetFile>[] {
       },
     },
     {
-      id: "modified",
-      accessorKey: "modified",
-      header: "Modified",
-      cell: ({ row }) => {
-        const { modified } = row.original;
-        if (!modified) {
-          return <span className="text-sm text-zinc-400 dark:text-zinc-600">—</span>;
-        }
-        return <span className="text-sm text-zinc-600 dark:text-zinc-400">{formatDateTimeSuccinct(modified)}</span>;
-      },
-    },
-    {
       id: "type",
       accessorKey: "name",
       header: "Type",
@@ -198,11 +192,12 @@ function createColumns(currentPath: string): ColumnDef<DatasetFile>[] {
     {
       id: "copy",
       header: "",
+      minSize: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
+      maxSize: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
       cell: ({ row }) => {
-        const { name, type } = row.original;
-        if (type === "folder") return null;
-        const filePath = currentPath ? `${currentPath}/${name}` : name;
-        return <CopyPathButton filePath={filePath} />;
+        const { type, url } = row.original;
+        if (type === "folder" || !url) return null;
+        return <CopyPathButton url={url} />;
       },
     },
   ];
@@ -250,9 +245,9 @@ export const FileBrowserTable = memo(function FileBrowserTable({
     [path, onNavigate, onSelectFile],
   );
 
-  const columns = useMemo(() => createColumns(path), [path]);
+  const columns = useMemo(() => createColumns(), []);
 
-  const emptyContent = useMemo(() => <TableEmptyState message="This directory is empty" />, []);
+  const emptyContent = useMemo(() => <TableEmptyState message="This directory is empty or does not exist" />, []);
 
   if (isLoading) {
     return <TableLoadingSkeleton rowHeight={rowHeight} />;
@@ -270,6 +265,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
       emptyContent={emptyContent}
       className="text-sm"
       scrollClassName="flex-1"
+      rowClassName="group"
     />
   );
 });
