@@ -202,7 +202,7 @@ def _list_tokens(service_client: client.ServiceClient, args: argparse.Namespace)
 
 def _list_token_roles(service_client: client.ServiceClient, args: argparse.Namespace):
     """List roles assigned to a token."""
-    path = f'api/auth/access_tokens/{args.name}/roles'
+    path = f'api/auth/access_token/{args.name}/roles'
     result = service_client.request(client.RequestMethod.GET, path)
 
     if args.format_type == 'json':
