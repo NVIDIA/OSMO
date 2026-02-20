@@ -470,39 +470,27 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         List[backend_job_defs.BackendCleanupSpec]:
         """Returns the objects to cleanup for this pod group"""
         return [
-            backend_job_defs.BackendCleanupSpec(resource_type='Pod', labels=labels),
             backend_job_defs.BackendCleanupSpec(
-                    resource_type='PodGroup',
-                    labels=labels,
-                    custom_api=backend_job_defs.BackendCustomApi(
-                        api_major='scheduling.run.ai',
-                        api_minor='v2alpha2',
-                        path='podgroups'))]
+                generic_api=backend_job_defs.BackendGenericApi(api_version='v1', kind='Pod'),
+                labels=labels),
+            backend_job_defs.BackendCleanupSpec(
+                generic_api=backend_job_defs.BackendGenericApi(
+                    api_version='scheduling.run.ai/v2alpha2', kind='PodGroup'),
+                labels=labels)]
 
     def list_scheduler_resources_spec(self, backend: connectors.Backend) \
         -> List[backend_job_defs.BackendCleanupSpec]:
         """Returns cleanup specs for queues and topology CRDs"""
-        specs = [
-            # Queue cleanup spec
+        return [
             backend_job_defs.BackendCleanupSpec(
-                resource_type='Queue',
-                labels={'osmo.namespace': backend.k8s_namespace},
-                custom_api=backend_job_defs.BackendCustomApi(
-                    api_major='scheduling.run.ai',
-                    api_minor='v2',
-                    path='queues'
-                )),
-            # Topology cleanup spec
+                generic_api=backend_job_defs.BackendGenericApi(
+                    api_version='scheduling.run.ai/v2', kind='Queue'),
+                labels={'osmo.namespace': backend.k8s_namespace}),
             backend_job_defs.BackendCleanupSpec(
-                resource_type='Topology',
-                labels={'osmo.namespace': backend.k8s_namespace},
-                custom_api=backend_job_defs.BackendCustomApi(
-                    api_major='kai.scheduler',
-                    api_minor='v1alpha1',
-                    path='topologies'
-                ))
+                generic_api=backend_job_defs.BackendGenericApi(
+                    api_version='kai.scheduler/v1alpha1', kind='Topology'),
+                labels={'osmo.namespace': backend.k8s_namespace}),
         ]
-        return specs
 
     def list_immutable_scheduler_resources(self) -> List[str]:
         """Topology CRD has immutable fields (spec.levels), must be recreated instead of updated"""
