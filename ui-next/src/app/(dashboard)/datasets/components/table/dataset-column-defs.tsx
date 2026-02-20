@@ -37,7 +37,7 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       accessorKey: "name",
       header: COLUMN_LABELS.name,
       minSize: getMinSize("name"),
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => (
         <span className="truncate font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {row.original.name}
@@ -49,7 +49,7 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       accessorKey: "bucket",
       header: COLUMN_LABELS.bucket,
       minSize: getMinSize("bucket"),
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => (
         <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.bucket}</span>
       ),
@@ -59,7 +59,7 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       accessorKey: "version",
       header: COLUMN_LABELS.version,
       minSize: getMinSize("version"),
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => {
         const version = row.original.version || 0;
         return (
@@ -74,7 +74,7 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       accessorKey: "size_bytes",
       header: COLUMN_LABELS.size_bytes,
       minSize: getMinSize("size_bytes"),
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => {
         const sizeBytes = row.original.size_bytes || 0;
         // Convert bytes to GiB (formatBytes expects GiB)
@@ -92,7 +92,7 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       accessorKey: "created_at",
       header: COLUMN_LABELS.created_at,
       minSize: getMinSize("created_at"),
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => {
         const createdAt = row.original.created_at;
         if (!createdAt) return <span className="text-sm text-zinc-400">—</span>;
@@ -111,7 +111,7 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       accessorKey: "updated_at",
       header: COLUMN_LABELS.updated_at,
       minSize: getMinSize("updated_at"),
-      enableSorting: false,
+      enableSorting: true,
       cell: ({ row }) => {
         const updatedAt = row.original.updated_at;
         if (!updatedAt) return <span className="text-sm text-zinc-400">—</span>;

@@ -42,6 +42,8 @@ interface UseDatasetsDataParams {
   searchChips: SearchChip[];
   /** Show all users' datasets (default: false = current user only) */
   showAllUsers?: boolean;
+  /** Sort state for client-side sorting via shim */
+  sort?: { column: string; direction: "asc" | "desc" } | null;
 }
 
 interface UseDatasetsDataReturn {
@@ -67,17 +69,21 @@ interface UseDatasetsDataReturn {
 // Hook
 // =============================================================================
 
-export function useDatasetsData({ searchChips, showAllUsers = false }: UseDatasetsDataParams): UseDatasetsDataReturn {
+export function useDatasetsData({
+  searchChips,
+  showAllUsers = false,
+  sort = null,
+}: UseDatasetsDataParams): UseDatasetsDataReturn {
   // Fetch all datasets (server-side filters: name, bucket, user, all_users)
   // Query key only includes server-side params so client-side filter changes
   // (created_at, updated_at) don't trigger new API calls — shim handles them.
   const { data: allDatasets = [], isLoading, error, refetch } = useAllDatasets(showAllUsers, searchChips);
 
-  // Apply client-side filters (date ranges) from cache — no new API call
-  // searchChips passed directly to avoid new-object-every-render bug
+  // Apply client-side filters (date ranges) and sort from cache — no new API call
+  // searchChips and sort passed directly to avoid new-object-every-render bug
   const { datasets, total, filteredTotal } = useMemo(
-    () => applyDatasetsFiltersSync(allDatasets, searchChips, null),
-    [allDatasets, searchChips],
+    () => applyDatasetsFiltersSync(allDatasets, searchChips, sort),
+    [allDatasets, searchChips, sort],
   );
 
   return {

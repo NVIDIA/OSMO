@@ -34,7 +34,7 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { TableEmptyState } from "@/components/data-table/TableEmptyState";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
-import type { ColumnSizingPreference } from "@/components/data-table/types";
+import type { ColumnSizingPreference, SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { Dataset } from "@/lib/api/adapter/datasets";
@@ -63,6 +63,12 @@ export interface DatasetsDataTableProps {
   /** Retry callback */
   onRetry?: () => void;
 
+  // === Sort props ===
+  /** Current sort state */
+  sorting?: SortState<string>;
+  /** Callback when sort changes */
+  onSortingChange?: (sorting: SortState<string>) => void;
+
   // === Infinite scroll props ===
   /** Whether more data is available to load */
   hasNextPage?: boolean;
@@ -89,6 +95,8 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   isLoading = false,
   error,
   onRetry,
+  sorting,
+  onSortingChange,
   hasNextPage = false,
   onLoadMore,
   isFetchingNextPage = false,
@@ -205,6 +213,9 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
+        // Sorting
+        sorting={sorting}
+        onSortingChange={onSortingChange}
         // Column sizing
         columnSizeConfigs={DATASET_COLUMN_SIZE_CONFIG}
         columnSizingPreferences={columnSizingPreferences}

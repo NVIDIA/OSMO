@@ -46,6 +46,7 @@ import type { Dataset } from "@/lib/api/adapter/datasets";
 import type { SearchChip } from "@/stores/types";
 import type { SortDirection } from "@/components/data-table/types";
 import { parseDateRangeValue } from "@/app/(dashboard)/datasets/lib/date-filter-utils";
+import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // Main Export
@@ -68,7 +69,7 @@ import { parseDateRangeValue } from "@/app/(dashboard)/datasets/lib/date-filter-
 export function applyDatasetsFiltersSync(
   allDatasets: Dataset[],
   searchChips: SearchChip[],
-  _sort: { column: string; direction: SortDirection } | null,
+  sort: { column: string; direction: SortDirection } | null,
 ): { datasets: Dataset[]; total: number; filteredTotal: number } {
   let result = allDatasets;
 
@@ -94,6 +95,29 @@ export function applyDatasetsFiltersSync(
         return t >= range.start.getTime() && t <= range.end.getTime();
       });
     }
+  }
+
+  // Client-side sort (server doesn't support sorting yet)
+  if (sort) {
+    const dir = sort.direction === "asc" ? 1 : -1;
+    result = [...result].sort((a, b) => {
+      switch (sort.column) {
+        case "name":
+          return naturalCompare(a.name, b.name) * dir;
+        case "bucket":
+          return naturalCompare(a.bucket, b.bucket) * dir;
+        case "version":
+          return ((a.version ?? 0) - (b.version ?? 0)) * dir;
+        case "size_bytes":
+          return (a.size_bytes - b.size_bytes) * dir;
+        case "created_at":
+          return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+        case "updated_at":
+          return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir;
+        default:
+          return 0;
+      }
+    });
   }
 
   return {
