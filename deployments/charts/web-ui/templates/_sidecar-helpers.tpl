@@ -55,11 +55,6 @@ Envoy sidecar container
     - mountPath: /var/config
       name: envoy-cfg
       readOnly: true
-    {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-    - name: envoy-secrets
-      mountPath: /etc/envoy/secrets
-      readOnly: true
-    {{- end }}
     {{- if .Values.sidecars.envoy.ssl.enabled }}
     - name: ssl-cert
       mountPath: /etc/ssl/certs/cert.crt
@@ -107,16 +102,6 @@ Envoy volumes
 - name: envoy-cfg
   configMap:
     name: {{ .Values.services.ui.serviceName }}-envoy-config
-{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-- name: envoy-secrets
-  secret:
-    secretName: {{ .Values.sidecars.envoy.oauth2Filter.secretName | default "oidc-secrets" }}
-    items:
-    - key: {{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
-      path: client_secret
-    - key: {{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
-      path: hmac_secret
-{{- end }}
 {{- if .Values.sidecars.envoy.ssl.enabled }}
 - name: ssl-cert
   secret:
@@ -242,6 +227,94 @@ Generate log agent volumes
 {{- end }}
 {{- if .Values.sidecars.logAgent.volumes }}
 {{- toYaml .Values.sidecars.logAgent.volumes | nindent 0}}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+OAuth2 Proxy sidecar container
+*/}}
+{{- define "ui.oauth2-proxy-sidecar-container" -}}
+{{- if .Values.sidecars.oauth2Proxy.enabled }}
+- name: oauth2-proxy
+  image: "{{ .Values.sidecars.oauth2Proxy.image }}"
+  imagePullPolicy: {{ .Values.sidecars.oauth2Proxy.imagePullPolicy }}
+  securityContext:
+    {{- toYaml .Values.sidecars.oauth2Proxy.securityContext | nindent 4 }}
+  args:
+    - --config={{ .Values.sidecars.oauth2Proxy.secretPaths.cookieSecret }}
+    - --http-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.httpPort }}
+    - --metrics-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.metricsPort }}
+    - --reverse-proxy=true
+    - --provider={{ .Values.sidecars.oauth2Proxy.provider }}
+    - --oidc-issuer-url={{ .Values.sidecars.oauth2Proxy.oidcIssuerUrl }}
+    - --client-id={{ .Values.sidecars.oauth2Proxy.clientId }}
+    - --cookie-secure={{ .Values.sidecars.oauth2Proxy.cookieSecure }}
+    - --cookie-name={{ .Values.sidecars.oauth2Proxy.cookieName }}
+    {{- if .Values.sidecars.oauth2Proxy.cookieDomain }}
+    - --cookie-domain={{ .Values.sidecars.oauth2Proxy.cookieDomain }}
+    {{- end }}
+    - --cookie-expire={{ .Values.sidecars.oauth2Proxy.cookieExpire }}
+    - --cookie-refresh={{ .Values.sidecars.oauth2Proxy.cookieRefresh }}
+    - --scope={{ .Values.sidecars.oauth2Proxy.scope }}
+    - --email-domain=*
+    - --set-xauthrequest=true
+    - --set-authorization-header=true
+    - --pass-access-token={{ .Values.sidecars.oauth2Proxy.passAccessToken }}
+    - --upstream=static://200
+    - --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
+    - --silence-ping-logging=true
+    - --skip-provider-button=true
+    {{- range .Values.sidecars.oauth2Proxy.extraArgs }}
+    - {{ . }}
+    {{- end }}
+  ports:
+  - name: http
+    containerPort: {{ .Values.sidecars.oauth2Proxy.httpPort }}
+  - name: metrics
+    containerPort: {{ .Values.sidecars.oauth2Proxy.metricsPort }}
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+  resources:
+    {{- toYaml .Values.sidecars.oauth2Proxy.resources | nindent 4 }}
+  volumeMounts:
+    {{- if .Values.sidecars.oauth2Proxy.useKubernetesSecrets }}
+    - name: oauth2-proxy-secrets
+      mountPath: /etc/oauth2-proxy
+      readOnly: true
+    {{- end }}
+    {{- with .Values.sidecars.oauth2Proxy.extraVolumeMounts }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+OAuth2 Proxy volumes
+*/}}
+{{- define "ui.oauth2-proxy-volumes" -}}
+{{- if .Values.sidecars.oauth2Proxy.enabled }}
+{{- if .Values.sidecars.oauth2Proxy.useKubernetesSecrets }}
+- name: oauth2-proxy-secrets
+  secret:
+    secretName: {{ .Values.sidecars.oauth2Proxy.secretName | default "oauth2-proxy-secrets" }}
+    items:
+    - key: {{ .Values.sidecars.oauth2Proxy.clientSecretKey | default "client_secret" }}
+      path: client-secret
+    - key: {{ .Values.sidecars.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
+      path: cookie-secret
 {{- end }}
 {{- end }}
 {{- end }}
