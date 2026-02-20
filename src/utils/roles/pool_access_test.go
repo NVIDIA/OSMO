@@ -754,7 +754,7 @@ func TestCrossRoleDenySemantics(t *testing.T) {
 	}
 }
 
-func TestRoleAllowsPool(t *testing.T) {
+func TestCheckActionOnResource(t *testing.T) {
 	poolResource := poolResourcePrefix + "production"
 
 	tests := []struct {
@@ -849,15 +849,15 @@ func TestRoleAllowsPool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := roleAllowsPool(tt.role, poolResource)
-			if got != tt.want {
-				t.Errorf("roleAllowsPool() = %v, want %v", got, tt.want)
+			result := CheckActionOnResource(tt.role, ActionWorkflowCreate, poolResource)
+			if result.Allowed != tt.want {
+				t.Errorf("CheckActionOnResource().Allowed = %v, want %v", result.Allowed, tt.want)
 			}
 		})
 	}
 }
 
-func TestPolicyMatchesWorkflowCreate(t *testing.T) {
+func TestPolicyMatchesActionOnResource(t *testing.T) {
 	poolResource := poolResourcePrefix + "dev"
 
 	tests := []struct {
@@ -948,9 +948,9 @@ func TestPolicyMatchesWorkflowCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := policyMatchesWorkflowCreate(tt.policy, poolResource)
+			got := policyMatchesActionOnResource(tt.policy, ActionWorkflowCreate, poolResource)
 			if got != tt.want {
-				t.Errorf("policyMatchesWorkflowCreate() = %v, want %v", got, tt.want)
+				t.Errorf("policyMatchesActionOnResource() = %v, want %v", got, tt.want)
 			}
 		})
 	}

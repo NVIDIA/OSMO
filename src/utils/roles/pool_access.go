@@ -63,74 +63,12 @@ func GetAllowedPools(userRoles []*Role, allPoolNames []string) []string {
 	var allowed []string
 	for _, poolName := range allPoolNames {
 		poolResource := poolResourcePrefix + poolName
-		if isPoolAllowed(userRoles, poolResource) {
-			allowed = append(allowed, poolName)
+		for _, role := range userRoles {
+			if CheckActionOnResource(role, ActionWorkflowCreate, poolResource).Allowed {
+				allowed = append(allowed, poolName)
+				break
+			}
 		}
 	}
 	return allowed
-}
-
-// isPoolAllowed returns true if any role independently grants
-// ActionWorkflowCreate on the given pool resource.
-func isPoolAllowed(userRoles []*Role, poolResource string) bool {
-	for _, role := range userRoles {
-		if roleAllowsPool(role, poolResource) {
-			return true
-		}
-	}
-	return false
-}
-
-// roleAllowsPool evaluates a single role's policies. Within a role, if any
-// Deny policy matches it overrides all Allow policies for that role.
-func roleAllowsPool(role *Role, poolResource string) bool {
-	for _, policy := range role.Policies {
-		if policy.Effect != EffectDeny {
-			continue
-		}
-		if policyMatchesWorkflowCreate(policy, poolResource) {
-			return false
-		}
-	}
-	for _, policy := range role.Policies {
-		if policy.Effect == EffectDeny {
-			continue
-		}
-		if policyMatchesWorkflowCreate(policy, poolResource) {
-			return true
-		}
-	}
-	return false
-}
-
-// policyMatchesWorkflowCreate returns true if the policy has an action that
-// covers ActionWorkflowCreate and a resource pattern that matches poolResource.
-//
-// Empty resources means "no scope" — valid for unscoped actions like
-// profile:Read, but it will not match any specific pool resource.
-func policyMatchesWorkflowCreate(policy RolePolicy, poolResource string) bool {
-	actionMatches := false
-	for _, action := range policy.Actions {
-		if !action.IsSemanticAction() {
-			continue
-		}
-		if matchSemanticAction(action.Action, ActionWorkflowCreate) {
-			actionMatches = true
-			break
-		}
-	}
-	if !actionMatches {
-		return false
-	}
-
-	return matchesAnyResource(policy.Resources, poolResource)
-}
-
-func matchesAnyResource(patterns []string, resource string) bool {
-	for _, pattern := range patterns {
-		if matchResource(pattern, resource) {
-			return true
-		}
-	}
-	return false
 }

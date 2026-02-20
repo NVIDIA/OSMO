@@ -119,7 +119,7 @@ func main() {
 	)
 
 	// Start gRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *grpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *grpcPort))
 	if err != nil {
 		logger.Error("failed to listen", slog.String("error", err.Error()))
 		os.Exit(1)

@@ -454,6 +454,23 @@ listeners:
                           request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
                         end
                       end
+
+        {{- if .Values.sidecars.authz.enabled }}
+        - name: envoy.filters.http.ext_authz
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+            transport_api_version: V3
+            with_request_body:
+              max_request_bytes: 8192
+              allow_partial_message: true
+            failure_mode_allow: false
+            grpc_service:
+              envoy_grpc:
+                cluster_name: authz-sidecar
+              timeout: 0.5s
+            metadata_context_namespaces:
+              - envoy.filters.http.jwt_authn
+        {{- end }}
         {{- end }}
         - name: envoy.filters.http.router
           typed_config:
@@ -502,6 +519,26 @@ clusters:
             socket_address:
               address: {{ .Values.sidecars.envoy.osmoauth.address | default "osmo-service" }}
               port_value: {{ .Values.sidecars.envoy.osmoauth.port | default 80 }}
+{{- end }}
+{{- if .Values.sidecars.authz.enabled }}
+- name: authz-sidecar
+  typed_extension_protocol_options:
+    envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+      "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+      explicit_http_config:
+        http2_protocol_options: {}
+  connect_timeout: 0.25s
+  type: STRICT_DNS
+  lb_policy: ROUND_ROBIN
+  load_assignment:
+    cluster_name: authz-sidecar
+    endpoints:
+    - lb_endpoints:
+      - endpoint:
+          address:
+            socket_address:
+              address: 127.0.0.1
+              port_value: {{ .Values.sidecars.authz.grpcPort }}
 {{- end }}
 {{- if .Values.sidecars.envoy.oauth2Filter.enabled }}
 - name: oauth

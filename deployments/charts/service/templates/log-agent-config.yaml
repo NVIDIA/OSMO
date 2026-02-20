@@ -43,7 +43,6 @@ data:
         HTTP_Port     {{ .Values.sidecars.logAgent.prometheusPort | default 2020 }}
 
     @INCLUDE input-osmo.conf
-    @INCLUDE input-authz.conf
     @INCLUDE k8s-metadata.conf
     @INCLUDE event.conf
     @INCLUDE output-cloudwatch.conf
@@ -54,7 +53,7 @@ data:
         Tag               <service_name>
         Tag_Regex         \/var\/log\/(?<service_name>[^ ]+).txt*
         Path              /var/log/*.txt
-        Exclude_Path      /var/log/backend_event.txt* , /var/log/envoy_access_log.txt*, /var/log/envoy_api_access_log.txt*, /var/log/*authz_sidecar*.txt
+        Exclude_Path      /var/log/backend_event.txt* , /var/log/envoy_access_log.txt*, /var/log/envoy_api_access_log.txt*, /var/log/*authz_sidecar*.txt*
         Multiline         On
         Parser_Firstline  osmo-log
         Key               log
@@ -94,7 +93,6 @@ data:
         Buffer_Chunk_Size 64k
         Buffer_Max_Size   64k
 
-  input-authz.conf: |
     [INPUT]
         Name              tail
         Tag               authz_sidecar
@@ -193,7 +191,7 @@ data:
     [PARSER]
         Name        osmo-log
         Format      regex
-        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?: wf_uuid=(?<workflow_uuid>[\w-]+))?(?<log>.*)$
+        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?: wf_uuid=(?<workflow_uuid>[\w-]+))?[ ]?(?<log>.*)$
 
     [PARSER]
         Name        event-log
@@ -208,7 +206,7 @@ data:
     [PARSER]
         Name        authz-log
         Format      regex
-        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?:[ ]user=(?<user>[^ ]+))?(?<log>.*)$
+        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?:[ ]user=(?<user>[^ ]+))?[ ]?(?<log>.*)$
 
     [PARSER]
         Name        envoy-access-unified

@@ -440,10 +440,6 @@ Authorization sidecar container
           name: redis-secret
           key: redis-password
     {{- end }}
-  ports:
-    - containerPort: {{ .Values.sidecars.authz.grpcPort }}
-      name: authz-grpc
-      protocol: TCP
   {{- if .Values.global.logs.enabled }}
   volumeMounts:
     - name: logs

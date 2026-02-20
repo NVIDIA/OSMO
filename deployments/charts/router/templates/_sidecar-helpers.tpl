@@ -248,10 +248,6 @@ Authorization sidecar container
           name: db-secret
           key: db-password
     {{- end }}
-  ports:
-    - containerPort: {{ .Values.sidecars.authz.grpcPort }}
-      name: authz-grpc
-      protocol: TCP
   {{- if .Values.global.logs.enabled }}
   volumeMounts:
     - name: logs
