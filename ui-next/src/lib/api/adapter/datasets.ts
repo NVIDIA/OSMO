@@ -45,8 +45,6 @@ export interface Dataset {
   updated_at: string;
   /** Size in bytes (backend may return string, we ensure number) */
   size_bytes: number;
-  /** Number of files (backend may return string, we ensure number) */
-  num_files: number;
   labels?: Record<string, string>;
   retention_policy?: string;
   description?: string;
@@ -161,7 +159,6 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
     created_by: undefined, // Not available in list view
     updated_at: raw.last_created || raw.create_time,
     size_bytes: ensureNumber(raw.hash_location_size),
-    num_files: 0, // Not available in list view (backend doesn't provide)
     labels: {}, // Not available in list view
   };
 }
@@ -219,7 +216,6 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
       created_by: raw.created_by,
       updated_at: latestVersion?.created_date || raw.created_date || "",
       size_bytes: ensureNumber(raw.hash_location_size),
-      num_files: 0, // Not in DataInfoResponse
       labels,
     },
     // Return filtered versions array (only dataset entries)
