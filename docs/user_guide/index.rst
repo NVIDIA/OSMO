@@ -282,6 +282,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store datasets a
 
   resource_pools/index
   resource_pools/scheduling/index
+  resource_pools/scheduling/topology
 
 .. toctree::
   :hidden:
