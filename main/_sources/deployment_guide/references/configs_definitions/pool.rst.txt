@@ -1,5 +1,6 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+  All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -92,10 +93,6 @@ Pool
      - Dict[String, Integer]
      - Default actions to perform when tasks exit with a specific exit code. The available actions are: `COMPLETE`, `FAIL`, `RESCHEDULE`.
      - ``{}``
-   * - ``action_permissions``
-     - `Action Permissions`_
-     - Permissions for various pool actions.
-     - Default configuration
    * - ``resources``
      - Dict[String, `Resource Constraint`_]
      - Resource allocation configuration for the pool.
@@ -116,51 +113,6 @@ Pool
      - Dict[String, `Platform`_]
      - Dictionary of platform configurations available in this pool.
      - ``{}``
-
-Permission Level
-================
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 55
-
-   * - **Permission Level**
-     - **Description**
-   * - ``PUBLIC``
-     - Access available to all authenticated users
-   * - ``POOL``
-     - Access available to all users with pool access
-   * - ``PRIVATE``
-     - Access restricted to the user who submitted the workflow
-
-Action Permissions
-==================
-
-.. list-table::
-   :header-rows: 1
-   :widths: 25 12 43 20
-
-   * - **Field**
-     - **Type**
-     - **Description**
-     - **Default Values**
-   * - ``execute``
-     - `Permission Level`_
-     - Permission level required to execute tasks.
-     - ``POOL``
-   * - ``portforward``
-     - `Permission Level`_
-     - Permission level required for port forwarding operations.
-     - ``POOL``
-   * - ``cancel``
-     - `Permission Level`_
-     - Permission level required to cancel tasks.
-     - ``POOL``
-   * - ``rsync``
-     - `Permission Level`_
-     - Permission level required for rsync operations.
-     - ``POOL``
-
 
 .. _pool_config-resource-constraint:
 

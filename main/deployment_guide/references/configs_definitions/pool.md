@@ -1,4 +1,5 @@
-<!-- SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+<!-- SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,29 +43,11 @@ Top-level configuration is used to configure compute pools.
 | `max_exec_timeout`            | String                                | Maximum allowed execution timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).                                                                                       | Inherited from `max_exec_timeout` workflow config      |
 | `max_queue_timeout`           | String                                | Maximum allowed queue timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).                                                                                           | Inherited from `max_queue_timeout` workflow config     |
 | `default_exit_actions`        | Dict[String, Integer]                 | Default actions to perform when tasks exit with a specific exit code. The available actions are: COMPLETE, FAIL, RESCHEDULE.                                                                            | `{}`                                                   |
-| `action_permissions`          | [Action Permissions]()                | Permissions for various pool actions.                                                                                                                                                                   | Default configuration                                  |
 | `resources`                   | Dict[String, [Resource Constraint]()] | Resource allocation configuration for the pool.                                                                                                                                                         | `{}`                                                   |
 | `common_default_variables`    | Dict[String, String]                  | Default values for variables used in pod templates.                                                                                                                                                     | `{}`                                                   |
 | `common_resource_validations` | Array[String]                         | List of resource validation names applied to all platforms in the pool. Read more about resource validation in [Resource Validation](../../advanced_config/resource_validation.md#resource-validation). | `[]`                                                   |
 | `common_pod_template`         | Array[String]                         | List of pod template names applied to all platforms in the pool. Read more about pod templates in [Pod Templates](../../advanced_config/pod_template.md#pod-template).                                  | `[]`                                                   |
 | `platforms`                   | Dict[String, [Platform]()]            | Dictionary of platform configurations available in this pool.                                                                                                                                           | `{}`                                                   |
-
-## Permission Level
-
-| **Permission Level**   | **Description**                                          |
-|------------------------|----------------------------------------------------------|
-| `PUBLIC`               | Access available to all authenticated users              |
-| `POOL`                 | Access available to all users with pool access           |
-| `PRIVATE`              | Access restricted to the user who submitted the workflow |
-
-## Action Permissions
-
-| **Field**     | **Type**             | **Description**                                           | **Default Values**   |
-|---------------|----------------------|-----------------------------------------------------------|----------------------|
-| `execute`     | [Permission Level]() | Permission level required to execute tasks.               | `POOL`               |
-| `portforward` | [Permission Level]() | Permission level required for port forwarding operations. | `POOL`               |
-| `cancel`      | [Permission Level]() | Permission level required to cancel tasks.                | `POOL`               |
-| `rsync`       | [Permission Level]() | Permission level required for rsync operations.           | `POOL`               |
 
 <a id="pool-config-resource-constraint"></a>
 
