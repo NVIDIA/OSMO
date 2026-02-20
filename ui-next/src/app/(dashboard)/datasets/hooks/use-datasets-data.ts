@@ -15,33 +15,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Data hook for datasets page with server-side filtering and infinite scroll.
+ * Data hook for datasets page.
  *
  * Architecture:
- * - Uses usePaginatedData for offset-based pagination with infinite scroll
- * - Passes FilterBar chips directly to backend API for server-side filtering
- * - Returns paginated data for UI
- *
- * Server-side filtering:
- * - All filters (name, bucket, user) are passed to the backend
- * - Backend handles filtering and pagination
- * - No client-side filtering needed
+ * - useAllDatasets fetches all datasets at once (count: 10_000)
+ *   Server-side filters: name, bucket, user, all_users
+ * - applyDatasetsFiltersSync applies client-side filters from cache
+ *   Client-side filters: created_at, updated_at date ranges
+ * - Returns all filtered datasets; DataTable uses virtual scrolling for display
  */
 
 "use client";
 
 import { useMemo } from "react";
 import type { SearchChip } from "@/stores/types";
-import type { PaginationParams, PaginatedResponse } from "@/lib/api/pagination/types";
-import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
 import type { Dataset } from "@/lib/api/adapter/datasets";
-import {
-  fetchPaginatedDatasets,
-  buildDatasetsQueryKey,
-  hasActiveFilters,
-  type DatasetFilterParams,
-} from "@/lib/api/adapter/datasets";
-import { QUERY_STALE_TIME } from "@/lib/config";
+import { useAllDatasets } from "@/lib/api/adapter/datasets-hooks";
+import { applyDatasetsFiltersSync, hasActiveDatasetFilters } from "@/lib/api/adapter/datasets-shim";
 
 // =============================================================================
 // Types
@@ -52,20 +42,18 @@ interface UseDatasetsDataParams {
   searchChips: SearchChip[];
   /** Show all users' datasets (default: false = current user only) */
   showAllUsers?: boolean;
-  /** Number of datasets per page (default: 50) */
-  pageSize?: number;
 }
 
 interface UseDatasetsDataReturn {
-  /** Datasets from the current query */
+  /** Filtered datasets for display */
   datasets: Dataset[];
-  /** All loaded datasets (for suggestions in FilterBar) */
+  /** All loaded datasets (for FilterBar suggestions) */
   allDatasets: Dataset[];
   /** Whether any filters are active */
   hasActiveFilters: boolean;
-  /** Total datasets before filtering (if available from server) */
+  /** Total datasets before client-side filtering */
   total: number;
-  /** Total datasets after filtering */
+  /** Total datasets after client-side filtering */
   filteredTotal: number;
   /** Loading state */
   isLoading: boolean;
@@ -73,63 +61,33 @@ interface UseDatasetsDataReturn {
   error: Error | null;
   /** Refetch function */
   refetch: () => void;
-  /** Whether there are more datasets available */
-  hasMore: boolean;
-  /** Function to load next page */
-  fetchNextPage: () => void;
-  /** Whether currently loading more data */
-  isFetchingNextPage: boolean;
 }
 
 // =============================================================================
 // Hook
 // =============================================================================
 
-export function useDatasetsData({
-  searchChips,
-  showAllUsers = false,
-  pageSize = 50,
-}: UseDatasetsDataParams): UseDatasetsDataReturn {
-  // Build stable query key - changes when filters or showAllUsers change, which resets pagination
-  const queryKey = useMemo(() => buildDatasetsQueryKey(searchChips, showAllUsers), [searchChips, showAllUsers]);
+export function useDatasetsData({ searchChips, showAllUsers = false }: UseDatasetsDataParams): UseDatasetsDataReturn {
+  // Fetch all datasets (server-side filters: name, bucket, user, all_users)
+  // Query key only includes server-side params so client-side filter changes
+  // (created_at, updated_at) don't trigger new API calls — shim handles them.
+  const { data: allDatasets = [], isLoading, error, refetch } = useAllDatasets(showAllUsers, searchChips);
 
-  // Use paginated data hook for infinite scroll
-  const {
-    items: datasets,
-    filteredCount,
-    totalCount,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-    isLoading,
-    error,
-    refetch,
-  } = usePaginatedData<Dataset, DatasetFilterParams>({
-    queryKey,
-    queryFn: async (params: PaginationParams & DatasetFilterParams): Promise<PaginatedResponse<Dataset>> => {
-      return fetchPaginatedDatasets(params);
-    },
-    params: { searchChips, showAllUsers },
-    config: {
-      pageSize,
-      // Datasets are relatively static - use STATIC stale time (5 minutes)
-      staleTime: QUERY_STALE_TIME.STATIC,
-    },
-  });
+  // Apply client-side filters (date ranges) from cache — no new API call
+  // searchChips passed directly to avoid new-object-every-render bug
+  const { datasets, total, filteredTotal } = useMemo(
+    () => applyDatasetsFiltersSync(allDatasets, searchChips, null),
+    [allDatasets, searchChips],
+  );
 
   return {
     datasets,
-    // For FilterBar suggestions, we use the currently loaded datasets
-    // This provides a reasonable suggestion pool without fetching all data
-    allDatasets: datasets,
-    hasActiveFilters: hasActiveFilters(searchChips),
-    total: totalCount ?? datasets.length,
-    filteredTotal: filteredCount ?? datasets.length,
+    allDatasets,
+    hasActiveFilters: hasActiveDatasetFilters(searchChips),
+    total,
+    filteredTotal,
     isLoading,
-    error,
+    error: error instanceof Error ? error : null,
     refetch,
-    hasMore: hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
   };
 }

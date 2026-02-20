@@ -21,9 +21,8 @@
  * Receives hydrated data from the server and handles all user interactions.
  *
  * Features:
- * - Smart search with filter chips (name, bucket, user)
+ * - Smart search with filter chips (name, bucket, user, created_at, updated_at)
  * - Column visibility and reordering
- * - Infinite scroll pagination
  * - Navigation to dataset detail page on row click
  */
 
@@ -87,23 +86,12 @@ export function DatasetsPageContent() {
   const hasUserFilter = useMemo(() => searchChips.some((c) => c.field === "user"), [searchChips]);
 
   // ==========================================================================
-  // Data Fetching with FilterBar filtering and pagination
-  // Data is hydrated from server prefetch - no loading spinner on initial load!
+  // Data Fetching — fetch-all + shim approach
+  // Fetches all datasets at once (count: 10_000); shim applies client-side
+  // date range filters from the React Query cache (no infinite scroll).
   // ==========================================================================
 
-  const {
-    datasets,
-    allDatasets,
-    isLoading,
-    error,
-    refetch,
-    hasMore,
-    fetchNextPage,
-    isFetchingNextPage,
-    total,
-    filteredTotal,
-    hasActiveFilters,
-  } = useDatasetsData({
+  const { datasets, allDatasets, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } = useDatasetsData({
     searchChips,
     showAllUsers,
   });
@@ -151,9 +139,6 @@ export function DatasetsPageContent() {
             isLoading={isLoading}
             error={error ?? undefined}
             onRetry={refetch}
-            hasNextPage={hasMore}
-            onLoadMore={fetchNextPage}
-            isFetchingNextPage={isFetchingNextPage}
           />
         </InlineErrorBoundary>
       </div>
