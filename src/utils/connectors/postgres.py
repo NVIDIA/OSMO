@@ -201,7 +201,7 @@ class PostgresConfig(pydantic.BaseModel):
         command_line='schema_version',
         env='OSMO_SCHEMA_VERSION',
         default='public',
-        description='pgroll schema version to use (e.g., public_003_v6_2_0_schema). '
+        description='pgroll schema version to use. '
                     'Set to "public" to use the default schema without pgroll versioning.')
 
 
@@ -335,7 +335,7 @@ class PostgresConnector:
                     pass
                 conn = pool.getconn()
 
-            if self.config.schema_version != 'public':
+            if self._schema_initialized and self.config.schema_version != 'public':
                 with conn.cursor() as cur:
                     cur.execute('SET search_path TO %s', (self.config.schema_version,))
                 conn.commit()
@@ -374,6 +374,7 @@ class PostgresConnector:
                       config.postgres_port)
         self.config = config
         self._pool_lock = threading.Lock()
+        self._schema_initialized = False
         self._create_pool()
         logging.debug('Finished connecting to postgres database')
 
@@ -395,6 +396,8 @@ class PostgresConnector:
         logging.debug('Initializing configs')
         self._init_configs()
         logging.debug('Configs initialized')
+
+        self._schema_initialized = True
 
         # Register cleanup on exit
         atexit.register(self.close)
