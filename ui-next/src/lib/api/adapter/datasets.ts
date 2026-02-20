@@ -81,6 +81,8 @@ export interface DatasetFile {
   size?: number;
   modified?: string;
   checksum?: string;
+  /** URL to access/preview the file (for public buckets) */
+  url?: string;
 }
 
 /**
@@ -360,25 +362,39 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
 /**
  * Fetch files for a dataset at a specific path.
  *
+ * Calls the info endpoint with ?path= and optional ?version= query params.
+ * The backend returns a `files` array in the response when path is provided.
+ *
  * @param bucket - Bucket name
  * @param name - Dataset name
- * @param path - Path within dataset (optional, defaults to root)
+ * @param path - Path within dataset (optional, defaults to root "")
+ * @param version - Version tag to browse (optional, defaults to latest)
  */
 export async function fetchDatasetFiles(
   bucket: string,
   name: string,
-  path: string = "/",
+  path: string = "",
+  version?: string,
 ): Promise<DatasetFilesResponse> {
-  // Import generated client
-  const { getInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
+  // Build the URL with path and optional version query params
+  // We use a direct fetch here since the generated client doesn't expose query params for the info endpoint
+  const url = new URL(
+    `/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/info`,
+    "relative:///",
+  );
+  url.searchParams.set("path", path);
+  if (version) {
+    url.searchParams.set("version", version);
+  }
 
-  // Fetch from API
-  // Note: The API may not support file listing at specific paths yet
-  const _response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
+  const response = await fetch(url.pathname + url.search);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch files: ${response.status} ${response.statusText}`);
+  }
 
-  // Parse response - for now, return empty files as API doesn't support this yet
+  const data = (await response.json()) as { files?: DatasetFile[] };
   return {
-    files: [],
+    files: data.files ?? [],
     path,
   };
 }
@@ -437,10 +453,15 @@ export function buildDatasetDetailQueryKey(bucket: string, name: string): readon
 }
 
 /**
- * Build query key for dataset files at a path.
+ * Build query key for dataset files at a path and version.
  */
-export function buildDatasetFilesQueryKey(bucket: string, name: string, path: string): readonly unknown[] {
-  return ["datasets", "files", bucket, name, path] as const;
+export function buildDatasetFilesQueryKey(
+  bucket: string,
+  name: string,
+  path: string,
+  version?: string,
+): readonly unknown[] {
+  return ["datasets", "files", bucket, name, path, version ?? "latest"] as const;
 }
 
 /**

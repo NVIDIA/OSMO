@@ -72,17 +72,24 @@ export function useDataset(bucket: string, name: string, options?: { enabled?: b
 }
 
 /**
- * Hook to fetch dataset files at a specific path.
+ * Hook to fetch dataset files at a specific path and version.
  *
  * @param bucket - Bucket name
  * @param name - Dataset name
  * @param path - Path within dataset
+ * @param version - Version tag to browse (optional, defaults to latest)
  * @param options - Query options
  */
-export function useDatasetFiles(bucket: string, name: string, path: string = "/", options?: { enabled?: boolean }) {
+export function useDatasetFiles(
+  bucket: string,
+  name: string,
+  path: string = "",
+  version?: string,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
-    queryKey: buildDatasetFilesQueryKey(bucket, name, path),
-    queryFn: () => fetchDatasetFiles(bucket, name, path),
+    queryKey: buildDatasetFilesQueryKey(bucket, name, path, version),
+    queryFn: () => fetchDatasetFiles(bucket, name, path, version),
     enabled: options?.enabled ?? true,
     staleTime: 60_000, // 1 minute
   });
