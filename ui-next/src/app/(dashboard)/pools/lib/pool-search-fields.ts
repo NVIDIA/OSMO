@@ -131,7 +131,16 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
     },
   };
 
-  return [...BASE_POOL_SEARCH_FIELDS, sharedField, ...NUMERIC_POOL_SEARCH_FIELDS];
+  const scopeField: SearchField<Pool> = {
+    id: "scope",
+    label: "Scope",
+    prefix: "scope:",
+    getValues: () => ["user", "all"],
+    exhaustive: true,
+    requiresValidValue: true,
+  };
+
+  return [...BASE_POOL_SEARCH_FIELDS, sharedField, scopeField, ...NUMERIC_POOL_SEARCH_FIELDS];
 }
 
 /** Re-export numeric filter utilities for testing */

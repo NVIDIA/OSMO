@@ -46,8 +46,6 @@ import { chipsToParams, type ChipMappingConfig } from "@/lib/api/chip-filter-uti
 
 interface UsePoolsDataParams {
   searchChips: SearchChip[];
-  /** Show all pools (true) or only the user's accessible pools (false, default) */
-  showAllPools?: boolean;
   /** Pool names the current user has access to (from profile settings) */
   accessiblePoolNames?: string[];
   /** Auto-refresh interval in milliseconds (0 = disabled) */
@@ -102,12 +100,21 @@ const POOL_CHIP_MAPPING: ChipMappingConfig<PoolFilterParams> = {
 
 export function usePoolsData({
   searchChips,
-  showAllPools = true,
   accessiblePoolNames,
   refetchInterval = 0,
 }: UsePoolsDataParams): UsePoolsDataReturn {
+  // Extract scope chip to determine whether to filter to accessible pools
+  const scopeValue = useMemo(() => searchChips.find((c) => c.field === "scope")?.value ?? null, [searchChips]);
+  const showOnlyMyPools = scopeValue === "user";
+
+  // Filter out scope chip before passing to adapter (adapter doesn't know about scope)
+  const adapterChips = useMemo(() => searchChips.filter((c) => c.field !== "scope"), [searchChips]);
+
   // Convert chips to filter params using shared utility
-  const filterParams = useMemo(() => chipsToParams(searchChips, POOL_CHIP_MAPPING) as PoolFilterParams, [searchChips]);
+  const filterParams = useMemo(
+    () => chipsToParams(adapterChips, POOL_CHIP_MAPPING) as PoolFilterParams,
+    [adapterChips],
+  );
 
   // Use adapter hook (handles client/server filtering transparently)
   const {
@@ -130,14 +137,14 @@ export function usePoolsData({
   );
 
   const pools = useMemo(() => {
-    if (showAllPools || !accessibleSet) return chipFilteredPools;
+    if (!showOnlyMyPools || !accessibleSet) return chipFilteredPools;
     return chipFilteredPools.filter((p) => accessibleSet.has(p.name));
-  }, [chipFilteredPools, showAllPools, accessibleSet]);
+  }, [chipFilteredPools, showOnlyMyPools, accessibleSet]);
 
   const total = useMemo(() => {
-    if (showAllPools || !accessibleSet) return chipTotal;
+    if (!showOnlyMyPools || !accessibleSet) return chipTotal;
     return allPools.filter((p) => accessibleSet.has(p.name)).length;
-  }, [showAllPools, accessibleSet, chipTotal, allPools]);
+  }, [showOnlyMyPools, accessibleSet, chipTotal, allPools]);
 
   const filteredTotal = pools.length;
   // Only chip filters count as "active filters" for the "X of Y" display.

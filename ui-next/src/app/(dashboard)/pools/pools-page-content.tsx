@@ -32,12 +32,11 @@
 
 "use client";
 
-import { useMemo, useCallback, useTransition } from "react";
-import { useQueryState, parseAsBoolean } from "nuqs";
+import { useMemo, useCallback } from "react";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/hooks/use-results-count";
-import { useUrlChips } from "@/hooks/use-url-chips";
+import { useDefaultFilter } from "@/hooks/use-default-filter";
 import { usePanelState } from "@/hooks/use-url-state";
 import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
 import { usePanelWidth } from "@/hooks/use-panel-width";
@@ -73,31 +72,15 @@ export function PoolsPageContent() {
     clear: clearSelectedPool,
   } = usePanelState();
 
-  // Filter chips - URL-synced via shared hook
-  const { searchChips, setSearchChips } = useUrlChips();
+  // Default filter: scope:user (My Pools), opt-out via ?all=true
+  const { effectiveChips, handleChipsChange } = useDefaultFilter({
+    field: "scope",
+    defaultValue: "user",
+    label: "My Pools",
+  });
 
   // Auto-refresh settings
   const autoRefresh = usePoolsAutoRefresh();
-
-  // Track pending state for show all pools toggle
-  const [showAllPoolsPending, startShowAllPoolsTransition] = useTransition();
-
-  // Show all pools toggle - URL-synced (default: false = my pools only)
-  // URL param: ?all=true (shows all pools), omitted/false (shows my accessible pools)
-  const [showAllPools, setShowAllPools] = useQueryState(
-    "all",
-    parseAsBoolean.withDefault(false).withOptions({
-      shallow: true,
-      history: "replace",
-      clearOnDefault: true,
-    }),
-  );
-
-  const handleToggleShowAllPools = useCallback(() => {
-    startShowAllPoolsTransition(() => {
-      void setShowAllPools((prev) => !prev);
-    });
-  }, [setShowAllPools]);
 
   // Fetch user profile settings for accessible pool names (no buckets needed).
   // Always enabled so data is pre-cached when toggling to "my pools" (avoids reflow).
@@ -112,8 +95,7 @@ export function PoolsPageContent() {
 
   const { pools, allPools, sharingGroups, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } =
     usePoolsData({
-      searchChips,
-      showAllPools,
+      searchChips: effectiveChips,
       accessiblePoolNames,
       refetchInterval: autoRefresh.effectiveInterval,
     });
@@ -178,12 +160,9 @@ export function PoolsPageContent() {
           <PoolsToolbar
             pools={allPools}
             sharingGroups={sharingGroups}
-            searchChips={searchChips}
-            onSearchChipsChange={setSearchChips}
+            searchChips={effectiveChips}
+            onSearchChipsChange={handleChipsChange}
             resultsCount={resultsCount}
-            showAllPools={showAllPools}
-            showAllPoolsPending={showAllPoolsPending}
-            onToggleShowAllPools={handleToggleShowAllPools}
             autoRefreshProps={autoRefreshProps}
           />
         </InlineErrorBoundary>
@@ -204,7 +183,7 @@ export function PoolsPageContent() {
             onRetry={refetch}
             onPoolSelect={handlePoolSelect}
             selectedPoolName={selectedPoolName}
-            onSearchChipsChange={setSearchChips}
+            onSearchChipsChange={handleChipsChange}
           />
         </InlineErrorBoundary>
       </div>
