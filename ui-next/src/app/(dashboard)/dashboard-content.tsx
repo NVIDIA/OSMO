@@ -36,6 +36,7 @@ import {
   STATUS_STYLES,
   type StatusCategory,
 } from "@/app/(dashboard)/workflows/lib/workflow-constants";
+import { STATUS_PRESETS } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
 
 // =============================================================================
 // Dashboard Content
@@ -82,12 +83,7 @@ export function DashboardContent() {
     if (mountTime === null) {
       const running = workflows.filter((w) => w.status === WorkflowStatus.RUNNING).length;
       const completed = workflows.filter((w) => w.status === WorkflowStatus.COMPLETED).length;
-      const failed = workflows.filter(
-        (w) =>
-          w.status === WorkflowStatus.FAILED ||
-          w.status === WorkflowStatus.FAILED_EXEC_TIMEOUT ||
-          w.status === WorkflowStatus.FAILED_CANCELED,
-      ).length;
+      const failed = workflows.filter((w) => STATUS_PRESETS.failed.includes(w.status)).length;
       return { running, completed, failed };
     }
 
@@ -98,12 +94,7 @@ export function DashboardContent() {
       (w) => w.status === WorkflowStatus.COMPLETED && w.submit_time && new Date(w.submit_time).getTime() > oneDayAgo,
     ).length;
     const failed = workflows.filter(
-      (w) =>
-        (w.status === WorkflowStatus.FAILED ||
-          w.status === WorkflowStatus.FAILED_EXEC_TIMEOUT ||
-          w.status === WorkflowStatus.FAILED_CANCELED) &&
-        w.submit_time &&
-        new Date(w.submit_time).getTime() > oneDayAgo,
+      (w) => STATUS_PRESETS.failed.includes(w.status) && w.submit_time && new Date(w.submit_time).getTime() > oneDayAgo,
     ).length;
 
     return { running, completed, failed };
@@ -130,7 +121,7 @@ export function DashboardContent() {
         <StatCard
           title="Failed (24h)"
           value={workflowsLoading ? undefined : workflowStats.failed}
-          href="/workflows?f=status:FAILED"
+          href={`/workflows?f=${STATUS_PRESETS.failed.map((s) => `status:${s}`).join(",")}`}
           color={workflowStats.failed > 0 ? "text-red-500" : "text-zinc-500"}
         />
         <StatCard

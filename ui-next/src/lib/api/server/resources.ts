@@ -24,6 +24,7 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { AllResourcesResponse, PoolResourcesResponse } from "@/lib/api/adapter/types";
+import { buildResourcesQueryKey } from "@/lib/api/adapter/resources-shim";
 
 // =============================================================================
 // Fetch Functions
@@ -84,59 +85,7 @@ export async function prefetchResources(queryClient: QueryClient): Promise<void>
   });
 }
 
-// Re-export SearchChip type for server use
 import type { SearchChip } from "@/stores/types";
-
-/**
- * Build query key for resources list (matches client-side useResourcesData).
- *
- * This must match the key format in use-resources-data.ts to enable hydration.
- * Exported for use in resources-with-data.tsx to extract prefetched aggregates.
- *
- * @param chips - Filter chips from URL
- */
-export function buildResourcesQueryKey(chips: SearchChip[] = []): readonly unknown[] {
-  // Extract filter values matching client-side chipsToParams format
-  const pools = chips
-    .filter((c) => c.field === "pool")
-    .map((c) => c.value)
-    .sort()
-    .join(",");
-  const platforms = chips
-    .filter((c) => c.field === "platform")
-    .map((c) => c.value)
-    .sort()
-    .join(",");
-  const resourceTypes = chips
-    .filter((c) => c.field === "type")
-    .map((c) => c.value)
-    .sort()
-    .join(",");
-  const backends = chips
-    .filter((c) => c.field === "backend")
-    .map((c) => c.value)
-    .sort()
-    .join(",");
-  const search = chips.find((c) => c.field === "name")?.value ?? "";
-  const hostname = chips.find((c) => c.field === "hostname")?.value ?? "";
-
-  // Client-only chips (numeric filters) - empty for server prefetch
-  const clientFilters = "";
-
-  return [
-    "resources",
-    "filtered",
-    {
-      pools,
-      platforms,
-      resourceTypes,
-      backends,
-      search,
-      hostname,
-      clientFilters,
-    },
-  ] as const;
-}
 
 /**
  * Prefetch the first page of resources for infinite query hydration.

@@ -37,6 +37,7 @@
 import { useMemo } from "react";
 import { fetchResources } from "@/lib/api/adapter/hooks";
 import type { PaginatedResourcesResult, ResourceFilterParams } from "@/lib/api/adapter/resources-shim";
+import { buildResourcesQueryKey } from "@/lib/api/adapter/resources-shim";
 import type { Resource } from "@/lib/api/adapter/types";
 import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
 import type { SearchChip } from "@/stores/types";
@@ -115,23 +116,10 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     [searchChips],
   );
 
-  // Build query key from filter params (stable key for cache)
+  // Build query key from chips (stable key for cache)
   const queryKey = useMemo(
-    () => [
-      "resources",
-      "filtered",
-      {
-        pools: filterParams.pools?.sort().join(",") ?? "",
-        platforms: filterParams.platforms?.sort().join(",") ?? "",
-        resourceTypes: filterParams.resourceTypes?.sort().join(",") ?? "",
-        backends: filterParams.backends?.sort().join(",") ?? "",
-        search: filterParams.search ?? "",
-        hostname: filterParams.hostname ?? "",
-        // Include client-only chips in key for proper cache invalidation
-        clientFilters: chipsToCacheKey(clientOnlyChips),
-      },
-    ],
-    [filterParams, clientOnlyChips],
+    () => buildResourcesQueryKey(searchChips, chipsToCacheKey(clientOnlyChips)),
+    [searchChips, clientOnlyChips],
   );
 
   // Use data table hook for pagination

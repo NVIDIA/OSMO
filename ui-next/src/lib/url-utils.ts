@@ -20,7 +20,7 @@
  * These utilities parse URL search params in the same format as nuqs hooks,
  * enabling server-side prefetching with matching query keys.
  *
- * Format: ?f=field1:value1&f=field2:value2
+ * Format: ?f=field1:value1,field2:value2  (nuqs parseAsArrayOf comma-sep default)
  */
 
 import type { SearchChip } from "@/stores/types";
@@ -28,16 +28,16 @@ import type { SearchChip } from "@/stores/types";
 /**
  * Parse URL filter chips from searchParams.
  *
- * Matches the format used by useUrlChips hook:
- * - Single value: "status:RUNNING" or string
- * - Array: ["status:RUNNING", "user:alice"]
+ * Handles two formats used by useUrlChips (nuqs parseAsArrayOf):
+ * - Comma-separated (nuqs default): ?f=status:RUNNING,user:alice
+ * - Repeated params (legacy/direct links): ?f=status:RUNNING&f=user:alice
  *
  * @param param - The 'f' param from searchParams (string | string[] | undefined)
  * @returns Array of SearchChip objects
  *
  * @example
  * ```ts
- * // URL: /workflows?f=status:RUNNING&f=user:alice
+ * // URL: /workflows?f=status:RUNNING,user:alice  (nuqs format)
  * const params = await searchParams;
  * const chips = parseUrlChips(params.f);
  * // chips = [
@@ -49,8 +49,8 @@ import type { SearchChip } from "@/stores/types";
 export function parseUrlChips(param: string | string[] | undefined): SearchChip[] {
   if (!param) return [];
 
-  // Normalize to array
-  const filterStrings = Array.isArray(param) ? param : [param];
+  // Normalize to flat string array, splitting comma-separated values (nuqs format)
+  const filterStrings = Array.isArray(param) ? param.flatMap((s) => s.split(",")) : param.split(",");
 
   return filterStrings
     .map((str) => {

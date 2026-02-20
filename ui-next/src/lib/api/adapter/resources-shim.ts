@@ -63,6 +63,7 @@ import { matchesSearch } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter/types";
 import { transformAllResourcesResponse } from "@/lib/api/adapter/transforms";
 import { computeAggregates, type ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
+import type { SearchChip } from "@/stores/types";
 
 /**
  * Cache structure for client-side pagination shim.
@@ -326,4 +327,46 @@ export function _getCacheState(): {
 let _cacheTtlOverride: number | null = null;
 export function _setCacheTtl(ttl: number | null): void {
   _cacheTtlOverride = ttl;
+}
+
+/**
+ * Build a stable query key for resources list.
+ *
+ * Used by both the server prefetch and the client hook to guarantee
+ * a cache hit during hydration (SSOT for the key).
+ *
+ * @param chips - Filter chips from URL / FilterBar
+ * @param clientFilters - Serialised client-only chips (numeric filters).
+ *   Pass `""` (the default) from the server — server prefetches never have
+ *   client-only chips, so the key matches the client when there are none.
+ */
+export function buildResourcesQueryKey(chips: SearchChip[] = [], clientFilters = ""): readonly unknown[] {
+  const pools = chips
+    .filter((c) => c.field === "pool")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const platforms = chips
+    .filter((c) => c.field === "platform")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const resourceTypes = chips
+    .filter((c) => c.field === "type")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const backends = chips
+    .filter((c) => c.field === "backend")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const search = chips.find((c) => c.field === "name")?.value ?? "";
+  const hostname = chips.find((c) => c.field === "hostname")?.value ?? "";
+
+  return [
+    "resources",
+    "filtered",
+    { pools, platforms, resourceTypes, backends, search, hostname, clientFilters },
+  ] as const;
 }

@@ -50,6 +50,7 @@ import {
   type PoolFilterParams,
   type FilteredPoolsResult,
   type PoolMetadata,
+  POOLS_QUERY_KEY,
 } from "@/lib/api/adapter/pools-shim";
 import type { PaginationParams } from "@/lib/api/pagination/types";
 import { normalizeWorkflowTimestamps } from "@/lib/api/adapter/utils";
@@ -82,7 +83,7 @@ export function useFilteredPools(params: PoolFilterParams = {}, refetchInterval 
   // This ensures we don't refetch when filters change - filtering is client-side
   // FUTURE: When backend supports filtering, include params in query key
   const query = useQuery({
-    queryKey: ["pools", "all"],
+    queryKey: POOLS_QUERY_KEY,
     queryFn: async () => {
       const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
       return transformPoolsResponse(rawResponse);

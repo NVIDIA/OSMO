@@ -24,6 +24,7 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { Pool, PoolsResponse } from "@/lib/api/adapter/types";
+import { POOLS_QUERY_KEY } from "@/lib/api/adapter/pools-shim";
 
 // =============================================================================
 // Types
@@ -132,7 +133,7 @@ export async function prefetchPools(queryClient: QueryClient): Promise<void> {
   const { fetchPools: adapterFetchPools } = await import("../adapter/hooks");
 
   await queryClient.prefetchQuery({
-    queryKey: ["pools", "all"],
+    queryKey: POOLS_QUERY_KEY,
     queryFn: async () => {
       const result = await adapterFetchPools();
       // Return the transformed data
