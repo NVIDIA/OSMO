@@ -55,19 +55,6 @@ class SyncMode(str, enum.Enum):
     IGNORE = 'ignore'
 
 
-class SyncMode(str, enum.Enum):
-    """
-    Sync mode for role assignments.
-
-    - FORCE: Always apply this role to all users (e.g., for system roles)
-    - IMPORT: Role is imported from IDP claims or user_roles table (default)
-    - IGNORE: Ignore this role in IDP sync (role is managed manually)
-    """
-    FORCE = 'force'
-    IMPORT = 'import'
-    IGNORE = 'ignore'
-
-
 class PolicyEffect(str, Enum):
     """Effect of a policy statement: Allow or Deny. Deny takes precedence over Allow."""
 
