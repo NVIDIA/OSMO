@@ -823,7 +823,7 @@ def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Di
                 updated[key] = strategic_merge_patch(updated[key], value)
         elif isinstance(value, list):
             # Handle the case where the value is a list of dictionaries.
-            if value and all(isinstance(item, dict) for item in value):
+            if all(isinstance(item, dict) for item in value):
                 updated_list = []
                 for i, item in enumerate(updated[key]):
                     for patch_item in value:

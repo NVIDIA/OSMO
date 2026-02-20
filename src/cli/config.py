@@ -64,10 +64,6 @@ UPDATE_CONFIG_API_MAPPING: Dict[
         'default': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
         'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
     },
-    config_history.ConfigHistoryType.GROUP_TEMPLATE: {
-        'default': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
-        'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
-    },
     config_history.ConfigHistoryType.RESOURCE_VALIDATION: {
         'default': {'method': client.RequestMethod.PUT, 'payload_key': 'configs_dict'},
         'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
@@ -88,7 +84,6 @@ DELETE_CONFIG_SUPPORTED_TYPES: Set[config_history.ConfigHistoryType] = {
     config_history.ConfigHistoryType.DATASET,
     config_history.ConfigHistoryType.POOL,
     config_history.ConfigHistoryType.POD_TEMPLATE,
-    config_history.ConfigHistoryType.GROUP_TEMPLATE,
     config_history.ConfigHistoryType.RESOURCE_VALIDATION,
     config_history.ConfigHistoryType.BACKEND_TEST,
     config_history.ConfigHistoryType.ROLE,
