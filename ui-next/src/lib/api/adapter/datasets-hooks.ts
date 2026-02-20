@@ -24,12 +24,36 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { SearchChip } from "@/stores/types";
 import {
+  buildAllDatasetsQueryKey,
   buildDatasetDetailQueryKey,
   buildDatasetFilesQueryKey,
+  fetchAllDatasets,
   fetchDatasetDetail,
   fetchDatasetFiles,
 } from "@/lib/api/adapter/datasets";
+import { QUERY_STALE_TIME } from "@/lib/config";
+
+/**
+ * Hook to fetch all datasets with server-side filtering.
+ *
+ * Fetches once with count: 10_000 — the shim applies client-side filters
+ * (date ranges, sort) from the cache without triggering new API calls.
+ *
+ * Query key only includes server-side params (name, bucket, user, showAllUsers)
+ * so client-side filter changes (created_at, updated_at) use the cached response.
+ *
+ * @param showAllUsers - Whether to include all users' datasets
+ * @param searchChips - Active filter chips (server-side params extracted for query key)
+ */
+export function useAllDatasets(showAllUsers: boolean, searchChips: SearchChip[]) {
+  return useQuery({
+    queryKey: buildAllDatasetsQueryKey(searchChips, showAllUsers),
+    queryFn: () => fetchAllDatasets(showAllUsers, searchChips),
+    staleTime: QUERY_STALE_TIME.STATIC,
+  });
+}
 
 /**
  * Hook to fetch dataset detail by name.
