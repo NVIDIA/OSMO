@@ -211,7 +211,7 @@ data:
     [PARSER]
         Name        envoy-access-unified
         Format      regex
-        Regex       ^(?:\[(?<log_type>API)\] )?\[(?<start_time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^"]*?)(?: +\S*)?)? (?<protocol>\S+)" (?<code>[^ ]*) (?<response_flags>[^ ]*) (?<bytes_received>[^ ]*) (?<bytes_sent>[^ ]*) (?<duration>[^ ]*) (?<x_envoy_upstream_service_time>[^ ]*) "(?<user_agent>[^"]*)" "(?<request_id>[^"]*)" "(?<authority>[^ ]*)" "(?<upstream_host>[^ ]*)" "(?<osmo_user>[^ ]*)" "(?<client_ip>[^"]*)"
+        Regex       ^(?:\[(?<log_type>API)\] )?\[(?<start_time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^"]*?)(?: +\S*)?)? (?<protocol>\S+)" (?<code>[^ ]*) (?<response_flags>[^ ]*) (?<bytes_received>[^ ]*) (?<bytes_sent>[^ ]*) (?<duration>[^ ]*) (?<x_envoy_upstream_service_time>[^ ]*) "(?<user_agent>[^"]*)" "(?<request_id>[^"]*)" "(?<authority>[^ ]*)" "(?<upstream_host>[^ ]*)" "(?<osmo_user>[^ ]*)" "(?<client_ip>[^"]*)" "(?<osmo_token_name>[^"]*)" "(?<osmo_workflow_id>[^"]*)"
         Time_Format %Y-%m-%dT%H:%M:%S.%L%z
         Time_Keep   On
         Time_Key    start_time
