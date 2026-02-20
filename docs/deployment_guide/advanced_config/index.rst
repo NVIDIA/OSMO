@@ -46,6 +46,12 @@ This section provides additional advanced configurations to customize and optimi
 
           Reusable Kubernetes pod specifications for defining workflow task execution.
 
+      .. grid-item-card:: :octicon:`stack` Group Templates
+          :link: ./group_template
+          :link-type: doc
+
+          Kubernetes resources created alongside workflow task groups, such as scheduler CRDs and ConfigMaps.
+
       .. grid-item-card:: :octicon:`workflow` Scheduler Configs
           :link: ./scheduler
           :link-type: doc

@@ -109,6 +109,10 @@ Pool
      - Array[String]
      - List of pod template names applied to all platforms in the pool. Read more about pod templates in :ref:`pod_template`.
      - ``[]``
+   * - ``common_group_templates``
+     - Array[String]
+     - List of group template names applied to all task groups in the pool. These Kubernetes resources are created before the group's pods. Read more about group templates in :ref:`group_template`.
+     - ``[]``
    * - ``platforms``
      - Dict[String, `Platform`_]
      - Dictionary of platform configurations available in this pool.
