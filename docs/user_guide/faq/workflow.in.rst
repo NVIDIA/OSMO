@@ -208,7 +208,7 @@ To manually rerun tasks in a workflow that have failed, see :ref:`cli_reference_
 
 To have your workflow automatically reschedule and retry failed tasks, see  :ref:`workflow_spec_exit_actions`
 
-For a practical example of rescheduling training workflows for backend errors, see `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_reschedule>`__.
+For a practical example of rescheduling training workflows for backend errors, see `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/dnn_training/torchrun_reschedule>`__.
 
 How to save the intermediate data when the workflow is stuck or hangs?
 -----------------------------------------------------------------------
@@ -448,4 +448,4 @@ Running a NIM in an OSMO workflow
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 You can run NVIDIA Inference Microservices (NIMs) directly in your OSMO workflows. This allows you to either host a NIM server as part of your workflow or connect to an external NIM service.
 
-For a complete guide with examples, see the `NIM workflow example <https://github.com/NVIDIA/OSMO/tree/main/workflows/nims>`_.
+For a complete guide with examples, see the `NIM workflow example <https://github.com/NVIDIA/OSMO/tree/main/cookbook/nims>`_.
