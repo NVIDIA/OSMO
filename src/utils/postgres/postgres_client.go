@@ -175,7 +175,7 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 			"PostgreSQL SSL mode (disable, prefer, require, verify-ca, verify-full)"),
 		schemaVersion: flag.String("postgres-schema-version",
 			utils.GetEnv("OSMO_SCHEMA_VERSION", "public"),
-			"pgroll schema version for search_path (e.g., public_003_v6_2_0_schema)"),
+			"pgroll schema version for search_path"),
 	}
 }
 
