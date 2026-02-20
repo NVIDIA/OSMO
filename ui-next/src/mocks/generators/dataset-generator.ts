@@ -38,7 +38,6 @@ export interface GeneratedDataset {
   created_at: string;
   updated_at: string;
   size_bytes: number;
-  num_files: number;
   labels: Record<string, string>;
   retention_policy?: string;
   description?: string;
@@ -156,7 +155,6 @@ export class DatasetGenerator {
       created_at: faker.date.past({ years: 2 }).toISOString(),
       updated_at: faker.date.past({ years: 1 }).toISOString(),
       size_bytes: faker.number.int({ min: 1e9, max: 1e12 }),
-      num_files: faker.number.int({ min: 10, max: 10000 }),
       labels: {
         modality: faker.helpers.arrayElement(DATASET_PATTERNS.modalities),
         project: faker.helpers.arrayElement(["training", "research", "evaluation"]),
