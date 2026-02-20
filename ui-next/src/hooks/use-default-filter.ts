@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import type { SearchChip } from "@/stores/types";
 import { useUrlChips } from "@/hooks/use-url-chips";
@@ -30,6 +30,8 @@ import { useUrlChips } from "@/hooks/use-url-chips";
  *   Writing it on mount caused a race with nuqs: the effect fired before nuqs had fully parsed all
  *   repeated `f=` URL params, so it overwrote the URL with a partial chip set (losing all but the first).
  * - Removing all chips for `field` sets ?{optOutParam}=true; adding one clears it.
+ * - After nuqs has parsed the URL (post-paint), an effect writes the default chip to the URL
+ *   using history:"replace" so that refresh/share reflects the active filter.
  */
 export function useDefaultFilter({
   field,
@@ -66,6 +68,13 @@ export function useDefaultFilter({
     const chipLabel = label ?? `${field}: ${defaultValue}`;
     return [...searchChips, { field, value: defaultValue!, label: chipLabel }];
   }, [searchChips, shouldPrePopulate, field, defaultValue, label]);
+
+  useEffect(() => {
+    if (!shouldPrePopulate) return;
+    const chipLabel = label ?? `${field}: ${defaultValue}`;
+    const defaultChip: SearchChip = { field, value: defaultValue!, label: chipLabel };
+    void setSearchChips([...searchChips, defaultChip], { history: "replace" });
+  }, [shouldPrePopulate, searchChips, field, defaultValue, label, setSearchChips]);
 
   const handleChipsChange = useCallback(
     (newChips: SearchChip[]) => {
