@@ -93,6 +93,8 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       DATASET_STATIC_FIELDS[0], // name
       DATASET_STATIC_FIELDS[1], // bucket
       userField, // async - complete user list
+      DATASET_STATIC_FIELDS[2], // created_at
+      DATASET_STATIC_FIELDS[3], // updated_at
     ],
     [userField],
   );
@@ -115,7 +117,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       onToggleColumn={toggleColumn}
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
-      placeholder="Search datasets... (try 'name:', 'bucket:', 'user:')"
+      placeholder="Search datasets... (try 'name:', 'bucket:', 'user:', 'created_at:')"
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
     >
