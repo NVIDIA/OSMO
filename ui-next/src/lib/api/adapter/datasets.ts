@@ -383,7 +383,12 @@ export async function fetchDatasetFiles(
     url.searchParams.set("version", version);
   }
 
-  const response = await fetch(url.pathname + url.search);
+  // redirect: "manual" prevents the browser from following 302 auth redirects
+  // to an external Keycloak host, which would violate the page's CSP.
+  const response = await fetch(url.pathname + url.search, { redirect: "manual" });
+  if (response.type === "opaqueredirect") {
+    throw new Error("Authentication required. Use the dev auth helpers or log in before browsing files.");
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch files: ${response.status} ${response.statusText}`);
   }
