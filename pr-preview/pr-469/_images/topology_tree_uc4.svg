@@ -1,0 +1,119 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" width="720" height="380">
+  <defs>
+    <style>
+      .root-box        { fill: #f0f0f0; stroke: #777777; stroke-width: 1.5; }
+      .root-text       { fill: #333333; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .constraint-box  { fill: #76b900; stroke: none; }
+      .constraint-key  { fill: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .constraint-grp  { fill: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+      .constraint-type { fill: #333333; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; font-style: italic; text-anchor: middle; dominant-baseline: middle; }
+      .task-box        { fill: #3d6600; stroke: none; }
+      .task-text       { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      .edge            { stroke: #aaaaaa; stroke-width: 1.5; fill: none; }
+      .legend-label    { fill: #555555; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; text-anchor: start; dominant-baseline: middle; }
+
+      @media (prefers-color-scheme: dark) {
+        .root-box        { fill: #3a3a3a; stroke: #aaaaaa; }
+        .root-text       { fill: #e0e0e0; }
+        .constraint-box  { fill: #4a7c00; }
+        .constraint-key  { fill: #e8f5d0; }
+        .constraint-grp  { fill: #d8f0b0; }
+        .constraint-type { fill: #c8e890; }
+        .task-box        { fill: #2d5500; }
+        .task-text       { fill: #d8f0b0; }
+        .edge            { stroke: #666666; }
+        .legend-label    { fill: #aaaaaa; }
+      }
+    </style>
+  </defs>
+
+  <!-- Root -->
+  <rect class="root-box" x="310" y="15" width="100" height="34" rx="6"/>
+  <text class="root-text" x="360" y="32">Root</text>
+
+  <!-- Root → Spine -->
+  <line class="edge" x1="360" y1="49" x2="360" y2="95"/>
+
+  <!-- Spine (coarser) -->
+  <rect class="constraint-box" x="195" y="95" width="330" height="72" rx="6"/>
+  <text class="constraint-key"  x="360" y="113">key: spine</text>
+  <text class="constraint-grp"  x="360" y="131">group: workflow-group</text>
+  <text class="constraint-type" x="360" y="149">preferred</text>
+
+  <!-- Spine → Rack nodes -->
+  <line class="edge" x1="360" y1="167" x2="185" y2="203"/>
+  <line class="edge" x1="360" y1="167" x2="535" y2="203"/>
+
+  <!-- Rack left (finer) -->
+  <rect class="constraint-box" x="78" y="203" width="214" height="72" rx="6"/>
+  <text class="constraint-key"  x="185" y="221">key: rack</text>
+  <text class="constraint-grp"  x="185" y="239">group: model-1-group</text>
+  <text class="constraint-type" x="185" y="257">preferred</text>
+
+  <!-- Rack right (finer) -->
+  <rect class="constraint-box" x="428" y="203" width="214" height="72" rx="6"/>
+  <text class="constraint-key"  x="535" y="221">key: rack</text>
+  <text class="constraint-grp"  x="535" y="239">group: model-2-group</text>
+  <text class="constraint-type" x="535" y="257">preferred</text>
+
+  <!-- Rack-left → tasks (70px wide, 6px gap, centered at 185) -->
+  <line class="edge" x1="185" y1="275" x2="71"  y2="315"/>
+  <line class="edge" x1="185" y1="275" x2="147" y2="315"/>
+  <line class="edge" x1="185" y1="275" x2="223" y2="315"/>
+  <line class="edge" x1="185" y1="275" x2="299" y2="315"/>
+
+  <!-- Rack-right → tasks (centered at 535) -->
+  <line class="edge" x1="535" y1="275" x2="421" y2="315"/>
+  <line class="edge" x1="535" y1="275" x2="497" y2="315"/>
+  <line class="edge" x1="535" y1="275" x2="573" y2="315"/>
+  <line class="edge" x1="535" y1="275" x2="649" y2="315"/>
+
+  <!-- Left tasks -->
+  <rect class="task-box" x="36"  y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="71"  y="330">m1-s1</text>
+
+  <rect class="task-box" x="112" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="147" y="330">m1-s2</text>
+
+  <rect class="task-box" x="188" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="223" y="330">m1-s3</text>
+
+  <rect class="task-box" x="264" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="299" y="330">m1-s4</text>
+
+  <!-- Right tasks -->
+  <rect class="task-box" x="386" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="421" y="330">m2-s1</text>
+
+  <rect class="task-box" x="462" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="497" y="330">m2-s2</text>
+
+  <rect class="task-box" x="538" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="573" y="330">m2-s3</text>
+
+  <rect class="task-box" x="614" y="315" width="70" height="30" rx="4"/>
+  <text class="task-text" x="649" y="330">m2-s4</text>
+
+  <!-- Legend -->
+  <rect class="constraint-box" x="36"  y="357" width="14" height="14" rx="2"/>
+  <text class="legend-label"   x="55"  y="364">Topology constraint node</text>
+  <rect class="task-box"       x="280" y="357" width="14" height="14" rx="2"/>
+  <text class="legend-label"   x="299" y="364">Task node</text>
+</svg>
