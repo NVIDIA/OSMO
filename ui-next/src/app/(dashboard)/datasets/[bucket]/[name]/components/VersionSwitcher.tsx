@@ -104,7 +104,11 @@ export const VersionSwitcher = memo(function VersionSwitcher({
           <SelectValue />
         </SelectTrigger>
 
-        <SelectContent align="end">
+        <SelectContent
+          position="popper"
+          align="end"
+          sideOffset={4}
+        >
           {[...sortedVersions].reverse().map((v) => {
             const isLatest = v.version === latestVersion.version;
             return (
