@@ -991,7 +991,7 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
             client.RequestMethod.GET,
             'api/workflow',
             params=params)
-        workflow_list += workflow_result['workflows']
+        workflow_list.extend(workflow_result['workflows'])
         current_count += count
         if args.count <= current_count or not workflow_result['more_entries']:
             break
