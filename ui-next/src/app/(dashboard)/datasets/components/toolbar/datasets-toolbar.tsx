@@ -17,15 +17,33 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { User, Users } from "lucide-react";
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
+import { User } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
-import type { ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
+import type { ResultsCount, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/TableToolbar";
 import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/datasets/lib/dataset-columns";
 import { DATASET_STATIC_FIELDS, type Dataset } from "@/app/(dashboard)/datasets/lib/dataset-search-fields";
 import { useDatasetsAsyncFields } from "@/app/(dashboard)/datasets/hooks/use-datasets-async-fields";
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function presetPillClasses(bgClass: string, active: boolean): string {
+  return cn(
+    "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
+    bgClass,
+    active && "ring-2 ring-black/15 ring-inset dark:ring-white/20",
+    "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
+    !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
+  );
+}
+
+// =============================================================================
+// Props
+// =============================================================================
 
 export interface DatasetsToolbarProps {
   datasets: Dataset[];
@@ -33,51 +51,24 @@ export interface DatasetsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
-  /** Show all users' datasets (true) or only current user's (false) */
-  showAllUsers: boolean;
-  /** Whether the show all users toggle is pending (async URL update) */
-  showAllUsersPending: boolean;
-  /** Callback when show all users toggle is clicked */
-  onToggleShowAllUsers: () => void;
-  /** Whether the show all users toggle is disabled (e.g., when user: chip is active) */
-  showAllUsersDisabled?: boolean;
+  /** Current username for "My Datasets" preset */
+  currentUsername?: string | null;
   /** Manual refresh callback */
   onRefresh: () => void;
   /** Loading state for refresh button */
   isRefreshing: boolean;
 }
 
-interface UserToggleProps {
-  showAllUsers: boolean;
-  isTransitioning: boolean;
-  onToggle: () => void;
-  disabled?: boolean;
-}
-
-const UserToggle = memo(function UserToggle({ showAllUsers, isTransitioning, onToggle, disabled }: UserToggleProps) {
-  return (
-    <SemiStatefulButton
-      onClick={onToggle}
-      currentStateIcon={showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
-      nextStateIcon={showAllUsers ? <User className="size-4" /> : <Users className="size-4" />}
-      label={showAllUsers ? "Show My Datasets" : "Show All Datasets"}
-      aria-label={showAllUsers ? "Currently showing all users' datasets" : "Currently showing my datasets"}
-      tooltipSide="top"
-      isTransitioning={isTransitioning}
-      disabled={disabled}
-    />
-  );
-});
+// =============================================================================
+// Component
+// =============================================================================
 
 export const DatasetsToolbar = memo(function DatasetsToolbar({
   datasets,
   searchChips,
   onSearchChipsChange,
   resultsCount,
-  showAllUsers,
-  showAllUsersPending,
-  onToggleShowAllUsers,
-  showAllUsersDisabled,
+  currentUsername,
   onRefresh,
   isRefreshing,
 }: DatasetsToolbarProps) {
@@ -99,6 +90,38 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
     [userField],
   );
 
+  // "My Datasets" preset: replaces all user chips with the current user chip.
+  // Uses onSelect to override the default additive toggle with replace semantics.
+  const myDatasetsPreset = useMemo((): SearchPreset | null => {
+    if (!currentUsername) return null;
+
+    const userChips = searchChips.filter((c) => c.field === "user");
+    const isActive = userChips.length === 1 && userChips[0].value === currentUsername;
+
+    return {
+      id: "my-datasets",
+      chips: [{ field: "user", value: currentUsername, label: `user: ${currentUsername}` }],
+      onSelect: (currentChips) => {
+        const nonUserChips = currentChips.filter((c) => c.field !== "user");
+        const currentUserChips = currentChips.filter((c) => c.field === "user");
+        const isMine = currentUserChips.length === 1 && currentUserChips[0].value === currentUsername;
+        if (isMine) return nonUserChips;
+        return [...nonUserChips, { field: "user", value: currentUsername, label: `user: ${currentUsername}` }];
+      },
+      render: () => (
+        <span className={presetPillClasses("bg-amber-50 dark:bg-amber-500/20", isActive)}>
+          <User className="size-3.5 text-amber-600 dark:text-amber-400" />
+          <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">My Datasets</span>
+        </span>
+      ),
+    };
+  }, [currentUsername, searchChips]);
+
+  const searchPresets = useMemo(() => {
+    if (!myDatasetsPreset) return undefined;
+    return [{ label: "User:", items: [myDatasetsPreset] }];
+  }, [myDatasetsPreset]);
+
   // Memoize autoRefreshProps to prevent unnecessary TableToolbar re-renders
   const autoRefreshProps = useMemo(
     () => ({
@@ -118,15 +141,9 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search datasets... (try 'name:', 'bucket:', 'user:', 'created_at:')"
+      searchPresets={searchPresets}
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
-    >
-      <UserToggle
-        showAllUsers={showAllUsers}
-        isTransitioning={showAllUsersPending}
-        onToggle={onToggleShowAllUsers}
-        disabled={showAllUsersDisabled}
-      />
-    </TableToolbar>
+    />
   );
 });

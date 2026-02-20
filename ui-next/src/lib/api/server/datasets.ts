@@ -24,41 +24,34 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { SearchChip } from "@/stores/types";
-import { buildDatasetsQueryKey, buildDatasetDetailQueryKey } from "@/lib/api/adapter/datasets";
+import { buildAllDatasetsQueryKey, buildDatasetDetailQueryKey } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
 // Prefetch Functions
 // =============================================================================
 
 /**
- * Prefetch the first page of datasets for infinite query hydration.
+ * Prefetch all datasets for fetch-all query hydration.
  *
- * Uses prefetchInfiniteQuery to match the client's useInfiniteQuery.
- * Only prefetches the first page - subsequent pages are fetched on demand.
+ * Uses prefetchQuery to match the client's useAllDatasets hook.
+ * Ensures cache hit when client hydrates — no extra network request.
  *
  * @param queryClient - The QueryClient to prefetch into
- * @param filterChips - Filter chips from URL (optional)
+ * @param filterChips - Filter chips from URL (including default user chip if pre-populated)
+ * @param showAllUsers - Whether to include all users' datasets (default: false)
  */
-export const prefetchDatasetsList = cache(async (queryClient: QueryClient, filterChips: SearchChip[] = []) => {
-  const { fetchPaginatedDatasets } = await import("@/lib/api/adapter/datasets");
+export const prefetchDatasetsList = cache(
+  async (queryClient: QueryClient, filterChips: SearchChip[] = [], showAllUsers = false) => {
+    const { fetchAllDatasets } = await import("@/lib/api/adapter/datasets");
 
-  // Build query key matching client format
-  const queryKey = buildDatasetsQueryKey(filterChips);
+    const queryKey = buildAllDatasetsQueryKey(filterChips, showAllUsers);
 
-  await queryClient.prefetchInfiniteQuery({
-    queryKey,
-    queryFn: async () => {
-      const response = await fetchPaginatedDatasets({
-        limit: 50,
-        offset: 0,
-        searchChips: filterChips,
-      });
-
-      return response;
-    },
-    initialPageParam: { cursor: undefined, offset: 0 },
-  });
-});
+    await queryClient.prefetchQuery({
+      queryKey,
+      queryFn: () => fetchAllDatasets(showAllUsers, filterChips),
+    });
+  },
+);
 
 /**
  * Prefetch a single dataset detail by name for hydration.
