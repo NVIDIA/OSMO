@@ -139,7 +139,7 @@ To access your data storage within workflows, you’ll need to set the appropria
 > For assistance with **creating credentials** for your data storage provider, please
 > contact your OSMO administrator.
 
-### AWS S3 / S3-Compatible
+### S3 / S3-Compatible
 
 To set a credential for S3 or S3-compatible storage, run the following command:
 
