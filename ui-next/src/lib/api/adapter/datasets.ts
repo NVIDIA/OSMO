@@ -457,7 +457,7 @@ export function buildDatasetFilesQueryKey(
   path: string,
   version?: string,
 ): readonly unknown[] {
-  return ["datasets", "files", bucket, name, path, version ?? "latest"] as const;
+  return ["datasets", "files", bucket, name, path, version ?? null] as const;
 }
 
 /**

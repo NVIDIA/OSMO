@@ -24,7 +24,7 @@
 "use client";
 
 import { memo } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/shadcn/select";
 import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface VersionSwitcherProps {
@@ -67,8 +67,10 @@ export const VersionSwitcher = memo(function VersionSwitcher({
         className="h-7 w-auto gap-1.5 border-zinc-200 bg-white px-2.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
         aria-label="Select dataset version"
       >
-        <span className="text-zinc-500 dark:text-zinc-400">v</span>
-        <SelectValue />
+        <span>
+          <span className="text-zinc-500 dark:text-zinc-400">v</span>
+          {effectiveVersion}
+        </span>
       </SelectTrigger>
       <SelectContent align="end">
         {[...versions]
