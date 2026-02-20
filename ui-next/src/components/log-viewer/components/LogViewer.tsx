@@ -11,7 +11,7 @@
 import { memo, useMemo, useRef, useCallback, useEffect, useState, startTransition, useDeferredValue } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
-import { cn, formatHotkey } from "@/lib/utils";
+import { cn, formatHotkey, modKey } from "@/lib/utils";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
 import { formatLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
@@ -609,7 +609,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <span className="text-xs">Zoom in (Cmd+Wheel up)</span>
+                    <span className="text-xs">Zoom in ({modKey}+Wheel up)</span>
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
@@ -624,7 +624,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <span className="text-xs">Zoom out (Cmd+Wheel down)</span>
+                    <span className="text-xs">Zoom out ({modKey}+Wheel down)</span>
                   </TooltipContent>
                 </Tooltip>
               </div>

@@ -23,7 +23,7 @@ import { ArrowLeftToLine, ArrowRightFromLine, BookOpen, Terminal, Copy, Check } 
 import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config";
 import { useNavigation } from "@/lib/navigation/use-navigation";
 import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
-import { cn, isMac } from "@/lib/utils";
+import { cn, formatHotkey } from "@/lib/utils";
 import { useCopy } from "@/hooks/use-copy";
 import { useServices } from "@/contexts/service-context";
 import { useRuntimeEnv } from "@/contexts/runtime-env-context";
@@ -281,7 +281,7 @@ function DocumentationLink({ docsBaseUrl, collapsed }: { docsBaseUrl: string; co
  */
 function CollapseButton({ collapsed }: { collapsed: boolean }) {
   const { toggleSidebar } = useSidebar();
-  const shortcutKey = isMac ? "⌘B" : "Ctrl+B";
+  const shortcutKey = formatHotkey("mod+b");
 
   return (
     <SidebarMenu className={cn(collapsed && "items-center")}>

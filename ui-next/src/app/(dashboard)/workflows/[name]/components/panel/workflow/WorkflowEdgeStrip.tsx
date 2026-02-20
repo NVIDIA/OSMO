@@ -20,7 +20,7 @@ import { memo, useCallback, type MouseEvent } from "react";
 import { Network, PanelLeftClose, ArrowRightFromLine, ArrowLeftToLine, type LucideIcon } from "lucide-react";
 import { useEventCallback } from "usehooks-ts";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
-import { cn, isMac } from "@/lib/utils";
+import { cn, formatHotkey } from "@/lib/utils";
 import { ShellSessionIcon } from "@/components/shell/components/ShellSessionIcon";
 import { VerticalRefreshControl } from "@/components/refresh/VerticalRefreshControl";
 import type { RefreshControlProps } from "@/components/refresh/types";
@@ -251,7 +251,7 @@ export const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
               </button>
             </TooltipTrigger>
             <TooltipContent side="left">
-              {isCollapsed ? `Show Details (${isMac ? "⌘I" : "Ctrl+I"})` : `Hide Details (${isMac ? "⌘I" : "Ctrl+I"})`}
+              {isCollapsed ? `Show Details (${formatHotkey("mod+i")})` : `Hide Details (${formatHotkey("mod+i")})`}
             </TooltipContent>
           </Tooltip>
         </div>
