@@ -19,9 +19,8 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { CheckCircle2, User, Users, Wrench, XCircle } from "lucide-react";
+import { CheckCircle2, User, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
@@ -47,39 +46,9 @@ export interface PoolsToolbarProps {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
-  /** Show all pools (true) or only the user's accessible pools (false) */
-  showAllPools: boolean;
-  /** Whether the show all pools toggle is pending (async URL update) */
-  showAllPoolsPending: boolean;
-  /** Callback when show all pools toggle is clicked */
-  onToggleShowAllPools: () => void;
   /** Optional auto-refresh controls (if not provided, no refresh button shown) */
   autoRefreshProps?: RefreshControlProps;
 }
-
-// =============================================================================
-// Pool Toggle (My Pools / All Pools)
-// =============================================================================
-
-interface PoolToggleProps {
-  showAllPools: boolean;
-  isTransitioning: boolean;
-  onToggle: () => void;
-}
-
-const PoolToggle = memo(function PoolToggle({ showAllPools, isTransitioning, onToggle }: PoolToggleProps) {
-  return (
-    <SemiStatefulButton
-      onClick={onToggle}
-      currentStateIcon={showAllPools ? <Users className="size-4" /> : <User className="size-4" />}
-      nextStateIcon={showAllPools ? <User className="size-4" /> : <Users className="size-4" />}
-      label={showAllPools ? "Show My Pools" : "Show All Pools"}
-      aria-label={showAllPools ? "Currently showing all pools" : "Currently showing my pools"}
-      tooltipSide="top"
-      isTransitioning={isTransitioning}
-    />
-  );
-});
 
 /** Status preset configurations */
 const STATUS_PRESET_CONFIG: { id: StatusCategory; label: string }[] = [
@@ -88,15 +57,22 @@ const STATUS_PRESET_CONFIG: { id: StatusCategory; label: string }[] = [
   { id: "offline", label: "Offline" },
 ];
 
+function presetPillClasses(colorClasses: string, active: boolean): string {
+  return cn(
+    "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
+    colorClasses,
+    active && "ring-2 ring-white/40 ring-inset dark:ring-white/20",
+    "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
+    !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
+  );
+}
+
 export const PoolsToolbar = memo(function PoolsToolbar({
   pools,
   sharingGroups = [],
   searchChips,
   onSearchChipsChange,
   resultsCount,
-  showAllPools,
-  showAllPoolsPending,
-  onToggleShowAllPools,
   autoRefreshProps,
 }: PoolsToolbarProps) {
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
@@ -117,18 +93,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
           chips: [{ field: "status", value: id, label: `Status: ${label}` }],
           // Custom render matching the table's status badge exactly
           render: ({ active }: PresetRenderProps) => (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
-                styles.bg,
-                // Active state (has chip): white inner ring
-                active && "ring-2 ring-white/40 ring-inset dark:ring-white/20",
-                // Focused state (keyboard nav via CSS): scale up + shadow
-                "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
-                // Inactive: slightly muted, full opacity on hover or keyboard focus
-                !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
-              )}
-            >
+            <span className={presetPillClasses(styles.bg, active)}>
               <Icon className={cn("size-3.5", styles.icon)} />
               <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
             </span>
@@ -137,6 +102,28 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       }),
     [],
   );
+
+  // "My Pools" preset — replaces any existing scope chip (exclusive toggle)
+  const myPoolsPreset = useMemo((): SearchPreset => {
+    const scopeChips = searchChips.filter((c) => c.field === "scope");
+    const isActive = scopeChips.length === 1 && scopeChips[0].value === "user";
+
+    return {
+      id: "my-pools",
+      chips: [{ field: "scope", value: "user", label: "My Pools" }],
+      onSelect: (currentChips) => {
+        const nonScopeChips = currentChips.filter((c) => c.field !== "scope");
+        if (isActive) return nonScopeChips;
+        return [...nonScopeChips, { field: "scope", value: "user", label: "My Pools" }];
+      },
+      render: ({ active }: PresetRenderProps) => (
+        <span className={presetPillClasses("bg-amber-50 dark:bg-amber-500/20", active)}>
+          <User className="size-3.5 text-amber-600 dark:text-amber-400" />
+          <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">My Pools</span>
+        </span>
+      ),
+    };
+  }, [searchChips]);
 
   return (
     <TableToolbar
@@ -148,15 +135,13 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search pools... (try 'pool:', 'platform:', 'status:')"
-      searchPresets={[{ label: "Status", items: statusPresets }]}
+      searchPresets={[
+        { label: "User", items: [myPoolsPreset] },
+        { label: "Status", items: statusPresets },
+      ]}
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
     >
-      <PoolToggle
-        showAllPools={showAllPools}
-        isTransitioning={showAllPoolsPending}
-        onToggle={onToggleShowAllPools}
-      />
       <DisplayModeToggle />
     </TableToolbar>
   );
