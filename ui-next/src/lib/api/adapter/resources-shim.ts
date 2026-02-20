@@ -280,6 +280,54 @@ export function invalidateResourcesCache(): void {
   resourcesCache = null;
 }
 
+// =============================================================================
+// Hydration Seeding
+// SHIM: Remove this entire section when migrating to server-side pagination.
+// =============================================================================
+
+/** TanStack Query key for the shim seed data stored during server prefetch. */
+export const RESOURCES_SHIM_SEED_KEY = ["resources", "shim-seed"] as const;
+
+/** Minimal data needed to warm the client shim cache from server hydration. */
+export interface ResourcesCacheSeed {
+  allItems: Resource[];
+  pools: string[];
+  platforms: string[];
+}
+
+/**
+ * Snapshot the current shim cache for dehydration.
+ *
+ * Called on the server after prefetchResourcesList so the full resource list
+ * can be stored in TanStack Query and hydrated to the client.
+ */
+export function getResourcesCacheSnapshot(): ResourcesCacheSeed | null {
+  if (!resourcesCache) return null;
+  return {
+    allItems: resourcesCache.allItems,
+    pools: resourcesCache.pools,
+    platforms: resourcesCache.platforms,
+  };
+}
+
+/**
+ * Warm the client shim cache from server-hydrated seed data.
+ *
+ * Called once on mount when HydrationBoundary has provided the full resource
+ * list. Prevents the redundant all_pools=true fetch on first scroll.
+ * No-ops if the cache is already valid (e.g. after a manual refresh).
+ */
+export function seedResourcesCache(data: ResourcesCacheSeed): void {
+  if (isCacheValid(resourcesCache)) return;
+  resourcesCache = {
+    allItems: data.allItems,
+    pools: data.pools,
+    platforms: data.platforms,
+    aggregates: computeAggregates(data.allItems),
+    fetchedAt: Date.now(),
+  };
+}
+
 /**
  * SHIM: Get available filter options from the cached (unfiltered) resources.
  *
