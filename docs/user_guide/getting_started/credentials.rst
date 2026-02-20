@@ -152,7 +152,7 @@ To access your data storage within workflows, you'll need to set the appropriate
 
     .. auto-include:: data_credentials_examples.in.rst
 
-    .. tab-item:: AWS S3 / S3-Compatible
+    .. tab-item:: S3 / S3-Compatible
 
         To set a credential for S3 or S3-compatible storage, run the following command:
 
