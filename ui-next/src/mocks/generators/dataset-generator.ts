@@ -152,7 +152,7 @@ export class DatasetGenerator {
       path: `s3://${bucket}/datasets/${name}/`,
       version: faker.number.int({ min: 1, max: 10 }),
       created_at: faker.date.past({ years: 2 }).toISOString(),
-      updated_at: faker.date.recent({ days: 90 }).toISOString(),
+      updated_at: faker.date.past({ years: 1 }).toISOString(),
       size_bytes: faker.number.int({ min: 1e9, max: 1e12 }),
       num_files: faker.number.int({ min: 10, max: 10000 }),
       labels: {
