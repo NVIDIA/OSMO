@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.corp.nvidia.com/osmo/utils"
 )
@@ -75,12 +74,9 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 	poolConfig.MinConns = config.MinConns
 	poolConfig.MaxConnLifetime = config.MaxConnLifetime
 
-	// Set search_path per connection for pgroll schema versioning
+	// Set pgroll schema version via search_path connection parameter
 	if config.SchemaVersion != "" && config.SchemaVersion != "public" {
-		poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-			_, err := conn.Exec(ctx, "SET search_path TO "+config.SchemaVersion)
-			return err
-		}
+		poolConfig.ConnConfig.RuntimeParams["search_path"] = config.SchemaVersion
 	}
 
 	// Create connection pool
