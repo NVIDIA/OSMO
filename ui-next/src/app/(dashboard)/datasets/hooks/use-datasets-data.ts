@@ -23,7 +23,7 @@
  * - Returns paginated data for UI
  *
  * Server-side filtering:
- * - All filters (format, bucket, search) are passed to the backend
+ * - All filters (name, bucket, user) are passed to the backend
  * - Backend handles filtering and pagination
  * - No client-side filtering needed
  */

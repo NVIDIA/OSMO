@@ -21,7 +21,7 @@
  * Receives hydrated data from the server and handles all user interactions.
  *
  * Features:
- * - Smart search with filter chips (format, bucket)
+ * - Smart search with filter chips (name, bucket, user)
  * - Column visibility and reordering
  * - Infinite scroll pagination
  * - Navigation to dataset detail page on row click
@@ -53,7 +53,7 @@ export function DatasetsPageContent() {
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
-  // URL: /datasets?f=format:parquet&f=bucket:training&all=true
+  // URL: /datasets?f=bucket:training&f=user:alice&all=true
   // ==========================================================================
 
   // Filter chips - URL-synced via shared hook

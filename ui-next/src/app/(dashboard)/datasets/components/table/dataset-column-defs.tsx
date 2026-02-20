@@ -70,16 +70,6 @@ export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
       },
     },
     {
-      id: "format",
-      accessorKey: "format",
-      header: COLUMN_LABELS.format,
-      minSize: getMinSize("format"),
-      enableSorting: false,
-      cell: ({ row }) => (
-        <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.format}</span>
-      ),
-    },
-    {
       id: "size_bytes",
       accessorKey: "size_bytes",
       header: COLUMN_LABELS.size_bytes,
