@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ data:
                   "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
                   path: "/logs/envoy_access_log.txt"
                   log_format: {
-                    text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
+                    text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\" \"%REQ(X-OSMO-TOKEN-NAME)%\" \"%REQ(X-OSMO-WORKFLOW-ID)%\"\n"
                   }
               # Dedicated API path logging - captures all /api/* requests
               - name: envoy.access_loggers.file
@@ -90,7 +90,7 @@ data:
                   "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
                   path: "/logs/envoy_api_access_log.txt"
                   log_format: {
-                    text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
+                    text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\" \"%REQ(X-OSMO-TOKEN-NAME)%\" \"%REQ(X-OSMO-WORKFLOW-ID)%\"\n"
                   }
               codec_type: AUTO
               route_config:
@@ -102,6 +102,7 @@ data:
                 - x-osmo-user
                 - x-osmo-token-name
                 - x-osmo-workflow-id
+                - x-osmo-allowed-pools
 
                 virtual_hosts:
                 - name: service
@@ -154,6 +155,7 @@ data:
                         request_handle:headers():remove("x-osmo-roles")
                         request_handle:headers():remove("x-osmo-token-name")
                         request_handle:headers():remove("x-osmo-workflow-id")
+                        request_handle:headers():remove("x-osmo-allowed-pools")
                         request_handle:headers():remove("x-envoy-internal")
                       end
               - name: add-auth-skip
@@ -530,6 +532,23 @@ data:
                         end
                       end
 
+              {{- if .Values.sidecars.authz.enabled }}
+              - name: envoy.filters.http.ext_authz
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                  transport_api_version: V3
+                  with_request_body:
+                    max_request_bytes: 8192
+                    allow_partial_message: true
+                  failure_mode_allow: false
+                  grpc_service:
+                    envoy_grpc:
+                      cluster_name: authz-sidecar
+                    timeout: 0.5s
+                  metadata_context_namespaces:
+                    - envoy.filters.http.jwt_authn
+              {{- end }}
+
               - name: envoy.filters.http.ratelimit
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
@@ -580,6 +599,7 @@ data:
                 - x-osmo-user
                 - x-osmo-token-name
                 - x-osmo-workflow-id
+                - x-osmo-allowed-pools
 
                 virtual_hosts:
                 - name: service
@@ -618,6 +638,27 @@ data:
                     address: 127.0.0.1
                     port_value: {{ .Values.sidecars.rateLimit.grpcPort }}
         {{- end }}
+
+      {{- if .Values.sidecars.authz.enabled }}
+      - name: authz-sidecar
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+        connect_timeout: 0.25s
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: authz-sidecar
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: 127.0.0.1
+                    port_value: {{ .Values.sidecars.authz.grpcPort }}
+      {{- end }}
 
       - name: oauth
         connect_timeout: 3s

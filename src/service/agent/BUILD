@@ -34,6 +34,7 @@ osmo_py_library(
         "//src/utils:backend_messages",
         "//src/utils/metrics",
         "//src/utils/progress_check:progress_check_lib",
+        "//src/service/core/auth",
         "//src/service/core/config",
         "//src/service/core/workflow",
     ],
