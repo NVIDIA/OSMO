@@ -32,33 +32,6 @@ admin:
 {{- end }}
 
 {{/*
-Generate secrets configuration - supports both custom path and Kubernetes secrets
-*/}}
-{{- define "router.envoy.secrets" -}}
-{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-secrets:
-- name: token
-  generic_secret:
-    secret:
-      filename: /etc/envoy/secrets/{{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
-- name: hmac
-  generic_secret:
-    secret:
-      filename: /etc/envoy/secrets/{{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
-{{- else }}
-secrets:
-- name: token
-  generic_secret:
-    secret:
-      filename: {{ .Values.sidecars.envoy.secretPaths.clientSecret }}
-- name: hmac
-  generic_secret:
-    secret:
-      filename: {{ .Values.sidecars.envoy.secretPaths.hmacSecret }}
-{{- end }}
-{{- end }}
-
-{{/*
 Generate listeners configuration
 */}}
 {{- define "router.envoy.listeners" -}}
@@ -111,6 +84,12 @@ listeners:
           - name: service
             domains: ["*"]
             routes:
+            {{- if $.Values.sidecars.oauth2Proxy.enabled }}
+            - match:
+                prefix: /oauth2/
+              route:
+                cluster: oauth2-proxy
+            {{- end }}
             {{- toYaml .Values.sidecars.envoy.routes | nindent 12}}
         upgrade_configs:
         - upgrade_type: websocket
@@ -165,199 +144,82 @@ listeners:
                   end
                 end
 
-        {{- if .Values.sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken }}
-        - name: envoy.filters.http.lua.validate_idtoken
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-            default_source_code:
-              inline_string: |
-                -- Check if IdToken looks like a valid JWT structure.
-                -- JWT must have exactly 3 base64url parts separated by dots.
-                -- We don't decode or check expiration - we rely on cookie Max-Age (300s).
-                function is_valid_jwt_structure(token)
-                  if not token or #token < 50 then
-                    return false
-                  end
-                  local header, payload, sig = token:match("^([A-Za-z0-9_-]+)%.([A-Za-z0-9_-]+)%.([A-Za-z0-9_-]+)$")
-                  return header ~= nil and payload ~= nil and sig ~= nil
-                end
-
-                -- Remove only auth cookies, preserving others (e.g., AWS ALB stickiness cookies)
-                function remove_auth_cookies(cookie_header)
-                  local auth_cookies = {
-                    ["IdToken"] = true,
-                    ["BearerToken"] = true,
-                    ["RefreshToken"] = true,
-                    ["OauthHMAC"] = true,
-                  }
-                  local preserved = {}
-                  for cookie in string.gmatch(cookie_header, "([^;]+)") do
-                    cookie = cookie:match("^%s*(.-)%s*$")  -- trim whitespace
-                    local name = cookie:match("^([^=]+)")
-                    if name and not auth_cookies[name] then
-                      table.insert(preserved, cookie)
-                    end
-                  end
-                  if #preserved > 0 then
-                    return table.concat(preserved, "; ")
-                  end
-                  return nil
-                end
-
-                -- This filter detects invalid auth state and forces re-authentication.
-                -- OAuth2 doesn't return id_token on refresh without scope=openid.
-                -- We check BearerToken (7 day lifetime) since OauthHMAC (295s) expires
-                -- before IdToken (300s), so we can't rely on OauthHMAC being present.
-                function envoy_on_request(request_handle)
-                  local cookies = request_handle:headers():get("cookie")
-                  if not cookies then return end
-
-                  local has_bearer = cookies:match("BearerToken=[^;]+")
-                  local idtoken = cookies:match("IdToken=([^;%s]+)")
-
-                  -- If BearerToken exists (user was authenticated) but IdToken is missing/malformed
-                  if has_bearer and not is_valid_jwt_structure(idtoken) then
-                    request_handle:logInfo("Detected missing/malformed IdToken with valid BearerToken - clearing auth cookies to force re-auth")
-                    -- Only remove auth cookies, preserve others (AWS ALB stickiness, etc.)
-                    local remaining = remove_auth_cookies(cookies)
-                    request_handle:headers():remove("cookie")
-                    if remaining then
-                      request_handle:headers():add("cookie", remaining)
-                    end
-                  end
-                end
-        {{- end }}
-
-        - name: envoy.filters.http.lua.pre_oauth2
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-            default_source_code:
-              inline_string: |
-                function update_cookie_age(cookie, new_ages)
-                  local new_cookie = ''
-                  local first = true
-                  local new_age = nil
-                  local hostname = "{{ .Values.sidecars.envoy.service.hostname }}"
-                  local cookie_name = nil
-
-                  for all, key, value in string.gmatch(cookie, "(([^=;]+)=?([^;]*))") do
-                    -- Do nothing if this isnt the target cookie
-                    if first then
-                      if new_ages[key] == nil then
-                        return cookie
-                      end
-                      cookie_name = key
-                      new_cookie = new_cookie .. all
-                      new_age = new_ages[key]
-                      first = false
-
-                    -- Otherwise, if this is the max-age, update it
-                    elseif key == 'Max-Age' then
-                      new_cookie = new_cookie .. ';' .. 'Max-Age=' .. new_age
-                    -- For Domain, keep it for non-auth cookies
-                    elseif key == 'Domain' then
-                      if cookie_name ~= "RefreshToken" and cookie_name ~= "BearerToken" and
-                         cookie_name ~= "IdToken" and cookie_name ~= "OauthHMAC" then
-                        new_cookie = new_cookie .. ';' .. all
-                      end
-                    -- If this is Http-Only, discard it, otherwise, append the property as is
-                    elseif all ~= 'HttpOnly' then
-                      new_cookie = new_cookie .. ';' .. all
-                    end
-                  end
-
-                  -- Add domain for auth cookies if no domain was present
-                  if cookie_name == "RefreshToken" or cookie_name == "BearerToken" or
-                     cookie_name == "IdToken" or cookie_name == "OauthHMAC" then
-                    new_cookie = new_cookie .. '; Domain=' .. hostname
-                  end
-
-                  return new_cookie
-                end
-
-                function increase_refresh_age(set_cookie_header, new_ages)
-                  cookies = {}
-                  for cookie in string.gmatch(set_cookie_header, "([^,]+)") do
-                    cookies[#cookies + 1] = update_cookie_age(cookie, new_ages)
-                  end
-                  return cookies
-                end
-
-                function envoy_on_response(response_handle)
-                  local header = response_handle:headers():get("set-cookie")
-
-                  if header ~= nil then
-                    local new_cookies = increase_refresh_age(header, {
-                      RefreshToken=604800,
-                      BearerToken=604800,
-                      IdToken=300,
-                      OauthHMAC=295,
-                    })
-                    response_handle:headers():remove("set-cookie")
-                    for index, cookie in pairs(new_cookies) do
-                      response_handle:headers():add("set-cookie", cookie)
-                    end
-                  end
-                end
-
-        {{- if .Values.sidecars.envoy.oauth2Filter.enabled }}
-        - name: oauth2-with-matcher
+        {{- if $.Values.sidecars.oauth2Proxy.enabled }}
+        - name: ext-authz-oauth2-proxy
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
-
-            # If any of these paths match, then skip the oauth filter
             xds_matcher:
               matcher_list:
                 matchers:
                 - predicate:
-                    single_predicate:
-                      input:
-                        name: request-headers
-                        typed_config:
-                          "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                          header_name: x-osmo-auth-skip
-                      value_match:
-                        exact: "true"
+                    or_matcher:
+                      predicate:
+                      - single_predicate:
+                          input:
+                            name: request-headers
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                              header_name: x-osmo-auth-skip
+                          value_match:
+                            exact: "true"
+                      - single_predicate:
+                          input:
+                            name: request-headers
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                              header_name: x-osmo-auth
+                          value_match:
+                            safe_regex:
+                              google_re2: {}
+                              regex: ".+"
                   on_match:
                     action:
                       name: skip
                       typed_config:
                         "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
-
-            # Otherwise, go through the regular oauth2 process
             extension_config:
-              name: envoy.filters.http.oauth2
+              name: envoy.filters.http.ext_authz
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.oauth2.v3.OAuth2
-                config:
-                  token_endpoint:
-                    cluster: oauth
-                    uri: {{ .Values.sidecars.envoy.oauth2Filter.tokenEndpoint }}
+                "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                http_service:
+                  server_uri:
+                    uri: http://127.0.0.1:{{ $.Values.sidecars.oauth2Proxy.httpPort }}/oauth2/auth
+                    cluster: oauth2-proxy
                     timeout: 3s
-                  authorization_endpoint: {{ .Values.sidecars.envoy.oauth2Filter.authEndpoint }}
-                  redirect_uri: "https://{{ .Values.sidecars.envoy.service.hostname }}/{{ .Values.sidecars.envoy.oauth2Filter.redirectPath }}"
-                  redirect_path_matcher:
-                    path:
-                      exact: "/{{ .Values.sidecars.envoy.oauth2Filter.redirectPath }}"
-                  signout_path:
-                    path:
-                      exact: "/{{ .Values.sidecars.envoy.oauth2Filter.logoutPath | default "logout" }}"
-                  {{- if .Values.sidecars.envoy.oauth2Filter.forwardBearerToken }}
-                  forward_bearer_token: {{ .Values.sidecars.envoy.oauth2Filter.forwardBearerToken }}
-                  {{- end }}
-                  credentials:
-                    client_id: {{ .Values.sidecars.envoy.oauth2Filter.clientId }}
-                    token_secret:
-                      name: token
-                    hmac_secret:
-                      name: hmac
-                  auth_scopes:
-                  - openid
-                  use_refresh_token: true
-                  pass_through_matcher:
-                  - name: x-osmo-auth
-                    safe_regex_match:
-                      regex: ".*"
+                  authorization_request:
+                    allowed_headers:
+                      patterns:
+                      - exact: cookie
+                  authorization_response:
+                    allowed_upstream_headers:
+                      patterns:
+                      - exact: authorization
+                      - exact: x-auth-request-user
+                      - exact: x-auth-request-email
+                      - exact: x-auth-request-preferred-username
+                    allowed_client_headers_on_success:
+                      patterns:
+                      - exact: set-cookie
+                      - exact: x-auth-request-user
+                      - exact: x-auth-request-email
+                      - exact: x-auth-request-preferred-username
+                failure_mode_allow: false
+        - name: envoy.filters.http.lua.copy-auth-header
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            default_source_code:
+              inline_string: |
+                function envoy_on_request(request_handle)
+                  -- After ext_authz sets Authorization: Bearer <id_token>, copy it to
+                  -- x-osmo-auth so downstream services can authenticate without going
+                  -- through OAuth2 Proxy again.
+                  local auth = request_handle:headers():get("authorization")
+                  local osmo_auth = request_handle:headers():get("x-osmo-auth")
+                  if auth and not osmo_auth and auth:sub(1, 7) == "Bearer " then
+                    request_handle:headers():add("x-osmo-auth", auth:sub(8))
+                  end
+                end
+        {{- end }}
 
         - name: jwt-authn-with-matcher
           typed_config:
@@ -395,9 +257,9 @@ listeners:
                     - {{ $provider.audience }}
                     forward: true
                     payload_in_metadata: verified_jwt
-                    from_cookies:
-                    - IdToken
                     from_headers:
+                    - name: authorization
+                      value_prefix: "Bearer "
                     - name: x-osmo-auth
                     remote_jwks:
                       http_uri:
@@ -471,7 +333,6 @@ listeners:
             metadata_context_namespaces:
               - envoy.filters.http.jwt_authn
         {{- end }}
-        {{- end }}
         - name: envoy.filters.http.router
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -520,6 +381,7 @@ clusters:
               address: {{ .Values.sidecars.envoy.osmoauth.address | default "osmo-service" }}
               port_value: {{ .Values.sidecars.envoy.osmoauth.port | default 80 }}
 {{- end }}
+
 {{- if .Values.sidecars.authz.enabled }}
 - name: authz-sidecar
   typed_extension_protocol_options:
@@ -540,8 +402,9 @@ clusters:
               address: 127.0.0.1
               port_value: {{ .Values.sidecars.authz.grpcPort }}
 {{- end }}
-{{- if .Values.sidecars.envoy.oauth2Filter.enabled }}
-- name: oauth
+
+{{- if .Values.sidecars.envoy.idp.host }}
+- name: idp
   connect_timeout: 3s
   type: STRICT_DNS
   dns_refresh_rate: 5s
@@ -549,19 +412,34 @@ clusters:
   dns_lookup_family: V4_ONLY
   lb_policy: ROUND_ROBIN
   load_assignment:
-    cluster_name: oauth
+    cluster_name: idp
     endpoints:
     - lb_endpoints:
       - endpoint:
           address:
             socket_address:
-              address: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+              address: {{ .Values.sidecars.envoy.idp.host }}
               port_value: 443
   transport_socket:
     name: envoy.transport_sockets.tls
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-      sni: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+      sni: {{ .Values.sidecars.envoy.idp.host }}
+{{- end }}
+{{- if $.Values.sidecars.oauth2Proxy.enabled }}
+- name: oauth2-proxy
+  connect_timeout: 0.25s
+  type: STRICT_DNS
+  lb_policy: ROUND_ROBIN
+  load_assignment:
+    cluster_name: oauth2-proxy
+    endpoints:
+    - lb_endpoints:
+      - endpoint:
+          address:
+            socket_address:
+              address: 127.0.0.1
+              port_value: {{ $.Values.sidecars.oauth2Proxy.httpPort }}
 {{- end }}
 {{- end }}
 
@@ -571,7 +449,6 @@ Complete Envoy configuration
 {{- define "router.envoy.config" -}}
 {{ include "router.envoy.admin" . }}
 static_resources:
-  {{ include "router.envoy.secrets" . | nindent 2 }}
   {{ include "router.envoy.listeners" . | nindent 2 }}
   {{ include "router.envoy.clusters" . | nindent 2 }}
 {{- end }}

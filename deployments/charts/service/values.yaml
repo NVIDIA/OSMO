@@ -1030,11 +1030,12 @@ sidecars:
       periodSeconds: 5
       timeoutSeconds: 3
 
-    ## Secret paths for OAuth2 credentials
+    ## IDP (Identity Provider) configuration for JWT JWKS fetching
     ##
-    secretPaths:
-      clientSecret: /etc/envoy/secrets/client_secret
-      hmacSecret: /etc/envoy/secrets/hmac_secret
+    idp:
+      ## Hostname for the identity provider (e.g., login.microsoftonline.com)
+      ##
+      host: ""
     ## Paths that are allowed to be accessed without authentication in the cluster
     ##
     inClusterPaths:
@@ -1356,50 +1357,10 @@ sidecars:
       ##
       address: 127.0.0.1
 
-    ## OAuth2 authentication filter configuration
+    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
     ##
     oauth2Filter:
-      ## Enable OAuth2 authentication filter
-      ##
-      enabled: true
-
-      ## OAuth2 token endpoint URL for token exchange
-      ##
-      tokenEndpoint: ""
-
-      ## OAuth2 authorization endpoint URL for login redirect
-      ##
-      authEndpoint: ""
-
-      ## Redirect path after successful authentication
-      ##
-      redirectPath: api/auth/getAToken
-
-      ## OAuth2 client ID for this application
-      ##
-      clientId: ""
-
-      ## OAuth2 authentication provider name
-      ##
-      authProvider: ""
-
-      ## Path for user logout functionality
-      ##
-      logoutPath: logout
-
-      ## Forward bearer token to upstream service
-      ##
-      forwardBearerToken: true
-
-      ## Kubernetes secret keys (when useKubernetesSecrets is true)
-      ##
-      secretName: oidc-secrets
-      clientSecretKey: client_secret
-      hmacSecretKey: hmac_secret
-
-      ## Force re-authentication when IdToken is missing on refresh
-      ##
-      forceReauthOnMissingIdToken: false
+      enabled: false
 
     ## JWT (JSON Web Token) authentication configuration
     ##
@@ -1426,76 +1387,134 @@ sidecars:
       ##   audience: <client-id>
       ##   jwks_uri: https://login.microsoftonline.com/<id>/discovery/v2.0/keys
       ##   user_claim: unique_name
-      ##   cluster: oauth
+      ##   cluster: idp
       providers:
       ## External OAuth provider configuration (provider 1)
       ##
-      ## An example when using Keycloak is:
-      ##
-      ## - issuer: https://auth-name.osmo.nvidia.com/realms/osmo
-      ##   audience: osmo-browser-flow
-      ##   jwks_uri: https://auth-name.osmo.nvidia.com/realms/osmo/protocol/openid-connect/certs
-      ##   user_claim: preferred_username
-      ##   cluster: oauth
-      ##
-      ## An example when using Microsoft Azure AD is:
-      ##
-      ## - issuer: https://login.microsoftonline.com/<id>/v2.0
-      ##   audience: <client-id>
-      ##   jwks_uri: https://login.microsoftonline.com/<id>/discovery/v2.0/keys
-      ##   user_claim: preferred_username
-      ##   cluster: oauth
       - issuer: ""
         audience: ""
         jwks_uri: ""
         user_claim: unique_name
-        cluster: oauth
+        cluster: idp
       ## External OAuth provider configuration (provider 2)
       ##
-      ## An example when using Keycloak is:
-      ##
-      ## - issuer: https://auth-name.osmo.nvidia.com/realms/osmo
-      ##   audience: osmo-device
-      ##   jwks_uri: https://auth-name.osmo.nvidia.com/realms/osmo/protocol/openid-connect/certs
-      ##   user_claim: preferred_username
-      ##   cluster: oauth
-      ##
-      ## An example when using Microsoft Azure AD is:
-      ##
-      ## - issuer: https://login.microsoftonline.com/<id>/v2.0
-      ##   audience: <client-id>
-      ##   jwks_uri: https://login.microsoftonline.com/<id>/discovery/v2.0/keys
-      ##   user_claim: preferred_username
-      ##   cluster: oauth
       - issuer: ""
         audience: ""
         jwks_uri: ""
         user_claim: preferred_username
-        cluster: oauth
+        cluster: idp
       ## Internal Osmo JWT provider configuration
       ##
-      ## An example when using Keycloak is:
-      ##
-      ## - issuer: osmo
-      ##   audience: osmo
-      ##   jwks_uri: http://osmo-service/api/auth/keys
-      ##   user_claim: unique_name
-      ##   cluster: service
-      ##
-      ## An example when using Microsoft Azure AD is:
-      ##
-      ## - issuer: osmo
-      ##   audience: osmo
-      ##   jwks_uri: http://osmo-service/api/auth/keys
-      ##   user_claim: unique_name
-      ##   cluster: service
       - issuer: osmo
         audience: osmo
         jwks_uri: http://localhost:8000/api/auth/keys
         user_claim: unique_name
         cluster: service
 
+  ## OAuth2 Proxy sidecar configuration
+  ##
+  oauth2Proxy:
+    ## Enable OAuth2 Proxy sidecar container
+    ##
+    enabled: true
 
+    ## OAuth2 Proxy container image
+    ##
+    image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
+
+    ## Image pull policy
+    ##
+    imagePullPolicy: IfNotPresent
+
+    ## HTTP port for OAuth2 Proxy
+    ##
+    httpPort: 4180
+
+    ## Metrics port for OAuth2 Proxy
+    ##
+    metricsPort: 44180
+
+    ## OIDC provider type
+    ##
+    provider: oidc
+
+    ## OIDC issuer URL
+    ##
+    oidcIssuerUrl: ""
+
+    ## OAuth2 client ID
+    ##
+    clientId: ""
+
+    ## Cookie name for session management
+    ##
+    cookieName: _osmo_session
+
+    ## Whether to set the secure flag on cookies
+    ##
+    cookieSecure: true
+
+    ## Cookie domain (leave empty for default)
+    ##
+    cookieDomain: ""
+
+    ## Cookie expiration duration
+    ##
+    cookieExpire: 168h
+
+    ## Cookie refresh interval
+    ##
+    cookieRefresh: 1h
+
+    ## OAuth2 scopes to request
+    ##
+    scope: "openid email profile"
+
+    ## Pass the access token to upstream (disabled to reduce cookie size)
+    ##
+    passAccessToken: false
+
+    ## Use Kubernetes secrets for credentials
+    ##
+    useKubernetesSecrets: false
+
+    ## Kubernetes secret configuration (when useKubernetesSecrets is true)
+    ##
+    secretName: oauth2-proxy-secrets
+    clientSecretKey: client_secret
+    cookieSecretKey: cookie_secret
+
+    ## Secret file paths (when using vault or other secret managers)
+    ##
+    secretPaths:
+      clientSecret: /etc/oauth2-proxy/client-secret
+      cookieSecret: /etc/oauth2-proxy/cookie-secret
+
+    ## Additional arguments passed to oauth2-proxy
+    ##
+    extraArgs: []
+
+    ## Additional volume mounts
+    ##
+    extraVolumeMounts: []
+
+    ## Security context for OAuth2 Proxy container
+    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
+
+    ## Resource limits and requests
+    ##
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        memory: "128Mi"
 
   ## Log agent configuration for centralized log collection
   ##
