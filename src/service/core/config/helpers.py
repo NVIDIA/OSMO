@@ -465,27 +465,6 @@ def create_pod_template_config_history_entry(
     )
 
 
-def create_group_template_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a group template config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    group_templates = connectors.GroupTemplate.list_from_db(postgres)
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.GROUP_TEMPLATE,
-        name=name,
-        username=username,
-        data=group_templates,
-        description=description,
-        tags=tags,
-    )
-
-
 def create_resource_validation_config_history_entry(
     name: str,
     username: str,

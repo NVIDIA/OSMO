@@ -20,7 +20,7 @@ import abc
 import dataclasses
 from typing import List
 
-import kubernetes.dynamic as kb_dynamic  # type: ignore
+import kubernetes.client as kb_client  # type: ignore
 
 from src.utils.job import backend_job_defs
 
@@ -50,44 +50,85 @@ class KubernetesResourceMethods(abc.ABC):
         pass
 
 
-class KubernetesGenericMethods(KubernetesResourceMethods):
-    """Lists and deletes any namespaced Kubernetes resource using the dynamic client.
-
-    Works for both core resources (apiVersion: v1) and any API group, without
-    requiring explicit enumeration of resource types. For Pods, removes the OSMO
-    cleanup finalizer before deletion.
-    """
-    def __init__(self, api_client, api_version: str, kind: str):
-        self._api_version = api_version
-        self._kind = kind
-        dyn_client = kb_dynamic.DynamicClient(api_client)
-        self.resource_api = dyn_client.resources.get(api_version=api_version, kind=kind)
+class KubernetesPodMethods(KubernetesResourceMethods):
+    """Lists and deletes pods"""
+    def __init__(self, api: kb_client.CoreV1Api):
+        self.api = api
 
     def list_resource(self, namespace: str, **kwargs):
-        label_selector = kwargs.get('label_selector', '')
-        result = self.resource_api.get(namespace=namespace, label_selector=label_selector)
-        return CustomObjectListStub(items=[
-            CustomObjectStub(metadata=CustomObjectMetadataStub(name=item.metadata.name))
-            for item in result.items
-        ])
+        return self.api.list_namespaced_pod(namespace, **kwargs)
 
     def delete_resource(self, name: str, namespace: str, **kwargs):
-        if self._api_version == 'v1' and self._kind == 'Pod':
-            self.resource_api.patch(
-                name=name,
-                namespace=namespace,
-                body={'metadata': {
-                    '$deleteFromPrimitiveList/finalizers': ['osmo.nvidia.com/cleanup']
-                }},
-                content_type='application/strategic-merge-patch+json',
-            )
-        return self.resource_api.delete(name=name, namespace=namespace, body=kwargs.get('body'))
+        # Remove the finalizer and then delete the pod
+        self.api.patch_namespaced_pod(name, namespace, body={
+            'metadata': {
+                '$deleteFromPrimitiveList/finalizers': ['osmo.nvidia.com/cleanup']
+            }})
+        return self.api.delete_namespaced_pod(name, namespace, **kwargs)
+
+
+class KubernetesServiceMethods(KubernetesResourceMethods):
+    """Lists and deletes services"""
+    def __init__(self, api: kb_client.CoreV1Api):
+        self.api = api
+
+    def list_resource(self, namespace: str, **kwargs):
+        return self.api.list_namespaced_service(namespace, **kwargs)
+
+    def delete_resource(self, name: str, namespace: str, **kwargs):
+        return self.api.delete_namespaced_service(name, namespace, **kwargs)
+
+
+class KubernetesSecretMethods(KubernetesResourceMethods):
+    """Lists and deletes secrets"""
+    def __init__(self, api: kb_client.CoreV1Api):
+        self.api = api
+
+    def list_resource(self, namespace: str, **kwargs):
+        return self.api.list_namespaced_secret(namespace, **kwargs)
+
+    def delete_resource(self, name: str, namespace: str, **kwargs):
+        return self.api.delete_namespaced_secret(name, namespace, **kwargs)
+
+
+class KubernetesCustomObjectMethods(KubernetesResourceMethods):
+    """Lists and deletes custom objects"""
+    def __init__(self, api: kb_client.CustomObjectsApi, api_major: str, api_minor: str, path: str):
+        self.api = api
+        self.api_major = api_major
+        self.api_minor = api_minor
+        self.path = path
+
+    def list_resource(self, namespace: str, **kwargs):
+        objects = self.api.list_namespaced_custom_object(self.api_major, self.api_minor, namespace,
+            self.path, **kwargs)
+        return CustomObjectListStub(items=[CustomObjectStub(
+            metadata=CustomObjectMetadataStub(
+            name=obj['metadata']['name'])) for obj in objects['items']])
+
+    def delete_resource(self, name: str, namespace: str, **kwargs):
+        return self.api.delete_namespaced_custom_object(self.api_major, self.api_minor, namespace,
+            self.path, name, **kwargs)
 
 
 def kb_methods_factory(api_client,
-                       resource: backend_job_defs.BackendCleanupSpec) -> KubernetesGenericMethods:
-    """Returns a KubernetesGenericMethods for the resource type described by cleanup spec."""
-    kind = resource.effective_kind
-    if kind is None:
-        raise ValueError(f'BackendCleanupSpec has no resource kind: {resource}')
-    return KubernetesGenericMethods(api_client, resource.effective_api_version, kind)
+                       resource: backend_job_defs.BackendCleanupSpec) -> KubernetesResourceMethods:
+    # Return custom methods if this is a custom method
+    custom_resource_api: backend_job_defs.BackendCustomApi = resource.custom_api  # type: ignore
+    if custom_resource_api is not None:
+        return KubernetesCustomObjectMethods(
+            kb_client.CustomObjectsApi(api_client),
+            custom_resource_api.api_major,
+            custom_resource_api.api_minor,
+            custom_resource_api.path)
+
+    methods_by_resource_type = {
+        'Pod': KubernetesPodMethods,
+        'Service': KubernetesServiceMethods,
+        'Secret': KubernetesSecretMethods
+    }
+    resource_type = resource.resource_type
+
+    if resource_type not in methods_by_resource_type:
+        raise ValueError(f'Unrecognized resource type {resource_type}')
+    return methods_by_resource_type[resource_type](kb_client.CoreV1Api(api_client))
