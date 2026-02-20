@@ -165,7 +165,7 @@ def _list_tokens(service_client: client.ServiceClient, args: argparse.Namespace)
     """List access tokens."""
     if args.user:
         # Admin API: list tokens for a specific user
-        path = f'api/auth/user/{args.user}/access_tokens'
+        path = f'api/auth/user/{args.user}/access_token'
     else:
         # Default: list tokens for the current user
         path = 'api/auth/access_token'
