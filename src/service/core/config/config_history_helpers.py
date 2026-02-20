@@ -120,6 +120,5 @@ def transform_config_data(postgres: connectors.PostgresConnector, config_type: s
         return connectors.WorkflowConfig.deserialize(data, postgres)
     elif config_type == config_history.ConfigHistoryType.DATASET.value.lower():
         return connectors.DatasetConfig.deserialize(data, postgres)
-    elif config_type == config_history.ConfigHistoryType.ROLE.value.lower():
-        return connectors.Role.parse_actions_as_strings(data)
+    # ROLE and other types: return data as-is (already the right shape)
     return data
