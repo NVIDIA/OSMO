@@ -323,6 +323,7 @@ go_library(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/types:types",
         "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//tools/cache",
         "@io_opentelemetry_go_otel//attribute:attribute",
         "@io_opentelemetry_go_otel_metric//:metric",

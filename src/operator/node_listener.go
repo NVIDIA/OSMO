@@ -26,11 +26,18 @@ import (
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
+
+// labelUpdateRequest represents a request to update a node's verified label
+type labelUpdateRequest struct {
+	nodeName      string
+	nodeAvailable bool
+}
 
 // NodeListener manages the bidirectional gRPC stream for node events
 type NodeListener struct {
@@ -121,6 +128,14 @@ func (nl *NodeListener) watchNodes(
 	}
 
 	log.Println("Starting node watcher")
+
+	// Create label update channel and start worker if enabled
+	var labelUpdateChan chan labelUpdateRequest
+	if nl.args.EnableNodeLabelUpdate {
+		labelUpdateChan = make(chan labelUpdateRequest, nl.args.LabelUpdateChanSize)
+		go nl.runLabelUpdateWorker(ctx, labelUpdateChan, clientset)
+	}
+
 	nodeStateTracker := utils.NewNodeStateTracker(
 		time.Duration(nl.args.StateCacheTTLMin) * time.Minute)
 
@@ -133,7 +148,7 @@ func (nl *NodeListener) watchNodes(
 	handleNodeEvent := func(node *corev1.Node, isDelete bool) {
 		nl.inst.KubeEventWatchCount.Add(ctx, 1, nl.Attrs.Stream)
 
-		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete)
+		msg := nl.buildResourceMessage(node, nodeStateTracker, isDelete, labelUpdateChan)
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
@@ -183,7 +198,7 @@ func (nl *NodeListener) watchNodes(
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Node watch error, will rebuild from store: %v", err)
 		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nl.Attrs.Stream)
-		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
+		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan, labelUpdateChan)
 		log.Println("Sending NODE_INVENTORY after watch gap recovery")
 		nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 	})
@@ -199,12 +214,46 @@ func (nl *NodeListener) watchNodes(
 	log.Println("Node informer cache synced successfully")
 	nl.inst.InformerCacheSyncSuccess.Add(ctx, 1, nl.Attrs.Stream)
 
-	nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan)
+	nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan, labelUpdateChan)
 	log.Println("Sending initial NODE_INVENTORY after cache sync")
 	nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 
 	<-done
 	log.Println("Node resource watcher stopped")
+}
+
+// runLabelUpdateWorker processes label update requests asynchronously
+func (nl *NodeListener) runLabelUpdateWorker(
+	ctx context.Context,
+	labelUpdateChan <-chan labelUpdateRequest,
+	clientset *kubernetes.Clientset,
+) {
+	log.Println("Label update worker started")
+	defer log.Println("Label update worker stopped")
+
+	labelName := nl.args.NodeConditionPrefix + "verified"
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case req, ok := <-labelUpdateChan:
+			if !ok {
+				return
+			}
+			err := utils.UpdateNodeVerifiedLabel(
+				ctx,
+				clientset,
+				req.nodeName,
+				req.nodeAvailable,
+				labelName,
+			)
+			if err != nil {
+				log.Printf("Warning: Failed to update %s label on node %s: %v",
+					labelName, req.nodeName, err)
+			}
+		}
+	}
 }
 
 // rebuildNodesFromStore rebuilds node state from informer cache
@@ -213,6 +262,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 	nodeInformer cache.SharedIndexInformer,
 	nodeStateTracker *utils.NodeStateTracker,
 	nodeChan chan<- *pb.ListenerMessage,
+	labelUpdateChan chan<- labelUpdateRequest,
 ) {
 	log.Println("Rebuilding node resource state from informer store...")
 
@@ -227,7 +277,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 			continue
 		}
 
-		msg := nl.buildResourceMessage(node, nodeStateTracker, false)
+		msg := nl.buildResourceMessage(node, nodeStateTracker, false, labelUpdateChan)
 		if msg != nil {
 			select {
 			case nodeChan <- msg:
@@ -251,6 +301,7 @@ func (nl *NodeListener) buildResourceMessage(
 	node *corev1.Node,
 	tracker *utils.NodeStateTracker,
 	isDelete bool,
+	labelUpdateChan chan<- labelUpdateRequest,
 ) *pb.ListenerMessage {
 	hostname := utils.GetNodeHostname(node)
 	body := utils.BuildUpdateNodeBody(
@@ -262,6 +313,9 @@ func (nl *NodeListener) buildResourceMessage(
 
 	if !isDelete {
 		tracker.Update(hostname, body)
+		if labelUpdateChan != nil {
+			nl.queueLabelUpdate(node, body.Available, labelUpdateChan)
+		}
 	}
 
 	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
@@ -280,6 +334,27 @@ func (nl *NodeListener) buildResourceMessage(
 	log.Printf("Sent Node (%s): hostname=%s, available=%v", action, hostname, body.Available)
 
 	return msg
+}
+
+// queueLabelUpdate queues an update request regardless of the current label value
+// to avoid label race conditions in the asynchronous update manner
+func (nl *NodeListener) queueLabelUpdate(
+	node *corev1.Node,
+	available bool,
+	labelUpdateChan chan<- labelUpdateRequest,
+) {
+	req := labelUpdateRequest{
+		nodeName:      node.Name,
+		nodeAvailable: available,
+	}
+	select {
+	case labelUpdateChan <- req:
+	default:
+		//  Non-blocking send - drop if channel is full
+		log.Printf("Warning: Label update channel full, skipping update for node %s",
+			node.Name)
+	}
+
 }
 
 // sendNodeInventory builds and sends a NODE_INVENTORY message with all node hostnames

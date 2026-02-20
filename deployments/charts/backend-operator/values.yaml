@@ -303,6 +303,14 @@ services:
       ##
       version: ""
 
+    ## Enable updating node verified label based on availability
+    ##
+    enableNodeLabelUpdate: false
+
+    ## Buffer size for label update channel
+    ##
+    labelUpdateChanSize: 200
+
     ## Additional command line arguments to pass to the backend listener
     ##
     extraArgs: []

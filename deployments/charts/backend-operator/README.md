@@ -113,6 +113,8 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.progressFrequencySec` | Progress frequency in seconds (for periodic progress reporting when idle) | `15` |
 | `services.backendListener.eventChanSize` | Buffer size for event channel (EventListener) | `500` |
 | `services.backendListener.eventCacheTTLMin` | Event deduplication cache TTL in minutes | `15` |
+| `services.backendListener.enableNodeLabelUpdate` | Enable updating node verified label based on availability | `false` |
+| `services.backendListener.labelUpdateChanSize` | Buffer size for label update channel | `200` |
 | `services.backendListener.metrics.enabled` | Enable OpenTelemetry metrics collection | `true` |
 | `services.backendListener.metrics.component` | Service component name for metrics | `osmo-backend-listener` |
 | `services.backendListener.metrics.version` | Service version for metrics (defaults to image tag if empty) | `""` |
