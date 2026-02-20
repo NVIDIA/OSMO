@@ -39,13 +39,13 @@ Each group template manifest must include the following fields:
      - **Description**
    * - ``apiVersion``
      - String
-     - The Kubernetes API version for the resource (for example, ``v1``, ``scheduling.run.ai/v2``).
+     - The Kubernetes API version for the resource (for example, ``v1``, ``resource.nvidia.com/v1beta1``).
    * - ``kind``
      - String
-     - The Kubernetes resource kind (for example, ``ConfigMap``, ``Queue``).
+     - The Kubernetes resource kind (for example, ``ConfigMap``, ``ComputeDomain``).
    * - ``metadata.name``
      - String
-     - The resource name. Supports variable substitution (for example, ``{{WF_ID}}-queue``).
+     - The resource name. Supports variable substitution (for example, ``compute-domain-{{WF_GROUP_UUID}}``).
 
 .. note::
 
@@ -54,38 +54,40 @@ Each group template manifest must include the following fields:
 Example
 =======
 
-The following example defines two group templates: a KAI scheduler topology CRD and a RunAI queue:
+The following example defines two group templates: a ``ComputeDomain`` for NvLINK connectivity and a ``ConfigMap`` for shared workflow configuration:
 
 .. code-block:: json
 
     {
-        "kai-topology": {
-            "apiVersion": "kai.scheduler/v1alpha1",
-            "kind": "Topology",
+        "compute-domain": {
+            "apiVersion": "resource.nvidia.com/v1beta1",
+            "kind": "ComputeDomain",
             "metadata": {
-                "name": "{{WF_ID}}-topology"
+                "name": "compute-domain-{{WF_GROUP_UUID}}"
             },
             "spec": {
-                "levels": [
-                    {"leveltype": "node"}
-                ]
+                "numNodes": 0,
+                "channel": {
+                    "resourceClaimTemplate": {
+                        "name": "compute-domain-{{WF_GROUP_UUID}}-rct"
+                    }
+                }
             }
         },
-        "run-ai-queue": {
-            "apiVersion": "scheduling.run.ai/v2",
-            "kind": "Queue",
+        "workflow-config": {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
             "metadata": {
-                "name": "{{WF_ID}}-queue"
+                "name": "workflow-config-{{WF_GROUP_UUID}}"
             },
-            "spec": {
-                "quota": {
-                    "gpu": "{{USER_GPU}}"
-                }
+            "data": {
+                "workflow_id": "{{WF_ID}}",
+                "pool": "{{WF_POOL}}"
             }
         }
     }
 
-The key (for example, ``kai-topology``) is the template name referenced in the pool's ``common_group_templates`` list. The value is the full Kubernetes manifest for the resource.
+The key (for example, ``compute-domain``) is the template name referenced in the pool's ``common_group_templates`` list. The value is the full Kubernetes manifest for the resource.
 
 A pool applies group templates by listing their names in the ``common_group_templates`` array:
 
@@ -94,7 +96,7 @@ A pool applies group templates by listing their names in the ``common_group_temp
     {
         "my-pool": {
             "backend": "default",
-            "common_group_templates": ["kai-topology", "run-ai-queue"]
+            "common_group_templates": ["compute-domain", "workflow-config"]
         }
     }
 
