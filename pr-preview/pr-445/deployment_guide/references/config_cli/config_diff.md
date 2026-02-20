@@ -20,7 +20,7 @@ SPDX-License-Identifier: Apache-2.0 -->
 
 Show the difference between two config revisions
 
-Available config types (config_type): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+Available config types (config_type): BACKEND, BACKEND_TEST, DATASET, GROUP_TEMPLATE, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
 
 ```default
 usage: osmo config diff [-h] first [second]

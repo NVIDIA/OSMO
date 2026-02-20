@@ -38,6 +38,9 @@ pool:
   accessible:
   - my-pool
   - team-pool
+roles:
+- osmo-user
+- osmo-ml-team
 ```
 
 <a id="profile-default-dataset-bucket"></a>
