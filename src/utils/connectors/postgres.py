@@ -271,7 +271,8 @@ class PostgresConnector:
                 port=self.config.postgres_port,
                 database=self.config.postgres_database_name,
                 user=self.config.postgres_user,
-                password=self.config.postgres_password
+                password=self.config.postgres_password,
+                options=f'-csearch_path={self.config.schema_version}' if self._schema_initialized and self.config.schema_version != 'public' else None
             )
             self._pool_semaphore = threading.Semaphore(self.config.postgres_pool_maxconn)
 
@@ -335,11 +336,6 @@ class PostgresConnector:
                     pass
                 conn = pool.getconn()
 
-            if self._schema_initialized and self.config.schema_version != 'public':
-                with conn.cursor() as cur:
-                    cur.execute('SET search_path TO %s', (self.config.schema_version,))
-                conn.commit()
-
             if autocommit:
                 # Rollback any pending transaction before setting autocommit
                 # set_session cannot be called inside a transaction
@@ -374,7 +370,11 @@ class PostgresConnector:
                       config.postgres_port)
         self.config = config
         self._pool_lock = threading.Lock()
-        self._schema_initialized = False
+
+        # Create initial pool without schema_version so _init_tables()
+        # creates tables in the default `public` schema.
+        saved_schema = self.config.schema_version
+        self.config.schema_version = 'public'
         self._create_pool()
         logging.debug('Finished connecting to postgres database')
 
@@ -397,7 +397,13 @@ class PostgresConnector:
         self._init_configs()
         logging.debug('Configs initialized')
 
+        # Recreate pool with schema_version so all subsequent queries
+        # use the pgroll versioned schema via search_path.
+        self.config.schema_version = saved_schema
         self._schema_initialized = True
+        if saved_schema != 'public':
+            logging.debug('Switching to pgroll schema: %s', saved_schema)
+            self.connect()
 
         # Register cleanup on exit
         atexit.register(self.close)
