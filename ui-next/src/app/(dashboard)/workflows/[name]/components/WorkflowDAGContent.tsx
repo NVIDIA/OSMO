@@ -34,6 +34,7 @@ import { useSidebar } from "@/components/shadcn/sidebar";
 import { useEventCallback, useResizeObserver } from "usehooks-ts";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { nodeTypes } from "@/app/(dashboard)/workflows/[name]/components/dag/GroupNode";
+import { dagEdgeTypes } from "@/app/(dashboard)/workflows/[name]/components/dag/DagEdge";
 import { DAGProvider } from "@/app/(dashboard)/workflows/[name]/components/dag/dag-context";
 import { MiniMapNode } from "@/components/dag/components/MiniMapNode";
 import { DAGControls } from "@/components/dag/components/DAGControls";
@@ -303,6 +304,7 @@ function WorkflowDAGContentImpl(props: WorkflowDAGContentProps) {
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            edgeTypes={dagEdgeTypes}
             nodesDraggable={false}
             nodesConnectable={false}
             elementsSelectable={true}

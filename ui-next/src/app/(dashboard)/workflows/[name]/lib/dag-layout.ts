@@ -14,13 +14,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import { LAYOUT_CACHE, NODE_DEFAULTS, NODE_EXPANDED, LAYOUT_SPACING, EDGE_STYLE } from "@/components/dag/constants";
-import { elkWorker } from "@/components/dag/layout/elk-worker-client";
-import type { LayoutDirection, NodeDimensions, ElkGraph } from "@/components/dag/types";
+import type { LayoutDirection, NodeDimensions } from "@/components/dag/types";
 import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-import { getStatusCategory, STATUS_STYLES } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { getStatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { STATUS_STYLES } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
+import type { StatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
 
 // Callbacks accessed via DAGContext to prevent re-renders
 export interface GroupNodeData extends Record<string, unknown> {
@@ -110,21 +112,12 @@ export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): 
   };
 }
 
-function getElkLayoutOptions(direction: LayoutDirection): Record<string, string> {
-  return {
-    "elk.algorithm": "layered",
-    "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
-    "elk.spacing.nodeNode": String(direction === "TB" ? LAYOUT_SPACING.NODES_TB : LAYOUT_SPACING.NODES_LR),
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(
-      direction === "TB" ? LAYOUT_SPACING.RANKS_TB : LAYOUT_SPACING.RANKS_LR,
-    ),
-    "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
-    "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
-    "elk.edgeRouting": "ORTHOGONAL",
-    "elk.padding": `[top=${LAYOUT_SPACING.MARGIN},left=${LAYOUT_SPACING.MARGIN},bottom=${LAYOUT_SPACING.MARGIN},right=${LAYOUT_SPACING.MARGIN}]`,
-    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-    "elk.alignment": "CENTER",
-  };
+/** Node label type used internally with dagre */
+interface DagreNode {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface LayoutPosition {
@@ -151,45 +144,46 @@ export async function calculatePositions(
     return cached;
   }
 
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: direction === "TB" ? "TB" : "LR",
+    nodesep: direction === "TB" ? LAYOUT_SPACING.NODES_TB : LAYOUT_SPACING.NODES_LR,
+    ranksep: direction === "TB" ? LAYOUT_SPACING.RANKS_TB : LAYOUT_SPACING.RANKS_LR,
+    marginx: LAYOUT_SPACING.MARGIN,
+    marginy: LAYOUT_SPACING.MARGIN,
+  });
+
   const dimensionsMap = new Map<string, NodeDimensions>();
-  const elkChildren: { id: string; width: number; height: number }[] = [];
-  const elkEdges: { id: string; sources: string[]; targets: string[] }[] = [];
 
   for (const group of groups) {
     const isExpanded = expandedGroups.has(group.name);
     const dims = getNodeDimensions(group, isExpanded);
     dimensionsMap.set(group.name, dims);
-    elkChildren.push({ id: group.name, width: dims.width, height: dims.height });
+    g.setNode(group.name, { x: 0, y: 0, width: dims.width, height: dims.height });
+  }
 
+  for (const group of groups) {
     const downstreams = group.downstream_groups;
     if (downstreams) {
       for (const downstream of downstreams) {
-        elkEdges.push({
-          id: `${group.name}-${downstream}`,
-          sources: [group.name],
-          targets: [downstream],
-        });
+        g.setEdge(group.name, downstream);
       }
     }
   }
 
-  const elkGraph: ElkGraph = {
-    id: "root",
-    layoutOptions: getElkLayoutOptions(direction),
-    children: elkChildren,
-    edges: elkEdges,
-  };
+  dagre.layout(g);
 
-  const layoutResult = await elkWorker.layout(elkGraph);
-
+  // Dagre returns CENTER coordinates — convert to top-left corner
   const positions = new Map<string, LayoutPosition>();
-  for (const elkNode of layoutResult.children) {
-    const dims = dimensionsMap.get(elkNode.id);
+  for (const nodeId of g.nodes()) {
+    const n = g.node(nodeId) as DagreNode;
+    const dims = dimensionsMap.get(nodeId);
     if (dims) {
-      positions.set(elkNode.id, {
-        id: elkNode.id,
-        x: elkNode.x,
-        y: elkNode.y,
+      positions.set(nodeId, {
+        id: nodeId,
+        x: n.x - n.width / 2,
+        y: n.y - n.height / 2,
         width: dims.width,
         height: dims.height,
       });
@@ -197,7 +191,6 @@ export async function calculatePositions(
   }
 
   const result = { positions, dimensions: dimensionsMap };
-
   addToCache(cacheKey, result);
 
   return result;
@@ -251,8 +244,7 @@ export function buildNodes(
   return nodes;
 }
 
-// Pre-computed edge styles/markers/data - created once, reused for every edge
-import type { StatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
+// Pre-computed edge styles/markers — created once, reused for every edge
 
 const EDGE_STYLE_SOLID = {
   strokeWidth: EDGE_STYLE.STROKE_WIDTH,
@@ -263,51 +255,24 @@ const EDGE_STYLE_DASHED = {
   strokeDasharray: EDGE_STYLE.DASH_ARRAY,
 } as const;
 
-const EDGE_MARKERS: Record<
-  StatusCategory,
-  { type: typeof MarkerType.ArrowClosed; color: string; width: number; height: number }
-> = {
-  waiting: {
+// SVG markers live in <defs> and do not inherit CSS `color` from the edge <g>,
+// so currentColor cannot be used. Pass explicit hex colors instead.
+function makeEdgeMarker(category: StatusCategory, isDark: boolean) {
+  return {
     type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.waiting.light.color,
+    color: STATUS_STYLES[category][isDark ? "dark" : "light"].color,
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
-  },
-  pending: {
-    type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.pending.light.color,
-    width: EDGE_STYLE.ARROW_WIDTH,
-    height: EDGE_STYLE.ARROW_HEIGHT,
-  },
-  running: {
-    type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.running.light.color,
-    width: EDGE_STYLE.ARROW_WIDTH,
-    height: EDGE_STYLE.ARROW_HEIGHT,
-  },
-  completed: {
-    type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.completed.light.color,
-    width: EDGE_STYLE.ARROW_WIDTH,
-    height: EDGE_STYLE.ARROW_HEIGHT,
-  },
-  failed: {
-    type: MarkerType.ArrowClosed,
-    color: STATUS_STYLES.failed.light.color,
-    width: EDGE_STYLE.ARROW_WIDTH,
-    height: EDGE_STYLE.ARROW_HEIGHT,
-  },
-};
+  };
+}
 
-const EDGE_DATA: Record<StatusCategory, { status: StatusCategory }> = {
-  waiting: { status: "waiting" },
-  pending: { status: "pending" },
-  running: { status: "running" },
-  completed: { status: "completed" },
-  failed: { status: "failed" },
-};
+export function buildEdges(groups: GroupWithLayout[], isDark = false): Edge[] {
+  // Build category lookup so target caps can be colored by target node status
+  const categoryByName = new Map<string, StatusCategory>();
+  for (const group of groups) {
+    categoryByName.set(group.name, getStatusCategory(group.status));
+  }
 
-export function buildEdges(groups: GroupWithLayout[]): Edge[] {
   const edges: Edge[] = [];
 
   for (const group of groups) {
@@ -318,23 +283,22 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
     const isTerminal = category === "completed" || category === "failed";
     const isRunning = category === "running" || category === "pending";
     const edgeStyle = isTerminal || isRunning ? EDGE_STYLE_SOLID : EDGE_STYLE_DASHED;
-    const marker = EDGE_MARKERS[category];
-    const data = EDGE_DATA[category];
     const className = `dag-edge dag-edge--${category}`;
 
     for (const downstreamName of downstreams) {
+      const targetCategory = categoryByName.get(downstreamName) ?? "waiting";
       edges.push({
         id: `${group.name}-${downstreamName}`,
         source: group.name,
         target: downstreamName,
         sourceHandle: "source",
         targetHandle: "target",
-        type: "smoothstep",
+        type: "dagEdge",
         animated: isRunning,
         className,
         style: edgeStyle,
-        markerEnd: marker,
-        data,
+        markerEnd: makeEdgeMarker(category, isDark),
+        data: { status: category, targetCategory },
       });
     }
   }
@@ -346,10 +310,11 @@ export async function calculateLayout(
   groups: GroupWithLayout[],
   expandedGroups: Set<string>,
   direction: LayoutDirection,
+  isDark = false,
 ): Promise<LayoutResult> {
   const { positions } = await calculatePositions(groups, expandedGroups, direction);
   const nodes = buildNodes(groups, positions, expandedGroups, direction);
-  const edges = buildEdges(groups);
+  const edges = buildEdges(groups, isDark);
 
   return { nodes, edges };
 }

@@ -40,7 +40,7 @@
  *
  * Performance:
  * - ReactFlow is bundled with this route (not lazy-loaded)
- * - ELK layout worker is preloaded for instant DAG rendering
+ * - Dagre layout runs synchronously for instant DAG rendering
  * - Server prefetches workflow data before client loads
  * - DAG renders immediately when page loads (no spinner delay)
  */

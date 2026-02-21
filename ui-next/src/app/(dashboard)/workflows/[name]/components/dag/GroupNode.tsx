@@ -63,10 +63,10 @@ import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "@/app/(dashboard)/workflows
 
 /** Pre-computed handle position styles to avoid object allocation per render */
 const HANDLE_STYLES = {
-  targetVertical: { top: -HANDLE_OFFSET } as const,
-  targetHorizontal: { left: -HANDLE_OFFSET } as const,
-  sourceVertical: { bottom: -HANDLE_OFFSET } as const,
-  sourceHorizontal: { right: -HANDLE_OFFSET } as const,
+  targetVertical: { top: -HANDLE_OFFSET, opacity: 0 } as const,
+  targetHorizontal: { left: -HANDLE_OFFSET, opacity: 0 } as const,
+  sourceVertical: { bottom: -HANDLE_OFFSET, opacity: 0 } as const,
+  sourceHorizontal: { right: -HANDLE_OFFSET, opacity: 0 } as const,
 } as const;
 
 /** Pre-computed header height style */
