@@ -857,10 +857,21 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
                   platforms: List[str] | None = fastapi.Query(default = None),
                   all_pools: bool = False,
                   concise: bool = False,
+                  limit: int | None = fastapi.Query(default=None),
+                  offset: int = fastapi.Query(default=0),
+                  search: str | None = fastapi.Query(default=None),
                   allowed_pools_header: Optional[str] =
                     fastapi.Header(alias=login.OSMO_ALLOWED_POOLS, default=None)) -> \
     objects.ResourcesResponse | objects.PoolResourcesResponse:
     """ Returns the information of resources available in different pools. """
+    if limit is not None:
+        if limit < 1:
+            raise osmo_errors.OSMOUserError('Limit must be greater than 0.')
+        if limit > 500:
+            raise osmo_errors.OSMOUserError('Limit must be at most 500.')
+    if offset < 0:
+        raise osmo_errors.OSMOUsageError('Parameter offset must be a non-negative integer.')
+
     pools_arg = pools if pools else []
     if not pools or all_pools:
         pools_arg = login.parse_allowed_pools(allowed_pools_header) if not all_pools \
@@ -868,7 +879,8 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
 
     if not concise:
         return objects.get_resources(
-            pools=pools_arg, platforms=(platforms if pools and platforms else None))
+            pools=pools_arg, platforms=(platforms if pools and platforms else None),
+            search=search, limit=limit, offset=offset)
 
     return helpers.get_pool_resources(
         pools=pools_arg, platforms=(platforms if pools and platforms else None))

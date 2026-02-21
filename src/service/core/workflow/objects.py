@@ -538,6 +538,7 @@ class WorkflowQueryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 class ResourcesResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """ Object storing execution cluster node resource information. """
     resources: List[workflow.ResourcesEntry]
+    has_more: bool = False
 
 
 class PoolResourcesEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
@@ -1141,7 +1142,10 @@ def get_resources(backends: List[str] | None = None,
                   pools: List[str] | None = None,
                   platforms: List[str] | None = None,
                   resource_name: str | None = None,
-                  verbose: bool = False) -> ResourcesResponse:
+                  verbose: bool = False,
+                  search: str | None = None,
+                  limit: int | None = None,
+                  offset: int = 0) -> ResourcesResponse:
     """
     Fetch resources from database and put them in a row.
 
@@ -1149,13 +1153,22 @@ def get_resources(backends: List[str] | None = None,
     the resources. Resources returned will satisfy all the filters defined in
     the parameters passed into this function.
     """
+    fetch_limit = limit + 1 if limit is not None else None
     backend_resources = connectors.BackendResource.list_from_db(
-        backends, pools, platforms, resource_name)
+        backends, pools, platforms, resource_name, search=search,
+        limit=fetch_limit, offset=offset)
 
-    return ResourcesResponse(resources=[
-        workflow.ResourcesEntry.from_backend_resource(resource, verbose)
-        for resource in backend_resources
-    ])
+    has_more = limit is not None and len(backend_resources) > limit
+    if has_more:
+        backend_resources = backend_resources[:limit]
+
+    return ResourcesResponse(
+        resources=[
+            workflow.ResourcesEntry.from_backend_resource(resource, verbose)
+            for resource in backend_resources
+        ],
+        has_more=has_more,
+    )
 
 
 def get_time_diff(start_time: datetime.datetime,
