@@ -270,6 +270,8 @@
 }
 
 .fb-preset-group [cmdk-group-heading] {
+  padding-left: 0;
+  padding-right: 0;
   font-size: 0.75rem;
   line-height: 1rem;
   font-weight: 500;
@@ -280,6 +282,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
+}
+
+/* =============================================================================
+   Suggestions Group (top padding matches preset group spacing)
+   ============================================================================= */
+
+.fb-suggestions-group {
+  padding-top: 0.5rem;
 }
 
 /* =============================================================================
