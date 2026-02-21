@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": true,
+    "tailwind-v4-shadcn@claude-skills": true
   }
 }
