@@ -35,6 +35,7 @@ benchtop
 Bitnami
 boto
 botocore
+Ceph
 checkpointing
 Checkpointing
 cli
