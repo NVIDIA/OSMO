@@ -35,31 +35,31 @@
   --dag-status-waiting-bg: oklch(0.96 0 0);
   --dag-status-waiting-border: oklch(0.8 0 0);
   --dag-status-waiting-text: oklch(0.5 0 0);
-  --dag-status-waiting-color: oklch(0.6 0 0);
+  --dag-status-waiting-color: #a1a1aa; /* zinc-400 — matches STATUS_STYLES */
 
   /* Pending (amber - processing/scheduling states) */
   --dag-status-pending-bg: oklch(0.97 0.04 85);
   --dag-status-pending-border: oklch(0.7 0.14 85);
   --dag-status-pending-text: oklch(0.5 0.12 85);
-  --dag-status-pending-color: oklch(0.65 0.16 85);
+  --dag-status-pending-color: #fbbf24; /* amber-400 — matches STATUS_STYLES */
 
   /* Running */
   --dag-status-running-bg: oklch(0.95 0.04 250);
   --dag-status-running-border: oklch(0.6 0.15 250);
   --dag-status-running-text: oklch(0.45 0.15 250);
-  --dag-status-running-color: oklch(0.55 0.18 250);
+  --dag-status-running-color: #60a5fa; /* blue-400 — matches STATUS_STYLES */
 
   /* Completed */
   --dag-status-completed-bg: oklch(0.95 0.04 160);
   --dag-status-completed-border: oklch(0.6 0.12 160);
   --dag-status-completed-text: oklch(0.4 0.12 160);
-  --dag-status-completed-color: oklch(0.55 0.15 160);
+  --dag-status-completed-color: #34d399; /* emerald-400 — matches STATUS_STYLES */
 
   /* Failed */
   --dag-status-failed-bg: oklch(0.95 0.04 25);
   --dag-status-failed-border: oklch(0.6 0.18 25);
   --dag-status-failed-text: oklch(0.45 0.18 25);
-  --dag-status-failed-color: oklch(0.55 0.2 25);
+  --dag-status-failed-color: #f87171; /* red-400 — matches STATUS_STYLES */
 
   /* Timeline - Brighter, more vibrant variants for better visibility */
   --timeline-running-marker: oklch(0.59 0.24 250);
@@ -78,34 +78,34 @@
 
 .dark {
   /* Waiting */
-  --dag-status-waiting-bg: oklch(0.27 0 0 / 0.6);
+  --dag-status-waiting-bg: oklch(0.27 0 0);
   --dag-status-waiting-border: oklch(0.37 0 0);
   --dag-status-waiting-text: oklch(0.64 0 0);
-  --dag-status-waiting-color: oklch(0.47 0 0);
+  --dag-status-waiting-color: #71717a; /* zinc-500 — matches STATUS_STYLES */
 
   /* Pending (amber - processing/scheduling states) */
-  --dag-status-pending-bg: oklch(0.28 0.06 85 / 0.6);
+  --dag-status-pending-bg: oklch(0.28 0.06 85);
   --dag-status-pending-border: oklch(0.6 0.14 85);
   --dag-status-pending-text: oklch(0.75 0.12 85);
-  --dag-status-pending-color: oklch(0.65 0.16 85);
+  --dag-status-pending-color: #f59e0b; /* amber-500 — matches STATUS_STYLES */
 
   /* Running */
-  --dag-status-running-bg: oklch(0.25 0.07 250 / 0.6);
+  --dag-status-running-bg: oklch(0.25 0.07 250);
   --dag-status-running-border: oklch(0.55 0.15 250);
   --dag-status-running-text: oklch(0.7 0.12 250);
-  --dag-status-running-color: oklch(0.55 0.15 250);
+  --dag-status-running-color: #3b82f6; /* blue-500 — matches STATUS_STYLES */
 
   /* Completed */
-  --dag-status-completed-bg: oklch(0.3 0.08 160 / 0.6);
+  --dag-status-completed-bg: oklch(0.3 0.08 160);
   --dag-status-completed-border: oklch(0.55 0.12 160);
   --dag-status-completed-text: oklch(0.7 0.14 160);
-  --dag-status-completed-color: oklch(0.65 0.16 160);
+  --dag-status-completed-color: #10b981; /* emerald-500 — matches STATUS_STYLES */
 
   /* Failed */
-  --dag-status-failed-bg: oklch(0.28 0.08 25 / 0.6);
+  --dag-status-failed-bg: oklch(0.28 0.08 25);
   --dag-status-failed-border: oklch(0.55 0.2 25);
   --dag-status-failed-text: oklch(0.7 0.18 25);
-  --dag-status-failed-color: oklch(0.55 0.2 25);
+  --dag-status-failed-color: #ef4444; /* red-500 — matches STATUS_STYLES */
 
   /* Timeline - Brighter, more vibrant variants for better visibility */
   --timeline-running-marker: oklch(0.68 0.2 250);
@@ -243,21 +243,47 @@
 }
 
 /* ==========================================================================
+   Edge Cap Semi-Circles
+   Each cap is a circle centered at the node border. The inner half is hidden
+   behind the node (nodes layer has higher z-index than edges SVG), leaving a
+   visible semi-circle that "touches" the node with the node's status color.
+   ========================================================================== */
+
+.dag-edge-cap {
+  fill: currentColor;
+  stroke: none;
+  pointer-events: none;
+}
+
+/* ==========================================================================
    Edge Status Coloring
    ========================================================================== */
 
+/* color drives: cap fill (currentColor), arrow fill (currentColor), line stroke */
+.dag-edge.dag-edge--waiting {
+  color: var(--dag-status-waiting-color);
+}
 .dag-edge.dag-edge--waiting path {
   stroke: var(--dag-status-waiting-color);
 }
 
+.dag-edge.dag-edge--running {
+  color: var(--dag-status-running-color);
+}
 .dag-edge.dag-edge--running path {
   stroke: var(--dag-status-running-color);
 }
 
+.dag-edge.dag-edge--completed {
+  color: var(--dag-status-completed-color);
+}
 .dag-edge.dag-edge--completed path {
   stroke: var(--dag-status-completed-color);
 }
 
+.dag-edge.dag-edge--failed {
+  color: var(--dag-status-failed-color);
+}
 .dag-edge.dag-edge--failed path {
   stroke: var(--dag-status-failed-color);
 }

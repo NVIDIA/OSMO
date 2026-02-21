@@ -22,7 +22,7 @@
  * - Initial expansion logic based on thresholds
  * - Edge building from group dependencies
  *
- * These tests focus on pure layout logic without requiring ELK worker.
+ * These tests focus on pure layout logic.
  */
 
 import { describe, it, expect } from "vitest";
@@ -304,7 +304,7 @@ describe("buildEdges", () => {
 
     const edges = buildEdges(groups);
 
-    expect(edges[0].type).toBe("smoothstep");
+    expect(edges[0].type).toBe("dagEdge");
     expect(edges[0].sourceHandle).toBe("source");
     expect(edges[0].targetHandle).toBe("target");
   });

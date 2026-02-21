@@ -38,7 +38,7 @@
  *
  * Explicit state machine with readiness signals:
  *   Signal 1: dimensionsReady (container measured via useResizeObserver)
- *   Signal 2: layoutReady (ELK calculation complete)
+ *   Signal 2: layoutReady (dagre calculation complete)
  *
  * Coordination Effect (Barrier):
  *   useEffect(() => {

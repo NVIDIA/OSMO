@@ -44,8 +44,6 @@
   --dag-text-tertiary: oklch(0.6 0 0);
 
   /* Handles */
-  --dag-handle-bg: oklch(0.7 0 0);
-  --dag-handle-border: oklch(0.6 0 0);
   --dag-handle-size: 0.5rem;
 
   /* Selection */
@@ -87,9 +85,6 @@
   --dag-border-strong: oklch(0.35 0 0);
 
   --dag-text-tertiary: oklch(0.5 0 0);
-
-  --dag-handle-bg: oklch(0.4 0 0);
-  --dag-handle-border: oklch(0.5 0 0);
 
   --dag-selection-ring: oklch(0.7 0.15 195);
 
@@ -147,13 +142,11 @@
    ========================================================================== */
 
 .dag-handle {
-  width: var(--dag-handle-size) !important;
-  height: var(--dag-handle-size) !important;
-  min-width: var(--dag-handle-size) !important;
-  min-height: var(--dag-handle-size) !important;
-  background: var(--dag-handle-bg) !important;
-  border: 1.5px solid var(--dag-handle-border) !important;
-  border-radius: 50% !important;
+  width: var(--dag-handle-size);
+  height: var(--dag-handle-size);
+  min-width: var(--dag-handle-size);
+  min-height: var(--dag-handle-size);
+  opacity: 0;
 }
 
 /* ==========================================================================

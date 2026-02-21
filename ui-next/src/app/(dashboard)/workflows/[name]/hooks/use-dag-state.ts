@@ -20,7 +20,7 @@
  * Manages state for the DAG visualization including:
  * - Layout direction
  * - Expanded groups
- * - Layout calculation (ELK)
+ * - Layout calculation (dagre)
  * - Node bounds computation
  *
  * Navigation state is managed externally via useNavigationState (URL-synced).
@@ -40,6 +40,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, startTransition, useCallback, useRef } from "react";
+import { useTheme } from "next-themes";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
@@ -111,6 +112,10 @@ export function useDAGState({
   onSelectGroup,
   onSelectTask,
 }: UseDAGStateOptions): UseDAGStateReturn {
+  // Theme — needed for theme-aware edge arrow colors
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
   // Core state
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(initialDirection);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -214,6 +219,7 @@ export function useDAGState({
     groups: GroupWithLayout[];
     expanded: Set<string>;
     direction: string;
+    isDark: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -223,7 +229,8 @@ export function useDAGState({
       lastRunInputRef.current &&
       lastRunInputRef.current.groups === groupsWithLayout &&
       lastRunInputRef.current.expanded === expandedGroups &&
-      lastRunInputRef.current.direction === layoutDirection
+      lastRunInputRef.current.direction === layoutDirection &&
+      lastRunInputRef.current.isDark === isDark
     ) {
       return;
     }
@@ -231,10 +238,15 @@ export function useDAGState({
     let cancelled = false;
 
     const runLayout = async () => {
-      lastRunInputRef.current = { groups: groupsWithLayout, expanded: expandedGroups, direction: layoutDirection };
+      lastRunInputRef.current = {
+        groups: groupsWithLayout,
+        expanded: expandedGroups,
+        direction: layoutDirection,
+        isDark,
+      };
       setIsLayouting(true);
       try {
-        const result = await defaultCalculateLayout(groupsWithLayout, expandedGroups, layoutDirection);
+        const result = await defaultCalculateLayout(groupsWithLayout, expandedGroups, layoutDirection, isDark);
 
         if (!cancelled) {
           // CRITICAL: setIsLayouting(false) MUST be called inside startTransition
@@ -261,7 +273,7 @@ export function useDAGState({
     return () => {
       cancelled = true;
     };
-  }, [groupsWithLayout, expandedGroups, layoutDirection]);
+  }, [groupsWithLayout, expandedGroups, layoutDirection, isDark]);
 
   // Calculate node bounds and fit-all zoom
   // Uses Float64Array for optimal numeric performance (SIMD-friendly)

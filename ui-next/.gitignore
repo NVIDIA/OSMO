@@ -43,8 +43,5 @@ next-env.d.ts
 # test outputs
 test-results/
 
-# Auto-generated files (copied by postinstall)
-public/elk-worker.min.js
-
 # MSW service worker (dev only - regenerate with npx msw init public/)
 public/mockServiceWorker.js

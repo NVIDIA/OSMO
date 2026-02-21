@@ -15,18 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Generic ELK Layout Tests
+ * Generic DAG Layout Tests
  *
  * Tests the generic DAG layout utilities:
  * - Root node finding
  * - Initial expansion computation
  * - Edge building
- *
- * These tests focus on pure utility functions that don't require ELK worker.
  */
 
 import { describe, it, expect } from "vitest";
-import { findRootNodes, computeInitialExpandedNodes, buildEdges } from "@/components/dag/layout/elk-layout";
+import { findRootNodes, computeInitialExpandedNodes, buildEdges } from "@/components/dag/layout/layout";
 import type { DAGInputNode } from "@/components/dag/types";
 
 // =============================================================================

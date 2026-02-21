@@ -149,47 +149,6 @@ export interface LayoutPositionResult {
 }
 
 // ============================================================================
-// ELK Layout Types
-// ============================================================================
-
-/** ELK node for layout input */
-export interface ElkNode {
-  id: string;
-  width: number;
-  height: number;
-  x?: number;
-  y?: number;
-}
-
-/** ELK edge for layout input */
-export interface ElkEdge {
-  id: string;
-  sources: string[];
-  targets: string[];
-}
-
-/** ELK graph structure */
-export interface ElkGraph {
-  id: string;
-  layoutOptions: Record<string, string>;
-  children: ElkNode[];
-  edges: ElkEdge[];
-}
-
-/** ELK layout result node */
-export interface ElkLayoutNode extends ElkNode {
-  x: number;
-  y: number;
-}
-
-/** ELK layout result */
-export interface ElkLayoutResult {
-  id: string;
-  children: ElkLayoutNode[];
-  edges: ElkEdge[];
-}
-
-// ============================================================================
 // Edge Styling Types
 // ============================================================================
 

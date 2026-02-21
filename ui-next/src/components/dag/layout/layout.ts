@@ -17,12 +17,13 @@
  */
 
 /**
- * Generic ELK Layout Module
+ * Generic Dagre Layout Module
  *
- * Handles DAG layout using ELK.js (Eclipse Layout Kernel).
+ * Handles DAG layout using @dagrejs/dagre (MIT licensed).
  * This module provides generic layout calculation without domain-specific logic.
  */
 
+import dagre from "@dagrejs/dagre";
 import type { Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import type {
@@ -30,12 +31,22 @@ import type {
   NodeDimensions,
   LayoutPosition,
   LayoutPositionResult,
-  ElkGraph,
   DAGInputNode,
   EdgeStyle,
 } from "@/components/dag/types";
 import { LAYOUT_SPACING, EDGE_STYLE, LAYOUT_CACHE } from "@/components/dag/constants";
-import { elkWorker } from "@/components/dag/layout/elk-worker-client";
+
+// ============================================================================
+// Internal Types
+// ============================================================================
+
+/** Node label type used internally with dagre */
+interface DagreNode {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 // ============================================================================
 // Layout Cache
@@ -88,38 +99,15 @@ export function clearLayoutCache(): void {
 }
 
 // ============================================================================
-// ELK Layout Configuration
-// ============================================================================
-
-/**
- * Get ELK layout options for the given direction.
- */
-function getElkLayoutOptions(direction: LayoutDirection): Record<string, string> {
-  return {
-    "elk.algorithm": "layered",
-    "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
-    "elk.spacing.nodeNode": String(direction === "TB" ? LAYOUT_SPACING.NODES_TB : LAYOUT_SPACING.NODES_LR),
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(
-      direction === "TB" ? LAYOUT_SPACING.RANKS_TB : LAYOUT_SPACING.RANKS_LR,
-    ),
-    "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
-    "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
-    "elk.edgeRouting": "ORTHOGONAL",
-    "elk.padding": `[top=${LAYOUT_SPACING.MARGIN},left=${LAYOUT_SPACING.MARGIN},bottom=${LAYOUT_SPACING.MARGIN},right=${LAYOUT_SPACING.MARGIN}]`,
-    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-    "elk.alignment": "CENTER",
-  };
-}
-
-// ============================================================================
 // Layout Calculation
 // ============================================================================
 
 /**
- * Calculate positions for DAG nodes using ELK.
+ * Calculate positions for DAG nodes using dagre.
  * Results are cached for repeated calls with identical parameters.
  *
- * Performance: Uses for...of loops for better JIT optimization than forEach.
+ * Performance: Dagre is synchronous and fast; Promise wrapper preserves
+ * the async API contract for callers.
  *
  * @param nodes - Input nodes with dimensions
  * @param direction - Layout direction
@@ -135,49 +123,42 @@ export async function calculatePositions(
     return cached;
   }
 
-  // Build dimension map and ELK children in single pass
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: direction === "TB" ? "TB" : "LR",
+    nodesep: direction === "TB" ? LAYOUT_SPACING.NODES_TB : LAYOUT_SPACING.NODES_LR,
+    ranksep: direction === "TB" ? LAYOUT_SPACING.RANKS_TB : LAYOUT_SPACING.RANKS_LR,
+    marginx: LAYOUT_SPACING.MARGIN,
+    marginy: LAYOUT_SPACING.MARGIN,
+  });
+
   const dimensionsMap = new Map<string, NodeDimensions>();
-  const elkChildren: { id: string; width: number; height: number }[] = [];
-  const elkEdges: { id: string; sources: string[]; targets: string[] }[] = [];
 
   for (const node of nodes) {
     dimensionsMap.set(node.id, { width: node.width, height: node.height });
-    elkChildren.push({ id: node.id, width: node.width, height: node.height });
+    g.setNode(node.id, { x: 0, y: 0, width: node.width, height: node.height });
+  }
 
-    // Build edges for this node
-    for (const downstream of node.downstreamIds) {
-      elkEdges.push({
-        id: `${node.id}-${downstream}`,
-        sources: [node.id],
-        targets: [downstream],
-      });
+  for (const node of nodes) {
+    for (const downstreamId of node.downstreamIds) {
+      g.setEdge(node.id, downstreamId);
     }
   }
 
-  // Build ELK graph
-  const elkGraph: ElkGraph = {
-    id: "root",
-    layoutOptions: getElkLayoutOptions(direction),
-    children: elkChildren,
-    edges: elkEdges,
-  };
+  dagre.layout(g);
 
-  // Run ELK layout (off main thread via web worker)
-  const layoutResult = await elkWorker.layout(elkGraph);
-
-  // Build position map from layout results
+  // Dagre returns CENTER coordinates — convert to top-left corner
   const positions = new Map<string, LayoutPosition>();
-  for (const elkNode of layoutResult.children) {
-    const dims = dimensionsMap.get(elkNode.id);
-    if (dims) {
-      positions.set(elkNode.id, {
-        id: elkNode.id,
-        x: elkNode.x,
-        y: elkNode.y,
-        width: dims.width,
-        height: dims.height,
-      });
-    }
+  for (const nodeId of g.nodes()) {
+    const n = g.node(nodeId) as DagreNode;
+    positions.set(nodeId, {
+      id: nodeId,
+      x: n.x - n.width / 2,
+      y: n.y - n.height / 2,
+      width: n.width,
+      height: n.height,
+    });
   }
 
   const result = { positions, dimensions: dimensionsMap };
