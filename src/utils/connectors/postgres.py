@@ -4402,7 +4402,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     'dataset:*',
                     'credentials:*',
                     'pool:List',
-                    'profile:*',
                     'app:*',
                     'resources:Read',
                 ],
@@ -4441,13 +4440,15 @@ DEFAULT_ROLES: Dict[str, Role] = {
     ),
     'osmo-default': Role(
         name='osmo-default',
-        description='Default role for unauthenticated access',
+        description='Default role all users have access to',
         policies=[
             role.RolePolicy(
                 actions=[
                     'system:Health',
                     'system:Version',
                     'auth:Login',
+                    'auth:Refresh',
+                    'profile:*',
                 ],
                 resources=['*']
             )

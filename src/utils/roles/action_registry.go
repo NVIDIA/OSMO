@@ -113,10 +113,9 @@ const (
 	ActionConfigUpdate = resourceTypeConfig + ":Update"
 
 	// Auth actions
-	ActionAuthLogin        = resourceTypeAuth + ":Login"
-	ActionAuthRefresh      = resourceTypeAuth + ":Refresh"
-	ActionAuthToken        = resourceTypeAuth + ":Token"
-	ActionAuthServiceToken = resourceTypeAuth + ":ServiceToken"
+	ActionAuthLogin   = resourceTypeAuth + ":Login"
+	ActionAuthRefresh = resourceTypeAuth + ":Refresh"
+	ActionAuthToken   = resourceTypeAuth + ":Token"
 
 	// System actions (public)
 	ActionSystemHealth  = resourceTypeSystem + ":Health"
@@ -289,18 +288,14 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/auth/keys", Methods: []string{"GET"}},
 	},
 	ActionAuthRefresh: {
-		{Path: "/api/auth/refresh_token", Methods: []string{"*"}},
 		{Path: "/api/auth/jwt/refresh_token", Methods: []string{"*"}},
 		{Path: "/api/auth/jwt/access_token", Methods: []string{"*"}},
 	},
 	ActionAuthToken: {
 		{Path: "/api/auth/access_token", Methods: []string{"*"}},
-		{Path: "/api/auth/access_token/user", Methods: []string{"*"}},
-		{Path: "/api/auth/access_token/user/*", Methods: []string{"*"}},
-	},
-	ActionAuthServiceToken: {
-		{Path: "/api/auth/access_token/service", Methods: []string{"*"}},
-		{Path: "/api/auth/access_token/service/*", Methods: []string{"*"}},
+		{Path: "/api/auth/access_token/*", Methods: []string{"*"}},
+		{Path: "/api/auth/user/*/access_token", Methods: []string{"*"}},
+		{Path: "/api/auth/user/*/access_token/*", Methods: []string{"*"}},
 	},
 
 	// ==================== SYSTEM (PUBLIC) ====================
@@ -615,7 +610,7 @@ func MatchMethod(requestMethod string, allowedMethods []string) bool {
 // based on the Resource-Action Model's scope definitions:
 //   - Global/public resources return "" (empty) - no resource check needed
 //   - Self-scoped resources (bucket, config) return "{scope}/{id}"
-//   - User-scoped resources (profile) return "user/{id}"
+//   - User-scoped resources (profile, auth token) return "user/{id}"
 //   - Pool-scoped resources (workflow, task) return "pool/{pool_name}" via DB lookup
 //   - Internal resources return "backend/{id}"
 //
@@ -665,6 +660,17 @@ func extractResourceFromPath(
 			return "backend/" + extractScopedResourceID(parts, "logger")
 		} else if actionName == "Router" {
 			return "backend/" + extractScopedResourceID(parts, "router")
+		}
+		return ""
+
+	case ResourceTypeAuth:
+		// User-scoped token paths: /api/auth/user/{user}/access_token[/*]
+		if actionName == "Token" {
+			for i, part := range parts {
+				if part == "auth" && i+1 < len(parts) && parts[i+1] == "user" {
+					return "user/" + extractScopedResourceID(parts, "user")
+				}
+			}
 		}
 		return ""
 

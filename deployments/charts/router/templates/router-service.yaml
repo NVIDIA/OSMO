@@ -33,6 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
         {{- with .Values.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -186,6 +187,7 @@ spec:
         {{- end }}
 
       {{- include "router.envoy-sidecar-container" . | nindent 6}}
+      {{- include "router.oauth2-proxy-sidecar-container" . | nindent 6}}
       {{- include "router.authz-sidecar-container" . | nindent 6}}
       {{- include "router.log-agent-sidecar-container" . | nindent 6}}
       {{- with .Values.extraContainers }}
@@ -193,6 +195,7 @@ spec:
       {{- end }}
       volumes:
         {{- include "router.envoy-volumes" . | nindent 8 }}
+        {{- include "router.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "router.log-agent-volumes" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
