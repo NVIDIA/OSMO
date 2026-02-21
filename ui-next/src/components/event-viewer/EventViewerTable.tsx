@@ -17,6 +17,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef } from "react";
+import type { VirtualItem } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
 import { TaskRow } from "@/components/event-viewer/TaskRow";
@@ -138,8 +139,7 @@ export function EventViewerTable({
       {/* Single scroll container for header + body so they scroll horizontally in sync */}
       <div
         ref={scrollRef}
-        className="scrollbar-styled relative min-h-0 flex-1 overflow-auto"
-        style={{ contain: "strict" }}
+        className="scrollbar-styled relative min-h-0 flex-1 overflow-auto contain-strict"
       >
         {/* Inner wrapper enforces min-width so horizontal scroll activates */}
         <div className="event-viewer-scroll-inner">
@@ -164,7 +164,7 @@ export function EventViewerTable({
             className="relative"
             style={{ height: `${virtualizer.getTotalSize()}px` }}
           >
-            {virtualItems.map((virtualRow) => {
+            {virtualItems.map((virtualRow: VirtualItem) => {
               const task = tasks[virtualRow.index];
               if (!task) return null;
 

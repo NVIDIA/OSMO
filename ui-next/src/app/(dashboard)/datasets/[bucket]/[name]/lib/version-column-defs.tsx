@@ -51,7 +51,7 @@ export function createVersionColumns(): ColumnDef<DatasetVersionWithMetadata>[] 
           <div className="flex items-center gap-2">
             <span
               className={`font-mono text-sm ${
-                isCurrent ? "font-semibold text-[#76b900]" : "text-zinc-900 dark:text-zinc-100"
+                isCurrent ? "text-nvidia font-semibold" : "text-zinc-900 dark:text-zinc-100"
               }`}
             >
               {version.version}
@@ -59,7 +59,7 @@ export function createVersionColumns(): ColumnDef<DatasetVersionWithMetadata>[] 
             {isCurrent && (
               <Badge
                 variant="default"
-                className="bg-[#76b900] text-xs hover:bg-[#6aa800]"
+                className="bg-nvidia hover:bg-nvidia-dark text-xs"
               >
                 Current
               </Badge>
