@@ -64,6 +64,13 @@ const nextConfig: NextConfig = {
   // Enable standalone output for containerized deployments
   output: "standalone",
 
+  // Disable Next.js image optimization — we don't use <Image> anywhere.
+  // This removes sharp and @img/sharp-libvips-* (LGPL-3.0-or-later) from
+  // the server image.
+  images: {
+    unoptimized: true,
+  },
+
   // Partial Prerendering via cacheComponents (Next.js 16)
   // This is the killer feature for mobile/slow networks:
   // - Static shell (nav, layout) is prerendered at build time

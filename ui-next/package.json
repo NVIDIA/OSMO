@@ -26,7 +26,10 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:all": "pnpm test && pnpm test:e2e",
-    "validate": "pnpm type-check && pnpm lint && pnpm format:check && pnpm build && pnpm test:all"
+    "licenses:check": "node scripts/check-licenses.mjs",
+    "licenses:generate": "node scripts/generate-licenses.mjs",
+    "licenses": "node scripts/check-licenses.mjs && node scripts/generate-licenses.mjs",
+    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm build && pnpm test:all"
   },
   "dependencies": {
     "@codemirror/lang-yaml": "^6.1.2",
@@ -34,6 +37,7 @@
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "^6.5.4",
     "@codemirror/view": "^6.39.12",
+    "@dagrejs/dagre": "^2.0.4",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@lezer/highlight": "^1.2.3",
@@ -70,7 +74,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "@dagrejs/dagre": "^2.0.4",
     "immer": "^11.1.3",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.562.0",
@@ -116,6 +119,28 @@
   "msw": {
     "workerDirectory": [
       "public"
+    ]
+  },
+  "pnpm": {
+    "ignoredOptionalDependencies": [
+      "@img/sharp-darwin-arm64",
+      "@img/sharp-darwin-x64",
+      "@img/sharp-libvips-darwin-arm64",
+      "@img/sharp-libvips-darwin-x64",
+      "@img/sharp-libvips-linux-arm",
+      "@img/sharp-libvips-linux-arm64",
+      "@img/sharp-libvips-linux-ppc64",
+      "@img/sharp-libvips-linux-riscv64",
+      "@img/sharp-libvips-linux-s390x",
+      "@img/sharp-libvips-linux-x64",
+      "@img/sharp-libvips-linuxmusl-arm64",
+      "@img/sharp-libvips-linuxmusl-x64",
+      "@img/sharp-linux-arm",
+      "@img/sharp-linux-arm64",
+      "@img/sharp-linux-x64",
+      "@img/sharp-linuxmusl-arm64",
+      "@img/sharp-linuxmusl-x64",
+      "sharp"
     ]
   }
 }
