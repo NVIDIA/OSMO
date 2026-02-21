@@ -240,11 +240,16 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
       className="datasets-panel"
     >
       {selectedBucket && selectedName && (
-        <DatasetPanel
-          bucket={selectedBucket}
-          name={selectedName}
-          onClose={handleClosePanel}
-        />
+        <InlineErrorBoundary
+          title="Unable to load dataset details"
+          resetKeys={[selectedBucket, selectedName]}
+        >
+          <DatasetPanel
+            bucket={selectedBucket}
+            name={selectedName}
+            onClose={handleClosePanel}
+          />
+        </InlineErrorBoundary>
       )}
     </ResizablePanel>
   );

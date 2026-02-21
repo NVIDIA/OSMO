@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome/page-context";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 import type { WorkflowMetadata } from "@/components/log-viewer/components/LogViewerContainer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
@@ -94,14 +95,19 @@ export function LogViewerPageContent({ workflowId }: LogViewerPageContentProps) 
   return (
     <div className="flex h-full flex-col p-4">
       <div className="relative flex-1">
-        <LogViewerContainer
-          logUrl={logUrl}
-          workflowMetadata={workflowMetadata}
-          scope="workflow"
-          urlSync
-          className="h-full"
-          viewerClassName="h-full"
-        />
+        <InlineErrorBoundary
+          title="Unable to display log viewer"
+          resetKeys={[logUrl]}
+        >
+          <LogViewerContainer
+            logUrl={logUrl}
+            workflowMetadata={workflowMetadata}
+            scope="workflow"
+            urlSync
+            className="h-full"
+            viewerClassName="h-full"
+          />
+        </InlineErrorBoundary>
       </div>
     </div>
   );
