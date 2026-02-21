@@ -63,7 +63,8 @@ const WARNED = new Set([
 ]);
 
 // ❌ Fail — strong copyleft, incompatible with proprietary Apache-2.0 distribution.
-const DENIED = new Set(["GPL-2.0", "GPL-3.0", "AGPL-3.0"]);
+// (Anything not in ALLOWED or WARNED falls through to "deny".)
+const _DENIED = new Set(["GPL-2.0", "GPL-3.0", "AGPL-3.0"]);
 
 function getLicenseData() {
   const raw = execSync("pnpm licenses list --json --long --prod", {
