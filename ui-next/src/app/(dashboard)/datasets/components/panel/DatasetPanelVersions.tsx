@@ -65,7 +65,7 @@ export function DatasetPanelVersions({ versions, currentVersion }: DatasetPanelV
                     return (
                       <tr key={version.version}>
                         <td className="px-3 py-2 align-top">
-                          <span className={isCurrent ? "font-mono font-semibold text-[#76b900]" : "font-mono"}>
+                          <span className={isCurrent ? "text-nvidia font-mono font-semibold" : "font-mono"}>
                             {version.version}
                           </span>
                         </td>

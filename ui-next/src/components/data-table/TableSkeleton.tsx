@@ -78,8 +78,8 @@ const SkeletonRow = memo(function SkeletonRow({ columnCount, rowHeight, rowIndex
 
   return (
     <tr
-      style={{ height: rowHeight, display: "flex" }}
-      className="border-border border-b"
+      style={{ height: rowHeight }}
+      className="border-border flex border-b"
     >
       {Array.from({ length: columnCount }).map((_, colIndex) => (
         <td
@@ -120,7 +120,7 @@ export const TableSkeleton = memo(function TableSkeleton({
         {/* Header */}
         {showHeader && (
           <thead className="bg-muted text-muted-foreground text-left text-xs font-medium uppercase">
-            <tr style={{ display: "flex" }}>
+            <tr className="flex">
               {effectiveHeaders.map((header, i) => (
                 <th
                   key={i}
