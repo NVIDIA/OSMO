@@ -255,7 +255,7 @@ class PostgresConnector:
                 'Postgres Connector has not been created!')
         return PostgresConnector._instance
 
-    def _create_pool(self):
+    def _create_pool(self, search_path: str | None = None):
         """Create the ThreadedConnectionPool and semaphore."""
         try:
             if self.config.postgres_pool_minconn > self.config.postgres_pool_maxconn:
@@ -272,7 +272,7 @@ class PostgresConnector:
                 database=self.config.postgres_database_name,
                 user=self.config.postgres_user,
                 password=self.config.postgres_password,
-                options=f'-csearch_path={self.config.schema_version}' if self._schema_initialized and self.config.schema_version != 'public' else None
+                options=f'-csearch_path={search_path}' if search_path else None
             )
             self._pool_semaphore = threading.Semaphore(self.config.postgres_pool_maxconn)
 
@@ -288,7 +288,8 @@ class PostgresConnector:
                     self._pool.closeall()
                 except Exception:  # pylint: disable=broad-except
                     pass
-            self._create_pool()
+            schema = self.config.schema_version
+            self._create_pool(search_path=schema if schema != 'public' else None)
 
     def _is_connection_healthy(self, conn) -> bool:
         """Check if a connection is still healthy."""
@@ -370,11 +371,6 @@ class PostgresConnector:
                       config.postgres_port)
         self.config = config
         self._pool_lock = threading.Lock()
-
-        # Create initial pool without schema_version so _init_tables()
-        # creates tables in the default `public` schema.
-        saved_schema = self.config.schema_version
-        self.config.schema_version = 'public'
         self._create_pool()
         logging.debug('Finished connecting to postgres database')
 
@@ -397,12 +393,9 @@ class PostgresConnector:
         self._init_configs()
         logging.debug('Configs initialized')
 
-        # Recreate pool with schema_version so all subsequent queries
-        # use the pgroll versioned schema via search_path.
-        self.config.schema_version = saved_schema
-        self._schema_initialized = True
-        if saved_schema != 'public':
-            logging.debug('Switching to pgroll schema: %s', saved_schema)
+        # Recreate pool with search_path set to the pgroll versioned schema
+        if self.config.schema_version != 'public':
+            logging.debug('Switching to pgroll schema: %s', self.config.schema_version)
             self.connect()
 
         # Register cleanup on exit
