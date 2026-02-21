@@ -41,6 +41,7 @@ type PostgresConfig struct {
 	MinConns        int32
 	MaxConnLifetime time.Duration
 	SSLMode         string
+	SchemaVersion   string
 }
 
 // PostgresClient handles PostgreSQL database operations
@@ -72,6 +73,11 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 	poolConfig.MaxConns = config.MaxConns
 	poolConfig.MinConns = config.MinConns
 	poolConfig.MaxConnLifetime = config.MaxConnLifetime
+
+	// Set pgroll schema version via search_path connection parameter
+	if config.SchemaVersion != "" && config.SchemaVersion != "public" {
+		poolConfig.ConnConfig.RuntimeParams["search_path"] = config.SchemaVersion
+	}
 
 	// Create connection pool
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
@@ -132,6 +138,7 @@ type PostgresFlagPointers struct {
 	minConns           *int
 	maxConnLifetimeMin *int
 	sslMode            *string
+	schemaVersion      *string
 }
 
 // RegisterPostgresFlags registers PostgreSQL-related command-line flags
@@ -166,6 +173,9 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 		sslMode: flag.String("postgres-ssl-mode",
 			utils.GetEnv("OSMO_POSTGRES_SSL_MODE", "prefer"),
 			"PostgreSQL SSL mode (disable, prefer, require, verify-ca, verify-full)"),
+		schemaVersion: flag.String("postgres-schema-version",
+			utils.GetEnv("OSMO_SCHEMA_VERSION", "public"),
+			"pgroll schema version for search_path"),
 	}
 }
 
@@ -182,5 +192,6 @@ func (p *PostgresFlagPointers) ToPostgresConfig() PostgresConfig {
 		MinConns:        int32(*p.minConns),
 		MaxConnLifetime: time.Duration(*p.maxConnLifetimeMin) * time.Minute,
 		SSLMode:         *p.sslMode,
+		SchemaVersion:   *p.schemaVersion,
 	}
 }
