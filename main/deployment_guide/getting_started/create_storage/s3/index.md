@@ -116,3 +116,11 @@ s3://my_bucket
 ```
 
 Follow [Configure Data Storage](../../configure_data.md#configure-data) to add the bucket to OSMO.
+
+## S3-Compatible Services
+
+OSMO supports MinIO, Ceph, LocalStack, and S3 API-compatible services. Storage URIs will still use
+the same S3 URI format (`s3://<bucket>`). To connect OSMO to an S3-compatible service,
+set the `override_url` credential field to the service’s HTTP endpoint (e.g., `http://minio:9000`).
+
+Follow [Configure Data Storage](../../configure_data.md#configure-data) for full credential setup instructions.

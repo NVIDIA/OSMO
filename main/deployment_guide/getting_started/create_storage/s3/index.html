@@ -72,7 +72,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
-    <meta name="docbuild:last-update" content="Feb 20, 2026"/>
+    <meta name="docbuild:last-update" content="Feb 21, 2026"/>
 
 
   </head>
@@ -721,6 +721,13 @@ s3://my_bucket
 </div>
 <p>Follow <a class="reference internal" href="../../configure_data.html#configure-data"><span class="std std-ref">Configure Data Storage</span></a> to add the bucket to OSMO.</p>
 </section>
+<section id="s3-compatible-services">
+<h2>S3-Compatible Services<a class="headerlink" href="#s3-compatible-services" title="Link to this heading">#</a></h2>
+<p>OSMO supports MinIO, Ceph, LocalStack, and S3 API-compatible services. Storage URIs will still use
+the same S3 URI format (<code class="docutils literal notranslate"><span class="pre">s3://&lt;bucket&gt;</span></code>). To connect OSMO to an S3-compatible service,
+set the <code class="docutils literal notranslate"><span class="pre">override_url</span></code> credential field to the service’s HTTP endpoint (e.g., <code class="docutils literal notranslate"><span class="pre">http://minio:9000</span></code>).</p>
+<p>Follow <a class="reference internal" href="../../configure_data.html#configure-data"><span class="std std-ref">Configure Data Storage</span></a> for full credential setup instructions.</p>
+</section>
 </section>
 
 
@@ -776,6 +783,7 @@ s3://my_bucket
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-iam-policy">Configuring IAM Policy</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-user-group">Creating a User Group</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#construct-uri">Construct URI</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#s3-compatible-services">S3-Compatible Services</a></li>
 </ul>
   </nav></div>
 
@@ -868,7 +876,7 @@ s3://my_bucket
 </div>
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on Feb 20, 2026.
+  Last updated on Feb 21, 2026.
   <br/>
 </p></div>
       

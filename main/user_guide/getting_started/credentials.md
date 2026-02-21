@@ -127,7 +127,7 @@ $ osmo credential set my-gitlab-cred \
 
 OSMO integrates with the following data storage solutions:
 
-* [AWS S3](https://aws.amazon.com/s3)
+* [S3-Compatible Storage](https://aws.amazon.com/s3) (AWS S3, MinIO, LocalStack, and any S3 API-compatible services)
 * [GCP Google Storage](https://cloud.google.com/storage/docs/buckets)
 * [Azure Blob Storage](https://azure.microsoft.com/en-us/products/storage/blobs)
 * [Torch Object Storage](https://docs.byteplus.com/en/docs/tos)
@@ -139,19 +139,26 @@ To access your data storage within workflows, you’ll need to set the appropria
 > For assistance with **creating credentials** for your data storage provider, please
 > contact your OSMO administrator.
 
-### AWS S3
+### S3 / S3-Compatible
 
-To set a credential for S3, run the following command:
+To set a credential for S3 or S3-compatible storage, run the following command:
 
 ```bash
 $ osmo credential set my-s3-cred \
     --type DATA \
     --payload \
     endpoint=s3://<bucket> \
-    region=us-east-1 \
+    region=<region> \
     access_key_id=<access_key_id> \
     access_key=<access_key> \
+    override_url=<http_endpoint>  # Optional: required for non-AWS S3
 ```
+
+> **Note**
+>
+> `override_url` is only required for non-AWS S3-compatible services such as MinIO, Ceph,
+> and LocalStack. It specifies the HTTP endpoint of the service (e.g., `http://minio:9000`).
+> Omit it for standard AWS S3.
 
 #### SEE ALSO
 Please refer to [AWS Access Key Documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html)
