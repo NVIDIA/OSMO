@@ -75,55 +75,61 @@ export const CollapsibleSection = memo(function CollapsibleSection({
       onOpenChange={onOpenChange}
       className="border-border border-b"
     >
-      <CollapsibleTrigger
-        className={cn(
-          "group flex w-full items-center justify-between px-6 py-4",
-          "cursor-pointer select-none",
-          "focus-visible:ring-nvidia focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-        )}
-        aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
-      >
-        <div className="flex items-center gap-3">
-          <span
-            className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-full",
-              "bg-nvidia text-white",
-              "text-xs font-semibold",
-            )}
-            aria-hidden="true"
-          >
-            {step}
-          </span>
-          <span className="text-sm font-medium">{title}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {!open && selectedValue && (
-            <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
-              {selectedValue}
-            </code>
+      <div className="flex items-center">
+        <CollapsibleTrigger
+          className={cn(
+            "group flex flex-1 items-center justify-between px-6 py-4",
+            "cursor-pointer select-none",
+            "focus-visible:ring-nvidia focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
           )}
-          {!open && badge}
-          {action && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
+          aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "flex size-6 shrink-0 items-center justify-center rounded-full",
+                "bg-nvidia text-white",
+                "text-xs font-semibold",
+              )}
+              aria-hidden="true"
             >
-              {action}
+              {step}
+            </span>
+            <span className="text-sm font-medium">{title}</span>
+          </div>
+
+          {!open && (selectedValue || badge) && (
+            <div className="flex items-center gap-2">
+              {selectedValue && (
+                <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
+                  {selectedValue}
+                </code>
+              )}
+              {badge}
             </div>
           )}
+        </CollapsibleTrigger>
+
+        {/* action lives outside the trigger to avoid nested <button> */}
+        {action && <div className="flex items-center gap-2">{action}</div>}
+
+        {/* chevron: second trigger, hidden from tab/SR (main trigger covers a11y) */}
+        <CollapsibleTrigger
+          tabIndex={-1}
+          aria-hidden="true"
+          className="group cursor-pointer px-6 py-4"
+        >
           <ChevronDown
             className={cn(
               "text-muted-foreground size-5 shrink-0",
-              /* GPU-accelerated rotation: only animates transform + color */
               "duration-moderate transition-[transform,color] ease-out",
               "group-hover:text-foreground",
               open && "rotate-180",
             )}
             aria-hidden="true"
           />
-        </div>
-      </CollapsibleTrigger>
+        </CollapsibleTrigger>
+      </div>
 
       {/*
        * Radix Presence detects the CSS animation name change when `open`

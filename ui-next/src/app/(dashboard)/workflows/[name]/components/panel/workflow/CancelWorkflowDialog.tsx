@@ -61,26 +61,26 @@ export interface CancelWorkflowDialogProps {
 // =============================================================================
 
 interface CancelWorkflowContentProps {
-  message: string;
-  setMessage: (message: string) => void;
-  force: boolean;
-  setForce: (force: boolean) => void;
   isPending: boolean;
   error: string | null;
-  handleCancel: () => void;
-  handleConfirm: () => void;
+  onCancel: () => void;
+  onConfirm: (params: { message?: string; force: boolean }) => void;
 }
 
 const CancelWorkflowContent = memo(function CancelWorkflowContent({
-  message,
-  setMessage,
-  force,
-  setForce,
   isPending,
   error,
-  handleCancel,
-  handleConfirm,
+  onCancel,
+  onConfirm,
 }: CancelWorkflowContentProps) {
+  // Form state lives here so it resets naturally when this component remounts (keyed by openCount)
+  const [message, setMessage] = useState("");
+  const [force, setForce] = useState(false);
+
+  const handleConfirm = useCallback(() => {
+    onConfirm({ message: message.trim() || undefined, force });
+  }, [onConfirm, message, force]);
+
   return (
     <>
       <div className="flex flex-col gap-4 px-4 sm:px-0">
@@ -153,7 +153,7 @@ const CancelWorkflowContent = memo(function CancelWorkflowContent({
         <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row">
           <Button
             variant="outline"
-            onClick={handleCancel}
+            onClick={onCancel}
             disabled={isPending}
           >
             Keep Running
@@ -181,9 +181,17 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
   onOpenChange,
   onRefetch,
 }: CancelWorkflowDialogProps) {
-  const [message, setMessage] = useState("");
-  const [force, setForce] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
+
+  // Track how many times the dialog has opened so CancelWorkflowContent can be keyed.
+  // Using "setState during render" (React-approved pattern) instead of useEffect to avoid
+  // the react-hooks/set-state-in-effect lint rule and cascading renders.
+  const [openCount, setOpenCount] = useState(0);
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) setOpenCount((c) => c + 1);
+  }
 
   const { execute, isPending, error, resetError } = useServerMutation(cancelWorkflow, {
     onSuccess: () => {
@@ -197,39 +205,32 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
           : undefined,
       });
 
-      // Close dialog and reset form
+      // Only close — no state resets here. CancelWorkflowContent remounts fresh on next open
+      // via the openCount key, preventing re-renders during the exit animation (which caused flashing).
       onOpenChange(false);
-      setMessage("");
-      setForce(false);
     },
     successMessage: "Workflow cancellation initiated",
     errorMessagePrefix: "Failed to cancel workflow",
   });
 
-  const handleConfirm = useCallback(() => {
-    execute(workflowName, {
-      message: message.trim() || undefined,
-      force,
-    });
-  }, [execute, workflowName, message, force]);
+  const handleConfirm = useCallback(
+    (params: { message?: string; force: boolean }) => {
+      execute(workflowName, params);
+    },
+    [execute, workflowName],
+  );
 
   const handleCancel = useCallback(() => {
     if (isPending) return; // Prevent closing during mutation
-    onOpenChange(false);
-    setMessage("");
-    setForce(false);
     resetError();
+    onOpenChange(false);
   }, [onOpenChange, isPending, resetError]);
 
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
       if (!newOpen && isPending) return; // Prevent closing during mutation
+      if (!newOpen) resetError();
       onOpenChange(newOpen);
-      if (!newOpen) {
-        setMessage("");
-        setForce(false);
-        resetError();
-      }
     },
     [onOpenChange, isPending, resetError],
   );
@@ -254,14 +255,11 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
           </DialogHeader>
 
           <CancelWorkflowContent
-            message={message}
-            setMessage={setMessage}
-            force={force}
-            setForce={setForce}
+            key={openCount}
             isPending={isPending}
             error={error}
-            handleCancel={handleCancel}
-            handleConfirm={handleConfirm}
+            onCancel={handleCancel}
+            onConfirm={handleConfirm}
           />
         </DialogContent>
       </Dialog>
@@ -287,14 +285,11 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
         </DrawerHeader>
 
         <CancelWorkflowContent
-          message={message}
-          setMessage={setMessage}
-          force={force}
-          setForce={setForce}
+          key={openCount}
           isPending={isPending}
           error={error}
-          handleCancel={handleCancel}
-          handleConfirm={handleConfirm}
+          onCancel={handleCancel}
+          onConfirm={handleConfirm}
         />
       </DrawerContent>
     </Drawer>
