@@ -108,11 +108,23 @@ def round_resources(total_request: float, allocatable: float) -> Tuple[int, int]
 def fetch_resources(service_client: client.ServiceClient, pools: List[str],
                     platform: Optional[List[str]] = None, all_pools: bool = False) -> Dict:
     logging.debug('Getting cluster resources')
-    params = {'pools': pools, 'all_pools': all_pools}
+    base_params: Dict = {'pools': pools, 'all_pools': all_pools}
     if platform:
-        params['platforms'] = platform
+        base_params['platforms'] = platform
 
-    response = service_client.request(client.RequestMethod.GET, 'api/resources', params=params)
+    all_resources: List[Dict] = []
+    offset = 0
+    while True:
+        response = service_client.request(
+            client.RequestMethod.GET, 'api/resources',
+            params={**base_params, 'offset': offset})
+        page_resources = response.get('resources', [])
+        all_resources.extend(page_resources)
+        if not response.get('has_more', False):
+            break
+        offset += len(page_resources)
+
+    response['resources'] = all_resources
     return response
 
 

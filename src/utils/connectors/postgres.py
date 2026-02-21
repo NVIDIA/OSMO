@@ -2332,12 +2332,15 @@ class BackendResource(pydantic.BaseModel):
     def list_from_db(cls, backends: List[str] | None = None,
                      pools: List[str] | None = None,
                      platforms: List[str] | None = None,
-                     resource_name: str | None = None) \
+                     resource_name: str | None = None,
+                     search: str | None = None,
+                     limit: int | None = None,
+                     offset: int = 0) \
         -> List['BackendResource']:
         pool_filter_clause = ''
         query_params: List[Tuple | str] = []
         # Need to update to filter based on backend
-        if backends or pools or resource_name:
+        if backends or pools or resource_name or search:
             pool_filter_clause = 'WHERE '
             conditions = []
             if backends:
@@ -2352,8 +2355,12 @@ class BackendResource(pydantic.BaseModel):
             if resource_name:
                 conditions.append('t2.resource_name = %s')
                 query_params.append(resource_name)
+            if search:
+                escaped = search.replace('_', r'\_').replace('%', r'\%')
+                conditions.append('r.name ILIKE %s')
+                query_params.append(f'%{escaped}%')
             pool_filter_clause += ' AND '.join(conditions)
-        select_cmd = f'''
+        main_sql = f'''
             SELECT t1.*,
                 COALESCE(sub.pool_platform_labels, ARRAY[]::text[]) AS pool_platform_labels,
                 resource_type
@@ -2382,10 +2389,13 @@ class BackendResource(pydantic.BaseModel):
                     r.name, r.backend, pools.count
                 ) sub
             ON t1.name = sub.name AND t1.backend = sub.backend
-            ORDER BY t1.backend ASC, t1.name ASC;
-        '''
+            ORDER BY t1.backend ASC, t1.name ASC'''
+        main_params: List[Tuple | str | int] = list(query_params)
+        if limit is not None:
+            main_sql += ' LIMIT %s OFFSET %s'
+            main_params.extend([limit, offset])
         postgres = PostgresConnector.get_instance()
-        resources = postgres.execute_fetch_command(select_cmd, tuple(query_params), True)
+        resources = postgres.execute_fetch_command(main_sql, tuple(main_params), True)
         all_resources: List['BackendResource'] = []
         if len(resources) == 0:
             return all_resources
