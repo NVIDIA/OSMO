@@ -25,6 +25,7 @@
 
 import { useState, useMemo, useCallback, useRef } from "react";
 import { usePage } from "@/components/chrome/page-context";
+import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
@@ -178,54 +179,65 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky header: breadcrumb + version switcher */}
-      <FileBrowserHeader
-        datasetName={name}
-        path={path}
-        versions={versions}
-        selectedVersion={version}
-        onNavigate={navigateTo}
-        onVersionChange={setVersion}
-      />
+      <InlineErrorBoundary
+        title="File browser header error"
+        compact
+      >
+        <FileBrowserHeader
+          datasetName={name}
+          path={path}
+          versions={versions}
+          selectedVersion={version}
+          onNavigate={navigateTo}
+          onVersionChange={setVersion}
+        />
+      </InlineErrorBoundary>
 
       {/* File browser + preview panel side-by-side */}
-      <div
-        ref={containerRef}
-        className="flex min-h-0 flex-1 overflow-hidden"
+      <InlineErrorBoundary
+        title="Unable to display file browser"
+        resetKeys={[files.length]}
+        onReset={handleRefetchFiles}
       >
-        {/* File browser — shrinks to give space to preview panel */}
-        <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
+        <div
+          ref={containerRef}
+          className="flex min-h-0 flex-1 overflow-hidden"
+        >
+          {/* File browser — shrinks to give space to preview panel */}
+          <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
 
-        {/* Drag handle + preview panel — only mounted when a file is selected */}
-        {panelOpen && (
-          <>
-            {/* Thin drag separator — 1px visual, full-height hit area */}
-            <div
-              {...bindResizeHandle()}
-              className={cn(
-                "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
-                isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
-              )}
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize panel"
-              aria-valuenow={panelWidth}
-            />
-            <aside
-              className="flex shrink-0 flex-col overflow-hidden"
-              style={{ width: `${panelWidth}%`, ...dragStyles }}
-              aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
-            >
-              {selectedFileData && (
-                <FilePreviewPanel
-                  file={selectedFileData}
-                  path={path}
-                  onClose={clearSelection}
-                />
-              )}
-            </aside>
-          </>
-        )}
-      </div>
+          {/* Drag handle + preview panel — only mounted when a file is selected */}
+          {panelOpen && (
+            <>
+              {/* Thin drag separator — 1px visual, full-height hit area */}
+              <div
+                {...bindResizeHandle()}
+                className={cn(
+                  "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
+                  isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
+                )}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize panel"
+                aria-valuenow={panelWidth}
+              />
+              <aside
+                className="flex shrink-0 flex-col overflow-hidden"
+                style={{ width: `${panelWidth}%`, ...dragStyles }}
+                aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
+              >
+                {selectedFileData && (
+                  <FilePreviewPanel
+                    file={selectedFileData}
+                    path={path}
+                    onClose={clearSelection}
+                  />
+                )}
+              </aside>
+            </>
+          )}
+        </div>
+      </InlineErrorBoundary>
     </div>
   );
 }
