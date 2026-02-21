@@ -48,7 +48,6 @@
 "use client";
 
 import { usePage } from "@/components/chrome/page-context";
-import { preloadElkWorker } from "@/components/dag/layout/elk-worker-client";
 import { WorkflowDetailInnerWithProvider } from "@/app/(dashboard)/workflows/[name]/workflow-detail-inner";
 
 // =============================================================================
@@ -72,12 +71,6 @@ import { WorkflowDetailInnerWithProvider } from "@/app/(dashboard)/workflows/[na
 //   - This IS the main feature - users expect it immediately
 //   - Route-level splitting means other pages aren't affected
 //   - Much better UX for the 99% use case
-
-// Preload ELK worker on module load (before first render)
-// This hides worker initialization latency from the user
-if (typeof window !== "undefined") {
-  preloadElkWorker();
-}
 
 // =============================================================================
 // Types
