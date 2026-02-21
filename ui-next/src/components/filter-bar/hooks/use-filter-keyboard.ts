@@ -169,7 +169,13 @@ export function useFilterKeyboard<T>(
     [state, actions, nav],
   );
 
-  return { handleKeyDown, highlightedSuggestionValue, displaySelectables, navigationLevel: navState.level, resetNavigation };
+  return {
+    handleKeyDown,
+    highlightedSuggestionValue,
+    displaySelectables,
+    navigationLevel: navState.level,
+    resetNavigation,
+  };
 }
 
 // ---------------------------------------------------------------------------
