@@ -1,42 +1,22 @@
 # .claude/ — Agent & Skill Reference
 
-## Error Boundary Enforcement
+## Multi-Domain Audit Pipeline
 
-Boundaries guard **async failure points we can't control** — API calls, network errors, auth failures. Pure UI components are never wrapped; if they crash, that's a bug to fix. See [Bulletproof React: Error Handling](https://github.com/alan2207/bulletproof-react/blob/master/docs/error-handling.md) for the philosophy.
+Runs all enforcement domains sequentially, one iteration per invocation.
 
-### The pattern
-
-```tsx
-// Chrome (toolbars, filters) — compact mode
-<InlineErrorBoundary title="Toolbar error" compact>
-  <Toolbar />
-</InlineErrorBoundary>
-
-// Content (tables, cards) — with retry
-<InlineErrorBoundary
-  title="Unable to display workflows"
-  resetKeys={[workflows.length]}
-  onReset={refetch}
->
-  <WorkflowsDataTable />
-</InlineErrorBoundary>
+```
+/audit-and-fix
 ```
 
-One boundary per independent concern. Never wrap unrelated sections together.
+Each call: launches the orchestrator → finds active domain → runs its enforcer → updates state → reports progress.
+Call repeatedly until all 6 domains show DONE. Final invocation runs the full test suite.
 
-### Audit + enforce
+**Pipeline domains (in order):**
+1. `error-boundaries` — DONE (21/21, 100%)
+2. `react-best-practices` — hook patterns, memoization, waterfall prevention
+3. `nextjs-patterns` — RSC boundaries, async params, hydration safety
+4. `composition-patterns` — boolean prop proliferation, compound components
+5. `tailwind-standards` — Tailwind v4, data-attributes, CSS variables
+6. `design-guidelines` — ARIA, semantic HTML, keyboard navigation
 
-**Audit only** (read-only report):
-```
-/audit-error-boundaries
-```
-
-**Fix loop** (runs until zero violations):
-```
-Run the error-boundary-enforcer agent. When it exits with STATUS: CONTINUE,
-re-invoke it immediately (do NOT resume — always start fresh). Keep re-invoking
-until STATUS: DONE. Do not read any code files yourself — delegate everything
-to the agent. When done, show me the final iteration summary.
-```
-
-Each invocation is a fresh context. Memory in `.claude/memory/error-boundaries-*.md` carries state between runs — discovery cache, open violations queue, known-good files, and skipped items needing human review.
+**State file:** `.claude/memory/audit-and-fix-pipeline-state.md`
