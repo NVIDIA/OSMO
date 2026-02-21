@@ -40,7 +40,6 @@
 
   /* Dropdown max height */
   --fb-dropdown-max-height: 380px;
-  --fb-suggestions-max-height: 300px;
 }
 
 /* Dark mode blue accents */
@@ -179,6 +178,7 @@
   display: flex;
   max-height: var(--fb-dropdown-max-height);
   flex-direction: column;
+  overflow: hidden; /* single clip boundary — inner .fb-suggestions-scroll is the only scrollbar */
   border-radius: 0.375rem;
   border: 1px solid var(--border);
   box-shadow:
@@ -296,11 +296,21 @@
    Virtualized Suggestions Container
    ============================================================================= */
 
+/* cmdk renders [cmdk-group] > [cmdk-group-items] — thread flex-1 through so
+   .fb-suggestions-scroll can fill the remaining CommandList height. */
+.fb-suggestions-group [cmdk-group-items] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .fb-suggestions-scroll {
   contain: layout paint;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  max-height: var(--fb-suggestions-max-height);
 }
 
 /* =============================================================================

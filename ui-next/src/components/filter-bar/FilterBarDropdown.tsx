@@ -139,8 +139,10 @@ function FilterBarDropdownInner<T>({
         {/* Validation error */}
         {validationError && <div className="fb-validation-error">⚠ {validationError}</div>}
 
-        {/* Scrollable content area - cmdk handles keyboard navigation */}
-        <CommandList className="max-h-none min-h-0 flex-1 overflow-y-auto">
+        {/* Content area — flex column that fills available space.
+            overflow-hidden (not overflow-y-auto) means CommandList itself never scrolls;
+            the inner .fb-suggestions-scroll is the sole scroll container. */}
+        <CommandList className="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden">
           {/* Presets (shown when input is empty) */}
           {showPresets && (
             <PresetsSection
@@ -364,8 +366,8 @@ function VirtualizedSuggestionsInner<T>({
   const totalSize = virtualizer.getTotalSize();
 
   return (
-    <CommandGroup className="fb-suggestions-group p-0">
-      {/* Scroll container with CSS containment for performance */}
+    <CommandGroup className="fb-suggestions-group flex min-h-0 flex-1 flex-col p-0">
+      {/* Sole scroll container — fills the remaining CommandList height via flex-1 */}
       <div
         ref={scrollRef}
         className="fb-suggestions-scroll"
