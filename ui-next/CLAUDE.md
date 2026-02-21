@@ -82,7 +82,7 @@ import { PoolStatus, WorkflowStatus, WorkflowPriority } from '@/lib/api/generate
 // ✅ REQUIRED: Absolute imports with @/ prefix
 import { Button } from "@/components/shadcn/button";
 import { usePoolsData } from "@/app/(dashboard)/pools/use-pools-data";
-import { DataTable } from "@/components/data-table/DataTable";
+import { DataTable } from "@/components/data-table/data-table";
 
 // ❌ FORBIDDEN: Relative imports (ESLint will ERROR)
 import { Button } from "./button";
@@ -705,10 +705,28 @@ announcer.announce("Copied to clipboard", "polite");
 ## Code Style
 
 ### File Naming
-- **Components**: `PascalCase.tsx` (e.g., `Button.tsx`, `DataTable.tsx`)
-  - Exception: shadcn/ui uses `kebab-case.tsx` (external library)
-- **Hooks**: `camelCase.ts` with `use` prefix (e.g., `useAuth.ts`)
-- **Utilities**: `camelCase.ts` (e.g., `formatDate.ts`, `utils.ts`)
+**All source files use `kebab-case`** — components, hooks, utilities, stores, lib files.
+
+```
+✅ boolean-indicator.tsx    ✅ use-copy.ts
+✅ pools-page-content.tsx   ✅ format-date.ts
+✅ create-table-store.ts    ✅ shared-preferences-store.ts
+```
+
+**Exports follow JavaScript conventions** (PascalCase for components, camelCase for functions) — the file name is kebab-case, the export is not:
+```typescript
+// File: boolean-indicator.tsx
+export function BooleanIndicator() { ... }   // PascalCase export
+
+// File: use-copy.ts
+export function useCopy() { ... }            // camelCase export
+```
+
+**Exceptions — never rename:**
+- Next.js reserved files: `page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `template.tsx`, `route.ts`
+- `src/components/shadcn/` — external library, intentionally kebab-case
+- `src/lib/api/generated.ts` — auto-generated
+- Config files at project root: `next.config.ts`, `tailwind.config.ts`, etc.
 
 ### Copyright Headers
 

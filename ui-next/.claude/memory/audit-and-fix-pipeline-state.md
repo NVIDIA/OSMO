@@ -1,9 +1,11 @@
 # Audit-and-Fix Pipeline State
-Last Updated: 2026-02-21 (design-guidelines iteration 1)
+Last Updated: 2026-02-21 (reordered: rename/structure first, quality second)
 
 ## Domain Status
 | Domain                | Status   | Last Run   | Iterations |
 |-----------------------|----------|------------|------------|
+| file-rename           | PENDING  | —          | 0          |
+| folder-structure      | PENDING  | —          | 0          |
 | error-boundaries      | DONE     | 2026-02-21 | 3          |
 | react-best-practices  | DONE     | 2026-02-21 | 1          |
 | nextjs-patterns       | DONE     | 2026-02-21 | 1          |
@@ -12,7 +14,7 @@ Last Updated: 2026-02-21 (design-guidelines iteration 1)
 | design-guidelines     | DONE     | 2026-02-21 | 1          |
 
 ## Active Domain
-none
+file-rename
 
 ## Final Verification
-PIPELINE_COMPLETE
+PENDING

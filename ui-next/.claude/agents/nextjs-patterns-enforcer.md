@@ -26,6 +26,8 @@ Read: .claude/memory/nextjs-patterns-skipped.md
 Also read:
 ```
 Read: CLAUDE.md   ← project-specific rules
+Read: .claude/memory/dependency-graph.md   ← cluster data for scope selection
+Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
 Note the iteration number (default 0 if no prior run). This invocation is N+1.
@@ -51,29 +53,64 @@ Keep loaded knowledge in context for the audit step.
 
 ---
 
-## Step 2 — Audit Scope
+## Step 2 — Select Working Cluster
 
-Find all App Router files:
+**Scope filter for this enforcer: `feature-routes`**
+
+Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to work on:
+
+1. From `nextjs-patterns-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
+2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
+3. Otherwise: filter graph clusters to feature-route clusters (primary dir under `src/app/(dashboard)/`),
+   remove completed clusters, sort topologically (leaf-first), select pending[0]
+4. If graph is UNBUILT: each subdirectory of `src/app/(dashboard)/` is one pseudo-cluster,
+   alphabetical order
+
+**After selecting the cluster's directory, discover actual App Router files with live Globs:**
+```
+Glob: src/app/(dashboard)/[feature]/**/page.tsx
+Glob: src/app/(dashboard)/[feature]/**/layout.tsx
+Glob: src/app/(dashboard)/[feature]/**/error.tsx
+Glob: src/app/(dashboard)/[feature]/**/loading.tsx
+Glob: src/app/(dashboard)/[feature]/**/route.ts
+```
+
+The live Glob results are authoritative. Graph file lists are hints only.
+Files in graph but missing on disk → skip silently. Files on disk not in graph → include them.
+
+**Record:**
+```
+Working Cluster: [feature-name]
+Directory: src/app/(dashboard)/[feature]/
+Discovered App Router files (live Glob): [N files — list them]
+```
+
+All subsequent steps operate only on files discovered within the working cluster's directory.
+
+---
+
+## Step 3 — Audit Scope
+
+Find App Router files within the working cluster's directory:
 
 ```
-Glob: src/app/**/page.tsx
-Glob: src/app/**/layout.tsx
-Glob: src/app/**/error.tsx
-Glob: src/app/**/loading.tsx
-Glob: src/app/**/route.ts
-Glob: src/app/**/template.tsx
+Glob: [working-cluster-directory]/**/page.tsx
+Glob: [working-cluster-directory]/**/layout.tsx
+Glob: [working-cluster-directory]/**/error.tsx
+Glob: [working-cluster-directory]/**/loading.tsx
+Glob: [working-cluster-directory]/**/route.ts
 ```
 
-Also find server components (files without `"use client"` that import server-only APIs):
+Also find server components within the cluster:
 ```
-Grep: pattern="import.*server-only|cookies\(\)|headers\(\)" glob="src/**/*.tsx" output_mode="files_with_matches"
+Grep: pattern="import.*server-only|cookies\(\)|headers\(\)" glob="[working-cluster-directory]/**/*.tsx" output_mode="files_with_matches"
 ```
 
 Skip files in `nextjs-patterns-known-good.md` unless they appear in `git diff --name-only HEAD~3`.
 
 ---
 
-## Step 3 — Identify Violations
+## Step 4 — Identify Violations
 
 Check each in-scope file for these patterns (priority order):
 
@@ -150,11 +187,11 @@ useEffect(() => { setTime(Date.now()); }, []);
 
 ---
 
-## Step 4 — Fix (bounded to 10 violations)
+## Step 5 — Fix (bounded to 10 violations)
 
-Select top 10 violations by priority: CRITICAL first, then HIGH, then MEDIUM.
+Select top 10 violations by priority within the working cluster: CRITICAL first, then HIGH, then MEDIUM.
 
-If `nextjs-patterns-last-audit.md` has an open queue from a prior run, treat those as the front of the queue.
+If `nextjs-patterns-last-audit.md` has an open queue for this cluster from a prior run, treat those as the front of the queue.
 
 Read each file before editing. Apply the fix. Verify:
 - All imports use absolute `@/` paths
@@ -163,7 +200,7 @@ Read each file before editing. Apply the fix. Verify:
 
 ---
 
-## Step 5 — Verify
+## Step 6 — Verify
 
 ```bash
 pnpm type-check
@@ -174,7 +211,7 @@ If either fails, fix the root cause. Never suppress errors.
 
 ---
 
-## Step 6 — Write Memory
+## Step 7 — Write Memory
 
 **Write `.claude/memory/nextjs-patterns-last-audit.md`** (full replacement):
 ```markdown
@@ -183,7 +220,13 @@ Date: [today]
 Iteration: [N]
 Fixed this run: [N files]
 
-## Open Violations Queue
+## Cluster Progress
+Completed Clusters: [cluster-a, cluster-b, ...]
+Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Current Working Cluster: [cluster-name]
+Current Cluster Status: [DONE | CONTINUE]
+
+## Open Violations Queue (current cluster)
 [All unfixed violations in priority order — file paths, line numbers, pattern type]
 
 ## Fixed This Run
@@ -208,15 +251,20 @@ pnpm lint: ✅/❌
 
 ---
 
-## Step 7 — Exit Report
+## Step 8 — Exit Report
 
 ```
 ## Next.js Patterns — Iteration [N] Complete
 
+Working cluster this cycle: [feature-name] ([N files])
+Cluster status: [DONE | CONTINUE]
+Completed clusters: N/M total
+Pending clusters: [feature-b, feature-c, ...]
+
 Fixed this run: N files
   [path — brief description]
 
-Violations remaining: N (critical: N, high: N, medium: N)
+Violations remaining in cluster: N (critical: N, high: N, medium: N)
 Skipped (human review): N items
 
 Verification:
@@ -226,8 +274,8 @@ Verification:
 STATUS: [DONE | CONTINUE]
 ```
 
-- **DONE**: zero actionable violations remain
-- **CONTINUE**: actionable violations remain
+- **DONE**: all clusters processed (pending list empty) AND current cluster has no remaining violations
+- **CONTINUE**: current cluster has remaining violations OR more clusters remain in pending list
 
 ---
 

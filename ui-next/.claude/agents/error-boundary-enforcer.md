@@ -31,6 +31,8 @@ Also read the audit skill so you know its phases:
 ```
 Read: .claude/skills/audit-error-boundaries.md
 Read: CLAUDE.md
+Read: .claude/memory/dependency-graph.md   ← cluster data for scope selection
+Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
 Note the iteration number from `error-boundaries-last-audit.md` (default 0 if no prior run).
@@ -38,7 +40,39 @@ This invocation is iteration N+1.
 
 ---
 
-## Step 1 — Discovery (skip if cache is fresh)
+## Step 1 — Select Working Cluster
+
+**Scope filter for this enforcer: `all-ui`**
+
+Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to work on:
+
+1. From `error-boundaries-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
+2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
+3. Otherwise: filter graph clusters to `all-ui` scope (components + feature routes),
+   remove completed clusters, sort topologically (leaf-first), select pending[0]
+4. If graph is UNBUILT: use feature route directories as pseudo-clusters
+   (`src/app/(dashboard)/*/` each = one cluster, alphabetical order)
+
+**After selecting the cluster's directory, discover actual files with a live Glob:**
+```
+Glob: [cluster-directory]/**/*.{ts,tsx}
+```
+
+The live Glob result is authoritative. Graph file lists are hints for prioritization only.
+Files in graph but missing on disk → skip silently. Files on disk not in graph → include them.
+
+**Record:**
+```
+Working Cluster: [name]
+Directory: [path]
+Discovered files (live Glob): [N files — list them]
+```
+
+All subsequent steps operate only on files discovered within the working cluster's directory.
+
+---
+
+## Step 2 — Discovery (skip if cache is fresh for working cluster)
 
 **If `error-boundaries-discovery.md` exists and is ≤ 7 days old:** load it and skip to Step 2.
 
@@ -69,9 +103,11 @@ Compact variant: [prop name and value for compact/chrome mode, if any]
 
 ---
 
-## Step 2 — Audit
+## Step 3 — Audit
 
-Run Phases 2–5 from the audit skill using the discovery knowledge from Step 1.
+Run Phases 2–5 from the audit skill using the discovery knowledge from Step 2.
+
+**Scope**: audit ONLY files within the working cluster selected in Step 1.
 
 **Efficiency rule:** any file listed in `error-boundaries-known-good.md` may be skipped unless it
 appears in the output of `git diff --name-only HEAD~1` (i.e. recently modified).
@@ -83,11 +119,11 @@ Do **not** re-flag items already in `error-boundaries-skipped.md` — list them 
 
 ---
 
-## Step 3 — Fix (bounded to 10 violations)
+## Step 4 — Fix (bounded to 10 violations)
 
-Select the **top 10 violations** by severity: 🔴 first, then 🟡, then 🟠. If `error-boundaries-last-audit.md`
-has an open violations queue from a prior run, treat those as the front of the queue (audit findings
-confirm/refresh them and may add new ones at the back).
+Select the **top 10 violations** by severity within the working cluster: 🔴 first, then 🟡, then 🟠.
+If `error-boundaries-last-audit.md` has an open violations queue for this cluster from a prior run,
+treat those as the front of the queue (audit findings confirm/refresh them and may add new ones at the back).
 
 For each selected violation, apply the appropriate fix pattern:
 
@@ -113,7 +149,7 @@ After each edit confirm:
 
 ---
 
-## Step 4 — Verify
+## Step 5 — Verify
 
 ```bash
 pnpm type-check
@@ -125,7 +161,7 @@ Never use `@ts-ignore`, `any` types, or `eslint-disable`.
 
 ---
 
-## Step 5 — Write Memory
+## Step 6 — Write Memory
 
 **Write `.claude/memory/error-boundaries-last-audit.md`** (full replacement):
 ```markdown
@@ -135,9 +171,15 @@ Iteration: [N]
 Score: X/Y covered (Z%)
 Critical: N | Warnings: M | Anti-patterns: P | Skipped: Q | Fixed this run: R
 
-## Open Violations Queue
+## Cluster Progress
+Completed Clusters: [cluster-a, cluster-b, ...]
+Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Current Working Cluster: [cluster-name]
+Current Cluster Status: [DONE | CONTINUE]
+
+## Open Violations Queue (current cluster)
 [All unfixed 🔴, 🟡, 🟠 findings in severity order — file paths, line numbers, descriptions]
-[These are the starting queue for the next invocation]
+[These are the starting queue for the next invocation of this cluster]
 
 ## Fixed This Run
 [One line per file: path — what changed — which pattern used]
@@ -158,17 +200,22 @@ Critical: N | Warnings: M | Anti-patterns: P | Skipped: Q | Fixed this run: R
 
 ---
 
-## Step 6 — Exit Report
+## Step 7 — Exit Report
 
 Output this summary so the orchestrator knows what to do next:
 
 ```
 ## Iteration [N] Complete
 
+Working cluster this cycle: [cluster-name] ([N files])
+Cluster status: [DONE | CONTINUE]
+Completed clusters: N/M total
+Pending clusters: [cluster-c, cluster-d, ...]
+
 Fixed this run: N files
   [one line per file: path — brief description]
 
-Violations remaining: N (critical: N, warnings: N, anti-patterns: N)
+Violations remaining in cluster: N (critical: N, warnings: N, anti-patterns: N)
 Skipped (human review): N items
 
 Verification:
@@ -178,8 +225,8 @@ Verification:
 STATUS: [DONE | CONTINUE]
 ```
 
-- **DONE**: zero actionable violations remain (all findings are either fixed or in the skipped list)
-- **CONTINUE**: actionable violations remain — orchestrator should re-invoke with a fresh context
+- **DONE**: all clusters processed (pending list empty) AND current cluster has no remaining violations
+- **CONTINUE**: current cluster has remaining violations OR more clusters remain in pending list
 
 ---
 

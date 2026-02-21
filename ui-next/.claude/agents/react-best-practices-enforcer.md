@@ -26,6 +26,8 @@ Read: .claude/memory/react-best-practices-skipped.md
 Also read:
 ```
 Read: CLAUDE.md   ← project-specific rules (forbidden patterns, memoization, etc.)
+Read: .claude/memory/dependency-graph.md   ← cluster data for scope selection
+Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
 Note the iteration number from `react-best-practices-last-audit.md` (default 0 if no prior run).
@@ -50,13 +52,44 @@ Keep the loaded knowledge in context for audit and fix steps.
 
 ---
 
-## Step 2 — Audit Scope
+## Step 2 — Select Working Cluster
 
-Find all files in scope (files that call React hooks):
+**Scope filter for this enforcer: `all-source`**
 
+Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to work on:
+
+1. From `react-best-practices-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
+2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
+3. Otherwise: filter graph clusters to those containing hook-calling files,
+   remove completed clusters, sort topologically (leaf-first), select pending[0]
+4. If graph is UNBUILT: use component subdirectories as pseudo-clusters, alphabetical order
+
+**After selecting the cluster's directory, discover actual files with a live Glob:**
 ```
-Grep: pattern="use[A-Z][a-zA-Z]+" glob="src/**/*.tsx" output_mode="files_with_matches"
-Grep: pattern="use[A-Z][a-zA-Z]+" glob="src/**/*.ts" output_mode="files_with_matches"
+Glob: [cluster-directory]/**/*.{ts,tsx}
+```
+
+The live Glob result is authoritative. Graph file lists are hints for prioritization only.
+Files in graph but missing on disk → skip silently. Files on disk not in graph → include them.
+
+**Record:**
+```
+Working Cluster: [name]
+Directory: [path]
+Discovered files (live Glob): [N files — list them]
+```
+
+All subsequent steps operate only on files discovered within the working cluster's directory.
+
+---
+
+## Step 3 — Audit Scope
+
+Find files in the working cluster that call React hooks:
+
+Grep for hook usage within the working cluster's files only:
+```
+Grep: pattern="use[A-Z][a-zA-Z]+" glob="[working-cluster-directory]/**/*.{ts,tsx}" output_mode="files_with_matches"
 ```
 
 Filter OUT:
@@ -75,7 +108,7 @@ git diff --name-only HEAD~3
 
 ---
 
-## Step 3 — Identify Violations
+## Step 4 — Identify Violations
 
 For each in-scope file, check for these anti-patterns (priority order):
 
@@ -144,11 +177,11 @@ const handleAction = useCallback(() => handleSomething(id), [id]);
 
 ---
 
-## Step 4 — Fix (bounded to 10 violations)
+## Step 5 — Fix (bounded to 10 violations)
 
-Select top 10 violations by priority: CRITICAL first, then HIGH, then MEDIUM.
+Select top 10 violations by priority within the working cluster: CRITICAL first, then HIGH, then MEDIUM.
 
-If `react-best-practices-last-audit.md` has an open queue from a prior run, treat those as the front of the queue.
+If `react-best-practices-last-audit.md` has an open queue for this cluster from a prior run, treat those as the front of the queue.
 
 Read each file before editing it. Apply the fix. Verify:
 - All imports use absolute `@/` paths
@@ -157,7 +190,7 @@ Read each file before editing it. Apply the fix. Verify:
 
 ---
 
-## Step 5 — Verify
+## Step 6 — Verify
 
 ```bash
 pnpm type-check
@@ -168,7 +201,7 @@ If either fails, fix the root cause before proceeding. Never suppress errors.
 
 ---
 
-## Step 6 — Write Memory
+## Step 7 — Write Memory
 
 **Write `.claude/memory/react-best-practices-last-audit.md`** (full replacement):
 ```markdown
@@ -177,7 +210,13 @@ Date: [today]
 Iteration: [N]
 Fixed this run: [N files]
 
-## Open Violations Queue
+## Cluster Progress
+Completed Clusters: [cluster-a, cluster-b, ...]
+Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Current Working Cluster: [cluster-name]
+Current Cluster Status: [DONE | CONTINUE]
+
+## Open Violations Queue (current cluster)
 [All unfixed violations in priority order — file paths, line numbers, pattern type]
 
 ## Fixed This Run
@@ -203,15 +242,20 @@ pnpm lint: ✅/❌
 
 ---
 
-## Step 7 — Exit Report
+## Step 8 — Exit Report
 
 ```
 ## React Best Practices — Iteration [N] Complete
 
+Working cluster this cycle: [cluster-name] ([N files])
+Cluster status: [DONE | CONTINUE]
+Completed clusters: N/M total
+Pending clusters: [cluster-c, cluster-d, ...]
+
 Fixed this run: N files
   [path — brief description]
 
-Violations remaining: N (critical: N, high: N, medium: N)
+Violations remaining in cluster: N (critical: N, high: N, medium: N)
 Skipped (human review): N items
 
 Verification:
@@ -221,8 +265,8 @@ Verification:
 STATUS: [DONE | CONTINUE]
 ```
 
-- **DONE**: zero actionable violations remain (all fixed or in skipped list)
-- **CONTINUE**: actionable violations remain
+- **DONE**: all clusters processed (pending list empty) AND current cluster has no remaining violations
+- **CONTINUE**: current cluster has remaining violations OR more clusters remain in pending list
 
 ---
 

@@ -26,13 +26,46 @@ Read: .claude/memory/design-skipped.md
 Also read:
 ```
 Read: CLAUDE.md   ← focus on "Accessibility Requirements" section
+Read: .claude/memory/dependency-graph.md   ← cluster data for scope selection
+Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
 Note the iteration number (default 0 if no prior run). This invocation is N+1.
 
 ---
 
-## Step 1 — Load Design Guidelines
+## Step 1 — Select Working Cluster
+
+**Scope filter for this enforcer: `all-ui`**
+
+Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to work on:
+
+1. From `design-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
+2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
+3. Otherwise: filter graph clusters to all-ui scope (components + feature routes),
+   remove completed clusters, sort topologically (leaf-first), select pending[0]
+4. If graph is UNBUILT: component subdirs + feature route dirs as pseudo-clusters, alphabetical order
+
+**After selecting the cluster's directory, discover actual files with a live Glob:**
+```
+Glob: [cluster-directory]/**/*.{ts,tsx}
+```
+
+The live Glob result is authoritative. Graph file lists are hints for prioritization only.
+Files in graph but missing on disk → skip silently. Files on disk not in graph → include them.
+
+**Record:**
+```
+Working Cluster: [name]
+Directory: [path]
+Discovered files (live Glob): [N files — list them]
+```
+
+All subsequent steps operate only on files discovered within the working cluster's directory.
+
+---
+
+## Step 2 — Load Design Guidelines
 
 Fetch the live design guidelines:
 
@@ -50,41 +83,40 @@ If the fetch fails (network error), fall back to using CLAUDE.md's "Accessibilit
 
 ---
 
-## Step 2 — Audit Scope
+## Step 3 — Audit Scope
 
-Find all interactive components:
+Find interactive components within the working cluster's directory:
 
 **Non-semantic interactive elements (div/span with onClick):**
 ```
-Grep: pattern="<div\s[^>]*onClick|<span\s[^>]*onClick" glob="src/**/*.tsx" output_mode="files_with_matches"
+Grep: pattern="<div\s[^>]*onClick|<span\s[^>]*onClick" glob="[working-cluster-directory]/**/*.tsx" output_mode="files_with_matches"
 ```
 
 **Missing ARIA labels on icon-only buttons:**
 ```
-Grep: pattern="<button[^>]*>[^<]*<(svg|Icon)" glob="src/**/*.tsx" output_mode="files_with_matches"
+Grep: pattern="<button[^>]*>[^<]*<(svg|Icon)" glob="[working-cluster-directory]/**/*.tsx" output_mode="files_with_matches"
 ```
 
 **Missing keyboard handlers:**
 ```
-Grep: pattern="onClick(?!.*onKeyDown|.*onKeyPress|.*role)" glob="src/**/*.tsx" output_mode="files_with_matches"
+Grep: pattern="onClick(?!.*onKeyDown|.*onKeyPress|.*role)" glob="[working-cluster-directory]/**/*.tsx" output_mode="files_with_matches"
 ```
 
 **Missing focus management in dialogs/panels:**
 ```
-Grep: pattern="Dialog|Sheet|Drawer|Modal" glob="src/**/*.tsx" output_mode="files_with_matches"
+Grep: pattern="Dialog|Sheet|Drawer|Modal" glob="[working-cluster-directory]/**/*.tsx" output_mode="files_with_matches"
 ```
 
 **Images without alt text:**
 ```
-Grep: pattern="<img\s" glob="src/**/*.tsx" output_mode="files_with_matches"
-Grep: pattern="<Image\s" glob="src/**/*.tsx" output_mode="files_with_matches"
+Grep: pattern="<img\s|<Image\s" glob="[working-cluster-directory]/**/*.tsx" output_mode="files_with_matches"
 ```
 
 Skip files in `design-known-good.md` unless they appear in `git diff --name-only HEAD~3`.
 
 ---
 
-## Step 3 — Identify Violations
+## Step 4 — Identify Violations
 
 Follow the output format from the fetched guidelines document. If unavailable, use these rules:
 
@@ -171,9 +203,9 @@ Status indicators must use icon/shape + color (not just color alone).
 
 ---
 
-## Step 4 — Fix (bounded to 10 violations)
+## Step 5 — Fix (bounded to 10 violations)
 
-Select top 10 violations by priority following the output format from the fetched guidelines.
+Select top 10 violations by priority within the working cluster, following the output format from the fetched guidelines.
 
 Read each file before editing. Apply the fix. Verify:
 - All imports use absolute `@/` paths
@@ -184,7 +216,7 @@ For D1 fixes: prefer using `<Button>` from `@/components/shadcn/button` over add
 
 ---
 
-## Step 5 — Verify
+## Step 6 — Verify
 
 ```bash
 pnpm type-check
@@ -195,7 +227,7 @@ If either fails, fix the root cause. Never suppress errors.
 
 ---
 
-## Step 6 — Write Memory
+## Step 7 — Write Memory
 
 **Write `.claude/memory/design-last-audit.md`** (full replacement):
 ```markdown
@@ -205,7 +237,13 @@ Iteration: [N]
 Fixed this run: [N files]
 Guidelines source: [URL fetched or "fallback: CLAUDE.md"]
 
-## Open Violations Queue
+## Cluster Progress
+Completed Clusters: [cluster-a, cluster-b, ...]
+Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Current Working Cluster: [cluster-name]
+Current Cluster Status: [DONE | CONTINUE]
+
+## Open Violations Queue (current cluster)
 [All unfixed violations in priority order — file paths, line numbers, pattern type]
 
 ## Fixed This Run
@@ -230,15 +268,20 @@ pnpm lint: ✅/❌
 
 ---
 
-## Step 7 — Exit Report
+## Step 8 — Exit Report
 
 ```
 ## Design Guidelines — Iteration [N] Complete
 
+Working cluster this cycle: [cluster-name] ([N files])
+Cluster status: [DONE | CONTINUE]
+Completed clusters: N/M total
+Pending clusters: [cluster-c, cluster-d, ...]
+
 Fixed this run: N files
   [path — brief description]
 
-Violations remaining: N (critical: N, high: N, medium: N)
+Violations remaining in cluster: N (critical: N, high: N, medium: N)
 Skipped (human review): N items
 
 Verification:
@@ -248,8 +291,8 @@ Verification:
 STATUS: [DONE | CONTINUE]
 ```
 
-- **DONE**: zero actionable violations remain
-- **CONTINUE**: actionable violations remain
+- **DONE**: all clusters processed (pending list empty) AND current cluster has no remaining violations
+- **CONTINUE**: current cluster has remaining violations OR more clusters remain in pending list
 
 ---
 
