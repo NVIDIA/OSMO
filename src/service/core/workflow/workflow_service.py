@@ -207,7 +207,8 @@ def get_pool_quotas(all_pools: bool = True,
                         'During pool quota request, pool %s not found in '
                         'nodesets for resource %s', pool, resource.hostname)
                 continue
-            node_sets[pool] = node_sets[pool].add_node(resource.hostname)
+            node_sets[pool] = node_sets[pool].add_node(
+                f'{resource.backend}/{resource.hostname}')
 
     # Build an inverse map: node hostname -> list of pools that contain it.
     node_to_pools: dict[str, list[str]] = collections.defaultdict(list)
@@ -216,8 +217,9 @@ def get_pool_quotas(all_pools: bool = True,
             node_to_pools[node].append(pool)
 
     # BFS to find connected components: pools that transitively share at least
-    # one node (GPU or CPU) are merged into the same nodeset.
+    # one node are merged into the same nodeset.
     visited_pools: set[str] = set()
+    visited_nodes: set[str] = set()
     pools_by_nodeset: dict[NodeSet, list[str]] = {}
 
     for start_pool, start_nodeset in node_sets.items():
@@ -232,10 +234,13 @@ def get_pool_quotas(all_pools: bool = True,
             current_pool = pool_queue.popleft()
             component_pools.append(current_pool)
             for node in node_sets[current_pool].nodes:
-                for neighbour_pool in node_to_pools[node]:
-                    if neighbour_pool not in visited_pools:
-                        visited_pools.add(neighbour_pool)
-                        pool_queue.append(neighbour_pool)
+                if node in visited_nodes:
+                    continue
+                visited_nodes.add(node)
+                for neighbor_pool in node_to_pools[node]:
+                    if neighbor_pool not in visited_pools:
+                        visited_pools.add(neighbor_pool)
+                        pool_queue.append(neighbor_pool)
 
         merged_nodes: frozenset[str] = frozenset().union(
             *(node_sets[pool].nodes for pool in component_pools)
