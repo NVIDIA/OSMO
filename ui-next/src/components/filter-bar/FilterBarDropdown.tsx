@@ -310,7 +310,7 @@ interface RegularSuggestionsProps<T> {
 
 function RegularSuggestionsInner<T>({ selectables, onSelect }: RegularSuggestionsProps<T>) {
   return (
-    <CommandGroup>
+    <CommandGroup className="fb-suggestions-group">
       {selectables.map((suggestion, index) => (
         <SuggestionItem
           key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
@@ -364,7 +364,7 @@ function VirtualizedSuggestionsInner<T>({
   const totalSize = virtualizer.getTotalSize();
 
   return (
-    <CommandGroup className="p-0">
+    <CommandGroup className="fb-suggestions-group p-0">
       {/* Scroll container with CSS containment for performance */}
       <div
         ref={scrollRef}
