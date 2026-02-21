@@ -71,7 +71,6 @@ function FilterBarInner<T>(
     validationError,
     selectables,
     hints,
-    showPresets,
     showDropdown,
     isFieldLoading,
     loadingFieldLabel,
@@ -176,8 +175,6 @@ function FilterBarInner<T>(
         <FilterBarDropdown
           showDropdown={showDropdown}
           validationError={validationError}
-          showPresets={showPresets}
-          presets={presets}
           hints={hints}
           selectables={selectables}
           onSelect={handleSelect}

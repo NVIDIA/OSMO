@@ -25,7 +25,7 @@
  * Responsibilities:
  * - Own local UI state (input value, dropdown open, focused chip)
  * - Compose child hooks
- * - Derive computed values (showPresets, showDropdown)
+ * - Derive computed values (showDropdown)
  * - Provide stable action handlers
  *
  * Navigation state (Tab-cycling levels, frozen suggestions) is owned by
@@ -66,7 +66,6 @@ interface UseFilterStateReturn<T> {
   // Derived
   selectables: Suggestion<T>[];
   hints: Suggestion<T>[];
-  showPresets: boolean;
   showDropdown: boolean;
   isFieldLoading: boolean;
   loadingFieldLabel: string | undefined;
@@ -146,18 +145,13 @@ export function useFilterState<T>({
     clearValidationError,
   } = useChips({ chips, onChipsChange, data, fields, displayMode });
 
-  const { parsedInput, selectables, hints, flatPresets } = useSuggestions({
+  const { parsedInput, selectables, hints } = useSuggestions({
     inputValue,
     fields,
     data,
     chips,
     presets,
   });
-
-  // ========== Derived ==========
-
-  // Preset cmdk values for keyboard cycling (independent of inputValue)
-  const presetValues = useMemo(() => (presets ?? []).flatMap((g) => g.items.map((p) => `preset:${p.id}`)), [presets]);
 
   // ========== Actions ==========
 
@@ -172,12 +166,11 @@ export function useFilterState<T>({
     (value: string) => {
       resetNavigationRef.current();
 
-      // Preset selection
+      // Preset selection — preset suggestions are in selectables (type === "preset")
       if (value.startsWith("preset:")) {
-        const presetId = value.slice(7);
-        const preset = flatPresets.find((p) => p.id === presetId);
-        if (preset) {
-          togglePreset(preset);
+        const suggestion = selectables.find((s) => s.value === value);
+        if (suggestion?.type === "preset") {
+          togglePreset(suggestion.preset);
           setInputValue("");
           setIsOpen(false);
           inputCallbacksRef.current.focus();
@@ -185,9 +178,10 @@ export function useFilterState<T>({
         return;
       }
 
-      // Find the suggestion by value (search both selectables and hints)
+      // Find the field/value suggestion by value
       const suggestion = selectables.find((s) => s.value === value || s.label === value);
-      if (!suggestion || suggestion.type === "hint") return;
+      // Narrow to FieldSuggestion (not preset, not hint)
+      if (!suggestion || suggestion.type === "hint" || suggestion.type === "preset") return;
 
       if (suggestion.type === "field") {
         // Field prefix selected - fill input with prefix
@@ -202,7 +196,7 @@ export function useFilterState<T>({
         }
       }
     },
-    [selectables, flatPresets, addChip, togglePreset],
+    [selectables, addChip, togglePreset],
   );
 
   const handleInputChange = useCallback(
@@ -263,9 +257,8 @@ export function useFilterState<T>({
       parsedInput,
       selectables,
       fields,
-      presetValues,
     }),
-    [chips.length, focusedChipIndex, inputValue, isOpen, parsedInput, selectables, fields, presetValues],
+    [chips.length, focusedChipIndex, inputValue, isOpen, parsedInput, selectables, fields],
   );
 
   const keyboardActions = useMemo<FilterKeyboardActions>(
@@ -304,9 +297,6 @@ export function useFilterState<T>({
 
   // ========== Derived from keyboard + suggestions ==========
 
-  // Presets show when no field is committed: empty input OR browsing fields
-  const showPresets = isOpen && !!presets && presets.length > 0 && (inputValue === "" || navigationLevel === "field");
-
   // Only show async loading state when NOT in keyboard navigation
   const isFieldLoading = !!(
     navigationLevel === null &&
@@ -323,7 +313,8 @@ export function useFilterState<T>({
   const visibleHints = navigationLevel === "field" ? [] : hints;
 
   const hasContent = displaySelectables.length > 0 || visibleHints.length > 0;
-  const showDropdown = showPresets || (isOpen && hasContent) || !!validationError || isFieldLoading;
+  // Preset suggestions are in displaySelectables when input is empty, so hasContent covers them.
+  const showDropdown = (isOpen && hasContent) || !!validationError || isFieldLoading;
 
   // ========== Return ==========
 
@@ -333,7 +324,6 @@ export function useFilterState<T>({
     validationError,
     selectables: displaySelectables,
     hints: visibleHints,
-    showPresets,
     showDropdown,
     isFieldLoading,
     loadingFieldLabel,

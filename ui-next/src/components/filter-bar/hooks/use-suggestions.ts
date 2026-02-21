@@ -47,12 +47,10 @@ interface UseSuggestionsOptions<T> {
 interface UseSuggestionsReturn<T> {
   /** Parsed input with field and query */
   parsedInput: ParsedInput<T>;
-  /** Selectable suggestions (field prefixes and values) */
+  /** Selectable suggestions (presets, field prefixes, and values) */
   selectables: Suggestion<T>[];
   /** Non-interactive hint suggestions */
   hints: Suggestion<T>[];
-  /** Flattened preset items for navigation */
-  flatPresets: SearchPreset[];
 }
 
 /**
@@ -65,7 +63,7 @@ function isAlreadySelected(chips: SearchChip[], fieldId: string, value: string):
 /**
  * Generate suggestions based on current input.
  * Filters out values that already have corresponding chips.
- *
+ * Preset suggestions are included when input is empty (they disappear when typing).
  */
 function generateSuggestions<T>(
   inputValue: string,
@@ -73,11 +71,26 @@ function generateSuggestions<T>(
   fields: readonly SearchField<T>[],
   data: T[],
   chips: SearchChip[],
+  presets?: { label: string; items: SearchPreset[] }[],
 ): Suggestion<T>[] {
   const items: Suggestion<T>[] = [];
   const query = inputValue.toLowerCase().trim();
 
   if (!query) {
+    // Preset suggestions first (they vanish once the user starts typing)
+    if (presets) {
+      for (const group of presets) {
+        for (const preset of group.items) {
+          items.push({
+            type: "preset",
+            preset,
+            groupLabel: group.label,
+            value: `preset:${preset.id}`,
+            label: preset.id,
+          });
+        }
+      }
+    }
     // Show all field prefixes when input is empty
     for (const field of fields) {
       if (field.prefix) {
@@ -221,13 +234,13 @@ export function useSuggestions<T>({
   // Parse input for field prefix
   const parsedInput = useMemo(() => parseInput(inputValue, fields), [inputValue, fields]);
 
-  // Generate suggestions (excludes already-selected values)
+  // Generate suggestions (excludes already-selected values; presets included when input is empty)
   const allSuggestions = useMemo(
-    () => generateSuggestions(inputValue, parsedInput, fields, data, chips),
-    [inputValue, parsedInput, fields, data, chips],
+    () => generateSuggestions(inputValue, parsedInput, fields, data, chips, presets),
+    [inputValue, parsedInput, fields, data, chips, presets],
   );
 
-  // Partition into selectables and hints (single pass)
+  // Partition into selectables (presets + field/value) and hints (non-interactive)
   const { selectables, hints } = useMemo(() => {
     const sel: Suggestion<T>[] = [];
     const hin: Suggestion<T>[] = [];
@@ -241,16 +254,9 @@ export function useSuggestions<T>({
     return { selectables: sel, hints: hin };
   }, [allSuggestions]);
 
-  // Flatten presets for navigation
-  const flatPresets = useMemo(() => {
-    if (!presets || inputValue !== "") return [];
-    return presets.flatMap((group) => group.items);
-  }, [presets, inputValue]);
-
   return {
     parsedInput,
     selectables,
     hints,
-    flatPresets,
   };
 }

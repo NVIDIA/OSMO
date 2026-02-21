@@ -282,20 +282,37 @@ export interface FilterBarProps<T> {
 }
 
 /**
- * A suggestion item for the dropdown.
+ * A suggestion for a field prefix, field value, or hint.
  */
-export interface Suggestion<T> {
-  /** Type of suggestion */
+export interface FieldSuggestion<T> {
   type: "field" | "value" | "hint";
-  /** The field this suggestion is for */
   field: SearchField<T>;
-  /** The value to use when selected */
   value: string;
-  /** Display label */
   label: string;
-  /** Optional hint text */
   hint?: string;
 }
+
+/**
+ * A suggestion for a preset filter button.
+ * Preset suggestions appear in selectables when the input is empty,
+ * allowing them to participate in Tab-cycling and search filtering.
+ */
+export interface PresetSuggestion {
+  type: "preset";
+  preset: SearchPreset;
+  /** The group this preset belongs to (used for section heading) */
+  groupLabel: string;
+  /** cmdk value (e.g. "preset:status-failed") */
+  value: string;
+  /** Searchable label (currently preset.id; add SearchPreset.label for richer matching) */
+  label: string;
+}
+
+/**
+ * A suggestion item for the dropdown.
+ * Either a field/value/hint suggestion or a preset suggestion.
+ */
+export type Suggestion<T> = FieldSuggestion<T> | PresetSuggestion;
 
 /**
  * Parsed input result.
