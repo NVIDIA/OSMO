@@ -246,6 +246,7 @@
   font-size: 0.75rem;
   line-height: 1rem;
   color: var(--muted-foreground);
+  flex-shrink: 0;
 }
 
 .fb-footer-kbd {
@@ -295,6 +296,22 @@
 /* =============================================================================
    Virtualized Suggestions Container
    ============================================================================= */
+
+/* cmdk wraps CommandList children in div[cmdk-list-sizer] — thread flex-1
+   through it so the height constraint from .fb-dropdown reaches the scroll container. */
+.fb-dropdown [cmdk-list-sizer] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Fixed-height sections must not shrink when the flex layout constrains height. */
+.fb-preset-group,
+.fb-section-border,
+.fb-loading {
+  flex-shrink: 0;
+}
 
 /* cmdk renders [cmdk-group] > [cmdk-group-items] — thread flex-1 through so
    .fb-suggestions-scroll can fill the remaining CommandList height. */

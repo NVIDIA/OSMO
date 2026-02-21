@@ -38,7 +38,7 @@ import { memo, useRef, useMemo, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import type { SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
+import type { FieldSuggestion, PresetSuggestion, SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -64,13 +64,13 @@ interface FilterBarDropdownProps<T> {
   showDropdown: boolean;
   /** Current validation error message */
   validationError: string | null;
-  /** Whether to show preset buttons */
-  showPresets: boolean;
-  /** Preset groups to display */
-  presets?: { label: string; items: SearchPreset[] }[];
   /** Non-interactive hint items */
   hints: Suggestion<T>[];
-  /** Selectable suggestion items (field prefixes + values) */
+  /**
+   * Selectable suggestion items — includes preset suggestions (type === "preset")
+   * at the front when input is empty, followed by field/value suggestions.
+   * The dropdown splits them internally for section rendering.
+   */
   selectables: Suggestion<T>[];
   /** Called when a suggestion or preset is selected */
   onSelect: (value: string) => void;
@@ -93,8 +93,6 @@ interface FilterBarDropdownProps<T> {
 function FilterBarDropdownInner<T>({
   showDropdown,
   validationError,
-  showPresets,
-  presets,
   hints,
   selectables,
   onSelect,
@@ -105,6 +103,33 @@ function FilterBarDropdownInner<T>({
   highlightedSuggestionValue,
 }: FilterBarDropdownProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Split selectables: presets render in their own section, field/value suggestions below.
+  const { presetGroups, fieldSelectables } = useMemo(() => {
+    const presetSuggestions: PresetSuggestion[] = [];
+    const fieldItems: FieldSuggestion<T>[] = [];
+    for (const s of selectables) {
+      if (s.type === "preset") {
+        presetSuggestions.push(s);
+      } else if (s.type !== "hint") {
+        fieldItems.push(s as FieldSuggestion<T>);
+      }
+    }
+    // Group preset suggestions by their groupLabel, preserving insertion order
+    const groupMap = new Map<string, PresetSuggestion[]>();
+    for (const s of presetSuggestions) {
+      const existing = groupMap.get(s.groupLabel);
+      if (existing) {
+        existing.push(s);
+      } else {
+        groupMap.set(s.groupLabel, [s]);
+      }
+    }
+    return {
+      presetGroups: Array.from(groupMap.entries()).map(([label, items]) => ({ label, items })),
+      fieldSelectables: fieldItems,
+    };
+  }, [selectables]);
 
   // Scroll the highlighted CommandItem into view (presets + non-virtualized suggestions).
   // For virtualized suggestions, VirtualizedSuggestions handles its own scrollToIndex.
@@ -143,10 +168,10 @@ function FilterBarDropdownInner<T>({
             overflow-hidden (not overflow-y-auto) means CommandList itself never scrolls;
             the inner .fb-suggestions-scroll is the sole scroll container. */}
         <CommandList className="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden">
-          {/* Presets (shown when input is empty) */}
-          {showPresets && (
+          {/* Presets — present in selectables when input is empty */}
+          {presetGroups.length > 0 && (
             <PresetsSection
-              presets={presets}
+              groups={presetGroups}
               onSelect={onSelect}
               isPresetActive={isPresetActive}
             />
@@ -160,9 +185,9 @@ function FilterBarDropdownInner<T>({
             <LoadingSection label={loadingFieldLabel} />
           ) : (
             /* Suggestions - virtualized when large */
-            selectables.length > 0 && (
+            fieldSelectables.length > 0 && (
               <SuggestionsSection
-                selectables={selectables}
+                selectables={fieldSelectables}
                 onSelect={onSelect}
                 highlightedSuggestionValue={highlightedSuggestionValue}
               />
@@ -185,30 +210,28 @@ function FilterBarDropdownInner<T>({
 // ---------------------------------------------------------------------------
 
 interface PresetsSectionProps {
-  presets?: { label: string; items: SearchPreset[] }[];
+  groups: { label: string; items: PresetSuggestion[] }[];
   onSelect: (value: string) => void;
   isPresetActive: (preset: SearchPreset) => boolean;
 }
 
-const PresetsSection = memo(function PresetsSection({ presets, onSelect, isPresetActive }: PresetsSectionProps) {
-  if (!presets) return null;
-
+const PresetsSection = memo(function PresetsSection({ groups, onSelect, isPresetActive }: PresetsSectionProps) {
   return (
     <>
-      {presets.map((group) => (
+      {groups.map((group) => (
         <CommandGroup
           key={group.label}
           heading={group.label}
           className="fb-preset-group"
         >
-          {group.items.map((preset) => (
+          {group.items.map((item) => (
             <CommandItem
-              key={preset.id}
-              value={`preset:${preset.id}`}
+              key={item.preset.id}
+              value={item.value}
               onSelect={onSelect}
               className="group w-auto bg-transparent p-0"
             >
-              {preset.render({ active: isPresetActive(preset), focused: false })}
+              {item.preset.render({ active: isPresetActive(item.preset), focused: false })}
             </CommandItem>
           ))}
         </CommandGroup>
@@ -230,7 +253,7 @@ function HintsSectionInner<T>({ hints }: HintsSectionProps<T>) {
     <div className="fb-section-border">
       {hints.map((hint, index) => (
         <div
-          key={`hint-${hint.field.id}-${index}`}
+          key={`hint-${hint.value}-${index}`}
           className="fb-dropdown-item fb-hint"
         >
           {hint.label}
@@ -268,7 +291,7 @@ const LoadingSection = memo(function LoadingSection({ label }: LoadingSectionPro
 // ---------------------------------------------------------------------------
 
 interface SuggestionsSectionProps<T> {
-  selectables: Suggestion<T>[];
+  selectables: FieldSuggestion<T>[];
   onSelect: (value: string) => void;
   highlightedSuggestionValue?: string;
 }
@@ -306,20 +329,22 @@ const SuggestionsSection = memo(SuggestionsSectionInner) as typeof SuggestionsSe
 // ---------------------------------------------------------------------------
 
 interface RegularSuggestionsProps<T> {
-  selectables: Suggestion<T>[];
+  selectables: FieldSuggestion<T>[];
   onSelect: (value: string) => void;
 }
 
 function RegularSuggestionsInner<T>({ selectables, onSelect }: RegularSuggestionsProps<T>) {
   return (
-    <CommandGroup className="fb-suggestions-group">
-      {selectables.map((suggestion, index) => (
-        <SuggestionItem
-          key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
-          suggestion={suggestion}
-          onSelect={onSelect}
-        />
-      ))}
+    <CommandGroup className="fb-suggestions-group flex min-h-0 flex-1 flex-col p-0">
+      <div className="fb-suggestions-scroll">
+        {selectables.map((suggestion, index) => (
+          <SuggestionItem
+            key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
+            suggestion={suggestion}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
     </CommandGroup>
   );
 }
@@ -331,7 +356,7 @@ const RegularSuggestions = memo(RegularSuggestionsInner) as typeof RegularSugges
 // ---------------------------------------------------------------------------
 
 interface VirtualizedSuggestionsProps<T> {
-  selectables: Suggestion<T>[];
+  selectables: FieldSuggestion<T>[];
   onSelect: (value: string) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   highlightedSuggestionValue?: string;
@@ -408,7 +433,7 @@ const VirtualizedSuggestions = memo(VirtualizedSuggestionsInner) as typeof Virtu
 // ---------------------------------------------------------------------------
 
 interface SuggestionItemProps<T> {
-  suggestion: Suggestion<T>;
+  suggestion: FieldSuggestion<T>;
   onSelect: (value: string) => void;
 }
 

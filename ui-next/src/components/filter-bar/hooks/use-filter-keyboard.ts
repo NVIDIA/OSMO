@@ -19,20 +19,17 @@
 /**
  * Keyboard handler hook for FilterBar.
  *
- * Owns hierarchical navigation state (Tab-cycling through field/value
- * levels) and dispatches keyboard events to handler functions.
- *
  * Navigation model:
- * - Tab cycles through a snapshot (cycleItems) of presets + suggestions
- * - Enter commits the current level (field→value, preset select, or chip)
+ * - Tab / ArrowDown / ArrowRight (at end of input) → navigate forward
+ * - Shift-Tab / ArrowUp / ArrowLeft (at start of input) → navigate backward
+ * - All directional keys share a single `navigate` path: enter mode → cycle → re-snapshot
+ * - Enter commits the current level (field→value, preset select, or chip creation)
  * - Escape goes back one level or closes the dropdown
- *
- * Non-navigation keys (arrows, backspace, delete) are pure functions.
- * Navigation keys (Tab, Enter, Escape) receive a NavCtx with internal state.
+ * - ArrowLeft / ArrowRight handle chip navigation first, then suggestion navigation at boundaries
  */
 
 import { useState, useCallback, useMemo } from "react";
-import type { ParsedInput, SearchField, Suggestion } from "@/components/filter-bar/lib/types";
+import type { FieldSuggestion, ParsedInput, SearchField, Suggestion } from "@/components/filter-bar/lib/types";
 
 // ---------------------------------------------------------------------------
 // External interfaces
@@ -45,11 +42,9 @@ export interface FilterKeyboardState<T> {
   inputValue: string;
   isOpen: boolean;
   parsedInput: ParsedInput<T>;
-  /** Live selectables (before any freezing) */
+  /** Live selectables (before any freezing) — includes preset suggestions when input is empty */
   selectables: Suggestion<T>[];
   fields: readonly SearchField<T>[];
-  /** Preset cmdk values (e.g. "preset:status-failed") for field-level cycling */
-  presetValues: string[];
 }
 
 /** Side-effect actions the keyboard handler may trigger in the parent */
@@ -87,37 +82,22 @@ export interface UseFilterKeyboardReturn<T> {
 // Internal types
 // ---------------------------------------------------------------------------
 
-/** A preset item in the Tab-cycling rotation */
-interface PresetCycleItem {
-  kind: "preset";
-  /** cmdk value (e.g., "preset:status-failed") */
+/**
+ * One item in the navigation cycle.
+ * Wraps any Suggestion<T> with an inputValue to fill when highlighted.
+ * Presets use inputValue="" (they don't modify the input).
+ */
+interface CycleItem<T> {
   value: string;
-}
-
-/** A suggestion item in the Tab-cycling rotation */
-interface SuggestionCycleItem<T> {
-  kind: "suggestion";
-  /** cmdk value for dropdown highlighting */
-  value: string;
-  /** Value to fill in the input */
   inputValue: string;
-  /** Original suggestion (used for dropdown display) */
   suggestion: Suggestion<T>;
 }
 
-/** An item in the Tab-cycling rotation (presets + suggestions) */
-type CycleItem<T> = PresetCycleItem | SuggestionCycleItem<T>;
-
-/**
- * Navigation state as discriminated union for type-safe state machine.
- * Ensures level + items + index are always consistent.
- */
 type NavigationState<T> =
   | { level: null }
   | { level: "field"; items: CycleItem<T>[]; highlightedIndex: number }
   | { level: "value"; items: CycleItem<T>[]; highlightedIndex: number };
 
-/** Bundled navigation context passed to handler functions */
 interface NavCtx<T> {
   state: NavigationState<T>;
   setState: (state: NavigationState<T>) => void;
@@ -132,52 +112,45 @@ export function useFilterKeyboard<T>(
   state: FilterKeyboardState<T>,
   actions: FilterKeyboardActions,
 ): UseFilterKeyboardReturn<T> {
-  // ========== Internal navigation state (discriminated union) ==========
   const [navState, setNavState] = useState<NavigationState<T>>({ level: null });
 
-  // ========== Derived ==========
-
-  // Display selectables: frozen suggestions from items during navigation, live otherwise
+  // During navigation: frozen cycle items drive the display.
+  // When items are [] (post level-transition), fall back to live selectables — the input
+  // was just updated so useSuggestions already has the right content ready.
   const displaySelectables = useMemo(() => {
-    if (navState.level === null) return state.selectables;
-    return navState.items.filter((c): c is SuggestionCycleItem<T> => c.kind === "suggestion").map((c) => c.suggestion);
+    if (navState.level === null || navState.items.length === 0) return state.selectables;
+    return navState.items.map((c) => c.suggestion);
   }, [navState, state.selectables]);
 
-  // Highlighted value from the cycle list (presets and suggestions share a .value field)
   const highlightedSuggestionValue =
     navState.level !== null && navState.highlightedIndex >= 0 && navState.highlightedIndex < navState.items.length
       ? navState.items[navState.highlightedIndex].value
       : undefined;
 
-  const resetNavigation = useCallback(() => {
-    setNavState({ level: null });
-  }, []);
-
-  // ========== Navigation context (memoized bundle for handlers) ==========
+  const resetNavigation = useCallback(() => setNavState({ level: null }), []);
 
   const nav = useMemo<NavCtx<T>>(
-    () => ({
-      state: navState,
-      setState: setNavState,
-      reset: resetNavigation,
-    }),
+    () => ({ state: navState, setState: setNavState, reset: resetNavigation }),
     [navState, resetNavigation],
   );
-
-  // ========== Main handler ==========
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       switch (e.key) {
-        case "ArrowLeft":
-          onArrowLeft(e, state, actions);
+        case "Tab":
+          navigate(e, e.shiftKey ? "backward" : "forward", state, nav, actions);
           break;
-        case "ArrowRight":
-          onArrowRight(e, state, actions);
+        case "ArrowDown":
+          navigate(e, "forward", state, nav, actions);
           break;
         case "ArrowUp":
-        case "ArrowDown":
-          onArrowVertical(e, nav, actions);
+          navigate(e, "backward", state, nav, actions);
+          break;
+        case "ArrowRight":
+          onArrowRight(e, state, nav, actions);
+          break;
+        case "ArrowLeft":
+          onArrowLeft(e, state, nav, actions);
           break;
         case "Backspace":
           onBackspace(e, state, actions);
@@ -191,59 +164,110 @@ export function useFilterKeyboard<T>(
         case "Enter":
           onEnter(e, state, actions, nav);
           break;
-        case "Tab":
-          onTab(e, state, actions, nav);
-          break;
       }
     },
     [state, actions, nav],
   );
 
-  return {
-    handleKeyDown,
-    highlightedSuggestionValue,
-    displaySelectables,
-    navigationLevel: navState.level,
-    resetNavigation,
-  };
+  return { handleKeyDown, highlightedSuggestionValue, displaySelectables, navigationLevel: navState.level, resetNavigation };
 }
 
 // ---------------------------------------------------------------------------
-// Non-navigation handlers (pure - no nav state needed)
+// Key handlers
 // ---------------------------------------------------------------------------
 
-function onArrowLeft<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, actions: FilterKeyboardActions): void {
-  const { focusedChipIndex, chipCount } = state;
+/**
+ * Unified directional navigation — called by Tab, ArrowDown, ArrowUp, and horizontal
+ * arrows when the cursor is at an input boundary.
+ *
+ * State machine:
+ *   not navigating + nothing to show  → return (Tab bubbles for browser focus management)
+ *   not navigating + items available  → enterNavigationMode (snapshot + highlight)
+ *   navigating    + items frozen      → advanceCycle
+ *   navigating    + items [] (post-transition) → re-snapshot, then highlight
+ */
+function navigate<T>(
+  e: React.KeyboardEvent,
+  direction: "forward" | "backward",
+  state: FilterKeyboardState<T>,
+  nav: NavCtx<T>,
+  actions: FilterKeyboardActions,
+): void {
+  if (nav.state.level === null && (!state.isOpen || state.selectables.length === 0)) return;
 
-  if (focusedChipIndex >= 0) {
-    e.preventDefault();
-    if (focusedChipIndex > 0) {
-      actions.focusChip(focusedChipIndex - 1);
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (nav.state.level !== null) {
+    if (nav.state.items.length === 0) {
+      enterNavigationMode(state, nav, actions, direction);
+    } else {
+      advanceCycle(direction, nav, actions);
     }
     return;
   }
 
-  if (chipCount > 0) {
-    const atStart = actions.getInputSelectionStart() === 0 && actions.getInputSelectionEnd() === 0;
-    if (atStart) {
-      e.preventDefault();
-      actions.focusChip(chipCount - 1);
-    }
-  }
+  enterNavigationMode(state, nav, actions, direction);
 }
 
-function onArrowRight<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, actions: FilterKeyboardActions): void {
+/**
+ * ArrowRight: chip navigation → then forward suggestion navigation at end of input.
+ * When a chip is focused, moves to the next chip (or returns to the input).
+ * When cursor is at end of input, delegates to navigate("forward").
+ */
+function onArrowRight<T>(
+  e: React.KeyboardEvent,
+  state: FilterKeyboardState<T>,
+  nav: NavCtx<T>,
+  actions: FilterKeyboardActions,
+): void {
   const { focusedChipIndex, chipCount } = state;
 
-  if (focusedChipIndex < 0) return;
+  if (focusedChipIndex >= 0) {
+    e.preventDefault();
+    if (focusedChipIndex < chipCount - 1) {
+      actions.focusChip(focusedChipIndex + 1);
+    } else {
+      actions.unfocusChips();
+      actions.focusInput();
+    }
+    return;
+  }
 
-  e.preventDefault();
+  const atEnd =
+    actions.getInputSelectionStart() === state.inputValue.length &&
+    actions.getInputSelectionEnd() === state.inputValue.length;
+  if (atEnd) navigate(e, "forward", state, nav, actions);
+}
 
-  if (focusedChipIndex < chipCount - 1) {
-    actions.focusChip(focusedChipIndex + 1);
+/**
+ * ArrowLeft: chip navigation → then backward suggestion navigation at start of input.
+ * When a chip is focused, moves to the previous chip.
+ * When cursor is at start of input and chips exist, focuses the last chip.
+ * When cursor is at start and no chips, delegates to navigate("backward").
+ */
+function onArrowLeft<T>(
+  e: React.KeyboardEvent,
+  state: FilterKeyboardState<T>,
+  nav: NavCtx<T>,
+  actions: FilterKeyboardActions,
+): void {
+  const { focusedChipIndex, chipCount } = state;
+
+  if (focusedChipIndex >= 0) {
+    e.preventDefault();
+    if (focusedChipIndex > 0) actions.focusChip(focusedChipIndex - 1);
+    return;
+  }
+
+  const atStart = actions.getInputSelectionStart() === 0 && actions.getInputSelectionEnd() === 0;
+  if (!atStart) return;
+
+  if (chipCount > 0) {
+    e.preventDefault();
+    actions.focusChip(chipCount - 1);
   } else {
-    actions.unfocusChips();
-    actions.focusInput();
+    navigate(e, "backward", state, nav, actions);
   }
 }
 
@@ -264,7 +288,6 @@ function onBackspace<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, a
 
 function onDelete<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, actions: FilterKeyboardActions): void {
   const { focusedChipIndex, chipCount } = state;
-
   if (focusedChipIndex < 0) return;
 
   e.preventDefault();
@@ -273,17 +296,12 @@ function onDelete<T>(e: React.KeyboardEvent, state: FilterKeyboardState<T>, acti
   actions.focusChip(nextIndex);
 }
 
-// ---------------------------------------------------------------------------
-// Navigation handlers (use NavCtx for hierarchical Tab/Enter/Escape)
-// ---------------------------------------------------------------------------
-
 function onEscape<T>(
   e: React.KeyboardEvent,
   state: FilterKeyboardState<T>,
   actions: FilterKeyboardActions,
   nav: NavCtx<T>,
 ): void {
-  // Go back from value level → field level (transition to field level with no items/index - will be re-snapshotted on next Tab)
   if (nav.state.level === "value") {
     e.preventDefault();
     e.stopPropagation();
@@ -292,7 +310,6 @@ function onEscape<T>(
     return;
   }
 
-  // Go back from field level → exit navigation
   if (nav.state.level === "field") {
     e.preventDefault();
     e.stopPropagation();
@@ -301,7 +318,6 @@ function onEscape<T>(
     return;
   }
 
-  // Close dropdown
   if (state.isOpen) {
     e.preventDefault();
     e.stopPropagation();
@@ -309,7 +325,6 @@ function onEscape<T>(
     return;
   }
 
-  // Blur input
   actions.blurInput();
 }
 
@@ -321,36 +336,30 @@ function onEnter<T>(
 ): void {
   const { parsedInput, isOpen, inputValue } = state;
 
-  // Dropdown closed → open it
   if (!isOpen) {
     e.preventDefault();
     actions.openDropdown();
     return;
   }
 
-  // Navigation: commit current level
   if (nav.state.level !== null) {
     e.preventDefault();
     e.stopPropagation();
 
-    // Field level → commit selected item
     if (nav.state.level === "field" && nav.state.highlightedIndex >= 0) {
       const current = nav.state.items[nav.state.highlightedIndex];
       if (!current) return;
 
-      if (current.kind === "preset") {
-        // Preset: select it (handleSelect deals with "preset:" prefix)
-        actions.selectSuggestion(current.value);
+      if (current.suggestion.type === "preset") {
+        actions.selectSuggestion(current.suggestion.value);
         return;
       }
 
-      // Field: transition to value level (with empty items - will be re-snapshotted on next Tab)
       actions.fillInput(current.inputValue);
       nav.setState({ level: "value", items: [], highlightedIndex: -1 });
       return;
     }
 
-    // Value level → create chip
     if (nav.state.level === "value" && nav.state.highlightedIndex >= 0) {
       if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
         if (actions.addChipFromParsedInput()) {
@@ -364,7 +373,6 @@ function onEnter<T>(
     return;
   }
 
-  // Manual: field:value → create chip
   if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
     e.preventDefault();
     e.stopPropagation();
@@ -375,7 +383,6 @@ function onEnter<T>(
     return;
   }
 
-  // Prefix without value (e.g., "platform:")
   if (parsedInput.hasPrefix && parsedInput.field && !parsedInput.query.trim()) {
     e.preventDefault();
     e.stopPropagation();
@@ -383,7 +390,6 @@ function onEnter<T>(
     return;
   }
 
-  // Plain text → text search chip
   if (inputValue.trim()) {
     e.preventDefault();
     e.stopPropagation();
@@ -393,61 +399,10 @@ function onEnter<T>(
   }
 }
 
-function onTab<T>(
-  e: React.KeyboardEvent,
-  state: FilterKeyboardState<T>,
-  actions: FilterKeyboardActions,
-  nav: NavCtx<T>,
-): void {
-  const { selectables, isOpen, presetValues } = state;
-
-  // No suggestions/presets and not navigating → let browser handle Tab
-  if (nav.state.level === null && selectables.length === 0 && presetValues.length === 0) return;
-
-  // Already navigating → cycle through items (or re-snapshot if empty after level transition)
-  if (nav.state.level !== null) {
-    e.preventDefault();
-    if (nav.state.items.length > 0) {
-      advanceCycle(e.shiftKey ? "backward" : "forward", nav, actions);
-    } else {
-      // Cycle list empty after level transition (Enter field→value or Escape value→field).
-      // Re-snapshot current live selectables to resume cycling.
-      enterNavigationMode(state, nav, actions);
-    }
-    return;
-  }
-
-  // Single-match autocomplete (only when user has typed something)
-  const hasInput = !!state.inputValue.trim();
-  if (hasInput) {
-    const valueItems = selectables.filter((s) => s.type === "value");
-    if (valueItems.length === 1) {
-      e.preventDefault();
-      actions.selectSuggestion(valueItems[0].value);
-      return;
-    }
-    if (selectables.length === 1 && selectables[0].type === "field") {
-      e.preventDefault();
-      actions.fillInput(selectables[0].value);
-      return;
-    }
-  }
-
-  // Multiple cycleable items + dropdown open → enter navigation mode
-  // At field level, presets count as cycleable items alongside field suggestions
-  const presetCount = !state.parsedInput.hasPrefix ? presetValues.length : 0;
-  const cycleCount = presetCount + selectables.length;
-  if (cycleCount > 1 && isOpen) {
-    e.preventDefault();
-    enterNavigationMode(state, nav, actions);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Navigation cycling (shared by Tab and Arrow keys)
+// Navigation primitives
 // ---------------------------------------------------------------------------
 
-/** Advance the cycle index in the given direction and fill the input accordingly */
 function advanceCycle<T>(direction: "forward" | "backward", nav: NavCtx<T>, actions: FilterKeyboardActions): void {
   if (nav.state.level === null || nav.state.items.length === 0) return;
 
@@ -458,65 +413,56 @@ function advanceCycle<T>(direction: "forward" | "backward", nav: NavCtx<T>, acti
         ? nav.state.items.length - 1
         : nav.state.highlightedIndex - 1;
 
-  // Update state with new index
   nav.setState({ ...nav.state, highlightedIndex: nextIdx });
 
   const item = nav.state.items[nextIdx];
-  if (item) {
-    actions.fillInput(item.kind === "preset" ? "" : item.inputValue);
-  }
+  if (item) actions.fillInput(item.inputValue);
 }
 
-/** ArrowUp/ArrowDown: during navigation, cycle through the same list as Tab */
-function onArrowVertical<T>(e: React.KeyboardEvent, nav: NavCtx<T>, actions: FilterKeyboardActions): void {
-  // Not navigating → let cmdk handle arrow navigation
-  if (nav.state.level === null) return;
-
-  e.preventDefault();
-  e.stopPropagation();
-  advanceCycle(e.key === "ArrowDown" ? "forward" : "backward", nav, actions);
-}
-
-/** Build a cycle list for field-level cycling (presets first, then field suggestions) */
-function buildFieldCycleItems<T>(presetValues: string[], selectables: Suggestion<T>[]): CycleItem<T>[] {
-  const presets: CycleItem<T>[] = presetValues.map((v) => ({ kind: "preset", value: v }));
-  const fields: CycleItem<T>[] = selectables.map((s) => ({
-    kind: "suggestion",
-    value: s.value,
-    inputValue: s.value,
-    suggestion: s,
-  }));
-  return [...presets, ...fields];
-}
-
-/** Build a cycle list for value-level cycling */
-function buildValueCycleItems<T>(selectables: Suggestion<T>[]): CycleItem<T>[] {
+function buildFieldCycleItems<T>(selectables: Suggestion<T>[]): CycleItem<T>[] {
   return selectables.map((s) => ({
-    kind: "suggestion",
     value: s.value,
-    inputValue: s.field?.prefix ? `${s.field.prefix}${s.value}` : s.value,
+    inputValue: s.type === "preset" ? "" : s.value,
     suggestion: s,
   }));
 }
 
-/** Enter navigation mode: snapshot current suggestions into a cycle list and highlight the first item */
-function enterNavigationMode<T>(state: FilterKeyboardState<T>, nav: NavCtx<T>, actions: FilterKeyboardActions): void {
-  const { selectables, parsedInput, presetValues } = state;
+function buildValueCycleItems<T>(selectables: Suggestion<T>[]): CycleItem<T>[] {
+  return selectables
+    .filter((s): s is FieldSuggestion<T> => s.type !== "preset")
+    .map((s) => ({
+      value: s.value,
+      inputValue: s.field.prefix ? `${s.field.prefix}${s.value}` : s.value,
+      suggestion: s,
+    }));
+}
+
+/**
+ * Snapshot current selectables into a cycle list and highlight the starting item.
+ * direction="forward" → index 0; direction="backward" → last index (wrap-around feel).
+ */
+function enterNavigationMode<T>(
+  state: FilterKeyboardState<T>,
+  nav: NavCtx<T>,
+  actions: FilterKeyboardActions,
+  direction: "forward" | "backward" = "forward",
+): void {
+  const { selectables, parsedInput } = state;
   const hasFields = selectables.some((s) => s.type === "field");
   const hasValues = selectables.some((s) => s.type === "value");
-  const hasPresets = presetValues.length > 0;
+  const hasPresets = selectables.some((s) => s.type === "preset");
 
   if ((hasFields || hasPresets) && !parsedInput.hasPrefix) {
-    // Field level: cycle through presets + field prefixes
-    const items = buildFieldCycleItems(presetValues, selectables);
-    nav.setState({ level: "field", items, highlightedIndex: 0 });
-    const first = items[0];
-    if (first) actions.fillInput(first.kind === "preset" ? "" : first.inputValue);
+    const items = buildFieldCycleItems(selectables);
+    const startIdx = direction === "forward" ? 0 : items.length - 1;
+    nav.setState({ level: "field", items, highlightedIndex: startIdx });
+    const first = items[startIdx];
+    if (first) actions.fillInput(first.inputValue);
   } else if (hasValues && parsedInput.hasPrefix) {
-    // Value level: cycle through values
     const items = buildValueCycleItems(selectables);
-    nav.setState({ level: "value", items, highlightedIndex: 0 });
-    const first = items[0];
-    if (first?.kind === "suggestion") actions.fillInput(first.inputValue);
+    const startIdx = direction === "forward" ? 0 : items.length - 1;
+    nav.setState({ level: "value", items, highlightedIndex: startIdx });
+    const first = items[startIdx];
+    if (first) actions.fillInput(first.inputValue);
   }
 }
