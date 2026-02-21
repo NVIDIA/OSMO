@@ -115,10 +115,12 @@ export const PanelHeader = memo(function PanelHeader({
             <>
               {subtitle && <span className="text-gray-400 dark:text-zinc-600">·</span>}
               <button
+                type="button"
                 onClick={expandable.onToggle}
                 className="text-gray-500 transition-colors hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-300"
                 aria-expanded={expandable.isExpanded}
                 aria-controls="panel-header-expandable"
+                aria-label={expandable.isExpanded ? collapseLabel : expandLabel}
               >
                 {expandable.isExpanded ? collapseLabel : expandLabel}
               </button>
@@ -173,6 +175,7 @@ export const PanelBackButton = memo(function PanelBackButton({
   return (
     <>
       <button
+        type="button"
         onClick={onClick}
         className="-ml-1 flex shrink-0 items-center gap-1 rounded-md py-1 pr-2 pl-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         aria-label={ariaLabel ?? `Back to ${label}`}
@@ -181,7 +184,12 @@ export const PanelBackButton = memo(function PanelBackButton({
           className="size-4"
           aria-hidden="true"
         />
-        <span className="text-sm">{label}</span>
+        <span
+          className="text-sm"
+          aria-hidden="true"
+        >
+          {label}
+        </span>
       </button>
       <span className="shrink-0 text-gray-400 dark:text-zinc-600">/</span>
     </>
@@ -209,11 +217,15 @@ export const PanelCollapseButton = memo(function PanelCollapseButton({
 }: PanelCollapseButtonProps) {
   return (
     <button
+      type="button"
       onClick={onCollapse}
       className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
       aria-label={ariaLabel}
     >
-      <ArrowRightToLine className="size-4" />
+      <ArrowRightToLine
+        className="size-4"
+        aria-hidden="true"
+      />
     </button>
   );
 });

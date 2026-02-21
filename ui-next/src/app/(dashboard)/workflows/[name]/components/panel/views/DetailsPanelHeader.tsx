@@ -310,8 +310,15 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
       {menuContent && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
-              <MoreVertical className="size-4" />
+            <button
+              type="button"
+              aria-label="More options"
+              className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              <MoreVertical
+                className="size-4"
+                aria-hidden="true"
+              />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent

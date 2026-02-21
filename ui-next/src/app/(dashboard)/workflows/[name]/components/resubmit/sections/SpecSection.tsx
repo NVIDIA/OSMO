@@ -104,25 +104,13 @@ export const SpecSection = memo(function SpecSection({
         Modified
       </span>
       <Button
-        asChild
         variant="ghost"
         size="sm"
         className="h-7 px-2 text-xs"
         aria-label="Revert to original specification"
+        onClick={handleRevert}
       >
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={handleRevert}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleRevert();
-            }
-          }}
-        >
-          Revert
-        </span>
+        Revert
       </Button>
     </div>
   ) : undefined;

@@ -98,11 +98,15 @@ export interface PanelCloseButtonProps {
 export const PanelCloseButton = memo(function PanelCloseButton({ onClose }: PanelCloseButtonProps) {
   return (
     <button
+      type="button"
       onClick={onClose}
       className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
       aria-label="Close panel"
     >
-      <X className="size-4" />
+      <X
+        className="size-4"
+        aria-hidden="true"
+      />
     </button>
   );
 });

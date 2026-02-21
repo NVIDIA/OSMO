@@ -603,9 +603,13 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
                       variant="ghost"
                       size="icon"
                       onClick={handleZoomIn}
+                      aria-label="Zoom in"
                       className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
                     >
-                      <ZoomIn className="size-3" />
+                      <ZoomIn
+                        className="size-3"
+                        aria-hidden="true"
+                      />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
@@ -618,9 +622,13 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
                       variant="ghost"
                       size="icon"
                       onClick={handleZoomOut}
+                      aria-label="Zoom out"
                       className="bg-background/80 hover:bg-accent/80 size-6 backdrop-blur-sm"
                     >
-                      <ZoomOut className="size-3" />
+                      <ZoomOut
+                        className="size-3"
+                        aria-hidden="true"
+                      />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">

@@ -57,6 +57,7 @@ export const CopyButton = memo(function CopyButton({ value, label, className }: 
 
   return (
     <button
+      type="button"
       onClick={() => copy(value)}
       className={cn(
         "text-muted-foreground hover:bg-accent hover:text-foreground ml-1.5 shrink-0 rounded p-0.5 transition-colors",
@@ -65,7 +66,17 @@ export const CopyButton = memo(function CopyButton({ value, label, className }: 
       aria-label={`Copy ${label}`}
       title={copied ? "Copied!" : `Copy ${label}`}
     >
-      {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+      {copied ? (
+        <Check
+          className="size-3 text-emerald-500"
+          aria-hidden="true"
+        />
+      ) : (
+        <Copy
+          className="size-3"
+          aria-hidden="true"
+        />
+      )}
     </button>
   );
 });
@@ -103,13 +114,20 @@ export function CopyableValue({ value, className }: CopyableValueProps) {
           : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700",
         className,
       )}
+      aria-label={copied ? "Copied!" : `Copy ${value}`}
       title={copied ? "Copied!" : `Copy ${value}`}
     >
-      <span>{value}</span>
+      <span aria-hidden="true">{value}</span>
       {copied ? (
-        <Check className="size-3.5 shrink-0" />
+        <Check
+          className="size-3.5 shrink-0"
+          aria-hidden="true"
+        />
       ) : (
-        <Copy className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+        <Copy
+          className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+          aria-hidden="true"
+        />
       )}
     </button>
   );
@@ -149,13 +167,25 @@ export function CopyableBlock({ value, className }: CopyableBlockProps) {
           : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
         className,
       )}
+      aria-label={copied ? "Copied!" : `Copy ${value}`}
       title={copied ? "Copied!" : `Copy ${value}`}
     >
-      <span className="break-all">{value}</span>
+      <span
+        className="break-all"
+        aria-hidden="true"
+      >
+        {value}
+      </span>
       {copied ? (
-        <Check className="mt-0.5 size-3 shrink-0" />
+        <Check
+          className="mt-0.5 size-3 shrink-0"
+          aria-hidden="true"
+        />
       ) : (
-        <Copy className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+        <Copy
+          className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+          aria-hidden="true"
+        />
       )}
     </button>
   );
