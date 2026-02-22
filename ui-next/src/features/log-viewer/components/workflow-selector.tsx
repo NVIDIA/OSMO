@@ -9,7 +9,7 @@ import {
   getRecentWorkflows,
   clearRecentWorkflows,
   removeRecentWorkflow,
-} from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
+} from "@/features/log-viewer/lib/recent-workflows";
 
 interface WorkflowSelectorProps {
   error?: {

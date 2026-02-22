@@ -22,7 +22,7 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
 import type { WorkflowMetadata } from "@/components/log-viewer/components/log-viewer-container";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
-import { addRecentWorkflow } from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
+import { addRecentWorkflow } from "@/features/log-viewer/lib/recent-workflows";
 import { useWorkflow } from "@/lib/api/adapter/hooks";
 
 interface LogViewerPageContentProps {
