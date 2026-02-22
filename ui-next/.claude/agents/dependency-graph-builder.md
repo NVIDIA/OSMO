@@ -54,8 +54,7 @@ Glob: src/**/*.tsx
 ```
 
 Filter OUT:
-- `src/lib/api/generated.ts`
-- `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`
+- Any `*.generated.ts` or `*.generated.tsx` file
 
 **Do NOT filter out `src/mocks/`** — include it as a cluster named "mocks". MSW handlers
 and infrastructure providers in that directory follow the same naming conventions as
@@ -212,7 +211,7 @@ Cross-cluster violations:                         [count]
 ### Cross-Cluster Violations:
 Based on CLAUDE.md architectural rules, flag any edges that violate layer boundaries:
 - `src/app/(dashboard)/[feature-A]/` → `src/app/(dashboard)/[feature-B]/` (features must not import each other)
-- Any non-adapter file → `src/lib/api/generated.ts` (should go through adapter)
+- Any non-adapter file → any `*.generated.ts` file (should go through adapter)
 - `src/components/` → `src/app/` (direction violation)
 
 ### Append to Changelog:
@@ -263,5 +262,5 @@ STATUS: [DONE | CONTINUE]
 - **Append-only for changelog** — never remove entries
 - **Entry points are never dead code** — page.tsx, layout.tsx, etc. are always excluded from dead candidates
 - **Normalize import paths before recording** — resolve `@/` prefix to actual file paths
-- **Skip test files and generated files** — `*.test.ts`, `*.spec.ts`, `src/lib/api/generated.ts`
-- **Do NOT skip `src/mocks/`** — include it as the "mocks" cluster
+- **Include test and mock files** — `*.test.ts`, `*.spec.ts`, and `src/mocks/` are first-class nodes; mark test files with a `[test]` tag and mock files with a `[mock]` tag so dead-code analysis can distinguish test-only or mock-only importers from zero importers
+- **Skip only generated files** — any `*.generated.ts` or `*.generated.tsx` file

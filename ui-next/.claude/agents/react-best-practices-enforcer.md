@@ -277,7 +277,7 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint (tests run in final gate)
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files or mock files**
+- **Test and mock files follow the same React best-practice standards**
 - **Never touch `src/app/**/page.tsx` or `layout.tsx`** — those belong to Next.js domain
 - **All imports must use absolute `@/` paths**
 - **All new files need NVIDIA copyright header**

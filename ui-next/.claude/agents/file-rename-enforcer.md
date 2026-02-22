@@ -95,8 +95,7 @@ For each file in the working cluster:
 **Skip these filenames unconditionally:**
 - `page`, `layout`, `error`, `loading`, `not-found`, `template`, `default`, `global-error`
 - Any file under `src/components/shadcn/`
-- Any `.test.tsx`, `.spec.tsx`, `.test.ts`, `.spec.ts` file
-- `src/lib/api/generated.ts`
+- Any `*.generated.ts` or `*.generated.tsx` file
 - Config-like names: `config.ts`, `utils.ts`, `types.ts`, `logger.ts`, `query-client.ts`
 - Any file already in `file-rename-skipped.md`
 
@@ -264,9 +263,8 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files or generated files** (`*.test.tsx`, `*.spec.tsx`, `src/lib/api/generated.ts`)
-- **Files in `src/mocks/` ARE renameable** — apply the same PascalCase→kebab-case rule to them.
-  The only exception is MSW infrastructure files already in kebab-case (e.g. `server.ts`, `handlers.ts`).
+- **Never touch generated files** (`*.generated.ts`, `*.generated.tsx`)
+- **Test and mock files follow kebab-case too** — `*.test.ts(x)`, `*.spec.ts(x)`, and files in `src/mocks/` are renamed using the same PascalCase/camelCase→kebab-case rule as production files
 - **Never rename Next.js reserved files** (page.tsx, layout.tsx, etc.)
 - **Never touch `src/components/shadcn/`**
 - **Never move files between directories** — only rename in-place (moves = folder-structure domain)

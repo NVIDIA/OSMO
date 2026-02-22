@@ -382,7 +382,7 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files or mock files**
+- **Test and mock files follow the same Next.js pattern standards**
 - **Scope: App Router files + all cluster files** — audit RSC boundaries in pages, hydration anti-patterns across all cluster tsx files
 - **All imports must use absolute `@/` paths**
 - **All new files need NVIDIA copyright header**

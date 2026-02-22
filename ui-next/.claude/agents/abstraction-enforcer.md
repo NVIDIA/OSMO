@@ -215,7 +215,7 @@ For each confirmed trivial wrapper in the A1 queue, execute the inline procedure
 - Never inline without live-confirming in_degree=1 immediately before deletion
 - Never inline if the file has ANY function body, type declaration, or logic (however small)
 - Never touch entry points (`page.tsx`, `layout.tsx`, `route.ts`, `error.tsx`, `loading.tsx`, etc.)
-- Never touch `src/lib/api/generated.ts` or `src/components/shadcn/`
+- Never touch `*.generated.ts` / `*.generated.tsx` files or `src/components/shadcn/`
 
 ---
 
@@ -311,7 +311,7 @@ Next run will start at: [next cluster path or "all clusters done"]
 - Never inline without live-confirming in_degree=1 immediately before deletion
 - Never inline if the file has ANY function body, type declaration, or logic
 - Never touch entry points (`page.tsx`, `layout.tsx`, `route.ts`, `error.tsx`, `loading.tsx`)
-- Never touch `src/lib/api/generated.ts` or `src/components/shadcn/`
+- Never touch `*.generated.ts` / `*.generated.tsx` files or `src/components/shadcn/`
 - Always update `dependency-graph.md` (INLINE entry) after each successful inline
 - Always restore and skip if type-check or lint fails after inline
 - Max 5 inlines per invocation

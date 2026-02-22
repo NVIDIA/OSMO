@@ -286,7 +286,7 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files or mock files**
+- **Test and mock files follow the same composition standards**
 - **Scope: src/components/**/*.tsx only** — never touch app router pages
 - **Skip components with >5 consumers** — add to skipped list instead
 - **All imports must use absolute `@/` paths**

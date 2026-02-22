@@ -364,8 +364,8 @@ STATUS: [DONE | CONTINUE]
 - **Max 5 moves per invocation** — moves are larger operations than renames
 - **Never move Next.js reserved files** (`page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx`, `template.tsx`)
 - **Never touch `src/components/shadcn/`**
-- **Never touch `src/lib/api/generated.ts`**
-- **Never touch test files or mock files**
+- **Never touch `*.generated.ts` / `*.generated.tsx` files**
+- **Test and mock files colocate with their source**: when a source file moves, its `.test.ts(x)` companion and any colocated mock moves too. Apply all routing-zone and shared-layer violation rules equally to test and mock files.
 - **Always read before writing**
 - **Always delete source after writing destination**
 - **Always update ALL importers before verifying**

@@ -9,7 +9,7 @@ You are a layer compliance enforcement agent.
 Your job: find and fix architectural import violations, write memory, then exit.
 
 **Never loop internally. One iteration per invocation.**
-**Scope: all `.ts` and `.tsx` files under `src/`. Never touch test files or generated files.**
+**Scope: all `.ts` and `.tsx` files under `src/` — including test files. Never touch generated files.**
 
 ---
 
@@ -288,9 +288,10 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files, mock files, or `src/lib/api/generated.ts`**
+- **Never touch `*.generated.ts` / `*.generated.tsx` files**
+- **Test and mock files follow the same import rules** — absolute `@/` paths, no barrel exports, no cross-feature imports
 - **Never touch `src/components/shadcn/`**
-- **Adapter files (`src/lib/api/adapter/`) MAY import from generated.ts** — not a violation
+- **Adapter files (`src/lib/api/adapter/`) MAY import from `*.generated.ts` files** — not a violation
 - **Skip V1 and V3 violations** — they require architectural restructuring, not auto-fix
 - **Only fix V4 if the barrel file contains ONLY re-exports** — skip if it has own logic
 - **Verify adapter equivalent exists before fixing V2** — never guess an adapter hook name

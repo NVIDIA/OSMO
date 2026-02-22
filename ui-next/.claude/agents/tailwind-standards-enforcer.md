@@ -329,7 +329,7 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files or mock files**
+- **Test and mock files follow the same Tailwind/CSS standards**
 - **Scope: CSS files and components with styling logic only** — never change app router page logic
 - **All imports must use absolute `@/` paths**
 - **All new files need NVIDIA copyright header**
