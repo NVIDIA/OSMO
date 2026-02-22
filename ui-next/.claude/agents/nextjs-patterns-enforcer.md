@@ -157,33 +157,129 @@ const cookieStore = cookies();  // sync — deprecated in Next.js 16
 const cookieStore = await cookies();
 ```
 
-### HIGH — Hydration Safety
+### HIGH — Hydration Safety (5 root causes)
 
-**N5: localStorage/window/document access outside useEffect**
+**N5: Direct Zustand store access for persisted preferences**
 ```typescript
-// ❌ BAD: SSR crash or hydration mismatch
-const value = localStorage.getItem('key');
+// ❌ BAD: server renders initial value, client reads localStorage → MISMATCH
+const displayMode = useSharedPreferences((s) => s.displayMode);
+const compactMode = useSharedPreferences((s) => s.compactMode);
+const sidebarOpen = useSharedPreferences((s) => s.sidebarOpen);
 
-// ✅ GOOD: use SSR-safe selectors from @/stores/shared-preferences-store
-// or guard with typeof window !== 'undefined'
+// ✅ GOOD: hydration-safe selectors guarantee consistent SSR + first render
+import { useDisplayMode, useCompactMode, useSidebarOpen } from "@/stores/shared-preferences-store";
+const displayMode = useDisplayMode();
 ```
 
-**N6: Non-deterministic values in render (Date.now, Math.random)**
-```typescript
-// ❌ BAD
-const [time] = useState(Date.now());  // server vs client mismatch
-
-// ✅ GOOD
-const [time, setTime] = useState<number | null>(null);
-useEffect(() => { setTime(Date.now()); }, []);
+**Detection:**
 ```
+Grep: pattern="useSharedPreferences\(\(s\) => s\.(displayMode|compactMode|sidebarOpen)" glob="[working-cluster-directory]/**/*.{ts,tsx}" output_mode="content"
+```
+
+---
+
+**N6: Locale-dependent formatting without explicit locale**
+```typescript
+// ❌ BAD: server locale (en-US) ≠ user browser locale (de-DE, ja-JP) → MISMATCH
+date.toLocaleString()
+number.toLocaleString()
+
+// ✅ GOOD: explicit locale for deterministic output
+date.toLocaleString("en-US")
+
+// ✅ BETTER: use SSR-safe formatters
+import { formatDateTimeFull } from "@/lib/format-date";
+formatDateTimeFull(date);
+```
+
+**Detection:**
+```
+Grep: pattern="\.toLocaleString\(\)" glob="[working-cluster-directory]/**/*.{ts,tsx}" output_mode="content"
+```
+Flag lines that don't pass an explicit locale string.
+
+---
+
+**N7: Non-deterministic values in render**
+```typescript
+// ❌ BAD: server renders one value, client renders another → MISMATCH
+const [mountTime] = useState(Date.now());
+const id = useMemo(() => Math.random(), []);
+const uid = useMemo(() => crypto.randomUUID(), []);
+
+// ✅ GOOD: initialize as null, set in useEffect (client-only)
+const [mountTime, setMountTime] = useState<number | null>(null);
+useEffect(() => { setMountTime(Date.now()); }, []);
+
+// ✅ GOOD for IDs: React's useId() is stable across server/client
+const id = useId();
+```
+
+**Detection:**
+```
+Grep: pattern="(Date\.now\(\)|Math\.random\(\)|crypto\.randomUUID\(\))" glob="[working-cluster-directory]/**/*.{ts,tsx}" output_mode="content"
+```
+Flag lines NOT inside `useEffect` or event handlers.
+
+---
+
+**N8: Browser APIs without SSR guards**
+```typescript
+// ❌ BAD: ReferenceError on server — window/document/navigator don't exist during SSR
+const hostname = window.location.hostname;
+document.title = "foo";
+const lang = navigator.language;
+
+// ✅ GOOD: typeof guard
+const hostname = typeof window !== "undefined" ? window.location.hostname : "localhost";
+
+// ✅ BETTER for components: useMounted hook
+import { useMounted } from "@/hooks/use-mounted";
+const mounted = useMounted();
+const hostname = mounted ? window.location.hostname : "localhost";
+```
+
+**Detection:**
+```
+Grep: pattern="(window\.|document\.|navigator\.)" glob="[working-cluster-directory]/**/*.{ts,tsx}" output_mode="content"
+```
+Flag lines that don't have `typeof window !== "undefined"` guard on the same or preceding line,
+and are not inside `useEffect`.
+
+---
+
+**N9: Radix/Popover components without useMounted guard**
+```typescript
+// ❌ BAD: Radix uses useId() internally — generates different IDs server vs client → MISMATCH
+return <DropdownMenu>...</DropdownMenu>;
+return <Dialog>...</Dialog>;
+return <Popover>...</Popover>;
+
+// ✅ GOOD: useMounted guard ensures consistent first render
+import { useMounted } from "@/hooks/use-mounted";
+const mounted = useMounted();
+if (!mounted) return <Button disabled>Loading</Button>;
+return <DropdownMenu>...</DropdownMenu>;
+```
+
+**Detection:**
+```
+Grep: pattern="<(DropdownMenu|Dialog|Popover|Sheet|Select|Tooltip|HoverCard|NavigationMenu)[^/]" glob="[working-cluster-directory]/**/*.{ts,tsx}" output_mode="files_with_matches"
+```
+For each file found, read it and check if `useMounted` is used. Flag files that render Radix
+components without a `useMounted` guard (i.e., no `if (!mounted) return ...` before the Radix JSX).
+
+**Exception:** Files that already use Radix via a shadcn wrapper that internally handles hydration
+may be safe — verify by reading the component.
+
+---
 
 ### MEDIUM — Data Patterns
 
-**N7: Missing Suspense boundaries around async server components**
-**N8: Missing `loading.tsx` for routes with slow data**
-**N9: Using `fetch` directly in page instead of adapter hooks**
-**N10: generateMetadata not using typed Metadata return**
+**N10: Missing Suspense boundaries around async server components**
+**N11: Missing `loading.tsx` for routes with slow data**
+**N12: Using `fetch` directly in page instead of adapter hooks**
+**N13: generateMetadata not using typed Metadata return**
 
 ---
 
@@ -287,7 +383,7 @@ STATUS: [DONE | CONTINUE]
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
 - **Never touch test files or mock files**
-- **Scope: App Router files only** — never touch `src/components/**` internals
+- **Scope: App Router files + all cluster files** — audit RSC boundaries in pages, hydration anti-patterns across all cluster tsx files
 - **All imports must use absolute `@/` paths**
 - **All new files need NVIDIA copyright header**
 - **Skip known-good files** unless in recent git diff

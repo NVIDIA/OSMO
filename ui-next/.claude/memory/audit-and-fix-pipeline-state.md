@@ -1,20 +1,23 @@
 # Audit-and-Fix Pipeline State
-Last Updated: 2026-02-21 (reordered: rename/structure first, quality second)
+Last Updated: 2026-02-21 (reordered: dependency-graph before dead-code)
 
 ## Domain Status
-| Domain                | Status   | Last Run   | Iterations |
-|-----------------------|----------|------------|------------|
-| file-rename           | PENDING  | —          | 0          |
-| folder-structure      | PENDING  | —          | 0          |
-| error-boundaries      | DONE     | 2026-02-21 | 3          |
-| react-best-practices  | DONE     | 2026-02-21 | 1          |
-| nextjs-patterns       | DONE     | 2026-02-21 | 1          |
-| composition-patterns  | DONE     | 2026-02-21 | 1          |
-| tailwind-standards    | DONE     | 2026-02-21 | 1          |
-| design-guidelines     | DONE     | 2026-02-21 | 1          |
+| Domain                  | Status   | Last Run   | Iterations |
+|-------------------------|----------|------------|------------|
+| dependency-graph        | PENDING  | —          | 0          |
+| dead-code               | PENDING  | —          | 0          |
+| file-rename             | PENDING  | —          | 0          |
+| folder-structure        | PENDING  | —          | 0          |
+| layer-compliance        | PENDING  | —          | 0          |
+| error-boundaries        | DONE     | 2026-02-21 | 3          |
+| react-best-practices    | DONE     | 2026-02-21 | 1          |
+| nextjs-patterns         | DONE     | 2026-02-21 | 1          |
+| composition-patterns    | DONE     | 2026-02-21 | 1          |
+| tailwind-standards      | DONE     | 2026-02-21 | 1          |
+| design-guidelines       | DONE     | 2026-02-21 | 1          |
 
 ## Active Domain
-file-rename
+dependency-graph
 
 ## Final Verification
 PENDING

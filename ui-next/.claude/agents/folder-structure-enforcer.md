@@ -204,7 +204,7 @@ If either fails:
 
 ---
 
-## Step 6 — Update Dependency Graph
+## Step 7 — Update Dependency Graph
 
 Load the `dependency-graph` skill. For each move completed this invocation,
 apply the MOVE update protocol from the skill:

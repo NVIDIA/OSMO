@@ -23,19 +23,22 @@ If the file does not exist, create it with all domains PENDING:
 Last Updated: [today's date]
 
 ## Domain Status
-| Domain                | Status   | Last Run   | Iterations |
-|-----------------------|----------|------------|------------|
-| error-boundaries      | PENDING  | —          | 0          |
-| react-best-practices  | PENDING  | —          | 0          |
-| nextjs-patterns       | PENDING  | —          | 0          |
-| composition-patterns  | PENDING  | —          | 0          |
-| tailwind-standards    | PENDING  | —          | 0          |
-| design-guidelines     | PENDING  | —          | 0          |
-| file-rename           | PENDING  | —          | 0          |
-| folder-structure      | PENDING  | —          | 0          |
+| Domain                  | Status   | Last Run   | Iterations |
+|-------------------------|----------|------------|------------|
+| dependency-graph        | PENDING  | —          | 0          |
+| dead-code               | PENDING  | —          | 0          |
+| file-rename             | PENDING  | —          | 0          |
+| folder-structure        | PENDING  | —          | 0          |
+| layer-compliance        | PENDING  | —          | 0          |
+| error-boundaries        | PENDING  | —          | 0          |
+| react-best-practices    | PENDING  | —          | 0          |
+| nextjs-patterns         | PENDING  | —          | 0          |
+| composition-patterns    | PENDING  | —          | 0          |
+| tailwind-standards      | PENDING  | —          | 0          |
+| design-guidelines       | PENDING  | —          | 0          |
 
 ## Active Domain
-error-boundaries
+dependency-graph
 
 ## Final Verification
 PENDING
@@ -58,18 +61,27 @@ Parse the pipeline state table:
 
 Map the active domain to its enforcer agent:
 
-| Domain                | Agent                              |
-|-----------------------|------------------------------------|
-| file-rename           | file-rename-enforcer               |
-| folder-structure      | folder-structure-enforcer          |
-| error-boundaries      | error-boundary-enforcer            |
-| react-best-practices  | react-best-practices-enforcer      |
-| nextjs-patterns       | nextjs-patterns-enforcer           |
-| composition-patterns  | composition-patterns-enforcer      |
-| tailwind-standards    | tailwind-standards-enforcer        |
-| design-guidelines     | design-guidelines-enforcer         |
+| Domain                  | Agent                              |
+|-------------------------|------------------------------------|
+| dead-code               | dead-code-enforcer                 |
+| dependency-graph        | dependency-graph-builder           |
+| file-rename             | file-rename-enforcer               |
+| folder-structure        | folder-structure-enforcer          |
+| layer-compliance        | layer-compliance-enforcer          |
+| error-boundaries        | error-boundary-enforcer            |
+| react-best-practices    | react-best-practices-enforcer      |
+| nextjs-patterns         | nextjs-patterns-enforcer           |
+| composition-patterns    | composition-patterns-enforcer      |
+| tailwind-standards      | tailwind-standards-enforcer        |
+| design-guidelines       | design-guidelines-enforcer         |
 
-Launch the enforcer via Task tool (foreground — wait for its exit report):
+**Special case:** `dependency-graph` domain uses agent `dependency-graph-builder` (not `dependency-graph-enforcer`). Its prompt also differs:
+```
+subagent_type: dependency-graph-builder
+prompt: Run your next directory batch. Read .claude/memory/dependency-graph.md for current status, select the next batch of up to 5 unprocessed directories, extract import edges, identify notable nodes, update the graph memory file, and exit with STATUS: DONE or STATUS: CONTINUE.
+```
+
+For all other domains, launch via Task tool (foreground — wait for its exit report):
 ```
 subagent_type: [domain]-enforcer
 prompt: Run your audit→fix→verify cycle. Read your memory files and the cluster-traversal skill first. Select one working cluster (using the cluster-traversal procedure), audit and fix violations within that cluster only, run pnpm type-check && pnpm lint, write memory files (including cluster progress), then exit with STATUS: DONE or STATUS: CONTINUE.
@@ -92,7 +104,7 @@ Update `.claude/memory/audit-and-fix-pipeline-state.md`:
 
 ---
 
-## Step 4 — Final Gate (only when all 8 domains are DONE)
+## Step 4 — Final Gate (only when all 11 domains are DONE)
 
 Run:
 ```bash
@@ -115,7 +127,7 @@ Reproduce the domain table exactly as it appears in the state file:
 [domain table verbatim from audit-and-fix-pipeline-state.md]
 
 Active domain: [name] — STATUS: [DONE|CONTINUE]
-Overall: [N/8 domains complete]
+Overall: [N/11 domains complete]
 
 [Enforcer summary: N fixes applied, N violations remain]
 ```
@@ -124,7 +136,7 @@ If PIPELINE_COMPLETE:
 ```
 ## Pipeline Status: COMPLETE ✅
 
-All 8 domains clean. Final verification: pnpm type-check ✅ pnpm lint ✅ pnpm test ✅ pnpm format ✅
+All 11 domains clean. Final verification: pnpm type-check ✅ pnpm lint ✅ pnpm test ✅ pnpm format ✅
 ```
 
 ---
