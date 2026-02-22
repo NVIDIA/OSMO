@@ -41,7 +41,7 @@ import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { DatasetsDataTable } from "@/app/(dashboard)/datasets/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/app/(dashboard)/datasets/components/toolbar/datasets-toolbar";
-import { DatasetPanel } from "@/app/(dashboard)/datasets/components/panel/DatasetPanel";
+import { DatasetPanel } from "@/app/(dashboard)/datasets/components/panel/dataset-panel";
 import { useDatasetsData } from "@/app/(dashboard)/datasets/hooks/use-datasets-data";
 import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
 import { useUser } from "@/lib/auth/user-context";

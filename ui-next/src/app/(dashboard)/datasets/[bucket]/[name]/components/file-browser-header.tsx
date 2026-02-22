@@ -24,8 +24,8 @@
 "use client";
 
 import { memo } from "react";
-import { FileBrowserBreadcrumb } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserBreadcrumb";
-import { VersionSwitcher } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/VersionSwitcher";
+import { FileBrowserBreadcrumb } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-breadcrumb";
+import { VersionSwitcher } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/version-switcher";
 import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface FileBrowserHeaderProps {

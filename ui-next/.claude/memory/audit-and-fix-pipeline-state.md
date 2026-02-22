@@ -6,7 +6,7 @@ Last Updated: 2026-02-21
 |-------------------------|----------|------------|------------|
 | dependency-graph        | DONE     | 2026-02-21 | 1          |
 | dead-code               | DONE     | 2026-02-21 | 18         |
-| file-rename             | PENDING  | —          | 0          |
+| file-rename             | DONE     | 2026-02-21 | 21         |
 | folder-structure        | PENDING  | —          | 0          |
 | layer-compliance        | PENDING  | —          | 0          |
 | abstraction             | PENDING  | —          | 0          |
@@ -18,7 +18,7 @@ Last Updated: 2026-02-21
 | design-guidelines       | DONE     | 2026-02-21 | 1          |
 
 ## Active Domain
-file-rename
+folder-structure
 
 ## Final Verification
 PENDING

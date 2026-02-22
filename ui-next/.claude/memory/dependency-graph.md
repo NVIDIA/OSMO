@@ -121,7 +121,7 @@ Internal edges: ~20
 External edges: ~55
 Cohesion: 27% -> LOW
 Imports from clusters: [components, lib, hooks, stores, shadcn]
-Imported by clusters: [lib (resources-shim -> computeAggregates -- VIOLATION)]
+Imported by clusters: [lib (resources-shim -> compute-aggregates -- VIOLATION)]
 
 ### workflows
 Directory: src/app/(dashboard)/workflows
@@ -202,8 +202,8 @@ Notes: page-context (13 importers) and breadcrumb-origin-context are key bridge 
 ### code-viewer
 Directory: src/components/code-viewer
 Files:
-  - src/components/code-viewer/CodeMirror.tsx
-  - src/components/code-viewer/CodeViewerSkeleton.tsx
+  - src/components/code-viewer/code-mirror.tsx
+  - src/components/code-viewer/code-viewer-skeleton.tsx
   - src/components/code-viewer/lib/** (3 files)
   - src/components/code-viewer/types.ts
 Internal edges: 5
@@ -269,12 +269,12 @@ Imported by clusters: [all feature modules]
 ### event-viewer
 Directory: src/components/event-viewer
 Files:
-  - src/components/event-viewer/EventDetailsPanel.tsx
-  - src/components/event-viewer/EventViewerContainer.tsx
-  - src/components/event-viewer/EventViewerContext.tsx
-  - src/components/event-viewer/EventViewerTable.tsx
-  - src/components/event-viewer/LifecycleProgressBar.tsx
-  - src/components/event-viewer/TaskRow.tsx
+  - src/components/event-viewer/event-details-panel.tsx
+  - src/components/event-viewer/event-viewer-container.tsx
+  - src/components/event-viewer/event-viewer-context.tsx
+  - src/components/event-viewer/event-viewer-table.tsx
+  - src/components/event-viewer/lifecycle-progress-bar.tsx
+  - src/components/event-viewer/task-row.tsx
 Internal edges: 5
 External edges: 12
 Cohesion: 29% -> LOW
@@ -286,9 +286,9 @@ Notes: VIOLATION -- imports from src/app/(dashboard)/workflows/[name]/lib/ (even
 Directory: src/components/filter-bar
 Files:
   - src/components/filter-bar/filter-bar.tsx
-  - src/components/filter-bar/FilterBarChip.tsx
-  - src/components/filter-bar/FilterBarDropdown.tsx
-  - src/components/filter-bar/FilterBarInput.tsx
+  - src/components/filter-bar/filter-bar-chip.tsx
+  - src/components/filter-bar/filter-bar-dropdown.tsx
+  - src/components/filter-bar/filter-bar-input.tsx
   - src/components/filter-bar/hooks/** (4 files)
   - src/components/filter-bar/lib/** (3 files)
 Internal edges: 15
@@ -343,9 +343,9 @@ Notes: panel-header-controls (18 importers) is a bridge. hotkeys.ts and use-resi
 ### refresh
 Directory: src/components/refresh
 Files:
-  - src/components/refresh/RefreshControl.tsx
+  - src/components/refresh/refresh-control.tsx
   - src/components/refresh/types.ts
-  - src/components/refresh/VerticalRefreshControl.tsx
+  - src/components/refresh/vertical-refresh-control.tsx
 Internal edges: 3
 External edges: 6
 Cohesion: 33% -> LOW
@@ -365,7 +365,7 @@ Notes: Intentionally left in place -- external library components.
 ### shell
 Directory: src/components/shell
 Files:
-  - src/components/shell/components/** (6 files)
+  - src/components/shell/components/** (6 files, all kebab-case)
   - src/components/shell/hooks/use-shell.ts
   - src/components/shell/lib/** (5 files)
 Internal edges: ~15
@@ -438,7 +438,7 @@ Imports from clusters: [lib, stores, components]
 Imported by clusters: [all features]
 Notes: adapter/types (51 importers) and adapter/hooks (16 importers) are major bridge nodes.
 VIOLATION: datasets-shim imports from app/(dashboard)/datasets/lib/date-filter-utils.
-VIOLATION: resources-shim imports from app/(dashboard)/resources/lib/computeAggregates.
+VIOLATION: resources-shim imports from app/(dashboard)/resources/lib/compute-aggregates.
 
 ### lib-api-other
 Directory: src/lib/api (non-adapter)
@@ -616,7 +616,7 @@ Notes: VIOLATION: workflow-detail-panel-store imports from app/(dashboard)/workf
 - src/lib/api/adapter/datasets-shim.ts -> src/app/(dashboard)/datasets/lib/date-filter-utils.ts
   Violation: adapter (lib layer) imports from feature module (app layer)
 
-- src/lib/api/adapter/resources-shim.ts -> src/app/(dashboard)/resources/lib/computeAggregates.ts
+- src/lib/api/adapter/resources-shim.ts -> src/app/(dashboard)/resources/lib/compute-aggregates.ts
   Violation: adapter (lib layer) imports from feature module (app layer)
 
 - src/stores/workflow-detail-panel-store.ts -> src/app/(dashboard)/workflows/[name]/lib/panel-constants.ts
@@ -632,3 +632,54 @@ Notes: VIOLATION: workflow-detail-panel-store imports from app/(dashboard)/workf
 > Append-only. Every agent that mutates the graph writes one line per operation.
 
 2026-02-21 BUILD  Initial graph -- 491 nodes, ~1630 edges, 27 clusters identified, 6 violations found
+2026-02-21 RENAME src/app/(dashboard)/profile/components/SelectableList.tsx -> src/app/(dashboard)/profile/components/selectable-list.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/SectionErrorCard.tsx -> src/app/(dashboard)/profile/components/section-error-card.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/skeletons/NotificationsSkeleton.tsx -> src/app/(dashboard)/profile/components/skeletons/notifications-skeleton.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/skeletons/SelectionSkeleton.tsx -> src/app/(dashboard)/profile/components/skeletons/selection-skeleton.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/skeletons/CredentialsSkeleton.tsx -> src/app/(dashboard)/profile/components/skeletons/credentials-skeleton.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/ProfileNavigation.tsx -> src/app/(dashboard)/profile/components/profile-navigation.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/UserInfoSection.tsx -> src/app/(dashboard)/profile/components/user-info-section.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/ProfilePageTitle.tsx -> src/app/(dashboard)/profile/components/profile-page-title.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/SelectionCard.tsx -> src/app/(dashboard)/profile/components/selection-card.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/NotificationsSection.tsx -> src/app/(dashboard)/profile/components/notifications-section.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/BucketsSection.tsx -> src/app/(dashboard)/profile/components/buckets-section.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/PoolsSection.tsx -> src/app/(dashboard)/profile/components/pools-section.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/CredentialsSection.tsx -> src/app/(dashboard)/profile/components/credentials-section.tsx
+2026-02-21 RENAME src/app/(dashboard)/profile/components/ProfileLayout.tsx -> src/app/(dashboard)/profile/components/profile-layout.tsx
+2026-02-21 RENAME src/app/(dashboard)/resources/lib/computeAggregates.ts -> src/app/(dashboard)/resources/lib/compute-aggregates.ts
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext.tsx -> src/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/shared/GroupBadge.tsx -> src/app/(dashboard)/workflows/[name]/components/shared/group-badge.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/shared/LeadBadge.tsx -> src/app/(dashboard)/workflows/[name]/components/shared/lead-badge.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/panel/task/TaskShell.tsx -> src/app/(dashboard)/workflows/[name]/components/panel/task/task-shell.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/resubmit/ResubmitPanelHeader.tsx -> src/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-header.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/resubmit/sections/PoolStatusBadge.tsx -> src/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-status-badge.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/resubmit/hooks/useResubmitMutation.ts -> src/app/(dashboard)/workflows/[name]/components/resubmit/hooks/use-resubmit-mutation.ts
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/SnapZoneIndicator.tsx -> src/app/(dashboard)/workflows/[name]/components/snap-zone-indicator.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/WorkflowTableContent.tsx -> src/app/(dashboard)/workflows/[name]/components/workflow-table-content.tsx
+2026-02-21 RENAME src/app/(dashboard)/workflows/[name]/components/panel/group/GroupDetails.tsx -> src/app/(dashboard)/workflows/[name]/components/panel/group/group-details.tsx
+2026-02-21 RENAME src/components/code-viewer/CodeMirror.tsx -> src/components/code-viewer/code-mirror.tsx
+2026-02-21 RENAME src/components/code-viewer/CodeViewerSkeleton.tsx -> src/components/code-viewer/code-viewer-skeleton.tsx
+2026-02-21 RENAME src/components/event-viewer/EventDetailsPanel.tsx -> src/components/event-viewer/event-details-panel.tsx
+2026-02-21 RENAME src/components/event-viewer/EventViewerContainer.tsx -> src/components/event-viewer/event-viewer-container.tsx
+2026-02-21 RENAME src/components/event-viewer/EventViewerContext.tsx -> src/components/event-viewer/event-viewer-context.tsx
+2026-02-21 RENAME src/components/event-viewer/EventViewerTable.tsx -> src/components/event-viewer/event-viewer-table.tsx
+2026-02-21 RENAME src/components/event-viewer/LifecycleProgressBar.tsx -> src/components/event-viewer/lifecycle-progress-bar.tsx
+2026-02-21 RENAME src/components/event-viewer/TaskRow.tsx -> src/components/event-viewer/task-row.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimeRangePresets.tsx -> src/components/log-viewer/components/timeline/components/time-range-presets.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimeRangeHeader.tsx -> src/components/log-viewer/components/timeline/components/time-range-header.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimelineAxis.tsx -> src/components/log-viewer/components/timeline/components/timeline-axis.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimelineSelectionOverlay.tsx -> src/components/log-viewer/components/timeline/components/timeline-selection-overlay.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimelineStartMarker.tsx -> src/components/log-viewer/components/timeline/components/timeline-start-marker.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimelineEndMarker.tsx -> src/components/log-viewer/components/timeline/components/timeline-end-marker.tsx
+2026-02-21 RENAME src/components/log-viewer/components/timeline/components/TimelineContainer.tsx -> src/components/log-viewer/components/timeline/components/timeline-container.tsx
+2026-02-21 RENAME src/components/log-viewer/components/ScrollPinControl.tsx -> src/components/log-viewer/components/scroll-pin-control.tsx
+2026-02-21 RENAME src/components/log-viewer/components/Footer.tsx -> src/components/log-viewer/components/footer.tsx
+2026-02-21 RENAME src/components/log-viewer/components/LogViewerSkeleton.tsx -> src/components/log-viewer/components/log-viewer-skeleton.tsx
+2026-02-21 RENAME src/components/refresh/RefreshControl.tsx -> src/components/refresh/refresh-control.tsx
+2026-02-21 RENAME src/components/refresh/VerticalRefreshControl.tsx -> src/components/refresh/vertical-refresh-control.tsx
+2026-02-21 RENAME src/components/shell/components/ShellConnecting.tsx -> src/components/shell/components/shell-connecting.tsx
+2026-02-21 RENAME src/components/shell/components/ShellSearch.tsx -> src/components/shell/components/shell-search.tsx
+2026-02-21 RENAME src/components/shell/components/StatusDot.tsx -> src/components/shell/components/status-dot.tsx
+2026-02-21 RENAME src/components/shell/components/ShellSessionIcon.tsx -> src/components/shell/components/shell-session-icon.tsx
+2026-02-21 RENAME src/components/shell/components/ShellTerminalImpl.tsx -> src/components/shell/components/shell-terminal-impl.tsx
+2026-02-21 RENAME src/components/shell/components/ShellTerminal.tsx -> src/components/shell/components/shell-terminal.tsx

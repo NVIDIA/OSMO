@@ -185,7 +185,7 @@ const nextConfig: NextConfig = {
             "@/mocks/handlers": "@/mocks/handlers.production",
 
             // Client-side mock provider (eliminates faker, msw, server actions)
-            "@/mocks/MockProvider": "@/mocks/MockProvider.production",
+            "@/mocks/mock-provider": "@/mocks/mock-provider.production",
 
             // Server-side MSW server (used in instrumentation.ts)
             "@/mocks/server": "@/mocks/server.production",

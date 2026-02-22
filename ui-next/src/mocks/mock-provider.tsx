@@ -22,7 +22,7 @@
  * Provides `window.__mockConfig` for adjusting mock data volumes from the
  * browser console. Changes are sent to the server via Server Actions.
  *
- * Production safety: Aliased to MockProvider.production.tsx via next.config.ts.
+ * Production safety: Aliased to mock-provider.production.tsx via next.config.ts.
  *
  * Console API:
  *   __mockConfig.setWorkflowTotal(100000)

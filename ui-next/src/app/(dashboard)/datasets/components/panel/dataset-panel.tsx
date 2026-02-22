@@ -27,8 +27,8 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
 import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
 import { useDataset } from "@/lib/api/adapter/datasets-hooks";
-import { DatasetPanelDetails } from "@/app/(dashboard)/datasets/components/panel/DatasetPanelDetails";
-import { DatasetPanelVersions } from "@/app/(dashboard)/datasets/components/panel/DatasetPanelVersions";
+import { DatasetPanelDetails } from "@/app/(dashboard)/datasets/components/panel/dataset-panel-details";
+import { DatasetPanelVersions } from "@/app/(dashboard)/datasets/components/panel/dataset-panel-versions";
 
 // =============================================================================
 // Types

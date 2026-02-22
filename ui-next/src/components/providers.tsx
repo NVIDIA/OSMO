@@ -27,10 +27,10 @@ import { ConfigProvider } from "@/contexts/config-context";
 import { ServiceProvider } from "@/contexts/service-context";
 import { RuntimeEnvProvider, type RuntimeEnv } from "@/contexts/runtime-env-context";
 import { UserProvider } from "@/lib/auth/user-context";
-import { MockProvider } from "@/mocks/MockProvider";
+import { MockProvider } from "@/mocks/mock-provider";
 import { createQueryClient } from "@/lib/query-client";
-import { QueryDevtools } from "@/components/QueryDevtools";
-import { DevAuthInit } from "@/components/DevAuthInit";
+import { QueryDevtools } from "@/components/query-devtools";
+import { DevAuthInit } from "@/components/dev-auth-init";
 
 // =============================================================================
 // Provider Props
